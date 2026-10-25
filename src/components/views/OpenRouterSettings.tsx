@@ -2,10 +2,41 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 
 type Capability = 'text' | 'image' | 'video' | 'audio';
-type ModelOption = { id: string; name?: string; description?: string };
+type ModelOption = { id: string; name?: string; description?: string; contextLength?: number; pricing?: { prompt?: string; completion?: string } };
+type SelectionMode = 'hybrid' | 'manual';
+type RecommendationStrategy = 'balanced' | 'cost' | 'context';
 
 const KEY_STORAGE = 'vyra_openrouter_key_session';
 const MODEL_STORAGE = 'vyra_openrouter_models_v1';
+const MODE_STORAGE = 'vyra_model_selection_mode_v1';
+const STRATEGY_STORAGE = 'vyra_model_recommendation_strategy_v1';
+
+function modelCost(model: ModelOption): number | null {
+  const prompt = Number(model.pricing?.prompt);
+  const completion = Number(model.pricing?.completion);
+  if (!Number.isFinite(prompt) || !Number.isFinite(completion) || prompt < 0 || completion < 0) return null;
+  return prompt + completion;
+}
+
+function recommendModel(list: ModelOption[], strategy: RecommendationStrategy): ModelOption | undefined {
+  if (!list.length) return undefined;
+  const withCost = list.filter((model) => modelCost(model) !== null);
+  if (strategy === 'cost' && withCost.length) return [...withCost].sort((a, b) => (modelCost(a) ?? Infinity) - (modelCost(b) ?? Infinity))[0];
+  if (strategy === 'context') return [...list].sort((a, b) => (b.contextLength ?? 0) - (a.contextLength ?? 0))[0];
+  if (withCost.length) {
+    const maxCost = Math.max(...withCost.map((model) => modelCost(model) ?? 0), Number.EPSILON);
+    const maxContext = Math.max(...list.map((model) => model.contextLength ?? 0), 1);
+    return [...list].sort((a, b) => {
+      const score = (model: ModelOption) => {
+        const costScore = modelCost(model) === null ? 0.5 : 1 - (modelCost(model)! / maxCost);
+        const contextScore = (model.contextLength ?? 0) / maxContext;
+        return costScore * 0.6 + contextScore * 0.4;
+      };
+      return score(b) - score(a);
+    })[0];
+  }
+  return [...list].sort((a, b) => (b.contextLength ?? 0) - (a.contextLength ?? 0))[0];
+}
 
 const capabilities: { id: Capability; label: string; description: string }[] = [
   { id: 'text', label: 'Text & Chat', description: 'Scripts, ideas, titles and planning' },
@@ -26,6 +57,8 @@ export const OpenRouterSettings: React.FC = () => {
   const [activeCapability, setActiveCapability] = useState<Capability>('text');
   const [models, setModels] = useState<Partial<Record<Capability, ModelOption[]>>>({});
   const [selectedModels, setSelectedModels] = useState<Partial<Record<Capability, string>>>({});
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('hybrid');
+  const [recommendationStrategy, setRecommendationStrategy] = useState<RecommendationStrategy>('balanced');
   const [message, setMessage] = useState('Enter an OpenRouter key to discover models.');
   const [error, setError] = useState('');
 
@@ -34,10 +67,24 @@ export const OpenRouterSettings: React.FC = () => {
       setApiKey(sessionStorage.getItem(KEY_STORAGE) || '');
       const savedModels = sessionStorage.getItem(MODEL_STORAGE);
       if (savedModels) setSelectedModels(JSON.parse(savedModels) as Partial<Record<Capability, string>>);
+      const savedMode = sessionStorage.getItem(MODE_STORAGE);
+      if (savedMode === 'hybrid' || savedMode === 'manual') setSelectionMode(savedMode);
+      const savedStrategy = sessionStorage.getItem(STRATEGY_STORAGE);
+      if (savedStrategy === 'balanced' || savedStrategy === 'cost' || savedStrategy === 'context') setRecommendationStrategy(savedStrategy);
     } catch {
       // Private browsing modes may disable session storage. The key remains usable in component state.
     }
   }, []);
+
+  const saveSelectionMode = (mode: SelectionMode) => {
+    setSelectionMode(mode);
+    try { sessionStorage.setItem(MODE_STORAGE, mode); } catch { /* optional preference persistence */ }
+  };
+
+  const saveRecommendationStrategy = (strategy: RecommendationStrategy) => {
+    setRecommendationStrategy(strategy);
+    try { sessionStorage.setItem(STRATEGY_STORAGE, strategy); } catch { /* optional preference persistence */ }
+  };
 
   const saveSelectedModels = (next: Partial<Record<Capability, string>>) => {
     setSelectedModels(next);
@@ -90,9 +137,18 @@ export const OpenRouterSettings: React.FC = () => {
       if (list.length === 0) setMessage('No models were returned for this capability. It may not be supported by the current account or API.');
       else {
         const next = { ...selectedModels };
-        if (!next[capability] || !list.some((model) => model.id === next[capability])) next[capability] = list[0].id;
+        const currentStillAvailable = Boolean(next[capability] && list.some((model) => model.id === next[capability]));
+        if (selectionMode === 'hybrid') {
+          const recommendation = recommendModel(list, recommendationStrategy);
+          if (recommendation) next[capability] = recommendation.id;
+        } else if (!currentStillAvailable) {
+          next[capability] = list[0].id;
+        }
         saveSelectedModels(next);
-        setMessage(list.length + ' ' + capability + ' models loaded from OpenRouter.');
+        const chosen = list.find((model) => model.id === next[capability]);
+        setMessage(selectionMode === 'hybrid' && chosen
+          ? 'Loaded ' + list.length + ' models. Hybrid recommended ' + (chosen.name || chosen.id) + ' using available pricing/context metadata; you can override it.'
+          : list.length + ' ' + capability + ' models loaded from OpenRouter.');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load models.');
@@ -144,6 +200,32 @@ export const OpenRouterSettings: React.FC = () => {
         {error ? <CircleAlert className="w-4 h-4 text-red-400 mt-0.5 shrink-0" /> : connected ? <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" /> : <Sparkles className="w-4 h-4 text-[#55F4FF] mt-0.5 shrink-0" />}
         <p className={'text-xs ' + (error ? 'text-red-300' : 'text-slate-300 light:text-slate-700')}>{error || message}</p>
       </div>
+
+      <section className="rounded-xl border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-[#55F4FF]" />
+          <h3 className="text-sm font-semibold text-white light:text-slate-900">Hybrid Model Selector</h3>
+        </div>
+        <p className="text-[11px] text-slate-400 light:text-slate-600">Hybrid mode recommends a model from the available catalog metadata. You can always override the selection. Recommendations are heuristics, not benchmarked quality rankings or guaranteed cost estimates.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label htmlFor="vyra-selection-mode" className="text-xs font-semibold text-slate-300 light:text-slate-700">Selection mode</label>
+            <select id="vyra-selection-mode" value={selectionMode} onChange={(e) => saveSelectionMode(e.target.value as SelectionMode)} className={inputClass}>
+              <option value="hybrid">Hybrid — recommend automatically</option>
+              <option value="manual">Manual — I choose every model</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="vyra-recommendation-strategy" className="text-xs font-semibold text-slate-300 light:text-slate-700">Recommendation priority</label>
+            <select id="vyra-recommendation-strategy" value={recommendationStrategy} onChange={(e) => saveRecommendationStrategy(e.target.value as RecommendationStrategy)} className={inputClass} disabled={selectionMode === 'manual'}>
+              <option value="balanced">Balanced — cost + context</option>
+              <option value="cost">Cost-aware — lowest listed token pricing</option>
+              <option value="context">Context — largest listed context window</option>
+            </select>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-500">These preferences are saved for this browser session. Changing priority affects recommendations the next time you discover/refresh a model list.</p>
+      </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {capabilities.map((capability) => {
