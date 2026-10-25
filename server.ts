@@ -21,16 +21,27 @@ function hasGeminiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
 
-app.get('/api/health', (_req: Request, res: Response) => {
+// This is process-local and resets on restart. A configured key alone is not proof
+// that Gemini is reachable or that the key/model/quota are valid.
+let lastGeminiRequestSucceeded = false;
+
+function getGeminiStatus() {
   const configured = hasGeminiKey();
-  res.status(200).json({
-    status: configured ? 'connected' : 'preview_mode',
+  const verified = configured && lastGeminiRequestSucceeded;
+  return {
+    status: verified ? 'connected' : 'preview_mode',
     geminiConfigured: configured,
     modelName: MODEL_NAME,
-    message: configured
-      ? 'Server is running and Gemini credentials are configured.'
-      : 'Server is running, but GEMINI_API_KEY is not configured.',
-  });
+    message: !configured
+      ? 'Server is running, but GEMINI_API_KEY is not configured.'
+      : verified
+        ? 'A Gemini request succeeded during this server process.'
+        : 'Gemini credentials are configured, but a successful live request has not yet been verified.',
+  };
+}
+
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.status(200).json(getGeminiStatus());
 });
 
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
@@ -42,12 +53,7 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
 
   // Status probes must never invoke the model or incur API usage.
   if (body?.ping === true) {
-    const configured = hasGeminiKey();
-    return res.status(200).json({
-      status: configured ? 'connected' : 'preview_mode',
-      geminiConfigured: configured,
-      modelName: MODEL_NAME,
-    });
+    return res.status(200).json(getGeminiStatus());
   }
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -107,11 +113,14 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
     const text = generated.text?.trim();
 
     if (!text) {
+      lastGeminiRequestSucceeded = false;
       return res.status(502).json({ error: 'Gemini returned an empty response. Please try again.' });
     }
 
+    lastGeminiRequestSucceeded = true;
     return res.status(200).json({ text, modelName: MODEL_NAME, provider: 'gemini' });
   } catch (error) {
+    lastGeminiRequestSucceeded = false;
     // Keep provider diagnostics server-side; never return credentials or raw SDK errors.
     const errorName =
       error && typeof error === 'object' && 'name' in error
