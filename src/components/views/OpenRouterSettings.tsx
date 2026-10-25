@@ -328,13 +328,3 @@ export const OpenRouterSettings: React.FC = () => {
     </section>
   );
 };
- + imageCost.toFixed(4) : 'Generation cost was not returned by the provider.'}</p>
-              <a href={generatedImage} download="vyra-generated-image.png" className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-lg text-xs font-semibold bg-white/10 light:bg-slate-100 text-white light:text-slate-800 hover:bg-white/15">Download image</a>
-            </div>
-          </div>
-        )}
-      </section>
-      <p className="text-[11px] text-slate-500">Image generation is connected to OpenRouter's dedicated Image API. Generated images currently stay in this page's memory and are not yet saved to a persistent Media Library. Video/Audio generation and MP4 assembly are separate upcoming work.</p>
-    </section>
-  );
-};
