@@ -162,7 +162,21 @@ export const MediaLibraryView: React.FC = () => {
                   <div className="p-3 space-y-2">
                     <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{image.title}</h3>
                     <p className="text-[10px] text-slate-500 break-all">{image.model}</p>
-                    <p className="text-[10px] text-slate-500">{new Date(image.createdAt).toLocaleString()} · {image.costUsd === null ? 'Cost not reported' : '
+                    <p className="text-[10px] text-slate-500">{new Date(image.createdAt).toLocaleString()} · {image.costUsd === null ? 'Cost not reported' : '$' + image.costUsd.toFixed(4)}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <a href={image.dataUrl} download={'vyra-' + image.id + '.png'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download</a>
+                      <button type="button" onClick={() => void handleDeleteSavedImage(image)} aria-label={'Delete ' + image.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Assets Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filteredAssets.map((asset) => (
           <div
             key={asset.id}
