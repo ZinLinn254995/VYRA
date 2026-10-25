@@ -44,6 +44,40 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json(getGeminiStatus());
 });
 
+// Basic per-process abuse guard for the paid API endpoint. For a multi-instance
+// production deployment, replace this with a shared store-backed limiter.
+const chatRequestWindows = new Map<string, { count: number; resetAt: number }>();
+const CHAT_WINDOW_MS = 60_000;
+const CHAT_MAX_REQUESTS = 20;
+
+app.use('/api/ai/chat', (req: Request, res: Response, next: NextFunction) => {
+  if (req.method !== 'POST') return next();
+
+  const now = Date.now();
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  let window = chatRequestWindows.get(key);
+
+  if (!window || window.resetAt <= now) {
+    window = { count: 0, resetAt: now + CHAT_WINDOW_MS };
+    chatRequestWindows.set(key, window);
+  }
+
+  window.count += 1;
+  if (window.count > CHAT_MAX_REQUESTS) {
+    res.setHeader('Retry-After', String(Math.ceil((window.resetAt - now) / 1000)));
+    return res.status(429).json({ error: 'Too many AI requests. Please wait a moment and try again.' });
+  }
+
+  // Keep this simple in-memory guard bounded when many distinct IPs hit the service.
+  if (chatRequestWindows.size > 5000) {
+    for (const [entryKey, entry] of chatRequestWindows) {
+      if (entry.resetAt <= now) chatRequestWindows.delete(entryKey);
+    }
+  }
+
+  return next();
+});
+
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
   const body = req.body as {
     ping?: boolean;
@@ -71,7 +105,7 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
       (item.role === 'user' || item.role === 'assistant') &&
       typeof item.content === 'string'
     )
-    .slice(-24)
+    .slice(-12)
     .map((item) => ({
       role: item.role as 'user' | 'assistant',
       content: String(item.content).slice(0, 12000),
@@ -79,6 +113,11 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
 
   if (!messages.some((message) => message.role === 'user' && message.content.trim())) {
     return res.status(400).json({ error: 'Send at least one non-empty user message.' });
+  }
+
+  const totalMessageChars = messages.reduce((total, message) => total + message.content.length, 0);
+  if (totalMessageChars > 30_000) {
+    return res.status(413).json({ error: 'Chat history is too long. Start a new conversation or shorten the messages.' });
   }
 
   const contextText = body.context
