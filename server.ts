@@ -35,6 +35,80 @@ async function openRouterFetch(url: string, apiKey: string): Promise<globalThis.
   });
 }
 
+
+app.post('/api/providers/openrouter/chat', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+
+  const body = req.body as {
+    model?: string;
+    messages?: Array<{ role?: string; content?: string }>;
+  };
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  if (!model || model.length > 200) {
+    return res.status(400).json({ error: 'Discover and select a Text model in Settings before chatting.' });
+  }
+  const messages = Array.isArray(body.messages)
+    ? body.messages.filter((item) =>
+        item &&
+        (item.role === 'system' || item.role === 'user' || item.role === 'assistant') &&
+        typeof item.content === 'string'
+      ).slice(-12).map((item) => ({
+        role: item.role as 'system' | 'user' | 'assistant',
+        content: String(item.content).slice(0, 12000),
+      }))
+    : [];
+  if (!messages.some((item) => item.role === 'user' && item.content.trim())) {
+    return res.status(400).json({ error: 'Send at least one non-empty user message.' });
+  }
+  const totalChars = messages.reduce((sum, item) => sum + item.content.length, 0);
+  if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
+
+  const systemInstruction = 'You are VYRA, a creative assistant for planning educational and social video content. Help with original ideas, accurate scripts, hooks, outlines and storyboards. Do not claim to create media files, publish content, or execute workspace actions unless a connected tool confirms it. For factual topics, distinguish facts from uncertainty and do not invent sources or statistics. Respond clearly in the user’s language.';
+  const apiMessages = messages.some((item) => item.role === 'system')
+    ? messages
+    : [{ role: 'system' as const, content: systemInstruction }, ...messages];
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-OpenRouter-Title': 'VYRA',
+      },
+      body: JSON.stringify({ model, messages: apiMessages, temperature: 0.7 }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    const data = await upstream.json().catch(() => ({})) as {
+      choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
+    };
+    if (!upstream.ok) {
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
+        error: upstream.status === 401 || upstream.status === 403
+          ? 'OpenRouter rejected the key. Verify it in Settings.'
+          : upstream.status === 402
+            ? 'OpenRouter reports insufficient credits or a payment requirement.'
+            : upstream.status === 429
+              ? 'OpenRouter rate limit reached. Wait a moment and retry.'
+              : 'The selected Text model request failed. Try another model or retry.',
+      });
+    }
+    const rawContent = data.choices?.[0]?.message?.content;
+    const text = typeof rawContent === 'string'
+      ? rawContent.trim()
+      : Array.isArray(rawContent)
+        ? rawContent.map((part) => typeof part.text === 'string' ? part.text : '').join('').trim()
+        : '';
+    if (!text) return res.status(502).json({ error: 'The selected model returned an empty response.' });
+    return res.status(200).json({ text, modelName: model, provider: 'openrouter' });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach OpenRouter. Check your connection and retry.' });
+  }
+});
+
 app.post('/api/providers/openrouter/test', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter a valid-looking OpenRouter API key.' });
