@@ -45,28 +45,33 @@ export interface AIServiceProvider {
  */
 class ModularAIService implements AIServiceProvider {
   public name = 'Google Gemini AI (Server-Proxy Ready)';
-  public model = 'gemini-3.8-flash';
+  public model = 'gemini-2.5-flash';
   private endpoint = '/api/ai/chat';
 
   public async checkStatus(): Promise<AIServiceStatus> {
     try {
-      const res = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ping: true }),
-      });
-
+      const res = await fetch('/api/health');
       if (res.ok) {
+        const data = await res.json();
+        if (data.geminiConfigured === true && data.status === 'connected') {
+          return {
+            status: 'connected',
+            providerName: this.name,
+            modelName: data.modelName || this.model,
+            backendEndpoint: this.endpoint,
+            message: 'Connected to the server-side Gemini AI engine.',
+          };
+        }
         return {
-          status: 'connected',
+          status: 'preview_mode',
           providerName: this.name,
-          modelName: this.model,
+          modelName: data.modelName || this.model,
           backendEndpoint: this.endpoint,
-          message: 'Connected to server-side Gemini AI engine.',
+          message: 'The VYRA server is available, but Gemini credentials are not configured on the server.',
         };
       }
     } catch {
-      // Backend route is not mounted in this phase
+      // The backend may not be running (for example, on a static-only deployment).
     }
 
     return {
@@ -75,14 +80,13 @@ class ModularAIService implements AIServiceProvider {
       modelName: this.model,
       backendEndpoint: this.endpoint,
       message:
-        'Preview Mode active: Secure server-side Gemini API proxy is ready for connection in backend deployment. No API secrets are exposed to the browser.',
+        'Preview Mode active: the server-side Gemini endpoint is unavailable. No API secrets are exposed to the browser.',
     };
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
     const latestUserMessage = [...request.messages].reverse().find((m) => m.role === 'user')?.content || '';
 
-    // Step 1: Probe backend proxy if mounted
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
@@ -92,23 +96,37 @@ class ModularAIService implements AIServiceProvider {
 
       if (response.ok) {
         const data = await response.json();
+        const content = data.text || data.content;
+        if (typeof content === 'string' && content.trim()) {
+          return {
+            content,
+            suggestedActions: Array.isArray(data.suggestedActions) ? data.suggestedActions : undefined,
+            status: 'success',
+          };
+        }
         return {
-          content: data.text || data.content,
-          suggestedActions: data.suggestedActions,
-          status: 'success',
+          content: 'The AI server returned an empty or invalid response. Please try again.',
+          status: 'error',
+          errorMessage: 'Invalid response from /api/ai/chat.',
+        };
+      }
+
+      // If the route exists but Gemini fails or is unconfigured, do not disguise that as a preview answer.
+      if (response.status !== 404) {
+        const data = await response.json().catch(() => ({}));
+        const message = typeof data.error === 'string' ? data.error : 'The AI request failed.';
+        return {
+          content: message,
+          status: 'error',
+          errorMessage: message,
         };
       }
     } catch {
-      // Endpoint not active; fall through to preview mode response
+      // A missing backend (e.g. static-only hosting) can still use the clearly-labelled preview mode.
     }
 
-    // Step 2: Honest Preview Mode Response (Adheres to anti-slop & zero-fake rules)
-    // Does NOT claim to be a genuine model stream; transparently provides structured
-    // creative frameworks and actionable buttons to turn the user's idea into a VYRA project.
     const intent = this.detectPromptIntent(latestUserMessage);
-    const result = this.constructPreviewResponse(latestUserMessage, intent);
-
-    return result;
+    return this.constructPreviewResponse(latestUserMessage, intent);
   }
 
   private detectPromptIntent(prompt: string): 'ideas' | 'script' | 'hooks' | 'outline' | 'storyboard' | 'general' {
