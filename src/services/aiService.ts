@@ -67,7 +67,9 @@ class ModularAIService implements AIServiceProvider {
           providerName: this.name,
           modelName: data.modelName || this.model,
           backendEndpoint: this.endpoint,
-          message: 'The VYRA server is available, but Gemini credentials are not configured on the server.',
+          message: typeof data.message === 'string'
+            ? data.message
+            : 'The VYRA server is available, but Gemini has not been verified yet.',
         };
       }
     } catch {
