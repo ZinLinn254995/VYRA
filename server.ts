@@ -65,9 +65,12 @@ app.post('/api/providers/openrouter/chat', async (req: Request, res: Response) =
   if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
 
   const systemInstruction = 'You are VYRA, a creative assistant for planning educational and social video content. Help with original ideas, accurate scripts, hooks, outlines and storyboards. Do not claim to create media files, publish content, or execute workspace actions unless a connected tool confirms it. For factual topics, distinguish facts from uncertainty and do not invent sources or statistics. Respond clearly in the user’s language.';
-  const apiMessages = messages.some((item) => item.role === 'system')
-    ? messages
-    : [{ role: 'system' as const, content: systemInstruction }, ...messages];
+  // Keep VYRA's system instruction server-controlled; do not let client-supplied
+  // system-role messages replace the server's behavior and capability boundaries.
+  const apiMessages = [
+    { role: 'system' as const, content: systemInstruction },
+    ...messages.filter((item) => item.role !== 'system'),
+  ];
 
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
