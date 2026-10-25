@@ -204,7 +204,7 @@ const chatRequestWindows = new Map<string, { count: number; resetAt: number }>()
 const CHAT_WINDOW_MS = 60_000;
 const CHAT_MAX_REQUESTS = 20;
 
-app.use('/api/ai/chat', (req: Request, res: Response, next: NextFunction) => {
+app.use(['/api/ai/chat', '/api/providers/openrouter'], (req: Request, res: Response, next: NextFunction) => {
   if (req.method !== 'POST') return next();
 
   const now = Date.now();
