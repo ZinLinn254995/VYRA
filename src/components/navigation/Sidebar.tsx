@@ -118,21 +118,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
         className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col transition-all duration-200 border-r
           bg-[#090B18] text-slate-300 border-[#1E2345]
           light:bg-white light:text-slate-700 light:border-slate-200
-          ${collapsed ? 'w-[72px]' : 'w-[260px]'}
+          ${mobileOpen ? 'w-[260px]' : collapsed ? 'w-[72px]' : 'w-[260px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
         {/* Brand Header */}
         <div className="h-16 min-w-0 flex items-center gap-2 px-3 border-b border-[#1E2345] light:border-slate-200">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-            <BrandLogo size="sm" showWordmark={!collapsed} className="min-w-0" />
+            <BrandLogo size="sm" showWordmark={!collapsed || mobileOpen} className="min-w-0" />
           </div>
 
           {/* Desktop collapse button */}
           <button
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="hidden md:flex shrink-0 items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#171A35] light:hover:bg-slate-100 transition-colors"
+            aria-expanded={!collapsed}
+            className="hidden md:flex shrink-0 items-center justify-center size-8 rounded-md text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#171A35] light:hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#55F4FF] transition-colors"
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
@@ -148,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
         </div>
 
         {/* Primary CTA (Create Video) when expanded */}
-        {!collapsed && (
+        {(!collapsed || mobileOpen) && (
           <div className="p-3">
             <button
               onClick={() => handleNavClick('create')}
@@ -173,14 +174,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item.id)}
-                title={collapsed ? item.label : undefined}
+                title={collapsed && !mobileOpen ? item.label : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all group relative
                   ${
                     isActive
                       ? 'bg-[#171A35] text-white light:bg-slate-100 light:text-slate-900 font-semibold'
                       : 'text-slate-400 hover:text-slate-100 light:hover:text-slate-900 hover:bg-[#13162C] light:hover:bg-slate-50'
                   }
-                  ${collapsed ? 'justify-center' : 'justify-start'}
+                  ${collapsed && !mobileOpen ? 'justify-center' : 'justify-start'}
                 `}
               >
                 {/* Active Neon Accent Indicator Bar */}
