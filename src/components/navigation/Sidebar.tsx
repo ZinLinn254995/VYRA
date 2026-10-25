@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { BrandLogo } from '../common/BrandLogo';
 import { NavSection } from '../../types';
@@ -27,11 +27,12 @@ import {
 interface SidebarProps {
   mobileOpen: boolean;
   setMobileOpen: (open: boolean) => void;
+  collapsed: boolean;
+  setCollapsed: (collapsed: boolean) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, collapsed, setCollapsed }) => {
   const { currentSection, setCurrentSection, projects, stats, conversations } = useStudio();
-  const [collapsed, setCollapsed] = useState(false);
 
   const reviewPendingCount = projects.filter((p) => p.status === 'in_review').length;
 
@@ -117,21 +118,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
         className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col transition-all duration-200 border-r
           bg-[#090B18] text-slate-300 border-[#1E2345]
           light:bg-white light:text-slate-700 light:border-slate-200
-          ${collapsed ? 'w-[72px]' : 'w-[260px]'} md:max-lg:w-[72px]
+          ${collapsed ? 'w-[72px]' : 'w-[260px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
         {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-[#1E2345] light:border-slate-200">
-          <div className="flex items-center overflow-hidden md:max-lg:w-8">
-            <BrandLogo size="sm" showWordmark={!collapsed} />
+        <div className="h-16 min-w-0 flex items-center gap-2 px-3 border-b border-[#1E2345] light:border-slate-200">
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+            <BrandLogo size="sm" showWordmark={!collapsed} className="min-w-0" />
           </div>
 
           {/* Desktop collapse button */}
           <button
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="hidden md:flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#171A35] light:hover:bg-slate-100 transition-colors"
+            className="hidden md:flex shrink-0 items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#171A35] light:hover:bg-slate-100 transition-colors"
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
@@ -148,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
 
         {/* Primary CTA (Create Video) when expanded */}
         {!collapsed && (
-          <div className="p-3 md:max-lg:hidden">
+          <div className="p-3">
             <button
               onClick={() => handleNavClick('create')}
               className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-semibold text-xs tracking-wide transition-all shadow-sm
@@ -179,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
                       ? 'bg-[#171A35] text-white light:bg-slate-100 light:text-slate-900 font-semibold'
                       : 'text-slate-400 hover:text-slate-100 light:hover:text-slate-900 hover:bg-[#13162C] light:hover:bg-slate-50'
                   }
-                  ${collapsed ? 'justify-center' : 'justify-start'} md:max-lg:justify-center
+                  ${collapsed ? 'justify-center' : 'justify-start'}
                 `}
               >
                 {/* Active Neon Accent Indicator Bar */}
@@ -201,11 +202,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
                 </span>
 
                 {!collapsed && (
-                  <span className="truncate flex-1 text-left tracking-wide md:max-lg:hidden">{item.label}</span>
+                  <span className="min-w-0 truncate flex-1 text-left tracking-wide">{item.label}</span>
                 )}
 
                 {!collapsed && item.badgeCount !== undefined && (
-                  <span className="font-mono text-[11px] tabular-nums px-1.5 py-0.5 rounded text-slate-400 light:text-slate-500 bg-[#090B18] light:bg-slate-200 md:max-lg:hidden">
+                  <span className="shrink-0 font-mono text-[11px] tabular-nums px-1.5 py-0.5 rounded text-slate-400 light:text-slate-500 bg-[#090B18] light:bg-slate-200">
                     {item.badgeCount}
                   </span>
                 )}
@@ -216,7 +217,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
 
         {/* Bottom AI Quota / Usage Footer (Honest, clean presentation) */}
         {!collapsed ? (
-          <div className="p-3 m-2 rounded-lg bg-[#171A35]/60 light:bg-slate-100/80 border border-[#2B3058]/50 light:border-slate-200 text-xs md:max-lg:hidden">
+          <div className="p-3 m-2 rounded-lg bg-[#171A35]/60 light:bg-slate-100/80 border border-[#2B3058]/50 light:border-slate-200 text-xs">
             <div className="flex items-center justify-between text-[11px] text-slate-400 light:text-slate-600 mb-1.5">
               <span>Studio Compute Quota</span>
               <span className="font-mono tabular-nums text-slate-300 light:text-slate-800">
