@@ -189,6 +189,70 @@ app.get('/api/providers/openrouter/models', async (req: Request, res: Response) 
   }
 });
 
+app.post('/api/providers/openrouter/images/generate', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+
+  const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string };
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+  const allowedRatios = new Set(['1:1', '3:2', '2:3', '16:9', '9:16', '4:3', '3:4']);
+  const aspectRatio = typeof body.aspect_ratio === 'string' && allowedRatios.has(body.aspect_ratio)
+    ? body.aspect_ratio
+    : undefined;
+
+  if (!model || model.length > 200) {
+    return res.status(400).json({ error: 'Discover and select an Image model in Settings first.' });
+  }
+  if (!prompt) return res.status(400).json({ error: 'Describe the image you want to generate.' });
+  if (prompt.length > 4000) return res.status(413).json({ error: 'Image prompt is too long. Keep it under 4,000 characters.' });
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/images', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-OpenRouter-Title': 'VYRA',
+      },
+      body: JSON.stringify({ model, prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const data = await upstream.json().catch(() => ({})) as {
+      data?: Array<{ b64_json?: string; media_type?: string; url?: string }>;
+      usage?: { cost?: number };
+    };
+    if (!upstream.ok) {
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
+        error: upstream.status === 401 || upstream.status === 403
+          ? 'OpenRouter rejected the key. Verify it in Settings.'
+          : upstream.status === 402
+            ? 'OpenRouter reports insufficient credits or a payment requirement. Check before retrying.'
+            : upstream.status === 429
+              ? 'OpenRouter rate limit reached. Wait a moment and retry.'
+              : 'Image generation failed. Check the selected model and supported options, then retry.',
+      });
+    }
+    const image = data.data?.find((item) => typeof item.b64_json === 'string' && item.b64_json.length > 0);
+    if (!image?.b64_json) {
+      return res.status(502).json({ error: 'The selected model did not return a buffered image. Try another Image API model.' });
+    }
+    const mediaType = typeof image.media_type === 'string' && /^image\/(png|jpeg|webp)$/.test(image.media_type)
+      ? image.media_type
+      : 'image/png';
+    return res.status(200).json({
+      imageDataUrl: 'data:' + mediaType + ';base64,' + image.b64_json,
+      mediaType,
+      model,
+      costUsd: typeof data.usage?.cost === 'number' ? data.usage.cost : null,
+    });
+  } catch {
+    return res.status(502).json({ error: 'Image generation timed out or could not reach OpenRouter. Check connection and retry.' });
+  }
+});
+
 function hasGeminiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
