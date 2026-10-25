@@ -22,6 +22,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import { INITIAL_PROJECTS } from '../../data/seedData';
+import { OpenRouterSettings } from './OpenRouterSettings';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -168,6 +169,8 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
       </section>
+
+      <OpenRouterSettings />
 
       {/* 3. Service Integration Matrix (Readiness Status) */}
       <section className="p-6 rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 space-y-4">
