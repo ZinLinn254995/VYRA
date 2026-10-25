@@ -126,7 +126,7 @@ export const OpenRouterSettings: React.FC = () => {
         <label htmlFor="openrouter-key" className="text-xs font-semibold text-slate-300 light:text-slate-700">OpenRouter API Key</label>
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <input id="openrouter-key" type={showKey ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={apiKey} onChange={(e) => { setApiKey(e.target.value); setConnected(false); }} placeholder="Paste your OpenRouter key" className={inputClass + ' pr-10'} />
+            <input id="openrouter-key" type={showKey ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={apiKey} onChange={(e) => { setApiKey(e.target.value); setConnected(false); try { sessionStorage.removeItem(KEY_STORAGE); } catch { /* ignore unavailable storage */ } }} placeholder="Paste your OpenRouter key" className={inputClass + ' pr-10'} />
             <button type="button" aria-label={showKey ? 'Hide API key' : 'Show API key'} onClick={() => setShowKey((value) => !value)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white light:hover:text-slate-900">
               {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
