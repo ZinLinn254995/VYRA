@@ -127,10 +127,10 @@ export const ProjectWorkspaceView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="w-full min-w-0 space-y-6 max-w-7xl mx-auto pb-16">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200">
-        <div className="space-y-1 min-w-0">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200">
+        <div className="space-y-1 min-w-0 xl:flex-1">
           <div className="flex items-center gap-2 text-xs text-slate-400 light:text-slate-500">
             <span>Project:</span>
             {/* Quick Project Switcher Dropdown */}
@@ -160,8 +160,8 @@ export const ProjectWorkspaceView: React.FC = () => {
         </div>
 
         {/* Storyboard Telemetry (Duration, word count, aspect ratio) */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-[#090B18] light:bg-slate-100 text-xs border border-[#2B3058] light:border-slate-200">
+        <div className="flex flex-wrap items-center gap-3 min-w-0 xl:justify-end">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 px-3 py-1.5 rounded-lg bg-[#090B18] light:bg-slate-100 text-xs border border-[#2B3058] light:border-slate-200">
             <span className="flex items-center gap-1 text-slate-400">
               <Clock className="w-3.5 h-3.5 text-[#55F4FF]" />
               <strong className="font-mono tabular-nums text-white light:text-slate-900">
@@ -199,11 +199,11 @@ export const ProjectWorkspaceView: React.FC = () => {
       </div>
 
       {/* 2. Main Studio Grid: Left Media Preview + Right Scene Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start min-w-0">
         {/* LEFT COLUMN: Media Preview & Playback Monitor (5 cols on large) */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="xl:col-span-5 min-w-0 space-y-4">
           <div className="p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 space-y-3">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-semibold text-white light:text-slate-900 flex items-center gap-1.5">
                 <Film className="w-4 h-4 text-[#55F4FF]" />
                 <span>Scene Preview Monitor</span>
@@ -316,7 +316,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 className="w-full accent-[#55F4FF] cursor-pointer"
               />
 
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={handlePrevScene}
@@ -344,11 +344,11 @@ export const ProjectWorkspaceView: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: Scene Sequencer Timeline & Script Editor (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className="xl:col-span-7 min-w-0 space-y-4">
           {/* Active Scene Editor Panel */}
           {currentScene ? (
             <div className="p-5 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-[#2B3058]/60 light:border-slate-100 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#2B3058]/60 light:border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="w-6 h-6 rounded-md bg-[#55F4FF] text-[#090B18] font-mono text-xs font-bold flex items-center justify-center">
                     0{currentScene.order}
@@ -359,7 +359,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 </div>
 
                 {/* Duration Slider */}
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-slate-400">Duration:</span>
                   <input
                     type="number"
@@ -472,7 +472,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
           {/* Scene Sequencer Timeline List (Reordering, Adding, Deleting) */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-bold text-white light:text-slate-900 flex items-center gap-1.5">
                 <Film className="w-4 h-4 text-[#8D7CFF]" />
                 <span>Storyboard Timeline ({project.scenes.length} Scenes)</span>
@@ -493,7 +493,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   <div
                     key={sc.id}
                     onClick={() => setSelectedSceneId(sc.id)}
-                    className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center gap-3 ${
+                    className={`p-2 sm:p-3 rounded-lg border transition-all cursor-pointer flex items-center gap-2 sm:gap-3 min-w-0 ${
                       isSelected
                         ? 'border-[#55F4FF] bg-[#171A35] light:bg-slate-100 shadow-xs'
                         : 'border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-white hover:border-slate-500'
@@ -505,7 +505,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </span>
 
                     {/* Thumbnail */}
-                    <div className="w-16 h-10 rounded bg-slate-900 overflow-hidden shrink-0">
+                    <div className="w-12 sm:w-16 h-10 rounded bg-slate-900 overflow-hidden shrink-0">
                       <img
                         src={sc.mediaUrl}
                         alt={`Scene ${sc.order}`}

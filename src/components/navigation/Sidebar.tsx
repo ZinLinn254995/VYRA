@@ -117,13 +117,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
         className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col transition-all duration-200 border-r
           bg-[#090B18] text-slate-300 border-[#1E2345]
           light:bg-white light:text-slate-700 light:border-slate-200
-          ${collapsed ? 'w-[72px]' : 'w-[260px]'}
+          ${collapsed ? 'w-[72px]' : 'w-[260px]'} md:max-lg:w-[72px]
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-[#1E2345] light:border-slate-200">
-          <div className="flex items-center overflow-hidden">
+          <div className="flex items-center overflow-hidden md:max-lg:w-8">
             <BrandLogo size="sm" showWordmark={!collapsed} />
           </div>
 
@@ -148,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
 
         {/* Primary CTA (Create Video) when expanded */}
         {!collapsed && (
-          <div className="p-3">
+          <div className="p-3 md:max-lg:hidden">
             <button
               onClick={() => handleNavClick('create')}
               className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-semibold text-xs tracking-wide transition-all shadow-sm
@@ -179,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
                       ? 'bg-[#171A35] text-white light:bg-slate-100 light:text-slate-900 font-semibold'
                       : 'text-slate-400 hover:text-slate-100 light:hover:text-slate-900 hover:bg-[#13162C] light:hover:bg-slate-50'
                   }
-                  ${collapsed ? 'justify-center' : 'justify-start'}
+                  ${collapsed ? 'justify-center' : 'justify-start'} md:max-lg:justify-center
                 `}
               >
                 {/* Active Neon Accent Indicator Bar */}
@@ -201,11 +201,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
                 </span>
 
                 {!collapsed && (
-                  <span className="truncate flex-1 text-left tracking-wide">{item.label}</span>
+                  <span className="truncate flex-1 text-left tracking-wide md:max-lg:hidden">{item.label}</span>
                 )}
 
                 {!collapsed && item.badgeCount !== undefined && (
-                  <span className="font-mono text-[11px] tabular-nums px-1.5 py-0.5 rounded text-slate-400 light:text-slate-500 bg-[#090B18] light:bg-slate-200">
+                  <span className="font-mono text-[11px] tabular-nums px-1.5 py-0.5 rounded text-slate-400 light:text-slate-500 bg-[#090B18] light:bg-slate-200 md:max-lg:hidden">
                     {item.badgeCount}
                   </span>
                 )}
@@ -216,7 +216,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
 
         {/* Bottom AI Quota / Usage Footer (Honest, clean presentation) */}
         {!collapsed ? (
-          <div className="p-3 m-2 rounded-lg bg-[#171A35]/60 light:bg-slate-100/80 border border-[#2B3058]/50 light:border-slate-200 text-xs">
+          <div className="p-3 m-2 rounded-lg bg-[#171A35]/60 light:bg-slate-100/80 border border-[#2B3058]/50 light:border-slate-200 text-xs md:max-lg:hidden">
             <div className="flex items-center justify-between text-[11px] text-slate-400 light:text-slate-600 mb-1.5">
               <span>Studio Compute Quota</span>
               <span className="font-mono tabular-nums text-slate-300 light:text-slate-800">
