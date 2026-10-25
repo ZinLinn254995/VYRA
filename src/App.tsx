@@ -22,6 +22,7 @@ import { Toast } from './components/common/Toast';
 const StudioContent: React.FC = () => {
   const { currentSection } = useStudio();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const renderActiveView = () => {
     switch (currentSection) {
@@ -53,10 +54,15 @@ const StudioContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#090B18] light:bg-[#F8FAFC] text-slate-100 light:text-slate-900 transition-colors">
       {/* Sidebar Navigation */}
-      <Sidebar mobileOpen={mobileNavOpen} setMobileOpen={setMobileNavOpen} />
+      <Sidebar
+        mobileOpen={mobileNavOpen}
+        setMobileOpen={setMobileNavOpen}
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+      />
 
       {/* Main Content Area (padded for desktop sidebar) */}
-      <div className="md:pl-[72px] lg:pl-[260px] flex flex-col min-h-screen transition-all duration-200">
+      <div className={`${sidebarCollapsed ? "md:pl-[72px]" : "md:pl-[260px]"} flex flex-col min-h-screen transition-all duration-200`}>
         <TopHeader onOpenMobileMenu={() => setMobileNavOpen(true)} />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">

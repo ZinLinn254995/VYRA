@@ -86,10 +86,10 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       </div>
 
       {showWordmark && (
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-0 items-center gap-1.5">
             <span
-              className={`${textSizes} font-black tracking-widest text-slate-900 dark:text-white transition-colors`}
+              className={`${textSizes} min-w-0 truncate font-black tracking-widest text-slate-900 dark:text-white transition-colors`}
             >
               {BRAND_CONFIG.name}
             </span>

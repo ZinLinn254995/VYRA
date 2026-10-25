@@ -44,3 +44,33 @@ for (const viewport of viewports) {
     expect(pageErrors, 'Browser runtime errors were reported').toEqual([]);
   });
 }
+
+for (const width of [768, 1024, 1440]) {
+  test(`Sidebar drawer expands and collapses without logo-toggle overlap at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+
+    const sidebar = page.locator('aside');
+    const collapseButton = page.getByRole('button', { name: 'Collapse sidebar' });
+    await expect(collapseButton).toBeVisible();
+
+    const brand = sidebar.locator(':scope > div').first().locator(':scope > div').first();
+    const brandBox = await brand.boundingBox();
+    const toggleBox = await collapseButton.boundingBox();
+    expect(brandBox).not.toBeNull();
+    expect(toggleBox).not.toBeNull();
+    expect(
+      brandBox!.x + brandBox!.width,
+      'Brand logo area should end before the sidebar toggle begins',
+    ).toBeLessThanOrEqual(toggleBox!.x + 1);
+
+    await collapseButton.click();
+    await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+    await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(72);
+
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible();
+    await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(260);
+  });
+}
+
