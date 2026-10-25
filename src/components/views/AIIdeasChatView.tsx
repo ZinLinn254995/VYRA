@@ -901,9 +901,13 @@ export const AIIdeasChatView: React.FC = () => {
       {showStatusModal && (
         <div
           role="presentation"
+          onClick={() => setShowStatusModal(false)}
           className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <div className="w-full max-w-md rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150"
+          >
             <div className="flex items-center justify-between border-b border-[#2B3058]/60 pb-3">
               <h3 className="text-sm font-bold text-white light:text-slate-900 flex items-center gap-2">
                 <Info className="w-4 h-4 text-[#55F4FF]" />
@@ -953,9 +957,13 @@ export const AIIdeasChatView: React.FC = () => {
       {showToolsModal && (
         <div
           role="presentation"
+          onClick={() => setShowToolsModal(false)}
           className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <div className="w-full max-w-2xl max-h-[85vh] rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] flex flex-col shadow-2xl animate-in zoom-in-95 duration-150 overflow-hidden">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[85vh] rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] flex flex-col shadow-2xl animate-in zoom-in-95 duration-150 overflow-hidden"
+          >
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-[#2B3058] flex items-center justify-between">
               <div className="flex items-center gap-2.5">

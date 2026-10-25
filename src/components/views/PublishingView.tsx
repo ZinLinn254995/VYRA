@@ -221,9 +221,13 @@ export const PublishingView: React.FC = () => {
       {selectedChannelForSetup && (
         <div
           role="presentation"
+          onClick={() => setSelectedChannelForSetup(null)}
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <div className="w-full max-w-md rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-6 space-y-4 shadow-2xl">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-6 space-y-4 shadow-2xl"
+          >
             <h3 className="text-base font-bold text-white light:text-slate-900">
               {selectedChannelForSetup.name} API Specifications
             </h3>

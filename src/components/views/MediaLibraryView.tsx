@@ -258,9 +258,13 @@ export const MediaLibraryView: React.FC = () => {
       {showUploadModal && (
         <div
           role="presentation"
+          onClick={() => setShowUploadModal(false)}
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <div className="w-full max-w-md rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150"
+          >
             <h3 className="text-base font-bold text-white light:text-slate-900">
               Register Studio Media Asset
             </h3>

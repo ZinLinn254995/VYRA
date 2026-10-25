@@ -553,7 +553,7 @@ export const CreateVideoView: React.FC = () => {
             <label className="text-xs font-semibold text-slate-300 light:text-slate-700">
               Subtitle Overlay Style
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { id: 'dynamic_pop', label: 'Dynamic Pop-in' },
                 { id: 'minimal_lower', label: 'Minimal Lower-3rd' },

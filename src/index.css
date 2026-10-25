@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Light-mode variant: components opt into light styles with `light:` utilities.
+   The .light class is toggled on <html> by StudioContext. Without this declaration,
+   Tailwind v4 silently drops every `light:` utility and the whole light theme breaks. */
+@custom-variant light (&:where(.light, .light *));
+
 @layer base {
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
