@@ -133,7 +133,7 @@ export const ProjectsView: React.FC = () => {
           </div>
 
           {/* Search Input */}
-          <div className="relative min-w-[240px]">
+          <div className="relative min-w-0 md:min-w-[240px] flex-1 md:flex-initial">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
               type="text"
