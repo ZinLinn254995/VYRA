@@ -17,6 +17,86 @@ const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'dis
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
+function readOpenRouterKey(req: Request): string {
+  const key = req.header('x-openrouter-api-key')?.trim() || '';
+  // Do not log this value. Reject oversized values before forwarding them.
+  return key.length > 10 && key.length <= 512 ? key : '';
+}
+
+async function openRouterFetch(url: string, apiKey: string): Promise<globalThis.Response> {
+  return fetch(url, {
+    headers: {
+      Authorization: 'Bearer ' + apiKey,
+      Accept: 'application/json',
+      'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+      'X-OpenRouter-Title': 'VYRA',
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+app.post('/api/providers/openrouter/test', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Enter a valid-looking OpenRouter API key.' });
+  try {
+    const response = await openRouterFetch('https://openrouter.ai/api/v1/key', apiKey);
+    if (!response.ok) {
+      return res.status(response.status === 401 || response.status === 403 ? 401 : 502).json({
+        error: response.status === 401 || response.status === 403
+          ? 'OpenRouter rejected this key. Check it and try again.'
+          : 'OpenRouter could not verify the key right now. Try again later.',
+      });
+    }
+    return res.status(200).json({ connected: true, message: 'OpenRouter API key verified successfully.' });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach OpenRouter. Check the connection and try again.' });
+  }
+});
+
+app.get('/api/providers/openrouter/models', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'An OpenRouter API key is required to discover models.' });
+
+  const capability = String(req.query.capability || 'text');
+  const endpointByCapability: Record<string, string> = {
+    text: 'https://openrouter.ai/api/v1/models?output_modalities=text',
+    image: 'https://openrouter.ai/api/v1/images/models',
+    video: 'https://openrouter.ai/api/v1/videos/models',
+    audio: 'https://openrouter.ai/api/v1/models?output_modalities=audio',
+  };
+  const endpoint = endpointByCapability[capability];
+  if (!endpoint) return res.status(400).json({ error: 'Unsupported capability. Choose text, image, video or audio.' });
+
+  try {
+    const response = await openRouterFetch(endpoint, apiKey);
+    const data = await response.json().catch(() => ({})) as {
+      data?: Array<{ id?: string; name?: string; description?: string; model_id?: string }>;
+      models?: Array<{ id?: string; name?: string; description?: string; model_id?: string }>;
+      error?: { message?: string } | string;
+    };
+    if (!response.ok) {
+      return res.status(response.status === 401 || response.status === 403 ? 401 : 502).json({
+        error: response.status === 401 || response.status === 403
+          ? 'OpenRouter rejected this key. Test the key again.'
+          : 'OpenRouter model discovery failed. Please retry.',
+      });
+    }
+    const source = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
+    const models = source
+      .map((model) => ({
+        id: String(model.id || model.model_id || ''),
+        name: typeof model.name === 'string' ? model.name : undefined,
+        description: typeof model.description === 'string' ? model.description.slice(0, 240) : undefined,
+      }))
+      .filter((model) => Boolean(model.id))
+      .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+      .slice(0, 300);
+    return res.status(200).json({ capability, models, count: models.length });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach OpenRouter model discovery. Check the connection and try again.' });
+  }
+});
+
 function hasGeminiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
