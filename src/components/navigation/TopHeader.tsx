@@ -34,6 +34,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onOpenMobileMenu }) => {
     dashboard: 'Studio Dashboard',
     projects: 'Project Catalog',
     create: 'Video Generator & Storyboard Wizard',
+    ideas: 'AI Content Ideas & Brainstorming Chat',
     workspace: activeProject ? `Storyboard: ${activeProject.title}` : 'Storyboard Workspace',
     media: 'Media Asset Library',
     review: 'Review & Quality Queue',

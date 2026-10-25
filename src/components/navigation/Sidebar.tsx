@@ -21,6 +21,7 @@ import {
   ChevronRight,
   X,
   Zap,
+  Bot,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,7 +30,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) => {
-  const { currentSection, setCurrentSection, projects, stats } = useStudio();
+  const { currentSection, setCurrentSection, projects, stats, conversations } = useStudio();
   const [collapsed, setCollapsed] = useState(false);
 
   const reviewPendingCount = projects.filter((p) => p.status === 'in_review').length;
@@ -55,6 +56,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) =
       id: 'create',
       label: 'Create Video',
       icon: <Sparkles className="w-5 h-5 shrink-0" />,
+    },
+    {
+      id: 'ideas',
+      label: 'AI Ideas Chat',
+      icon: <Bot className="w-5 h-5 shrink-0" />,
+      badgeCount: conversations.length > 0 ? conversations.length : undefined,
     },
     {
       id: 'workspace',

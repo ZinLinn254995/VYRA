@@ -7,6 +7,7 @@ export type NavSection =
   | 'dashboard'
   | 'projects'
   | 'create'
+  | 'ideas'
   | 'workspace'
   | 'media'
   | 'review'
@@ -117,3 +118,79 @@ export interface WorkspaceStats {
   generationSecondsUsed: number;
   monthlyQuotaSeconds: number;
 }
+
+export type ChatRole = 'user' | 'assistant' | 'system';
+
+export interface ChatSuggestedAction {
+  label: string;
+  action: 'create_project' | 'save_idea' | 'develop_script';
+  data?: {
+    title?: string;
+    topic?: string;
+    category?: ContentCategory;
+    format?: VideoFormat;
+  };
+}
+
+export type ToolStatus =
+  | 'executing'
+  | 'success'
+  | 'failed'
+  | 'requires_confirmation'
+  | 'unsupported';
+
+export interface ToolExecutionRecord {
+  id: string;
+  toolName: string;
+  displayName: string;
+  status: ToolStatus;
+  inputArgs: Record<string, any>;
+  outputSummary?: string;
+  outputData?: any;
+  errorMessage?: string;
+  timestamp: string;
+  resourceLink?: {
+    label: string;
+    section: NavSection;
+    resourceId?: string;
+  };
+}
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string;
+  timestamp: string;
+  isPreviewNotice?: boolean;
+  suggestedActions?: ChatSuggestedAction[];
+  toolExecutions?: ToolExecutionRecord[];
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+  category?: string;
+  isPinned?: boolean;
+}
+
+export interface SavedIdea {
+  id: string;
+  title: string;
+  concept: string;
+  category?: ContentCategory;
+  tags: string[];
+  sourceConversationId?: string;
+  createdAt: string;
+}
+
+export interface AIServiceStatus {
+  status: 'connected' | 'preview_mode' | 'error';
+  providerName: string;
+  modelName: string;
+  backendEndpoint?: string;
+  message?: string;
+}
+

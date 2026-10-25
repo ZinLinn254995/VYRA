@@ -275,3 +275,164 @@ export const INITIAL_STATS: WorkspaceStats = {
   generationSecondsUsed: 225,
   monthlyQuotaSeconds: 1800,
 };
+
+export const INITIAL_CONVERSATIONS = [
+  {
+    id: 'conv-01-quantum',
+    title: 'Photonic Computing & Chip Revolution',
+    category: 'Tech & AI',
+    isPinned: true,
+    createdAt: '2026-10-24T18:30:00Z',
+    updatedAt: '2026-10-25T01:20:00Z',
+    messages: [
+      {
+        id: 'msg-01',
+        role: 'user' as const,
+        content: 'Give me 3 viral opening hooks for a YouTube Short about optical quantum processors replacing silicon chips.',
+        timestamp: '2026-10-24T18:30:00Z',
+      },
+      {
+        id: 'msg-02',
+        role: 'assistant' as const,
+        content: `### High-Retention Hook Proposals for Photonic Computing\n\n` +
+          `1. **The Thermal Wall Interrupt (0:00 - 0:04):**\n` +
+          `   *"Silicon chips just hit a physical wall. But what if processors didn't use electricity at all?"*\n\n` +
+          `2. **The Speed of Light Contrast (0:00 - 0:05):**\n` +
+          `   *"This microscopic piece of synthetic diamond routes 100 terabits per second using pure laser beams. Here is how it works."*\n\n` +
+          `3. **The Datacenter Crisis Angle (0:00 - 0:05):**\n` +
+          `   *"Trillion-parameter AI models are about to melt our power grid—unless this photonic chip replaces silicon first."*\n\n` +
+          `*Recommendation:* Hook 2 pairs exceptionally well with a macro push-in camera shot of the micro-photonic circuits.`,
+        timestamp: '2026-10-24T18:30:15Z',
+        isPreviewNotice: true,
+        suggestedActions: [
+          {
+            label: 'Create Project with Hook 2',
+            action: 'create_project' as const,
+            data: {
+              title: 'Light-Speed Photonic Processors',
+              topic: 'How optical photonic computing routes 100 terabits per second using laser beams on synthetic diamond',
+              category: 'Tech & AI' as const,
+              format: 'short_form' as const,
+            },
+          },
+          {
+            label: 'Save Hook to Scratchpad',
+            action: 'save_idea' as const,
+            data: {
+              title: 'Silicon Thermal Wall Hook',
+              topic: 'Silicon chips hit physical wall; photonic lasers replace electricity',
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'conv-02-tokyo',
+    title: 'Tokyo 2088 Transit Systems',
+    category: 'Science & Future',
+    isPinned: false,
+    createdAt: '2026-10-23T12:00:00Z',
+    updatedAt: '2026-10-24T16:00:00Z',
+    messages: [
+      {
+        id: 'msg-tokyo-1',
+        role: 'user' as const,
+        content: 'Turn this topic into a compelling video concept: autonomous magnetic sky-rails eliminating ground traffic in 2088.',
+        timestamp: '2026-10-23T12:00:00Z',
+      },
+      {
+        id: 'msg-tokyo-2',
+        role: 'assistant' as const,
+        content: `### Video Concept: The Vertical Transit Revolution\n\n` +
+          `**Working Title:** *Tokyo 2088: Why Roads Disappeared*\n` +
+          `**Target Format:** 16:9 Widescreen (or 9:16 vertical 3-part series)\n` +
+          `**Core Narrative Arc:**\n` +
+          `- **Scene 1 (The Bottleneck):** High-density urban corridors reached gridlock saturation by 2045.\n` +
+          `- **Scene 2 (The Maglev Shift):** Magnetic levitation sky-rails suspended between architectural hubs moved 90% of commuters off ground level.\n` +
+          `- **Scene 3 (The Green Recovery):** Reclaimed street-level boulevards transformed into lush pedestrian parks and aeroponic corridors.\n\n` +
+          `**Visual Style Recommendation:** Cyber-Minimal or Hyper-Realistic 8K with neon twilight atmospheric grading.`,
+        timestamp: '2026-10-23T12:00:20Z',
+        isPreviewNotice: true,
+        suggestedActions: [
+          {
+            label: 'Open in Video Generator',
+            action: 'develop_script' as const,
+            data: {
+              title: 'Tokyo 2088: Why Roads Disappeared',
+              topic: 'Autonomous magnetic sky-rails eliminating ground vehicle traffic and reclaiming pedestrian parks in 2088',
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'conv-03-biophilic',
+    title: 'Biophilic Smart City Architecture',
+    category: 'Documentary',
+    isPinned: false,
+    createdAt: '2026-10-22T09:15:00Z',
+    updatedAt: '2026-10-23T10:45:00Z',
+    messages: [
+      {
+        id: 'msg-bio-1',
+        role: 'user' as const,
+        content: 'What are the best thumbnail concepts and title variants for a documentary about glass biodomes?',
+        timestamp: '2026-10-22T09:15:00Z',
+      },
+      {
+        id: 'msg-bio-2',
+        role: 'assistant' as const,
+        content: `### Thumbnail & Title Optimization Package\n\n` +
+          `**Title Options:**\n` +
+          `1. *Inside the Cities That Grow Their Own Oxygen*\n` +
+          `2. *The 2050 Biodome: Surviving Outside the Grid*\n` +
+          `3. *How Architecture Solved the Climate Crisis*\n\n` +
+          `**Thumbnail Visual Directions:**\n` +
+          `- **Option A (High Drama):** Split composition showing desert wasteland on the left transitioning into a lush, radiant glass biodome on the right.\n` +
+          `- **Option B (Scale & Wonder):** Low-angle wide panoramic shot of towering hexagonal solar towers with lush vertical gardens inside crystal-clear geodesic canopies.`,
+        timestamp: '2026-10-22T09:15:30Z',
+        isPreviewNotice: true,
+        suggestedActions: [
+          {
+            label: 'Save Title Ideas',
+            action: 'save_idea' as const,
+            data: {
+              title: 'Biodome Documentary Titles',
+              topic: 'Inside the Cities That Grow Their Own Oxygen',
+            },
+          },
+        ],
+      },
+    ],
+  },
+];
+
+export const INITIAL_SAVED_IDEAS = [
+  {
+    id: 'idea-01',
+    title: 'Light-Speed Optical Processors',
+    concept: 'Photonic lasers routing data at light-speed through synthetic diamond substrates to power next-gen neural models.',
+    category: 'Tech & AI' as const,
+    tags: ['Quantum', 'Hardware', 'Hardware Architecture', 'Shorts'],
+    createdAt: '2026-10-24T18:31:00Z',
+  },
+  {
+    id: 'idea-02',
+    title: 'Tokyo 2088 Vertical Commute',
+    concept: 'Decentralized magnetic elevation carriages suspended between residential sky-nodes with zero ground friction.',
+    category: 'Science & Future' as const,
+    tags: ['Maglev', 'Sky-rail', 'Urbanism', 'Doc'],
+    createdAt: '2026-10-23T12:01:00Z',
+  },
+  {
+    id: 'idea-03',
+    title: 'Oxygen-Positive Biodome Habitats',
+    concept: 'Geodesic closed-loop urban sanctuaries producing aeroponic crops and micro-climate filtration.',
+    category: 'Documentary' as const,
+    tags: ['Sustainability', 'Biodome', 'Architecture'],
+    createdAt: '2026-10-22T09:16:00Z',
+  },
+];
+

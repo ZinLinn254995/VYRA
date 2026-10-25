@@ -10,6 +10,7 @@ import { TopHeader } from './components/navigation/TopHeader';
 import { DashboardView } from './components/views/DashboardView';
 import { ProjectsView } from './components/views/ProjectsView';
 import { CreateVideoView } from './components/views/CreateVideoView';
+import { AIIdeasChatView } from './components/views/AIIdeasChatView';
 import { ProjectWorkspaceView } from './components/views/ProjectWorkspaceView';
 import { ReviewQueueView } from './components/views/ReviewQueueView';
 import { PublishingView } from './components/views/PublishingView';
@@ -30,6 +31,8 @@ const StudioContent: React.FC = () => {
         return <ProjectsView />;
       case 'create':
         return <CreateVideoView />;
+      case 'ideas':
+        return <AIIdeasChatView />;
       case 'workspace':
         return <ProjectWorkspaceView />;
       case 'media':

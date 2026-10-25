@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Layers,
   Share2,
+  Bot,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
@@ -72,6 +73,13 @@ export const DashboardView: React.FC = () => {
               <Sparkles className="w-4 h-4" />
               <span>Create New Video</span>
               <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setCurrentSection('ideas')}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold bg-[#1E2345] light:bg-slate-100 border border-[#2B3058] light:border-slate-300 text-[#55F4FF] light:text-[#6366F1] hover:bg-[#55F4FF] hover:text-[#090B18] transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>Brainstorm Ideas</span>
             </button>
             <button
               onClick={() => setCurrentSection('projects')}

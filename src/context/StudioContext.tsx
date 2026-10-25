@@ -11,14 +11,26 @@ import {
   JobQueueItem,
   MediaAsset,
   WorkspaceStats,
+  Conversation,
+  ChatMessage,
+  SavedIdea,
+  AIServiceStatus,
+  ContentCategory,
+  VideoFormat,
+  ChatSuggestedAction,
 } from '../types';
 import {
   INITIAL_PROJECTS,
   INITIAL_JOBS,
   INITIAL_MEDIA_ASSETS,
   INITIAL_STATS,
+  INITIAL_CONVERSATIONS,
+  INITIAL_SAVED_IDEAS,
 } from '../data/seedData';
 import { BRAND_CONFIG } from '../config/brand';
+import { aiService } from '../services/aiService';
+import { processAgentRequest, executeAgentTool, AgentContext } from '../services/agentTools';
+import { ToolExecutionRecord } from '../types';
 
 interface StudioContextType {
   // Theme
@@ -82,6 +94,34 @@ interface StudioContextType {
   toast: { message: string; type: 'success' | 'info' | 'warning' } | null;
   showToast: (message: string, type?: 'success' | 'info' | 'warning') => void;
   clearToast: () => void;
+
+  // AI Content Ideas & Chat
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  activeConversation: Conversation | undefined;
+  createNewConversation: (initialPrompt?: string) => string;
+  selectConversation: (id: string) => void;
+  renameConversation: (id: string, newTitle: string) => void;
+  deleteConversation: (id: string) => void;
+  sendMessage: (content: string) => Promise<void>;
+  isSendingMessage: boolean;
+  chatError: string | null;
+  retryLastMessage: () => Promise<void>;
+  aiStatus: AIServiceStatus;
+
+  // Saved Ideas
+  savedIdeas: SavedIdea[];
+  saveIdea: (idea: Omit<SavedIdea, 'id' | 'createdAt'>) => void;
+  deleteSavedIdea: (id: string) => void;
+  createProjectFromIdea: (params: {
+    title?: string;
+    topic?: string;
+    category?: ContentCategory;
+    format?: VideoFormat;
+  }) => string;
+
+  // Agent Tool Execution
+  executeToolDirectly: (toolName: string, args: Record<string, any>) => Promise<ToolExecutionRecord>;
 }
 
 const StudioContext = createContext<StudioContextType | undefined>(undefined);
@@ -182,6 +222,73 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const clearToast = () => setToast(null);
+
+  // AI Conversations & Saved Ideas State (Local preview persistence)
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('vyra_conversations_v1');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.error('Failed to parse cached conversations', e);
+        }
+      }
+    }
+    return INITIAL_CONVERSATIONS;
+  });
+
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(
+    INITIAL_CONVERSATIONS[0]?.id || null
+  );
+
+  const [savedIdeas, setSavedIdeas] = useState<SavedIdea[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('vyra_saved_ideas_v1');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.error('Failed to parse cached saved ideas', e);
+        }
+      }
+    }
+    return INITIAL_SAVED_IDEAS;
+  });
+
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [aiStatus, setAiStatus] = useState<AIServiceStatus>({
+    status: 'preview_mode',
+    providerName: 'Google Gemini AI (Server-Proxy Ready)',
+    modelName: 'gemini-3.8-flash',
+    message: 'Preview Mode: Connect server backend in WP2.',
+  });
+
+  // Check AI service endpoint status on mount
+  useEffect(() => {
+    aiService.checkStatus().then(setAiStatus);
+  }, []);
+
+  // Sync conversations to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('vyra_conversations_v1', JSON.stringify(conversations));
+    } catch (e) {
+      console.warn('Failed to save conversations to local storage', e);
+    }
+  }, [conversations]);
+
+  // Sync saved ideas to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('vyra_saved_ideas_v1', JSON.stringify(savedIdeas));
+    } catch (e) {
+      console.warn('Failed to save ideas to local storage', e);
+    }
+  }, [savedIdeas]);
+
+  const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
@@ -386,6 +493,300 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setJobs((prev) => [newJob, ...prev]);
   };
 
+  // AI Ideas & Conversation Actions
+  const createNewConversation = (initialPrompt?: string): string => {
+    const newId = `conv-${Date.now().toString(36)}`;
+    const now = new Date().toISOString();
+    const newTitle = initialPrompt
+      ? (initialPrompt.length > 35 ? `${initialPrompt.slice(0, 32)}...` : initialPrompt)
+      : 'New Idea Exploration';
+
+    const newConv: Conversation = {
+      id: newId,
+      title: newTitle,
+      createdAt: now,
+      updatedAt: now,
+      messages: initialPrompt
+        ? [
+            {
+              id: `msg-${Date.now()}`,
+              role: 'user',
+              content: initialPrompt,
+              timestamp: now,
+            },
+          ]
+        : [],
+    };
+
+    setConversations((prev) => [newConv, ...prev]);
+    setActiveConversationId(newId);
+    showToast('Started new idea conversation', 'info');
+    return newId;
+  };
+
+  const selectConversation = (id: string) => {
+    setActiveConversationId(id);
+    setChatError(null);
+  };
+
+  const renameConversation = (id: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, title: newTitle.trim(), updatedAt: new Date().toISOString() }
+          : c
+      )
+    );
+    showToast('Conversation renamed', 'success');
+  };
+
+  const deleteConversation = (id: string) => {
+    setConversations((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+      if (activeConversationId === id) {
+        setActiveConversationId(filtered[0]?.id || null);
+      }
+      return filtered;
+    });
+    showToast('Conversation deleted', 'info');
+  };
+
+  const sendMessage = async (content: string) => {
+    if (!content.trim() || isSendingMessage) return;
+
+    let targetConvId = activeConversationId;
+    let currentConv = conversations.find((c) => c.id === targetConvId);
+
+    if (!currentConv) {
+      targetConvId = createNewConversation();
+      currentConv = {
+        id: targetConvId,
+        title: content.slice(0, 32) + (content.length > 32 ? '...' : ''),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      };
+    }
+
+    const now = new Date().toISOString();
+    const userMsg: ChatMessage = {
+      id: `msg-user-${Date.now()}`,
+      role: 'user',
+      content: content.trim(),
+      timestamp: now,
+    };
+
+    const updatedMessages = [...currentConv.messages, userMsg];
+
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== targetConvId) return c;
+        const shouldUpdateTitle = c.title === 'New Idea Exploration';
+        return {
+          ...c,
+          title: shouldUpdateTitle
+            ? content.length > 35
+              ? `${content.slice(0, 32)}...`
+              : content
+            : c.title,
+          updatedAt: now,
+          messages: updatedMessages,
+        };
+      })
+    );
+
+    setIsSendingMessage(true);
+    setChatError(null);
+
+    try {
+      const agentContext: AgentContext = {
+        projects,
+        activeProjectId,
+        activeProject,
+        savedIdeas,
+        mediaAssets,
+        createProject,
+        updateProject,
+        archiveProject,
+        deleteProject,
+        addScene,
+        updateScene,
+        removeScene,
+        submitForReview,
+        approveProject,
+        saveIdea,
+        setActiveProjectId,
+        setCurrentSection,
+      };
+
+      // 1. Process natural-language intent through the Application Tool Agent
+      const agentResult = await processAgentRequest(content, agentContext);
+
+      let finalContent = agentResult.assistantResponse;
+      let finalSuggestedActions: ChatSuggestedAction[] = [];
+      let isPreviewNotice = false;
+
+      // 2. If no tool command matched, run creative ideation engine
+      if (agentResult.toolExecutions.length === 0) {
+        const response = await aiService.generateResponse({
+          messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+          conversationId: targetConvId || undefined,
+        });
+        finalContent = response.content;
+        finalSuggestedActions = response.suggestedActions || [];
+        isPreviewNotice = response.isPreviewNotice || false;
+      }
+
+      const assistantMsg: ChatMessage = {
+        id: `msg-asst-${Date.now()}`,
+        role: 'assistant',
+        content: finalContent,
+        timestamp: new Date().toISOString(),
+        suggestedActions: finalSuggestedActions,
+        isPreviewNotice,
+        toolExecutions: agentResult.toolExecutions.length > 0 ? agentResult.toolExecutions : undefined,
+      };
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === targetConvId
+            ? {
+                ...c,
+                updatedAt: new Date().toISOString(),
+                messages: [...c.messages, assistantMsg],
+              }
+            : c
+        )
+      );
+    } catch (err: any) {
+      console.error('Agent execution error', err);
+      setChatError(err?.message || 'Failed to process request. Please retry.');
+      showToast('Could not complete request', 'warning');
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const executeToolDirectly = async (
+    toolName: string,
+    args: Record<string, any>
+  ): Promise<ToolExecutionRecord> => {
+    const agentContext: AgentContext = {
+      projects,
+      activeProjectId,
+      activeProject,
+      savedIdeas,
+      mediaAssets,
+      createProject,
+      updateProject,
+      archiveProject,
+      deleteProject,
+      addScene,
+      updateScene,
+      removeScene,
+      submitForReview,
+      approveProject,
+      saveIdea,
+      setActiveProjectId,
+      setCurrentSection,
+    };
+
+    const record = await executeAgentTool(toolName, args, agentContext);
+
+    // If an action succeeded, post a system confirmation message in active conversation
+    if (activeConversationId) {
+      const confirmMsg: ChatMessage = {
+        id: `msg-tool-${Date.now()}`,
+        role: 'assistant',
+        content: `Executed **${record.displayName}**: ${record.outputSummary || 'Action completed successfully.'}`,
+        timestamp: new Date().toISOString(),
+        toolExecutions: [record],
+      };
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConversationId
+            ? { ...c, updatedAt: new Date().toISOString(), messages: [...c.messages, confirmMsg] }
+            : c
+        )
+      );
+    }
+
+    return record;
+  };
+
+  const retryLastMessage = async () => {
+    if (!activeConversation || activeConversation.messages.length === 0) return;
+    const lastUserMsg = [...activeConversation.messages].reverse().find((m) => m.role === 'user');
+    if (lastUserMsg) {
+      await sendMessage(lastUserMsg.content);
+    }
+  };
+
+  const saveIdea = (idea: Omit<SavedIdea, 'id' | 'createdAt'>) => {
+    const newIdea: SavedIdea = {
+      ...idea,
+      id: `idea-${Date.now().toString(36)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setSavedIdeas((prev) => [newIdea, ...prev]);
+    showToast(`Saved "${newIdea.title}" to Idea Scratchpad!`, 'success');
+  };
+
+  const deleteSavedIdea = (id: string) => {
+    setSavedIdeas((prev) => prev.filter((i) => i.id !== id));
+    showToast('Idea removed from scratchpad', 'info');
+  };
+
+  const createProjectFromIdea = (params: {
+    title?: string;
+    topic?: string;
+    category?: ContentCategory;
+    format?: VideoFormat;
+  }): string => {
+    const title = params.title || 'AI Generated Video Project';
+    const topic = params.topic || title;
+    const category = params.category || 'Tech & AI';
+    const format = params.format || 'short_form';
+    const aspectRatio = format === 'short_form' ? '9:16' : '16:9';
+
+    const projectId = createProject({
+      title,
+      topic,
+      category,
+      format,
+      aspectRatio,
+      visualStyle: 'cyber_minimal',
+      narrationStyle: 'energetic_tech',
+      subtitleStyle: 'dynamic_pop',
+      targetDuration: format === 'short_form' ? 45 : 90,
+      targetPlatforms:
+        format === 'short_form'
+          ? ['YouTube Shorts', 'TikTok', 'Instagram Reels']
+          : ['YouTube & Shorts', 'LinkedIn Video'],
+      coverImage: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
+      publishingCaption: `${title} — ${topic.slice(0, 100)}... #FutureTech #VYRAStudio`,
+      selectedPlatformsForPublishing: ['youtube'],
+      scenes: [
+        {
+          id: `sc-${Date.now()}-1`,
+          order: 1,
+          narration: `Introducing ${title}. ${topic.slice(0, 80)}...`,
+          visualPrompt: `High fidelity cinematic visualization of ${title} in cyber-minimal aesthetic`,
+          cameraMovement: 'Slow inward macro push with shallow depth of field',
+          duration: 12,
+          mediaUrl: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
+          status: 'ready',
+        },
+      ],
+    });
+
+    navigateToProjectWorkspace(projectId);
+    showToast(`Created new project "${title}"! Opening Storyboard Workspace.`, 'success');
+    return projectId;
+  };
+
   return (
     <StudioContext.Provider
       value={{
@@ -429,6 +830,24 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toast,
         showToast,
         clearToast,
+        // AI Ideas Chat
+        conversations,
+        activeConversationId,
+        activeConversation,
+        createNewConversation,
+        selectConversation,
+        renameConversation,
+        deleteConversation,
+        sendMessage,
+        isSendingMessage,
+        chatError,
+        retryLastMessage,
+        aiStatus,
+        savedIdeas,
+        saveIdea,
+        deleteSavedIdea,
+        createProjectFromIdea,
+        executeToolDirectly,
       }}
     >
       {children}

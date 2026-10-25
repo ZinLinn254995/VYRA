@@ -74,6 +74,7 @@ export const BRAND_CONFIG: BrandConfig = {
     { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', description: 'Studio overview, active jobs & recent drafts' },
     { id: 'projects', label: 'Projects', icon: 'FolderKanban', description: 'All video projects, active work, and archives' },
     { id: 'create', label: 'Create Video', icon: 'Sparkles', description: 'Guided AI video generation & storyboard wizard' },
+    { id: 'ideas', label: 'AI Ideas Chat', icon: 'Bot', description: 'Brainstorm, outline, and refine video concepts with AI' },
     { id: 'workspace', label: 'Storyboard Workspace', icon: 'Film', description: 'Scene sequencer, narration scripts, and prompts' },
     { id: 'media', label: 'Media Library', icon: 'Image', description: 'Generated B-roll, voice tracks, and brand kit assets' },
     { id: 'review', label: 'Review Queue', icon: 'CheckSquare', description: 'Preview, caption editing, and approval workflow' },
