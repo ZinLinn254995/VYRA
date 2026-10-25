@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { MediaAsset } from '../../types';
+import { deleteSavedImage, getSavedImages, SavedMediaImage } from '../../services/mediaLibraryStorage';
 import {
   Image,
   Upload,
@@ -25,6 +26,22 @@ export const MediaLibraryView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savedImages, setSavedImages] = useState<SavedMediaImage[]>([]);
+  const [loadingSavedImages, setLoadingSavedImages] = useState(true);
+
+  const refreshSavedImages = async () => {
+    try {
+      setSavedImages(await getSavedImages());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not load saved images', 'warning');
+    } finally {
+      setLoadingSavedImages(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshSavedImages();
+  }, []);
 
   // New asset form
   const [newTitle, setNewTitle] = useState('');
@@ -45,6 +62,17 @@ export const MediaLibraryView: React.FC = () => {
     setCopiedId(id);
     showToast('Asset path copied to clipboard', 'info');
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleDeleteSavedImage = async (image: SavedMediaImage) => {
+    if (!window.confirm('Delete "' + image.title + '" from this device’s Media Library?')) return;
+    try {
+      await deleteSavedImage(image.id);
+      setSavedImages((current) => current.filter((item) => item.id !== image.id));
+      showToast('Saved image removed from this device', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not delete image', 'warning');
+    }
   };
 
   const handleCreateAsset = (e: React.FormEvent) => {
@@ -112,6 +140,40 @@ export const MediaLibraryView: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {/* Generated images saved in browser IndexedDB */}
+      {(activeTab === 'all' || activeTab === 'image') && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Images</h2>
+            <span className="text-[11px] text-slate-500">{savedImages.length} saved on this device</span>
+          </div>
+          {loadingSavedImages ? (
+            <p className="text-xs text-slate-500">Loading saved images…</p>
+          ) : savedImages.length === 0 ? (
+            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Images saved from Settings → OpenRouter Image Generator will appear here.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {savedImages.map((image) => (
+                <article key={image.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
+                  <div className="aspect-video bg-[#090B18]">
+                    <img src={image.dataUrl} alt={image.title} className="w-full h-full object-contain" loading="lazy" />
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{image.title}</h3>
+                    <p className="text-[10px] text-slate-500 break-all">{image.model}</p>
+                    <p className="text-[10px] text-slate-500">{new Date(image.createdAt).toLocaleString()} · {image.costUsd === null ? 'Cost not reported' : '$' + image.costUsd.toFixed(4)}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <a href={image.dataUrl} download={'vyra-' + image.id + '.png'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download</a>
+                      <button type="button" onClick={() => void handleDeleteSavedImage(image)} aria-label={'Delete ' + image.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Assets Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
