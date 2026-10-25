@@ -147,8 +147,16 @@ app.get('/api/providers/openrouter/models', async (req: Request, res: Response) 
   try {
     const response = await openRouterFetch(endpoint, apiKey);
     const data = await response.json().catch(() => ({})) as {
-      data?: Array<{ id?: string; name?: string; description?: string; model_id?: string }>;
-      models?: Array<{ id?: string; name?: string; description?: string; model_id?: string }>;
+      data?: Array<{
+        id?: string; name?: string; description?: string; model_id?: string;
+        context_length?: number;
+        pricing?: { prompt?: string; completion?: string };
+      }>;
+      models?: Array<{
+        id?: string; name?: string; description?: string; model_id?: string;
+        context_length?: number;
+        pricing?: { prompt?: string; completion?: string };
+      }>;
       error?: { message?: string } | string;
     };
     if (!response.ok) {
@@ -164,6 +172,13 @@ app.get('/api/providers/openrouter/models', async (req: Request, res: Response) 
         id: String(model.id || model.model_id || ''),
         name: typeof model.name === 'string' ? model.name : undefined,
         description: typeof model.description === 'string' ? model.description.slice(0, 240) : undefined,
+        contextLength: typeof model.context_length === 'number' ? model.context_length : undefined,
+        pricing: model.pricing && (
+          typeof model.pricing.prompt === 'string' || typeof model.pricing.completion === 'string'
+        ) ? {
+          prompt: typeof model.pricing.prompt === 'string' ? model.pricing.prompt : undefined,
+          completion: typeof model.pricing.completion === 'string' ? model.pricing.completion : undefined,
+        } : undefined,
       }))
       .filter((model) => Boolean(model.id))
       .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
