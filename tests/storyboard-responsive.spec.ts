@@ -14,6 +14,9 @@ for (const viewport of viewports) {
 
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/');
+    if (viewport.width < 768) {
+      await page.getByRole('button', { name: 'Open mobile menu' }).click();
+    }
     await expect(page.locator('nav button').nth(4)).toBeVisible();
     await page.locator('nav button').nth(4).click();
     await expect(page.getByText(/Storyboard Timeline/)).toBeVisible();
