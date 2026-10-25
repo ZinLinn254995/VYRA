@@ -636,6 +636,10 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         finalContent = response.content;
         finalSuggestedActions = response.suggestedActions || [];
         isPreviewNotice = response.isPreviewNotice || false;
+        if (response.status === 'success') {
+          // Refresh status only after the backend returned a real successful response.
+          setAiStatus(await aiService.checkStatus());
+        }
       }
 
       const assistantMsg: ChatMessage = {
