@@ -50,6 +50,26 @@ class ModularAIService implements AIServiceProvider {
 
   public async checkStatus(): Promise<AIServiceStatus> {
     try {
+      const openRouterKey = typeof window !== 'undefined' ? sessionStorage.getItem('vyra_openrouter_key_session') : null;
+      if (openRouterKey) {
+        let selectedTextModel = '';
+        try {
+          const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+          selectedTextModel = selections.text || '';
+        } catch { /* use provider default status label */ }
+        return {
+          status: 'connected',
+          providerName: 'OpenRouter',
+          modelName: selectedTextModel || 'Select a Text model in Settings',
+          backendEndpoint: '/api/providers/openrouter/chat',
+          message: 'OpenRouter key was verified in this browser session. The next request will confirm live model access.',
+        };
+      }
+    } catch {
+      // Session storage may be unavailable in private browsing modes.
+    }
+
+    try {
       const res = await fetch('/api/health');
       if (res.ok) {
         const data = await res.json();
@@ -88,6 +108,52 @@ class ModularAIService implements AIServiceProvider {
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
     const latestUserMessage = [...request.messages].reverse().find((m) => m.role === 'user')?.content || '';
+
+    let openRouterKey = '';
+    let selectedTextModel = '';
+    try {
+      openRouterKey = typeof window !== 'undefined' ? sessionStorage.getItem('vyra_openrouter_key_session') || '' : '';
+      const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+      selectedTextModel = selections.text || '';
+    } catch {
+      // If browser session storage is unavailable, continue to the configured server provider.
+    }
+
+    if (openRouterKey) {
+      if (!selectedTextModel) {
+        return {
+          content: 'Open Settings and discover/select a Text model before using OpenRouter chat.',
+          status: 'error',
+          errorMessage: 'OPENROUTER_TEXT_MODEL_NOT_SELECTED',
+        };
+      }
+      try {
+        const response = await fetch('/api/providers/openrouter/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-openrouter-api-key': openRouterKey,
+          },
+          body: JSON.stringify({ ...request, model: selectedTextModel }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = typeof data.error === 'string' ? data.error : 'The OpenRouter request failed.';
+          return { content: message, status: 'error', errorMessage: message };
+        }
+        const content = typeof data.text === 'string' ? data.text.trim() : '';
+        if (!content) {
+          return { content: 'The selected OpenRouter model returned an empty response.', status: 'error', errorMessage: 'Empty OpenRouter response.' };
+        }
+        return { content, status: 'success' };
+      } catch {
+        return {
+          content: 'Could not reach the VYRA OpenRouter endpoint. Check the server connection and try again.',
+          status: 'error',
+          errorMessage: 'OpenRouter endpoint unavailable.',
+        };
+      }
+    }
 
     try {
       const response = await fetch(this.endpoint, {
