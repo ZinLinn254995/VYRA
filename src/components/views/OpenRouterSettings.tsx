@@ -44,8 +44,8 @@ export const OpenRouterSettings: React.FC = () => {
     try { sessionStorage.setItem(MODEL_STORAGE, JSON.stringify(next)); } catch { /* optional preference persistence */ }
   };
 
-  const request = async (path: string, key: string) => {
-    const response = await fetch(path, { headers: { 'x-openrouter-api-key': key } });
+  const request = async (path: string, key: string, method: 'GET' | 'POST' = 'GET') => {
+    const response = await fetch(path, { method, headers: { 'x-openrouter-api-key': key } });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'OpenRouter request failed.');
     return data;
@@ -62,7 +62,7 @@ export const OpenRouterSettings: React.FC = () => {
     setError('');
     setMessage('Checking your key with OpenRouter…');
     try {
-      const result = await request('/api/providers/openrouter/test', key);
+      const result = await request('/api/providers/openrouter/test', key, 'POST');
       setConnected(true);
       setMessage(result.message || 'OpenRouter key verified.');
       try { sessionStorage.setItem(KEY_STORAGE, key); } catch { /* session-only in memory if storage is unavailable */ }
