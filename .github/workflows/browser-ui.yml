@@ -27,7 +27,7 @@ jobs:
       - name: Run production build
         run: npm run build
       - name: Run responsive browser tests
-        run: npx playwright test
+        run: mkdir -p artifacts && npx playwright test
       - name: Upload screenshots and test report
         if: always()
         uses: actions/upload-artifact@v4
