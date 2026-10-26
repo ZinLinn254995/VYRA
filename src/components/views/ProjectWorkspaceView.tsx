@@ -415,15 +415,55 @@ export const ProjectWorkspaceView: React.FC = () => {
     }
   };
 
-  const handleExportSubtitles = () => {
+  const handleExportSubtitles = async () => {
     if (!project) return;
     const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
     const entries: Array<{ start: number; end: number; text: string }> = [];
+    const readMediaDuration = (blob: Blob, kind: 'video' | 'audio'): Promise<number> => new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const media = document.createElement(kind);
+      media.preload = 'metadata';
+      const cleanup = () => {
+        media.onloadedmetadata = null;
+        media.onerror = null;
+        URL.revokeObjectURL(url);
+        media.removeAttribute('src');
+        media.load();
+      };
+      media.onloadedmetadata = () => {
+        const duration = media.duration;
+        cleanup();
+        if (Number.isFinite(duration) && duration > 0) resolve(duration);
+        else reject(new Error('Invalid media duration'));
+      };
+      media.onerror = () => {
+        cleanup();
+        reject(new Error('Could not read media duration'));
+      };
+      media.src = url;
+      media.load();
+    });
     let sceneStart = 0;
 
     for (const scene of scenes) {
       const narration = scene.narration.trim();
-      const duration = Math.max(0.5, Number.isFinite(scene.duration) ? scene.duration : 0.5);
+      let duration = Math.max(0.5, Number.isFinite(scene.duration) ? scene.duration : 0.5);
+      // Match subtitle offsets to the actual export timeline where local clips exist.
+      // Full-video export holds a scene until both its video and voiceover finish.
+      try {
+        const savedVideo = scene.generatedVideoId ? await getSavedVideo(scene.generatedVideoId) : undefined;
+        const savedAudio = scene.generatedAudioId ? await getSavedAudio(scene.generatedAudioId) : undefined;
+        if (savedVideo) {
+          const videoDuration = await readMediaDuration(savedVideo.blob, 'video');
+          let audioDuration = 0;
+          if (savedAudio) {
+            try { audioDuration = await readMediaDuration(savedAudio.blob, 'audio'); } catch { /* Keep video duration if audio metadata is unavailable. */ }
+          }
+          duration = Math.max(videoDuration, audioDuration, 0.5);
+        }
+      } catch {
+        // If local media is unavailable, retain the storyboard's planned duration.
+      }
       if (narration) {
         const chunks = splitCaptionText(narration);
         const weights = chunks.map((chunk) => Math.max(1, chunk.length));
@@ -460,7 +500,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     a.download = (project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-subtitles.srt';
     a.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast('SRT subtitles exported using storyboard scene timings', 'success');
+    showToast('SRT subtitles exported using saved media durations where available', 'success');
   };
 
   const handleExportSpec = () => {
