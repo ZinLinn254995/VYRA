@@ -156,6 +156,37 @@ export async function getSavedAudio(id: string): Promise<SavedMediaAudio | undef
   }
 }
 
+export async function getSavedAudios(): Promise<SavedMediaAudio[]> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<SavedMediaAudio[]>((resolve, reject) => {
+      const request = db.transaction('generated-audio', 'readonly').objectStore('generated-audio').getAll();
+      request.onsuccess = () => {
+        const records = request.result as SavedMediaAudio[];
+        resolve(records.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+      };
+      request.onerror = () => reject(new Error('Could not load saved voiceovers.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function deleteSavedAudio(id: string): Promise<void> {
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('generated-audio', 'readwrite');
+      transaction.objectStore('generated-audio').delete(id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('Could not remove this voiceover.'));
+      transaction.onabort = () => reject(new Error('Removing this voiceover was cancelled.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function saveGeneratedVideo(
   video: Omit<SavedMediaVideo, 'id' | 'createdAt'>,
 ): Promise<SavedMediaVideo> {
