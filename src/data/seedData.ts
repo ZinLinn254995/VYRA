@@ -4,6 +4,10 @@
  */
 
 import { Project, JobQueueItem, MediaAsset, WorkspaceStats } from '../types';
+import heroCyberCity from '../assets/images/hero_cyber_city_1792925206979.jpg';
+import sceneQuantumChip from '../assets/images/scene_quantum_chip_1792925206672.jpg';
+import sceneAvatarPresenter from '../assets/images/scene_avatar_presenter_1792925207281.jpg';
+import sceneEcoHabitat from '../assets/images/scene_eco_habitat_1792925207788.jpg';
 
 export const INITIAL_PROJECTS: Project[] = [
   {
@@ -21,7 +25,7 @@ export const INITIAL_PROJECTS: Project[] = [
     status: 'in_review',
     createdAt: '2026-10-23T14:22:00Z',
     updatedAt: '2026-10-25T01:15:00Z',
-    coverImage: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
+    coverImage: sceneQuantumChip,
     reviewNotes: 'Audio mix is well-balanced. Needs approval on the 0:28 second text disclaimer before publishing.',
     publishingCaption: 'Traditional silicon just hit the physics wall. Photonic processors use guided laser channels for 100x efficiency. Is Moore\'s Law back? ⚡ #QuantumComputing #TechTrends #FutureTech #Semiconductor',
     selectedPlatformsForPublishing: ['youtube', 'tiktok', 'instagram'],
@@ -33,7 +37,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Photorealistic macro view of a next-generation optical quantum computing processor with glowing micro-photonic circuits, deep midnight blue and violet studio laboratory lighting',
         cameraMovement: 'Slow inward macro push with shallow depth of field',
         duration: 9,
-        mediaUrl: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
+        mediaUrl: sceneQuantumChip,
         status: 'ready',
       },
       {
@@ -43,7 +47,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Studio portrait of a futuristic holographic female tech presenter demonstrating photonic circuits on a glass slate',
         cameraMovement: 'Smooth arc pan from left to center',
         duration: 11,
-        mediaUrl: '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+        mediaUrl: sceneAvatarPresenter,
         status: 'ready',
       },
       {
@@ -53,7 +57,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Cinematic wide-angle futuristic smart metropolis at dusk with neon sky-rail and holographic architectural nodes',
         cameraMovement: 'Cinematic crane descent down the neon sky-bridge',
         duration: 12,
-        mediaUrl: '/src/assets/images/hero_cyber_city_1792925206979.jpg',
+        mediaUrl: heroCyberCity,
         status: 'ready',
       },
       {
@@ -63,7 +67,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Cinematic establishing shot of an advanced sustainable biodome urban sanctuary with aeroponic vertical gardens and clean solar glass towers',
         cameraMovement: 'Dynamic ascending tilt into the golden sunset horizon',
         duration: 13,
-        mediaUrl: '/src/assets/images/scene_eco_habitat_1792925207788.jpg',
+        mediaUrl: sceneEcoHabitat,
         status: 'ready',
       },
     ],
@@ -83,7 +87,7 @@ export const INITIAL_PROJECTS: Project[] = [
     status: 'draft',
     createdAt: '2026-10-24T09:30:00Z',
     updatedAt: '2026-10-25T02:40:00Z',
-    coverImage: '/src/assets/images/hero_cyber_city_1792925206979.jpg',
+    coverImage: heroCyberCity,
     publishingCaption: 'Autonomous sky-rails are reshaping modern transit hubs. Here is how frictionless maglev networks achieve zero-congestion in vertical cities.',
     selectedPlatformsForPublishing: ['youtube', 'linkedin'],
     scenes: [
@@ -94,7 +98,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Cinematic wide-angle futuristic smart metropolis at dusk with neon sky-rail and holographic architectural nodes',
         cameraMovement: 'High-altitude drone tracking shot along the magnetic rail line',
         duration: 15,
-        mediaUrl: '/src/assets/images/hero_cyber_city_1792925206979.jpg',
+        mediaUrl: heroCyberCity,
         status: 'ready',
       },
       {
@@ -104,7 +108,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Detailed close-up of high-speed maglev transit car sliding silently into an illuminated glass sky-deck station',
         cameraMovement: 'Side tracking dolly matching carriage velocity',
         duration: 20,
-        mediaUrl: '/src/assets/images/hero_cyber_city_1792925206979.jpg',
+        mediaUrl: heroCyberCity,
         status: 'scripted',
       },
       {
@@ -114,7 +118,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Cinematic establishing shot of an advanced sustainable biodome urban sanctuary with aeroponic vertical gardens and clean solar glass towers',
         cameraMovement: 'Slow vertical pedestal down from sky-rail into lush street-level canopies',
         duration: 25,
-        mediaUrl: '/src/assets/images/scene_eco_habitat_1792925207788.jpg',
+        mediaUrl: sceneEcoHabitat,
         status: 'ready',
       },
     ],
@@ -134,7 +138,7 @@ export const INITIAL_PROJECTS: Project[] = [
     status: 'approved',
     createdAt: '2026-10-22T11:15:00Z',
     updatedAt: '2026-10-24T18:00:00Z',
-    coverImage: '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+    coverImage: sceneAvatarPresenter,
     reviewNotes: 'Approved by Content Lead on Oct 24. Ready for queue dispatch when OAuth credentials are authenticated.',
     publishingCaption: 'Scale your executive presence across 42 languages without recording studio burnout. Introducing AuraOS synthetic avatar integration.',
     selectedPlatformsForPublishing: ['linkedin', 'instagram', 'x'],
@@ -146,7 +150,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Studio portrait of a professional futuristic female tech founder and virtual broadcast presenter in an obsidian studio',
         cameraMovement: 'Direct eye-level push in with soft rim lighting',
         duration: 14,
-        mediaUrl: '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+        mediaUrl: sceneAvatarPresenter,
         status: 'ready',
       },
       {
@@ -156,7 +160,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Macro view of optical quantum computing processor with glowing micro-photonic circuits simulating neural compute',
         cameraMovement: 'Dynamic orbital rotation around the processor',
         duration: 16,
-        mediaUrl: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
+        mediaUrl: sceneQuantumChip,
         status: 'ready',
       },
     ],
@@ -176,7 +180,7 @@ export const INITIAL_PROJECTS: Project[] = [
     status: 'archived',
     createdAt: '2026-10-15T08:00:00Z',
     updatedAt: '2026-10-20T12:00:00Z',
-    coverImage: '/src/assets/images/scene_eco_habitat_1792925207788.jpg',
+    coverImage: sceneEcoHabitat,
     publishingCaption: 'Archived project from Season 1 biophilic design series.',
     selectedPlatformsForPublishing: ['youtube'],
     scenes: [
@@ -187,7 +191,7 @@ export const INITIAL_PROJECTS: Project[] = [
         visualPrompt: 'Cinematic establishing shot of an advanced sustainable biodome urban sanctuary with aeroponic vertical gardens and clean solar glass towers',
         cameraMovement: 'Wide sweeping landscape tilt across the lake and dome structures',
         duration: 30,
-        mediaUrl: '/src/assets/images/scene_eco_habitat_1792925207788.jpg',
+        mediaUrl: sceneEcoHabitat,
         status: 'ready',
       },
     ],
@@ -232,7 +236,7 @@ export const INITIAL_MEDIA_ASSETS: MediaAsset[] = [
     id: 'media-01',
     title: 'Tokyo 2088 Sky-Rail Establishing Shot',
     type: 'image',
-    url: '/src/assets/images/hero_cyber_city_1792925206979.jpg',
+    url: heroCyberCity,
     dimensions: '1920x1080',
     tags: ['Cyberpunk', 'Cityscape', 'Sky-rail', 'Night'],
     createdAt: '2026-10-25T03:46:00Z',
@@ -241,7 +245,7 @@ export const INITIAL_MEDIA_ASSETS: MediaAsset[] = [
     id: 'media-02',
     title: 'Photonic Optical Processor Macro',
     type: 'image',
-    url: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
+    url: sceneQuantumChip,
     dimensions: '1920x1080',
     tags: ['Quantum', 'Hardware', 'Photonic', 'Cyan'],
     createdAt: '2026-10-25T03:46:00Z',
@@ -250,7 +254,7 @@ export const INITIAL_MEDIA_ASSETS: MediaAsset[] = [
     id: 'media-03',
     title: 'Aura Presenter Holographic Anchor',
     type: 'image',
-    url: '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+    url: sceneAvatarPresenter,
     dimensions: '1024x1024',
     tags: ['Avatar', 'Host', 'Studio', 'Futuristic'],
     createdAt: '2026-10-25T03:46:00Z',
@@ -259,7 +263,7 @@ export const INITIAL_MEDIA_ASSETS: MediaAsset[] = [
     id: 'media-04',
     title: 'Biosphere Dome Vertical Agriculture',
     type: 'image',
-    url: '/src/assets/images/scene_eco_habitat_1792925207788.jpg',
+    url: sceneEcoHabitat,
     dimensions: '1920x1080',
     tags: ['Ecology', 'Biodome', 'Architecture', 'Green'],
     createdAt: '2026-10-25T03:46:00Z',
