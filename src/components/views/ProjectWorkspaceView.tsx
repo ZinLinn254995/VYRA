@@ -606,8 +606,23 @@ export const ProjectWorkspaceView: React.FC = () => {
         sourceUrls.push(sourceUrl);
         video.src = sourceUrl;
         await new Promise<void>((resolve, reject) => {
-          video.onloadedmetadata = () => resolve();
-          video.onerror = () => reject(new Error('Could not decode the saved clip for scene ' + scene.order + '.'));
+          const timeoutId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error('Timed out while loading the saved clip for scene ' + scene.order + '. Try re-saving that clip and exporting again.'));
+          }, 10000);
+          const cleanup = () => {
+            window.clearTimeout(timeoutId);
+            video.onloadedmetadata = null;
+            video.onerror = null;
+          };
+          video.onloadedmetadata = () => {
+            cleanup();
+            resolve();
+          };
+          video.onerror = () => {
+            cleanup();
+            reject(new Error('Could not decode the saved clip for scene ' + scene.order + '.'));
+          };
           video.load();
         });
         if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
