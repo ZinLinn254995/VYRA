@@ -83,7 +83,10 @@ export const ProjectWorkspaceView: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const videoId = currentScene?.generatedVideoId;
-    if (!videoId) return () => { cancelled = true; };
+    if (!videoId) {
+      setGeneratedClipUrl('');
+      return () => { cancelled = true; };
+    }
     getSavedVideo(videoId)
       .then((saved) => {
         if (!cancelled && saved) setGeneratedClipUrl(URL.createObjectURL(saved.blob));
