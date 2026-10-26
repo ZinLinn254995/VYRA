@@ -290,7 +290,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         'Aspect ratio: ' + project.aspectRatio,
         'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
       ].join('\n');
-      setClipStatus('Submitting video generation job…');
+      if (selectedSceneId === targetScene.id) setClipStatus('Submitting video generation job…');
       const response = await fetch('/api/providers/openrouter/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
@@ -301,7 +301,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       let completed = false;
       let generatedCostUsd: number | null = null;
       for (let attempt = 0; attempt < 40; attempt += 1) {
-        setClipStatus(attempt === 0 ? 'Video job queued. Waiting for the model…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
+        if (selectedSceneId === targetScene.id) setClipStatus(attempt === 0 ? 'Video job queued. Waiting for the model…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
         await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
         const statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), { headers: { 'x-openrouter-api-key': apiKey } });
         const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
@@ -309,9 +309,9 @@ export const ProjectWorkspaceView: React.FC = () => {
         if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
         if (status.status === 'completed') {
           completed = true;
-          setClipStatus('Video generated. Downloading clip…');
+          if (selectedSceneId === targetScene.id) setClipStatus('Video generated. Downloading clip…');
           generatedCostUsd = typeof status.costUsd === 'number' ? status.costUsd : null;
-          setClipCostUsd(generatedCostUsd);
+          if (selectedSceneId === targetScene.id) setClipCostUsd(generatedCostUsd);
           break;
         }
       }
@@ -336,21 +336,21 @@ export const ProjectWorkspaceView: React.FC = () => {
         savedVideoId = saved.id;
         updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
       } catch {
-        setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
+        if (selectedSceneId === targetScene.id) setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
       }
       // The user may switch scenes while the provider job is running. The clip is
       // linked to targetScene above; only update the visible preview if that scene
       // is still selected, otherwise the scene-change effect will restore its media.
       if (selectedSceneId === targetScene.id) {
         setGeneratedClipUrl(URL.createObjectURL(blob));
-        setClipStatus(savedVideoId
+        if (selectedSceneId === targetScene.id) setClipStatus(savedVideoId
           ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
           : 'Your 4-second clip is ready. Use Download Clip to save the video.');
       }
       showToast(savedVideoId ? 'AI video clip generated and saved' : 'AI video clip generated; local save failed', savedVideoId ? 'success' : 'warning');
     } catch (error) {
       setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
-      setClipStatus('');
+      if (selectedSceneId === targetScene.id) setClipStatus('');
     } finally {
       setIsGeneratingClip(false);
     }
@@ -404,8 +404,10 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       showToast('AI voiceover generated and saved', 'success');
     } catch (error) {
-      setVoiceoverError(error instanceof Error ? error.message : 'Voiceover generation failed. Please retry.');
-      setVoiceoverStatus('');
+      if (selectedSceneId === targetScene.id) {
+        setVoiceoverError(error instanceof Error ? error.message : 'Voiceover generation failed. Please retry.');
+        setVoiceoverStatus('');
+      }
     } finally {
       setIsGeneratingVoiceover(false);
     }
