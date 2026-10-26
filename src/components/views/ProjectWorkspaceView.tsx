@@ -26,6 +26,7 @@ import {
   Monitor,
   Square,
   FileText,
+  Video,
 } from 'lucide-react';
 
 export const ProjectWorkspaceView: React.FC = () => {
@@ -63,6 +64,19 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [previewAspectRatio, setPreviewAspectRatio] = useState<AspectRatio>(
     project?.aspectRatio || '16:9'
   );
+
+  // Generated clips stay in memory until downloaded; large video files are not written into localStorage.
+  const [isGeneratingClip, setIsGeneratingClip] = useState(false);
+  const [clipStatus, setClipStatus] = useState('');
+  const [clipError, setClipError] = useState('');
+  const [generatedClipUrl, setGeneratedClipUrl] = useState('');
+  const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (generatedClipUrl) URL.revokeObjectURL(generatedClipUrl);
+    };
+  }, [generatedClipUrl]);
 
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
   const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
@@ -103,6 +117,73 @@ export const ProjectWorkspaceView: React.FC = () => {
     const prevIdx = (currentSceneIndex - 1 + project.scenes.length) % project.scenes.length;
     setSelectedSceneId(project.scenes[prevIdx].id);
     setPlayProgress(0);
+  };
+
+  const handleGenerateClip = async () => {
+    if (!project || !currentScene || isGeneratingClip) return;
+    setClipError('');
+    setClipStatus('');
+    setClipCostUsd(null);
+    setGeneratedClipUrl('');
+    setIsGeneratingClip(true);
+    try {
+      let apiKey = '';
+      let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+      try {
+        apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+        selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+      } catch { /* Show setup guidance below if session storage is unavailable. */ }
+      const model = selectedModels.video;
+      if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Video model in Settings before generating a clip.');
+      const prompt = [
+        'Generate a cinematic 4-second video clip for one scene in a larger video.',
+        'Visual direction: ' + currentScene.visualPrompt,
+        'Camera movement: ' + currentScene.cameraMovement,
+        'Narrative context: ' + currentScene.narration,
+        'Overall visual style: ' + project.visualStyle,
+        'Aspect ratio: ' + project.aspectRatio,
+        'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
+      ].join('\\n');
+      setClipStatus('Submitting video generation job…');
+      const response = await fetch('/api/providers/openrouter/videos/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio, duration: 4 }),
+      });
+      const submitted = await response.json().catch(() => ({})) as { jobId?: string; error?: string };
+      if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
+      let completed = false;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        setClipStatus(attempt === 0 ? 'Video job queued. Waiting for the model…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
+        const statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), { headers: { 'x-openrouter-api-key': apiKey } });
+        const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
+        if (!statusResponse.ok) throw new Error(status.error || 'Could not check video generation status.');
+        if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
+        if (status.status === 'completed') {
+          completed = true;
+          setClipStatus('Video generated. Downloading clip…');
+          setClipCostUsd(typeof status.costUsd === 'number' ? status.costUsd : null);
+          break;
+        }
+      }
+      if (!completed) throw new Error('Video generation is taking longer than expected. Retry later; check your OpenRouter account before submitting another job.');
+      const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId) + '/content', { headers: { 'x-openrouter-api-key': apiKey } });
+      if (!contentResponse.ok) {
+        const data = await contentResponse.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || 'The video was generated but could not be downloaded. Please retry the download.');
+      }
+      const blob = await contentResponse.blob();
+      if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
+      setGeneratedClipUrl(URL.createObjectURL(blob));
+      setClipStatus('Your 4-second clip is ready. Use Download Clip to save the MP4.');
+      showToast('AI video clip generated successfully', 'success');
+    } catch (error) {
+      setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
+      setClipStatus('');
+    } finally {
+      setIsGeneratingClip(false);
+    }
   };
 
   const handleExportSpec = () => {
@@ -412,6 +493,191 @@ export const ProjectWorkspaceView: React.FC = () => {
                   placeholder="Detailed visual prompt describing scene environment, materials, lighting..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]"
                 />
+              </div>
+
+              {/* Real OpenRouter video generation for the selected scene */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Video className="w-4 h-4 text-[#55F4FF]" />
+                      Generate AI Video Clip
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">
+                      Creates a real 4-second clip using your selected OpenRouter Video model. API usage may incur charges.
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingClip ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingClip ? 'Generating…' : 'Generate 4s Clip'}
+                  </button>
+                </div>
+                {clipStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{clipStatus}</p>}
+                {clipError && <p role="alert" className="text-[11px] text-rose-400">{clipError}</p>}
+                {generatedClipUrl && (
+                  <div className="space-y-2">
+                    <video src={generatedClipUrl} controls playsInline className="w-full max-h-80 rounded-lg bg-black" />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400">
+                    Camera Motion
+                  </label>
+                  <select
+                    value={currentScene.cameraMovement}
+                    onChange={(e) =>
+                      updateScene(project.id, currentScene.id, { cameraMovement: e.target.value })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none"
+                  >
+                    <option value="Slow inward macro push with shallow depth of field">
+                      Slow Inward Push (Macro)
+                    </option>
+                    <option value="Cinematic tracking pass across the skyline">
+                      Cinematic Tracking Pass
+                    </option>
+                    <option value="Dynamic ascending tilt into the golden sunset horizon">
+                      Ascending Tilt
+                    </option>
+                    <option value="Smooth arc pan from left to center">Arc Pan (Avatar)</option>
+                    <option value="Static tripod lock-off">Static Lock-off</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400">
+                    Visual Media Source
+                  </label>
+                  <select
+                    value={currentScene.mediaUrl}
+                    onChange={(e) =>
+                      updateScene(project.id, currentScene.id, { mediaUrl: e.target.value })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none truncate"
+                  >
+                    <option value="/src/assets/images/scene_quantum_chip_1792925206672.jpg">
+                      Quantum Optical Chip Macro
+                    </option>
+                    <option value="/src/assets/images/hero_cyber_city_1792925206979.jpg">
+                      Tokyo 2088 Sky-Rail Cityscape
+                    </option>
+                    <option value="/src/assets/images/scene_avatar_presenter_1792925207281.jpg">
+                      Holographic Anchor Avatar
+                    </option>
+                    <option value="/src/assets/images/scene_eco_habitat_1792925207788.jpg">
+                      Alpine Biosphere Eco-Habitat
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Scene Sequencer Timeline List (Reordering, Adding, Deleting) */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-white light:text-slate-900 flex items-center gap-1.5">
+                <Film className="w-4 h-4 text-[#8D7CFF]" />
+                <span>Storyboard Timeline ({project.scenes.length} Scenes)</span>
+              </span>
+              <button
+                onClick={() => addScene(project.id)}
+                className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Scene</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {project.scenes.map((sc, idx) => {
+                const isSelected = sc.id === selectedSceneId;
+                return (
+                  <div
+                    key={sc.id}
+                    onClick={() => setSelectedSceneId(sc.id)}
+                    className={`p-2 sm:p-3 rounded-lg border transition-all cursor-pointer flex items-center gap-2 sm:gap-3 min-w-0 ${
+                      isSelected
+                        ? 'border-[#55F4FF] bg-[#171A35] light:bg-slate-100 shadow-xs'
+                        : 'border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-white hover:border-slate-500'
+                    }`}
+                  >
+                    {/* Scene Order Badge */}
+                    <span className="font-mono text-xs font-bold text-slate-400 w-6 text-center">
+                      0{sc.order}
+                    </span>
+
+                    {/* Thumbnail */}
+                    <div className="w-12 sm:w-16 h-10 rounded bg-slate-900 overflow-hidden shrink-0">
+                      <img
+                        src={sc.mediaUrl}
+                        alt={`Scene ${sc.order}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    {/* Script Snippet */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-white light:text-slate-900 truncate font-medium">
+                        {sc.narration || '(Empty script)'}
+                      </p>
+                      <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                        <span className="font-mono tabular-nums">{sc.duration}s</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="truncate">{sc.cameraMovement}</span>
+                      </div>
+                    </div>
+
+                    {/* Reordering & Delete Controls */}
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        disabled={idx === 0}
+                        onClick={() => reorderScenes(project.id, idx, idx - 1)}
+                        title="Move scene up"
+                        className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        disabled={idx === project.scenes.length - 1}
+                        onClick={() => reorderScenes(project.id, idx, idx + 1)}
+                        title="Move scene down"
+                        className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {project.scenes.length > 1 && (
+                        <button
+                          onClick={() => removeScene(project.id, sc.id)}
+                          title="Delete scene"
+                          className="p-1 rounded text-slate-400 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+ + clipCostUsd.toFixed(4)} USD</span> : <span className="text-[11px] text-slate-400">Generated clip · 4 seconds</span>}
+                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.mp4'} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                        <Download className="h-3.5 w-3.5" />
+                        Download Clip
+                      </a>
+                    </div>
+                    <p className="text-[10px] text-slate-500">This clip is available for this workspace session only. Download it before leaving or refreshing; full multi-scene export is a separate step.</p>
+                  </div>
+                )}
               </div>
 
               {/* Camera Movement Selector & Media switcher */}
