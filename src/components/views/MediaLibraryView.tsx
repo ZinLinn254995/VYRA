@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { MediaAsset } from '../../types';
-import { deleteSavedImage, getSavedImages, SavedMediaImage, deleteSavedVideo, getSavedVideos, SavedMediaVideo } from '../../services/mediaLibraryStorage';
+import { deleteSavedImage, getSavedImages, SavedMediaImage, deleteSavedVideo, getSavedVideos, SavedMediaVideo, getSavedAudios, deleteSavedAudio, SavedMediaAudio } from '../../services/mediaLibraryStorage';
 import {
   Image,
   Upload,
@@ -31,6 +31,9 @@ export const MediaLibraryView: React.FC = () => {
   const [savedVideos, setSavedVideos] = useState<SavedMediaVideo[]>([]);
   const [savedVideoUrls, setSavedVideoUrls] = useState<Record<string, string>>({});
   const [loadingSavedVideos, setLoadingSavedVideos] = useState(true);
+  const [savedAudios, setSavedAudios] = useState<SavedMediaAudio[]>([]);
+  const [savedAudioUrls, setSavedAudioUrls] = useState<Record<string, string>>({});
+  const [loadingSavedAudios, setLoadingSavedAudios] = useState(true);
 
   const refreshSavedImages = async () => {
     try {
@@ -68,6 +71,29 @@ export const MediaLibraryView: React.FC = () => {
     setSavedVideoUrls(urls);
     return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
   }, [savedVideos]);
+
+  const refreshSavedAudios = async () => {
+    try {
+      setSavedAudios(await getSavedAudios());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not load saved voiceovers', 'warning');
+    } finally {
+      setLoadingSavedAudios(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshSavedAudios();
+  }, []);
+
+  useEffect(() => {
+    const urls: Record<string, string> = {};
+    savedAudios.forEach((audio) => {
+      urls[audio.id] = URL.createObjectURL(audio.blob);
+    });
+    setSavedAudioUrls(urls);
+    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+  }, [savedAudios]);
 
   // New asset form
   const [newTitle, setNewTitle] = useState('');
@@ -110,6 +136,18 @@ export const MediaLibraryView: React.FC = () => {
       showToast('Saved video removed from this device', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not delete video', 'warning');
+    }
+  };
+
+  const handleDeleteSavedAudio = async (audio: SavedMediaAudio) => {
+    if (!window.confirm('Delete "' + audio.title + '" from this device’s Media Library? This also unlinks the voiceover from its scene.')) return;
+    try {
+      await deleteSavedAudio(audio.id);
+      updateScene(audio.projectId, audio.sceneId, { generatedAudioId: undefined });
+      setSavedAudios((current) => current.filter((item) => item.id !== audio.id));
+      showToast('Saved voiceover removed from this device', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not delete voiceover', 'warning');
     }
   };
 
@@ -242,6 +280,44 @@ export const MediaLibraryView: React.FC = () => {
                     <div className="flex items-center justify-between gap-2 pt-1">
                       {savedVideoUrls[video.id] ? <a href={savedVideoUrls[video.id]} download={'vyra-' + video.id + '.mp4'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download MP4</a> : <span className="text-[11px] text-slate-500">Preparing clip…</span>}
                       <button type="button" onClick={() => void handleDeleteSavedVideo(video)} aria-label={'Delete ' + video.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Generated voiceovers saved in browser IndexedDB */}
+      {(activeTab === 'all' || activeTab === 'audio') && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Voiceovers</h2>
+            <span className="text-[11px] text-slate-500">{savedAudios.length} saved on this device</span>
+          </div>
+          {loadingSavedAudios ? (
+            <p className="text-xs text-slate-500">Loading saved voiceovers…</p>
+          ) : savedAudios.length === 0 ? (
+            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Voiceovers generated in a project workspace will appear here and remain available on this device.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {savedAudios.map((audio) => (
+                <article key={audio.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
+                  <div className="p-4 bg-[#090B18] light:bg-slate-50">
+                    {savedAudioUrls[audio.id] ? (
+                      <audio src={savedAudioUrls[audio.id]} controls preload="metadata" className="w-full" />
+                    ) : (
+                      <div className="h-10 flex items-center justify-center text-slate-500"><Music className="w-6 h-6" /></div>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{audio.title}</h3>
+                    <p className="text-[10px] text-slate-500 break-all">{audio.model} · Voice: {audio.voice}</p>
+                    <p className="text-[10px] text-slate-500">{new Date(audio.createdAt).toLocaleString()}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      {savedAudioUrls[audio.id] ? <a href={savedAudioUrls[audio.id]} download={'vyra-' + audio.id + '.mp3'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download audio</a> : <span className="text-[11px] text-slate-500">Preparing audio…</span>}
+                      <button type="button" onClick={() => void handleDeleteSavedAudio(audio)} aria-label={'Delete ' + audio.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 </article>
