@@ -364,10 +364,11 @@ export const ProjectWorkspaceView: React.FC = () => {
       const audioClips = await Promise.all(savedClips.map(async (clip) => {
         if (!clip.audioBlob) return undefined;
         if (typeof window.AudioContext === 'undefined') throw new Error('This browser cannot mix voiceover audio into exported video. Try a recent desktop Chrome or Edge browser.');
-        if (!audioContext) audioContext = new AudioContext();
+        const context = audioContext || new AudioContext();
+        audioContext = context;
         const bytes = await clip.audioBlob.arrayBuffer();
         try {
-          return await audioContext.decodeAudioData(bytes);
+          return await context.decodeAudioData(bytes);
         } catch {
           throw new Error('Could not decode the saved voiceover for scene ' + clip.scene.order + '. Regenerate that voiceover and try again.');
         }
