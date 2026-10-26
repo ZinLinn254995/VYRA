@@ -143,7 +143,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         'Overall visual style: ' + project.visualStyle,
         'Aspect ratio: ' + project.aspectRatio,
         'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
-      ].join('\\n');
+      ].join('\n');
       setClipStatus('Submitting video generation job…');
       const response = await fetch('/api/providers/openrouter/videos/generate', {
         method: 'POST',
