@@ -351,7 +351,7 @@ export const OpenRouterSettings: React.FC = () => {
           </div>
         )}
       </section>
-      <p className="text-[11px] text-slate-500">Image generation is connected to OpenRouter's dedicated Image API. Generated images currently stay in this page's memory and are not yet saved to a persistent Media Library. Video/Audio generation and MP4 assembly are separate upcoming work.</p>
+      <p className="text-[11px] text-slate-500">Image generation uses OpenRouter's Image API. You can save generated images to this browser's local Media Library; generated video clips and voiceovers are also stored locally on this device. Media is not cloud-synced, and generation or storage may be limited by provider pricing and browser storage capacity.</p>
     </section>
   );
 };
