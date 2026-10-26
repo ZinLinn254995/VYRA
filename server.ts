@@ -139,10 +139,10 @@ app.get('/api/providers/openrouter/models', async (req: Request, res: Response) 
     text: 'https://openrouter.ai/api/v1/models?output_modalities=text',
     image: 'https://openrouter.ai/api/v1/images/models',
     video: 'https://openrouter.ai/api/v1/videos/models',
-    audio: 'https://openrouter.ai/api/v1/models?output_modalities=audio',
+    audio: 'https://openrouter.ai/api/v1/models?output_modalities=speech',
   };
   const endpoint = endpointByCapability[capability];
-  if (!endpoint) return res.status(400).json({ error: 'Unsupported capability. Choose text, image, video or audio.' });
+  if (!endpoint) return res.status(400).json({ error: 'Unsupported capability. Choose text, image, video or speech.' });
 
   try {
     const response = await openRouterFetch(endpoint, apiKey);
@@ -253,6 +253,67 @@ app.post('/api/providers/openrouter/images/generate', async (req: Request, res: 
   }
 });
 
+
+app.post('/api/providers/openrouter/audio/speech', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+
+  const body = req.body as { model?: string; input?: string; voice?: string; speed?: number };
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const input = typeof body.input === 'string' ? body.input.trim() : '';
+  const voice = typeof body.voice === 'string' ? body.voice.trim() : 'alloy';
+  const speed = typeof body.speed === 'number' && Number.isFinite(body.speed)
+    ? Math.min(2, Math.max(0.5, body.speed))
+    : 1;
+
+  if (!model || model.length > 200) return res.status(400).json({ error: 'Discover and select a Speech model in Settings first.' });
+  if (!input) return res.status(400).json({ error: 'Add narration text before generating voiceover.' });
+  if (input.length > 4000) return res.status(413).json({ error: 'Narration is too long for one request. Keep it under 4,000 characters.' });
+  if (!voice || voice.length > 80 || !/^[a-zA-Z0-9_-]+$/.test(voice)) return res.status(400).json({ error: 'Voice name must contain letters, numbers, underscores or hyphens.' });
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'audio/mpeg, audio/*, application/octet-stream',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-OpenRouter-Title': 'VYRA',
+      },
+      body: JSON.stringify({ model, input, voice, speed, response_format: 'mp3' }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!upstream.ok) {
+      const detail = await upstream.json().catch(() => ({})) as { error?: string | { message?: string } };
+      const message = typeof detail.error === 'string' ? detail.error
+        : detail.error && typeof detail.error.message === 'string' ? detail.error.message : '';
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : upstream.status === 402 ? 402 : upstream.status === 429 ? 429 : 502).json({
+        error: upstream.status === 401 || upstream.status === 403
+          ? 'OpenRouter rejected the key. Verify it in Settings.'
+          : upstream.status === 402
+            ? 'OpenRouter reports insufficient credits or a payment requirement.'
+            : upstream.status === 429
+              ? 'OpenRouter rate limit reached. Wait a moment and retry.'
+              : message.slice(0, 300) || 'Speech generation failed. Check whether this model supports the selected voice and MP3 output.',
+      });
+    }
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!contentType.startsWith('audio/') && !contentType.includes('octet-stream')) {
+      return res.status(502).json({ error: 'The selected model returned an unsupported response format instead of audio.' });
+    }
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    if (!bytes.length) return res.status(502).json({ error: 'The speech provider returned an empty audio file.' });
+    res.setHeader('Content-Type', contentType.startsWith('audio/') ? contentType : 'audio/mpeg');
+    res.setHeader('Content-Length', String(bytes.length));
+    res.setHeader('Cache-Control', 'no-store');
+    const generationId = upstream.headers.get('x-generation-id');
+    if (generationId) res.setHeader('X-Generation-Id', generationId);
+    return res.status(200).send(bytes);
+  } catch {
+    return res.status(502).json({ error: 'Speech generation timed out or could not reach OpenRouter. Check connection and retry.' });
+  }
+});
 
 app.post('/api/providers/openrouter/videos/generate', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
