@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStudio } from '../../context/StudioContext';
-import { getSavedVideo, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
+import { getSavedAudio, getSavedVideo, saveGeneratedAudio, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
 import {
   Play,
@@ -68,6 +68,11 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   // Generated clips stay in memory until downloaded; large video files are not written into localStorage.
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
+  const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
+  const [voiceName, setVoiceName] = useState('alloy');
+  const [voiceoverStatus, setVoiceoverStatus] = useState('');
+  const [voiceoverError, setVoiceoverError] = useState('');
+  const [generatedVoiceoverUrl, setGeneratedVoiceoverUrl] = useState('');
   const [clipStatus, setClipStatus] = useState('');
   const [clipError, setClipError] = useState('');
   const [generatedClipUrl, setGeneratedClipUrl] = useState('');
@@ -80,6 +85,12 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (generatedClipUrl) URL.revokeObjectURL(generatedClipUrl);
     };
   }, [generatedClipUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (generatedVoiceoverUrl) URL.revokeObjectURL(generatedVoiceoverUrl);
+    };
+  }, [generatedVoiceoverUrl]);
 
 
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
@@ -101,6 +112,29 @@ export const ProjectWorkspaceView: React.FC = () => {
       });
     return () => { cancelled = true; };
   }, [currentScene?.generatedVideoId]);
+
+  // Restore this scene's saved voiceover from IndexedDB when returning to the workspace.
+  useEffect(() => {
+    let cancelled = false;
+    const audioId = currentScene?.generatedAudioId;
+    if (!audioId) {
+      setGeneratedVoiceoverUrl('');
+      setVoiceoverStatus('');
+      return () => { cancelled = true; };
+    }
+    getSavedAudio(audioId)
+      .then((saved) => {
+        if (!cancelled && saved) {
+          setGeneratedVoiceoverUrl(URL.createObjectURL(saved.blob));
+          setVoiceoverStatus('Voiceover restored from this device.');
+          setVoiceName(saved.voice || 'alloy');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVoiceoverError('This scene’s saved voiceover could not be loaded from this device.');
+      });
+    return () => { cancelled = true; };
+  }, [currentScene?.generatedAudioId]);
 
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
@@ -223,6 +257,57 @@ export const ProjectWorkspaceView: React.FC = () => {
       setClipStatus('');
     } finally {
       setIsGeneratingClip(false);
+    }
+  };
+
+  const handleGenerateVoiceover = async () => {
+    if (!project || !currentScene || isGeneratingVoiceover) return;
+    const narration = currentScene.narration.trim();
+    if (!narration) {
+      setVoiceoverError('Add narration text for this scene first.');
+      return;
+    }
+    setVoiceoverError('');
+    setVoiceoverStatus('Generating voiceover… this may take a little while.');
+    setGeneratedVoiceoverUrl('');
+    setIsGeneratingVoiceover(true);
+    try {
+      let apiKey = '';
+      let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+      try {
+        apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+        selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+      } catch { /* setup guidance below */ }
+      const model = selectedModels.audio;
+      if (!apiKey || !model) throw new Error('Connect OpenRouter and discover/select a Speech / Voiceover model in Settings first.');
+      const response = await fetch('/api/providers/openrouter/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, input: narration, voice: voiceName.trim() || 'alloy', speed: 1 }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || 'Voiceover generation failed. Check the selected model and voice.');
+      }
+      const blob = await response.blob();
+      if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
+      const saved = await saveGeneratedAudio({
+        title: project.title + ' — Scene ' + currentScene.order + ' Voiceover',
+        blob,
+        model,
+        voice: voiceName.trim() || 'alloy',
+        projectId: project.id,
+        sceneId: currentScene.id,
+      });
+      updateScene(project.id, currentScene.id, { generatedAudioId: saved.id });
+      setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
+      setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
+      showToast('AI voiceover generated and saved', 'success');
+    } catch (error) {
+      setVoiceoverError(error instanceof Error ? error.message : 'Voiceover generation failed. Please retry.');
+      setVoiceoverStatus('');
+    } finally {
+      setIsGeneratingVoiceover(false);
     }
   };
 
@@ -670,6 +755,38 @@ export const ProjectWorkspaceView: React.FC = () => {
                   placeholder="Enter the voiceover script for this scene..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
                 />
+              </div>
+
+              {/* Real OpenRouter text-to-speech generation for the selected scene */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-[#8D7CFF]" />
+                      Generate AI Voiceover
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400 light:text-slate-600" htmlFor="vyra-voice-name">Voice name (model-dependent)</label>
+                  <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="e.g. alloy" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />
+                </div>
+                {voiceoverStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{voiceoverStatus}</p>}
+                {voiceoverError && <p role="alert" className="text-[11px] text-rose-400">{voiceoverError}</p>}
+                {generatedVoiceoverUrl && (
+                  <div className="space-y-2">
+                    <audio src={generatedVoiceoverUrl} controls preload="metadata" className="w-full" />
+                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.mp3'} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                      <Download className="h-3.5 w-3.5" /> Download Voiceover
+                    </a>
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500">Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export does not mix voiceover audio yet.</p>
               </div>
 
               {/* Visual Prompt Specification */}
