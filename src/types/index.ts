@@ -62,6 +62,8 @@ export interface Scene {
   cameraMovement: string;
   duration: number; // in seconds
   mediaUrl: string;
+  /** IndexedDB key for a generated clip stored on this device. */
+  generatedVideoId?: string;
   status: 'scripted' | 'rendering' | 'ready';
 }
 
