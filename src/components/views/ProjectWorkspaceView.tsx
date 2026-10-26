@@ -73,6 +73,46 @@ const splitCaptionText = (text: string, maxChars = 42): string[] => {
   return chunks;
 };
 
+// Wrap captions by rendered width, including scripts such as Burmese that may not use spaces.
+const wrapCaptionLines = (context: CanvasRenderingContext2D, caption: string, maxWidth: number): string[] => {
+  const Segmenter = (Intl as unknown as { Segmenter?: new (locale?: string | string[], options?: { granularity: string }) => { segment: (input: string) => Iterable<{ segment: string }> } }).Segmenter;
+  const tokens = Segmenter
+    ? Array.from(new Segmenter(undefined, { granularity: 'word' }).segment(caption), (part) => part.segment)
+    : caption.split(/(\s+)/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  const graphemesFor = (value: string) => Segmenter
+    ? Array.from(new Segmenter(undefined, { granularity: 'grapheme' }).segment(value), (part) => part.segment)
+    : Array.from(value);
+  for (const token of tokens) {
+    if (!token.trim() && !line) continue;
+    const candidate = line + token;
+    if (context.measureText(candidate).width <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+    if (line.trim()) {
+      lines.push(line.trim());
+      line = '';
+    }
+    const cleanToken = token.trimStart();
+    if (context.measureText(cleanToken).width <= maxWidth) {
+      line = cleanToken;
+      continue;
+    }
+    for (const grapheme of graphemesFor(cleanToken)) {
+      const next = line + grapheme;
+      if (context.measureText(next).width > maxWidth && line.trim()) {
+        lines.push(line.trim());
+        line = '';
+      }
+      line += grapheme;
+    }
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+};
+
 export const ProjectWorkspaceView: React.FC = () => {
   const {
     activeProject,
@@ -525,19 +565,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             context.textAlign = 'center';
             context.textBaseline = 'middle';
             const maxTextWidth = canvas.width * 0.88;
-            const wordsForLine = caption.split(/\s+/);
-            const lines: string[] = [];
-            let line = '';
-            for (const word of wordsForLine) {
-              const candidate = line ? line + ' ' + word : word;
-              if (context.measureText(candidate).width > maxTextWidth && line) {
-                lines.push(line);
-                line = word;
-              } else {
-                line = candidate;
-              }
-            }
-            if (line) lines.push(line);
+            const lines = wrapCaptionLines(context, caption, maxTextWidth);
             const lineHeight = fontSize * 1.3;
             const paddingX = fontSize * 0.55;
             const paddingY = fontSize * 0.35;
