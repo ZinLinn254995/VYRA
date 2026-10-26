@@ -72,6 +72,8 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [clipError, setClipError] = useState('');
   const [generatedClipUrl, setGeneratedClipUrl] = useState('');
   const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
+  const [isExportingVideo, setIsExportingVideo] = useState(false);
+  const [exportProgress, setExportProgress] = useState('');
 
   useEffect(() => {
     return () => {
@@ -236,6 +238,149 @@ export const ProjectWorkspaceView: React.FC = () => {
     showToast('Storyboard specification exported to JSON', 'success');
   };
 
+  const handleExportVideo = async () => {
+    if (!project || isExportingVideo) return;
+    const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
+    const missing = scenes.filter((scene) => !scene.generatedVideoId);
+    if (missing.length) {
+      setClipError('Generate and save a video clip for every scene before exporting the full video. Missing clips: ' + missing.map((scene) => scene.order).join(', ') + '.');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) {
+      setClipError('This browser does not support in-browser video export. Try a recent desktop Chrome or Edge browser.');
+      return;
+    }
+
+    setClipError('');
+    setExportProgress('Loading saved scene clips…');
+    setIsExportingVideo(true);
+    const sourceUrls: string[] = [];
+    let recorder: MediaRecorder | undefined;
+    let stream: MediaStream | undefined;
+    try {
+      const savedClips = await Promise.all(scenes.map(async (scene) => {
+        const saved = await getSavedVideo(scene.generatedVideoId!);
+        if (!saved) throw new Error('Scene ' + scene.order + ' clip is missing from this device. Generate it again before exporting.');
+        return { scene, blob: saved.blob };
+      }));
+
+      const aspect = project.aspectRatio;
+      const canvas = document.createElement('canvas');
+      canvas.width = aspect === '9:16' ? 720 : aspect === '1:1' ? 720 : 1280;
+      canvas.height = aspect === '9:16' ? 1280 : aspect === '1:1' ? 720 : 720;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Could not initialize the video export canvas.');
+      context.fillStyle = '#000';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      stream = canvas.captureStream(30);
+
+      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+        .find((type) => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error('This browser cannot encode an export format supported by VYRA. Try an updated Chrome or Edge browser.');
+      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      const recordingFinished = new Promise<Blob>((resolve, reject) => {
+        recorder!.onstop = () => resolve(new Blob(chunks, { type: recorder!.mimeType || mimeType }));
+        recorder!.onerror = () => reject(new Error('The browser stopped recording unexpectedly. Please try exporting again.'));
+      });
+      recorder.start(1000);
+
+      for (let index = 0; index < savedClips.length; index += 1) {
+        const { scene, blob } = savedClips[index];
+        setExportProgress('Rendering scene ' + (index + 1) + ' of ' + savedClips.length + '…');
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        const sourceUrl = URL.createObjectURL(blob);
+        sourceUrls.push(sourceUrl);
+        video.src = sourceUrl;
+        await new Promise<void>((resolve, reject) => {
+          video.onloadedmetadata = () => resolve();
+          video.onerror = () => reject(new Error('Could not decode the saved clip for scene ' + scene.order + '.'));
+          video.load();
+        });
+        if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
+        const drawFrame = () => {
+          context.fillStyle = '#000';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+          const width = video.videoWidth * scale;
+          const height = video.videoHeight * scale;
+          context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+        };
+        drawFrame();
+        await new Promise<void>((resolve, reject) => {
+          let animationFrame = 0;
+          const draw = () => {
+            if (video.ended || video.paused) return;
+            drawFrame();
+            animationFrame = window.requestAnimationFrame(draw);
+          };
+          video.onended = () => {
+            window.cancelAnimationFrame(animationFrame);
+            drawFrame();
+            resolve();
+          };
+          video.onerror = () => {
+            window.cancelAnimationFrame(animationFrame);
+            reject(new Error('Playback failed while exporting scene ' + scene.order + '.'));
+          };
+          video.play().then(() => {
+            draw();
+          }).catch((error) => {
+            window.cancelAnimationFrame(animationFrame);
+            reject(new Error('The browser could not play scene ' + scene.order + ' for export: ' + (error instanceof Error ? error.message : 'playback blocked')));
+          });
+        });
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+
+      setExportProgress('Finalizing video file…');
+      const output = await new Promise<Blob>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          if (recorder?.state === 'recording') recorder.stop();
+          reject(new Error('Export took too long to finalize. Try fewer or shorter clips.'));
+        }, 15000);
+        recordingFinished.then((blob) => {
+          window.clearTimeout(timeout);
+          resolve(blob);
+        }).catch((error) => {
+          window.clearTimeout(timeout);
+          reject(error);
+        });
+        if (recorder?.state === 'recording') recorder.stop();
+      });
+      if (!output.size) throw new Error('The browser created an empty export file. Please try again.');
+      const outputUrl = URL.createObjectURL(output);
+      const link = document.createElement('a');
+      const baseName = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vyra-video';
+      const extension = output.type.includes('mp4') ? 'mp4' : 'webm';
+      link.href = outputUrl;
+      link.download = baseName + '-final.' + extension;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(outputUrl), 60000);
+      showToast('Full video exported successfully', 'success');
+      setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video.');
+    } catch (error) {
+      if (recorder?.state === 'recording') recorder.stop();
+      setClipError(error instanceof Error ? error.message : 'Video export failed. Please try again.');
+      setExportProgress('');
+    } finally {
+      sourceUrls.forEach((url) => URL.revokeObjectURL(url));
+      stream?.getTracks().forEach((track) => track.stop());
+      setIsExportingVideo(false);
+    }
+  };
+
+
   if (!project) {
     return (
       <div className="p-12 text-center text-slate-400">
@@ -297,6 +442,16 @@ export const ProjectWorkspaceView: React.FC = () => {
           </div>
 
           <button
+            type="button"
+            onClick={() => void handleExportVideo()}
+            disabled={isExportingVideo || project.scenes.length === 0 || project.scenes.some((scene) => !scene.generatedVideoId)}
+            title={project.scenes.some((scene) => !scene.generatedVideoId) ? 'Generate and save a clip for every scene to export the full video' : 'Export all scene clips as one video'}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-[#55F4FF] light:text-indigo-600 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isExportingVideo ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Video className="w-3.5 h-3.5" />}
+            <span>{isExportingVideo ? 'Exporting…' : 'Export Full Video'}</span>
+          </button>
+                    <button
             onClick={handleExportSpec}
             title="Export Storyboard Spec JSON"
             className="p-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#1E2345] transition-colors"
@@ -562,7 +717,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                         Download Clip
                       </a>
                     </div>
-                    <p className="text-[10px] text-slate-500">This clip is available for this workspace session only. Download it before leaving or refreshing; full multi-scene export is a separate step.</p>
+                    <p className="text-[10px] text-slate-500">Clip is saved on this device and remains available after refresh. Generate a clip for every scene to enable full-video export.</p>
                   </div>
                 )}
               </div>
@@ -622,6 +777,8 @@ export const ProjectWorkspaceView: React.FC = () => {
               </div>
             </div>
           ) : null}
+
+          {exportProgress && <p role="status" className="rounded-lg border border-[#2B3058] light:border-slate-200 px-3 py-2 text-[11px] text-slate-300 light:text-slate-600">{exportProgress}</p>}
 
           {/* Scene Sequencer Timeline List (Reordering, Adding, Deleting) */}
           <div className="space-y-2">
