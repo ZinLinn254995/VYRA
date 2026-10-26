@@ -260,6 +260,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateClip = async () => {
     if (!project || !currentScene || isGeneratingClip) return;
+    const targetScene = currentScene;
     setClipError('');
     setClipStatus('');
     setClipCostUsd(null);
@@ -276,9 +277,9 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Video model in Settings before generating a clip.');
       const prompt = [
         'Generate a cinematic 4-second video clip for one scene in a larger video.',
-        'Visual direction: ' + currentScene.visualPrompt,
-        'Camera movement: ' + currentScene.cameraMovement,
-        'Narrative context: ' + currentScene.narration,
+        'Visual direction: ' + targetScene.visualPrompt,
+        'Camera movement: ' + targetScene.cameraMovement,
+        'Narrative context: ' + targetScene.narration,
         'Overall visual style: ' + project.visualStyle,
         'Aspect ratio: ' + project.aspectRatio,
         'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
@@ -319,15 +320,15 @@ export const ProjectWorkspaceView: React.FC = () => {
       let savedVideoId: string | undefined;
       try {
         const saved = await saveGeneratedVideo({
-          title: project.title + ' — Scene ' + currentScene.order,
+          title: project.title + ' — Scene ' + targetScene.order,
           blob,
           model,
           costUsd: generatedCostUsd,
           projectId: project.id,
-          sceneId: currentScene.id,
+          sceneId: targetScene.id,
         });
         savedVideoId = saved.id;
-        updateScene(project.id, currentScene.id, { generatedVideoId: saved.id, status: 'ready' });
+        updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
       } catch {
         setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
       }
@@ -346,7 +347,8 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateVoiceover = async () => {
     if (!project || !currentScene || isGeneratingVoiceover) return;
-    const narration = currentScene.narration.trim();
+    const targetScene = currentScene;
+    const narration = targetScene.narration.trim();
     if (!narration) {
       setVoiceoverError('Add narration text for this scene first.');
       return;
@@ -376,14 +378,14 @@ export const ProjectWorkspaceView: React.FC = () => {
       const blob = await response.blob();
       if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
       const saved = await saveGeneratedAudio({
-        title: project.title + ' — Scene ' + currentScene.order + ' Voiceover',
+        title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
         blob,
         model,
         voice: voiceName.trim() || 'alloy',
         projectId: project.id,
-        sceneId: currentScene.id,
+        sceneId: targetScene.id,
       });
-      updateScene(project.id, currentScene.id, { generatedAudioId: saved.id });
+      updateScene(project.id, targetScene.id, { generatedAudioId: saved.id });
       setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
       setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
       showToast('AI voiceover generated and saved', 'success');
