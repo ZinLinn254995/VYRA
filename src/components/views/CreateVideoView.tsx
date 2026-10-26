@@ -130,7 +130,7 @@ export const CreateVideoView: React.FC = () => {
       const fence = String.fromCharCode(96).repeat(3);
       const jsonText = data.text.trim().startsWith(fence) ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim() : data.text.trim();
       const parsed = JSON.parse(jsonText) as { scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
-      if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 1) throw new Error('The model response did not contain any scenes. Please retry or choose another Text model.');
+      if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 3) throw new Error('The model returned fewer than 3 scenes. Please retry or choose another Text model.');
       const placeholderImages = [
         '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
         '/src/assets/images/hero_cyber_city_1792925206979.jpg',
@@ -141,7 +141,7 @@ export const CreateVideoView: React.FC = () => {
         const narration = typeof scene.narration === 'string' ? scene.narration.trim() : '';
         const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
         const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
-        if (!narration || !visualPrompt || !Number.isFinite(duration) || duration <= 0) throw new Error('The model returned an incomplete scene. Please retry or choose another Text model.');
+        if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) throw new Error('The model returned an incomplete scene or an invalid duration. Each scene must have narration, a visual prompt, and a whole-number duration from 1 to 600 seconds. Please retry or choose another Text model.');
         return {
           id: 'sc-' + Date.now() + '-' + (index + 1),
           order: index + 1,
