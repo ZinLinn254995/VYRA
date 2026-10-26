@@ -30,6 +30,49 @@ import {
   Video,
 } from 'lucide-react';
 
+// Split narration into readable captions for both SRT and burned-in exports.
+// Intl.Segmenter supports languages such as Burmese that do not separate every word with spaces.
+const splitCaptionText = (text: string, maxChars = 42): string[] => {
+  const value = text.trim();
+  if (!value) return [];
+  const Segmenter = (Intl as unknown as { Segmenter?: new (locale?: string | string[], options?: { granularity: string }) => { segment: (input: string) => Iterable<{ segment: string }> } }).Segmenter;
+  const tokens = Segmenter
+    ? Array.from(new Segmenter(undefined, { granularity: 'word' }).segment(value), (part) => part.segment)
+    : value.split(/(\\s+)/).filter(Boolean);
+  const chunks: string[] = [];
+  let line = '';
+  const pushLongToken = (token: string) => {
+    const GraphemeSegmenter = Segmenter ? new Segmenter(undefined, { granularity: 'grapheme' }) : undefined;
+    const graphemes = GraphemeSegmenter
+      ? Array.from(GraphemeSegmenter.segment(token), (part) => part.segment)
+      : Array.from(token);
+    for (const grapheme of graphemes) {
+      if (line.length + grapheme.length > maxChars && line.trim()) {
+        chunks.push(line.trim());
+        line = '';
+      }
+      line += grapheme;
+    }
+  };
+  for (const token of tokens) {
+    const candidate = line + token;
+    if (candidate.trim().length <= maxChars) {
+      line = candidate;
+    } else if (line.trim()) {
+      chunks.push(line.trim());
+      line = '';
+      if (token.trim().length > maxChars) pushLongToken(token.trim());
+      else line = token.trimStart();
+    } else if (token.trim().length > maxChars) {
+      pushLongToken(token.trim());
+    } else {
+      line = token.trimStart();
+    }
+  }
+  if (line.trim()) chunks.push(line.trim());
+  return chunks;
+};
+
 export const ProjectWorkspaceView: React.FC = () => {
   const {
     activeProject,
@@ -317,28 +360,11 @@ export const ProjectWorkspaceView: React.FC = () => {
     const entries: Array<{ start: number; end: number; text: string }> = [];
     let sceneStart = 0;
 
-    const splitCaption = (text: string, maxChars = 42) => {
-      const words = text.trim().split(/\s+/).filter(Boolean);
-      const chunks: string[] = [];
-      let line = '';
-      for (const word of words) {
-        const next = line ? line + ' ' + word : word;
-        if (next.length > maxChars && line) {
-          chunks.push(line);
-          line = word;
-        } else {
-          line = next;
-        }
-      }
-      if (line) chunks.push(line);
-      return chunks;
-    };
-
     for (const scene of scenes) {
       const narration = scene.narration.trim();
       const duration = Math.max(0.5, Number.isFinite(scene.duration) ? scene.duration : 0.5);
       if (narration) {
-        const chunks = splitCaption(narration);
+        const chunks = splitCaptionText(narration);
         const weights = chunks.map((chunk) => Math.max(1, chunk.length));
         const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
         let elapsed = 0;
@@ -475,19 +501,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           video.load();
         });
         if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
-        const captionWords = scene.narration.trim().split(/\s+/).filter(Boolean);
-        const captionChunks: string[] = [];
-        let captionLine = '';
-        for (const word of captionWords) {
-          const nextLine = captionLine ? captionLine + ' ' + word : word;
-          if (nextLine.length > 42 && captionLine) {
-            captionChunks.push(captionLine);
-            captionLine = word;
-          } else {
-            captionLine = nextLine;
-          }
-        }
-        if (captionLine) captionChunks.push(captionLine);
+        const captionChunks = splitCaptionText(scene.narration, 42);
         const drawFrame = () => {
           context.fillStyle = '#000';
           context.fillRect(0, 0, canvas.width, canvas.height);
