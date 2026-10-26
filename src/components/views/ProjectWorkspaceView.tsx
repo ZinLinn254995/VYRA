@@ -343,6 +343,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     let recorder: MediaRecorder | undefined;
     let stream: MediaStream | undefined;
     let audioContext: AudioContext | undefined;
+    let audioDestination: MediaStreamAudioDestinationNode | undefined;
     try {
       const savedClips = await Promise.all(scenes.map(async (scene) => {
         const saved = await getSavedVideo(scene.generatedVideoId!);
@@ -373,7 +374,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       }));
       if (audioContext && audioClips.some(Boolean)) {
         await audioContext.resume();
-        const audioDestination = audioContext.createMediaStreamDestination();
+        audioDestination = audioContext.createMediaStreamDestination();
         audioDestination.stream.getAudioTracks().forEach((track) => stream!.addTrack(track));
       }
 
@@ -423,7 +424,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           : Promise.resolve();
         if (audioSource && audioBuffer && audioContext) {
           audioSource.buffer = audioBuffer;
-          audioSource.connect(audioContext.destination);
+          if (!audioDestination) throw new Error('Could not initialize the voiceover audio track.');
+          audioSource.connect(audioDestination);
           audioSource.start();
         }
         const videoFinished = new Promise<void>((resolve, reject) => {
