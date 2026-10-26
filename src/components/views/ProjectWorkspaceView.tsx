@@ -122,6 +122,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
   const [isExportingVideo, setIsExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState('');
+  const [burnInSubtitles, setBurnInSubtitles] = useState(true);
 
   useEffect(() => {
     return () => {
@@ -501,7 +502,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           video.load();
         });
         if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
-        const captionChunks = splitCaptionText(scene.narration, 42);
+        const captionChunks = burnInSubtitles ? splitCaptionText(scene.narration, 42) : [];
+        let audioStartTime: number | undefined;
         const drawFrame = () => {
           context.fillStyle = '#000';
           context.fillRect(0, 0, canvas.width, canvas.height);
@@ -512,7 +514,9 @@ export const ProjectWorkspaceView: React.FC = () => {
 
           if (captionChunks.length > 0) {
             const clipDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max(1, scene.duration);
-            const captionIndex = Math.min(captionChunks.length - 1, Math.floor((video.currentTime / clipDuration) * captionChunks.length));
+            const audioElapsed = audioContext && audioStartTime !== undefined ? Math.max(0, audioContext.currentTime - audioStartTime) : 0;
+            const captionElapsed = Math.max(video.currentTime, audioElapsed);
+            const captionIndex = Math.min(captionChunks.length - 1, Math.floor((captionElapsed / clipDuration) * captionChunks.length));
             const caption = captionChunks[captionIndex];
             const fontSize = Math.max(20, Math.round(canvas.width * 0.032));
             context.save();
@@ -557,6 +561,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           audioSource.buffer = audioBuffer;
           if (!audioDestination) throw new Error('Could not initialize the voiceover audio track.');
           audioSource.connect(audioDestination);
+          audioStartTime = audioContext.currentTime;
           audioSource.start();
         }
         const videoFinished = new Promise<void>((resolve, reject) => {
@@ -703,7 +708,11 @@ export const ProjectWorkspaceView: React.FC = () => {
             {isExportingVideo ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Video className="w-3.5 h-3.5" />}
             <span>{isExportingVideo ? 'Exporting…' : 'Export Full Video'}</span>
           </button>
-                    <button
+                    <label className="inline-flex items-center gap-2 px-2 py-2 text-xs text-slate-300 light:text-slate-700 cursor-pointer" title="Include narration captions directly in the exported video">
+            <input type="checkbox" checked={burnInSubtitles} onChange={(event) => setBurnInSubtitles(event.target.checked)} className="accent-indigo-500" />
+            Burn in subtitles
+          </label>
+          <button
             type="button"
             onClick={handleExportSubtitles}
             disabled={!project.scenes.some((scene) => scene.narration.trim())}
