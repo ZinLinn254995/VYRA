@@ -134,7 +134,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         if (!cancelled) setVoiceoverError('This scene’s saved voiceover could not be loaded from this device.');
       });
     return () => { cancelled = true; };
-  }, [currentScene?.generatedAudioId]);
+  }, [currentScene?.id, currentScene?.generatedAudioId]);
 
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
