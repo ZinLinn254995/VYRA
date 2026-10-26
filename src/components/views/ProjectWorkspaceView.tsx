@@ -183,8 +183,10 @@ export const ProjectWorkspaceView: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const videoId = currentScene?.generatedVideoId;
+    // Clear the previous scene's preview immediately so a missing record cannot leave stale media visible.
+    setGeneratedClipUrl('');
+    setClipError('');
     if (!videoId) {
-      setGeneratedClipUrl('');
       return () => { cancelled = true; };
     }
     getSavedVideo(videoId)
@@ -201,9 +203,11 @@ export const ProjectWorkspaceView: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const audioId = currentScene?.generatedAudioId;
+    // Clear the previous scene's preview immediately so a missing record cannot leave stale audio visible.
+    setGeneratedVoiceoverUrl('');
+    setVoiceoverError('');
+    setVoiceoverStatus('');
     if (!audioId) {
-      setGeneratedVoiceoverUrl('');
-      setVoiceoverStatus('');
       return () => { cancelled = true; };
     }
     getSavedAudio(audioId)
