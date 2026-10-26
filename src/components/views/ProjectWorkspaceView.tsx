@@ -497,6 +497,9 @@ export const ProjectWorkspaceView: React.FC = () => {
         const saved = await getSavedVideo(scene.generatedVideoId!);
         if (!saved) throw new Error('Scene ' + scene.order + ' clip is missing from this device. Generate it again before exporting.');
         const savedAudio = scene.generatedAudioId ? await getSavedAudio(scene.generatedAudioId) : undefined;
+        if (scene.generatedAudioId && !savedAudio) {
+          throw new Error('Scene ' + scene.order + ' references a voiceover that is missing from this device. Regenerate the voiceover or remove the missing voiceover link before exporting.');
+        }
         return { scene, blob: saved.blob, audioBlob: savedAudio?.blob };
       }));
 
