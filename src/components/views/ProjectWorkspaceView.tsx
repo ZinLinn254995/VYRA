@@ -79,6 +79,9 @@ export const ProjectWorkspaceView: React.FC = () => {
     };
   }, [generatedClipUrl]);
 
+
+  const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
+  const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
   // Restore this scene's generated clip from IndexedDB when returning to the workspace.
   useEffect(() => {
     let cancelled = false;
@@ -96,9 +99,6 @@ export const ProjectWorkspaceView: React.FC = () => {
       });
     return () => { cancelled = true; };
   }, [currentScene?.generatedVideoId]);
-
-  const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
-  const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
 
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
