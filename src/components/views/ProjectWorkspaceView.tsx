@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStudio } from '../../context/StudioContext';
+import { getSavedVideo, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
 import {
   Play,
@@ -77,6 +78,21 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (generatedClipUrl) URL.revokeObjectURL(generatedClipUrl);
     };
   }, [generatedClipUrl]);
+
+  // Restore this scene's generated clip from IndexedDB when returning to the workspace.
+  useEffect(() => {
+    let cancelled = false;
+    const videoId = currentScene?.generatedVideoId;
+    if (!videoId) return () => { cancelled = true; };
+    getSavedVideo(videoId)
+      .then((saved) => {
+        if (!cancelled && saved) setGeneratedClipUrl(URL.createObjectURL(saved.blob));
+      })
+      .catch(() => {
+        if (!cancelled) setClipError('This scene’s saved clip could not be loaded from this device.');
+      });
+    return () => { cancelled = true; };
+  }, [currentScene?.generatedVideoId]);
 
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
   const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
@@ -175,9 +191,26 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       const blob = await contentResponse.blob();
       if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
+      let savedVideoId: string | undefined;
+      try {
+        const saved = await saveGeneratedVideo({
+          title: project.title + ' — Scene ' + currentScene.order,
+          blob,
+          model,
+          costUsd: clipCostUsd,
+          projectId: project.id,
+          sceneId: currentScene.id,
+        });
+        savedVideoId = saved.id;
+        updateScene(project.id, currentScene.id, { generatedVideoId: saved.id, status: 'ready' });
+      } catch {
+        setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
+      }
       setGeneratedClipUrl(URL.createObjectURL(blob));
-      setClipStatus('Your 4-second clip is ready. Use Download Clip to save the MP4.');
-      showToast('AI video clip generated successfully', 'success');
+      setClipStatus(savedVideoId
+        ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
+        : 'Your 4-second clip is ready. Use Download Clip to save the MP4.');
+      showToast(savedVideoId ? 'AI video clip generated and saved' : 'AI video clip generated; local save failed', savedVideoId ? 'success' : 'warning');
     } catch (error) {
       setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
       setClipStatus('');
