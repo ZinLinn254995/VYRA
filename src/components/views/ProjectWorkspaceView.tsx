@@ -169,6 +169,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const submitted = await response.json().catch(() => ({})) as { jobId?: string; error?: string };
       if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
       let completed = false;
+      let generatedCostUsd: number | null = null;
       for (let attempt = 0; attempt < 40; attempt += 1) {
         setClipStatus(attempt === 0 ? 'Video job queued. Waiting for the model…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
         await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
@@ -179,7 +180,8 @@ export const ProjectWorkspaceView: React.FC = () => {
         if (status.status === 'completed') {
           completed = true;
           setClipStatus('Video generated. Downloading clip…');
-          setClipCostUsd(typeof status.costUsd === 'number' ? status.costUsd : null);
+          generatedCostUsd = typeof status.costUsd === 'number' ? status.costUsd : null;
+          setClipCostUsd(generatedCostUsd);
           break;
         }
       }
@@ -197,7 +199,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           title: project.title + ' — Scene ' + currentScene.order,
           blob,
           model,
-          costUsd: clipCostUsd,
+          costUsd: generatedCostUsd,
           projectId: project.id,
           sceneId: currentScene.id,
         });
