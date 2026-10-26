@@ -186,6 +186,8 @@ export const ProjectWorkspaceView: React.FC = () => {
     // Clear the previous scene's preview immediately so a missing record cannot leave stale media visible.
     setGeneratedClipUrl('');
     setClipError('');
+    setClipStatus('');
+    setClipCostUsd(null);
     if (!videoId) {
       return () => { cancelled = true; };
     }
@@ -197,7 +199,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         if (!cancelled) setClipError('This scene’s saved clip could not be loaded from this device.');
       });
     return () => { cancelled = true; };
-  }, [currentScene?.generatedVideoId]);
+  }, [currentScene?.id, currentScene?.generatedVideoId]);
 
   // Restore this scene's saved voiceover from IndexedDB when returning to the workspace.
   useEffect(() => {
