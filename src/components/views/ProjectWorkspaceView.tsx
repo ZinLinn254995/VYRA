@@ -566,7 +566,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             type="button"
             onClick={() => void handleExportVideo()}
             disabled={isExportingVideo || project.scenes.length === 0 || project.scenes.some((scene) => !scene.generatedVideoId)}
-            title={project.scenes.some((scene) => !scene.generatedVideoId) ? 'Generate and save a clip for every scene to export the full video' : 'Export all scene clips as one video'}
+            title={project.scenes.some((scene) => !scene.generatedVideoId) ? 'Generate and save a clip for every scene to export the full video' : 'Export all scene clips as one video, including saved voiceovers where available'}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-[#55F4FF] light:text-indigo-600 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isExportingVideo ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Video className="w-3.5 h-3.5" />}
@@ -822,7 +822,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </a>
                   </div>
                 )}
-                <p className="text-[10px] text-slate-500">Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export does not mix voiceover audio yet.</p>
+                <p className="text-[10px] text-slate-500">Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export mixes saved scene voiceovers when available.</p>
               </div>
 
               {/* Visual Prompt Specification */}
