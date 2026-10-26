@@ -475,7 +475,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           video.load();
         });
         if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
-        const captionWords = scene.narration.trim().split(/\\s+/).filter(Boolean);
+        const captionWords = scene.narration.trim().split(/\s+/).filter(Boolean);
         const captionChunks: string[] = [];
         let captionLine = '';
         for (const word of captionWords) {
@@ -506,7 +506,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             context.textAlign = 'center';
             context.textBaseline = 'middle';
             const maxTextWidth = canvas.width * 0.88;
-            const wordsForLine = caption.split(/\\s+/);
+            const wordsForLine = caption.split(/\s+/);
             const lines: string[] = [];
             let line = '';
             for (const word of wordsForLine) {
