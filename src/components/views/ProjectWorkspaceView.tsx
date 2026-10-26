@@ -311,6 +311,71 @@ export const ProjectWorkspaceView: React.FC = () => {
     }
   };
 
+  const handleExportSubtitles = () => {
+    if (!project) return;
+    const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
+    const entries: Array<{ start: number; end: number; text: string }> = [];
+    let sceneStart = 0;
+
+    const splitCaption = (text: string, maxChars = 42) => {
+      const words = text.trim().split(/\\s+/).filter(Boolean);
+      const chunks: string[] = [];
+      let line = '';
+      for (const word of words) {
+        const next = line ? line + ' ' + word : word;
+        if (next.length > maxChars && line) {
+          chunks.push(line);
+          line = word;
+        } else {
+          line = next;
+        }
+      }
+      if (line) chunks.push(line);
+      return chunks;
+    };
+
+    for (const scene of scenes) {
+      const narration = scene.narration.trim();
+      const duration = Math.max(0.5, Number.isFinite(scene.duration) ? scene.duration : 0.5);
+      if (narration) {
+        const chunks = splitCaption(narration);
+        const weights = chunks.map((chunk) => Math.max(1, chunk.length));
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+        let elapsed = 0;
+        chunks.forEach((text, index) => {
+          const start = sceneStart + elapsed;
+          elapsed += duration * (weights[index] / totalWeight);
+          entries.push({ start, end: sceneStart + (index === chunks.length - 1 ? duration : elapsed), text });
+        });
+      }
+      sceneStart += duration;
+    }
+
+    if (!entries.length) {
+      showToast('Add narration to at least one scene before exporting subtitles', 'warning');
+      return;
+    }
+    const formatTime = (seconds: number) => {
+      const milliseconds = Math.max(0, Math.round(seconds * 1000));
+      const hours = Math.floor(milliseconds / 3600000);
+      const minutes = Math.floor((milliseconds % 3600000) / 60000);
+      const secs = Math.floor((milliseconds % 60000) / 1000);
+      const millis = milliseconds % 1000;
+      return [hours, minutes, secs].map((part) => String(part).padStart(2, '0')).join(':') + ',' + String(millis).padStart(3, '0');
+    };
+    const srt = entries.map((entry, index) =>
+      (index + 1) + '\\n' + formatTime(entry.start) + ' --> ' + formatTime(Math.max(entry.start + 0.25, entry.end)) + '\\n' + entry.text + '\\n'
+    ).join('\\n');
+    const blob = new Blob([srt], { type: 'application/x-subrip;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-subtitles.srt';
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('SRT subtitles exported using storyboard scene timings', 'success');
+  };
+
   const handleExportSpec = () => {
     if (!project) return;
     const spec = JSON.stringify(project, null, 2);
@@ -574,6 +639,16 @@ export const ProjectWorkspaceView: React.FC = () => {
             <span>{isExportingVideo ? 'Exporting…' : 'Export Full Video'}</span>
           </button>
                     <button
+            type="button"
+            onClick={handleExportSubtitles}
+            disabled={!project.scenes.some((scene) => scene.narration.trim())}
+            title="Export editable SRT subtitles using planned scene durations"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-slate-300 light:text-slate-700 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Export Subtitles (.srt)</span>
+          </button>
+          <button
             onClick={handleExportSpec}
             title="Export Storyboard Spec JSON"
             className="p-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#1E2345] transition-colors"
