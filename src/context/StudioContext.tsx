@@ -175,7 +175,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const cached = JSON.parse(stored) as Project[];
           return cached.map((project) => ({
             ...project,
-            coverImage: normalizeLegacySeedAssetPath(project.coverImage),
+            coverImage: project.coverImage ? normalizeLegacySeedAssetPath(project.coverImage) : project.coverImage,
             scenes: project.scenes.map((scene) => ({
               ...scene,
               mediaUrl: normalizeLegacySeedAssetPath(scene.mediaUrl),
