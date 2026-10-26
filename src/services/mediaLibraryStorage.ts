@@ -7,6 +7,17 @@ export interface SavedMediaImage {
   createdAt: string;
 }
 
+export interface SavedMediaAudio {
+  id: string;
+  title: string;
+  blob: Blob;
+  model: string;
+  voice: string;
+  projectId: string;
+  sceneId: string;
+  createdAt: string;
+}
+
 export interface SavedMediaVideo {
   id: string;
   title: string;
@@ -20,7 +31,7 @@ export interface SavedMediaVideo {
 
 const DB_NAME = 'vyra-media-library';
 const STORE_NAME = 'generated-images';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -34,6 +45,11 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         store.createIndex('createdAt', 'createdAt');
+      }
+      if (!db.objectStoreNames.contains('generated-audio')) {
+        const audio = db.createObjectStore('generated-audio', { keyPath: 'id' });
+        audio.createIndex('createdAt', 'createdAt');
+        audio.createIndex('projectId', 'projectId');
       }
       if (!db.objectStoreNames.contains('generated-videos')) {
         const videos = db.createObjectStore('generated-videos', { keyPath: 'id' });
@@ -101,6 +117,44 @@ export async function deleteSavedImage(id: string): Promise<void> {
   }
 }
 
+
+export async function saveGeneratedAudio(
+  audio: Omit<SavedMediaAudio, 'id' | 'createdAt'>,
+): Promise<SavedMediaAudio> {
+  const record: SavedMediaAudio = {
+    ...audio,
+    id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : 'audio-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10),
+    createdAt: new Date().toISOString(),
+  };
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('generated-audio', 'readwrite');
+      transaction.objectStore('generated-audio').put(record);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('Could not save the voiceover. Browser storage may be full.'));
+      transaction.onabort = () => reject(new Error('Saving the voiceover was cancelled. Browser storage may be full.'));
+    });
+    return record;
+  } finally {
+    db.close();
+  }
+}
+
+export async function getSavedAudio(id: string): Promise<SavedMediaAudio | undefined> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<SavedMediaAudio | undefined>((resolve, reject) => {
+      const request = db.transaction('generated-audio', 'readonly').objectStore('generated-audio').get(id);
+      request.onsuccess = () => resolve(request.result as SavedMediaAudio | undefined);
+      request.onerror = () => reject(new Error('Could not load this saved voiceover.'));
+    });
+  } finally {
+    db.close();
+  }
+}
 
 export async function saveGeneratedVideo(
   video: Omit<SavedMediaVideo, 'id' | 'createdAt'>,
