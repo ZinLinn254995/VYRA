@@ -475,6 +475,19 @@ export const ProjectWorkspaceView: React.FC = () => {
           video.load();
         });
         if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
+        const captionWords = scene.narration.trim().split(/\\s+/).filter(Boolean);
+        const captionChunks: string[] = [];
+        let captionLine = '';
+        for (const word of captionWords) {
+          const nextLine = captionLine ? captionLine + ' ' + word : word;
+          if (nextLine.length > 42 && captionLine) {
+            captionChunks.push(captionLine);
+            captionLine = word;
+          } else {
+            captionLine = nextLine;
+          }
+        }
+        if (captionLine) captionChunks.push(captionLine);
         const drawFrame = () => {
           context.fillStyle = '#000';
           context.fillRect(0, 0, canvas.width, canvas.height);
@@ -482,6 +495,44 @@ export const ProjectWorkspaceView: React.FC = () => {
           const width = video.videoWidth * scale;
           const height = video.videoHeight * scale;
           context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+
+          if (captionChunks.length > 0) {
+            const clipDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max(1, scene.duration);
+            const captionIndex = Math.min(captionChunks.length - 1, Math.floor((video.currentTime / clipDuration) * captionChunks.length));
+            const caption = captionChunks[captionIndex];
+            const fontSize = Math.max(20, Math.round(canvas.width * 0.032));
+            context.save();
+            context.font = '600 ' + fontSize + 'px Arial, sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            const maxTextWidth = canvas.width * 0.88;
+            const wordsForLine = caption.split(/\\s+/);
+            const lines: string[] = [];
+            let line = '';
+            for (const word of wordsForLine) {
+              const candidate = line ? line + ' ' + word : word;
+              if (context.measureText(candidate).width > maxTextWidth && line) {
+                lines.push(line);
+                line = word;
+              } else {
+                line = candidate;
+              }
+            }
+            if (line) lines.push(line);
+            const lineHeight = fontSize * 1.3;
+            const paddingX = fontSize * 0.55;
+            const paddingY = fontSize * 0.35;
+            const blockHeight = lines.length * lineHeight + paddingY * 2;
+            const centerY = canvas.height * 0.84;
+            const blockWidth = Math.min(maxTextWidth + paddingX * 2, canvas.width * 0.94);
+            context.fillStyle = 'rgba(0, 0, 0, 0.72)';
+            context.fillRect((canvas.width - blockWidth) / 2, centerY - blockHeight / 2, blockWidth, blockHeight);
+            context.fillStyle = '#FFFFFF';
+            lines.forEach((text, lineIndex) => {
+              context.fillText(text, canvas.width / 2, centerY - ((lines.length - 1) * lineHeight) / 2 + lineIndex * lineHeight, maxTextWidth);
+            });
+            context.restore();
+          }
         };
         drawFrame();
         const audioSource = audioBuffer && audioContext ? audioContext.createBufferSource() : undefined;
