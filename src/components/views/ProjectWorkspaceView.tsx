@@ -565,15 +565,20 @@ export const ProjectWorkspaceView: React.FC = () => {
           audioStartTime = audioContext.currentTime;
           audioSource.start();
         }
+        let animationFrame = 0;
         const videoFinished = new Promise<void>((resolve, reject) => {
-          let animationFrame = 0;
           const draw = () => {
-            if (video.ended || video.paused) return;
-            drawFrame();
-            animationFrame = window.requestAnimationFrame(draw);
+            const videoIsPlaying = !video.ended && !video.paused;
+            const audioIsPlaying = Boolean(
+              audioSource && audioContext && audioStartTime !== undefined &&
+              audioContext.currentTime - audioStartTime < (audioBuffer?.duration || 0)
+            );
+            if (videoIsPlaying || audioIsPlaying) {
+              drawFrame();
+              animationFrame = window.requestAnimationFrame(draw);
+            }
           };
           video.onended = () => {
-            window.cancelAnimationFrame(animationFrame);
             drawFrame();
             resolve();
           };
@@ -589,6 +594,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           });
         });
         await Promise.all([videoFinished, audioFinished]);
+        window.cancelAnimationFrame(animationFrame);
+        drawFrame();
         if (audioSource) {
           try { audioSource.disconnect(); } catch { /* already disconnected */ }
         }
