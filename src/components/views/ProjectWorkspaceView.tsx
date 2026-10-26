@@ -343,14 +343,16 @@ export const ProjectWorkspaceView: React.FC = () => {
       // is still selected, otherwise the scene-change effect will restore its media.
       if (selectedSceneId === targetScene.id) {
         setGeneratedClipUrl(URL.createObjectURL(blob));
-        if (selectedSceneId === targetScene.id) setClipStatus(savedVideoId
+        setClipStatus(savedVideoId
           ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
           : 'Your 4-second clip is ready. Use Download Clip to save the video.');
       }
       showToast(savedVideoId ? 'AI video clip generated and saved' : 'AI video clip generated; local save failed', savedVideoId ? 'success' : 'warning');
     } catch (error) {
-      setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
-      if (selectedSceneId === targetScene.id) setClipStatus('');
+      if (selectedSceneId === targetScene.id) {
+        setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
+        setClipStatus('');
+      }
     } finally {
       setIsGeneratingClip(false);
     }
