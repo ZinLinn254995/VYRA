@@ -253,6 +253,128 @@ app.post('/api/providers/openrouter/images/generate', async (req: Request, res: 
   }
 });
 
+
+app.post('/api/providers/openrouter/videos/generate', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+
+  const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number };
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+  const allowedRatios = new Set(['16:9', '9:16', '1:1']);
+  const aspectRatio = typeof body.aspect_ratio === 'string' && allowedRatios.has(body.aspect_ratio)
+    ? body.aspect_ratio
+    : '16:9';
+  const duration = typeof body.duration === 'number' && Number.isInteger(body.duration)
+    ? Math.min(15, Math.max(1, body.duration))
+    : 4;
+
+  if (!model || model.length > 200) return res.status(400).json({ error: 'Discover and select a Video model in Settings first.' });
+  if (!prompt) return res.status(400).json({ error: 'Add a visual prompt to this scene before generating a clip.' });
+  if (prompt.length > 4000) return res.status(413).json({ error: 'Video prompt is too long. Keep it under 4,000 characters.' });
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/videos', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-OpenRouter-Title': 'VYRA',
+      },
+      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    const data = await upstream.json().catch(() => ({})) as { id?: string; status?: string; error?: string | { message?: string } };
+    if (!upstream.ok || !data.id) {
+      const upstreamMessage = typeof data.error === 'string' ? data.error
+        : data.error && typeof data.error.message === 'string' ? data.error.message : '';
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : upstream.status === 402 ? 402 : upstream.status === 429 ? 429 : 502).json({
+        error: upstream.status === 401 || upstream.status === 403
+          ? 'OpenRouter rejected the key. Verify it in Settings.'
+          : upstream.status === 402
+            ? 'OpenRouter reports insufficient credits or a payment requirement.'
+            : upstream.status === 429
+              ? 'OpenRouter rate limit reached. Wait a moment and retry.'
+              : upstreamMessage.slice(0, 300) || 'Could not submit the video generation job. Check model capabilities and retry.',
+      });
+    }
+    return res.status(202).json({ jobId: data.id, status: data.status || 'pending', model });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach OpenRouter video generation. Check connection and retry.' });
+  }
+});
+
+app.get('/api/providers/openrouter/videos/:jobId', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
+  const jobId = req.params.jobId;
+  if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/videos/' + encodeURIComponent(jobId), {
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        Accept: 'application/json',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-OpenRouter-Title': 'VYRA',
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = await upstream.json().catch(() => ({})) as {
+      id?: string; status?: string; error?: string; unsigned_urls?: string[];
+      usage?: { cost?: number };
+    };
+    if (!upstream.ok) return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
+      error: upstream.status === 404 ? 'Video job was not found or has expired.' : 'Could not check video generation status. Retry shortly.',
+    });
+    return res.status(200).json({
+      jobId: data.id || jobId,
+      status: data.status || 'unknown',
+      error: typeof data.error === 'string' ? data.error.slice(0, 500) : undefined,
+      hasVideo: Array.isArray(data.unsigned_urls) && data.unsigned_urls.length > 0,
+      costUsd: typeof data.usage?.cost === 'number' ? data.usage.cost : null,
+    });
+  } catch {
+    return res.status(502).json({ error: 'Could not check video generation status. Check connection and retry.' });
+  }
+});
+
+app.get('/api/providers/openrouter/videos/:jobId/content', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
+  const jobId = req.params.jobId;
+  if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
+  const index = typeof req.query.index === 'string' && /^\d{1,2}$/.test(req.query.index)
+    ? Math.min(20, Number(req.query.index))
+    : 0;
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/videos/' + encodeURIComponent(jobId) + '/content?index=' + index, {
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        Accept: 'video/mp4,video/*,application/octet-stream',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-OpenRouter-Title': 'VYRA',
+      },
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!upstream.ok) return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
+      error: upstream.status === 404 ? 'The generated video is not ready to download yet.' : 'Could not download the generated video. Retry shortly.',
+    });
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    if (!bytes.length) return res.status(502).json({ error: 'The video provider returned an empty file.' });
+    const contentType = upstream.headers.get('content-type') || 'video/mp4';
+    res.setHeader('Content-Type', contentType.startsWith('video/') ? contentType : 'video/mp4');
+    res.setHeader('Content-Length', String(bytes.length));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(bytes);
+  } catch {
+    return res.status(502).json({ error: 'Video download timed out or failed. Please retry.' });
+  }
+});
+
 function hasGeminiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
