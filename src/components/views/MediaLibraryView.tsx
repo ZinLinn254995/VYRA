@@ -336,12 +336,22 @@ export const MediaLibraryView: React.FC = () => {
           >
             {/* Asset Visual Preview */}
             <div className="relative aspect-video bg-[#090B18] overflow-hidden">
-              {asset.type === 'image' || asset.type === 'video' ? (
+              {asset.type === 'image' ? (
                 <img
                   src={asset.url}
                   alt={asset.title}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              ) : asset.type === 'video' ? (
+                <video
+                  src={asset.url}
+                  aria-label={asset.title}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-contain"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1E2345] to-[#090B18] text-[#55F4FF]">
