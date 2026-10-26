@@ -9,6 +9,19 @@ import sceneQuantumChip from '../assets/images/scene_quantum_chip_1792925206672.
 import sceneAvatarPresenter from '../assets/images/scene_avatar_presenter_1792925207281.jpg';
 import sceneEcoHabitat from '../assets/images/scene_eco_habitat_1792925207788.jpg';
 
+const LEGACY_SEED_ASSET_URLS: Record<string, string> = {
+  '/src/assets/images/hero_cyber_city_1792925206979.jpg': heroCyberCity,
+  '/src/assets/images/scene_quantum_chip_1792925206672.jpg': sceneQuantumChip,
+  '/src/assets/images/scene_avatar_presenter_1792925207281.jpg': sceneAvatarPresenter,
+  '/src/assets/images/scene_eco_habitat_1792925207788.jpg': sceneEcoHabitat,
+};
+
+/** Migrate asset URLs saved before Vite production asset URLs were used. */
+export function normalizeLegacySeedAssetPath(path: string | undefined): string | undefined {
+  return path ? (LEGACY_SEED_ASSET_URLS[path] || path) : path;
+}
+
+
 export const INITIAL_PROJECTS: Project[] = [
   {
     id: 'proj-01-quantum',
