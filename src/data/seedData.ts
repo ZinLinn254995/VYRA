@@ -17,8 +17,8 @@ const LEGACY_SEED_ASSET_URLS: Record<string, string> = {
 };
 
 /** Migrate asset URLs saved before Vite production asset URLs were used. */
-export function normalizeLegacySeedAssetPath(path: string | undefined): string | undefined {
-  return path ? (LEGACY_SEED_ASSET_URLS[path] || path) : path;
+export function normalizeLegacySeedAssetPath(path: string): string {
+  return LEGACY_SEED_ASSET_URLS[path] || path;
 }
 
 
