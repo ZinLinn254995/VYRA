@@ -342,11 +342,13 @@ export const ProjectWorkspaceView: React.FC = () => {
     const sourceUrls: string[] = [];
     let recorder: MediaRecorder | undefined;
     let stream: MediaStream | undefined;
+    let audioContext: AudioContext | undefined;
     try {
       const savedClips = await Promise.all(scenes.map(async (scene) => {
         const saved = await getSavedVideo(scene.generatedVideoId!);
         if (!saved) throw new Error('Scene ' + scene.order + ' clip is missing from this device. Generate it again before exporting.');
-        return { scene, blob: saved.blob };
+        const savedAudio = scene.generatedAudioId ? await getSavedAudio(scene.generatedAudioId) : undefined;
+        return { scene, blob: saved.blob, audioBlob: savedAudio?.blob };
       }));
 
       const aspect = project.aspectRatio;
@@ -358,6 +360,22 @@ export const ProjectWorkspaceView: React.FC = () => {
       context.fillStyle = '#000';
       context.fillRect(0, 0, canvas.width, canvas.height);
       stream = canvas.captureStream(30);
+      const audioClips = await Promise.all(savedClips.map(async (clip) => {
+        if (!clip.audioBlob) return undefined;
+        if (typeof window.AudioContext === 'undefined') throw new Error('This browser cannot mix voiceover audio into exported video. Try a recent desktop Chrome or Edge browser.');
+        if (!audioContext) audioContext = new AudioContext();
+        const bytes = await clip.audioBlob.arrayBuffer();
+        try {
+          return await audioContext.decodeAudioData(bytes);
+        } catch {
+          throw new Error('Could not decode the saved voiceover for scene ' + clip.scene.order + '. Regenerate that voiceover and try again.');
+        }
+      }));
+      if (audioContext && audioClips.some(Boolean)) {
+        await audioContext.resume();
+        const audioDestination = audioContext.createMediaStreamDestination();
+        audioDestination.stream.getAudioTracks().forEach((track) => stream!.addTrack(track));
+      }
 
       const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
         .find((type) => MediaRecorder.isTypeSupported(type));
@@ -375,6 +393,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
       for (let index = 0; index < savedClips.length; index += 1) {
         const { scene, blob } = savedClips[index];
+        const audioBuffer = audioClips[index];
         setExportProgress('Rendering scene ' + (index + 1) + ' of ' + savedClips.length + '…');
         const video = document.createElement('video');
         video.muted = true;
@@ -398,7 +417,16 @@ export const ProjectWorkspaceView: React.FC = () => {
           context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
         };
         drawFrame();
-        await new Promise<void>((resolve, reject) => {
+        const audioSource = audioBuffer && audioContext ? audioContext.createBufferSource() : undefined;
+        const audioFinished = audioSource
+          ? new Promise<void>((resolve) => { audioSource.onended = () => resolve(); })
+          : Promise.resolve();
+        if (audioSource && audioBuffer && audioContext) {
+          audioSource.buffer = audioBuffer;
+          audioSource.connect(audioContext.destination);
+          audioSource.start();
+        }
+        const videoFinished = new Promise<void>((resolve, reject) => {
           let animationFrame = 0;
           const draw = () => {
             if (video.ended || video.paused) return;
@@ -421,6 +449,10 @@ export const ProjectWorkspaceView: React.FC = () => {
             reject(new Error('The browser could not play scene ' + scene.order + ' for export: ' + (error instanceof Error ? error.message : 'playback blocked')));
           });
         });
+        await Promise.all([videoFinished, audioFinished]);
+        if (audioSource) {
+          try { audioSource.disconnect(); } catch { /* already disconnected */ }
+        }
         video.pause();
         video.removeAttribute('src');
         video.load();
@@ -452,8 +484,9 @@ export const ProjectWorkspaceView: React.FC = () => {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(outputUrl), 60000);
-      showToast('Full video exported successfully', 'success');
-      setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video.');
+      const voiceoverCount = audioClips.filter(Boolean).length;
+      showToast(voiceoverCount ? 'Full video exported with voiceovers' : 'Full video exported without voiceovers', 'success');
+      setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video' + (voiceoverCount ? ' with voiceover audio for ' + voiceoverCount + ' of ' + scenes.length + ' scenes.' : '. Generate scene voiceovers to include narration audio next time.'));
     } catch (error) {
       if (recorder?.state === 'recording') recorder.stop();
       setClipError(error instanceof Error ? error.message : 'Video export failed. Please try again.');
@@ -461,6 +494,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     } finally {
       sourceUrls.forEach((url) => URL.revokeObjectURL(url));
       stream?.getTracks().forEach((track) => track.stop());
+      if (audioContext) void audioContext.close().catch(() => undefined);
       setIsExportingVideo(false);
     }
   };
