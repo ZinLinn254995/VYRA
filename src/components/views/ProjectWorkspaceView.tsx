@@ -513,7 +513,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
 
           if (captionChunks.length > 0) {
-            const clipDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max(1, scene.duration);
+            const videoDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max(1, scene.duration);
+            const clipDuration = Math.max(videoDuration, audioBuffer?.duration || 0);
             const audioElapsed = audioContext && audioStartTime !== undefined ? Math.max(0, audioContext.currentTime - audioStartTime) : 0;
             const captionElapsed = Math.max(video.currentTime, audioElapsed);
             const captionIndex = Math.min(captionChunks.length - 1, Math.floor((captionElapsed / clipDuration) * captionChunks.length));
