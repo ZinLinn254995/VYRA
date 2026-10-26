@@ -38,7 +38,7 @@ const splitCaptionText = (text: string, maxChars = 42): string[] => {
   const Segmenter = (Intl as unknown as { Segmenter?: new (locale?: string | string[], options?: { granularity: string }) => { segment: (input: string) => Iterable<{ segment: string }> } }).Segmenter;
   const tokens = Segmenter
     ? Array.from(new Segmenter(undefined, { granularity: 'word' }).segment(value), (part) => part.segment)
-    : value.split(/(\\s+)/).filter(Boolean);
+    : value.split(/(\s+)/).filter(Boolean);
   const chunks: string[] = [];
   let line = '';
   const pushLongToken = (token: string) => {
@@ -423,23 +423,26 @@ export const ProjectWorkspaceView: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const media = document.createElement(kind);
       media.preload = 'metadata';
+      let timeoutId: number | undefined;
+      let settled = false;
       const cleanup = () => {
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId);
         media.onloadedmetadata = null;
         media.onerror = null;
         URL.revokeObjectURL(url);
         media.removeAttribute('src');
         media.load();
       };
-      media.onloadedmetadata = () => {
-        const duration = media.duration;
+      const finish = (duration?: number, error?: Error) => {
+        if (settled) return;
+        settled = true;
         cleanup();
-        if (Number.isFinite(duration) && duration > 0) resolve(duration);
-        else reject(new Error('Invalid media duration'));
+        if (duration !== undefined && Number.isFinite(duration) && duration > 0) resolve(duration);
+        else reject(error || new Error('Invalid media duration'));
       };
-      media.onerror = () => {
-        cleanup();
-        reject(new Error('Could not read media duration'));
-      };
+      timeoutId = window.setTimeout(() => finish(undefined, new Error('Timed out while reading media duration')), 8000);
+      media.onloadedmetadata = () => finish(media.duration);
+      media.onerror = () => finish(undefined, new Error('Could not read media duration'));
       media.src = url;
       media.load();
     });
@@ -815,7 +818,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             type="button"
             onClick={handleExportSubtitles}
             disabled={!project.scenes.some((scene) => scene.narration.trim())}
-            title="Export editable SRT subtitles using planned scene durations"
+            title="Export editable SRT subtitles using saved clip and voiceover durations where available"
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-slate-300 light:text-slate-700 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <FileText className="w-3.5 h-3.5" />
