@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export const MediaLibraryView: React.FC = () => {
-  const { mediaAssets, addMediaAsset, deleteMediaAsset, showToast } = useStudio();
+  const { mediaAssets, addMediaAsset, deleteMediaAsset, updateScene, showToast } = useStudio();
 
   const [activeTab, setActiveTab] = useState<string>('all');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
@@ -102,9 +102,10 @@ export const MediaLibraryView: React.FC = () => {
   };
 
   const handleDeleteSavedVideo = async (video: SavedMediaVideo) => {
-    if (!window.confirm('Delete "' + video.title + '" from this device’s Media Library? This also removes the clip from its linked scene.')) return;
+    if (!window.confirm('Delete "' + video.title + '" from this device’s Media Library? This also unlinks the clip from its scene.')) return;
     try {
       await deleteSavedVideo(video.id);
+      updateScene(video.projectId, video.sceneId, { generatedVideoId: undefined });
       setSavedVideos((current) => current.filter((item) => item.id !== video.id));
       showToast('Saved video removed from this device', 'success');
     } catch (error) {
