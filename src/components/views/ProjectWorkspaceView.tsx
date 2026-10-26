@@ -318,7 +318,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     let sceneStart = 0;
 
     const splitCaption = (text: string, maxChars = 42) => {
-      const words = text.trim().split(/\\s+/).filter(Boolean);
+      const words = text.trim().split(/\s+/).filter(Boolean);
       const chunks: string[] = [];
       let line = '';
       for (const word of words) {
@@ -364,8 +364,8 @@ export const ProjectWorkspaceView: React.FC = () => {
       return [hours, minutes, secs].map((part) => String(part).padStart(2, '0')).join(':') + ',' + String(millis).padStart(3, '0');
     };
     const srt = entries.map((entry, index) =>
-      (index + 1) + '\\n' + formatTime(entry.start) + ' --> ' + formatTime(Math.max(entry.start + 0.25, entry.end)) + '\\n' + entry.text + '\\n'
-    ).join('\\n');
+      (index + 1) + '\n' + formatTime(entry.start) + ' --> ' + formatTime(Math.max(entry.start + 0.25, entry.end)) + '\n' + entry.text + '\n'
+    ).join('\n');
     const blob = new Blob([srt], { type: 'application/x-subrip;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
