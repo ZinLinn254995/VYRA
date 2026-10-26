@@ -338,10 +338,15 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch {
         setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
       }
-      setGeneratedClipUrl(URL.createObjectURL(blob));
-      setClipStatus(savedVideoId
-        ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
-        : 'Your 4-second clip is ready. Use Download Clip to save the MP4.');
+      // The user may switch scenes while the provider job is running. The clip is
+      // linked to targetScene above; only update the visible preview if that scene
+      // is still selected, otherwise the scene-change effect will restore its media.
+      if (selectedSceneId === targetScene.id) {
+        setGeneratedClipUrl(URL.createObjectURL(blob));
+        setClipStatus(savedVideoId
+          ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
+          : 'Your 4-second clip is ready. Use Download Clip to save the video.');
+      }
       showToast(savedVideoId ? 'AI video clip generated and saved' : 'AI video clip generated; local save failed', savedVideoId ? 'success' : 'warning');
     } catch (error) {
       setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
@@ -392,8 +397,11 @@ export const ProjectWorkspaceView: React.FC = () => {
         sceneId: targetScene.id,
       });
       updateScene(project.id, targetScene.id, { generatedAudioId: saved.id });
-      setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
-      setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
+      // Avoid replacing another scene's currently visible voiceover preview.
+      if (selectedSceneId === targetScene.id) {
+        setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
+        setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
+      }
       showToast('AI voiceover generated and saved', 'success');
     } catch (error) {
       setVoiceoverError(error instanceof Error ? error.message : 'Voiceover generation failed. Please retry.');
