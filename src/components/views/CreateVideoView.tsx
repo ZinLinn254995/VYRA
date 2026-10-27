@@ -4,6 +4,9 @@
  */
 
 import React, { useState } from 'react';
+import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
+import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
+import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
 import { useStudio } from '../../context/StudioContext';
 import {
   AspectRatio,
@@ -132,9 +135,9 @@ export const CreateVideoView: React.FC = () => {
       const parsed = JSON.parse(jsonText) as { scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
       if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 3) throw new Error('The model returned fewer than 3 scenes. Please retry or choose another Text model.');
       const placeholderImages = [
-        '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
-        '/src/assets/images/hero_cyber_city_1792925206979.jpg',
-        '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+        sceneQuantumChip,
+        heroCyberCity,
+        sceneAvatarPresenter,
       ];
       const scenes: Scene[] = parsed.scenes.slice(0, 8).map((scene, index) => {
         const duration = Number(scene.duration);
@@ -167,8 +170,8 @@ export const CreateVideoView: React.FC = () => {
     const cover =
       generatedScenes[0]?.mediaUrl ||
       (aspectRatio === '9:16'
-        ? '/src/assets/images/scene_avatar_presenter_1792925207281.jpg'
-        : '/src/assets/images/hero_cyber_city_1792925206979.jpg');
+        ? sceneAvatarPresenter
+        : heroCyberCity);
 
     const projectId = createProject({
       title: workingTitle,
