@@ -580,7 +580,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         audioDestination.stream.getAudioTracks().forEach((track) => stream!.addTrack(track));
       }
 
-      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+      const mimeType = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
         .find((type) => MediaRecorder.isTypeSupported(type));
       if (!mimeType) throw new Error('This browser cannot encode an export format supported by VYRA. Try an updated Chrome or Edge browser.');
       recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
@@ -744,7 +744,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       window.setTimeout(() => URL.revokeObjectURL(outputUrl), 60000);
       const voiceoverCount = audioClips.filter(Boolean).length;
       showToast(voiceoverCount ? 'Full video exported with voiceovers' : 'Full video exported without voiceovers', 'success');
-      setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video' + (voiceoverCount ? ' with voiceover audio for ' + voiceoverCount + ' of ' + scenes.length + ' scenes.' : '. Generate scene voiceovers to include narration audio next time.'));
+      setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video' + (extension === 'webm' ? ' (this browser does not support MP4 recording; try a browser with MP4/H.264 MediaRecorder support for MP4).' : '') + (voiceoverCount ? ' with voiceover audio for ' + voiceoverCount + ' of ' + scenes.length + ' scenes.' : '. Generate scene voiceovers to include narration audio next time.'));
     } catch (error) {
       if (recorder?.state === 'recording') recorder.stop();
       setClipError(error instanceof Error ? error.message : 'Video export failed. Please try again.');
