@@ -587,6 +587,10 @@ export const ProjectWorkspaceView: React.FC = () => {
   const handleExportVideo = async () => {
     if (!project || isExportingVideo) return;
     const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
+    if (scenes.length === 0) {
+      setClipError('Add at least one storyboard scene before exporting the full video.');
+      return;
+    }
     const missing = scenes.filter((scene) => !scene.generatedVideoId);
     if (missing.length) {
       setClipError('Generate and save a video clip for every scene before exporting the full video. Missing clips: ' + missing.map((scene) => scene.order).join(', ') + '.');
