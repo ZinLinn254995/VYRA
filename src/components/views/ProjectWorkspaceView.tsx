@@ -308,11 +308,34 @@ export const ProjectWorkspaceView: React.FC = () => {
       let completed = false;
       let generatedCostUsd: number | null = null;
       for (let attempt = 0; attempt < 40; attempt += 1) {
-        if (selectedSceneIdRef.current === targetScene.id) setClipStatus(attempt === 0 ? 'Video job queued. Waiting for the model…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
-        const statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), { headers: { 'x-openrouter-api-key': apiKey } });
+        if (attempt > 0) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
+        }
+        if (selectedSceneIdRef.current === targetScene.id) {
+          setClipStatus(attempt === 0 ? 'Checking video job status…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
+        }
+
+        let statusResponse: Response;
+        try {
+          statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), {
+            headers: { 'x-openrouter-api-key': apiKey },
+          });
+        } catch {
+          // A temporary network interruption should not abandon a paid provider job.
+          if (attempt === 39) throw new Error('Could not reach the video status service after repeated retries. Check your connection before retrying generation.');
+          if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Connection interrupted. Retrying the existing video job…');
+          continue;
+        }
+
         const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
-        if (!statusResponse.ok) throw new Error(status.error || 'Could not check video generation status.');
+        if (!statusResponse.ok) {
+          // Retry rate limits and transient server errors without submitting a second generation job.
+          if ((statusResponse.status === 429 || statusResponse.status >= 500) && attempt < 39) {
+            if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Temporary status-service issue. Retrying the existing video job…');
+            continue;
+          }
+          throw new Error(status.error || 'Could not check video generation status.');
+        }
         if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
         if (status.status === 'completed') {
           completed = true;
