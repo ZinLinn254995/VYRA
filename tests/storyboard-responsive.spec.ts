@@ -219,3 +219,43 @@ test('An in-flight video result is discarded if the scene changes before the cli
     return projects.find(project => project.scenes?.length)?.scenes?.[0]?.generatedVideoId ?? null;
   })).toBeNull();
 });
+
+
+test('An in-flight voiceover is discarded if narration changes before audio arrives', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
+    sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ audio: 'test/audio-model' }));
+  });
+
+  let releaseAudio!: () => void;
+  let markAudioRequested!: () => void;
+  const audioGate = new Promise<void>(resolve => { releaseAudio = resolve; });
+  const audioRequested = new Promise<void>(resolve => { markAudioRequested = resolve; });
+
+  await page.route('**/api/providers/openrouter/audio/speech', async route => {
+    markAudioRequested();
+    await audioGate;
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'audio/mpeg' },
+      body: Buffer.from('fake-audio-content'),
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('nav button').nth(4).click();
+  const narration = page.getByPlaceholder('Enter the voiceover script for this scene...');
+  await expect(narration).toBeVisible();
+  await page.getByRole('button', { name: 'Generate Voiceover' }).click();
+
+  await audioRequested;
+  await narration.fill('This is the updated narration and must not use old audio');
+  releaseAudio();
+
+  await expect(page.getByRole('status').filter({ hasText: 'Discarded this result because the narration changed during generation' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    return projects.find(project => project.scenes?.length)?.scenes?.[0]?.generatedAudioId ?? null;
+  })).toBeNull();
+});
