@@ -168,3 +168,54 @@ test('Editing narration or visual direction invalidates the scene media referenc
   })).toBeNull();
 });
 
+
+
+test('An in-flight video result is discarded if the scene changes before the clip arrives', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
+    sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ video: 'test/video-model' }));
+  });
+
+  let releaseContent!: () => void;
+  let markContentRequested!: () => void;
+  const contentGate = new Promise<void>(resolve => { releaseContent = resolve; });
+  const contentRequested = new Promise<void>(resolve => { markContentRequested = resolve; });
+
+  await page.route('**/api/providers/openrouter/videos/generate', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ jobId: 'playwright-stale-video-job' }),
+  }));
+  await page.route('**/api/providers/openrouter/videos/playwright-stale-video-job', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'completed', costUsd: 0 }),
+  }));
+  await page.route('**/api/providers/openrouter/videos/playwright-stale-video-job/content', async route => {
+    markContentRequested();
+    await contentGate;
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'video/mp4' },
+      body: Buffer.from('fake-mp4-content'),
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('nav button').nth(4).click();
+  const visualPrompt = page.getByPlaceholder('Detailed visual prompt describing scene environment, materials, lighting...');
+  await expect(visualPrompt).toBeVisible();
+  await page.getByRole('button', { name: 'Generate 4s Clip' }).click();
+
+  // Hold the provider content response until after the user edits the scene.
+  await contentRequested;
+  await visualPrompt.fill('A changed scene prompt must invalidate the in-flight result');
+  releaseContent();
+
+  await expect(page.getByRole('status').filter({ hasText: 'Discarded this result because the scene script or visual direction changed' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    return projects.find(project => project.scenes?.length)?.scenes?.[0]?.generatedVideoId ?? null;
+  })).toBeNull();
+});
