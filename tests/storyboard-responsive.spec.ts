@@ -94,3 +94,26 @@ for (const width of [768, 1024, 1440]) {
   });
 }
 
+
+test('Visual Media Source options resolve to bundled production assets', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+  await page.locator('nav button').nth(4).click();
+  await expect(page.getByLabel('Visual Media Source')).toBeVisible();
+
+  const selector = page.getByLabel('Visual Media Source');
+  const expectedOptions = [
+    'Quantum Optical Chip Macro',
+    'Tokyo 2088 Sky-Rail Cityscape',
+    'Holographic Anchor Avatar',
+    'Alpine Biosphere Eco-Habitat',
+  ];
+
+  for (const option of expectedOptions) {
+    await selector.selectOption({ label: option });
+    await expect.poll(async () => page.locator('img[alt="Scene 1"]').evaluate(image => {
+      const element = image as HTMLImageElement;
+      return element.complete && element.naturalWidth > 0 && element.currentSrc.includes('/assets/');
+    })).toBe(true);
+  }
+});
