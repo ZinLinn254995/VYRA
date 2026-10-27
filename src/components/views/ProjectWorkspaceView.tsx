@@ -713,16 +713,17 @@ export const ProjectWorkspaceView: React.FC = () => {
         };
         drawFrame();
         const audioSource = audioBuffer && audioContext ? audioContext.createBufferSource() : undefined;
+        let audioTimeout: number | undefined;
         const audioFinished = audioSource && audioBuffer
           ? new Promise<void>((resolve, reject) => {
               // Audio can outlive the video. Keep its own watchdog so a stalled
               // AudioBufferSourceNode cannot leave the whole export pending forever.
-              const audioTimeout = window.setTimeout(() => {
+              audioTimeout = window.setTimeout(() => {
                 try { audioSource.stop(); } catch { /* source may already have stopped */ }
                 reject(new Error('Voiceover playback timed out while exporting scene ' + scene.order + '. Regenerate that voiceover and try again.'));
               }, Math.max(30000, (audioBuffer.duration + 15) * 1000));
               audioSource.onended = () => {
-                window.clearTimeout(audioTimeout);
+                if (audioTimeout !== undefined) window.clearTimeout(audioTimeout);
                 resolve();
               };
             })
@@ -782,15 +783,22 @@ export const ProjectWorkspaceView: React.FC = () => {
             finish(new Error('The browser could not play scene ' + scene.order + ' for export: ' + (error instanceof Error ? error.message : 'playback blocked')));
           });
         });
-        await Promise.all([videoFinished, audioFinished]);
-        window.cancelAnimationFrame(animationFrame);
-        drawFrame();
-        if (audioSource) {
-          try { audioSource.disconnect(); } catch { /* already disconnected */ }
+        try {
+          await Promise.all([videoFinished, audioFinished]);
+          drawFrame();
+        } finally {
+          // A video error can finish Promise.all before narration ends. Always
+          // clear its watchdog and release playback resources on both success and failure.
+          if (audioTimeout !== undefined) window.clearTimeout(audioTimeout);
+          window.cancelAnimationFrame(animationFrame);
+          if (audioSource) {
+            try { audioSource.stop(); } catch { /* source may already have stopped */ }
+            try { audioSource.disconnect(); } catch { /* already disconnected */ }
+          }
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
         }
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
       }
 
       setExportProgress('Finalizing video file…');
