@@ -186,7 +186,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   // Generated clips stay in memory until downloaded; large video files are not written into localStorage.
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
-  const [voiceName, setVoiceName] = useState('alloy');
+  const [voiceName, setVoiceName] = useState('');
   const [voiceoverStatus, setVoiceoverStatus] = useState('');
   const [voiceoverError, setVoiceoverError] = useState('');
   const [generatedVoiceoverUrl, setGeneratedVoiceoverUrl] = useState('');
@@ -465,7 +465,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const response = await fetch('/api/providers/openrouter/audio/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
-        body: JSON.stringify({ model, input: narration, voice: voiceName.trim() || 'alloy', speed: 1 }),
+        body: JSON.stringify({ model, input: narration, voice: voiceName.trim(), speed: 1 }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({})) as { error?: string };
@@ -482,7 +482,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
         blob,
         model,
-        voice: voiceName.trim() || 'alloy',
+        voice: voiceName.trim(),
         projectId: project.id,
         sceneId: targetScene.id,
       });
@@ -1240,7 +1240,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-400 light:text-slate-600" htmlFor="vyra-voice-name">Voice name (model-dependent)</label>
-                  <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="e.g. alloy" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />
+                  <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="Enter a voice supported by this model" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />
                 </div>
                 {voiceoverStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{voiceoverStatus}</p>}
                 {voiceoverError && <p role="alert" className="text-[11px] text-rose-400">{voiceoverError}</p>}
