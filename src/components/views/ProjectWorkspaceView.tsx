@@ -638,6 +638,10 @@ export const ProjectWorkspaceView: React.FC = () => {
         recorder!.onstop = () => resolve(new Blob(chunks, { type: recorder!.mimeType || mimeType }));
         recorder!.onerror = () => reject(new Error('The browser stopped recording unexpectedly. Please try exporting again.'));
       });
+      // Mark recorder failures as handled immediately. The original promise is
+      // still awaited during finalization, but an early recorder error while a
+      // scene is rendering must not surface as an unhandled rejection.
+      void recordingFinished.catch(() => undefined);
       recorder.start(1000);
 
       for (let index = 0; index < savedClips.length; index += 1) {
