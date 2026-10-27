@@ -725,6 +725,22 @@ export const ProjectWorkspaceView: React.FC = () => {
         }
         let animationFrame = 0;
         const videoFinished = new Promise<void>((resolve, reject) => {
+          // Avoid leaving export stuck forever if a saved clip stalls or the audio
+          // track never completes. Allow the longer media duration plus a buffer.
+          const mediaDuration = Math.max(
+            Number.isFinite(video.duration) ? video.duration : 0,
+            audioBuffer?.duration || 0,
+          );
+          const playbackTimeout = window.setTimeout(() => {
+            window.cancelAnimationFrame(animationFrame);
+            video.pause();
+            reject(new Error('Playback timed out while exporting scene ' + scene.order + '. Check that clip and voiceover play correctly, then try exporting again.'));
+          }, Math.max(30000, (mediaDuration + 15) * 1000));
+          const finish = (error?: Error) => {
+            window.clearTimeout(playbackTimeout);
+            if (error) reject(error);
+            else resolve();
+          };
           const draw = () => {
             const videoIsPlaying = !video.ended && !video.paused;
             const audioIsPlaying = Boolean(
@@ -738,17 +754,17 @@ export const ProjectWorkspaceView: React.FC = () => {
           };
           video.onended = () => {
             drawFrame();
-            resolve();
+            finish();
           };
           video.onerror = () => {
             window.cancelAnimationFrame(animationFrame);
-            reject(new Error('Playback failed while exporting scene ' + scene.order + '.'));
+            finish(new Error('Playback failed while exporting scene ' + scene.order + '.'));
           };
           video.play().then(() => {
             draw();
           }).catch((error) => {
             window.cancelAnimationFrame(animationFrame);
-            reject(new Error('The browser could not play scene ' + scene.order + ' for export: ' + (error instanceof Error ? error.message : 'playback blocked')));
+            finish(new Error('The browser could not play scene ' + scene.order + ' for export: ' + (error instanceof Error ? error.message : 'playback blocked')));
           });
         });
         await Promise.all([videoFinished, audioFinished]);
