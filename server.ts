@@ -460,8 +460,24 @@ app.get('/api/providers/openrouter/videos/:jobId/content', async (req: Request, 
     });
     const bytes = Buffer.from(await upstream.arrayBuffer());
     if (!bytes.length) return res.status(502).json({ error: 'The video provider returned an empty file.' });
-    const contentType = upstream.headers.get('content-type') || 'video/mp4';
-    res.setHeader('Content-Type', contentType.startsWith('video/') ? contentType : 'video/mp4');
+    const upstreamContentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    // Never label an unknown binary response as MP4 by default: the client uses
+    // this MIME type when saving the clip, so a false fallback can mislabel files.
+    const looksLikeMp4 = bytes.length >= 8 && bytes.subarray(4, Math.min(bytes.length, 32)).includes(Buffer.from('ftyp'));
+    const looksLikeWebM = bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    let contentType: string;
+    if (upstreamContentType === 'video/mp4' || upstreamContentType === 'video/webm') {
+      contentType = upstreamContentType;
+    } else if (upstreamContentType.startsWith('video/')) {
+      contentType = upstreamContentType;
+    } else if (looksLikeMp4) {
+      contentType = 'video/mp4';
+    } else if (looksLikeWebM) {
+      contentType = 'video/webm';
+    } else {
+      return res.status(502).json({ error: 'The provider returned an unknown video format. The file was not mislabeled; try downloading again or use another video model.' });
+    }
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', String(bytes.length));
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).send(bytes);
