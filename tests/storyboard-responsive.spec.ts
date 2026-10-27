@@ -120,3 +120,51 @@ test('Visual Media Source options resolve to bundled production assets', async (
     )).toBe(true);
   }
 });
+
+test('Editing narration or visual direction invalidates the scene media references', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+
+  // Seed persisted scene references to simulate media generated in a previous session.
+  const seeded = await page.evaluate(() => {
+    const raw = localStorage.getItem('vyra_projects_v1');
+    if (!raw) return false;
+    const projects = JSON.parse(raw) as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    const scene = projects.find(project => project.scenes?.length)?.scenes?.[0];
+    if (!scene) return false;
+    scene.generatedAudioId = 'test-saved-audio';
+    scene.generatedVideoId = 'test-saved-video';
+    localStorage.setItem('vyra_projects_v1', JSON.stringify(projects));
+    return true;
+  });
+  expect(seeded, 'A persisted storyboard scene should be available for the regression test').toBe(true);
+
+  await page.reload();
+  await page.locator('nav button').nth(4).click();
+  await expect(page.getByPlaceholder('Enter the voiceover script for this scene...')).toBeVisible();
+
+  await page.getByPlaceholder('Enter the voiceover script for this scene...').fill('Updated narration must not reuse old voiceover');
+  await expect.poll(() => page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    return projects.find(project => project.scenes?.length)?.scenes?.[0]?.generatedAudioId ?? null;
+  })).toBeNull();
+
+  // Re-seed the video reference independently, then verify a visual prompt edit clears it.
+  await page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    const scene = projects.find(project => project.scenes?.length)?.scenes?.[0];
+    if (scene) {
+      scene.generatedVideoId = 'test-saved-video';
+      localStorage.setItem('vyra_projects_v1', JSON.stringify(projects));
+    }
+  });
+  await page.reload();
+  await page.locator('nav button').nth(4).click();
+  await expect(page.getByPlaceholder('Detailed visual prompt describing scene environment, materials, lighting...')).toBeVisible();
+  await page.getByPlaceholder('Detailed visual prompt describing scene environment, materials, lighting...').fill('Updated visual direction must not reuse old clip');
+  await expect.poll(() => page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    return projects.find(project => project.scenes?.length)?.scenes?.[0]?.generatedVideoId ?? null;
+  })).toBeNull();
+});
+
