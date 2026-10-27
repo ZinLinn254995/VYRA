@@ -163,9 +163,11 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [voiceoverStatus, setVoiceoverStatus] = useState('');
   const [voiceoverError, setVoiceoverError] = useState('');
   const [generatedVoiceoverUrl, setGeneratedVoiceoverUrl] = useState('');
+  const [generatedVoiceoverMimeType, setGeneratedVoiceoverMimeType] = useState('');
   const [clipStatus, setClipStatus] = useState('');
   const [clipError, setClipError] = useState('');
   const [generatedClipUrl, setGeneratedClipUrl] = useState('');
+  const [generatedClipMimeType, setGeneratedClipMimeType] = useState('');
   const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
   const [isExportingVideo, setIsExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState('');
@@ -192,6 +194,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     const videoId = currentScene?.generatedVideoId;
     // Clear the previous scene's preview immediately so a missing record cannot leave stale media visible.
     setGeneratedClipUrl('');
+    setGeneratedClipMimeType('');
     setClipError('');
     setClipStatus('');
     setClipCostUsd(null);
@@ -200,7 +203,10 @@ export const ProjectWorkspaceView: React.FC = () => {
     }
     getSavedVideo(videoId)
       .then((saved) => {
-        if (!cancelled && saved) setGeneratedClipUrl(URL.createObjectURL(saved.blob));
+        if (!cancelled && saved) {
+          setGeneratedClipMimeType(saved.blob.type || '');
+          setGeneratedClipUrl(URL.createObjectURL(saved.blob));
+        }
       })
       .catch(() => {
         if (!cancelled) setClipError('This scene’s saved clip could not be loaded from this device.');
@@ -214,6 +220,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     const audioId = currentScene?.generatedAudioId;
     // Clear the previous scene's preview immediately so a missing record cannot leave stale audio visible.
     setGeneratedVoiceoverUrl('');
+    setGeneratedVoiceoverMimeType('');
     setVoiceoverError('');
     setVoiceoverStatus('');
     if (!audioId) {
@@ -222,6 +229,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     getSavedAudio(audioId)
       .then((saved) => {
         if (!cancelled && saved) {
+          setGeneratedVoiceoverMimeType(saved.blob.type || '');
           setGeneratedVoiceoverUrl(URL.createObjectURL(saved.blob));
           setVoiceoverStatus('Voiceover restored from this device.');
           setVoiceName(saved.voice || 'alloy');
@@ -278,6 +286,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     setClipStatus('');
     setClipCostUsd(null);
     setGeneratedClipUrl('');
+    setGeneratedClipMimeType('');
     setIsGeneratingClip(true);
     try {
       let apiKey = '';
@@ -372,6 +381,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       // linked to targetScene above; only update the visible preview if that scene
       // is still selected, otherwise the scene-change effect will restore its media.
       if (selectedSceneIdRef.current === targetScene.id) {
+        setGeneratedClipMimeType(blob.type || '');
         setGeneratedClipUrl(URL.createObjectURL(blob));
         setClipStatus(savedVideoId
           ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
@@ -399,6 +409,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     setVoiceoverError('');
     setVoiceoverStatus('Generating voiceover… this may take a little while.');
     setGeneratedVoiceoverUrl('');
+    setGeneratedVoiceoverMimeType('');
     setIsGeneratingVoiceover(true);
     try {
       let apiKey = '';
@@ -431,6 +442,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       updateScene(project.id, targetScene.id, { generatedAudioId: saved.id });
       // Avoid replacing another scene's currently visible voiceover preview.
       if (selectedSceneIdRef.current === targetScene.id) {
+        setGeneratedVoiceoverMimeType(blob.type || '');
         setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
         setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
       }
@@ -1176,7 +1188,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 {generatedVoiceoverUrl && (
                   <div className="space-y-2">
                     <audio src={generatedVoiceoverUrl} controls preload="metadata" className="w-full" />
-                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.mp3'} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.' + (generatedVoiceoverMimeType.includes('wav') ? 'wav' : generatedVoiceoverMimeType.includes('ogg') ? 'ogg' : generatedVoiceoverMimeType.includes('webm') ? 'webm' : generatedVoiceoverMimeType.includes('mp4') ? 'm4a' : generatedVoiceoverMimeType.includes('aac') ? 'aac' : generatedVoiceoverMimeType.includes('flac') ? 'flac' : 'mp3')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
                       <Download className="h-3.5 w-3.5" /> Download Voiceover
                     </a>
                   </div>
@@ -1224,7 +1236,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <video src={generatedClipUrl} controls playsInline className="w-full max-h-80 rounded-lg bg-black" />
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'$' + clipCostUsd.toFixed(4)} USD</span> : <span className="text-[11px] text-slate-400">Generated clip · 4 seconds</span>}
-                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.mp4'} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.' + (generatedClipMimeType.includes('mp4') ? 'mp4' : generatedClipMimeType.includes('webm') ? 'webm' : generatedClipMimeType.includes('quicktime') ? 'mov' : 'mp4')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
                         <Download className="h-3.5 w-3.5" />
                         Download Clip
                       </a>
