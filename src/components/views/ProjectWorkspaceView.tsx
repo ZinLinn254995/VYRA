@@ -727,12 +727,10 @@ export const ProjectWorkspaceView: React.FC = () => {
               };
             })
           : Promise.resolve();
-        if (audioSource && audioBuffer && audioContext) {
+        if (audioSource && audioBuffer) {
           audioSource.buffer = audioBuffer;
           if (!audioDestination) throw new Error('Could not initialize the voiceover audio track.');
           audioSource.connect(audioDestination);
-          audioStartTime = audioContext.currentTime;
-          audioSource.start();
         }
         let animationFrame = 0;
         const videoFinished = new Promise<void>((resolve, reject) => {
@@ -772,6 +770,12 @@ export const ProjectWorkspaceView: React.FC = () => {
             finish(new Error('Playback failed while exporting scene ' + scene.order + '.'));
           };
           video.play().then(() => {
+            // Start narration only after video playback is accepted by the browser,
+            // reducing the startup offset between the scene and its voiceover.
+            if (audioSource && audioBuffer && audioContext) {
+              audioStartTime = audioContext.currentTime;
+              audioSource.start();
+            }
             draw();
           }).catch((error) => {
             window.cancelAnimationFrame(animationFrame);
