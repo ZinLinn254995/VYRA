@@ -158,6 +158,9 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   // If no active project, show selector
   const project = activeProject || projects[0];
+  // Keep a live scene snapshot so async generation cannot attach media after its inputs change.
+  const latestScenesRef = useRef(project?.scenes || []);
+  latestScenesRef.current = project?.scenes || [];
 
   const [selectedSceneId, setSelectedSceneId] = useState<string>(
     project?.scenes[0]?.id || ''
@@ -386,6 +389,11 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       const blob = await contentResponse.blob();
       if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
+      const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+      if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration) {
+        if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene script or visual direction changed during generation. Generate a fresh clip for the updated scene.');
+        return;
+      }
       let savedVideoId: string | undefined;
       try {
         const saved = await saveGeneratedVideo({
@@ -455,6 +463,11 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       const blob = await response.blob();
       if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
+      const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+      if (!latestScene || latestScene.narration.trim() !== narration) {
+        if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed during generation. Generate voiceover again for the updated script.');
+        return;
+      }
       const saved = await saveGeneratedAudio({
         title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
         blob,
@@ -1185,7 +1198,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   rows={3}
                   value={currentScene.narration}
                   onChange={(e) =>
-                    updateScene(project.id, currentScene.id, { narration: e.target.value, generatedAudioId: undefined })
+                    updateScene(project.id, currentScene.id, { narration: e.target.value, generatedAudioId: undefined, generatedVideoId: undefined })
                   }
                   placeholder="Enter the voiceover script for this scene..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
