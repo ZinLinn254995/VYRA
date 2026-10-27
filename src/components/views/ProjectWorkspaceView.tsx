@@ -713,8 +713,19 @@ export const ProjectWorkspaceView: React.FC = () => {
         };
         drawFrame();
         const audioSource = audioBuffer && audioContext ? audioContext.createBufferSource() : undefined;
-        const audioFinished = audioSource
-          ? new Promise<void>((resolve) => { audioSource.onended = () => resolve(); })
+        const audioFinished = audioSource && audioBuffer
+          ? new Promise<void>((resolve, reject) => {
+              // Audio can outlive the video. Keep its own watchdog so a stalled
+              // AudioBufferSourceNode cannot leave the whole export pending forever.
+              const audioTimeout = window.setTimeout(() => {
+                try { audioSource.stop(); } catch { /* source may already have stopped */ }
+                reject(new Error('Voiceover playback timed out while exporting scene ' + scene.order + '. Regenerate that voiceover and try again.'));
+              }, Math.max(30000, (audioBuffer.duration + 15) * 1000));
+              audioSource.onended = () => {
+                window.clearTimeout(audioTimeout);
+                resolve();
+              };
+            })
           : Promise.resolve();
         if (audioSource && audioBuffer && audioContext) {
           audioSource.buffer = audioBuffer;
