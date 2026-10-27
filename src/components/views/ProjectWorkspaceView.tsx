@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
-import { getSavedAudio, getSavedVideo, saveGeneratedAudio, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
+import { deleteSavedAudio, deleteSavedVideo, getSavedAudio, getSavedVideo, saveGeneratedAudio, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
@@ -409,6 +409,9 @@ export const ProjectWorkspaceView: React.FC = () => {
         const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
         if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration) {
           savedVideoId = undefined;
+          // The media was persisted while the scene changed; remove the unlinked blob
+          // so stale generations do not silently accumulate in the local Media Library.
+          await deleteSavedVideo(saved.id).catch(() => undefined);
           if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene changed while saving. Generate a fresh clip for the updated scene.');
           return;
         }
@@ -486,6 +489,8 @@ export const ProjectWorkspaceView: React.FC = () => {
       // IndexedDB writes are asynchronous too; re-check narration immediately before linking.
       const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
       if (!sceneBeforeLink || sceneBeforeLink.narration.trim() !== narration) {
+        // Do not leave an unlinked stale voiceover in local Media Library storage.
+        await deleteSavedAudio(saved.id).catch(() => undefined);
         if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
         return;
       }
