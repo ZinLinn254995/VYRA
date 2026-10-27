@@ -34,6 +34,30 @@ import {
   Video,
 } from 'lucide-react';
 
+// Use the actual media MIME type for download extensions instead of assuming MP4/MP3.
+const getMediaFileExtension = (mimeType: string, kind: 'video' | 'audio'): string => {
+  const mime = mimeType.split(';', 1)[0].trim().toLowerCase();
+  const extensions: Record<string, string> = {
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'video/ogg': 'ogv',
+    'video/x-msvideo': 'avi',
+    'video/x-matroska': 'mkv',
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/ogg': 'ogg',
+    'audio/opus': 'opus',
+    'audio/webm': 'webm',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+    'audio/flac': 'flac',
+  };
+  return extensions[mime] || (kind === 'video' ? 'video' : 'audio');
+};
+
 // Split narration into readable captions for both SRT and burned-in exports.
 // Intl.Segmenter supports languages such as Burmese that do not separate every word with spaces.
 const splitCaptionText = (text: string, maxChars = 42): string[] => {
@@ -1188,7 +1212,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 {generatedVoiceoverUrl && (
                   <div className="space-y-2">
                     <audio src={generatedVoiceoverUrl} controls preload="metadata" className="w-full" />
-                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.' + (generatedVoiceoverMimeType.includes('wav') ? 'wav' : generatedVoiceoverMimeType.includes('ogg') ? 'ogg' : generatedVoiceoverMimeType.includes('webm') ? 'webm' : generatedVoiceoverMimeType.includes('mp4') ? 'm4a' : generatedVoiceoverMimeType.includes('aac') ? 'aac' : generatedVoiceoverMimeType.includes('flac') ? 'flac' : 'mp3')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.' + getMediaFileExtension(generatedVoiceoverMimeType, 'audio')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
                       <Download className="h-3.5 w-3.5" /> Download Voiceover
                     </a>
                   </div>
@@ -1236,7 +1260,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <video src={generatedClipUrl} controls playsInline className="w-full max-h-80 rounded-lg bg-black" />
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'$' + clipCostUsd.toFixed(4)} USD</span> : <span className="text-[11px] text-slate-400">Generated clip · 4 seconds</span>}
-                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.' + (generatedClipMimeType.includes('mp4') ? 'mp4' : generatedClipMimeType.includes('webm') ? 'webm' : generatedClipMimeType.includes('quicktime') ? 'mov' : 'mp4')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.' + getMediaFileExtension(generatedClipMimeType, 'video')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
                         <Download className="h-3.5 w-3.5" />
                         Download Clip
                       </a>
