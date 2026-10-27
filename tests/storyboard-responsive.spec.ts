@@ -111,7 +111,7 @@ test('Visual Media Source options resolve to bundled production assets', async (
 
   for (const option of expectedOptions) {
     await selector.selectOption({ label: option });
-    const selectedSource = await selector.inputValue();
+    const selectedSource = new URL(await selector.inputValue(), page.url()).href;
     await expect.poll(async () => page.locator('img[alt="Scene 1"]').evaluateAll((images, source) =>
       images.some(image => {
         const element = image as HTMLImageElement;
