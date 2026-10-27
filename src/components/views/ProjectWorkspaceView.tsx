@@ -1185,7 +1185,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   rows={3}
                   value={currentScene.narration}
                   onChange={(e) =>
-                    updateScene(project.id, currentScene.id, { narration: e.target.value })
+                    updateScene(project.id, currentScene.id, { narration: e.target.value, generatedAudioId: undefined })
                   }
                   placeholder="Enter the voiceover script for this scene..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
@@ -1233,7 +1233,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   rows={2}
                   value={currentScene.visualPrompt}
                   onChange={(e) =>
-                    updateScene(project.id, currentScene.id, { visualPrompt: e.target.value })
+                    updateScene(project.id, currentScene.id, { visualPrompt: e.target.value, generatedVideoId: undefined })
                   }
                   placeholder="Detailed visual prompt describing scene environment, materials, lighting..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]"
@@ -1283,7 +1283,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   <select
                     value={currentScene.cameraMovement}
                     onChange={(e) =>
-                      updateScene(project.id, currentScene.id, { cameraMovement: e.target.value })
+                      updateScene(project.id, currentScene.id, { cameraMovement: e.target.value, generatedVideoId: undefined })
                     }
                     className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none"
                   >
