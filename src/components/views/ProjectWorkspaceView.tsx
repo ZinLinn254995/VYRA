@@ -405,6 +405,13 @@ export const ProjectWorkspaceView: React.FC = () => {
           sceneId: targetScene.id,
         });
         savedVideoId = saved.id;
+        // IndexedDB writes are asynchronous too; re-check inputs immediately before linking.
+        const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+        if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration) {
+          savedVideoId = undefined;
+          if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene changed while saving. Generate a fresh clip for the updated scene.');
+          return;
+        }
         updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
       } catch {
         if (selectedSceneIdRef.current === targetScene.id) setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
@@ -476,6 +483,12 @@ export const ProjectWorkspaceView: React.FC = () => {
         projectId: project.id,
         sceneId: targetScene.id,
       });
+      // IndexedDB writes are asynchronous too; re-check narration immediately before linking.
+      const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+      if (!sceneBeforeLink || sceneBeforeLink.narration.trim() !== narration) {
+        if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
+        return;
+      }
       updateScene(project.id, targetScene.id, { generatedAudioId: saved.id });
       // Avoid replacing another scene's currently visible voiceover preview.
       if (selectedSceneIdRef.current === targetScene.id) {
