@@ -111,9 +111,12 @@ test('Visual Media Source options resolve to bundled production assets', async (
 
   for (const option of expectedOptions) {
     await selector.selectOption({ label: option });
-    await expect.poll(async () => page.locator('img[alt="Scene 1"]').evaluate(image => {
-      const element = image as HTMLImageElement;
-      return element.complete && element.naturalWidth > 0 && element.currentSrc.includes('/assets/');
-    })).toBe(true);
+    const selectedSource = await selector.inputValue();
+    await expect.poll(async () => page.locator('img[alt="Scene 1"]').evaluateAll((images, source) =>
+      images.some(image => {
+        const element = image as HTMLImageElement;
+        return element.complete && element.naturalWidth > 0 && element.currentSrc === source;
+      }), selectedSource
+    )).toBe(true);
   }
 });
