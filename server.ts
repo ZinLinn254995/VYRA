@@ -465,17 +465,16 @@ app.get('/api/providers/openrouter/videos/:jobId/content', async (req: Request, 
     // this MIME type when saving the clip, so a false fallback can mislabel files.
     const looksLikeMp4 = bytes.length >= 8 && bytes.subarray(4, Math.min(bytes.length, 32)).includes(Buffer.from('ftyp'));
     const looksLikeWebM = bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    // Validate the actual bytes, not just the provider's Content-Type header.
+    // A mislabeled or unsupported container can pass the client-side video/* check
+    // but fail later when the scene is previewed or exported.
     let contentType: string;
-    if (upstreamContentType === 'video/mp4' || upstreamContentType === 'video/webm') {
-      contentType = upstreamContentType;
-    } else if (upstreamContentType.startsWith('video/')) {
-      contentType = upstreamContentType;
-    } else if (looksLikeMp4) {
+    if (looksLikeMp4) {
       contentType = 'video/mp4';
     } else if (looksLikeWebM) {
       contentType = 'video/webm';
     } else {
-      return res.status(502).json({ error: 'The provider returned an unknown video format. The file was not mislabeled; try downloading again or use another video model.' });
+      return res.status(502).json({ error: 'The provider returned an unsupported or invalid video file. VYRA currently accepts MP4 and WebM clips; try downloading again or use another video model.' });
     }
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', String(bytes.length));
