@@ -295,7 +295,7 @@ app.post('/api/providers/openrouter/audio/speech', async (req: Request, res: Res
   const body = req.body as { model?: string; input?: string; voice?: string; speed?: number };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const input = typeof body.input === 'string' ? body.input.trim() : '';
-  const voice = typeof body.voice === 'string' ? body.voice.trim() : 'alloy';
+  const voice = typeof body.voice === 'string' ? body.voice.trim() : '';
   const speed = typeof body.speed === 'number' && Number.isFinite(body.speed)
     ? Math.min(2, Math.max(0.5, body.speed))
     : 1;
@@ -303,7 +303,7 @@ app.post('/api/providers/openrouter/audio/speech', async (req: Request, res: Res
   if (!model || model.length > 200) return res.status(400).json({ error: 'Discover and select a Speech model in Settings first.' });
   if (!input) return res.status(400).json({ error: 'Add narration text before generating voiceover.' });
   if (input.length > 4000) return res.status(413).json({ error: 'Narration is too long for one request. Keep it under 4,000 characters.' });
-  if (!voice || voice.length > 80 || !/^[a-zA-Z0-9_-]+$/.test(voice)) return res.status(400).json({ error: 'Voice name must contain letters, numbers, underscores or hyphens.' });
+  if (!voice || voice.length > 80 || !/^[a-zA-Z0-9_:-]+$/.test(voice)) return res.status(400).json({ error: 'Enter a voice supported by the selected model. Voice IDs may contain letters, numbers, underscores, hyphens or colons.' });
 
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/audio/speech', {
