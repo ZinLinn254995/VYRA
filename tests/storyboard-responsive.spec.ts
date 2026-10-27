@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
 
+function elementDescription(image: Element): string {
+  const element = image as HTMLImageElement;
+  return element.currentSrc || element.src || element.alt || '<image without source>';
+}
+
 const viewports = [
   { name: 'mobile', width: 390, height: 844 },
   { name: 'tablet', width: 768, height: 1024 },
@@ -20,6 +25,21 @@ for (const viewport of viewports) {
     await expect(page.locator('nav button').nth(4)).toBeVisible();
     await page.locator('nav button').nth(4).click();
     await expect(page.getByText(/Storyboard Timeline/)).toBeVisible();
+
+    // Imported Vite assets must resolve in production builds; legacy /src/assets paths break after bundling.
+    await expect.poll(async () => page.locator('img').evaluateAll(images =>
+      images.some(image => {
+        const element = image as HTMLImageElement;
+        return element.complete && element.naturalWidth > 0 && element.currentSrc.includes('/assets/');
+      })
+    )).toBe(true);
+    const brokenBundledImages = await page.locator('img').evaluateAll(images =>
+      images.filter(image => {
+        const element = image as HTMLImageElement;
+        return element.currentSrc.includes('/assets/') && element.complete && element.naturalWidth === 0;
+      }).map(image => elementDescription(image))
+    );
+    expect(brokenBundledImages, 'Bundled Storyboard image assets should not be broken').toEqual([]);
 
     await page.screenshot({
       path: `artifacts/storyboard-${viewport.name}.png`,
