@@ -30,13 +30,13 @@ for (const viewport of viewports) {
     await expect.poll(async () => page.locator('img').evaluateAll(images =>
       images.some(image => {
         const element = image as HTMLImageElement;
-        return element.complete && element.naturalWidth > 0 && element.currentSrc.includes('/assets/');
+        return element.getClientRects().length > 0 && element.complete && element.naturalWidth > 0 && element.currentSrc.includes('/assets/');
       })
     )).toBe(true);
     const brokenBundledImages = await page.locator('img').evaluateAll(images =>
       images.filter(image => {
         const element = image as HTMLImageElement;
-        return element.currentSrc.includes('/assets/') && element.complete && element.naturalWidth === 0;
+        return element.getClientRects().length > 0 && element.currentSrc.includes('/assets/') && element.complete && element.naturalWidth === 0;
       }).map(image => elementDescription(image))
     );
     expect(brokenBundledImages, 'Bundled Storyboard image assets should not be broken').toEqual([]);
