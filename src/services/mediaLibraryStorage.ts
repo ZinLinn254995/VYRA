@@ -58,8 +58,26 @@ function openDatabase(): Promise<IDBDatabase> {
         videos.createIndex('projectId', 'projectId');
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(new Error('Could not open the Media Library database.'));
+    request.onblocked = () => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Media Library storage is blocked by another open VYRA tab. Close other VYRA tabs and try again.'));
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      if (settled) {
+        db.close();
+        return;
+      }
+      settled = true;
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
+    request.onerror = () => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Could not open the Media Library database.'));
+    };
   });
 }
 
