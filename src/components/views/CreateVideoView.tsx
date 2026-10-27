@@ -644,10 +644,13 @@ export const CreateVideoView: React.FC = () => {
               <p className="text-xs text-slate-400 light:text-slate-500">
                 Review the multi-scene script breakdown before jumping into the interactive workspace.
               </p>
+              <p role="status" className="mt-2 max-w-2xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 light:text-amber-800">
+                These thumbnails are reference images only. AI has generated the script and visual directions; scene videos and voiceovers still need to be generated in the workspace.
+              </p>
             </div>
             <div className="flex items-center gap-2 text-xs font-mono text-[#55F4FF]">
               <Film className="w-4 h-4" />
-              <span>{generatedScenes.length} Scenes · {targetDuration}s total</span>
+              <span>{generatedScenes.length} Scenes · {generatedScenes.reduce((total, scene) => total + scene.duration, 0)}s planned</span>
             </div>
           </div>
 
@@ -663,12 +666,15 @@ export const CreateVideoView: React.FC = () => {
                   key={sc.id}
                   className="p-4 rounded-xl bg-[#090B18] light:bg-slate-50 border border-[#2B3058] light:border-slate-200 flex flex-col md:flex-row gap-4 items-start"
                 >
-                  <div className="w-full md:w-36 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-900">
+                  <div className="relative w-full md:w-36 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-900">
                     <img
                       src={sc.mediaUrl}
-                      alt={`Scene ${index + 1}`}
+                      alt={`Scene ${index + 1} reference image`}
                       className="w-full h-full object-cover"
                     />
+                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/80 px-1.5 py-1 text-[9px] font-semibold leading-tight text-white text-center">
+                      Reference image · not generated video
+                    </span>
                   </div>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between">
