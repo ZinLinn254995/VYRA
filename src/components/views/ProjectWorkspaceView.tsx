@@ -7,6 +7,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { getSavedAudio, getSavedVideo, saveGeneratedAudio, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
+import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
+import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
+import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
+import sceneEcoHabitat from '../../assets/images/scene_eco_habitat_1792925207788.jpg';
 import {
   Play,
   Pause,
@@ -1192,26 +1196,27 @@ export const ProjectWorkspaceView: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-400">
+                  <label htmlFor="vyra-visual-media-source" className="text-[11px] font-semibold text-slate-400">
                     Visual Media Source
                   </label>
                   <select
+                    id="vyra-visual-media-source"
                     value={currentScene.mediaUrl}
                     onChange={(e) =>
                       updateScene(project.id, currentScene.id, { mediaUrl: e.target.value })
                     }
                     className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none truncate"
                   >
-                    <option value="/src/assets/images/scene_quantum_chip_1792925206672.jpg">
+                    <option value={sceneQuantumChip}>
                       Quantum Optical Chip Macro
                     </option>
-                    <option value="/src/assets/images/hero_cyber_city_1792925206979.jpg">
+                    <option value={heroCyberCity}>
                       Tokyo 2088 Sky-Rail Cityscape
                     </option>
-                    <option value="/src/assets/images/scene_avatar_presenter_1792925207281.jpg">
+                    <option value={sceneAvatarPresenter}>
                       Holographic Anchor Avatar
                     </option>
-                    <option value="/src/assets/images/scene_eco_habitat_1792925207788.jpg">
+                    <option value={sceneEcoHabitat}>
                       Alpine Biosphere Eco-Habitat
                     </option>
                   </select>
