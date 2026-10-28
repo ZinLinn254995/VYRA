@@ -271,9 +271,11 @@ test('Full-video export reports missing local clips without leaving export stuck
     const raw = localStorage.getItem('vyra_projects_v1');
     if (!raw) return false;
     const projects = JSON.parse(raw) as Array<{ scenes?: Array<Record<string, unknown>> }>;
-    const scene = projects.find(project => project.scenes?.length)?.scenes?.[0];
-    if (!scene) return false;
-    scene.generatedVideoId = 'missing-local-video-record';
+    const project = projects.find(project => project.scenes?.length);
+    if (!project?.scenes?.length) return false;
+    project.scenes.forEach((scene, index) => {
+      scene.generatedVideoId = 'missing-local-video-record-' + index;
+    });
     localStorage.setItem('vyra_projects_v1', JSON.stringify(projects));
     return true;
   });
