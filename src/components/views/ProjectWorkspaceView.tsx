@@ -1271,7 +1271,11 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </a>
                   </div>
                 )}
-                <p className="text-[10px] text-slate-500">Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export mixes saved scene voiceovers when available.</p>
+                <p className="text-[10px] text-slate-500">
+                  {voiceoverStatus.includes('could not be saved on this device')
+                    ? 'This voiceover is only available in this page session. Download it before leaving; it will not be available after refresh.'
+                    : 'Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export mixes saved scene voiceovers when available.'}
+                </p>
               </div>
 
               {/* Visual Prompt Specification */}
