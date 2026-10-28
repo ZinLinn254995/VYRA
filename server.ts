@@ -336,7 +336,28 @@ app.post('/api/providers/openrouter/audio/speech', async (req: Request, res: Res
     if (!contentType.startsWith('audio/') && !contentType.includes('octet-stream')) {
       return res.status(502).json({ error: 'The selected model returned an unsupported response format instead of audio.' });
     }
-    const bytes = Buffer.from(await upstream.arrayBuffer());
+    // Bound speech downloads too: providers should return short clips, not arbitrarily large bodies.
+    const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
+    const declaredAudioLength = upstream.headers.get('content-length');
+    if (declaredAudioLength && /^\\d+$/.test(declaredAudioLength) && Number(declaredAudioLength) > MAX_AUDIO_BYTES) {
+      await upstream.body?.cancel().catch(() => undefined);
+      return res.status(502).json({ error: 'The generated voiceover exceeds VYRA’s 50 MB safety limit. Shorten the narration and try again.' });
+    }
+    if (!upstream.body) return res.status(502).json({ error: 'The speech provider returned an unreadable response.' });
+    const audioReader = upstream.body.getReader();
+    const audioChunks: Buffer[] = [];
+    let totalAudioBytes = 0;
+    while (true) {
+      const { done, value } = await audioReader.read();
+      if (done) break;
+      totalAudioBytes += value.byteLength;
+      if (totalAudioBytes > MAX_AUDIO_BYTES) {
+        await audioReader.cancel().catch(() => undefined);
+        return res.status(502).json({ error: 'The generated voiceover exceeds VYRA’s 50 MB safety limit. Shorten the narration and try again.' });
+      }
+      audioChunks.push(Buffer.from(value));
+    }
+    const bytes = Buffer.concat(audioChunks, totalAudioBytes);
     if (!bytes.length) return res.status(502).json({ error: 'The speech provider returned an empty audio file.' });
     res.setHeader('Content-Type', contentType.startsWith('audio/') ? contentType : 'audio/mpeg');
     res.setHeader('Content-Length', String(bytes.length));
