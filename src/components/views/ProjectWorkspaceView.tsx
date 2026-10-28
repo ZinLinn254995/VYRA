@@ -478,14 +478,33 @@ export const ProjectWorkspaceView: React.FC = () => {
         if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed during generation. Generate voiceover again for the updated script.');
         return;
       }
-      const saved = await saveGeneratedAudio({
-        title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
-        blob,
-        model,
-        voice: voiceName.trim(),
-        projectId: project.id,
-        sceneId: targetScene.id,
-      });
+      let saved: Awaited<ReturnType<typeof saveGeneratedAudio>>;
+      try {
+        saved = await saveGeneratedAudio({
+          title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
+          blob,
+          model,
+          voice: voiceName.trim(),
+          projectId: project.id,
+          sceneId: targetScene.id,
+        });
+      } catch {
+        // Keep a successful provider result usable even when local IndexedDB storage fails.
+        // The existing preview/download controls let the user save the audio manually.
+        const latestAfterSaveFailure = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+        if (!latestAfterSaveFailure || latestAfterSaveFailure.narration.trim() !== narration) {
+          if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
+          return;
+        }
+        if (selectedSceneIdRef.current === targetScene.id) {
+          setGeneratedVoiceoverMimeType(blob.type || '');
+          setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
+          setVoiceoverStatus('Voiceover generated, but could not be saved on this device. Download it now; it will not be available after refresh.');
+          setVoiceoverError('Local storage failed. Download the generated voiceover before leaving this page.');
+        }
+        showToast('Voiceover generated but could not be saved locally', 'warning');
+        return;
+      }
       // IndexedDB writes are asynchronous too; re-check narration immediately before linking.
       const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
       if (!sceneBeforeLink || sceneBeforeLink.narration.trim() !== narration) {
