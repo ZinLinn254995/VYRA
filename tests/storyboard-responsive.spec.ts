@@ -259,3 +259,33 @@ test('An in-flight voiceover is discarded if narration changes before audio arri
     return projects.find(project => project.scenes?.length)?.scenes?.[0]?.generatedAudioId ?? null;
   })).toBeNull();
 });
+
+
+test('Full-video export reports missing local clips without leaving export stuck', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+
+  // A project can retain scene IDs after browser storage is cleared or unavailable.
+  // Seed an ID without creating an IndexedDB record to exercise that recovery path.
+  const seeded = await page.evaluate(() => {
+    const raw = localStorage.getItem('vyra_projects_v1');
+    if (!raw) return false;
+    const projects = JSON.parse(raw) as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    const scene = projects.find(project => project.scenes?.length)?.scenes?.[0];
+    if (!scene) return false;
+    scene.generatedVideoId = 'missing-local-video-record';
+    localStorage.setItem('vyra_projects_v1', JSON.stringify(projects));
+    return true;
+  });
+  expect(seeded, 'A persisted storyboard scene should be available for the export recovery test').toBe(true);
+
+  await page.reload();
+  await page.locator('nav button').nth(4).click();
+  const exportButton = page.getByRole('button', { name: 'Export Full Video' });
+  await expect(exportButton).toBeEnabled();
+  await exportButton.click();
+
+  await expect(page.getByRole('alert').filter({ hasText: 'Scene 1 clip is missing from this device' })).toBeVisible();
+  await expect(exportButton).toBeEnabled();
+  await expect(page.getByText(/Loading saved scene clips/)).not.toBeVisible();
+});
