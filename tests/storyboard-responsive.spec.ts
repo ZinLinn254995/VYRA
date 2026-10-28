@@ -364,6 +364,7 @@ test('Generated voiceover remains downloadable when local IndexedDB saving fails
   await expect(page.getByRole('alert').filter({
     hasText: 'Download the generated voiceover before leaving this page',
   })).toBeVisible();
+  await expect(page.getByText('This voiceover is only available in this page session. Download it before leaving; it will not be available after refresh.')).toBeVisible();
   await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
   await expect(page.getByRole('link', { name: 'Download Voiceover' })).toHaveAttribute('href', /^blob:/);
   await expect.poll(() => page.evaluate(() => {
