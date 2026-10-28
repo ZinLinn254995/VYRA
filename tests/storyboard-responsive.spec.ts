@@ -291,3 +291,36 @@ test('Full-video export reports missing local clips without leaving export stuck
   await expect(exportButton).toBeEnabled();
   await expect(page.getByText(/Loading saved scene clips/)).not.toBeVisible();
 });
+
+
+test('Full-video export explains when the browser cannot record video', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'MediaRecorder', { configurable: true, value: undefined });
+  });
+  await page.goto('/');
+
+  const seeded = await page.evaluate(() => {
+    const raw = localStorage.getItem('vyra_projects_v1');
+    if (!raw) return false;
+    const projects = JSON.parse(raw) as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    const scenes = projects.flatMap(project => project.scenes || []);
+    if (!scenes.length) return false;
+    scenes.forEach((scene, index) => {
+      scene.generatedVideoId = 'browser-unsupported-video-' + index;
+    });
+    localStorage.setItem('vyra_projects_v1', JSON.stringify(projects));
+    return true;
+  });
+  expect(seeded, 'A persisted storyboard scene should be available for the unsupported-browser test').toBe(true);
+
+  await page.reload();
+  await page.locator('nav button').nth(4).click();
+  const exportButton = page.getByRole('button', { name: 'Export Full Video' });
+  await expect(exportButton).toBeEnabled();
+  await exportButton.click();
+
+  await expect(page.getByRole('alert').filter({ hasText: 'This browser does not support in-browser video export' })).toBeVisible();
+  await expect(exportButton).toBeEnabled();
+  await expect(page.getByText(/Loading saved scene clips/)).not.toBeVisible();
+});
