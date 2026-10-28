@@ -458,7 +458,30 @@ app.get('/api/providers/openrouter/videos/:jobId/content', async (req: Request, 
     if (!upstream.ok) return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
       error: upstream.status === 404 ? 'The generated video is not ready to download yet.' : 'Could not download the generated video. Retry shortly.',
     });
-    const bytes = Buffer.from(await upstream.arrayBuffer());
+    // Bound provider downloads so a malformed response cannot exhaust server memory.
+    // 250 MiB is intentionally generous for short generated clips while keeping
+    // buffering bounded; the response is validated before it reaches the browser.
+    const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
+    const declaredLength = upstream.headers.get('content-length');
+    if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > MAX_VIDEO_BYTES) {
+      await upstream.body?.cancel().catch(() => undefined);
+      return res.status(502).json({ error: 'The generated clip exceeds VYRA’s 250 MB safety limit. Try a shorter clip or another video model.' });
+    }
+    if (!upstream.body) return res.status(502).json({ error: 'The video provider returned an unreadable response.' });
+    const reader = upstream.body.getReader();
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_VIDEO_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        return res.status(502).json({ error: 'The generated clip exceeds VYRA’s 250 MB safety limit. Try a shorter clip or another video model.' });
+      }
+      chunks.push(Buffer.from(value));
+    }
+    const bytes = Buffer.concat(chunks, totalBytes);
     if (!bytes.length) return res.status(502).json({ error: 'The video provider returned an empty file.' });
     const upstreamContentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     // Never label an unknown binary response as MP4 by default: the client uses
