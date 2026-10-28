@@ -324,3 +324,51 @@ test('Full-video export explains when the browser cannot record video', async ({
   await expect(exportButton).toBeEnabled();
   await expect(page.getByText(/Loading saved scene clips/)).not.toBeVisible();
 });
+
+test('Generated voiceover remains downloadable when local IndexedDB saving fails', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
+    sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ audio: 'test/audio-model' }));
+  });
+
+  await page.route('**/api/providers/openrouter/audio/speech', async route => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'audio/mpeg' },
+      body: Buffer.from('fake-audio-content'),
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('nav button').nth(4).click();
+  const narration = page.getByPlaceholder('Enter the voiceover script for this scene...');
+  await expect(narration).toBeVisible();
+
+  // Fail only writes to the generated-audio store; database reads and app startup remain available.
+  await page.evaluate(() => {
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      if (this.name === 'generated-audio') {
+        throw new DOMException('Simulated storage quota failure', 'QuotaExceededError');
+      }
+      return originalPut.call(this, value, key);
+    };
+  });
+
+  await page.getByRole('button', { name: 'Generate Voiceover' }).click();
+
+  await expect(page.getByRole('status').filter({
+    hasText: 'Voiceover generated, but could not be saved on this device',
+  })).toBeVisible();
+  await expect(page.getByRole('alert').filter({
+    hasText: 'Download the generated voiceover before leaving this page',
+  })).toBeVisible();
+  await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
+  await expect(page.getByRole('link', { name: 'Download Voiceover' })).toHaveAttribute('href', /^blob:/);
+  await expect.poll(() => page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ scenes?: Array<Record<string, unknown>> }>;
+    return projects.flatMap(project => project.scenes || []).some(scene => Boolean(scene.generatedAudioId));
+  })).toBe(false);
+});
+
