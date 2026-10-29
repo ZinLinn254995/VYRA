@@ -408,7 +408,6 @@ export function createTikTokRouter(): Router {
       let token = await getToken(sessionId);
       if (!token) return res.status(401).json({ error: 'TikTok account is not connected.' });
       token = await refreshTokenIfNeeded(sessionId, token);
-      const status = await tiktokRequest(API_BASE + '/post/publish/status/fetch/', token.access_token);
       const response = await fetch(API_BASE + '/post/publish/status/fetch/', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token.access_token, 'Content-Type': 'application/json; charset=UTF-8' },
