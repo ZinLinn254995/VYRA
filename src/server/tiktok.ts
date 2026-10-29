@@ -353,44 +353,9 @@ export function createTikTokRouter(): Router {
       }
       await redis(['SET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId,
         JSON.stringify({ uploadUrl, videoSize, createdAt: Date.now() }), 'EX', '3600']);
-      return res.status(200).json({ publishId, uploadRequired: true, maxVideoDurationSeconds: maxDuration });
+      return res.status(200).json({ publishId, uploadRequired: true, uploadUrl, videoSize, maxVideoDurationSeconds: maxDuration });
     } catch {
       return res.status(502).json({ error: 'Could not initialize TikTok publishing. Please retry after checking the connection.' });
-    }
-  });
-
-  router.put('/publish/:publishId/upload', express.raw({ type: ['video/mp4', 'video/webm', 'video/quicktime'], limit: '64mb' }), async (req, res) => {
-    if (!configured()) return res.status(503).json({ error: 'TikTok integration is not configured.' });
-    const sessionId = readSession(req);
-    const publishId = req.params.publishId;
-    if (!sessionId) return res.status(401).json({ error: 'Connect your TikTok account first.' });
-    if (!/^[a-zA-Z0-9_~.-]{1,128}$/.test(publishId)) return res.status(400).json({ error: 'Invalid publish ID.' });
-    if (!Buffer.isBuffer(req.body) || req.body.length < 1) return res.status(400).json({ error: 'Upload a supported video file.' });
-    try {
-      const stored = await redis(['GET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId]);
-      if (typeof stored !== 'string') return res.status(404).json({ error: 'Upload session expired. Initialize the post again.' });
-      const pending = JSON.parse(stored) as { uploadUrl: string; videoSize: number; createdAt: number };
-      if (Date.now() - pending.createdAt > 60 * 60 * 1000 || req.body.length !== pending.videoSize) {
-        return res.status(400).json({ error: 'The upload expired or the file size does not match the initialized post.' });
-      }
-      const contentType = req.header('content-type') || 'video/mp4';
-      const uploadResponse = await fetch(pending.uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': String(req.body.length),
-          'Content-Range': 'bytes 0-' + (req.body.length - 1) + '/' + req.body.length,
-        },
-        body: req.body,
-        signal: AbortSignal.timeout(120_000),
-        cache: 'no-store',
-      });
-      if (!uploadResponse.ok) return res.status(502).json({ error: 'TikTok video upload failed. Retry status check before initializing another post.' });
-      await redis(['SET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId,
-        JSON.stringify({ uploaded: true, videoSize: pending.videoSize, createdAt: pending.createdAt }), 'EX', '86400']);
-      return res.status(200).json({ uploaded: true, publishId });
-    } catch {
-      return res.status(502).json({ error: 'Could not upload the video to TikTok. Please retry.' });
     }
   });
 
@@ -403,8 +368,8 @@ export function createTikTokRouter(): Router {
     try {
       const stored = await redis(['GET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId]);
       if (typeof stored !== 'string') return res.status(404).json({ error: 'Publish record expired or does not exist.' });
-      const record = JSON.parse(stored) as { uploaded?: boolean };
-      if (!record.uploaded) return res.status(409).json({ error: 'Upload the video before checking publish status.' });
+      const record = JSON.parse(stored) as { videoSize?: number; createdAt?: number };
+      if (!record.createdAt || Date.now() - record.createdAt > 24 * 60 * 60 * 1000) return res.status(404).json({ error: 'Publish record expired. Start a new post.' });
       let token = await getToken(sessionId);
       if (!token) return res.status(401).json({ error: 'TikTok account is not connected.' });
       token = await refreshTokenIfNeeded(sessionId, token);
