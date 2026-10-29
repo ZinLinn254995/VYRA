@@ -221,7 +221,7 @@ export function createTikTokRouter(): Router {
     const state = typeof req.query.state === 'string' ? req.query.state : '';
     const code = typeof req.query.code === 'string' ? req.query.code : '';
     const dot = state.lastIndexOf('.');
-    if (!code || dot <= 0) return res.status(400).send('TikTok authorization was incomplete. Please try again.');
+    if (dot <= 0) return res.status(400).send('TikTok authorization was incomplete. Please try again.');
     const payload = state.slice(0, dot);
     if (!safeEqual(state.slice(dot + 1), sign(payload, c.appSecret))) return res.status(400).send('Invalid authorization state.');
     let stateData: { sessionId?: string; issuedAt?: number; nonce?: string };
@@ -234,6 +234,7 @@ export function createTikTokRouter(): Router {
       return res.status(400).send('Authorization expired or did not match this browser session. Start again from VYRA.');
     }
     if (typeof req.query.error === 'string') return res.redirect(302, c.appUrl + '/?tiktok=denied');
+    if (!code) return res.status(400).send('TikTok authorization code is missing. Please try again.');
     try {
       const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
         method: 'POST',
