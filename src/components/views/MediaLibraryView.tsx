@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { MediaAsset } from '../../types';
-import { deleteSavedImage, getSavedImages, SavedMediaImage } from '../../services/mediaLibraryStorage';
+import { deleteSavedImage, getSavedImages, SavedMediaImage, deleteSavedVideo, getSavedVideos, SavedMediaVideo, getSavedAudios, deleteSavedAudio, SavedMediaAudio } from '../../services/mediaLibraryStorage';
 import {
   Image,
   Upload,
@@ -21,13 +21,19 @@ import {
 } from 'lucide-react';
 
 export const MediaLibraryView: React.FC = () => {
-  const { mediaAssets, addMediaAsset, deleteMediaAsset, showToast } = useStudio();
+  const { mediaAssets, addMediaAsset, deleteMediaAsset, updateScene, showToast } = useStudio();
 
   const [activeTab, setActiveTab] = useState<string>('all');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedImages, setSavedImages] = useState<SavedMediaImage[]>([]);
   const [loadingSavedImages, setLoadingSavedImages] = useState(true);
+  const [savedVideos, setSavedVideos] = useState<SavedMediaVideo[]>([]);
+  const [savedVideoUrls, setSavedVideoUrls] = useState<Record<string, string>>({});
+  const [loadingSavedVideos, setLoadingSavedVideos] = useState(true);
+  const [savedAudios, setSavedAudios] = useState<SavedMediaAudio[]>([]);
+  const [savedAudioUrls, setSavedAudioUrls] = useState<Record<string, string>>({});
+  const [loadingSavedAudios, setLoadingSavedAudios] = useState(true);
 
   const refreshSavedImages = async () => {
     try {
@@ -42,6 +48,52 @@ export const MediaLibraryView: React.FC = () => {
   useEffect(() => {
     void refreshSavedImages();
   }, []);
+
+  const refreshSavedVideos = async () => {
+    try {
+      setSavedVideos(await getSavedVideos());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not load saved videos', 'warning');
+    } finally {
+      setLoadingSavedVideos(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshSavedVideos();
+  }, []);
+
+  useEffect(() => {
+    const urls: Record<string, string> = {};
+    savedVideos.forEach((video) => {
+      urls[video.id] = URL.createObjectURL(video.blob);
+    });
+    setSavedVideoUrls(urls);
+    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+  }, [savedVideos]);
+
+  const refreshSavedAudios = async () => {
+    try {
+      setSavedAudios(await getSavedAudios());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not load saved voiceovers', 'warning');
+    } finally {
+      setLoadingSavedAudios(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshSavedAudios();
+  }, []);
+
+  useEffect(() => {
+    const urls: Record<string, string> = {};
+    savedAudios.forEach((audio) => {
+      urls[audio.id] = URL.createObjectURL(audio.blob);
+    });
+    setSavedAudioUrls(urls);
+    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+  }, [savedAudios]);
 
   // New asset form
   const [newTitle, setNewTitle] = useState('');
@@ -72,6 +124,30 @@ export const MediaLibraryView: React.FC = () => {
       showToast('Saved image removed from this device', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not delete image', 'warning');
+    }
+  };
+
+  const handleDeleteSavedVideo = async (video: SavedMediaVideo) => {
+    if (!window.confirm('Delete "' + video.title + '" from this device’s Media Library? This also unlinks the clip from its scene.')) return;
+    try {
+      await deleteSavedVideo(video.id);
+      updateScene(video.projectId, video.sceneId, { generatedVideoId: undefined });
+      setSavedVideos((current) => current.filter((item) => item.id !== video.id));
+      showToast('Saved video removed from this device', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not delete video', 'warning');
+    }
+  };
+
+  const handleDeleteSavedAudio = async (audio: SavedMediaAudio) => {
+    if (!window.confirm('Delete "' + audio.title + '" from this device’s Media Library? This also unlinks the voiceover from its scene.')) return;
+    try {
+      await deleteSavedAudio(audio.id);
+      updateScene(audio.projectId, audio.sceneId, { generatedAudioId: undefined });
+      setSavedAudios((current) => current.filter((item) => item.id !== audio.id));
+      showToast('Saved voiceover removed from this device', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not delete voiceover', 'warning');
     }
   };
 
@@ -175,6 +251,82 @@ export const MediaLibraryView: React.FC = () => {
         </section>
       )}
 
+      {/* Generated video clips saved in browser IndexedDB */}
+      {(activeTab === 'all' || activeTab === 'video') && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Video Clips</h2>
+            <span className="text-[11px] text-slate-500">{savedVideos.length} saved on this device</span>
+          </div>
+          {loadingSavedVideos ? (
+            <p className="text-xs text-slate-500">Loading saved videos…</p>
+          ) : savedVideos.length === 0 ? (
+            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Clips generated in a project workspace will appear here and remain available on this device.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {savedVideos.map((video) => (
+                <article key={video.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
+                  <div className="aspect-video bg-[#090B18]">
+                    {savedVideoUrls[video.id] ? (
+                      <video src={savedVideoUrls[video.id]} controls playsInline preload="metadata" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-500"><Film className="w-8 h-8" /></div>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{video.title}</h3>
+                    <p className="text-[10px] text-slate-500 break-all">{video.model}</p>
+                    <p className="text-[10px] text-slate-500">{new Date(video.createdAt).toLocaleString()} · {video.costUsd === null ? 'Cost not reported' : '$' + video.costUsd.toFixed(4)}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      {savedVideoUrls[video.id] ? <a href={savedVideoUrls[video.id]} download={'vyra-' + video.id + '.' + (video.blob.type.includes('mp4') ? 'mp4' : video.blob.type.includes('webm') ? 'webm' : 'video')} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download clip</a> : <span className="text-[11px] text-slate-500">Preparing clip…</span>}
+                      <button type="button" onClick={() => void handleDeleteSavedVideo(video)} aria-label={'Delete ' + video.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Generated voiceovers saved in browser IndexedDB */}
+      {(activeTab === 'all' || activeTab === 'audio') && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Voiceovers</h2>
+            <span className="text-[11px] text-slate-500">{savedAudios.length} saved on this device</span>
+          </div>
+          {loadingSavedAudios ? (
+            <p className="text-xs text-slate-500">Loading saved voiceovers…</p>
+          ) : savedAudios.length === 0 ? (
+            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Voiceovers generated in a project workspace will appear here and remain available on this device.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {savedAudios.map((audio) => (
+                <article key={audio.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
+                  <div className="p-4 bg-[#090B18] light:bg-slate-50">
+                    {savedAudioUrls[audio.id] ? (
+                      <audio src={savedAudioUrls[audio.id]} controls preload="metadata" className="w-full" />
+                    ) : (
+                      <div className="h-10 flex items-center justify-center text-slate-500"><Music className="w-6 h-6" /></div>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{audio.title}</h3>
+                    <p className="text-[10px] text-slate-500 break-all">{audio.model} · Voice: {audio.voice}</p>
+                    <p className="text-[10px] text-slate-500">{new Date(audio.createdAt).toLocaleString()}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      {savedAudioUrls[audio.id] ? <a href={savedAudioUrls[audio.id]} download={'vyra-' + audio.id + '.mp3'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download audio</a> : <span className="text-[11px] text-slate-500">Preparing audio…</span>}
+                      <button type="button" onClick={() => void handleDeleteSavedAudio(audio)} aria-label={'Delete ' + audio.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Assets Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filteredAssets.map((asset) => (
@@ -184,12 +336,22 @@ export const MediaLibraryView: React.FC = () => {
           >
             {/* Asset Visual Preview */}
             <div className="relative aspect-video bg-[#090B18] overflow-hidden">
-              {asset.type === 'image' || asset.type === 'video' ? (
+              {asset.type === 'image' ? (
                 <img
                   src={asset.url}
                   alt={asset.title}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              ) : asset.type === 'video' ? (
+                <video
+                  src={asset.url}
+                  aria-label={asset.title}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-contain"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1E2345] to-[#090B18] text-[#55F4FF]">

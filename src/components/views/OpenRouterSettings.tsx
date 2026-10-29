@@ -43,7 +43,7 @@ const capabilities: { id: Capability; label: string; description: string }[] = [
   { id: 'text', label: 'Text & Chat', description: 'Scripts, ideas, titles and planning' },
   { id: 'image', label: 'Image', description: 'Thumbnails, illustrations and image generation' },
   { id: 'video', label: 'Video', description: 'Text-to-video and image-to-video models' },
-  { id: 'audio', label: 'Audio', description: 'Audio-capable models where supported' },
+  { id: 'audio', label: 'Speech / Voiceover', description: 'Text-to-speech models for scene narration' },
 ];
 
 const inputClass = 'w-full px-3.5 py-2.5 rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] text-sm';
@@ -237,7 +237,7 @@ export const OpenRouterSettings: React.FC = () => {
         <div className="p-2.5 rounded-xl bg-[#55F4FF]/10 text-[#55F4FF]"><KeyRound className="w-5 h-5" /></div>
         <div className="flex-1 space-y-1">
           <h2 className="text-base font-bold text-white light:text-slate-900">OpenRouter Provider Hub</h2>
-          <p className="text-xs text-slate-400 light:text-slate-500">One provider key, with separate model choices for Text, Image, Video and Audio.</p>
+          <p className="text-xs text-slate-400 light:text-slate-500">One provider key, with separate model choices for Text, Image, Video and Speech.</p>
         </div>
         <span className={'text-[10px] font-semibold rounded-full px-2.5 py-1 ' + (connected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
           {connected ? 'Connected' : 'Not verified'}
@@ -351,7 +351,7 @@ export const OpenRouterSettings: React.FC = () => {
           </div>
         )}
       </section>
-      <p className="text-[11px] text-slate-500">Image generation is connected to OpenRouter's dedicated Image API. Generated images currently stay in this page's memory and are not yet saved to a persistent Media Library. Video/Audio generation and MP4 assembly are separate upcoming work.</p>
+      <p className="text-[11px] text-slate-500">Image generation uses OpenRouter's Image API. You can save generated images to this browser's local Media Library; generated video clips and voiceovers are also stored locally on this device. Media is not cloud-synced, and generation or storage may be limited by provider pricing and browser storage capacity.</p>
     </section>
   );
 };

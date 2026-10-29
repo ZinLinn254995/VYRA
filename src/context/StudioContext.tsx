@@ -26,6 +26,7 @@ import {
   INITIAL_STATS,
   INITIAL_CONVERSATIONS,
   INITIAL_SAVED_IDEAS,
+  normalizeLegacySeedAssetPath,
 } from '../data/seedData';
 import { BRAND_CONFIG } from '../config/brand';
 import { aiService } from '../services/aiService';
@@ -171,7 +172,15 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const stored = localStorage.getItem('vyra_projects_v1');
       if (stored) {
         try {
-          return JSON.parse(stored);
+          const cached = JSON.parse(stored) as Project[];
+          return cached.map((project) => ({
+            ...project,
+            coverImage: project.coverImage ? normalizeLegacySeedAssetPath(project.coverImage) : project.coverImage,
+            scenes: project.scenes.map((scene) => ({
+              ...scene,
+              mediaUrl: normalizeLegacySeedAssetPath(scene.mediaUrl),
+            })),
+          }));
         } catch (e) {
           console.error('Failed to parse cached projects', e);
         }

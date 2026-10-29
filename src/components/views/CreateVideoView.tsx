@@ -4,6 +4,9 @@
  */
 
 import React, { useState } from 'react';
+import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
+import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
+import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
 import { useStudio } from '../../context/StudioContext';
 import {
   AspectRatio,
@@ -59,6 +62,7 @@ export const CreateVideoView: React.FC = () => {
   // Step 4: Generated Outline state
   const [isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
   const [generatedScenes, setGeneratedScenes] = useState<Scene[]>([]);
+  const [outlineError, setOutlineError] = useState<string>('');
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -89,55 +93,85 @@ export const CreateVideoView: React.FC = () => {
     setCurrentStep(3);
   };
 
-  const handleGenerateOutline = () => {
+  const handleGenerateOutline = async () => {
+    setOutlineError('');
     setIsGeneratingOutline(true);
-    setCurrentStep(4);
-
-    // Realistic synthesis simulation for WP1
-    setTimeout(() => {
-      const mockScenes: Scene[] = [
-        {
-          id: `sc-${Date.now()}-1`,
-          order: 1,
-          narration: `In 2030, silicon gives way to optical computing. ${topic.slice(0, 70)}...`,
-          visualPrompt: `High fidelity macro shot of glowing optical photonic circuits in ${visualStyle.replace('_', ' ')} style, pristine studio rim illumination`,
-          cameraMovement: 'Slow inward macro push with shallow depth of field',
-          duration: Math.round(targetDuration * 0.25),
-          mediaUrl: '/src/assets/images/scene_quantum_chip_1792925206672.jpg',
-          status: 'ready',
-        },
-        {
-          id: `sc-${Date.now()}-2`,
-          order: 2,
-          narration: 'Watch how municipal infrastructure reroutes energy and data simultaneously without latency.',
-          visualPrompt: `Cinematic wide-angle futuristic smart metropolis at dusk with neon sky-rail, 8K ultra clean aesthetic`,
-          cameraMovement: 'Cinematic tracking pass across the skyline',
-          duration: Math.round(targetDuration * 0.35),
-          mediaUrl: '/src/assets/images/hero_cyber_city_1792925206979.jpg',
-          status: 'ready',
-        },
-        {
-          id: `sc-${Date.now()}-3`,
-          order: 3,
-          narration: `Designed specifically for ${targetAudience}. Follow for weekly breakdowns of emerging technologies.`,
-          visualPrompt: `Futuristic holographic presenter in obsidian studio explaining synthetic neural architectures`,
-          cameraMovement: 'Subtle eye-level arc rotation',
-          duration: Math.max(5, targetDuration - Math.round(targetDuration * 0.6)),
-          mediaUrl: '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
-          status: 'ready',
-        },
+    try {
+      let apiKey = '';
+      let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+      try {
+        apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+        selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+      } catch { /* Show setup guidance if session storage is unavailable. */ }
+      const model = selectedModels.text;
+      if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Text model in Settings before generating a storyboard.');
+      const prompt = [
+        'Create a production-ready storyboard for the following video.',
+        'Return ONLY valid JSON with this shape: {"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}',
+        'Do not wrap JSON in Markdown fences. Do not include media URLs or claim any media has been rendered.',
+        'Use 3 to 8 scenes. Scene durations must be positive integers and add up as closely as possible to the target duration.',
+        'Write narration in clear, natural English. Make each visual prompt specific and visually distinct.',
+        'Video title: ' + workingTitle,
+        'Topic: ' + topic,
+        'Category: ' + category,
+        'Audience: ' + targetAudience,
+        'Format: ' + format,
+        'Aspect ratio: ' + aspectRatio,
+        'Target duration in seconds: ' + targetDuration,
+        'Visual style: ' + visualStyle,
+        'Narration style: ' + narrationStyle,
+        'Subtitle style: ' + subtitleStyle,
+      ].join('\n');
+      const response = await fetch('/api/providers/openrouter/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+      });
+      const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Storyboard generation failed. Please retry.');
+      if (!data.text) throw new Error('The selected model returned an empty storyboard.');
+      const fence = String.fromCharCode(96).repeat(3);
+      const jsonText = data.text.trim().startsWith(fence) ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim() : data.text.trim();
+      const parsed = JSON.parse(jsonText) as { scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
+      if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 3) throw new Error('The model returned fewer than 3 scenes. Please retry or choose another Text model.');
+      const placeholderImages = [
+        sceneQuantumChip,
+        heroCyberCity,
+        sceneAvatarPresenter,
       ];
-      setGeneratedScenes(mockScenes);
+      const scenes: Scene[] = parsed.scenes.slice(0, 8).map((scene, index) => {
+        const duration = Number(scene.duration);
+        const narration = typeof scene.narration === 'string' ? scene.narration.trim() : '';
+        const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
+        const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
+        if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) throw new Error('The model returned an incomplete scene or an invalid duration. Each scene must have narration, a visual prompt, and a whole-number duration from 1 to 600 seconds. Please retry or choose another Text model.');
+        return {
+          id: 'sc-' + Date.now() + '-' + (index + 1),
+          order: index + 1,
+          narration,
+          visualPrompt,
+          cameraMovement: cameraMovement || 'Static cinematic shot',
+          duration: Math.max(1, Math.round(duration)),
+          // Existing reference images only; actual scene media has not been rendered.
+          mediaUrl: placeholderImages[index % placeholderImages.length],
+          status: 'scripted',
+        };
+      });
+      setGeneratedScenes(scenes);
+      setCurrentStep(4);
+    } catch (error) {
+      setOutlineError(error instanceof Error ? error.message : 'Could not generate the storyboard. Please retry.');
+    } finally {
       setIsGeneratingOutline(false);
-    }, 700);
+    }
   };
 
   const handleFinishAndCreate = () => {
     const cover =
       generatedScenes[0]?.mediaUrl ||
       (aspectRatio === '9:16'
-        ? '/src/assets/images/scene_avatar_presenter_1792925207281.jpg'
-        : '/src/assets/images/hero_cyber_city_1792925206979.jpg');
+        ? sceneAvatarPresenter
+        : heroCyberCity);
 
     const projectId = createProject({
       title: workingTitle,
@@ -584,13 +618,17 @@ export const CreateVideoView: React.FC = () => {
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
             </button>
-            <button
-              onClick={handleGenerateOutline}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-[#8D7CFF] to-[#55F4FF] text-[#090B18] hover:opacity-95 transition-all shadow-[0_0_15px_rgba(141,124,255,0.3)]"
-            >
-              <Wand2 className="w-4 h-4" />
-              <span>Synthesize Storyboard Outline</span>
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {outlineError && <p role="alert" className="max-w-md text-right text-xs text-rose-400">{outlineError}</p>}
+              <button
+                onClick={() => void handleGenerateOutline()}
+                disabled={isGeneratingOutline}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-[#8D7CFF] to-[#55F4FF] text-[#090B18] hover:opacity-95 transition-all shadow-[0_0_15px_rgba(141,124,255,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Wand2 className="w-4 h-4" />
+                <span>{isGeneratingOutline ? 'Generating with AI…' : 'Generate AI Storyboard'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -606,10 +644,13 @@ export const CreateVideoView: React.FC = () => {
               <p className="text-xs text-slate-400 light:text-slate-500">
                 Review the multi-scene script breakdown before jumping into the interactive workspace.
               </p>
+              <p role="status" className="mt-2 max-w-2xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 light:text-amber-800">
+                These thumbnails are reference images only. AI has generated the script and visual directions; scene videos and voiceovers still need to be generated in the workspace.
+              </p>
             </div>
             <div className="flex items-center gap-2 text-xs font-mono text-[#55F4FF]">
               <Film className="w-4 h-4" />
-              <span>{generatedScenes.length} Scenes · {targetDuration}s total</span>
+              <span>{generatedScenes.length} Scenes · {generatedScenes.reduce((total, scene) => total + scene.duration, 0)}s planned</span>
             </div>
           </div>
 
@@ -625,12 +666,15 @@ export const CreateVideoView: React.FC = () => {
                   key={sc.id}
                   className="p-4 rounded-xl bg-[#090B18] light:bg-slate-50 border border-[#2B3058] light:border-slate-200 flex flex-col md:flex-row gap-4 items-start"
                 >
-                  <div className="w-full md:w-36 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-900">
+                  <div className="relative w-full md:w-36 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-900">
                     <img
                       src={sc.mediaUrl}
-                      alt={`Scene ${index + 1}`}
+                      alt={`Scene ${index + 1} reference image`}
                       className="w-full h-full object-cover"
                     />
+                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/80 px-1.5 py-1 text-[9px] font-semibold leading-tight text-white text-center">
+                      Reference image · not generated video
+                    </span>
                   </div>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between">

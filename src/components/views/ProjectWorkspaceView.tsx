@@ -3,9 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
+import { deleteSavedAudio, deleteSavedVideo, getSavedAudio, getSavedVideo, saveGeneratedAudio, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
+import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
+import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
+import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
+import sceneEcoHabitat from '../../assets/images/scene_eco_habitat_1792925207788.jpg';
 import {
   Play,
   Pause,
@@ -26,7 +31,115 @@ import {
   Monitor,
   Square,
   FileText,
+  Video,
 } from 'lucide-react';
+
+// Use the actual media MIME type for download extensions instead of assuming MP4/MP3.
+const getMediaFileExtension = (mimeType: string, kind: 'video' | 'audio'): string => {
+  const mime = mimeType.split(';', 1)[0].trim().toLowerCase();
+  const extensions: Record<string, string> = {
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'video/ogg': 'ogv',
+    'video/x-msvideo': 'avi',
+    'video/x-matroska': 'mkv',
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/ogg': 'ogg',
+    'audio/opus': 'opus',
+    'audio/webm': 'webm',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+    'audio/flac': 'flac',
+  };
+  return extensions[mime] || (kind === 'video' ? 'video' : 'audio');
+};
+
+// Split narration into readable captions for both SRT and burned-in exports.
+// Intl.Segmenter supports languages such as Burmese that do not separate every word with spaces.
+const splitCaptionText = (text: string, maxChars = 42): string[] => {
+  const value = text.trim();
+  if (!value) return [];
+  const Segmenter = (Intl as unknown as { Segmenter?: new (locale?: string | string[], options?: { granularity: string }) => { segment: (input: string) => Iterable<{ segment: string }> } }).Segmenter;
+  const tokens = Segmenter
+    ? Array.from(new Segmenter(undefined, { granularity: 'word' }).segment(value), (part) => part.segment)
+    : value.split(/(\s+)/).filter(Boolean);
+  const chunks: string[] = [];
+  let line = '';
+  const pushLongToken = (token: string) => {
+    const GraphemeSegmenter = Segmenter ? new Segmenter(undefined, { granularity: 'grapheme' }) : undefined;
+    const graphemes = GraphemeSegmenter
+      ? Array.from(GraphemeSegmenter.segment(token), (part) => part.segment)
+      : Array.from(token);
+    for (const grapheme of graphemes) {
+      if (line.length + grapheme.length > maxChars && line.trim()) {
+        chunks.push(line.trim());
+        line = '';
+      }
+      line += grapheme;
+    }
+  };
+  for (const token of tokens) {
+    const candidate = line + token;
+    if (candidate.trim().length <= maxChars) {
+      line = candidate;
+    } else if (line.trim()) {
+      chunks.push(line.trim());
+      line = '';
+      if (token.trim().length > maxChars) pushLongToken(token.trim());
+      else line = token.trimStart();
+    } else if (token.trim().length > maxChars) {
+      pushLongToken(token.trim());
+    } else {
+      line = token.trimStart();
+    }
+  }
+  if (line.trim()) chunks.push(line.trim());
+  return chunks;
+};
+
+// Wrap captions by rendered width, including scripts such as Burmese that may not use spaces.
+const wrapCaptionLines = (context: CanvasRenderingContext2D, caption: string, maxWidth: number): string[] => {
+  const Segmenter = (Intl as unknown as { Segmenter?: new (locale?: string | string[], options?: { granularity: string }) => { segment: (input: string) => Iterable<{ segment: string }> } }).Segmenter;
+  const tokens = Segmenter
+    ? Array.from(new Segmenter(undefined, { granularity: 'word' }).segment(caption), (part) => part.segment)
+    : caption.split(/(\s+)/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  const graphemesFor = (value: string) => Segmenter
+    ? Array.from(new Segmenter(undefined, { granularity: 'grapheme' }).segment(value), (part) => part.segment)
+    : Array.from(value);
+  for (const token of tokens) {
+    if (!token.trim() && !line) continue;
+    const candidate = line + token;
+    if (context.measureText(candidate).width <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+    if (line.trim()) {
+      lines.push(line.trim());
+      line = '';
+    }
+    const cleanToken = token.trimStart();
+    if (context.measureText(cleanToken).width <= maxWidth) {
+      line = cleanToken;
+      continue;
+    }
+    for (const grapheme of graphemesFor(cleanToken)) {
+      const next = line + grapheme;
+      if (context.measureText(next).width > maxWidth && line.trim()) {
+        lines.push(line.trim());
+        line = '';
+      }
+      line += grapheme;
+    }
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+};
 
 export const ProjectWorkspaceView: React.FC = () => {
   const {
@@ -45,10 +158,16 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   // If no active project, show selector
   const project = activeProject || projects[0];
+  // Keep a live scene snapshot so async generation cannot attach media after its inputs change.
+  const latestScenesRef = useRef(project?.scenes || []);
+  latestScenesRef.current = project?.scenes || [];
 
   const [selectedSceneId, setSelectedSceneId] = useState<string>(
     project?.scenes[0]?.id || ''
   );
+  // Async generation handlers must read the latest selection after scene switches.
+  const selectedSceneIdRef = useRef(selectedSceneId);
+  selectedSceneIdRef.current = selectedSceneId;
 
   // Synchronize selected scene when project changes
   useEffect(() => {
@@ -64,8 +183,90 @@ export const ProjectWorkspaceView: React.FC = () => {
     project?.aspectRatio || '16:9'
   );
 
+  // Generated clips stay in memory until downloaded; large video files are not written into localStorage.
+  const [isGeneratingClip, setIsGeneratingClip] = useState(false);
+  const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
+  const [voiceName, setVoiceName] = useState('');
+  const [voiceoverStatus, setVoiceoverStatus] = useState('');
+  const [voiceoverError, setVoiceoverError] = useState('');
+  const [generatedVoiceoverUrl, setGeneratedVoiceoverUrl] = useState('');
+  const [generatedVoiceoverMimeType, setGeneratedVoiceoverMimeType] = useState('');
+  const [clipStatus, setClipStatus] = useState('');
+  const [clipError, setClipError] = useState('');
+  const [generatedClipUrl, setGeneratedClipUrl] = useState('');
+  const [generatedClipMimeType, setGeneratedClipMimeType] = useState('');
+  const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
+  const [isExportingVideo, setIsExportingVideo] = useState(false);
+  const [exportProgress, setExportProgress] = useState('');
+  const [burnInSubtitles, setBurnInSubtitles] = useState(true);
+
+  useEffect(() => {
+    return () => {
+      if (generatedClipUrl) URL.revokeObjectURL(generatedClipUrl);
+    };
+  }, [generatedClipUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (generatedVoiceoverUrl) URL.revokeObjectURL(generatedVoiceoverUrl);
+    };
+  }, [generatedVoiceoverUrl]);
+
+
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
   const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
+  // Restore this scene's generated clip from IndexedDB when returning to the workspace.
+  useEffect(() => {
+    let cancelled = false;
+    const videoId = currentScene?.generatedVideoId;
+    // Clear the previous scene's preview immediately so a missing record cannot leave stale media visible.
+    setGeneratedClipUrl('');
+    setGeneratedClipMimeType('');
+    setClipError('');
+    setClipStatus('');
+    setClipCostUsd(null);
+    if (!videoId) {
+      return () => { cancelled = true; };
+    }
+    getSavedVideo(videoId)
+      .then((saved) => {
+        if (!cancelled && saved) {
+          setGeneratedClipMimeType(saved.blob.type || '');
+          setGeneratedClipUrl(URL.createObjectURL(saved.blob));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setClipError('This scene’s saved clip could not be loaded from this device.');
+      });
+    return () => { cancelled = true; };
+  }, [currentScene?.id, currentScene?.generatedVideoId]);
+
+  // Restore this scene's saved voiceover from IndexedDB when returning to the workspace.
+  useEffect(() => {
+    let cancelled = false;
+    const audioId = currentScene?.generatedAudioId;
+    // Clear the previous scene's preview immediately so a missing record cannot leave stale audio visible.
+    setGeneratedVoiceoverUrl('');
+    setGeneratedVoiceoverMimeType('');
+    setVoiceoverError('');
+    setVoiceoverStatus('');
+    if (!audioId) {
+      return () => { cancelled = true; };
+    }
+    getSavedAudio(audioId)
+      .then((saved) => {
+        if (!cancelled && saved) {
+          setGeneratedVoiceoverMimeType(saved.blob.type || '');
+          setGeneratedVoiceoverUrl(URL.createObjectURL(saved.blob));
+          setVoiceoverStatus('Voiceover restored from this device.');
+          setVoiceName(saved.voice || '');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVoiceoverError('This scene’s saved voiceover could not be loaded from this device.');
+      });
+    return () => { cancelled = true; };
+  }, [currentScene?.id, currentScene?.generatedAudioId]);
 
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
@@ -105,6 +306,322 @@ export const ProjectWorkspaceView: React.FC = () => {
     setPlayProgress(0);
   };
 
+  const handleGenerateClip = async () => {
+    if (!project || !currentScene || isGeneratingClip) return;
+    const targetScene = currentScene;
+    setClipError('');
+    setClipStatus('');
+    setClipCostUsd(null);
+    setGeneratedClipUrl('');
+    setGeneratedClipMimeType('');
+    setIsGeneratingClip(true);
+    try {
+      let apiKey = '';
+      let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+      try {
+        apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+        selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+      } catch { /* Show setup guidance below if session storage is unavailable. */ }
+      const model = selectedModels.video;
+      if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Video model in Settings before generating a clip.');
+      const prompt = [
+        'Generate a cinematic 4-second video clip for one scene in a larger video.',
+        'Visual direction: ' + targetScene.visualPrompt,
+        'Camera movement: ' + targetScene.cameraMovement,
+        'Narrative context: ' + targetScene.narration,
+        'Overall visual style: ' + project.visualStyle,
+        'Aspect ratio: ' + project.aspectRatio,
+        'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
+      ].join('\n');
+      if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Submitting video generation job…');
+      const response = await fetch('/api/providers/openrouter/videos/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio, duration: 4 }),
+      });
+      const submitted = await response.json().catch(() => ({})) as { jobId?: string; error?: string };
+      if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
+      let completed = false;
+      let generatedCostUsd: number | null = null;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
+        }
+        if (selectedSceneIdRef.current === targetScene.id) {
+          setClipStatus(attempt === 0 ? 'Checking video job status…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
+        }
+
+        let statusResponse: Response;
+        try {
+          statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), {
+            headers: { 'x-openrouter-api-key': apiKey },
+          });
+        } catch {
+          // A temporary network interruption should not abandon a paid provider job.
+          if (attempt === 39) throw new Error('Could not reach the video status service after repeated retries. Check your connection before retrying generation.');
+          if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Connection interrupted. Retrying the existing video job…');
+          continue;
+        }
+
+        const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
+        if (!statusResponse.ok) {
+          // Retry rate limits and transient server errors without submitting a second generation job.
+          if ((statusResponse.status === 429 || statusResponse.status >= 500) && attempt < 39) {
+            if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Temporary status-service issue. Retrying the existing video job…');
+            continue;
+          }
+          throw new Error(status.error || 'Could not check video generation status.');
+        }
+        if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
+        if (status.status === 'completed') {
+          completed = true;
+          if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Video generated. Downloading clip…');
+          generatedCostUsd = typeof status.costUsd === 'number' ? status.costUsd : null;
+          if (selectedSceneIdRef.current === targetScene.id) setClipCostUsd(generatedCostUsd);
+          break;
+        }
+      }
+      if (!completed) throw new Error('Video generation is taking longer than expected. Retry later; check your OpenRouter account before submitting another job.');
+      const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId) + '/content', { headers: { 'x-openrouter-api-key': apiKey } });
+      if (!contentResponse.ok) {
+        const data = await contentResponse.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || 'The video was generated but could not be downloaded. Please retry the download.');
+      }
+      const blob = await contentResponse.blob();
+      if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
+      const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+      if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration) {
+        if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene script or visual direction changed during generation. Generate a fresh clip for the updated scene.');
+        return;
+      }
+      let savedVideoId: string | undefined;
+      try {
+        const saved = await saveGeneratedVideo({
+          title: project.title + ' — Scene ' + targetScene.order,
+          blob,
+          model,
+          costUsd: generatedCostUsd,
+          projectId: project.id,
+          sceneId: targetScene.id,
+        });
+        savedVideoId = saved.id;
+        // IndexedDB writes are asynchronous too; re-check inputs immediately before linking.
+        const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+        if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration) {
+          savedVideoId = undefined;
+          // The media was persisted while the scene changed; remove the unlinked blob
+          // so stale generations do not silently accumulate in the local Media Library.
+          await deleteSavedVideo(saved.id).catch(() => undefined);
+          if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene changed while saving. Generate a fresh clip for the updated scene.');
+          return;
+        }
+        updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
+      } catch {
+        if (selectedSceneIdRef.current === targetScene.id) setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
+      }
+      // The user may switch scenes while the provider job is running. The clip is
+      // linked to targetScene above; only update the visible preview if that scene
+      // is still selected, otherwise the scene-change effect will restore its media.
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setGeneratedClipMimeType(blob.type || '');
+        setGeneratedClipUrl(URL.createObjectURL(blob));
+        setClipStatus(savedVideoId
+          ? 'Clip saved to this device and linked to this scene. It will be available after refresh.'
+          : 'Your 4-second clip is ready. Use Download Clip to save the video.');
+      }
+      showToast(savedVideoId ? 'AI video clip generated and saved' : 'AI video clip generated; local save failed', savedVideoId ? 'success' : 'warning');
+    } catch (error) {
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
+        setClipStatus('');
+      }
+    } finally {
+      setIsGeneratingClip(false);
+    }
+  };
+
+  const handleGenerateVoiceover = async () => {
+    if (!project || !currentScene || isGeneratingVoiceover) return;
+    const targetScene = currentScene;
+    const narration = targetScene.narration.trim();
+    if (!narration) {
+      setVoiceoverError('Add narration text for this scene first.');
+      return;
+    }
+    setVoiceoverError('');
+    setVoiceoverStatus('Generating voiceover… this may take a little while.');
+    setGeneratedVoiceoverUrl('');
+    setGeneratedVoiceoverMimeType('');
+    setIsGeneratingVoiceover(true);
+    try {
+      let apiKey = '';
+      let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+      try {
+        apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+        selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+      } catch { /* setup guidance below */ }
+      const model = selectedModels.audio;
+      if (!apiKey || !model) throw new Error('Connect OpenRouter and discover/select a Speech / Voiceover model in Settings first.');
+      const response = await fetch('/api/providers/openrouter/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, input: narration, voice: voiceName.trim(), speed: 1 }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || 'Voiceover generation failed. Check the selected model and voice.');
+      }
+      const blob = await response.blob();
+      if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
+      const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+      if (!latestScene || latestScene.narration.trim() !== narration) {
+        if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed during generation. Generate voiceover again for the updated script.');
+        return;
+      }
+      let saved: Awaited<ReturnType<typeof saveGeneratedAudio>>;
+      try {
+        saved = await saveGeneratedAudio({
+          title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
+          blob,
+          model,
+          voice: voiceName.trim(),
+          projectId: project.id,
+          sceneId: targetScene.id,
+        });
+      } catch {
+        // Keep a successful provider result usable even when local IndexedDB storage fails.
+        // The existing preview/download controls let the user save the audio manually.
+        const latestAfterSaveFailure = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+        if (!latestAfterSaveFailure || latestAfterSaveFailure.narration.trim() !== narration) {
+          if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
+          return;
+        }
+        if (selectedSceneIdRef.current === targetScene.id) {
+          setGeneratedVoiceoverMimeType(blob.type || '');
+          setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
+          setVoiceoverStatus('Voiceover generated, but could not be saved on this device. Download it now; it will not be available after refresh.');
+          setVoiceoverError('Local storage failed. Download the generated voiceover before leaving this page.');
+        }
+        showToast('Voiceover generated but could not be saved locally', 'warning');
+        return;
+      }
+      // IndexedDB writes are asynchronous too; re-check narration immediately before linking.
+      const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
+      if (!sceneBeforeLink || sceneBeforeLink.narration.trim() !== narration) {
+        // Do not leave an unlinked stale voiceover in local Media Library storage.
+        await deleteSavedAudio(saved.id).catch(() => undefined);
+        if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
+        return;
+      }
+      updateScene(project.id, targetScene.id, { generatedAudioId: saved.id });
+      // Avoid replacing another scene's currently visible voiceover preview.
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setGeneratedVoiceoverMimeType(blob.type || '');
+        setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
+        setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
+      }
+      showToast('AI voiceover generated and saved', 'success');
+    } catch (error) {
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setVoiceoverError(error instanceof Error ? error.message : 'Voiceover generation failed. Please retry.');
+        setVoiceoverStatus('');
+      }
+    } finally {
+      setIsGeneratingVoiceover(false);
+    }
+  };
+
+  const handleExportSubtitles = async () => {
+    if (!project) return;
+    const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
+    const entries: Array<{ start: number; end: number; text: string }> = [];
+    const readMediaDuration = (blob: Blob, kind: 'video' | 'audio'): Promise<number> => new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const media = document.createElement(kind);
+      media.preload = 'metadata';
+      let timeoutId: number | undefined;
+      let settled = false;
+      const cleanup = () => {
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+        media.onloadedmetadata = null;
+        media.onerror = null;
+        URL.revokeObjectURL(url);
+        media.removeAttribute('src');
+        media.load();
+      };
+      const finish = (duration?: number, error?: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (duration !== undefined && Number.isFinite(duration) && duration > 0) resolve(duration);
+        else reject(error || new Error('Invalid media duration'));
+      };
+      timeoutId = window.setTimeout(() => finish(undefined, new Error('Timed out while reading media duration')), 8000);
+      media.onloadedmetadata = () => finish(media.duration);
+      media.onerror = () => finish(undefined, new Error('Could not read media duration'));
+      media.src = url;
+      media.load();
+    });
+    let sceneStart = 0;
+
+    for (const scene of scenes) {
+      const narration = scene.narration.trim();
+      let duration = Math.max(0.5, Number.isFinite(scene.duration) ? scene.duration : 0.5);
+      // Match subtitle offsets to the actual export timeline where local clips exist.
+      // Full-video export holds a scene until both its video and voiceover finish.
+      try {
+        const savedVideo = scene.generatedVideoId ? await getSavedVideo(scene.generatedVideoId) : undefined;
+        const savedAudio = scene.generatedAudioId ? await getSavedAudio(scene.generatedAudioId) : undefined;
+        if (savedVideo) {
+          const videoDuration = await readMediaDuration(savedVideo.blob, 'video');
+          let audioDuration = 0;
+          if (savedAudio) {
+            try { audioDuration = await readMediaDuration(savedAudio.blob, 'audio'); } catch { /* Keep video duration if audio metadata is unavailable. */ }
+          }
+          duration = Math.max(videoDuration, audioDuration, 0.5);
+        }
+      } catch {
+        // If local media is unavailable, retain the storyboard's planned duration.
+      }
+      if (narration) {
+        const chunks = splitCaptionText(narration);
+        const weights = chunks.map((chunk) => Math.max(1, chunk.length));
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+        let elapsed = 0;
+        chunks.forEach((text, index) => {
+          const start = sceneStart + elapsed;
+          elapsed += duration * (weights[index] / totalWeight);
+          entries.push({ start, end: sceneStart + (index === chunks.length - 1 ? duration : elapsed), text });
+        });
+      }
+      sceneStart += duration;
+    }
+
+    if (!entries.length) {
+      showToast('Add narration to at least one scene before exporting subtitles', 'warning');
+      return;
+    }
+    const formatTime = (seconds: number) => {
+      const milliseconds = Math.max(0, Math.round(seconds * 1000));
+      const hours = Math.floor(milliseconds / 3600000);
+      const minutes = Math.floor((milliseconds % 3600000) / 60000);
+      const secs = Math.floor((milliseconds % 60000) / 1000);
+      const millis = milliseconds % 1000;
+      return [hours, minutes, secs].map((part) => String(part).padStart(2, '0')).join(':') + ',' + String(millis).padStart(3, '0');
+    };
+    const srt = entries.map((entry, index) =>
+      (index + 1) + '\n' + formatTime(entry.start) + ' --> ' + formatTime(Math.max(entry.start + 0.25, entry.end)) + '\n' + entry.text + '\n'
+    ).join('\n');
+    const blob = new Blob([srt], { type: 'application/x-subrip;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-subtitles.srt';
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('SRT subtitles exported using saved media durations where available', 'success');
+  };
+
   const handleExportSpec = () => {
     if (!project) return;
     const spec = JSON.stringify(project, null, 2);
@@ -116,6 +633,309 @@ export const ProjectWorkspaceView: React.FC = () => {
     a.click();
     showToast('Storyboard specification exported to JSON', 'success');
   };
+
+  const handleExportVideo = async () => {
+    if (!project || isExportingVideo) return;
+    const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
+    if (scenes.length === 0) {
+      setClipError('Add at least one storyboard scene before exporting the full video.');
+      return;
+    }
+    const missing = scenes.filter((scene) => !scene.generatedVideoId);
+    if (missing.length) {
+      setClipError('Generate and save a video clip for every scene before exporting the full video. Missing clips: ' + missing.map((scene) => scene.order).join(', ') + '.');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) {
+      setClipError('This browser does not support in-browser video export. Try a recent desktop Chrome or Edge browser.');
+      return;
+    }
+
+    setClipError('');
+    setExportProgress('Loading saved scene clips…');
+    setIsExportingVideo(true);
+    const sourceUrls: string[] = [];
+    let recorder: MediaRecorder | undefined;
+    let stream: MediaStream | undefined;
+    let audioContext: AudioContext | undefined;
+    let audioDestination: MediaStreamAudioDestinationNode | undefined;
+    try {
+      const savedClips = await Promise.all(scenes.map(async (scene) => {
+        const saved = await getSavedVideo(scene.generatedVideoId!);
+        if (!saved) throw new Error('Scene ' + scene.order + ' clip is missing from this device. Generate it again before exporting.');
+        const savedAudio = scene.generatedAudioId ? await getSavedAudio(scene.generatedAudioId) : undefined;
+        if (scene.generatedAudioId && !savedAudio) {
+          throw new Error('Scene ' + scene.order + ' references a voiceover that is missing from this device. Regenerate the voiceover or remove the missing voiceover link before exporting.');
+        }
+        return { scene, blob: saved.blob, audioBlob: savedAudio?.blob };
+      }));
+
+      const aspect = project.aspectRatio;
+      const canvas = document.createElement('canvas');
+      canvas.width = aspect === '9:16' ? 720 : aspect === '1:1' ? 720 : 1280;
+      canvas.height = aspect === '9:16' ? 1280 : aspect === '1:1' ? 720 : 720;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Could not initialize the video export canvas.');
+      context.fillStyle = '#000';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      stream = canvas.captureStream(30);
+      const audioClips = await Promise.all(savedClips.map(async (clip) => {
+        if (!clip.audioBlob) return undefined;
+        if (typeof window.AudioContext === 'undefined') throw new Error('This browser cannot mix voiceover audio into exported video. Try a recent desktop Chrome or Edge browser.');
+        const context = audioContext || new AudioContext();
+        audioContext = context;
+        const bytes = await clip.audioBlob.arrayBuffer();
+        try {
+          return await context.decodeAudioData(bytes);
+        } catch {
+          throw new Error('Could not decode the saved voiceover for scene ' + clip.scene.order + '. Regenerate that voiceover and try again.');
+        }
+      }));
+      if (audioContext && audioClips.some(Boolean)) {
+        await audioContext.resume();
+        audioDestination = audioContext.createMediaStreamDestination();
+        audioDestination.stream.getAudioTracks().forEach((track) => stream!.addTrack(track));
+      }
+
+      // Some browsers report a MIME type as supported but still reject it in the
+      // MediaRecorder constructor. Try each supported candidate instead of failing
+      // the entire export when the preferred MP4 codec cannot actually be created.
+      const mimeCandidates = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+      let mimeType = '';
+      let recorderInitError: unknown;
+      for (const candidate of mimeCandidates) {
+        if (!MediaRecorder.isTypeSupported(candidate)) continue;
+        try {
+          recorder = new MediaRecorder(stream, { mimeType: candidate, videoBitsPerSecond: 6_000_000 });
+          mimeType = candidate;
+          break;
+        } catch (error) {
+          recorderInitError = error;
+        }
+      }
+      if (!recorder || !mimeType) {
+        throw new Error(
+          recorderInitError instanceof Error
+            ? 'This browser rejected every supported export format. Try an updated Chrome or Edge browser. Details: ' + recorderInitError.message
+            : 'This browser cannot encode an export format supported by VYRA. Try an updated Chrome or Edge browser.'
+        );
+      }
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      const recordingFinished = new Promise<Blob>((resolve, reject) => {
+        recorder!.onstop = () => resolve(new Blob(chunks, { type: recorder!.mimeType || mimeType }));
+        recorder!.onerror = () => reject(new Error('The browser stopped recording unexpectedly. Please try exporting again.'));
+      });
+      // Mark recorder failures as handled immediately. The original promise is
+      // still awaited during finalization, but an early recorder error while a
+      // scene is rendering must not surface as an unhandled rejection.
+      void recordingFinished.catch(() => undefined);
+      recorder.start(1000);
+
+      for (let index = 0; index < savedClips.length; index += 1) {
+        const { scene, blob } = savedClips[index];
+        const audioBuffer = audioClips[index];
+        setExportProgress('Rendering scene ' + (index + 1) + ' of ' + savedClips.length + '…');
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        const sourceUrl = URL.createObjectURL(blob);
+        sourceUrls.push(sourceUrl);
+        video.src = sourceUrl;
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error('Timed out while loading the saved clip for scene ' + scene.order + '. Try re-saving that clip and exporting again.'));
+          }, 10000);
+          const cleanup = () => {
+            window.clearTimeout(timeoutId);
+            video.onloadedmetadata = null;
+            video.onerror = null;
+          };
+          video.onloadedmetadata = () => {
+            cleanup();
+            resolve();
+          };
+          video.onerror = () => {
+            cleanup();
+            reject(new Error('Could not decode the saved clip for scene ' + scene.order + '.'));
+          };
+          video.load();
+        });
+        if (!video.videoWidth || !video.videoHeight) throw new Error('Scene ' + scene.order + ' clip has invalid video dimensions.');
+        const captionChunks = burnInSubtitles ? splitCaptionText(scene.narration, 42) : [];
+        let audioStartTime: number | undefined;
+        const drawFrame = () => {
+          context.fillStyle = '#000';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+          const width = video.videoWidth * scale;
+          const height = video.videoHeight * scale;
+          context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+
+          if (captionChunks.length > 0) {
+            const videoDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max(1, scene.duration);
+            const clipDuration = Math.max(videoDuration, audioBuffer?.duration || 0);
+            const audioElapsed = audioContext && audioStartTime !== undefined ? Math.max(0, audioContext.currentTime - audioStartTime) : 0;
+            const captionElapsed = Math.max(video.currentTime, audioElapsed);
+            const captionIndex = Math.min(captionChunks.length - 1, Math.floor((captionElapsed / clipDuration) * captionChunks.length));
+            const caption = captionChunks[captionIndex];
+            const fontSize = Math.max(20, Math.round(canvas.width * 0.032));
+            context.save();
+            context.font = '600 ' + fontSize + 'px Arial, sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            const maxTextWidth = canvas.width * 0.88;
+            const lines = wrapCaptionLines(context, caption, maxTextWidth);
+            const lineHeight = fontSize * 1.3;
+            const paddingX = fontSize * 0.55;
+            const paddingY = fontSize * 0.35;
+            const blockHeight = lines.length * lineHeight + paddingY * 2;
+            const centerY = canvas.height * 0.84;
+            const blockWidth = Math.min(maxTextWidth + paddingX * 2, canvas.width * 0.94);
+            context.fillStyle = 'rgba(0, 0, 0, 0.72)';
+            context.fillRect((canvas.width - blockWidth) / 2, centerY - blockHeight / 2, blockWidth, blockHeight);
+            context.fillStyle = '#FFFFFF';
+            lines.forEach((text, lineIndex) => {
+              context.fillText(text, canvas.width / 2, centerY - ((lines.length - 1) * lineHeight) / 2 + lineIndex * lineHeight, maxTextWidth);
+            });
+            context.restore();
+          }
+        };
+        drawFrame();
+        const audioSource = audioBuffer && audioContext ? audioContext.createBufferSource() : undefined;
+        let audioTimeout: number | undefined;
+        const audioFinished = audioSource && audioBuffer
+          ? new Promise<void>((resolve, reject) => {
+              // Audio can outlive the video. Keep its own watchdog so a stalled
+              // AudioBufferSourceNode cannot leave the whole export pending forever.
+              audioTimeout = window.setTimeout(() => {
+                try { audioSource.stop(); } catch { /* source may already have stopped */ }
+                reject(new Error('Voiceover playback timed out while exporting scene ' + scene.order + '. Regenerate that voiceover and try again.'));
+              }, Math.max(30000, (audioBuffer.duration + 15) * 1000));
+              audioSource.onended = () => {
+                if (audioTimeout !== undefined) window.clearTimeout(audioTimeout);
+                resolve();
+              };
+            })
+          : Promise.resolve();
+        if (audioSource && audioBuffer) {
+          audioSource.buffer = audioBuffer;
+          if (!audioDestination) throw new Error('Could not initialize the voiceover audio track.');
+          audioSource.connect(audioDestination);
+        }
+        let animationFrame = 0;
+        const videoFinished = new Promise<void>((resolve, reject) => {
+          // Avoid leaving export stuck forever if a saved clip stalls or the audio
+          // track never completes. Allow the longer media duration plus a buffer.
+          const mediaDuration = Math.max(
+            Number.isFinite(video.duration) ? video.duration : 0,
+            audioBuffer?.duration || 0,
+          );
+          const playbackTimeout = window.setTimeout(() => {
+            window.cancelAnimationFrame(animationFrame);
+            video.pause();
+            reject(new Error('Playback timed out while exporting scene ' + scene.order + '. Check that clip and voiceover play correctly, then try exporting again.'));
+          }, Math.max(30000, (mediaDuration + 15) * 1000));
+          const finish = (error?: Error) => {
+            window.clearTimeout(playbackTimeout);
+            if (error) reject(error);
+            else resolve();
+          };
+          const draw = () => {
+            const videoIsPlaying = !video.ended && !video.paused;
+            const audioIsPlaying = Boolean(
+              audioSource && audioContext && audioStartTime !== undefined &&
+              audioContext.currentTime - audioStartTime < (audioBuffer?.duration || 0)
+            );
+            if (videoIsPlaying || audioIsPlaying) {
+              drawFrame();
+              animationFrame = window.requestAnimationFrame(draw);
+            }
+          };
+          video.onended = () => {
+            drawFrame();
+            finish();
+          };
+          video.onerror = () => {
+            window.cancelAnimationFrame(animationFrame);
+            finish(new Error('Playback failed while exporting scene ' + scene.order + '.'));
+          };
+          video.play().then(() => {
+            // Start narration only after video playback is accepted by the browser,
+            // reducing the startup offset between the scene and its voiceover.
+            if (audioSource && audioBuffer && audioContext) {
+              audioStartTime = audioContext.currentTime;
+              audioSource.start();
+            }
+            draw();
+          }).catch((error) => {
+            window.cancelAnimationFrame(animationFrame);
+            finish(new Error('The browser could not play scene ' + scene.order + ' for export: ' + (error instanceof Error ? error.message : 'playback blocked')));
+          });
+        });
+        try {
+          await Promise.all([videoFinished, audioFinished]);
+          drawFrame();
+        } finally {
+          // A video error can finish Promise.all before narration ends. Always
+          // clear its watchdog and release playback resources on both success and failure.
+          if (audioTimeout !== undefined) window.clearTimeout(audioTimeout);
+          window.cancelAnimationFrame(animationFrame);
+          if (audioSource) {
+            try { audioSource.stop(); } catch { /* source may already have stopped */ }
+            try { audioSource.disconnect(); } catch { /* already disconnected */ }
+          }
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+        }
+      }
+
+      setExportProgress('Finalizing video file…');
+      const output = await new Promise<Blob>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          if (recorder?.state === 'recording') recorder.stop();
+          reject(new Error('Export took too long to finalize. Try fewer or shorter clips.'));
+        }, 15000);
+        recordingFinished.then((blob) => {
+          window.clearTimeout(timeout);
+          resolve(blob);
+        }).catch((error) => {
+          window.clearTimeout(timeout);
+          reject(error);
+        });
+        if (recorder?.state === 'recording') recorder.stop();
+      });
+      if (!output.size) throw new Error('The browser created an empty export file. Please try again.');
+      const outputUrl = URL.createObjectURL(output);
+      const link = document.createElement('a');
+      const baseName = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vyra-video';
+      const extension = output.type.includes('mp4') ? 'mp4' : 'webm';
+      link.href = outputUrl;
+      link.download = baseName + '-final.' + extension;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(outputUrl), 60000);
+      const voiceoverCount = audioClips.filter(Boolean).length;
+      showToast(voiceoverCount ? 'Full video exported with voiceovers' : 'Full video exported without voiceovers', 'success');
+      setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video' + (extension === 'webm' ? ' (this browser does not support MP4 recording; try a browser with MP4/H.264 MediaRecorder support for MP4).' : '') + (voiceoverCount ? ' with voiceover audio for ' + voiceoverCount + ' of ' + scenes.length + ' scenes.' : '. Generate scene voiceovers to include narration audio next time.'));
+    } catch (error) {
+      if (recorder?.state === 'recording') recorder.stop();
+      setClipError(error instanceof Error ? error.message : 'Video export failed. Please try again.');
+      setExportProgress('');
+    } finally {
+      sourceUrls.forEach((url) => URL.revokeObjectURL(url));
+      stream?.getTracks().forEach((track) => track.stop());
+      if (audioContext) void audioContext.close().catch(() => undefined);
+      setIsExportingVideo(false);
+    }
+  };
+
 
   if (!project) {
     return (
@@ -177,6 +997,30 @@ export const ProjectWorkspaceView: React.FC = () => {
             </span>
           </div>
 
+          <button
+            type="button"
+            onClick={() => void handleExportVideo()}
+            disabled={isExportingVideo || project.scenes.length === 0 || project.scenes.some((scene) => !scene.generatedVideoId)}
+            title={project.scenes.some((scene) => !scene.generatedVideoId) ? 'Generate and save a clip for every scene to export the full video' : 'Export all scene clips as one video, including saved voiceovers where available'}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-[#55F4FF] light:text-indigo-600 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isExportingVideo ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Video className="w-3.5 h-3.5" />}
+            <span>{isExportingVideo ? 'Exporting…' : 'Export Full Video'}</span>
+          </button>
+                    <label className="inline-flex items-center gap-2 px-2 py-2 text-xs text-slate-300 light:text-slate-700 cursor-pointer" title="Include narration captions directly in the exported video">
+            <input type="checkbox" checked={burnInSubtitles} onChange={(event) => setBurnInSubtitles(event.target.checked)} className="accent-indigo-500" />
+            Burn in subtitles
+          </label>
+          <button
+            type="button"
+            onClick={handleExportSubtitles}
+            disabled={!project.scenes.some((scene) => scene.narration.trim())}
+            title="Export editable SRT subtitles using saved clip and voiceover durations where available"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-slate-300 light:text-slate-700 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Export Subtitles (.srt)</span>
+          </button>
           <button
             onClick={handleExportSpec}
             title="Export Storyboard Spec JSON"
@@ -391,11 +1235,47 @@ export const ProjectWorkspaceView: React.FC = () => {
                   rows={3}
                   value={currentScene.narration}
                   onChange={(e) =>
-                    updateScene(project.id, currentScene.id, { narration: e.target.value })
+                    updateScene(project.id, currentScene.id, { narration: e.target.value, generatedAudioId: undefined, generatedVideoId: undefined })
                   }
                   placeholder="Enter the voiceover script for this scene..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
                 />
+              </div>
+
+              {/* Real OpenRouter text-to-speech generation for the selected scene */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-[#8D7CFF]" />
+                      Generate AI Voiceover
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400 light:text-slate-600" htmlFor="vyra-voice-name">Voice name (model-dependent)</label>
+                  <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="Enter a voice supported by this model" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />
+                </div>
+                {voiceoverStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{voiceoverStatus}</p>}
+                {voiceoverError && <p role="alert" className="text-[11px] text-rose-400">{voiceoverError}</p>}
+                {generatedVoiceoverUrl && (
+                  <div className="space-y-2">
+                    <audio src={generatedVoiceoverUrl} controls preload="metadata" className="w-full" />
+                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.' + getMediaFileExtension(generatedVoiceoverMimeType, 'audio')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                      <Download className="h-3.5 w-3.5" /> Download Voiceover
+                    </a>
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500">
+                  {voiceoverStatus.includes('could not be saved on this device')
+                    ? 'This voiceover is only available in this page session. Download it before leaving; it will not be available after refresh.'
+                    : 'Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export mixes saved scene voiceovers when available.'}
+                </p>
               </div>
 
               {/* Visual Prompt Specification */}
@@ -407,11 +1287,45 @@ export const ProjectWorkspaceView: React.FC = () => {
                   rows={2}
                   value={currentScene.visualPrompt}
                   onChange={(e) =>
-                    updateScene(project.id, currentScene.id, { visualPrompt: e.target.value })
+                    updateScene(project.id, currentScene.id, { visualPrompt: e.target.value, generatedVideoId: undefined })
                   }
                   placeholder="Detailed visual prompt describing scene environment, materials, lighting..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]"
                 />
+              </div>
+
+              {/* Real OpenRouter video generation for the selected scene */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Video className="w-4 h-4 text-[#55F4FF]" />
+                      Generate AI Video Clip
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">
+                      Creates a real 4-second clip using your selected OpenRouter Video model. API usage may incur charges.
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingClip ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingClip ? 'Generating…' : 'Generate 4s Clip'}
+                  </button>
+                </div>
+                {clipStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{clipStatus}</p>}
+                {clipError && <p role="alert" className="text-[11px] text-rose-400">{clipError}</p>}
+                {generatedClipUrl && (
+                  <div className="space-y-2">
+                    <video src={generatedClipUrl} controls playsInline className="w-full max-h-80 rounded-lg bg-black" />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'$' + clipCostUsd.toFixed(4)} USD</span> : <span className="text-[11px] text-slate-400">Generated clip · 4 seconds</span>}
+                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.' + getMediaFileExtension(generatedClipMimeType, 'video')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                        <Download className="h-3.5 w-3.5" />
+                        Download Clip
+                      </a>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Clip is saved on this device and remains available after refresh. Generate a clip for every scene to enable full-video export.</p>
+                  </div>
+                )}
               </div>
 
               {/* Camera Movement Selector & Media switcher */}
@@ -423,7 +1337,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   <select
                     value={currentScene.cameraMovement}
                     onChange={(e) =>
-                      updateScene(project.id, currentScene.id, { cameraMovement: e.target.value })
+                      updateScene(project.id, currentScene.id, { cameraMovement: e.target.value, generatedVideoId: undefined })
                     }
                     className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none"
                   >
@@ -442,26 +1356,27 @@ export const ProjectWorkspaceView: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-400">
+                  <label htmlFor="vyra-visual-media-source" className="text-[11px] font-semibold text-slate-400">
                     Visual Media Source
                   </label>
                   <select
+                    id="vyra-visual-media-source"
                     value={currentScene.mediaUrl}
                     onChange={(e) =>
                       updateScene(project.id, currentScene.id, { mediaUrl: e.target.value })
                     }
                     className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none truncate"
                   >
-                    <option value="/src/assets/images/scene_quantum_chip_1792925206672.jpg">
+                    <option value={sceneQuantumChip}>
                       Quantum Optical Chip Macro
                     </option>
-                    <option value="/src/assets/images/hero_cyber_city_1792925206979.jpg">
+                    <option value={heroCyberCity}>
                       Tokyo 2088 Sky-Rail Cityscape
                     </option>
-                    <option value="/src/assets/images/scene_avatar_presenter_1792925207281.jpg">
+                    <option value={sceneAvatarPresenter}>
                       Holographic Anchor Avatar
                     </option>
-                    <option value="/src/assets/images/scene_eco_habitat_1792925207788.jpg">
+                    <option value={sceneEcoHabitat}>
                       Alpine Biosphere Eco-Habitat
                     </option>
                   </select>
@@ -469,6 +1384,8 @@ export const ProjectWorkspaceView: React.FC = () => {
               </div>
             </div>
           ) : null}
+
+          {exportProgress && <p role="status" className="rounded-lg border border-[#2B3058] light:border-slate-200 px-3 py-2 text-[11px] text-slate-300 light:text-slate-600">{exportProgress}</p>}
 
           {/* Scene Sequencer Timeline List (Reordering, Adding, Deleting) */}
           <div className="space-y-2">
