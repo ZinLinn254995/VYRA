@@ -259,7 +259,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           setGeneratedVoiceoverMimeType(saved.blob.type || '');
           setGeneratedVoiceoverUrl(URL.createObjectURL(saved.blob));
           setVoiceoverStatus('Voiceover restored from this device.');
-          setVoiceName(saved.voice || 'alloy');
+          setVoiceName(saved.voice || '');
         }
       })
       .catch(() => {
