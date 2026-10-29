@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from 'node:crypto';
-import { Router, type Request, type Response } from 'express';
+import express, { Router, type Request, type Response } from 'express';
 
 const API_BASE = 'https://open.tiktokapis.com/v2';
 const COOKIE_NAME = 'vyra_tiktok_session';
@@ -277,6 +277,158 @@ export function createTikTokRouter(): Router {
       return res.status(200).json({ connected: false });
     } catch {
       return res.status(503).json({ error: 'Could not securely disconnect TikTok right now. Please retry.' });
+    }
+  });
+
+
+  // Direct Post supports an immediate publish flow. TikTok does not provide a
+  // general future-scheduling field in this endpoint; do not label this as scheduled.
+  router.post('/publish/init', async (req, res) => {
+    if (!configured()) return res.status(503).json({ error: 'TikTok integration is not configured.' });
+    const sessionId = readSession(req);
+    if (!sessionId) return res.status(401).json({ error: 'Connect your TikTok account first.' });
+    const body = req.body as {
+      caption?: string; privacyLevel?: string; durationSeconds?: number;
+      disableComment?: boolean; disableDuet?: boolean; disableStitch?: boolean;
+      isAigc?: boolean; confirmed?: boolean; videoSize?: number;
+    };
+    if (body.confirmed !== true) return res.status(400).json({ error: 'Explicit confirmation is required before sending a video to TikTok.' });
+    const caption = typeof body.caption === 'string' ? body.caption : '';
+    if (caption.length > 2200) return res.status(400).json({ error: 'TikTok captions must be 2,200 UTF-16 code units or fewer.' });
+    const duration = Number(body.durationSeconds);
+    const videoSize = Number(body.videoSize);
+    if (!Number.isFinite(duration) || duration <= 0 || !Number.isInteger(videoSize) || videoSize < 1 || videoSize > 64 * 1024 * 1024) {
+      return res.status(400).json({ error: 'This upload path supports a valid duration and video files up to 64 MiB.' });
+    }
+    try {
+      let token = await getToken(sessionId);
+      if (!token) return res.status(401).json({ error: 'TikTok account is not connected.' });
+      token = await refreshTokenIfNeeded(sessionId, token);
+      const creatorResponse = await tiktokRequest(API_BASE + '/post/publish/creator_info/query/', token.access_token);
+      const creator = creatorResponse.data || {};
+      const privacyOptions = Array.isArray(creator.privacy_level_options) ? creator.privacy_level_options : [];
+      if (typeof body.privacyLevel !== 'string' || !privacyOptions.includes(body.privacyLevel)) {
+        return res.status(400).json({ error: 'Choose a privacy level currently offered by your TikTok account.' });
+      }
+      const maxDuration = Number(creator.max_video_post_duration_sec || 0);
+      if (!maxDuration || duration > maxDuration) {
+        return res.status(400).json({ error: 'This video exceeds the maximum duration currently allowed by TikTok for this account.' });
+      }
+      const response = await fetch(API_BASE + '/post/publish/video/init/', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token.access_token, 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({
+          post_info: {
+            title: caption,
+            privacy_level: body.privacyLevel,
+            disable_comment: Boolean(body.disableComment),
+            disable_duet: Boolean(body.disableDuet),
+            disable_stitch: Boolean(body.disableStitch),
+            brand_content_toggle: false,
+            brand_organic_toggle: false,
+            is_aigc: body.isAigc === true,
+          },
+          source_info: {
+            source: 'FILE_UPLOAD',
+            video_size: videoSize,
+            chunk_size: videoSize,
+            total_chunk_count: 1,
+          },
+        }),
+        signal: AbortSignal.timeout(15_000),
+        cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({})) as Record<string, any>;
+      if (!response.ok || data.error?.code && data.error.code !== 'ok' || !data.data?.publish_id || !data.data?.upload_url) {
+        const code = String(data.error?.code || '');
+        if (code === 'unaudited_client_can_only_post_to_private_accounts') {
+          return res.status(403).json({ error: 'TikTok has not audited this developer app yet. Posts are restricted to private viewing.' });
+        }
+        return res.status(response.status === 429 ? 429 : 502).json({ error: 'TikTok could not initialize this post. Check the privacy setting, app approval, and account limits.' });
+      }
+      const publishId = String(data.data.publish_id);
+      const uploadUrl = String(data.data.upload_url);
+      if (publishId.length > 128 || uploadUrl.length > 2048 || !uploadUrl.startsWith('https://')) {
+        return res.status(502).json({ error: 'TikTok returned invalid upload metadata.' });
+      }
+      await redis(['SET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId,
+        JSON.stringify({ uploadUrl, videoSize, createdAt: Date.now() }), 'EX', '3600']);
+      return res.status(200).json({ publishId, uploadRequired: true, maxVideoDurationSeconds: maxDuration });
+    } catch {
+      return res.status(502).json({ error: 'Could not initialize TikTok publishing. Please retry after checking the connection.' });
+    }
+  });
+
+  router.put('/publish/:publishId/upload', express.raw({ type: ['video/mp4', 'video/webm', 'video/quicktime'], limit: '64mb' }), async (req, res) => {
+    if (!configured()) return res.status(503).json({ error: 'TikTok integration is not configured.' });
+    const sessionId = readSession(req);
+    const publishId = req.params.publishId;
+    if (!sessionId) return res.status(401).json({ error: 'Connect your TikTok account first.' });
+    if (!/^[a-zA-Z0-9_~.-]{1,128}$/.test(publishId)) return res.status(400).json({ error: 'Invalid publish ID.' });
+    if (!Buffer.isBuffer(req.body) || req.body.length < 1) return res.status(400).json({ error: 'Upload a supported video file.' });
+    try {
+      const stored = await redis(['GET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId]);
+      if (typeof stored !== 'string') return res.status(404).json({ error: 'Upload session expired. Initialize the post again.' });
+      const pending = JSON.parse(stored) as { uploadUrl: string; videoSize: number; createdAt: number };
+      if (Date.now() - pending.createdAt > 60 * 60 * 1000 || req.body.length !== pending.videoSize) {
+        return res.status(400).json({ error: 'The upload expired or the file size does not match the initialized post.' });
+      }
+      const contentType = req.header('content-type') || 'video/mp4';
+      const uploadResponse = await fetch(pending.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(req.body.length),
+          'Content-Range': 'bytes 0-' + (req.body.length - 1) + '/' + req.body.length,
+        },
+        body: req.body,
+        signal: AbortSignal.timeout(120_000),
+        cache: 'no-store',
+      });
+      if (!uploadResponse.ok) return res.status(502).json({ error: 'TikTok video upload failed. Retry status check before initializing another post.' });
+      await redis(['SET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId,
+        JSON.stringify({ uploaded: true, videoSize: pending.videoSize, createdAt: pending.createdAt }), 'EX', '86400']);
+      return res.status(200).json({ uploaded: true, publishId });
+    } catch {
+      return res.status(502).json({ error: 'Could not upload the video to TikTok. Please retry.' });
+    }
+  });
+
+  router.post('/publish/:publishId/status', async (req, res) => {
+    if (!configured()) return res.status(503).json({ error: 'TikTok integration is not configured.' });
+    const sessionId = readSession(req);
+    const publishId = req.params.publishId;
+    if (!sessionId) return res.status(401).json({ error: 'Connect your TikTok account first.' });
+    if (!/^[a-zA-Z0-9_~.-]{1,128}$/.test(publishId)) return res.status(400).json({ error: 'Invalid publish ID.' });
+    try {
+      const stored = await redis(['GET', 'vyra:tiktok:publish:' + sessionId + ':' + publishId]);
+      if (typeof stored !== 'string') return res.status(404).json({ error: 'Publish record expired or does not exist.' });
+      const record = JSON.parse(stored) as { uploaded?: boolean };
+      if (!record.uploaded) return res.status(409).json({ error: 'Upload the video before checking publish status.' });
+      let token = await getToken(sessionId);
+      if (!token) return res.status(401).json({ error: 'TikTok account is not connected.' });
+      token = await refreshTokenIfNeeded(sessionId, token);
+      const status = await tiktokRequest(API_BASE + '/post/publish/status/fetch/', token.access_token);
+      const response = await fetch(API_BASE + '/post/publish/status/fetch/', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token.access_token, 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({ publish_id: publishId }),
+        signal: AbortSignal.timeout(10_000),
+        cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({})) as Record<string, any>;
+      if (!response.ok || data.error?.code && data.error.code !== 'ok') {
+        return res.status(502).json({ error: 'TikTok status is temporarily unavailable. Retry shortly.' });
+      }
+      const result = data.data || {};
+      return res.status(200).json({
+        publishId,
+        status: String(result.status || 'PROCESSING'),
+        failReason: typeof result.fail_reason === 'string' ? result.fail_reason.slice(0, 300) : undefined,
+        publicPostIds: Array.isArray(result.publicaly_available_post_id) ? result.publicaly_available_post_id : [],
+      });
+    } catch {
+      return res.status(502).json({ error: 'Could not fetch TikTok publish status. Please retry.' });
     }
   });
 
