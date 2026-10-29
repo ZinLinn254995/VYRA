@@ -339,7 +339,7 @@ app.post('/api/providers/openrouter/audio/speech', async (req: Request, res: Res
     // Bound speech downloads too: providers should return short clips, not arbitrarily large bodies.
     const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
     const declaredAudioLength = upstream.headers.get('content-length');
-    if (declaredAudioLength && /^\\d+$/.test(declaredAudioLength) && Number(declaredAudioLength) > MAX_AUDIO_BYTES) {
+    if (declaredAudioLength && /^\d+$/.test(declaredAudioLength) && Number(declaredAudioLength) > MAX_AUDIO_BYTES) {
       await upstream.body?.cancel().catch(() => undefined);
       return res.status(502).json({ error: 'The generated voiceover exceeds VYRA’s 50 MB safety limit. Shorten the narration and try again.' });
     }
