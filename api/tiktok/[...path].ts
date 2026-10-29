@@ -7,5 +7,7 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 app.use('/', createTikTokRouter());
+// Also support runtimes that preserve the full request pathname.
+app.use('/api/tiktok', createTikTokRouter());
 
 export default app;
