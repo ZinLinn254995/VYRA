@@ -44,7 +44,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onOpenMobileMenu }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 w-full flex items-center justify-between gap-4 px-4 sm:px-6 border-b bg-[#090B18]/90 light:bg-white/90 backdrop-blur-md border-[#1E2345] light:border-slate-200 transition-colors">
+    <header className={`${currentSection === 'ideas' ? 'relative' : 'sticky top-0 z-30'} h-16 w-full flex items-center justify-between gap-4 px-4 sm:px-6 border-b bg-[#090B18]/90 light:bg-white/90 backdrop-blur-md border-[#1E2345] light:border-slate-200 transition-colors`}>
       {/* Zone 1: Mobile toggle & Breadcrumb Trail */}
       <div className="flex items-center gap-3 min-w-0">
         <button
