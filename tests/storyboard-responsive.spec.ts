@@ -430,4 +430,4 @@ for (const width of [768, 1024, 1280, 1440]) {
       'Main content must follow the collapsed sidebar without overlap',
     ).toBeGreaterThanOrEqual(collapsedSidebar!.x + collapsedSidebar!.width - 1);
   });
-});
+}
