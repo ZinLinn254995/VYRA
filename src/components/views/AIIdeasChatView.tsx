@@ -466,7 +466,7 @@ export const AIIdeasChatView: React.FC = () => {
               title="Inspect registered application tools"
             >
               <Cpu className="w-3 h-3" />
-              <span className="hidden sm:inline">Tools ({AGENT_TOOLS_REGISTRY.filter((t) => t.isOperational).length} Live)</span>
+              <span className="hidden xl:inline">Tools ({AGENT_TOOLS_REGISTRY.filter((t) => t.isOperational).length} Live)</span>
             </button>
 
             <button
@@ -474,12 +474,12 @@ export const AIIdeasChatView: React.FC = () => {
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition-colors"
             >
               <Info className="w-3 h-3" />
-              <span className="hidden sm:inline">Preview Mode</span>
+              <span className="hidden xl:inline">Preview Mode</span>
             </button>
 
             <button
               onClick={() => createNewConversation()}
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-[#2B3058] light:border-slate-300 text-slate-300 light:text-slate-700 hover:bg-[#1E2345]"
+              className="hidden xl:flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-[#2B3058] light:border-slate-300 text-slate-300 light:text-slate-700 hover:bg-[#1E2345]"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New Chat</span>
