@@ -106,7 +106,8 @@ export const AIIdeasChatView: React.FC = () => {
   // Input composer state
   const [inputText, setInputText] = useState('');
   const [searchConvQuery, setSearchConvQuery] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [showNoticeBanner, setShowNoticeBanner] = useState(true);
   const [activeTab, setActiveTab] = useState<'chats' | 'saved_ideas'>('chats');
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editTitleInput, setEditTitleInput] = useState('');
@@ -199,11 +200,13 @@ export const AIIdeasChatView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-6.5rem)] max-w-7xl mx-auto rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden shadow-xl transition-colors">
+    <div className="relative flex h-full min-h-[32rem] max-w-7xl mx-auto rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden shadow-xl transition-colors">
+      {sidebarOpen && <button type="button" aria-label="Close conversations panel" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px] lg:hidden" />}
+
       {/* 1. Conversations & Scratchpad Sidebar */}
       <aside
-        className={`flex flex-col border-r border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-slate-50 transition-all duration-200 z-20 shrink-0
-          ${sidebarOpen ? 'w-full md:w-80' : 'w-0 hidden md:flex md:w-0 overflow-hidden border-r-0'}
+        className={`flex flex-col border-r border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-slate-50 transition-all duration-200 shrink-0
+          ${sidebarOpen ? 'fixed inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] lg:static lg:z-20 lg:w-80 lg:max-w-none' : 'fixed inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] -translate-x-full lg:static lg:z-20 lg:w-0 lg:max-w-0 lg:overflow-hidden lg:border-r-0'}
         `}
       >
         {/* Sidebar Header & New Chat button */}
@@ -427,7 +430,7 @@ export const AIIdeasChatView: React.FC = () => {
       </aside>
 
       {/* 2. Main Chat Thread & Composer Area */}
-      <section className="flex-1 flex flex-col min-w-0 bg-[#171A35] light:bg-white relative">
+      <section className="flex-1 flex flex-col min-w-0 bg-[#171A35] light:bg-white relative h-full overflow-hidden">
         {/* Chat Header Bar */}
         <div className="h-14 px-4 border-b border-[#2B3058] light:border-slate-200 flex items-center justify-between gap-3 bg-[#090B18]/70 light:bg-white/90 backdrop-blur-xs">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -500,6 +503,8 @@ export const AIIdeasChatView: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {showNoticeBanner && <div className="p-3 sm:p-3.5 rounded-xl bg-[#090B18]/70 light:bg-slate-50 border border-[#2B3058] light:border-slate-200 flex items-start justify-between gap-3 text-xs"><div className="flex items-start gap-2.5 min-w-0"><Info className="w-4 h-4 text-[#55F4FF] light:text-[#6366F1] shrink-0 mt-0.5" /><div className="space-y-0.5 leading-relaxed text-slate-300 light:text-slate-700 min-w-0"><span className="font-semibold text-white light:text-slate-900">Architectural Status Note:</span><p className="text-slate-400 light:text-slate-600 text-[11px]">The AI Ideas Chat operates in modular Preview Mode. Real Gemini API credentials remain safely protected on the server side. You can brainstorm ideas, create structured storyboards, and convert any concept directly into a VYRA project.</p></div></div><button onClick={() => setShowNoticeBanner(false)} className="p-1 rounded text-slate-400 hover:text-white shrink-0" title="Dismiss banner"><X className="w-3.5 h-3.5" /></button></div>}
 
           {/* If conversation has messages */}
           {activeConversation && activeConversation.messages.length > 0 ? (
