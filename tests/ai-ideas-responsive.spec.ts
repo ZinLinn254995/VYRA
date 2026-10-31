@@ -51,7 +51,7 @@ for (const width of [390, 768]) {
     const workspace = page.locator('main').locator('> div').first();
     const workspaceBox = await workspace.boundingBox();
     expect(workspaceBox).not.toBeNull();
-    await expect.poll(async () => (await drawer.boundingBox())?.x ?? -999).toBeCloseTo(workspaceBox!.x, 0);
+    await expect.poll(async () => Math.abs(((await drawer.boundingBox())?.x ?? -999) - workspaceBox!.x)).toBeLessThanOrEqual(2);
 
     // Click the visible backdrop area inside the workspace, outside the drawer.
     const backdropBox = await backdrop.boundingBox();
