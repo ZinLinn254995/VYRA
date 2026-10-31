@@ -14,7 +14,7 @@ async function openIdeas(page: import('@playwright/test').Page, width: number, h
     await page.getByRole('button', { name: 'Open mobile menu' }).click();
   }
   await page.getByRole('button', { name: 'AI Ideas Chat' }).click();
-  await expect(page.getByRole('heading', { name: 'AI Ideas Chat' })).toBeVisible();
+  await expect(page.getByPlaceholder('Ask for video ideas, hooks, full scripts, or storyboard visual prompts...')).toBeVisible();
 }
 
 for (const size of sizes) {
