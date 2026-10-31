@@ -389,10 +389,8 @@ test('Mobile navigation opens above the page and closes cleanly', async ({ page 
   await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
   await expect(page.locator('[role="presentation"]')).toBeVisible();
 
-  const openedBox = await sidebar.boundingBox();
-  expect(openedBox).not.toBeNull();
-  expect(openedBox!.x).toBe(0);
-  expect(openedBox!.width).toBe(260);
+  await expect.poll(async () => (await sidebar.boundingBox())?.x ?? -999).toBe(0);
+  await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBe(260);
 
   await page.getByRole('button', { name: 'Close navigation' }).click();
   await expect(page.getByRole('button', { name: 'Open mobile menu' })).toBeVisible();
