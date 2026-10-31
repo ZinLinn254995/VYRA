@@ -45,7 +45,7 @@ export interface AIServiceProvider {
  */
 class ModularAIService implements AIServiceProvider {
   public name = 'Google Gemini AI (Server-Proxy Ready)';
-  public model = 'gemini-3.8-flash';
+  public model = 'gemini-2.5-flash';
   private endpoint = '/api/ai/chat';
 
   public async checkStatus(): Promise<AIServiceStatus> {
@@ -56,17 +56,35 @@ class ModularAIService implements AIServiceProvider {
         body: JSON.stringify({ ping: true }),
       });
 
-      if (res.ok) {
-        return {
-          status: 'connected',
-          providerName: this.name,
-          modelName: this.model,
-          backendEndpoint: this.endpoint,
-          message: 'Connected to server-side Gemini AI engine.',
-        };
-      }
+      const data = await res.json().catch(() => ({})) as {
+        status?: string;
+        modelName?: string;
+        message?: string;
+      };
+      const modelName = typeof data.modelName === 'string' && data.modelName.trim()
+        ? data.modelName.trim()
+        : this.model;
+      this.model = modelName;
+
+      // The health probe intentionally returns HTTP 200 even when Gemini is
+      // not configured. Trust the explicit backend status, not res.ok alone.
+      const status: AIServiceStatus['status'] =
+        data.status === 'connected' ? 'connected' :
+        data.status === 'error' ? 'error' : 'preview_mode';
+
+      return {
+        status,
+        providerName: this.name,
+        modelName,
+        backendEndpoint: this.endpoint,
+        message: typeof data.message === 'string' && data.message.trim()
+          ? data.message
+          : status === 'connected'
+            ? 'Connected to server-side Gemini AI engine.'
+            : 'Gemini is not verified yet. Check the server configuration.',
+      };
     } catch {
-      // Backend route is not mounted in this phase
+      // Keep the UI honest when the API route cannot be reached.
     }
 
     return {
@@ -75,7 +93,7 @@ class ModularAIService implements AIServiceProvider {
       modelName: this.model,
       backendEndpoint: this.endpoint,
       message:
-        'Preview Mode active: Secure server-side Gemini API proxy is ready for connection in backend deployment. No API secrets are exposed to the browser.',
+        'Preview Mode: The VYRA AI endpoint is not reachable. Check the production deployment and server configuration.',
     };
   }
 
