@@ -254,8 +254,13 @@ export const PublishingView: React.FC = () => {
         <div role="presentation" onClick={() => !tiktokBusy && setPublishProject(null)} className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
           <form onSubmit={async (event) => {
             event.preventDefault();
-            if (!publishFile || !privacyLevel || !confirmed || !publishDuration) { setPublishMessage('Select a video, choose privacy, and confirm before publishing.'); return; }
-            if (publishFile.size > 64 * 1024 * 1024) { setPublishMessage('This upload flow supports files up to 64 MiB.'); return; }
+            if (!publishFile || !privacyLevel || !confirmed || !Number.isFinite(publishDuration) || publishDuration <= 0) { setPublishMessage('Select a valid video, choose privacy, and confirm before publishing.'); return; }
+            if (publishFile.size <= 0 || publishFile.size > 64 * 1024 * 1024) { setPublishMessage('Choose a non-empty video file up to 64 MiB.'); return; }
+            const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+            if (publishFile.type && !allowedVideoTypes.includes(publishFile.type)) { setPublishMessage('Use an MP4, MOV, or WebM video file.'); return; }
+            const maxDuration = Number(tiktokStatus.creator?.maxVideoDurationSeconds || 0);
+            if (!maxDuration || publishDuration > maxDuration) { setPublishMessage('This video is longer than the maximum duration allowed by your TikTok account.'); return; }
+            if (caption.length > 2200) { setPublishMessage('Caption must be 2,200 characters or fewer.'); return; }
             setTiktokBusy(true);
             setPublishMessage('Initializing TikTok post…');
             try {
@@ -304,6 +309,20 @@ export const PublishingView: React.FC = () => {
                 setPublishFile(file);
                 setPublishDuration(0);
                 if (!file) return;
+                const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+                if (file.type && !allowedVideoTypes.includes(file.type)) {
+                  setPublishFile(null);
+                  setPublishMessage('Use an MP4, MOV, or WebM video file.');
+                  event.target.value = '';
+                  return;
+                }
+                if (file.size <= 0 || file.size > 64 * 1024 * 1024) {
+                  setPublishFile(null);
+                  setPublishMessage('Choose a non-empty video file up to 64 MiB.');
+                  event.target.value = '';
+                  return;
+                }
+                setPublishMessage('');
                 const url = URL.createObjectURL(file);
                 const video = document.createElement('video');
                 video.preload = 'metadata';
@@ -333,7 +352,7 @@ export const PublishingView: React.FC = () => {
             {publishMessage && <div role="status" className="rounded-lg border border-[#2B3058] p-3 text-xs text-slate-200 light:text-slate-700">{publishMessage}</div>}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <button type="button" disabled={tiktokBusy} onClick={() => setPublishProject(null)} className="px-4 py-2 rounded-lg text-xs border border-[#2B3058] text-slate-300">Close</button>
-              <button type="submit" disabled={tiktokBusy || !publishFile || !privacyLevel || !confirmed || !publishDuration || Boolean(tiktokStatus.creator?.maxVideoDurationSeconds && publishDuration > tiktokStatus.creator.maxVideoDurationSeconds)} className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#55F4FF] text-[#090B18] disabled:opacity-40">{tiktokBusy ? 'Publishing…' : 'Confirm & Publish Now'}</button>
+              <button type="submit" disabled={tiktokBusy || !publishFile || !privacyLevel || !confirmed || !publishDuration || !tiktokStatus.creator?.maxVideoDurationSeconds || publishDuration > tiktokStatus.creator.maxVideoDurationSeconds || publishFile.size <= 0 || publishFile.size > 64 * 1024 * 1024} className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#55F4FF] text-[#090B18] disabled:opacity-40">{tiktokBusy ? 'Publishing…' : 'Confirm & Publish Now'}</button>
             </div>
           </form>
         </div>
