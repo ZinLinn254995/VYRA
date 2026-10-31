@@ -196,7 +196,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [voiceName, setVoiceName] = useState('');
   const [videoModelMetadata, setVideoModelMetadata] = useState<OpenRouterVideoModel | null>(null);
   const [clipDuration, setClipDuration] = useState(4);
-  const [clipAspectRatio, setClipAspectRatio] = useState<AspectRatio>(project?.aspectRatio || '16:9');
+  const [clipAspectRatio, setClipAspectRatio] = useState<string>(project?.aspectRatio || '16:9');
   const [clipResolution, setClipResolution] = useState('');
   const [voiceoverStatus, setVoiceoverStatus] = useState('');
   const [voiceoverError, setVoiceoverError] = useState('');
@@ -232,7 +232,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       setVideoModelMetadata(selected);
       const durations = selected?.supportedDurations?.filter((value) => Number.isInteger(value) && value > 0) || [];
       setClipDuration(durations.includes(4) ? 4 : durations[0] || 4);
-      const ratios = (selected?.supportedAspectRatios || []).filter((value): value is AspectRatio => value === '9:16' || value === '16:9' || value === '1:1');
+      const ratios = selected?.supportedAspectRatios || [];
       setClipAspectRatio(ratios.includes(project?.aspectRatio || '16:9') ? (project?.aspectRatio || '16:9') : ratios[0] || project?.aspectRatio || '16:9');
       setClipResolution(selected?.supportedResolutions?.[0] || '');
     } catch {
@@ -1339,19 +1339,19 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
                         <span>Clip duration</span>
-                        <select value={clipDuration} onChange={(e) => setClipDuration(Number(e.target.value))} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
+                        <select value={clipDuration} onChange={(e) => setClipDuration(Number(e.target.value))} disabled={isGeneratingClip} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
                           {(videoModelMetadata?.supportedDurations?.length ? videoModelMetadata.supportedDurations : [4]).map((duration) => <option key={duration} value={duration}>{duration} seconds</option>)}
                         </select>
                       </label>
                       <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
                         <span>Aspect ratio</span>
-                        <select value={clipAspectRatio} onChange={(e) => setClipAspectRatio(e.target.value as AspectRatio)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
-                          {(videoModelMetadata?.supportedAspectRatios?.filter((ratio): ratio is AspectRatio => ratio === '9:16' || ratio === '16:9' || ratio === '1:1').length ? videoModelMetadata.supportedAspectRatios.filter((ratio): ratio is AspectRatio => ratio === '9:16' || ratio === '16:9' || ratio === '1:1') : [project.aspectRatio]).map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+                        <select value={clipAspectRatio} onChange={(e) => setClipAspectRatio(e.target.value)} disabled={isGeneratingClip} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
+                          {(videoModelMetadata?.supportedAspectRatios?.length ? videoModelMetadata.supportedAspectRatios : [project.aspectRatio]).map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
                         </select>
                       </label>
                       <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
                         <span>Resolution</span>
-                        <select value={clipResolution} onChange={(e) => setClipResolution(e.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
+                        <select value={clipResolution} onChange={(e) => setClipResolution(e.target.value)} disabled={isGeneratingClip} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
                           <option value="">Model default</option>
                           {(videoModelMetadata?.supportedResolutions || []).map((resolution) => <option key={resolution} value={resolution}>{resolution}</option>)}
                         </select>
