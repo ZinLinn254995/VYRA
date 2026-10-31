@@ -270,8 +270,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [aiStatus, setAiStatus] = useState<AIServiceStatus>({
     status: 'preview_mode',
     providerName: 'Google Gemini AI (Server-Proxy Ready)',
-    modelName: 'gemini-3.8-flash',
-    message: 'Preview Mode: Connect server backend in WP2.',
+    modelName: 'gemini-2.5-flash',
+    message: 'Checking server-side Gemini connection.',
   });
 
   // Check AI service endpoint status on mount
