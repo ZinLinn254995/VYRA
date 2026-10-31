@@ -6,7 +6,9 @@ function elementDescription(image: Element): string {
 }
 
 const viewports = [
+  { name: 'compact-mobile', width: 320, height: 740 },
   { name: 'mobile', width: 390, height: 844 },
+  { name: 'large-mobile', width: 430, height: 900 },
   { name: 'tablet', width: 768, height: 1024 },
   { name: 'desktop', width: 1024, height: 768 },
   { name: 'wide-desktop', width: 1440, height: 900 },
@@ -373,3 +375,57 @@ test('Generated voiceover remains downloadable when local IndexedDB saving fails
   })).toBe(false);
 });
 
+
+
+test('Mobile navigation opens above the page and closes cleanly', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const sidebar = page.locator('aside');
+  const openButton = page.getByRole('button', { name: 'Open mobile menu' });
+  await expect(openButton).toBeVisible();
+
+  await openButton.click();
+  await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+  await expect(page.locator('[role="presentation"]')).toBeVisible();
+
+  await expect.poll(async () => (await sidebar.boundingBox())?.x ?? -999).toBe(0);
+  await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBe(260);
+
+  await page.getByRole('button', { name: 'Close navigation' }).click();
+  await expect(page.getByRole('button', { name: 'Open mobile menu' })).toBeVisible();
+  await expect.poll(async () => (await sidebar.boundingBox())?.x ?? 0).toBeLessThan(-250);
+  await expect(page.locator('[role="presentation"]')).toHaveCount(0);
+});
+
+for (const width of [768, 1024, 1280, 1440]) {
+  test(`Desktop content stays clear of the sidebar at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+
+    const sidebar = page.locator('aside');
+    const main = page.locator('main');
+    await expect(main).toBeVisible();
+
+    const expandedSidebar = await sidebar.boundingBox();
+    const expandedMain = await main.boundingBox();
+    expect(expandedSidebar).not.toBeNull();
+    expect(expandedMain).not.toBeNull();
+    expect(
+      expandedMain!.x,
+      'Main content must start after the expanded sidebar',
+    ).toBeGreaterThanOrEqual(expandedSidebar!.x + expandedSidebar!.width - 1);
+
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(72);
+
+    const collapsedSidebar = await sidebar.boundingBox();
+    const collapsedMain = await main.boundingBox();
+    expect(collapsedSidebar).not.toBeNull();
+    expect(collapsedMain).not.toBeNull();
+    expect(
+      collapsedMain!.x,
+      'Main content must follow the collapsed sidebar without overlap',
+    ).toBeGreaterThanOrEqual(collapsedSidebar!.x + collapsedSidebar!.width - 1);
+  });
+}
