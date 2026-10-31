@@ -1370,7 +1370,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                   <div className="space-y-2">
                     <video src={generatedClipUrl} controls playsInline className="w-full max-h-80 rounded-lg bg-black" />
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'
+                      {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'$' + clipCostUsd.toFixed(4)} USD</span> : <span className="text-[11px] text-slate-400">Generated clip · {clipDuration} seconds</span>}
                       <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.' + getMediaFileExtension(generatedClipMimeType, 'video')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
                         <Download className="h-3.5 w-3.5" />
                         Download Clip
