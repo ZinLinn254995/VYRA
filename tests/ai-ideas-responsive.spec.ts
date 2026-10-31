@@ -48,11 +48,16 @@ for (const width of [390, 768]) {
     const drawer = page.locator('main aside').first();
     const backdrop = page.getByRole('button', { name: 'Close conversations panel' });
     await expect(backdrop).toBeVisible();
-    await expect.poll(async () => (await drawer.boundingBox())?.x ?? -999).toBe(0);
+    const workspace = page.locator('main').locator('> div').first();
+    const workspaceBox = await workspace.boundingBox();
+    expect(workspaceBox).not.toBeNull();
+    await expect.poll(async () => (await drawer.boundingBox())?.x ?? -999).toBeCloseTo(workspaceBox!.x, 0);
 
-    // Click the exposed edge of the backdrop, outside the drawer's hit area.
-    await backdrop.click({ position: { x: width - 8, y: 422 } });
-    await expect.poll(async () => (await drawer.boundingBox())?.x ?? 0).toBeLessThan(-250);
+    // Click the visible backdrop area inside the workspace, outside the drawer.
+    const backdropBox = await backdrop.boundingBox();
+    expect(backdropBox).not.toBeNull();
+    await backdrop.click({ position: { x: backdropBox!.width - 8, y: Math.min(422, backdropBox!.height - 8) } });
+    await expect.poll(async () => (await drawer.boundingBox())?.x ?? 0).toBeLessThan(workspaceBox!.x - 250);
     await expect(page.getByRole('button', { name: 'Open conversation list' })).toBeVisible();
     await expect(chat).toBeVisible();
   });
