@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+import { createTikTokRouter } from './src/server/tiktok.js';
 
 const app = express();
 const httpServer = createHttpServer(app);
@@ -16,6 +17,7 @@ const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'dis
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
+app.use('/api/tiktok', createTikTokRouter());
 
 function readOpenRouterKey(req: Request): string {
   const key = req.header('x-openrouter-api-key')?.trim() || '';

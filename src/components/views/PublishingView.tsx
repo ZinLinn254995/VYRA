@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { BRAND_CONFIG } from '../../config/brand';
 import {
@@ -21,11 +21,41 @@ import {
 export const PublishingView: React.FC = () => {
   const { projects, showToast, navigateToReviewQueue } = useStudio();
   const [selectedChannelForSetup, setSelectedChannelForSetup] = useState<any | null>(null);
+  const [tiktokStatus, setTiktokStatus] = useState<any>({ configured: false, connected: false });
+  const [tiktokBusy, setTiktokBusy] = useState(false);
+  const [publishProject, setPublishProject] = useState<any | null>(null);
+  const [publishFile, setPublishFile] = useState<File | null>(null);
+  const [publishDuration, setPublishDuration] = useState(0);
+  const [caption, setCaption] = useState('');
+  const [privacyLevel, setPrivacyLevel] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [publishMessage, setPublishMessage] = useState('');
+
+  const refreshTikTokStatus = async () => {
+    try {
+      const response = await fetch('/api/tiktok/status', { credentials: 'same-origin', cache: 'no-store' });
+      const status = await response.json();
+      if (response.ok) setTiktokStatus(status);
+    } catch { setTiktokStatus({ configured: false, connected: false }); }
+  };
+  useEffect(() => { void refreshTikTokStatus(); }, []);
 
   // Approved projects waiting in dispatch queue
   const approvedProjects = projects.filter(
     (p) => p.status === 'approved' || p.status === 'ready_to_publish'
   );
+
+  const handleConnect = (channel: { id: string; name: string }) => {
+    if (channel.id === 'tiktok') {
+      if (!tiktokStatus.configured) {
+        showToast('TikTok server setup is incomplete. Configure server credentials and durable storage first.', 'info');
+        return;
+      }
+      window.location.assign('/api/tiktok/connect');
+      return;
+    }
+    handleSimulateConnect(channel.name);
+  };
 
   const handleSimulateConnect = (channelName: string) => {
     showToast(
@@ -48,7 +78,7 @@ export const PublishingView: React.FC = () => {
             </p>
           </div>
           <span className="text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/30">
-            Work Package 1: OAuth Mock Boundary
+            TikTok Direct Post: Foundation
           </span>
         </div>
 
@@ -60,10 +90,7 @@ export const PublishingView: React.FC = () => {
               Publishing Service Integration Guardrail:
             </span>
             <p className="text-slate-400 light:text-slate-600">
-              Per engineering guidelines, all social platform integrations are explicitly displayed as{' '}
-              <strong className="text-amber-400">Not Connected</strong>. Video dispatch will be
-              enabled once OAuth client IDs and tokens (YouTube Data API, TikTok Posting, Instagram Graph,
-              LinkedIn) are configured via server-side endpoints in WP2.
+              TikTok Direct Post is available when the server credentials and durable token storage are configured and your TikTok account is connected. Other social channels remain placeholders until their own secure integrations are implemented.
             </p>
           </div>
         </div>
@@ -75,7 +102,7 @@ export const PublishingView: React.FC = () => {
           <h2 className="text-base font-bold text-white light:text-slate-900">
             Connected Distribution Channels
           </h2>
-          <span className="text-xs font-mono text-slate-400">0 of 5 channels connected</span>
+          <span className="text-xs font-mono text-slate-400">{tiktokStatus.connected ? '1 of 5 channels connected' : '0 of 5 channels connected'}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -96,8 +123,8 @@ export const PublishingView: React.FC = () => {
                   </div>
 
                   {/* Explicit Not Connected Badge */}
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                    Not Connected
+                  <span className={"text-[10px] font-mono font-semibold px-2 py-0.5 rounded border " + (channel.id === 'tiktok' && tiktokStatus.connected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700')}>
+                    {channel.id === 'tiktok' ? (tiktokStatus.connected ? (tiktokStatus.creator?.nickname || 'Connected') : 'Not Connected') : 'Not Connected'}
                   </span>
                 </div>
 
@@ -127,10 +154,10 @@ export const PublishingView: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => handleSimulateConnect(channel.name)}
+                  onClick={() => handleConnect(channel)}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1E2345] light:bg-slate-100 text-[#55F4FF] light:text-[#6366F1] hover:bg-[#55F4FF] hover:text-[#090B18] transition-colors"
                 >
-                  Connect Account
+                  {channel.id === 'tiktok' && tiktokStatus.connected ? 'Reconnect Account' : 'Connect Account'}
                 </button>
               </div>
             </div>
@@ -195,15 +222,20 @@ export const PublishingView: React.FC = () => {
                     Inspect Package
                   </button>
                   <button
-                    onClick={() =>
-                      showToast(
-                        'Scheduled dispatch is held until OAuth channels are authenticated.',
-                        'info'
-                      )
-                    }
-                    className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 transition-colors"
+                    onClick={() => {
+                      if (!tiktokStatus.connected) { showToast('Connect TikTok before publishing.', 'info'); return; }
+                      setPublishProject(proj);
+                      setPublishFile(null);
+                      setPublishDuration(0);
+                      setCaption(proj.publishingCaption || proj.title);
+                      setPrivacyLevel('');
+                      setConfirmed(false);
+                      setPublishMessage('');
+                    }}
+                    disabled={!tiktokStatus.connected}
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
-                    Schedule Dispatch
+                    Publish to TikTok
                   </button>
                 </div>
               </div>
@@ -216,6 +248,115 @@ export const PublishingView: React.FC = () => {
           </div>
         )}
       </section>
+
+
+      {publishProject && (
+        <div role="presentation" onClick={() => !tiktokBusy && setPublishProject(null)} className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <form onSubmit={async (event) => {
+            event.preventDefault();
+            if (!publishFile || !privacyLevel || !confirmed || !Number.isFinite(publishDuration) || publishDuration <= 0) { setPublishMessage('Select a valid video, choose privacy, and confirm before publishing.'); return; }
+            if (publishFile.size <= 0 || publishFile.size > 64 * 1024 * 1024) { setPublishMessage('Choose a non-empty video file up to 64 MiB.'); return; }
+            const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+            if (publishFile.type && !allowedVideoTypes.includes(publishFile.type)) { setPublishMessage('Use an MP4, MOV, or WebM video file.'); return; }
+            const maxDuration = Number(tiktokStatus.creator?.maxVideoDurationSeconds || 0);
+            if (!maxDuration || publishDuration > maxDuration) { setPublishMessage('This video is longer than the maximum duration allowed by your TikTok account.'); return; }
+            if (caption.length > 2200) { setPublishMessage('Caption must be 2,200 characters or fewer.'); return; }
+            setTiktokBusy(true);
+            setPublishMessage('Initializing TikTok post…');
+            try {
+              const initResponse = await fetch('/api/tiktok/publish/init', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ caption, privacyLevel, durationSeconds: publishDuration, videoSize: publishFile.size, confirmed: true, disableComment: false, disableDuet: false, disableStitch: false, isAigc: true })
+              });
+              const initData = await initResponse.json();
+              if (!initResponse.ok) throw new Error(initData.error || 'Could not initialize TikTok post.');
+              setPublishMessage('Uploading video to TikTok…');
+              const uploadResponse = await fetch(initData.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': publishFile.type || 'video/mp4', 'Content-Range': 'bytes 0-' + (publishFile.size - 1) + '/' + publishFile.size },
+                body: publishFile
+              });
+              if (!uploadResponse.ok) throw new Error('TikTok upload did not complete. Browser CORS restrictions may require a different upload path.');
+              setPublishMessage('Video uploaded. Checking publication status…');
+              let terminal = false;
+              for (let attempt = 0; attempt < 8; attempt++) {
+                await new Promise(resolve => window.setTimeout(resolve, 2500));
+                const statusResponse = await fetch('/api/tiktok/publish/' + encodeURIComponent(initData.publishId) + '/status', { method: 'POST', credentials: 'same-origin' });
+                const statusData = await statusResponse.json();
+                if (!statusResponse.ok) throw new Error(statusData.error || 'Unable to check TikTok status.');
+                const status = String(statusData.status || 'PROCESSING').toUpperCase();
+                if (['PUBLISH_COMPLETE', 'PUBLISH_FAILED', 'FAILED'].includes(status)) {
+                  terminal = true;
+                  setPublishMessage(status === 'PUBLISH_COMPLETE' ? 'TikTok confirms the post is published.' : 'TikTok could not publish: ' + (statusData.failReason || status));
+                  break;
+                }
+                setPublishMessage('TikTok status: ' + status + '…');
+              }
+              if (!terminal) setPublishMessage('TikTok is still processing. Check status later and do not start a duplicate post.');
+            } catch (error) {
+              setPublishMessage(error instanceof Error ? error.message : 'Publishing failed. Please retry carefully.');
+            } finally { setTiktokBusy(false); }
+          }} onClick={event => event.stopPropagation()} className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] p-5 sm:p-6 space-y-4 shadow-2xl">
+            <div>
+              <h3 className="text-base font-bold text-white light:text-slate-900">Publish to TikTok</h3>
+              <p className="text-xs text-slate-400 mt-1">Video: {publishProject.title}. This publishes immediately, not on a future schedule.</p>
+            </div>
+            <label className="block space-y-1.5 text-xs text-slate-300 light:text-slate-700">
+              <span>Video file (MP4 recommended, max 64 MiB)</span>
+              <input type="file" accept="video/mp4,video/webm,video/quicktime" disabled={tiktokBusy} required className="block w-full text-xs" onChange={event => {
+                const file = event.target.files?.[0] || null;
+                setPublishFile(file);
+                setPublishDuration(0);
+                if (!file) return;
+                const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+                if (file.type && !allowedVideoTypes.includes(file.type)) {
+                  setPublishFile(null);
+                  setPublishMessage('Use an MP4, MOV, or WebM video file.');
+                  event.target.value = '';
+                  return;
+                }
+                if (file.size <= 0 || file.size > 64 * 1024 * 1024) {
+                  setPublishFile(null);
+                  setPublishMessage('Choose a non-empty video file up to 64 MiB.');
+                  event.target.value = '';
+                  return;
+                }
+                setPublishMessage('');
+                const url = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.onloadedmetadata = () => { setPublishDuration(Number.isFinite(video.duration) ? video.duration : 0); URL.revokeObjectURL(url); };
+                video.onerror = () => URL.revokeObjectURL(url);
+                video.src = url;
+              }} />
+              {publishFile && <span className="block text-slate-400">{publishFile.name} · {(publishFile.size / (1024 * 1024)).toFixed(1)} MiB · {publishDuration ? Math.ceil(publishDuration) + ' sec' : 'Reading duration…'}</span>}
+              {publishDuration > 0 && tiktokStatus.creator?.maxVideoDurationSeconds && publishDuration > tiktokStatus.creator.maxVideoDurationSeconds && <span className="block text-red-400">Exceeds account limit of {tiktokStatus.creator.maxVideoDurationSeconds} seconds.</span>}
+            </label>
+            <label className="block space-y-1.5 text-xs text-slate-300 light:text-slate-700">
+              <span>Caption</span>
+              <textarea value={caption} onChange={event => setCaption(event.target.value)} maxLength={2200} rows={3} disabled={tiktokBusy} className="w-full rounded-lg bg-[#090B18] light:bg-slate-50 border border-[#2B3058] p-3 text-sm" />
+              <span className="text-slate-500">{caption.length}/2200</span>
+            </label>
+            <label className="block space-y-1.5 text-xs text-slate-300 light:text-slate-700">
+              <span>Who can watch? (Choose manually; no default)</span>
+              <select required value={privacyLevel} onChange={event => setPrivacyLevel(event.target.value)} disabled={tiktokBusy} className="w-full rounded-lg bg-[#090B18] light:bg-slate-50 border border-[#2B3058] p-3 text-sm">
+                <option value="" disabled>Select privacy</option>
+                {(tiktokStatus.creator?.privacyOptions || []).map((option: string) => <option key={option} value={option}>{option.replaceAll('_', ' ').toLowerCase()}</option>)}
+              </select>
+            </label>
+            <label className="flex gap-2 items-start text-xs text-slate-300 light:text-slate-700">
+              <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={tiktokBusy} className="mt-0.5" />
+              <span>I reviewed this video, caption and privacy setting, and authorize VYRA to send it to TikTok now. Posting may not be reversible.</span>
+            </label>
+            {publishMessage && <div role="status" className="rounded-lg border border-[#2B3058] p-3 text-xs text-slate-200 light:text-slate-700">{publishMessage}</div>}
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button type="button" disabled={tiktokBusy} onClick={() => setPublishProject(null)} className="px-4 py-2 rounded-lg text-xs border border-[#2B3058] text-slate-300">Close</button>
+              <button type="submit" disabled={tiktokBusy || !publishFile || !privacyLevel || !confirmed || !publishDuration || !tiktokStatus.creator?.maxVideoDurationSeconds || publishDuration > tiktokStatus.creator.maxVideoDurationSeconds || publishFile.size <= 0 || publishFile.size > 64 * 1024 * 1024} className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#55F4FF] text-[#090B18] disabled:opacity-40">{tiktokBusy ? 'Publishing…' : 'Confirm & Publish Now'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Scope Inspector Modal */}
       {selectedChannelForSetup && (
