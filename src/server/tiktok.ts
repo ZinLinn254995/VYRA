@@ -274,7 +274,8 @@ export function createTikTokRouter(): Router {
     try {
       const sessionId = readSession(req);
       if (sessionId) await redis(['DEL', 'vyra:tiktok:token:' + sessionId]);
-      res.setHeader('Set-Cookie', COOKIE_NAME + '=; Path=/api/tiktok; HttpOnly; SameSite=Lax; Max-Age=0; Secure');
+      const secure = config().appUrl.startsWith('https://') ? '; Secure' : '';
+      res.setHeader('Set-Cookie', COOKIE_NAME + '=; Path=/api/tiktok; HttpOnly; SameSite=Lax; Max-Age=0' + secure);
       return res.status(200).json({ connected: false });
     } catch {
       return res.status(503).json({ error: 'Could not securely disconnect TikTok right now. Please retry.' });
