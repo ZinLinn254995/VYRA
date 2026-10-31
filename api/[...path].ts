@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import { createAiRouter } from '../src/server/ai.js';
 
 // Vercel deploys this catch-all as a serverless function. The local Express
@@ -17,7 +17,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'VYRA API route not found.' });
 });
 
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (error && typeof error === 'object' && 'type' in error && error.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Request is too large. Please shorten the request.' });
   }
