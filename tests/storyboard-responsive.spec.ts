@@ -87,10 +87,19 @@ for (const width of [768, 1024, 1440]) {
     ).toBeLessThanOrEqual(toggleBox!.x + 1);
 
     await collapseButton.click();
-    await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+    const expandButton = page.getByRole('button', { name: 'Expand sidebar' });
+    await expect(expandButton).toBeVisible();
     await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(72);
 
-    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    // In compact mode the brand mark and expand control must occupy separate vertical rows.
+    const compactBrand = sidebar.locator(':scope > div').first().locator(':scope > div').first();
+    await expect.poll(async () => {
+      const logo = await compactBrand.boundingBox();
+      const toggle = await expandButton.boundingBox();
+      return logo && toggle ? toggle.y - (logo.y + logo.height) : -1;
+    }).toBeGreaterThanOrEqual(0);
+
+    await expandButton.click();
     await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible();
     await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(260);
   });
