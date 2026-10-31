@@ -76,28 +76,32 @@ for (const width of [768, 1024, 1440]) {
     const collapseButton = page.getByRole('button', { name: 'Collapse sidebar' });
     await expect(collapseButton).toBeVisible();
 
-    const brand = sidebar.locator(':scope > div').first().locator(':scope > div').first();
-    const brandBox = await brand.boundingBox();
+    const logoMark = sidebar.getByRole('button', { name: 'Go to Dashboard' }).locator('svg').first();
+    const logoBox = await logoMark.boundingBox();
     const toggleBox = await collapseButton.boundingBox();
-    expect(brandBox).not.toBeNull();
+    expect(logoBox).not.toBeNull();
     expect(toggleBox).not.toBeNull();
     expect(
-      brandBox!.x + brandBox!.width,
-      'Brand logo area should end before the sidebar toggle begins',
-    ).toBeLessThanOrEqual(toggleBox!.x + 1);
+      logoBox!.x + logoBox!.width <= toggleBox!.x || toggleBox!.x + toggleBox!.width <= logoBox!.x,
+      'Brand mark and sidebar toggle must not overlap',
+    ).toBe(true);
 
     await collapseButton.click();
     const expandButton = page.getByRole('button', { name: 'Expand sidebar' });
     await expect(expandButton).toBeVisible();
     await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(72);
 
-    // In compact mode the brand mark and expand control must occupy separate vertical rows.
-    const compactBrand = sidebar.locator(':scope > div').first().locator(':scope > div').first();
-    await expect.poll(async () => {
-      const logo = await compactBrand.boundingBox();
-      const toggle = await expandButton.boundingBox();
-      return logo && toggle ? toggle.y - (logo.y + logo.height) : -1;
-    }).toBeGreaterThanOrEqual(0);
+    const compactLogoBox = await logoMark.boundingBox();
+    const compactToggleBox = await expandButton.boundingBox();
+    expect(compactLogoBox).not.toBeNull();
+    expect(compactToggleBox).not.toBeNull();
+    expect(
+      compactLogoBox!.x + compactLogoBox!.width <= compactToggleBox!.x ||
+      compactToggleBox!.x + compactToggleBox!.width <= compactLogoBox!.x ||
+      compactLogoBox!.y + compactLogoBox!.height <= compactToggleBox!.y ||
+      compactToggleBox!.y + compactToggleBox!.height <= compactLogoBox!.y,
+      'Compact brand mark and expand control must not overlap',
+    ).toBe(true);
 
     await expandButton.click();
     await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible();

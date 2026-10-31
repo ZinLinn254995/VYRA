@@ -65,7 +65,7 @@ const StudioContent: React.FC = () => {
       <div className={`${sidebarCollapsed ? "md:pl-[72px]" : "md:pl-[260px]"} flex flex-col min-h-screen transition-all duration-200`}>
         <TopHeader onOpenMobileMenu={() => setMobileNavOpen(true)} />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className={`flex-1 overflow-y-auto ${currentSection === 'ideas' ? 'p-2 sm:p-4 lg:p-6' : 'p-4 sm:p-6 lg:p-8'}`}>
           {renderActiveView()}
         </main>
 
