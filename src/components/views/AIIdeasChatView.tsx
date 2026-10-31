@@ -201,13 +201,13 @@ export const AIIdeasChatView: React.FC = () => {
 
   return (
     <div className="relative flex h-full min-h-[32rem] max-w-7xl mx-auto rounded-2xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden shadow-xl transition-colors">
-      {sidebarOpen && <button type="button" aria-label="Close conversations panel" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px] lg:hidden" />}
+      {sidebarOpen && <button type="button" aria-label="Close conversations panel" onClick={() => setSidebarOpen(false)} className="absolute inset-0 z-30 bg-black/60 backdrop-blur-[1px] lg:hidden" />}
 
       {/* 1. Conversations & Scratchpad Sidebar */}
       <aside
         style={{ width: sidebarOpen ? undefined : 0 }}
         className={`flex flex-col border-r border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-slate-50 transition-all duration-200 shrink-0
-          ${sidebarOpen ? 'fixed inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] lg:static lg:z-20 lg:w-80 lg:max-w-none' : 'fixed inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] -translate-x-full lg:static lg:z-20 lg:w-0 lg:max-w-0 lg:overflow-hidden lg:border-r-0'}
+          ${sidebarOpen ? 'absolute inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] lg:static lg:z-20 lg:w-80 lg:max-w-none' : 'absolute inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] -translate-x-full lg:static lg:z-20 lg:w-0 lg:max-w-0 lg:overflow-hidden lg:border-r-0'}
         `}
       >
         {/* Sidebar Header & New Chat button */}
