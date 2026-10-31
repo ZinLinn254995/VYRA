@@ -386,9 +386,9 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-  const allowedRatios = new Set(['16:9', '9:16', '1:1']);
-  const aspectRatio = typeof body.aspect_ratio === 'string' && allowedRatios.has(body.aspect_ratio)
-    ? body.aspect_ratio
+  const ratioParts = typeof body.aspect_ratio === 'string' ? body.aspect_ratio.split(':').map(Number) : [];
+  const aspectRatio = ratioParts.length === 2 && ratioParts.every((part) => Number.isInteger(part) && part > 0 && part <= 99)
+    ? body.aspect_ratio!
     : '16:9';
   const duration = typeof body.duration === 'number' && Number.isInteger(body.duration)
     ? Math.min(30, Math.max(1, body.duration))
