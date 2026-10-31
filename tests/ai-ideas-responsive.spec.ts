@@ -46,10 +46,12 @@ for (const width of [390, 768]) {
     await openButton.click();
 
     const drawer = page.locator('main aside').first();
-    await expect(page.getByRole('button', { name: 'Close conversations panel' })).toBeVisible();
+    const backdrop = page.getByRole('button', { name: 'Close conversations panel' });
+    await expect(backdrop).toBeVisible();
     await expect.poll(async () => (await drawer.boundingBox())?.x ?? -999).toBe(0);
 
-    await page.getByRole('button', { name: 'Close conversations panel' }).click();
+    // Click the exposed edge of the backdrop, outside the drawer's hit area.
+    await backdrop.click({ position: { x: width - 8, y: 422 } });
     await expect.poll(async () => (await drawer.boundingBox())?.x ?? 0).toBeLessThan(-250);
     await expect(page.getByRole('button', { name: 'Open conversation list' })).toBeVisible();
     await expect(chat).toBeVisible();
@@ -66,7 +68,8 @@ for (const width of [1024, 1440]) {
 
     await toggle.click();
     await expect(page.getByRole('button', { name: 'Open conversation list' })).toBeVisible();
-    await expect.poll(async () => (await drawer.boundingBox())?.width ?? 999).toBe(0);
+    // A one-pixel border can remain when the zero-width panel is collapsed.
+    await expect.poll(async () => (await drawer.boundingBox())?.width ?? 999).toBeLessThanOrEqual(1);
 
     await page.getByRole('button', { name: 'Open conversation list' }).click();
     await expect.poll(async () => (await drawer.boundingBox())?.width ?? 0).toBeGreaterThan(250);
