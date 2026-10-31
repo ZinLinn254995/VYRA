@@ -166,17 +166,23 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
 
   try {
     const response = await openRouterFetch(endpoint, apiKey);
+    type CatalogModel = {
+      id?: string; name?: string; description?: string; model_id?: string;
+      context_length?: number;
+      pricing?: { prompt?: string; completion?: string };
+      supported_durations?: number[];
+      supported_resolutions?: string[];
+      supported_aspect_ratios?: string[];
+      supported_sizes?: string[] | null;
+      supported_frame_images?: string[];
+      allowed_passthrough_parameters?: string[];
+      pricing_skus?: Record<string, string | number>;
+      generate_audio?: boolean;
+      supported_parameters?: string[];
+    };
     const data = await response.json().catch(() => ({})) as {
-      data?: Array<{
-        id?: string; name?: string; description?: string; model_id?: string;
-        context_length?: number;
-        pricing?: { prompt?: string; completion?: string };
-      }>;
-      models?: Array<{
-        id?: string; name?: string; description?: string; model_id?: string;
-        context_length?: number;
-        pricing?: { prompt?: string; completion?: string };
-      }>;
+      data?: CatalogModel[];
+      models?: CatalogModel[];
       error?: { message?: string } | string;
     };
     if (!response.ok) {
@@ -187,6 +193,10 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
       });
     }
     const source = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
+    const stringList = (value: unknown): string[] | undefined =>
+      Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string').slice(0, 40)
+        : undefined;
     const models = source
       .map((model) => ({
         id: String(model.id || model.model_id || ''),
@@ -199,6 +209,19 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
           prompt: typeof model.pricing.prompt === 'string' ? model.pricing.prompt : undefined,
           completion: typeof model.pricing.completion === 'string' ? model.pricing.completion : undefined,
         } : undefined,
+        supportedDurations: Array.isArray(model.supported_durations)
+          ? model.supported_durations.filter((value): value is number => Number.isInteger(value) && value > 0).slice(0, 20)
+          : undefined,
+        supportedResolutions: stringList(model.supported_resolutions),
+        supportedAspectRatios: stringList(model.supported_aspect_ratios),
+        supportedSizes: stringList(model.supported_sizes),
+        supportedFrameImages: stringList(model.supported_frame_images),
+        allowedPassthroughParameters: stringList(model.allowed_passthrough_parameters),
+        supportedParameters: stringList(model.supported_parameters),
+        generateAudio: typeof model.generate_audio === 'boolean' ? model.generate_audio : undefined,
+        pricingSkus: model.pricing_skus && typeof model.pricing_skus === 'object'
+          ? Object.fromEntries(Object.entries(model.pricing_skus).filter(([, value]) => typeof value === 'string' || typeof value === 'number').map(([key, value]) => [key, String(value)]).slice(0, 30))
+          : undefined,
       }))
       .filter((model) => Boolean(model.id))
       .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
@@ -360,7 +383,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
-  const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number };
+  const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
   const allowedRatios = new Set(['16:9', '9:16', '1:1']);
@@ -368,8 +391,11 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
     ? body.aspect_ratio
     : '16:9';
   const duration = typeof body.duration === 'number' && Number.isInteger(body.duration)
-    ? Math.min(15, Math.max(1, body.duration))
+    ? Math.min(30, Math.max(1, body.duration))
     : 4;
+  const resolution = typeof body.resolution === 'string' && /^[a-zA-Z0-9_-]{1,24}$/.test(body.resolution)
+    ? body.resolution
+    : undefined;
 
   if (!model || model.length > 200) return res.status(400).json({ error: 'Discover and select a Video model in Settings first.' });
   if (!prompt) return res.status(400).json({ error: 'Add a visual prompt to this scene before generating a clip.' });
@@ -385,7 +411,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
         'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
         'X-OpenRouter-Title': 'VYRA',
       },
-      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false }),
+      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false, ...(resolution ? { resolution } : {}) }),
       signal: AbortSignal.timeout(60_000),
     });
     const data = await upstream.json().catch(() => ({})) as { id?: string; status?: string; error?: string | { message?: string } };
