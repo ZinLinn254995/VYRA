@@ -52,7 +52,9 @@ function readSession(req: Request): string | null {
   const c = config();
   const cookie = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith(COOKIE_NAME + '='));
   if (!cookie) return null;
-  const value = decodeURIComponent(cookie.slice(COOKIE_NAME.length + 1));
+  let value: string;
+  try { value = decodeURIComponent(cookie.slice(COOKIE_NAME.length + 1)); }
+  catch { return null; }
   const dot = value.lastIndexOf('.');
   if (dot <= 0) return null;
   const sessionId = value.slice(0, dot);
@@ -161,6 +163,19 @@ async function tiktokRequest(url: string, token: string): Promise<Record<string,
 
 export function createTikTokRouter(): Router {
   const router = Router();
+
+  // Browser session cookies authenticate these mutations. Require the exact
+  // configured app origin to prevent cross-origin and same-site sibling CSRF.
+  router.use((req, res, next) => {
+    if (req.method !== 'POST') return next();
+    const origin = req.get('origin');
+    let expectedOrigin = '';
+    try { expectedOrigin = new URL(config().appUrl).origin; } catch { /* handled as forbidden */ }
+    if (!origin || !expectedOrigin || origin !== expectedOrigin) {
+      return res.status(403).json({ error: 'This request did not come from the VYRA application. Refresh the page and try again.' });
+    }
+    return next();
+  });
 
   router.get('/status', async (req, res) => {
     if (!configured()) return res.status(200).json({
