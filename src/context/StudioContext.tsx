@@ -642,9 +642,23 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
           conversationId: targetConvId || undefined,
         });
+        if (response.status === 'error') {
+          throw new Error(response.errorMessage || response.content || 'The AI request failed.');
+        }
         finalContent = response.content;
         finalSuggestedActions = response.suggestedActions || [];
         isPreviewNotice = response.isPreviewNotice || false;
+        if (response.status === 'success' && response.providerName) {
+          setAiStatus({
+            status: 'connected',
+            providerName: response.providerName,
+            modelName: response.modelName || 'Selected model',
+            backendEndpoint: response.providerName === 'OpenRouter'
+              ? '/api/providers/openrouter/chat'
+              : '/api/ai/chat',
+            message: 'Connected to ' + response.providerName + ' using ' + (response.modelName || 'the configured model') + '.',
+          });
+        }
       }
 
       const assistantMsg: ChatMessage = {

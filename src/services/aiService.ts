@@ -26,6 +26,8 @@ export interface AIServiceResult {
   isPreviewNotice?: boolean;
   status: 'success' | 'preview' | 'error';
   errorMessage?: string;
+  providerName?: string;
+  modelName?: string;
 }
 
 export interface AIServiceProvider {
@@ -100,7 +102,75 @@ class ModularAIService implements AIServiceProvider {
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
     const latestUserMessage = [...request.messages].reverse().find((m) => m.role === 'user')?.content || '';
 
-    // Step 1: Probe backend proxy if mounted
+    // Prefer the user's explicitly configured OpenRouter Text model. The key stays
+    // in sessionStorage and is sent only to the same-origin server proxy.
+    let openRouterKey = '';
+    let openRouterModel = '';
+    try {
+      openRouterKey = sessionStorage.getItem('vyra_openrouter_key_session')?.trim() || '';
+      const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as {
+        text?: unknown;
+      };
+      openRouterModel = typeof selections.text === 'string' ? selections.text.trim() : '';
+    } catch {
+      // Storage may be unavailable in private browsing; continue to the Gemini path.
+    }
+
+    if (openRouterKey && openRouterModel) {
+      try {
+        const response = await fetch('/api/providers/openrouter/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-openrouter-api-key': openRouterKey,
+          },
+          body: JSON.stringify({
+            model: openRouterModel,
+            messages: request.messages.filter((message) => message.role !== 'system'),
+          }),
+        });
+        const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+        if (!response.ok) {
+          const message = typeof data.error === 'string' && data.error.trim()
+            ? data.error
+            : 'The selected OpenRouter model request failed. Check Settings and retry.';
+          return {
+            content: message,
+            status: 'error',
+            errorMessage: message,
+            providerName: 'OpenRouter',
+            modelName: openRouterModel,
+          };
+        }
+        if (typeof data.text !== 'string' || !data.text.trim()) {
+          const message = 'The selected OpenRouter model returned an empty response.';
+          return {
+            content: message,
+            status: 'error',
+            errorMessage: message,
+            providerName: 'OpenRouter',
+            modelName: openRouterModel,
+          };
+        }
+        return {
+          content: data.text.trim(),
+          status: 'success',
+          providerName: 'OpenRouter',
+          modelName: openRouterModel,
+        };
+      } catch {
+        const message = 'Could not reach OpenRouter. Check your connection and retry. VYRA did not switch providers automatically.';
+        return {
+          content: message,
+          status: 'error',
+          errorMessage: message,
+          providerName: 'OpenRouter',
+          modelName: openRouterModel,
+        };
+      }
+    }
+
+    // Step 1: Gemini server proxy (used when no OpenRouter Text model is configured).
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
@@ -114,6 +184,8 @@ class ModularAIService implements AIServiceProvider {
           content: data.text || data.content,
           suggestedActions: data.suggestedActions,
           status: 'success',
+          providerName: 'Google Gemini',
+          modelName: this.model,
         };
       }
     } catch {
