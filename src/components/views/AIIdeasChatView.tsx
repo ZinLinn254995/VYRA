@@ -228,7 +228,7 @@ export const AIIdeasChatView: React.FC = () => {
           </div>
 
           <button
-            onClick={() => createNewConversation()}
+            onClick={() => { createNewConversation(); if (window.innerWidth < 1024) setSidebarOpen(false); }}
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
@@ -286,7 +286,7 @@ export const AIIdeasChatView: React.FC = () => {
                   <div
                     key={conv.id}
                     onClick={() => {
-                      if (!isEditing) selectConversation(conv.id);
+                      if (!isEditing) { selectConversation(conv.id); if (window.innerWidth < 1024) setSidebarOpen(false); }
                     }}
                     className={`group relative flex items-center justify-between p-2.5 rounded-lg text-xs cursor-pointer transition-all ${
                       isActive
