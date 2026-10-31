@@ -90,10 +90,7 @@ export const PublishingView: React.FC = () => {
               Publishing Service Integration Guardrail:
             </span>
             <p className="text-slate-400 light:text-slate-600">
-              Per engineering guidelines, all social platform integrations are explicitly displayed as{' '}
-              <strong className="text-amber-400">Not Connected</strong>. Video dispatch will be
-              enabled once OAuth client IDs and tokens (YouTube Data API, TikTok Posting, Instagram Graph,
-              LinkedIn) are configured via server-side endpoints in WP2.
+              TikTok Direct Post is available when the server credentials and durable token storage are configured and your TikTok account is connected. Other social channels remain placeholders until their own secure integrations are implemented.
             </p>
           </div>
         </div>
