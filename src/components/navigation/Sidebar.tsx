@@ -123,34 +123,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
         `}
       >
         {/* Brand Header */}
-        <div
-          className={`min-w-0 flex items-center border-b border-[#1E2345] light:border-slate-200
-            ${collapsed && !mobileOpen ? 'h-20 flex-col justify-center gap-1 px-2 py-2' : 'h-16 flex-row gap-2 px-3'}`}
-        >
-          <div className={`flex min-w-0 items-center overflow-hidden ${collapsed && !mobileOpen ? 'flex-none justify-center' : 'flex-1'}`}>
-            <BrandLogo
-              size="sm"
-              showWordmark={!collapsed || mobileOpen}
-              className={collapsed && !mobileOpen ? '[&>div:first-child]:!h-6 [&>div:first-child]:!w-6' : 'min-w-0'}
-            />
-          </div>
+        <div className={`h-16 min-w-0 flex items-center border-b border-[#1E2345] light:border-slate-200 relative transition-all ${collapsed && !mobileOpen ? 'justify-center px-2' : 'justify-between px-3 gap-2'}`}>
+          <button onClick={() => handleNavClick('dashboard')} aria-label="Go to Dashboard" title="Dashboard" className="min-w-0 flex-1 flex items-center overflow-hidden text-left">
+            <BrandLogo size="sm" showWordmark={!collapsed || mobileOpen} className="min-w-0" />
+          </button>
 
-          {/* Desktop collapse button: placed below the mark when the sidebar is compact. */}
           <button
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-expanded={!collapsed}
-            className={`hidden md:flex shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#171A35] light:hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#55F4FF] transition-colors ${collapsed ? 'size-7' : 'size-8'}`}
+            className={`hidden md:flex shrink-0 items-center justify-center text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#171A35] light:hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#55F4FF] transition-colors ${
+              collapsed && !mobileOpen
+                ? 'absolute -right-3 top-1/2 -translate-y-1/2 z-50 size-6 rounded-full bg-[#090B18] light:bg-white border border-[#2B3058] light:border-slate-300 shadow-lg'
+                : 'size-8 rounded-md'
+            }`}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
 
-          {/* Mobile close button */}
-          <button
-            onClick={() => setMobileOpen(false)}
-            aria-label="Close navigation"
-            className="md:hidden p-1.5 rounded text-slate-400 hover:text-white light:hover:text-slate-900"
-          >
+          <button onClick={() => setMobileOpen(false)} aria-label="Close navigation" className="md:hidden p-1.5 rounded text-slate-400 hover:text-white light:hover:text-slate-900">
             <X className="w-5 h-5" />
           </button>
         </div>
