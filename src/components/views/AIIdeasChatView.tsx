@@ -205,6 +205,7 @@ export const AIIdeasChatView: React.FC = () => {
 
       {/* 1. Conversations & Scratchpad Sidebar */}
       <aside
+        style={{ width: sidebarOpen ? undefined : 0 }}
         className={`flex flex-col border-r border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-slate-50 transition-all duration-200 shrink-0
           ${sidebarOpen ? 'fixed inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] lg:static lg:z-20 lg:w-80 lg:max-w-none' : 'fixed inset-y-0 left-0 z-40 w-72 sm:w-80 max-w-[85vw] -translate-x-full lg:static lg:z-20 lg:w-0 lg:max-w-0 lg:overflow-hidden lg:border-r-0'}
         `}
