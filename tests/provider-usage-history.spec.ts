@@ -273,3 +273,74 @@ test('Provider Usage does not partially update a linked video job when its saved
   });
   expect(jobCost).toBeNull();
 });
+
+
+test('Provider Usage rotates cost recovery batches so records after the first 20 are reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'sk-or-v1-test-session-secret');
+  });
+  await page.route('**/api/providers/openrouter/usage/key', async (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      usage: 0, usageDaily: 0, usageWeekly: 0, usageMonthly: 0, limit: null,
+      limitRemaining: null, limitReset: null, isFreeTier: true, expiresAt: null,
+      fetchedAt: '2026-11-01T09:30:00.000Z',
+    }),
+  }));
+  const lookedUpIds: string[] = [];
+  await page.route('**/api/providers/openrouter/generation/**', async (route) => {
+    lookedUpIds.push(route.request().url().split('/').pop() || '');
+    await route.fulfill({
+      status: 404, contentType: 'application/json',
+      body: JSON.stringify({ error: 'Generation metadata unavailable in this test.' }),
+    });
+  });
+
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('vyra-media-library', 6);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains('generated-images')) database.createObjectStore('generated-images', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('generated-audio')) database.createObjectStore('generated-audio', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('generated-videos')) database.createObjectStore('generated-videos', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('video-generation-jobs')) database.createObjectStore('video-generation-jobs', { keyPath: 'jobId' });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('generated-images', 'readwrite');
+      for (let index = 1; index <= 22; index += 1) {
+        transaction.objectStore('generated-images').put({
+          id: 'batch-image-' + index,
+          title: 'Batch image ' + index,
+          dataUrl: 'data:image/png;base64,AA==',
+          model: 'test/image-model',
+          costUsd: null,
+          generationId: 'gen-batch-' + String(index).padStart(3, '0'),
+          createdAt: '2026-11-01T09:00:00.000Z',
+        });
+      }
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    db.close();
+  });
+
+  await page.getByRole('button', { name: 'Open mobile menu' }).click();
+  await page.getByRole('button', { name: 'Provider Usage' }).click();
+  await expect(page.getByText('Batch image 1')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Look up missing costs' }).click();
+  await expect(page.getByRole('status')).toContainText('0 provider-reported cost(s) saved. 20 record(s) remain unavailable.');
+  expect(lookedUpIds).toHaveLength(20);
+
+  await page.getByRole('button', { name: 'Look up missing costs' }).click();
+  await expect(page.getByRole('status')).toContainText('0 provider-reported cost(s) saved. 2 record(s) remain unavailable.');
+  expect(lookedUpIds).toHaveLength(22);
+  expect(new Set(lookedUpIds).size).toBe(22);
+  expect(lookedUpIds).toContain('gen-batch-021');
+  expect(lookedUpIds).toContain('gen-batch-022');
+});
