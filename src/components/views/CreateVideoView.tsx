@@ -8,6 +8,7 @@ import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
 import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
 import { useStudio } from '../../context/StudioContext';
+import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import {
   AspectRatio,
   VideoFormat,
@@ -122,6 +123,19 @@ export const CreateVideoView: React.FC = () => {
         'Narration style: ' + narrationStyle,
         'Subtitle style: ' + subtitleStyle,
       ].join('\n');
+      const approved = await confirmSpendBeforeGeneration({
+        operation: 'Generate AI storyboard and script',
+        capability: 'text',
+        model,
+        apiKey,
+        // Prompt tokenization is provider/model-specific and is not guessed.
+        // The completion budget alone is insufficient for an exact estimate.
+        parameters: { completionTokenBudget: 2048 },
+      });
+      if (!approved) {
+        setOutlineError('Generation cancelled. No AI request was sent and no provider generation charge was initiated.');
+        return;
+      }
       const response = await fetch('/api/providers/openrouter/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
