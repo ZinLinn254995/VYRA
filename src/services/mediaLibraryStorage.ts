@@ -15,6 +15,7 @@ export interface SavedMediaAudio {
   blob: Blob;
   model: string;
   voice: string;
+  costUsd?: number | null;
   /** Provider-issued generation reference, when available. */
   generationId?: string;
   projectId: string;
@@ -411,6 +412,39 @@ export async function deleteVideoGenerationJob(jobId: string): Promise<void> {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(new Error('Could not remove the completed video job.'));
       transaction.onabort = () => reject(new Error('Removing the video job was cancelled.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+
+/** Persist a provider-reported cost without rewriting media blobs or generation references. */
+export async function updateSavedMediaCost(
+  kind: 'image' | 'audio',
+  id: string,
+  costUsd: number,
+): Promise<void> {
+  if (!Number.isFinite(costUsd) || costUsd < 0) throw new Error('Invalid provider-reported cost.');
+  const db = await openDatabase();
+  const storeName = kind === 'image' ? STORE_NAME : 'generated-audio';
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if (!request.result) {
+          transaction.abort();
+          reject(new Error('Saved media record no longer exists.'));
+          return;
+        }
+        store.put({ ...request.result, costUsd });
+      };
+      request.onerror = () => reject(new Error('Could not read the saved media cost record.'));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('Could not save the provider-reported cost.'));
+      transaction.onabort = () => reject(new Error('Saving the provider-reported cost was cancelled.'));
     });
   } finally {
     db.close();
