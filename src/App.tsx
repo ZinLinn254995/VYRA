@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { StudioProvider, useStudio } from './context/StudioContext';
+import { AuthProvider } from './context/AuthContext';
 import { Sidebar } from './components/navigation/Sidebar';
 import { TopHeader } from './components/navigation/TopHeader';
 import { DashboardView } from './components/views/DashboardView';
@@ -84,8 +85,10 @@ const StudioContent: React.FC = () => {
 
 export default function App() {
   return (
-    <StudioProvider>
-      <StudioContent />
-    </StudioProvider>
+    <AuthProvider>
+      <StudioProvider>
+        <StudioContent />
+      </StudioProvider>
+    </AuthProvider>
   );
 }
