@@ -662,7 +662,12 @@ export async function executeAgentTool(
         }
 
         const count = Math.min(16, Math.max(3, Number(args.sceneCount) || Math.ceil(target.targetDuration / 12)));
-        const language = /[\u1000-\u109F]/.test(target.topic) || /[\u1000-\u109F]/.test(String(args.language || '')) ? 'Burmese' : 'the language explicitly requested in the project brief, otherwise natural English';
+        const conversationText = (context.conversationMessages || []).map((message) => message.content).join('\n');
+        const language = typeof args.language === 'string' && args.language.trim()
+          ? args.language.trim()
+          : /(?:in|use|write|speak|dialogue in)\s+english/i.test(conversationText)
+            ? 'English'
+            : /[\u1000-\u109F]/.test(target.topic + ' ' + conversationText) ? 'Burmese' : 'English';
         const prompt = [
           'Create a production-ready scene-by-scene script and storyboard for this video project.',
           'Return ONLY valid JSON with this exact shape: {"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}.',
@@ -712,9 +717,11 @@ export async function executeAgentTool(
           const rawTotal = rawScenes.reduce((sum, scene) => sum + scene.duration, 0);
           let assignedDuration = 0;
           const scenes = rawScenes.map((scene, index) => {
+            const remainingScenes = rawScenes.length - index - 1;
+            const available = Math.max(1, target.targetDuration - assignedDuration - remainingScenes);
             const duration = index === rawScenes.length - 1
               ? Math.max(1, target.targetDuration - assignedDuration)
-              : Math.max(1, Math.round(scene.duration * target.targetDuration / rawTotal));
+              : Math.min(available, Math.max(1, Math.round(scene.duration * target.targetDuration / rawTotal)));
             assignedDuration += duration;
             return { ...scene, duration };
           });
@@ -1022,7 +1029,7 @@ export async function processAgentRequest(
     return {
       assistantResponse: exec.status === 'success'
         ? (stage === 'idea'
-          ? 'Your idea is approved for **"' + target.title + '"**. I generated the script and scene-by-scene storyboard using the selected Text model.\n\nThe next checkpoint is **Script & Dialogue Review**. No image, voice, or video generation has started, so no media-generation charges were incurred.'
+          ? 'Your idea is approved for **"' + target.title + '"**. I generated the script and scene-by-scene storyboard using the selected Text model.\n\nThe next checkpoint is **Script & Dialogue Review**. Text-model usage may incur a small charge. No image, voice, or video generation has started.'
           : 'Approved **' + term + '** for **"' + target.title + '"**.\n\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not automatically start paid image, voice, or video generation.\n\nSay **"show production status"** to see what is next.')
         : exec.errorMessage || 'This approval could not be applied.',
       toolExecutions,
