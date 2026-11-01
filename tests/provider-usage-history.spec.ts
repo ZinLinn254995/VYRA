@@ -65,3 +65,31 @@ test('Provider Usage History shows provider-reported live key totals without exp
   }));
   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
 });
+
+
+test('Provider Usage can recover missing image and voiceover costs using saved generation IDs', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'sk-or-v1-test-session-secret');
+  });
+  await page.route('**/api/providers/openrouter/usage/key', async (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      usage: 0, usageDaily: 0, usageWeekly: 0, usageMonthly: 0, limit: null,
+      limitRemaining: null, limitReset: null, isFreeTier: true, expiresAt: null,
+      fetchedAt: '2026-11-01T09:30:00.000Z',
+    }),
+  }));
+  let lookupCount = 0;
+  await page.route('**/api/providers/openrouter/generation/**', async (route) => {
+    lookupCount += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ costUsd: 0.0042 }) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open mobile menu' }).click();
+  await page.getByRole('button', { name: 'Provider Usage' }).click();
+  await expect(page.getByRole('button', { name: 'Look up missing costs' })).toBeVisible();
+  await expect(page.getByText(/No saved usage records yet/)).toBeVisible();
+  await page.getByRole('button', { name: 'Look up missing costs' }).click();
+  await expect(page.getByRole('status')).toContainText(/No saved image or voiceover records/);
+  expect(lookupCount).toBe(0);
+});
