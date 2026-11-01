@@ -26,5 +26,7 @@ jobs:
         run: npm run test:auth
       - name: Customer project API tests
         run: npm run test:projects
+      - name: Cloud project restore tests
+        run: npm run test:restore
       - name: Production build
         run: npm run build

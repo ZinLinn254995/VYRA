@@ -57,6 +57,7 @@ interface StudioContextType {
   unarchiveProject: (id: string) => void;
   duplicateProject: (id: string) => string;
   deleteProject: (id: string) => void;
+  restoreCloudProjects: (restored: Project[]) => number;
 
   // Storyboard Scene Management
   addScene: (projectId: string, sceneData?: Partial<Scene>) => void;
@@ -394,6 +395,23 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     showToast('Project permanently deleted', 'warning');
   };
+  
+  // Restore cloud projects without overwriting any project already on this device.
+  const restoreCloudProjects = (restored: Project[]): number => {
+    const existingIds = new Set(projects.map((project) => project.id));
+    const additions = restored.filter((project) => !existingIds.has(project.id));
+    if (additions.length > 0) {
+      setProjects((prev) => {
+        const currentIds = new Set(prev.map((project) => project.id));
+        return [...additions.filter((project) => !currentIds.has(project.id)), ...prev];
+      });
+      showToast(`Restored ${additions.length} cloud project(s) to this device.`, 'success');
+    } else {
+      showToast('No new projects to restore. Existing local projects were left unchanged.', 'info');
+    }
+    return additions.length;
+  };
+
 
   // Storyboard Scene Management
   const addScene = (projectId: string, sceneData?: Partial<Scene>) => {
@@ -924,6 +942,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         unarchiveProject,
         duplicateProject,
         deleteProject,
+        restoreCloudProjects,
         addScene,
         updateScene,
         removeScene,
