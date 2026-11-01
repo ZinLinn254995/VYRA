@@ -1761,6 +1761,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                       Generate Scene Image
                     </h3>
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Generate only this scene’s visual. Review it before moving to voice production. API usage may incur charges.</p>
+                    {!imageGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after the script and dialogue are approved in AI Ideas Chat.</p>}
                   </div>
                   <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !imageGenerationUnlocked || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingSceneImage ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -1785,6 +1786,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                       Generate AI Voiceover
                     </h3>
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
+                    {!voiceGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after every scene image is generated and approved.</p>}
                   </div>
                   <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -1840,6 +1842,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <p className="text-[11px] text-slate-400 light:text-slate-500">
                       Creates a real clip using your selected OpenRouter Video model and its published capabilities. API usage may incur charges.
                     </p>
+                    {!videoGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after all scene voice samples are generated and approved.</p>}
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
                         <span>Clip duration</span>
