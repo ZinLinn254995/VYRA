@@ -13,7 +13,7 @@ import {
 
 type UsageKind = 'image' | 'video' | 'audio';
 type TimeRange = '7d' | '30d' | 'all';
-type UsageEntry = {
+type OpenRouterKeyUsage = {\n  usage: number | null;\n  usageDaily: number | null;\n  usageWeekly: number | null;\n  usageMonthly: number | null;\n  limit: number | null;\n  limitRemaining: number | null;\n  limitReset: string | null;\n  isFreeTier: boolean | null;\n  expiresAt: string | null;\n  fetchedAt: string;\n};\n\ntype UsageEntry = {
   id: string;
   kind: UsageKind;
   title: string;
@@ -107,7 +107,7 @@ export const ProviderUsageView: React.FC = () => {
   const [error, setError] = useState('');
   const [range, setRange] = useState<TimeRange>('30d');
   const [kind, setKind] = useState<'all' | UsageKind>('all');
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('');\n  const [keyUsage, setKeyUsage] = useState<OpenRouterKeyUsage | null>(null);\n  const [keyUsageError, setKeyUsageError] = useState('');\n  const [keyUsageLoading, setKeyUsageLoading] = useState(false);
 
   const refresh = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -121,6 +121,30 @@ export const ProviderUsageView: React.FC = () => {
         getVideoGenerationJobs(),
       ]);
       setEntries(buildUsageEntries(images, videos, audios, jobs));
+
+      // Live key-level usage is optional and never blocks the local history view.
+      let openRouterKey = '';
+      try { openRouterKey = sessionStorage.getItem('vyra_openrouter_key_session')?.trim() || ''; } catch { /* session storage may be unavailable */ }
+      if (openRouterKey) {
+        setKeyUsageLoading(true);
+        setKeyUsageError('');
+        try {
+          const response = await fetch('/api/providers/openrouter/usage/key', {
+            headers: { 'x-openrouter-api-key': openRouterKey },
+          });
+          const data = await response.json().catch(() => ({})) as OpenRouterKeyUsage & { error?: string };
+          if (!response.ok) throw new Error(data.error || 'Could not refresh OpenRouter key usage.');
+          setKeyUsage(data);
+        } catch (usageCause) {
+          setKeyUsageError(usageCause instanceof Error ? usageCause.message : 'Could not refresh OpenRouter key usage.');
+        } finally {
+          setKeyUsageLoading(false);
+        }
+      } else {
+        setKeyUsage(null);
+        setKeyUsageError('');
+        setKeyUsageLoading(false);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load provider usage history from this browser.');
     } finally {
@@ -208,6 +232,47 @@ export const ProviderUsageView: React.FC = () => {
           <p className="text-sm font-semibold text-white light:text-slate-900 mt-2">{totals.videos} video · {totals.images} image</p>
           <p className="text-[10px] text-slate-500 mt-1">{totals.audios} voiceover records</p>
         </div>
+      </section>
+
+      <section className="rounded-xl border border-[#2B3058] light:border-slate-200 bg-[#171A35] light:bg-white p-4 sm:p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Live OpenRouter key usage</h2>
+            <p className="text-[11px] text-slate-400 light:text-slate-500 mt-1">Provider-reported key totals, refreshed from OpenRouter when this page loads or you refresh</p>
+          </div>
+          {keyUsage?.fetchedAt && <p className="text-[10px] text-slate-500">Updated {dateLabel(keyUsage.fetchedAt)}</p>}
+        </div>
+        {keyUsageLoading ? (
+          <p className="text-xs text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Refreshing key usage…</p>
+        ) : keyUsage ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-lg bg-[#090B18]/60 light:bg-slate-50 p-3">
+                <p className="text-[10px] text-slate-400 light:text-slate-500">All-time key usage</p>
+                <p className="text-lg font-bold tabular-nums text-white light:text-slate-900 mt-1">{keyUsage.usage === null ? 'Not provided' : money(keyUsage.usage)}</p>
+              </div>
+              <div className="rounded-lg bg-[#090B18]/60 light:bg-slate-50 p-3">
+                <p className="text-[10px] text-slate-400 light:text-slate-500">Today</p>
+                <p className="text-lg font-bold tabular-nums text-white light:text-slate-900 mt-1">{keyUsage.usageDaily === null ? 'Not provided' : money(keyUsage.usageDaily)}</p>
+              </div>
+              <div className="rounded-lg bg-[#090B18]/60 light:bg-slate-50 p-3">
+                <p className="text-[10px] text-slate-400 light:text-slate-500">This month</p>
+                <p className="text-lg font-bold tabular-nums text-white light:text-slate-900 mt-1">{keyUsage.usageMonthly === null ? 'Not provided' : money(keyUsage.usageMonthly)}</p>
+              </div>
+              <div className="rounded-lg bg-[#090B18]/60 light:bg-slate-50 p-3">
+                <p className="text-[10px] text-slate-400 light:text-slate-500">{keyUsage.limit === null ? 'Key spending limit' : 'Remaining key limit'}</p>
+                <p className="text-lg font-bold tabular-nums text-white light:text-slate-900 mt-1">{keyUsage.limitRemaining === null ? 'No limit data' : money(keyUsage.limitRemaining)}</p>
+                <p className="text-[9px] text-slate-500 mt-1">{keyUsage.limit === null ? 'No per-key limit reported' : 'of ' + money(keyUsage.limit) + (keyUsage.limitReset ? ' · ' + keyUsage.limitReset + ' reset' : '')}</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500">{keyUsage.isFreeTier === null ? 'Account tier not reported' : keyUsage.isFreeTier ? 'OpenRouter free-tier key' : 'OpenRouter paid-tier key'}{keyUsage.expiresAt ? ' · Expires ' + dateLabel(keyUsage.expiresAt) : ''}. These figures describe this API key, not necessarily the full account balance.</p>
+          </>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-300 light:text-slate-700">{keyUsageError || 'Reconnect your OpenRouter key in Settings to view live usage and remaining key limits.'}</p>
+            <p className="text-[10px] text-slate-500">The key remains in this browser session and is sent only to VYRA’s same-origin server endpoint for this read-only request.</p>
+          </div>
+        )}
       </section>
 
       <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex gap-3">
