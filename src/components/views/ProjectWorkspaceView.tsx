@@ -1523,6 +1523,20 @@ export const ProjectWorkspaceView: React.FC = () => {
         </div>
       </div>
 
+      {(project.videoType || project.creativeDirection || project.visualStyleDescription || project.audioDirection) && (
+        <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Creative Brief</h2>
+            {project.videoType && <span className="rounded-full bg-[#55F4FF]/10 text-[#55F4FF] px-2 py-1 text-[10px] font-semibold">{project.videoType}</span>}
+            {project.language && <span className="rounded-full bg-slate-500/10 text-slate-400 px-2 py-1 text-[10px]">{project.language}</span>}
+            {project.audience && <span className="rounded-full bg-slate-500/10 text-slate-400 px-2 py-1 text-[10px]">Audience: {project.audience}</span>}
+          </div>
+          {project.creativeDirection && <p className="text-xs text-slate-300 light:text-slate-700">{project.creativeDirection}</p>}
+          {project.visualStyleDescription && <p className="text-[11px] text-slate-400 light:text-slate-500">Visuals: {project.visualStyleDescription}</p>}
+          {project.audioDirection && <p className="text-[11px] text-slate-400 light:text-slate-500">Audio: {project.audioDirection}</p>}
+        </section>
+      )}
+
       {/* Approval-gated production progress. Chat remains the primary control surface. */}
       <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1764,6 +1778,19 @@ export const ProjectWorkspaceView: React.FC = () => {
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
                 />
               </div>
+
+              {currentScene.dialogue !== undefined && currentScene.dialogue !== '' && (
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300 light:text-slate-700 text-xs">Character Dialogue</label>
+                  <textarea
+                    rows={2}
+                    value={currentScene.dialogue || ''}
+                    onChange={(e) => updateScene(project.id, currentScene.id, { dialogue: e.target.value, generatedAudioId: undefined, generatedVideoId: undefined })}
+                    placeholder="Edit the character's spoken dialogue..."
+                    className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
+                  />
+                </div>
+              )}
 
               {/* Generate and review a real image for this scene before approving visual assets. */}
               <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
