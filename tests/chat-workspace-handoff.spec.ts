@@ -3,7 +3,9 @@ import { test, expect } from '@playwright/test';
 test('AI Ideas Chat opens the active project workspace without starting generation', async ({ page }) => {
   const generationRequests: string[] = [];
   page.on('request', request => {
-    if (/\/api\/(?:providers\/openrouter\/(?:video|images|audio)|ai\/)/i.test(request.url())) {
+    // The chat completion endpoint is expected here; only media-generation endpoints
+    // would violate the no-generation handoff guarantee.
+    if (/\/api\/providers\/openrouter\/(?:video|images|audio)/i.test(request.url())) {
       generationRequests.push(request.url());
     }
   });
@@ -17,8 +19,7 @@ test('AI Ideas Chat opens the active project workspace without starting generati
   await composer.fill('Open the production workspace');
   await composer.press('Enter');
 
-  // The chat view is intentionally replaced by the workspace after the tool runs,
-  // so verify the destination instead of looking for the assistant reply in the old view.
+  // The chat view is intentionally replaced by the workspace after the tool runs.
   await expect(page.locator('main').getByText('Project:', { exact: true })).toBeVisible();
   await expect(page.locator('main select').first()).toHaveValue('proj-01-quantum');
   expect(generationRequests).toEqual([]);
