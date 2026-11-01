@@ -67,7 +67,7 @@ test('Provider Usage History shows provider-reported live key totals without exp
 });
 
 
-test('Provider Usage recovers provider-reported costs for saved image, voiceover and video records', async ({ page }) => {
+test('Provider Usage continues recovering other costs when one generation lookup has a network error', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'sk-or-v1-test-session-secret');
@@ -81,8 +81,13 @@ test('Provider Usage recovers provider-reported costs for saved image, voiceover
   }));
   const lookedUpIds: string[] = [];
   await page.route('**/api/providers/openrouter/generation/**', async (route) => {
-    lookedUpIds.push(route.request().url().split('/').pop() || '');
+    const generationId = route.request().url().split('/').pop() || '';
+    lookedUpIds.push(generationId);
     expect(route.request().headers()['x-openrouter-api-key']).toBe('sk-or-v1-test-session-secret');
+    if (generationId === 'gen-video-test-003') {
+      await route.abort('failed');
+      return;
+    }
     await route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ costUsd: 0.0042 }),
@@ -140,8 +145,8 @@ test('Provider Usage recovers provider-reported costs for saved image, voiceover
   await expect(page.getByText('Cost test voiceover')).toBeVisible();
   await expect(page.getByText('Cost test video')).toBeVisible();
   await page.getByRole('button', { name: 'Look up missing costs' }).click();
-  await expect(page.getByRole('status')).toContainText('3 provider-reported cost(s) saved.');
-  await expect(page.getByText('$0.0042', { exact: true })).toHaveCount(3);
+  await expect(page.getByRole('status')).toContainText('2 provider-reported cost(s) saved. 1 record(s) remain unavailable.');
+  await expect(page.getByText('$0.0042', { exact: true })).toHaveCount(2);
   expect(lookedUpIds.sort()).toEqual(['gen-audio-test-002', 'gen-image-test-001', 'gen-video-test-003']);
 
   const persisted = await page.evaluate(async () => {
@@ -173,5 +178,5 @@ test('Provider Usage recovers provider-reported costs for saved image, voiceover
     db.close();
     return result;
   });
-  expect(persisted).toEqual({ image: 0.0042, audio: 0.0042, video: 0.0042, job: 0.0042 });
+  expect(persisted).toEqual({ image: 0.0042, audio: 0.0042, video: null, job: null });
 });
