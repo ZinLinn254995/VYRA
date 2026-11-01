@@ -170,6 +170,15 @@ export interface ChatMessage {
   isPreviewNotice?: boolean;
   suggestedActions?: ChatSuggestedAction[];
   toolExecutions?: ToolExecutionRecord[];
+  providerName?: string;
+  modelName?: string;
+  generationId?: string;
+  usage?: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+    costUsd: number | null;
+  };
 }
 
 export interface Conversation {
