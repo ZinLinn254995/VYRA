@@ -16,6 +16,7 @@ type ModelOption = {
   supportedFrameImages?: string[];
   allowedPassthroughParameters?: string[];
   supportedParameters?: string[];
+  supportedVoiceIds?: string[];
   generateAudio?: boolean;
   pricingSkus?: Record<string, string>;
 };
@@ -347,7 +348,7 @@ export const OpenRouterSettings: React.FC = () => {
                     ].filter(Boolean);
                     return <p className="text-[10px] text-slate-400 light:text-slate-600">{details.length ? details.join(' · ') : 'OpenRouter did not publish capability details for this model. Check its model page before generating.'}</p>;
                   })()}
-                  {capability.id === 'audio' && <p className="text-[10px] text-slate-500">Voice IDs are model-specific. OpenRouter does not return a universal voice list in this catalog; check the selected model’s documentation before generating.</p>}
+                  {capability.id === 'audio' && (() => { const selected = loaded.find((model) => model.id === selectedModels.audio); return <p className="text-[10px] text-slate-500">{selected?.supportedVoiceIds?.length ? selected.supportedVoiceIds.length + ' model-specific voices available. Choose one in the project workspace.' : 'This model does not publish a voice list. Check its documentation and enter a supported voice ID in the project workspace.'}</p>; })()}
                 </div>
               )}
             </div>
