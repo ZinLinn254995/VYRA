@@ -419,6 +419,58 @@ export async function deleteVideoGenerationJob(jobId: string): Promise<void> {
 }
 
 
+/**
+ * Update the cost on a linked video job and its saved media record atomically.
+ * If either record is missing, neither record is modified.
+ */
+export async function updateLinkedVideoGenerationCost(
+  jobId: string,
+  videoId: string,
+  costUsd: number,
+): Promise<void> {
+  if (!Number.isFinite(costUsd) || costUsd < 0) throw new Error('Invalid provider-reported cost.');
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(['video-generation-jobs', 'generated-videos'], 'readwrite');
+      const jobs = transaction.objectStore('video-generation-jobs');
+      const videos = transaction.objectStore('generated-videos');
+      let job: SavedVideoGenerationJob | undefined;
+      let video: SavedMediaVideo | undefined;
+      let jobLoaded = false;
+      let videoLoaded = false;
+      const applyWhenReady = () => {
+        if (!jobLoaded || !videoLoaded) return;
+        if (!job || !video) {
+          transaction.abort();
+          return;
+        }
+        jobs.put({ ...job, costUsd, updatedAt: new Date().toISOString() });
+        videos.put({ ...video, costUsd });
+      };
+      const jobRequest = jobs.get(jobId);
+      const videoRequest = videos.get(videoId);
+      jobRequest.onsuccess = () => {
+        job = jobRequest.result as SavedVideoGenerationJob | undefined;
+        jobLoaded = true;
+        applyWhenReady();
+      };
+      videoRequest.onsuccess = () => {
+        video = videoRequest.result as SavedMediaVideo | undefined;
+        videoLoaded = true;
+        applyWhenReady();
+      };
+      jobRequest.onerror = () => { try { transaction.abort(); } catch { /* transaction already finished */ } };
+      videoRequest.onerror = () => { try { transaction.abort(); } catch { /* transaction already finished */ } };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('Could not save the linked video generation cost.'));
+      transaction.onabort = () => reject(new Error('Could not update both the video job and saved video cost. No partial cost update was saved.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 /** Persist a provider-reported cost without rewriting media blobs or generation references. */
 export async function updateSavedMediaCost(
   kind: 'image' | 'audio' | 'video',
