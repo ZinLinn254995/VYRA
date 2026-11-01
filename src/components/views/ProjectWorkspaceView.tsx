@@ -376,7 +376,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       );
       recoveryJob = recoverableJobs.filter((job) => !attemptedRecoveryJobsRef.current.has(job.jobId)).find((job) => {
         const scene = latestScenesRef.current.find((item) => item.id === job.sceneId);
-        return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration);
+        return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration && (scene.dialogue || '') === (job.dialogue || ''));
       }) || recoverableJobs.find((job) => !attemptedRecoveryJobsRef.current.has(job.jobId));
       if (!recoveryJob) return;
       attemptedRecoveryJobsRef.current.add(recoveryJob.jobId);
@@ -684,6 +684,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         visualPrompt: targetScene.visualPrompt,
         cameraMovement: targetScene.cameraMovement,
         narration: targetScene.narration,
+        dialogue: targetScene.dialogue || '',
         duration: clipDuration,
         aspectRatio: clipAspectRatio,
         ...(clipResolution ? { resolution: clipResolution } : {}),
@@ -776,7 +777,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const blob = await contentResponse.blob();
       if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
       const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-      if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration) {
+      if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration || (latestScene.dialogue || '') !== (targetScene.dialogue || '')) {
         await updateVideoGenerationJob(submitted.jobId, { status: 'needs_attention', costUsd: generatedCostUsd, lastError: 'The scene changed after this job was submitted; its result was not attached.' }).catch(() => undefined);
         if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene script or visual direction changed during generation. Generate a fresh clip for the updated scene.');
         return;
@@ -795,7 +796,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         savedVideoId = saved.id;
         // IndexedDB writes are asynchronous too; re-check inputs immediately before linking.
         const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-        if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration) {
+        if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration || (sceneBeforeLink.dialogue || '') !== (targetScene.dialogue || '')) {
           savedVideoId = undefined;
           // The media was persisted while the scene changed; remove the unlinked blob
           // so stale generations do not silently accumulate in the local Media Library.
