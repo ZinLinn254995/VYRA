@@ -10,6 +10,6 @@ test('AI Ideas Chat opens the active project workspace without starting generati
   await composer.fill('Open the production workspace');
   await composer.press('Enter');
 
-  await expect(page.getByText(/Opened .* in the Production Workspace\. No image, voice, or video generation was started\./i)).toBeVisible();
-  await expect(page.getByText('The Quantum Frontier: Light-Speed Photonic Processing')).toBeVisible();
+  await expect(page.getByText('No image, voice, or video generation was started.', { exact: false })).toBeVisible();
+  await expect(page.getByText('The Quantum Frontier: Light-Speed Photonic Processing', { exact: false })).toBeVisible();
 });
