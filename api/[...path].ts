@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { createAiRouter } from '../src/server/ai.js';
+import { createPricingRouter } from '../src/server/pricing.js';
 
 // Vercel deploys this catch-all as a serverless function. The local Express
 // development server is not available in the Vercel runtime.
@@ -8,9 +9,12 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 const aiRouter = createAiRouter();
+const pricingRouter = createPricingRouter();
 // Vercel normally strips the /api prefix for function routes. Also mount the
 // prefixed form for runtimes that preserve the original request pathname.
+app.use('/', pricingRouter);
 app.use('/', aiRouter);
+app.use('/api', pricingRouter);
 app.use('/api', aiRouter);
 
 app.use((_req, res) => {
