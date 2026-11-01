@@ -583,7 +583,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
       body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false, ...(resolution ? { resolution } : {}) }),
       signal: AbortSignal.timeout(60_000),
     });
-    const data = await upstream.json().catch(() => ({})) as { id?: string; status?: string; error?: string | { message?: string } };
+    const data = await upstream.json().catch(() => ({})) as { id?: string; generation_id?: string; status?: string; error?: string | { message?: string } };
     if (!upstream.ok || !data.id) {
       const upstreamMessage = typeof data.error === 'string' ? data.error
         : data.error && typeof data.error.message === 'string' ? data.error.message : '';
@@ -597,7 +597,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
               : upstreamMessage.slice(0, 300) || 'Could not submit the video generation job. Check model capabilities and retry.',
       });
     }
-    return res.status(202).json({ jobId: data.id, status: data.status || 'pending', model });
+    return res.status(202).json({ jobId: data.id, generationId: typeof data.generation_id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(data.generation_id) ? data.generation_id : null, status: data.status || 'pending', model });
   } catch {
     return res.status(502).json({ error: 'Could not reach OpenRouter video generation. Check connection and retry.' });
   }
@@ -620,7 +620,7 @@ router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Resp
       signal: AbortSignal.timeout(30_000),
     });
     const data = await upstream.json().catch(() => ({})) as {
-      id?: string; status?: string; error?: string; unsigned_urls?: string[];
+      id?: string; generation_id?: string; status?: string; error?: string; unsigned_urls?: string[];
       usage?: { cost?: number };
     };
     if (!upstream.ok) {
@@ -643,10 +643,11 @@ router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Resp
     }
     return res.status(200).json({
       jobId: data.id || jobId,
+      generationId: typeof data.generation_id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(data.generation_id) ? data.generation_id : null,
       status: data.status || 'unknown',
       error: typeof data.error === 'string' ? data.error.slice(0, 500) : undefined,
       hasVideo: Array.isArray(data.unsigned_urls) && data.unsigned_urls.length > 0,
-      costUsd: typeof data.usage?.cost === 'number' ? data.usage.cost : null,
+      costUsd: typeof data.usage?.cost === 'number' && Number.isFinite(data.usage.cost) && data.usage.cost >= 0 ? data.usage.cost : null,
     });
   } catch {
     return res.status(502).json({ error: 'Could not check video generation status. Check connection and retry.' });
