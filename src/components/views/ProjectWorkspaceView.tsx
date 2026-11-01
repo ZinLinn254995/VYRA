@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, getSavedImages, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
-import { Scene, AspectRatio } from '../../types';
+import { Scene, AspectRatio, ProductionStage } from '../../types';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
 import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
@@ -220,6 +220,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [generatedClipMimeType, setGeneratedClipMimeType] = useState('');
   const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
   const [isExportingVideo, setIsExportingVideo] = useState(false);
+  const [finalVideoPreviewUrl, setFinalVideoPreviewUrl] = useState('');
   const [exportProgress, setExportProgress] = useState('');
   const [burnInSubtitles, setBurnInSubtitles] = useState(true);
 
@@ -234,6 +235,25 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (generatedVoiceoverUrl) URL.revokeObjectURL(generatedVoiceoverUrl);
     };
   }, [generatedVoiceoverUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (finalVideoPreviewUrl) URL.revokeObjectURL(finalVideoPreviewUrl);
+    };
+  }, [finalVideoPreviewUrl]);
+
+  // Restore the assembled final video preview after a refresh.
+  useEffect(() => {
+    let cancelled = false;
+    setFinalVideoPreviewUrl('');
+    if (!project?.finalVideoId) return () => { cancelled = true; };
+    getSavedVideo(project.finalVideoId).then((saved) => {
+      if (!cancelled && saved) setFinalVideoPreviewUrl(URL.createObjectURL(saved.blob));
+    }).catch(() => {
+      if (!cancelled) showToast('The saved final preview could not be restored from this device.', 'warning');
+    });
+    return () => { cancelled = true; };
+  }, [project?.id, project?.finalVideoId]);
 
 
   useEffect(() => {
@@ -535,6 +555,19 @@ export const ProjectWorkspaceView: React.FC = () => {
     return acc + (sc.narration ? sc.narration.trim().split(/\s+/).length : 0);
   }, 0) || 0;
   const estimatedReadingTime = Math.round((totalWords / 150) * 60); // 150 wpm
+
+  const productionStages: { id: ProductionStage; label: string }[] = [
+    { id: 'idea', label: 'Idea' },
+    { id: 'script_review', label: 'Script' },
+    { id: 'visual_review', label: 'Visuals' },
+    { id: 'voice_review', label: 'Voice' },
+    { id: 'sample_review', label: 'Sample' },
+    { id: 'full_production', label: 'Full video' },
+    { id: 'final_review', label: 'Final preview' },
+    { id: 'publish_ready', label: 'Publish' },
+  ];
+  const activeProductionStage = project?.productionStage || 'idea';
+  const activeProductionIndex = productionStages.findIndex((stage) => stage.id === activeProductionStage);
 
   // Playback timer simulation
   useEffect(() => {
@@ -1316,6 +1349,20 @@ export const ProjectWorkspaceView: React.FC = () => {
       });
       if (!output.size) throw new Error('The browser created an empty export file. Please try again.');
       const outputUrl = URL.createObjectURL(output);
+      setFinalVideoPreviewUrl(outputUrl);
+      try {
+        const savedFinal = await saveGeneratedVideo({
+          title: project.title + ' — Final Video',
+          blob: output,
+          model: 'VYRA Browser Compositor',
+          costUsd: null,
+          projectId: project.id,
+          sceneId: 'final',
+        });
+        updateProject(project.id, { finalVideoId: savedFinal.id, finalVideoExportedAt: new Date().toISOString() });
+      } catch {
+        showToast('Video downloaded, but the final preview could not be saved on this device.', 'warning');
+      }
       const link = document.createElement('a');
       const baseName = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vyra-video';
       const extension = output.type.includes('mp4') ? 'mp4' : 'webm';
@@ -1324,7 +1371,6 @@ export const ProjectWorkspaceView: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(outputUrl), 60000);
       const voiceoverCount = audioClips.filter(Boolean).length;
       showToast(voiceoverCount ? 'Full video exported with voiceovers' : 'Full video exported without voiceovers', 'success');
       setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video' + (extension === 'webm' ? ' (this browser does not support MP4 recording; try a browser with MP4/H.264 MediaRecorder support for MP4).' : '') + (voiceoverCount ? ' with voiceover audio for ' + voiceoverCount + ' of ' + scenes.length + ' scenes.' : '. Generate scene voiceovers to include narration audio next time.'));
@@ -1445,6 +1491,48 @@ export const ProjectWorkspaceView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Approval-gated production progress: Chat remains the primary control surface. */}
+      <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Production Checkpoints</h2>
+            <p className="text-[11px] text-slate-400 light:text-slate-500">Each stage must be reviewed before the next one unlocks. Paid generation is never started by approval alone.</p>
+          </div>
+          <button type="button" onClick={() => setCurrentSection('ideas')} className="inline-flex items-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] hover:bg-[#55F4FF]/90">
+            <Sparkles className="w-3.5 h-3.5" />
+            Continue in AI Ideas Chat
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2">
+          {productionStages.map((stage, index) => {
+            const completed = index < activeProductionIndex;
+            const active = index === activeProductionIndex;
+            return (
+              <div key={stage.id} aria-current={active ? 'step' : undefined} className={'rounded-lg border px-2 py-2 text-center ' + (active ? 'border-[#55F4FF] bg-[#55F4FF]/10' : completed ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-[#2B3058] light:border-slate-200')}>
+                <div className={'text-[10px] font-semibold ' + (active ? 'text-[#55F4FF]' : completed ? 'text-emerald-400' : 'text-slate-500')}>{completed ? '✓ ' : String(index + 1).padStart(2, '0') + ' '}{stage.label}</div>
+              </div>
+            );
+          })}
+        </div>
+        {project.productionStageNotes && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+            <p className="text-[10px] font-bold text-amber-300">Targeted revision request</p>
+            <p className="text-xs text-slate-300 light:text-slate-700">{project.productionStageNotes}</p>
+          </div>
+        )}
+      </section>
+
+      {finalVideoPreviewUrl && (
+        <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Full Video Preview</h2>
+            <span className="text-[10px] text-emerald-400">Saved on this device</span>
+          </div>
+          <video src={finalVideoPreviewUrl} controls playsInline className="w-full max-h-[560px] rounded-lg bg-black" />
+          <p className="text-[11px] text-slate-400 light:text-slate-500">Review the assembled video here. If changes are needed, request the specific scene or voice correction in AI Ideas Chat before final approval.</p>
+        </section>
+      )}
 
       {/* 2. Main Studio Grid: Left Media Preview + Right Scene Inspector */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start min-w-0">
