@@ -63,6 +63,12 @@ export interface Scene {
   visualPrompt: string;
   cameraMovement: string;
   duration: number; // in seconds
+  /** Optional shot/scene intent for formats such as ads, documentary, music videos, and animation. */
+  shotType?: string;
+  dialogue?: string;
+  onScreenText?: string;
+  soundDesign?: string;
+  transition?: string;
   mediaUrl: string;
   /** IndexedDB key for a generated scene image stored on this device. */
   generatedImageId?: string;
@@ -93,6 +99,17 @@ export interface Project {
   visualStyle: VisualStyle;
   narrationStyle: NarrationStyle;
   subtitleStyle: SubtitleStyle;
+  /** User's requested video genre/type, kept open-ended rather than limited to presets. */
+  videoType?: string;
+  /** Creative brief preserving the user's style, audience, language, tone, and production constraints. */
+  creativeDirection?: string;
+  /** Free-form visual treatment, including styles beyond the built-in presets. */
+  visualStyleDescription?: string;
+  /** Music, ambience, sound effects, and voice direction for the whole video. */
+  audioDirection?: string;
+  /** Intended audience and language for dialogue, narration, and on-screen text. */
+  audience?: string;
+  language?: string;
   targetDuration: number; // in seconds
   targetPlatforms: string[];
   status: ProjectStatus;

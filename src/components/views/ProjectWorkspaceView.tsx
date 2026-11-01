@@ -376,7 +376,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       );
       recoveryJob = recoverableJobs.filter((job) => !attemptedRecoveryJobsRef.current.has(job.jobId)).find((job) => {
         const scene = latestScenesRef.current.find((item) => item.id === job.sceneId);
-        return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration);
+        return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration && (scene.dialogue || '') === (job.dialogue || ''));
       }) || recoverableJobs.find((job) => !attemptedRecoveryJobsRef.current.has(job.jobId));
       if (!recoveryJob) return;
       attemptedRecoveryJobsRef.current.add(recoveryJob.jobId);
@@ -423,7 +423,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         return;
       }
       const job = recoveryJob;
-      if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration) {
+      if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration || (targetScene.dialogue || '') !== (job.dialogue || '')) {
         setClipStatus('A saved video job exists, but this scene has changed since it was submitted. Review the previous job before generating a replacement.');
         setRecoveryCycle((cycle) => cycle + 1);
         return;
@@ -646,18 +646,23 @@ export const ProjectWorkspaceView: React.FC = () => {
         videoReferencePayload = videoModelMetadata?.supportedFrameImages?.includes('first_frame')
           ? { frame_images: [{ ...imageReference, frame_type: 'first_frame' }] }
           : { input_references: [imageReference] };
-      } else if (project.productionStage && ['sample_review', 'full_production'].includes(project.productionStage)) {
-        throw new Error('Generate and approve a scene image first. VYRA uses that image as a visual reference for the video model.');
       }
       const prompt = [
-        'Generate a cinematic ' + clipDuration + '-second video clip for one scene in a larger video.',
+        'Generate a ' + (project.videoType || 'video') + ' clip lasting ' + clipDuration + ' seconds for one scene in a larger production.',
+        project.creativeDirection ? 'Creative direction: ' + project.creativeDirection : '',
+        project.visualStyleDescription ? 'Specific visual treatment: ' + project.visualStyleDescription : '',
+        project.audioDirection ? 'Audio and soundtrack direction: ' + project.audioDirection : '',
         'Visual direction: ' + targetScene.visualPrompt,
         'Camera movement: ' + targetScene.cameraMovement,
-        'Narrative context: ' + targetScene.narration,
+        'Narrative context: ' + (targetScene.dialogue || targetScene.narration || 'No spoken narration; rely on the visual action and requested sound design.'),
+        targetScene.shotType ? 'Shot type: ' + targetScene.shotType : '',
+        targetScene.onScreenText ? 'Required on-screen text: ' + targetScene.onScreenText : '',
+        targetScene.soundDesign ? 'Scene sound design: ' + targetScene.soundDesign : '',
+        targetScene.transition ? 'Transition to next scene: ' + targetScene.transition : '',
         'Overall visual style: ' + project.visualStyle,
-        'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.',
+        Object.keys(videoReferencePayload).length ? 'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.' : 'Create the scene directly from its visual direction using text-to-video generation.',
         'Aspect ratio: ' + clipAspectRatio,
-        'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
+        'Keep motion coherent and visually polished. Do not add unrequested captions, subtitles, watermarks, or UI text.',
       ].join('\n');
       if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Submitting video generation job…');
       const response = await fetch('/api/providers/openrouter/videos/generate', {
@@ -679,6 +684,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         visualPrompt: targetScene.visualPrompt,
         cameraMovement: targetScene.cameraMovement,
         narration: targetScene.narration,
+        dialogue: targetScene.dialogue || '',
         duration: clipDuration,
         aspectRatio: clipAspectRatio,
         ...(clipResolution ? { resolution: clipResolution } : {}),
@@ -771,7 +777,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const blob = await contentResponse.blob();
       if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
       const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-      if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration) {
+      if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration || (latestScene.dialogue || '') !== (targetScene.dialogue || '')) {
         await updateVideoGenerationJob(submitted.jobId, { status: 'needs_attention', costUsd: generatedCostUsd, lastError: 'The scene changed after this job was submitted; its result was not attached.' }).catch(() => undefined);
         if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene script or visual direction changed during generation. Generate a fresh clip for the updated scene.');
         return;
@@ -790,7 +796,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         savedVideoId = saved.id;
         // IndexedDB writes are asynchronous too; re-check inputs immediately before linking.
         const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-        if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration) {
+        if (!sceneBeforeLink || sceneBeforeLink.visualPrompt !== targetScene.visualPrompt || sceneBeforeLink.cameraMovement !== targetScene.cameraMovement || sceneBeforeLink.narration !== targetScene.narration || (sceneBeforeLink.dialogue || '') !== (targetScene.dialogue || '')) {
           savedVideoId = undefined;
           // The media was persisted while the scene changed; remove the unlinked blob
           // so stale generations do not silently accumulate in the local Media Library.
@@ -846,6 +852,9 @@ export const ProjectWorkspaceView: React.FC = () => {
     const prompt = [
       targetScene.visualPrompt.trim(),
       'Visual style: ' + project.visualStyle.replace(/_/g, ' '),
+      project.visualStyleDescription ? 'Specific visual treatment: ' + project.visualStyleDescription : '',
+      project.creativeDirection ? 'Creative direction: ' + project.creativeDirection : '',
+      project.videoType ? 'Video type: ' + project.videoType : '',
       'Scene ' + targetScene.order + ' from the video "' + project.title + '".',
       'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
       'Keep the character design coherent with the project style and scene description.',
@@ -896,11 +905,11 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateVoiceover = async () => {
     if (!project || !currentScene || isGeneratingVoiceover) return;
-    if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the scene visuals first to unlock voice generation.'); return; }
+    if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the visual direction first to unlock voice generation.'); return; }
     const targetScene = currentScene;
-    const narration = targetScene.narration.trim();
+    const narration = (targetScene.dialogue || targetScene.narration).trim();
     if (!narration) {
-      setVoiceoverError('Add narration text for this scene first.');
+      setVoiceoverError('This scene has no dialogue or narration. Voice generation is optional for silent, music-only, and text-led videos.');
       return;
     }
     setVoiceoverError('');
@@ -1513,6 +1522,20 @@ export const ProjectWorkspaceView: React.FC = () => {
         </div>
       </div>
 
+      {(project.videoType || project.creativeDirection || project.visualStyleDescription || project.audioDirection) && (
+        <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Creative Brief</h2>
+            {project.videoType && <span className="rounded-full bg-[#55F4FF]/10 text-[#55F4FF] px-2 py-1 text-[10px] font-semibold">{project.videoType}</span>}
+            {project.language && <span className="rounded-full bg-slate-500/10 text-slate-400 px-2 py-1 text-[10px]">{project.language}</span>}
+            {project.audience && <span className="rounded-full bg-slate-500/10 text-slate-400 px-2 py-1 text-[10px]">Audience: {project.audience}</span>}
+          </div>
+          {project.creativeDirection && <p className="text-xs text-slate-300 light:text-slate-700">{project.creativeDirection}</p>}
+          {project.visualStyleDescription && <p className="text-[11px] text-slate-400 light:text-slate-500">Visuals: {project.visualStyleDescription}</p>}
+          {project.audioDirection && <p className="text-[11px] text-slate-400 light:text-slate-500">Audio: {project.audioDirection}</p>}
+        </section>
+      )}
+
       {/* Approval-gated production progress. Chat remains the primary control surface. */}
       <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1755,7 +1778,20 @@ export const ProjectWorkspaceView: React.FC = () => {
                 />
               </div>
 
-              {/* Generate and review a real image for this scene before approving visual assets. */}
+              {currentScene.dialogue !== undefined && currentScene.dialogue !== '' && (
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300 light:text-slate-700 text-xs">Character Dialogue</label>
+                  <textarea
+                    rows={2}
+                    value={currentScene.dialogue || ''}
+                    onChange={(e) => updateScene(project.id, currentScene.id, { dialogue: e.target.value, generatedAudioId: undefined, generatedVideoId: undefined })}
+                    placeholder="Edit the character's spoken dialogue..."
+                    className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
+                  />
+                </div>
+              )}
+
+              {/* Generate an optional reference image for this scene. */}
               <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="space-y-1">
@@ -1763,7 +1799,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                       <Sparkles className="w-4 h-4 text-[#55F4FF]" />
                       Generate Scene Image
                     </h3>
-                    <p className="text-[11px] text-slate-400 light:text-slate-500">Generate only this scene’s visual. Review it before moving to voice production. API usage may incur charges.</p>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Optional reference image for this scene. Video models can also generate directly from the visual prompt. API usage may incur charges.</p>
                     {!imageGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after the script and dialogue are approved in AI Ideas Chat.</p>}
                   </div>
                   <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !imageGenerationUnlocked || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1791,7 +1827,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
                     {!voiceGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after every scene image is generated and approved.</p>}
                   </div>
-                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !(currentScene.dialogue || currentScene.narration).trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
                   </button>
