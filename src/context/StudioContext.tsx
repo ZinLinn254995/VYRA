@@ -431,7 +431,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (proj.id !== projectId) return proj;
         return {
           ...proj,
-          scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates } : sc)),
+          scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates, ...(updates.narration !== undefined || updates.visualPrompt !== undefined ? { status: 'scripted' as const } : {}) } : sc)),
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
           productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
