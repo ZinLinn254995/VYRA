@@ -331,7 +331,7 @@ test('Provider Usage rotates cost recovery batches so records after the first 20
 
   await page.getByRole('button', { name: 'Open mobile menu' }).click();
   await page.getByRole('button', { name: 'Provider Usage' }).click();
-  await expect(page.getByText('Batch image 1')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Batch image 1', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Look up missing costs' }).click();
   await expect(page.getByRole('status')).toContainText('0 provider-reported cost(s) saved. 20 record(s) remain unavailable.');
