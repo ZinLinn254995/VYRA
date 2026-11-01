@@ -67,7 +67,7 @@ test('Provider Usage History shows provider-reported live key totals without exp
 });
 
 
-test('Provider Usage recovers provider-reported costs for saved image and voiceover records', async ({ page }) => {
+test('Provider Usage recovers provider-reported costs for saved image, voiceover and video records', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'sk-or-v1-test-session-secret');
@@ -104,7 +104,7 @@ test('Provider Usage recovers provider-reported costs for saved image and voiceo
       request.onerror = () => reject(request.error);
     });
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(['generated-images', 'generated-audio'], 'readwrite');
+      const transaction = db.transaction(['generated-images', 'generated-audio', 'generated-videos', 'video-generation-jobs'], 'readwrite');
       transaction.objectStore('generated-images').put({
         id: 'image-cost-test', title: 'Cost test image', dataUrl: 'data:image/png;base64,AA==',
         model: 'test/image-model', costUsd: null, generationId: 'gen-image-test-001',
@@ -114,6 +114,19 @@ test('Provider Usage recovers provider-reported costs for saved image and voiceo
         id: 'audio-cost-test', title: 'Cost test voiceover', blob: new Blob(['audio']),
         model: 'test/audio-model', voice: 'test-voice', generationId: 'gen-audio-test-002',
         projectId: 'project-test', sceneId: 'scene-test', createdAt: '2026-11-01T09:01:00.000Z',
+      });
+      transaction.objectStore('generated-videos').put({
+        id: 'video-cost-test', title: 'Cost test video', blob: new Blob(['video']),
+        model: 'test/video-model', costUsd: null, generationId: 'gen-video-test-003',
+        projectId: 'project-test', sceneId: 'scene-test', createdAt: '2026-11-01T09:02:00.000Z',
+      });
+      transaction.objectStore('video-generation-jobs').put({
+        jobId: 'job-cost-test', projectId: 'project-test', projectTitle: 'Cost test project',
+        sceneId: 'scene-test', sceneOrder: 1, model: 'test/video-model', prompt: 'test',
+        visualPrompt: 'test', cameraMovement: 'static', narration: 'test', duration: 5,
+        aspectRatio: '9:16', savedVideoId: 'video-cost-test', status: 'completed',
+        createdAt: '2026-11-01T09:02:00.000Z', updatedAt: '2026-11-01T09:03:00.000Z',
+        costUsd: null, generationId: 'gen-video-test-003',
       });
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
@@ -125,8 +138,40 @@ test('Provider Usage recovers provider-reported costs for saved image and voiceo
   await page.getByRole('button', { name: 'Provider Usage' }).click();
   await expect(page.getByText('Cost test image')).toBeVisible();
   await expect(page.getByText('Cost test voiceover')).toBeVisible();
+  await expect(page.getByText('Cost test video')).toBeVisible();
   await page.getByRole('button', { name: 'Look up missing costs' }).click();
-  await expect(page.getByRole('status')).toContainText('2 provider-reported cost(s) saved.');
-  await expect(page.getByText('$0.0042', { exact: true })).toHaveCount(2);
-  expect(lookedUpIds.sort()).toEqual(['gen-audio-test-002', 'gen-image-test-001']);
+  await expect(page.getByRole('status')).toContainText('3 provider-reported cost(s) saved.');
+  await expect(page.getByText('$0.0042', { exact: true })).toHaveCount(3);
+  expect(lookedUpIds.sort()).toEqual(['gen-audio-test-002', 'gen-image-test-001', 'gen-video-test-003']);
+
+  const persisted = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('vyra-media-library', 4);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const result = await new Promise<Record<string, number | null>>((resolve, reject) => {
+      const transaction = db.transaction(['generated-images', 'generated-audio', 'generated-videos', 'video-generation-jobs'], 'readonly');
+      const output: Record<string, number | null> = {};
+      const stores = [
+        ['image', 'generated-images', 'image-cost-test'],
+        ['audio', 'generated-audio', 'audio-cost-test'],
+        ['video', 'generated-videos', 'video-cost-test'],
+        ['job', 'video-generation-jobs', 'job-cost-test'],
+      ] as const;
+      let remaining = stores.length;
+      for (const [key, store, id] of stores) {
+        const request = transaction.objectStore(store).get(id);
+        request.onsuccess = () => {
+          output[key] = request.result?.costUsd ?? null;
+          remaining -= 1;
+          if (remaining === 0) resolve(output);
+        };
+        request.onerror = () => reject(request.error);
+      }
+    });
+    db.close();
+    return result;
+  });
+  expect(persisted).toEqual({ image: 0.0042, audio: 0.0042, video: 0.0042, job: 0.0042 });
 });
