@@ -9,6 +9,7 @@ import { createServer as createViteServer } from 'vite';
 import { createTikTokRouter } from './src/server/tiktok.js';
 import { createAiRouter } from './src/server/ai.js';
 import { createPricingRouter } from './src/server/pricing.js';
+import { createSupabaseAuthRouter } from './src/server/supabaseAuth.js';
 
 const app = express();
 const httpServer = createHttpServer(app);
@@ -18,6 +19,7 @@ const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'dis
 app.disable('x-powered-by');
 app.use(express.json({ limit: '4mb' }));
 app.use('/api/tiktok', createTikTokRouter());
+app.use('/api/auth', createSupabaseAuthRouter());
 
 app.use('/api', createPricingRouter());
 app.use('/api', createAiRouter());
