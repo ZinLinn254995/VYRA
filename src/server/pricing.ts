@@ -47,7 +47,7 @@ function safePricingLines(value: unknown, provider: string): PricingLine[] {
 function normalizeParameters(value: unknown): EstimateParameters {
   const input = asRecord(value);
   const numericKeys = [
-    'promptTokens', 'completionTokens', 'inputTokens', 'outputTokens', 'imageCount',
+    'promptTokens', 'completionTokenBudget', 'inputTokens', 'outputTokens', 'imageCount',
     'inputImageCount', 'inputCharacters', 'durationSeconds', 'width', 'height',
   ] as const;
   const output: EstimateParameters = {};
