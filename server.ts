@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import { createTikTokRouter } from './src/server/tiktok.js';
 import { createAiRouter } from './src/server/ai.js';
+import { createPricingRouter } from './src/server/pricing.js';
 
 const app = express();
 const httpServer = createHttpServer(app);
@@ -18,6 +19,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '4mb' }));
 app.use('/api/tiktok', createTikTokRouter());
 
+app.use('/api', createPricingRouter());
 app.use('/api', createAiRouter());
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
