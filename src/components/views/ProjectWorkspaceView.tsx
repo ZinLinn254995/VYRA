@@ -323,7 +323,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       jobs = savedJobs;
       recoveryJob = jobs.find((job) =>
         job.sceneId === currentScene.id &&
-        ['pending', 'in_progress', 'completed'].includes(job.status)
+        ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status)
       );
       if (!recoveryJob || currentScene.generatedVideoId) return;
       if (!apiKey) {
@@ -331,6 +331,10 @@ export const ProjectWorkspaceView: React.FC = () => {
         return;
       }
       const job = recoveryJob;
+      if (currentScene.visualPrompt !== job.visualPrompt || currentScene.cameraMovement !== job.cameraMovement || currentScene.narration !== job.narration) {
+        setClipStatus('A saved video job exists, but this scene has changed since it was submitted. Review the previous job before generating a replacement.');
+        return;
+      }
       if (activeVideoRecoveryJobs.has(job.jobId)) return;
       activeVideoRecoveryJobs.add(job.jobId);
       setIsGeneratingClip(true);
