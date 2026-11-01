@@ -49,7 +49,7 @@ test('AI Ideas Chat requires explicit spend approval for script generation and d
   await expect.poll(() => estimateRequests).toBe(1);
   expect(dialogMessage).toContain('Estimated cost: UNAVAILABLE');
   expect(dialogMessage).toContain('Creative approval is not payment approval');
-  await expect(page.getByText(/Generation cancelled\. No AI generation request was sent/)).toBeVisible();
+  await expect(page.getByText(/Generation cancelled\\. No AI generation request was sent/)).toBeVisible();
   expect(generationRequests).toBe(0);
 });
 
@@ -96,7 +96,7 @@ test('Create Video storyboard is not generated when spend confirmation is declin
     sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ text: 'openai/gpt-4.1-mini' }));
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create Video' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Create Video' }).click();
   await page.getByRole('button', { name: 'Continue to Topic' }).click();
   await page.getByRole('button', { name: 'Continue to Creative Style' }).click();
 
