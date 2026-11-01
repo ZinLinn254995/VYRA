@@ -104,6 +104,9 @@ export interface Project {
   productionStage?: ProductionStage;
   productionStageUpdatedAt?: string;
   productionStageNotes?: string;
+  /** IndexedDB key for the assembled final video, kept outside localStorage. */
+  finalVideoId?: string;
+  finalVideoExportedAt?: string;
   reviewNotes?: string;
   publishingCaption?: string;
   selectedPlatformsForPublishing?: string[];
