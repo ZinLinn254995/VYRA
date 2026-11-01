@@ -31,6 +31,7 @@ import {
 } from '../data/seedData';
 import { BRAND_CONFIG } from '../config/brand';
 import { aiService } from '../services/aiService';
+import { confirmSpendBeforeGeneration } from '../services/spendConfirmation';
 import { processAgentRequest, executeAgentTool, AgentContext } from '../services/agentTools';
 import { ToolExecutionRecord } from '../types';
 
@@ -689,36 +690,67 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       let isPreviewNotice = false;
       let providerMetadata: Pick<ChatMessage, 'providerName' | 'modelName' | 'generationId' | 'usage'> = {};
 
-      // 2. If no tool command matched, run creative ideation engine
+      // 2. If no tool command matched, run creative ideation engine.
+      // Script/storyboard requests are potentially billable and require their own
+      // explicit spend approval; approving a creative brief is not spend approval.
       if (agentResult.toolExecutions.length === 0) {
-        const response = await aiService.generateResponse({
-          messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
-          conversationId: targetConvId || undefined,
-        });
-        if (response.status === 'error') {
-          throw new Error(response.errorMessage || response.content || 'The AI request failed.');
-        }
-        finalContent = response.content;
-        finalSuggestedActions = response.suggestedActions || [];
-        isPreviewNotice = response.isPreviewNotice || false;
-        if (response.status === 'success') {
-          providerMetadata = {
-            ...(response.providerName ? { providerName: response.providerName } : {}),
-            ...(response.modelName ? { modelName: response.modelName } : {}),
-            ...(response.generationId ? { generationId: response.generationId } : {}),
-            ...(response.usage ? { usage: response.usage } : {}),
-          };
-        }
-        if (response.status === 'success' && response.providerName) {
-          setAiStatus({
-            status: 'connected',
-            providerName: response.providerName,
-            modelName: response.modelName || 'Selected model',
-            backendEndpoint: response.providerName === 'OpenRouter'
-              ? '/api/providers/openrouter/chat'
-              : '/api/ai/chat',
-            message: 'Connected to ' + response.providerName + ' using ' + (response.modelName || 'the configured model') + '.',
+        const isScriptOrStoryboardRequest =
+          /\b(script|storyboard|dialogue|narration)\b/i.test(content) ||
+          /\b(generate|create|write|draft|develop)\b.{0,50}\b(scene|visual sequence)\b/i.test(content);
+        let approvedForSpend = true;
+        if (isScriptOrStoryboardRequest) {
+          let apiKey = '';
+          let model = 'Configured AI provider';
+          try {
+            apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+            const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: unknown };
+            if (typeof selections.text === 'string' && selections.text.trim()) model = selections.text.trim();
+          } catch {
+            // If browser storage is unavailable, ask for approval with pricing unavailable.
+          }
+          approvedForSpend = await confirmSpendBeforeGeneration({
+            operation: 'AI Ideas Chat script/storyboard generation',
+            capability: 'text',
+            model,
+            apiKey,
+            // Exact prompt tokenization is provider-specific; do not estimate from characters.
+            parameters: { completionTokenBudget: 2048 },
           });
+        }
+
+        if (!approvedForSpend) {
+          finalContent = 'Generation cancelled. No AI generation request was sent. You can continue discussing ideas without starting this script/storyboard generation.';
+          isPreviewNotice = true;
+        } else {
+          const response = await aiService.generateResponse({
+            messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+            conversationId: targetConvId || undefined,
+          });
+          if (response.status === 'error') {
+            throw new Error(response.errorMessage || response.content || 'The AI request failed.');
+          }
+          finalContent = response.content;
+          finalSuggestedActions = response.suggestedActions || [];
+          isPreviewNotice = response.isPreviewNotice || false;
+          if (response.status === 'success') {
+            providerMetadata = {
+              ...(response.providerName ? { providerName: response.providerName } : {}),
+              ...(response.modelName ? { modelName: response.modelName } : {}),
+              ...(response.generationId ? { generationId: response.generationId } : {}),
+              ...(response.usage ? { usage: response.usage } : {}),
+            };
+          }
+          if (response.status === 'success' && response.providerName) {
+            setAiStatus({
+              status: 'connected',
+              providerName: response.providerName,
+              modelName: response.modelName || 'Selected model',
+              backendEndpoint: response.providerName === 'OpenRouter'
+                ? '/api/providers/openrouter/chat'
+                : '/api/ai/chat',
+              message: 'Connected to ' + response.providerName + ' using ' + (response.modelName || 'the configured model') + '.',
+            });
+          }
         }
       }
 
