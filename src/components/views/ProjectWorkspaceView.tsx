@@ -380,6 +380,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         try {
           let completed = job.status === 'completed';
           let costUsd = job.costUsd ?? null;
+          let generationId = job.generationId ?? undefined;
           let nextDelayMs = 30_000;
           for (let attempt = 0; !completed && attempt < 40; attempt += 1) {
             if (attempt > 0) await new Promise<void>((resolve) => window.setTimeout(resolve, nextDelayMs));
@@ -393,7 +394,7 @@ export const ProjectWorkspaceView: React.FC = () => {
               if (attempt === 39) throw new Error('Could not reconnect to the video status service. The saved job is still available to resume.');
               continue;
             }
-            const status = await response.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
+            const status = await response.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null; generationId?: string | null };
             if (!response.ok) {
               if (response.status === 404) {
                 await updateVideoGenerationJob(job.jobId, { status: 'expired', lastError: status.error || 'The provider no longer has this job.' });
@@ -412,17 +413,18 @@ export const ProjectWorkspaceView: React.FC = () => {
               }
               throw new Error(status.error || 'Could not check the saved video job.');
             }
+            if (typeof status.generationId === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(status.generationId)) generationId = status.generationId;
             if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') {
               await updateVideoGenerationJob(job.jobId, { status: status.status, lastError: status.error || 'The provider job ' + status.status + '.' });
               throw new Error(status.error || 'The saved video job ' + status.status + '.');
             }
             if (status.status === 'completed') {
               completed = true;
-              costUsd = typeof status.costUsd === 'number' ? status.costUsd : costUsd;
-              await updateVideoGenerationJob(job.jobId, { status: 'completed', costUsd });
+              costUsd = typeof status.costUsd === 'number' && Number.isFinite(status.costUsd) && status.costUsd >= 0 ? status.costUsd : costUsd;
+              await updateVideoGenerationJob(job.jobId, { status: 'completed', costUsd, generationId });
               break;
             }
-            await updateVideoGenerationJob(job.jobId, { status: status.status === 'pending' ? 'pending' : 'in_progress', lastError: undefined });
+            await updateVideoGenerationJob(job.jobId, { status: status.status === 'pending' ? 'pending' : 'in_progress', ...(generationId ? { generationId } : {}), lastError: undefined });
             setClipStatus('Resuming saved video job… status check ' + (attempt + 1) + ' of 40');
           }
           if (!completed) {
@@ -454,6 +456,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             blob,
             model: job.model,
             costUsd,
+            generationId,
             projectId: job.projectId,
             sceneId: job.sceneId,
           });
@@ -568,7 +571,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
         body: JSON.stringify({ model, prompt, aspect_ratio: clipAspectRatio, duration: clipDuration, ...(clipResolution ? { resolution: clipResolution } : {}) }),
       });
-      const submitted = await response.json().catch(() => ({})) as { jobId?: string; error?: string };
+      const submitted = await response.json().catch(() => ({})) as { jobId?: string; generationId?: string | null; error?: string };
       if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
       activeVideoJobId = submitted.jobId;
       const savedJob = {
@@ -586,6 +589,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         aspectRatio: clipAspectRatio,
         ...(clipResolution ? { resolution: clipResolution } : {}),
         ...(targetScene.generatedVideoId ? { previousVideoId: targetScene.generatedVideoId } : {}),
+        ...(typeof submitted.generationId === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(submitted.generationId) ? { generationId: submitted.generationId } : {}),
         status: 'pending' as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -597,6 +601,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       let completed = false;
       let generatedCostUsd: number | null = null;
+      let generatedGenerationId = typeof submitted.generationId === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(submitted.generationId) ? submitted.generationId : undefined;
       let nextPollDelayMs = 30_000;
       for (let attempt = 0; attempt < 40; attempt += 1) {
         if (attempt > 0) {
@@ -619,7 +624,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           continue;
         }
 
-        const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
+        const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null; generationId?: string | null };
         if (!statusResponse.ok) {
           // An expired/missing job is terminal. Never keep polling it as though
           // the provider were temporarily unavailable.
@@ -650,14 +655,15 @@ export const ProjectWorkspaceView: React.FC = () => {
           await updateVideoGenerationJob(submitted.jobId, { status: status.status, lastError: status.error || 'The provider job ' + status.status + '.' }).catch(() => undefined);
           throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
         }
+        if (typeof status.generationId === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(status.generationId)) generatedGenerationId = status.generationId;
         activeVideoJobStatus = status.status === 'pending' ? 'pending' : 'in_progress';
-        await updateVideoGenerationJob(submitted.jobId, { status: activeVideoJobStatus, lastError: undefined }).catch(() => undefined);
+        await updateVideoGenerationJob(submitted.jobId, { status: activeVideoJobStatus, ...(generatedGenerationId ? { generationId: generatedGenerationId } : {}), lastError: undefined }).catch(() => undefined);
         if (status.status === 'completed') {
           completed = true;
           if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Video generated. Downloading clip…');
-          generatedCostUsd = typeof status.costUsd === 'number' ? status.costUsd : null;
+          generatedCostUsd = typeof status.costUsd === 'number' && Number.isFinite(status.costUsd) && status.costUsd >= 0 ? status.costUsd : null;
           activeVideoJobStatus = 'completed';
-          await updateVideoGenerationJob(submitted.jobId, { status: 'completed', costUsd: generatedCostUsd, lastError: undefined }).catch(() => undefined);
+          await updateVideoGenerationJob(submitted.jobId, { status: 'completed', costUsd: generatedCostUsd, ...(generatedGenerationId ? { generationId: generatedGenerationId } : {}), lastError: undefined }).catch(() => undefined);
           if (selectedSceneIdRef.current === targetScene.id) setClipCostUsd(generatedCostUsd);
           break;
         }
@@ -683,6 +689,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           blob,
           model,
           costUsd: generatedCostUsd,
+          generationId: generatedGenerationId,
           projectId: project.id,
           sceneId: targetScene.id,
         });
@@ -697,7 +704,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene changed while saving. Generate a fresh clip for the updated scene.');
           return;
         }
-        await updateVideoGenerationJob(submitted.jobId, { savedVideoId: saved.id, status: 'completed', costUsd: generatedCostUsd, lastError: undefined }).catch(() => undefined);
+        await updateVideoGenerationJob(submitted.jobId, { savedVideoId: saved.id, status: 'completed', costUsd: generatedCostUsd, ...(generatedGenerationId ? { generationId: generatedGenerationId } : {}), lastError: undefined }).catch(() => undefined);
         updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
       } catch {
         if (selectedSceneIdRef.current === targetScene.id) setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
