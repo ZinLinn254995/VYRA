@@ -4,6 +4,8 @@ export interface SavedMediaImage {
   dataUrl: string;
   model: string;
   costUsd: number | null;
+  /** Provider-issued generation reference, when available. */
+  generationId?: string;
   createdAt: string;
 }
 
@@ -13,6 +15,8 @@ export interface SavedMediaAudio {
   blob: Blob;
   model: string;
   voice: string;
+  /** Provider-issued generation reference, when available. */
+  generationId?: string;
   projectId: string;
   sceneId: string;
   createdAt: string;

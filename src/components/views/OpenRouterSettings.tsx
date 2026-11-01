@@ -83,6 +83,7 @@ export const OpenRouterSettings: React.FC = () => {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatedImage, setGeneratedImage] = useState('');
   const [imageCost, setImageCost] = useState<number | null>(null);
+  const [imageGenerationId, setImageGenerationId] = useState<string | null>(null);
   const [savingImage, setSavingImage] = useState(false);
 
   useEffect(() => {
@@ -207,6 +208,7 @@ export const OpenRouterSettings: React.FC = () => {
     setError('');
     setGeneratedImage('');
     setImageCost(null);
+    setImageGenerationId(null);
     setMessage('Generating image… this can take up to two minutes.');
     try {
       const response = await fetch('/api/providers/openrouter/images/generate', {
@@ -214,10 +216,11 @@ export const OpenRouterSettings: React.FC = () => {
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': key },
         body: JSON.stringify({ model, prompt }),
       });
-      const data = await response.json().catch(() => ({})) as { error?: string; imageDataUrl?: string; costUsd?: number | null; model?: string };
+      const data = await response.json().catch(() => ({})) as { error?: string; imageDataUrl?: string; costUsd?: number | null; model?: string; generationId?: string | null };
       if (!response.ok || !data.imageDataUrl) throw new Error(data.error || 'Image generation failed.');
       setGeneratedImage(data.imageDataUrl);
-      setImageCost(typeof data.costUsd === 'number' ? data.costUsd : null);
+      setImageCost(typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0 ? data.costUsd : null);
+      setImageGenerationId(typeof data.generationId === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(data.generationId) ? data.generationId : null);
       setMessage('Image generated successfully with ' + (data.model || model) + '.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Image generation failed.');
@@ -237,6 +240,7 @@ export const OpenRouterSettings: React.FC = () => {
         dataUrl: generatedImage,
         model: selectedModels.image || 'Unknown model',
         costUsd: imageCost,
+        generationId: imageGenerationId || undefined,
       });
       setMessage('Image saved to your Media Library on this device.');
     } catch (e) {

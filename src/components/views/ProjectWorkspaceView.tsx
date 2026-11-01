@@ -758,6 +758,8 @@ export const ProjectWorkspaceView: React.FC = () => {
         const data = await response.json().catch(() => ({})) as { error?: string };
         throw new Error(data.error || 'Voiceover generation failed. Check the selected model and voice.');
       }
+      const generationHeader = response.headers.get('x-generation-id');
+      const generationId = generationHeader && /^[a-zA-Z0-9_-]{1,200}$/.test(generationHeader) ? generationHeader : undefined;
       const blob = await response.blob();
       if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
       const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
@@ -772,6 +774,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           blob,
           model,
           voice: voiceName.trim(),
+          generationId,
           projectId: project.id,
           sceneId: targetScene.id,
         });

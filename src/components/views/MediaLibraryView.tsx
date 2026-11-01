@@ -239,6 +239,7 @@ export const MediaLibraryView: React.FC = () => {
                     <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{image.title}</h3>
                     <p className="text-[10px] text-slate-500 break-all">{image.model}</p>
                     <p className="text-[10px] text-slate-500">{new Date(image.createdAt).toLocaleString()} · {image.costUsd === null ? 'Cost not reported' : '$' + image.costUsd.toFixed(4)}</p>
+                    {image.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {image.generationId}</p>}
                     <div className="flex items-center justify-between gap-2 pt-1">
                       <a href={image.dataUrl} download={'vyra-' + image.id + '.png'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download</a>
                       <button type="button" onClick={() => void handleDeleteSavedImage(image)} aria-label={'Delete ' + image.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -315,6 +316,7 @@ export const MediaLibraryView: React.FC = () => {
                     <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{audio.title}</h3>
                     <p className="text-[10px] text-slate-500 break-all">{audio.model} · Voice: {audio.voice}</p>
                     <p className="text-[10px] text-slate-500">{new Date(audio.createdAt).toLocaleString()}</p>
+                    {audio.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {audio.generationId}</p>}
                     <div className="flex items-center justify-between gap-2 pt-1">
                       {savedAudioUrls[audio.id] ? <a href={savedAudioUrls[audio.id]} download={'vyra-' + audio.id + '.mp3'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download audio</a> : <span className="text-[11px] text-slate-500">Preparing audio…</span>}
                       <button type="button" onClick={() => void handleDeleteSavedAudio(audio)} aria-label={'Delete ' + audio.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
