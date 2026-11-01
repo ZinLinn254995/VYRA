@@ -566,6 +566,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     { id: 'final_review', label: 'Final preview' },
     { id: 'publish_ready', label: 'Publish' },
   ];
+  const isLegacyWorkflow = !project?.productionStage;
   const activeProductionStage = project?.productionStage || 'idea';
   const activeProductionIndex = productionStages.findIndex((stage) => stage.id === activeProductionStage);
   const imageGenerationUnlocked = !project?.productionStage || project.productionStage === 'visual_review';
@@ -1517,7 +1518,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
             <h2 className="text-sm font-bold text-white light:text-slate-900">Production Checkpoints</h2>
-            <p className="text-[11px] text-slate-400 light:text-slate-500">Each stage must be reviewed before the next one unlocks. Paid media generation is never started by approval alone.</p>
+            <p className="text-[11px] text-slate-400 light:text-slate-500">{isLegacyWorkflow ? 'Existing project: checkpoint tracking starts when you approve the idea or script in AI Ideas Chat.' : 'Each stage must be reviewed before the next one unlocks.'} Paid media generation is never started by approval alone.</p>
           </div>
           <button type="button" onClick={() => setCurrentSection('ideas')} className="inline-flex items-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] hover:bg-[#55F4FF]/90">
             <Sparkles className="w-3.5 h-3.5" />
