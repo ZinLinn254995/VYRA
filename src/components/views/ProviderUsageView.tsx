@@ -228,7 +228,8 @@ export const ProviderUsageView: React.FC = () => {
               // Persist both costs in a single IndexedDB transaction.
               await updateLinkedVideoGenerationCost(entry.id.slice(4), entry.mediaId, data.costUsd);
             } else if (entry.kind === 'video' && entry.id.startsWith('job:')) {
-              await updateVideoGenerationJob(entry.id.slice(4), { costUsd: data.costUsd });
+              const savedJob = await updateVideoGenerationJob(entry.id.slice(4), { costUsd: data.costUsd });
+              if (!savedJob) throw new Error('Saved video job no longer exists.');
             } else if (entry.kind === 'video' && entry.mediaId) {
               await updateSavedMediaCost('video', entry.mediaId, data.costUsd);
             } else if (entry.kind !== 'video') {
