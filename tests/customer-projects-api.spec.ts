@@ -116,3 +116,31 @@ test('cloud project routes require a bearer token', async () => {
     assert.equal(storageCalled, false);
   }, fetcher);
 });
+
+test('project import returns a safe Supabase diagnostic when storage rejects the backup', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: '42501',
+    message: 'new row violates row-level security policy',
+    details: 'policy check failed',
+  }, { status: 403 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/projects/import', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projects: [{
+          localId: 'local-1',
+          title: 'First project',
+          status: 'draft',
+          projectData: { topic: 'Space' },
+        }],
+      }),
+    });
+    assert.equal(response.status, 403);
+    const payload = await response.json() as { error: string };
+    assert.match(payload.error, /42501/);
+    assert.match(payload.error, /row-level security policy/);
+    assert.match(payload.error, /local projects have not been changed/);
+  }, fetcher);
+});
