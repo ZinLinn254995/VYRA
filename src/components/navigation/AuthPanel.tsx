@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 
 type AuthPanelProps = { onClose: () => void };
@@ -48,8 +49,8 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ onClose }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center overflow-y-auto overscroll-contain bg-black/70 px-3 py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6" onMouseDown={(event) => {
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center overflow-y-auto overscroll-contain bg-black/70 px-3 py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <section role="dialog" aria-modal="true" aria-labelledby="account-panel-title" className="my-auto w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#11152B] light:bg-white p-5 sm:p-6 shadow-2xl">
@@ -112,6 +113,7 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ onClose }) => {
           </form>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 };
