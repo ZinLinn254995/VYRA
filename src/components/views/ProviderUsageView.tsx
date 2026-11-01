@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertCircle, AudioLines, Clock3, Image as ImageIcon, Loader2, RefreshCw, Search, Video } from 'lucide-react';
 import {
   getSavedAudios,
@@ -136,6 +136,8 @@ export const ProviderUsageView: React.FC = () => {
   const [keyUsageLoading, setKeyUsageLoading] = useState(false);
   const [costLookupLoading, setCostLookupLoading] = useState(false);
   const [costLookupMessage, setCostLookupMessage] = useState('');
+  // Rotate through unresolved Generation IDs so the 20-record safety cap cannot starve older history.
+  const attemptedCostLookupIds = useRef(new Set<string>());
 
   const refresh = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -195,9 +197,13 @@ export const ProviderUsageView: React.FC = () => {
       setCostLookupMessage('Reconnect your OpenRouter key in Settings before looking up generation costs.');
       return;
     }
-    const candidates = entries.filter((entry) =>
+    const eligibleCandidates = entries.filter((entry) =>
       (entry.kind === 'image' || entry.kind === 'audio' || entry.kind === 'video') && entry.costUsd === null && Boolean(entry.generationId)
-    ).slice(0, 20);
+    );
+    const unattemptedCandidates = eligibleCandidates.filter((entry) => !attemptedCostLookupIds.current.has(entry.generationId!));
+    // Once every eligible record has had a turn, allow another pass for transient provider failures.
+    if (eligibleCandidates.length > 0 && unattemptedCandidates.length === 0) attemptedCostLookupIds.current.clear();
+    const candidates = (unattemptedCandidates.length > 0 ? unattemptedCandidates : eligibleCandidates).slice(0, 20);
     if (candidates.length === 0) {
       setCostLookupMessage('No saved media or video-job records with missing costs and a Generation ID were found.');
       return;
@@ -208,6 +214,7 @@ export const ProviderUsageView: React.FC = () => {
     let unavailable = 0;
     try {
       for (const entry of candidates) {
+        attemptedCostLookupIds.current.add(entry.generationId!);
         // Each generation lookup is independent: a transient network or storage
         // error for one record must not prevent the remaining records from syncing.
         try {
