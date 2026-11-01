@@ -286,8 +286,8 @@ export async function executeAgentTool(
           const missing = target.scenes.filter((scene) => !scene.generatedImageId).map((scene) => scene.order);
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review an image for every scene before approving visuals. Missing scene images: ' + missing.join(', ') + '.', timestamp };
         }
-        if (currentStage === 'voice_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedAudioId))) {
-          const missing = target.scenes.filter((scene) => !scene.generatedAudioId).map((scene) => scene.order);
+        if (currentStage === 'voice_review' && target.scenes.some((scene) => Boolean((scene.dialogue || scene.narration).trim()) && !scene.generatedAudioId)) {
+          const missing = target.scenes.filter((scene) => Boolean((scene.dialogue || scene.narration).trim()) && !scene.generatedAudioId).map((scene) => scene.order);
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review the voiceover for every scene before approving voices. Missing voiceovers: ' + missing.join(', ') + '.', timestamp };
         }
         if (currentStage === 'sample_review' && !target.scenes.some((scene) => scene.generatedVideoId)) {
