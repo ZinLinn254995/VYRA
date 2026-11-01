@@ -321,8 +321,8 @@ export async function executeAgentTool(
         context.updateProject(target.id, {
           productionStageNotes: notes,
           productionStage: target.productionStage === 'publish_ready' ? 'final_review' : target.productionStage,
-          finalVideoId: target.productionStage === 'publish_ready' ? undefined : target.finalVideoId,
-          finalVideoExportedAt: target.productionStage === 'publish_ready' ? undefined : target.finalVideoExportedAt,
+          finalVideoId: ['final_review', 'publish_ready'].includes(target.productionStage || '') ? undefined : target.finalVideoId,
+          finalVideoExportedAt: ['final_review', 'publish_ready'].includes(target.productionStage || '') ? undefined : target.finalVideoExportedAt,
           productionStageUpdatedAt: timestamp,
         });
         return {
