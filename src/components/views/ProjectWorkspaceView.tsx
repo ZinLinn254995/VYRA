@@ -380,10 +380,12 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
       let completed = false;
       let generatedCostUsd: number | null = null;
+      let nextPollDelayMs = 30_000;
       for (let attempt = 0; attempt < 40; attempt += 1) {
         if (attempt > 0) {
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 15000));
+          await new Promise<void>((resolve) => window.setTimeout(resolve, nextPollDelayMs));
         }
+        nextPollDelayMs = 30_000;
         if (selectedSceneIdRef.current === targetScene.id) {
           setClipStatus(attempt === 0 ? 'Checking video job status…' : 'Generating video… status check ' + (attempt + 1) + ' of 40');
         }
@@ -402,9 +404,24 @@ export const ProjectWorkspaceView: React.FC = () => {
 
         const status = await statusResponse.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
         if (!statusResponse.ok) {
-          // Retry rate limits and transient server errors without submitting a second generation job.
+          // An expired/missing job is terminal. Never keep polling it as though
+          // the provider were temporarily unavailable.
+          if (statusResponse.status === 404) {
+            throw new Error(status.error || 'This video job was not found or has expired. Check your OpenRouter activity before starting another generation.');
+          }
+          // Retry rate limits and transient server errors against the SAME job ID.
+          // Honor Retry-After where available, otherwise use capped backoff.
           if ((statusResponse.status === 429 || statusResponse.status >= 500) && attempt < 39) {
-            if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Temporary status-service issue. Retrying the existing video job…');
+            const retryAfter = statusResponse.headers.get('retry-after');
+            const retryAfterSeconds = retryAfter ? Number(retryAfter) : NaN;
+            const retryAfterDate = retryAfter ? Date.parse(retryAfter) : NaN;
+            const requestedDelay = Number.isFinite(retryAfterSeconds)
+              ? retryAfterSeconds * 1000
+              : Number.isFinite(retryAfterDate)
+                ? retryAfterDate - Date.now()
+                : Math.min(60_000, 15_000 * (2 ** Math.min(attempt, 2)));
+            nextPollDelayMs = Math.min(120_000, Math.max(1_000, requestedDelay));
+            if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Temporary status-service issue. Retrying the existing video job in ' + Math.ceil(nextPollDelayMs / 1000) + 's…');
             continue;
           }
           throw new Error(status.error || 'Could not check video generation status.');
