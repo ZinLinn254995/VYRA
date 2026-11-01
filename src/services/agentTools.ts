@@ -1136,9 +1136,19 @@ export async function processAgentRequest(
       ['voice', 'audio'].includes(term) ? 'voice_review' :
       ['sample', 'animation', 'lip-sync', 'lipsync'].includes(term) ? 'sample_review' :
       term === 'full production' ? 'full_production' : 'final_review';
-    const target = context.activeProject || context.projects[0];
+    const target = stage === 'idea' ? context.activeProject : context.activeProject || context.projects[0];
+    if (!target && stage === 'idea') {
+      const created = await executeAgentTool('generate_storyboard', { createFromConversation: true }, context);
+      toolExecutions.push(created);
+      return {
+        assistantResponse: created.status === 'success'
+          ? 'Your idea is approved. I created **"' + created.outputData?.title + '"** from our Chat discussion and prepared the script with ' + created.outputData?.sceneCount + ' scenes. The next checkpoint is **Script & Dialogue Review**. Text-model usage may incur a small charge; no image, voice, or video generation has started.'
+          : created.errorMessage || 'I could not create a project from this idea. The approval has not advanced.',
+        toolExecutions,
+      };
+    }
     if (!target) {
-      return { assistantResponse: 'Create or select a VYRA project first. I need a project workspace before I can record this approval.', toolExecutions: [] };
+      return { assistantResponse: 'Select the project you want to approve first. I will not apply approval to an unrelated project.', toolExecutions: [] };
     }
 
     if (stage === 'idea') {
