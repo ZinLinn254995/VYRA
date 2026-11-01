@@ -454,9 +454,24 @@ router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Resp
       id?: string; status?: string; error?: string; unsigned_urls?: string[];
       usage?: { cost?: number };
     };
-    if (!upstream.ok) return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
-      error: upstream.status === 404 ? 'Video job was not found or has expired.' : 'Could not check video generation status. Retry shortly.',
-    });
+    if (!upstream.ok) {
+      // Preserve terminal and retryable status codes so the client can distinguish
+      // an expired job from a temporary provider outage or rate limit.
+      const statusCode = upstream.status === 401 || upstream.status === 403 ? 401
+        : upstream.status === 404 ? 404
+          : upstream.status === 402 ? 402
+            : upstream.status === 429 ? 429
+              : upstream.status >= 500 ? 502 : 400;
+      const retryAfter = upstream.headers.get('retry-after');
+      if (retryAfter) res.setHeader('Retry-After', retryAfter);
+      return res.status(statusCode).json({
+        error: upstream.status === 404
+          ? 'Video job was not found or has expired. Do not submit another job until you have checked your OpenRouter activity.'
+          : upstream.status === 429
+            ? 'OpenRouter rate limit reached while checking this video job. Retry the same job shortly.'
+            : 'Could not check video generation status. Retry the same job shortly.',
+      });
+    }
     return res.status(200).json({
       jobId: data.id || jobId,
       status: data.status || 'unknown',
