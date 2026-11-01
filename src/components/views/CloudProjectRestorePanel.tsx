@@ -25,6 +25,7 @@ const VISUAL_STYLES: VisualStyle[] = ['hyper_realistic', 'cyber_minimal', 'cinem
 const NARRATION_STYLES: NarrationStyle[] = ['authoritative', 'conversational', 'energetic_tech', 'empathetic_storyteller'];
 const SUBTITLE_STYLES: SubtitleStyle[] = ['dynamic_pop', 'minimal_lower', 'karaoke_neon', 'none'];
 const STATUSES: ProjectStatus[] = ['draft', 'in_review', 'changes_requested', 'approved', 'ready_to_publish', 'archived'];
+const PRODUCTION_STAGES: NonNullable<Project['productionStage']>[] = ['idea', 'script_review', 'visual_review', 'voice_review', 'sample_review', 'full_production', 'final_review', 'publish_ready'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -39,7 +40,7 @@ function enumValue<T extends string>(value: unknown, choices: T[], fallback: T):
   return typeof value === 'string' && choices.includes(value as T) ? value as T : fallback;
 }
 
-function restoreCloudProject(row: CloudProjectRow): Project | null {
+export function restoreCloudProject(row: CloudProjectRow): Project | null {
   if (!row.local_id || !row.title || !isRecord(row.project_data)) return null;
   const data = row.project_data;
   const rawScenes = Array.isArray(data.scenes) ? data.scenes : [];
@@ -82,7 +83,7 @@ function restoreCloudProject(row: CloudProjectRow): Project | null {
     createdAt: textValue(row.created_at, new Date().toISOString()),
     updatedAt: textValue(row.updated_at, new Date().toISOString()),
     coverImage: DEFAULT_SCENE_IMAGE,
-    productionStage: textValue(data.productionStage) as Project['productionStage'],
+    productionStage: enumValue(data.productionStage, PRODUCTION_STAGES, 'idea'),
     productionStageUpdatedAt: textValue(data.productionStageUpdatedAt) || undefined,
     productionStageNotes: textValue(data.productionStageNotes) || undefined,
     reviewNotes: textValue(data.reviewNotes) || undefined,
