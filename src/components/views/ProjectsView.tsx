@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { Project, ContentCategory } from '../../types';
+import { CloudProjectBackupPanel } from './CloudProjectBackupPanel';
 import {
   Plus,
   Search,
@@ -104,6 +105,8 @@ export const ProjectsView: React.FC = () => {
           <span>New Project</span>
         </button>
       </div>
+
+      <CloudProjectBackupPanel />
 
       {/* Filter and Search Bar Controls (Functional segmented controls adhering to zero-pill rules) */}
       <div className="p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 space-y-3.5">
