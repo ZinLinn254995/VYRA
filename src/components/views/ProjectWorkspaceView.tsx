@@ -41,6 +41,7 @@ type OpenRouterVideoModel = {
   supportedResolutions?: string[];
   supportedAspectRatios?: string[];
 };
+type OpenRouterAudioModel = { id: string; supportedVoiceIds?: string[] };
 
 const getMediaFileExtension = (mimeType: string, kind: 'video' | 'audio'): string => {
   const mime = mimeType.split(';', 1)[0].trim().toLowerCase();
@@ -194,6 +195,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [voiceName, setVoiceName] = useState('');
+  const [supportedVoiceIds, setSupportedVoiceIds] = useState<string[]>([]);
   const [videoModelMetadata, setVideoModelMetadata] = useState<OpenRouterVideoModel | null>(null);
   const [clipDuration, setClipDuration] = useState(4);
   const [clipAspectRatio, setClipAspectRatio] = useState<string>(project?.aspectRatio || '16:9');
@@ -226,10 +228,14 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   useEffect(() => {
     try {
-      const catalog = JSON.parse(sessionStorage.getItem('vyra_openrouter_catalog_v1') || '{}') as { video?: OpenRouterVideoModel[] };
-      const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { video?: string };
+      const catalog = JSON.parse(sessionStorage.getItem('vyra_openrouter_catalog_v1') || '{}') as { video?: OpenRouterVideoModel[]; audio?: OpenRouterAudioModel[] };
+      const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { video?: string; audio?: string };
       const selected = catalog.video?.find((model) => model.id === selections.video) || null;
       setVideoModelMetadata(selected);
+      const selectedAudio = catalog.audio?.find((model) => model.id === selections.audio);
+      const voices = selectedAudio?.supportedVoiceIds?.filter((voice) => typeof voice === 'string' && voice.trim()) || [];
+      setSupportedVoiceIds(voices);
+      setVoiceName((current) => voices.includes(current) ? current : voices[0] || '');
       const durations = selected?.supportedDurations?.filter((value) => Number.isInteger(value) && value > 0) || [];
       setClipDuration(durations.includes(4) ? 4 : durations[0] || 4);
       const ratios = selected?.supportedAspectRatios || [];
@@ -237,6 +243,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       setClipResolution(selected?.supportedResolutions?.[0] || '');
     } catch {
       setVideoModelMetadata(null);
+      setSupportedVoiceIds([]);
       setClipDuration(4);
       setClipAspectRatio(project?.aspectRatio || '16:9');
       setClipResolution('');
@@ -1289,8 +1296,8 @@ export const ProjectWorkspaceView: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-400 light:text-slate-600" htmlFor="vyra-voice-name">Voice name (model-dependent)</label>
-                  <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="Enter this model's voice ID" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />
-                  <p className="text-[10px] text-slate-500">Voice IDs differ by model and language. Check the selected Speech model's documentation; VYRA does not guess a voice ID.</p>
+                  {supportedVoiceIds.length > 0 ? <select id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]">{supportedVoiceIds.map((voice) => <option key={voice} value={voice}>{voice}</option>)}</select> : <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="Enter this model's voice ID" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />}
+                  <p className="text-[10px] text-slate-500">{supportedVoiceIds.length > 0 ? 'Choose a voice published for the selected Speech model.' : 'This model did not publish voice IDs. Check its documentation; VYRA does not guess a voice ID.'}</p>
                 </div>
                 {voiceoverStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{voiceoverStatus}</p>}
                 {voiceoverError && <p role="alert" className="text-[11px] text-rose-400">{voiceoverError}</p>}
