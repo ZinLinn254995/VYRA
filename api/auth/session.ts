@@ -9,7 +9,7 @@ export default async function handler(req: Request, res: Response) {
   }
 
   const authorization = req.headers.authorization ?? '';
-  const match = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  const match = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!match) {
     return res.status(401).json({ authenticated: false, error: 'A Supabase access token is required.' });
   }
