@@ -68,7 +68,7 @@ export const VideoJobRecoveryView: React.FC = () => {
 
   const counts = useMemo(() => ({
     active: jobs.filter((job) => ACTIVE_STATUSES.includes(job.status)).length,
-    attention: jobs.filter((job) => ATTENTION_STATUSES.includes(job.status)).length + jobs.filter((job) => job.status === 'needs_attention').length,
+    attention: jobs.filter((job) => ATTENTION_STATUSES.includes(job.status)).length,
     failed: jobs.filter((job) => FAILED_STATUSES.includes(job.status)).length,
     completed: jobs.filter((job) => job.status === 'completed').length,
   }), [jobs]);
