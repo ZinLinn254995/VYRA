@@ -47,7 +47,7 @@ test('AI Ideas Chat requires explicit spend approval for script generation and d
   await composer.press('Enter');
 
   await expect.poll(() => estimateRequests).toBe(1);
-  expect(dialogMessage).toContain('Estimated cost: UNAVAILABLE');
+  await expect.poll(() => dialogMessage).toContain('Estimated cost: UNAVAILABLE');
   expect(dialogMessage).toContain('Creative approval is not payment approval');
   await expect(page.getByText(/Generation cancelled.*No AI generation request was sent/)).toBeVisible();
   expect(generationRequests).toBe(0);
