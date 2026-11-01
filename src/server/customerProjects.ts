@@ -177,7 +177,7 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
           : response.status >= 400 && response.status < 500 ? 400 : 503;
         const diagnostic = safeCode ? ` (${safeCode})` : '';
         return res.status(status).json({
-          error: `Cloud backup was rejected by storage\${diagnostic}: ${safeMessage || 'Supabase returned an error'}. Your local projects have not been changed.`,
+          error: `Cloud backup was rejected by storage${diagnostic}: ${safeMessage || 'Supabase returned an error'}. Your local projects have not been changed.`,
         });
       }
       const saved: unknown = await response.json();
