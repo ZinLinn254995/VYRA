@@ -62,7 +62,7 @@ export const AGENT_TOOLS_REGISTRY: AgentToolDefinition[] = [
   {
     name: 'approve_production_stage',
     displayName: 'Approve Production Stage',
-    description: 'Approve only the current checkpoint and unlock the next production stage. This does not start paid generation.',
+    description: 'Approve only the current checkpoint and unlock the next production stage. Scene images are optional references; text-to-video is also supported. Approval never starts paid generation.',
     category: 'system',
     isOperational: true,
   },
@@ -282,9 +282,9 @@ export async function executeAgentTool(
         if (currentStage === 'script_review' && (!target.scenes.length || target.scenes.some((scene) => scene.status !== 'scripted' || !scene.narration.trim() || !scene.visualPrompt.trim()))) {
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate or edit a complete narration script and visual prompt for every scene before approving the script.', timestamp };
         }
-        if (currentStage === 'visual_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedImageId))) {
-          const missing = target.scenes.filter((scene) => !scene.generatedImageId).map((scene) => scene.order);
-          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review an image for every scene before approving visuals. Missing scene images: ' + missing.join(', ') + '.', timestamp };
+        if (currentStage === 'visual_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.visualPrompt.trim()))) {
+          const missing = target.scenes.filter((scene) => !scene.visualPrompt.trim()).map((scene) => scene.order);
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Complete the visual direction for every scene before approving visuals. Missing visual prompts: ' + missing.join(', ') + '.', timestamp };
         }
         if (currentStage === 'voice_review' && target.scenes.some((scene) => Boolean((scene.dialogue || scene.narration).trim()) && !scene.generatedAudioId)) {
           const missing = target.scenes.filter((scene) => Boolean((scene.dialogue || scene.narration).trim()) && !scene.generatedAudioId).map((scene) => scene.order);
