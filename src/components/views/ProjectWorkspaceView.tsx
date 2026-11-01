@@ -423,7 +423,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         return;
       }
       const job = recoveryJob;
-      if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration) {
+      if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration || (targetScene.dialogue || '') !== (job.dialogue || '')) {
         setClipStatus('A saved video job exists, but this scene has changed since it was submitted. Review the previous job before generating a replacement.');
         setRecoveryCycle((cycle) => cycle + 1);
         return;
@@ -650,14 +650,21 @@ export const ProjectWorkspaceView: React.FC = () => {
         throw new Error('Generate and approve a scene image first. VYRA uses that image as a visual reference for the video model.');
       }
       const prompt = [
-        'Generate a cinematic ' + clipDuration + '-second video clip for one scene in a larger video.',
+        'Generate a ' + (project.videoType || 'video') + ' clip lasting ' + clipDuration + ' seconds for one scene in a larger production.',
+        project.creativeDirection ? 'Creative direction: ' + project.creativeDirection : '',
+        project.visualStyleDescription ? 'Specific visual treatment: ' + project.visualStyleDescription : '',
+        project.audioDirection ? 'Audio and soundtrack direction: ' + project.audioDirection : '',
         'Visual direction: ' + targetScene.visualPrompt,
         'Camera movement: ' + targetScene.cameraMovement,
-        'Narrative context: ' + targetScene.narration,
+        'Narrative context: ' + (targetScene.dialogue || targetScene.narration || 'No spoken narration; rely on the visual action and requested sound design.'),
+        targetScene.shotType ? 'Shot type: ' + targetScene.shotType : '',
+        targetScene.onScreenText ? 'Required on-screen text: ' + targetScene.onScreenText : '',
+        targetScene.soundDesign ? 'Scene sound design: ' + targetScene.soundDesign : '',
+        targetScene.transition ? 'Transition to next scene: ' + targetScene.transition : '',
         'Overall visual style: ' + project.visualStyle,
         'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.',
         'Aspect ratio: ' + clipAspectRatio,
-        'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
+        'Keep motion coherent and visually polished. Do not add unrequested captions, subtitles, watermarks, or UI text.',
       ].join('\n');
       if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Submitting video generation job…');
       const response = await fetch('/api/providers/openrouter/videos/generate', {
@@ -846,6 +853,9 @@ export const ProjectWorkspaceView: React.FC = () => {
     const prompt = [
       targetScene.visualPrompt.trim(),
       'Visual style: ' + project.visualStyle.replace(/_/g, ' '),
+      project.visualStyleDescription ? 'Specific visual treatment: ' + project.visualStyleDescription : '',
+      project.creativeDirection ? 'Creative direction: ' + project.creativeDirection : '',
+      project.videoType ? 'Video type: ' + project.videoType : '',
       'Scene ' + targetScene.order + ' from the video "' + project.title + '".',
       'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
       'Keep the character design coherent with the project style and scene description.',
@@ -898,9 +908,9 @@ export const ProjectWorkspaceView: React.FC = () => {
     if (!project || !currentScene || isGeneratingVoiceover) return;
     if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the scene visuals first to unlock voice generation.'); return; }
     const targetScene = currentScene;
-    const narration = targetScene.narration.trim();
+    const narration = (targetScene.dialogue || targetScene.narration).trim();
     if (!narration) {
-      setVoiceoverError('Add narration text for this scene first.');
+      setVoiceoverError('This scene has no dialogue or narration. Voice generation is optional for silent, music-only, and text-led videos.');
       return;
     }
     setVoiceoverError('');
@@ -1791,7 +1801,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
                     {!voiceGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after every scene image is generated and approved.</p>}
                   </div>
-                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !(currentScene.dialogue || currentScene.narration).trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
                   </button>
