@@ -567,6 +567,9 @@ export const ProjectWorkspaceView: React.FC = () => {
   ];
   const activeProductionStage = project?.productionStage || 'idea';
   const activeProductionIndex = productionStages.findIndex((stage) => stage.id === activeProductionStage);
+  const imageGenerationUnlocked = !project?.productionStage || project.productionStage === 'visual_review';
+  const voiceGenerationUnlocked = !project?.productionStage || project.productionStage === 'voice_review';
+  const videoGenerationUnlocked = !project?.productionStage || ['sample_review', 'full_production'].includes(project.productionStage);
 
 
   // Playback timer simulation
@@ -602,6 +605,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateClip = async () => {
     if (!project || !currentScene || isGeneratingClip) return;
+    if (!videoGenerationUnlocked) { setClipError('Approve the voice samples first to unlock sample animation.'); return; }
     const existingJobs = await getVideoGenerationJobs(project.id).catch(() => []);
     for (const previousJob of existingJobs) {
       if (previousJob.sceneId === currentScene.id && previousJob.savedVideoId && previousJob.savedVideoId === currentScene.generatedVideoId) {
@@ -631,12 +635,24 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch { /* Show setup guidance below if session storage is unavailable. */ }
       const model = selectedModels.video;
       if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Video model in Settings before generating a clip.');
+      let videoReferencePayload: Record<string, unknown> = {};
+      if (targetScene.generatedImageId) {
+        const savedImages = await getSavedImages();
+        const referenceImage = savedImages.find((image) => image.id === targetScene.generatedImageId);
+        if (!referenceImage) throw new Error('The approved scene image is missing from this device. Regenerate the scene image before creating its video clip.');
+        videoReferencePayload = {
+          input_references: [{ type: 'image_url', image_url: { url: referenceImage.dataUrl } }],
+        };
+      } else if (project.productionStage && ['sample_review', 'full_production'].includes(project.productionStage)) {
+        throw new Error('Generate and approve a scene image first. VYRA uses that image as a visual reference for the video model.');
+      }
       const prompt = [
         'Generate a cinematic ' + clipDuration + '-second video clip for one scene in a larger video.',
         'Visual direction: ' + targetScene.visualPrompt,
         'Camera movement: ' + targetScene.cameraMovement,
         'Narrative context: ' + targetScene.narration,
         'Overall visual style: ' + project.visualStyle,
+        'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.',
         'Aspect ratio: ' + clipAspectRatio,
         'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
       ].join('\n');
@@ -644,7 +660,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const response = await fetch('/api/providers/openrouter/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
-        body: JSON.stringify({ model, prompt, aspect_ratio: clipAspectRatio, duration: clipDuration, ...(clipResolution ? { resolution: clipResolution } : {}) }),
+        body: JSON.stringify({ model, prompt, aspect_ratio: clipAspectRatio, duration: clipDuration, ...(clipResolution ? { resolution: clipResolution } : {}), ...videoReferencePayload }),
       });
       const submitted = await response.json().catch(() => ({})) as { jobId?: string; generationId?: string | null; error?: string };
       if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
@@ -811,6 +827,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateSceneImage = async () => {
     if (!project || !currentScene || isGeneratingSceneImage) return;
+    if (!imageGenerationUnlocked) { setSceneImageError('Approve the script and dialogue first to unlock scene image generation.'); return; }
     let apiKey = '';
     let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
     try {
@@ -876,6 +893,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateVoiceover = async () => {
     if (!project || !currentScene || isGeneratingVoiceover) return;
+    if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the scene visuals first to unlock voice generation.'); return; }
     const targetScene = currentScene;
     const narration = targetScene.narration.trim();
     if (!narration) {
@@ -1744,7 +1762,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </h3>
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Generate only this scene’s visual. Review it before moving to voice production. API usage may incur charges.</p>
                   </div>
-                  <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !imageGenerationUnlocked || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingSceneImage ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingSceneImage ? 'Generating…' : sceneImageUrl ? 'Regenerate Scene Image' : 'Generate Scene Image'}
                   </button>
@@ -1768,7 +1786,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </h3>
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
                   </div>
-                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
                   </button>
@@ -1845,7 +1863,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </div>
                     {!videoModelMetadata?.supportedDurations?.length && <p className="mt-2 text-[10px] text-amber-400">This model did not publish supported durations. VYRA will try 4 seconds; check the model details if the request is rejected.</p>}
                   </div>
-                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !videoGenerationUnlocked || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingClip ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingClip ? 'Generating…' : 'Generate ' + clipDuration + 's Clip'}
                   </button>
