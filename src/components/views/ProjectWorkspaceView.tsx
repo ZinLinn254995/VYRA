@@ -40,6 +40,7 @@ type OpenRouterVideoModel = {
   supportedDurations?: number[];
   supportedResolutions?: string[];
   supportedAspectRatios?: string[];
+  supportedFrameImages?: string[];
 };
 type OpenRouterAudioModel = { id: string; supportedVoiceIds?: string[] };
 
@@ -640,9 +641,10 @@ export const ProjectWorkspaceView: React.FC = () => {
         const savedImages = await getSavedImages();
         const referenceImage = savedImages.find((image) => image.id === targetScene.generatedImageId);
         if (!referenceImage) throw new Error('The approved scene image is missing from this device. Regenerate the scene image before creating its video clip.');
-        videoReferencePayload = {
-          input_references: [{ type: 'image_url', image_url: { url: referenceImage.dataUrl } }],
-        };
+        const imageReference = { type: 'image_url', image_url: { url: referenceImage.dataUrl } };
+        videoReferencePayload = videoModelMetadata?.supportedFrameImages?.includes('first_frame')
+          ? { frame_images: [{ ...imageReference, frame_type: 'first_frame' }] }
+          : { input_references: [imageReference] };
       } else if (project.productionStage && ['sample_review', 'full_production'].includes(project.productionStage)) {
         throw new Error('Generate and approve a scene image first. VYRA uses that image as a visual reference for the video model.');
       }
