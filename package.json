@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:auth": "node --import tsx --test tests/supabase-auth.spec.ts"
+    "test:auth": "node --import tsx --test tests/supabase-auth.spec.ts",
+    "test:projects": "node --import tsx --test tests/customer-projects-api.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
