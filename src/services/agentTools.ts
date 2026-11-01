@@ -297,8 +297,8 @@ export async function executeAgentTool(
           const missing = target.scenes.filter((scene) => !scene.generatedVideoId).map((scene) => scene.order);
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate every scene clip before moving to final video review. Missing scene clips: ' + missing.join(', ') + '.', timestamp };
         }
-        if (currentStage === 'final_review' && !target.finalVideoId) {
-          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Export and save the assembled final video preview before approving the final video.', timestamp };
+        if (currentStage === 'final_review' && (!target.finalVideoId || !target.scenes.length || target.scenes.some((scene) => !scene.generatedVideoId))) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate a video clip for every scene, then export and save the assembled final video preview before approving the final video.', timestamp };
         }
         if (!next) {
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'The final publishing checkpoint is already reached. No further production stage can be approved.', timestamp };
