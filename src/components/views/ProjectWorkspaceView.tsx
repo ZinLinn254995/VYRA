@@ -646,8 +646,6 @@ export const ProjectWorkspaceView: React.FC = () => {
         videoReferencePayload = videoModelMetadata?.supportedFrameImages?.includes('first_frame')
           ? { frame_images: [{ ...imageReference, frame_type: 'first_frame' }] }
           : { input_references: [imageReference] };
-      } else if (project.productionStage && ['sample_review', 'full_production'].includes(project.productionStage)) {
-        throw new Error('Generate and approve a scene image first. VYRA uses that image as a visual reference for the video model.');
       }
       const prompt = [
         'Generate a ' + (project.videoType || 'video') + ' clip lasting ' + clipDuration + ' seconds for one scene in a larger production.',
@@ -662,7 +660,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         targetScene.soundDesign ? 'Scene sound design: ' + targetScene.soundDesign : '',
         targetScene.transition ? 'Transition to next scene: ' + targetScene.transition : '',
         'Overall visual style: ' + project.visualStyle,
-        'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.',
+        Object.keys(videoReferencePayload).length ? 'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.' : 'Create the scene directly from its visual direction using text-to-video generation.',
         'Aspect ratio: ' + clipAspectRatio,
         'Keep motion coherent and visually polished. Do not add unrequested captions, subtitles, watermarks, or UI text.',
       ].join('\n');
@@ -906,7 +904,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateVoiceover = async () => {
     if (!project || !currentScene || isGeneratingVoiceover) return;
-    if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the scene visuals first to unlock voice generation.'); return; }
+    if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the visual direction first to unlock voice generation.'); return; }
     const targetScene = currentScene;
     const narration = (targetScene.dialogue || targetScene.narration).trim();
     if (!narration) {
@@ -1792,7 +1790,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 </div>
               )}
 
-              {/* Generate and review a real image for this scene before approving visual assets. */}
+              {/* Generate an optional reference image for this scene. */}
               <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="space-y-1">
@@ -1800,7 +1798,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                       <Sparkles className="w-4 h-4 text-[#55F4FF]" />
                       Generate Scene Image
                     </h3>
-                    <p className="text-[11px] text-slate-400 light:text-slate-500">Generate only this scene’s visual. Review it before moving to voice production. API usage may incur charges.</p>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Optional reference image for this scene. Video models can also generate directly from the visual prompt. API usage may incur charges.</p>
                     {!imageGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after the script and dialogue are approved in AI Ideas Chat.</p>}
                   </div>
                   <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !imageGenerationUnlocked || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
