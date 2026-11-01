@@ -552,7 +552,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
-  const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string };
+  const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string; frame_images?: unknown; input_references?: unknown };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
   const ratioParts = typeof body.aspect_ratio === 'string' ? body.aspect_ratio.split(':').map(Number) : [];
@@ -568,6 +568,31 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
 
   if (!model || model.length > 200) return res.status(400).json({ error: 'Discover and select a Video model in Settings first.' });
   if (!prompt) return res.status(400).json({ error: 'Add a visual prompt to this scene before generating a clip.' });
+
+  const normalizeImageReferences = (value: unknown, includeFrameType: boolean): Array<Record<string, unknown>> | null => {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length > 4) return null;
+    const references: Array<Record<string, unknown>> = [];
+    for (const entry of value) {
+      if (!entry || typeof entry !== 'object') return null;
+      const item = entry as { type?: unknown; image_url?: { url?: unknown }; frame_type?: unknown };
+      const url = item.image_url?.url;
+      if (item.type !== 'image_url' || typeof url !== 'string' || url.length > 4_000_000 ||
+          !/^data:image\/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(url)) return null;
+      if (includeFrameType) {
+        if (item.frame_type !== 'first_frame' && item.frame_type !== 'last_frame') return null;
+        references.push({ type: 'image_url', image_url: { url }, frame_type: item.frame_type });
+      } else {
+        references.push({ type: 'image_url', image_url: { url } });
+      }
+    }
+    return references;
+  };
+  const frameImages = normalizeImageReferences(body.frame_images, true);
+  const inputReferences = normalizeImageReferences(body.input_references, false);
+  if (!frameImages || !inputReferences) {
+    return res.status(400).json({ error: 'Scene reference image is invalid or too large. Regenerate it at a smaller size and try again.' });
+  }
   if (prompt.length > 4000) return res.status(413).json({ error: 'Video prompt is too long. Keep it under 4,000 characters.' });
 
   try {
@@ -580,7 +605,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
         'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
         'X-OpenRouter-Title': 'VYRA',
       },
-      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false, ...(resolution ? { resolution } : {}) }),
+      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false, ...(resolution ? { resolution } : {}), ...(frameImages.length ? { frame_images: frameImages } : inputReferences.length ? { input_references: inputReferences } : {}) }),
       signal: AbortSignal.timeout(60_000),
     });
     const data = await upstream.json().catch(() => ({})) as { id?: string; generation_id?: string; status?: string; error?: string | { message?: string } };

@@ -7,6 +7,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   NavSection,
   Project,
+  ProductionStage,
   Scene,
   JobQueueItem,
   MediaAsset,
@@ -321,6 +322,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...newProjectData,
       id: newId,
       status: 'draft',
+      productionStage: newProjectData.productionStage || 'idea',
+      productionStageUpdatedAt: newProjectData.productionStageUpdatedAt || now,
       createdAt: now,
       updatedAt: now,
     };
@@ -363,6 +366,18 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       id: newId,
       title: `${original.title} (Copy)`,
       status: 'draft',
+      productionStage: 'idea',
+      productionStageUpdatedAt: new Date().toISOString(),
+      productionStageNotes: undefined,
+      finalVideoId: undefined,
+      finalVideoExportedAt: undefined,
+      scenes: original.scenes.map((scene) => ({
+        ...scene,
+        generatedImageId: undefined,
+        generatedAudioId: undefined,
+        generatedVideoId: undefined,
+        status: 'scripted',
+      })),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -395,11 +410,15 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           cameraMovement: sceneData?.cameraMovement || 'Slow dynamic push inward',
           duration: sceneData?.duration || 8,
           mediaUrl: sceneData?.mediaUrl || proj.coverImage || '/src/assets/images/hero_cyber_city_1792925206979.jpg',
-          status: 'ready',
+          status: sceneData?.status || 'ready',
         };
         return {
           ...proj,
           scenes: [...proj.scenes, newScene],
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage && proj.productionStage !== 'idea' ? 'script_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -411,9 +430,28 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setProjects((prev) =>
       prev.map((proj) => {
         if (proj.id !== projectId) return proj;
+        const resetStage: ProductionStage | undefined =
+          updates.narration !== undefined || updates.duration !== undefined
+            ? 'script_review'
+            : updates.visualPrompt !== undefined || updates.mediaUrl !== undefined
+              ? 'visual_review'
+              : updates.cameraMovement !== undefined
+                ? 'sample_review'
+                : undefined;
+        const stageOrder: ProductionStage[] = ['idea', 'script_review', 'visual_review', 'voice_review', 'sample_review', 'full_production', 'final_review', 'publish_ready'];
+        const currentStage = proj.productionStage;
+        const currentStageIndex = currentStage ? stageOrder.indexOf(currentStage) : -1;
+        const resetStageIndex = resetStage ? stageOrder.indexOf(resetStage) : -1;
+        const nextStage = currentStage === 'publish_ready'
+          ? resetStage && currentStageIndex > resetStageIndex ? resetStage : 'final_review'
+          : currentStage && resetStage && currentStageIndex > resetStageIndex ? resetStage : currentStage;
+        const contentChanged = updates.narration !== undefined || updates.visualPrompt !== undefined;
         return {
           ...proj,
-          scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates } : sc)),
+          scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates, ...(contentChanged ? { status: 'scripted' as const } : {}) } : sc)),
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
+          ...(nextStage !== currentStage ? { productionStage: nextStage, productionStageUpdatedAt: new Date().toISOString() } : {}),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -430,6 +468,10 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...proj,
           scenes: renumbered,
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -448,6 +490,10 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...proj,
           scenes: renumbered,
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -461,6 +507,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const approveProject = (projectId: string) => {
+    const target = projects.find((project) => project.id === projectId);
+    if (target?.productionStage && target.productionStage !== 'publish_ready') {
+      showToast('Complete the production checkpoints and approve the final video in AI Ideas Chat before publishing approval.', 'warning');
+      return;
+    }
     updateProject(projectId, {
       status: 'approved',
       reviewNotes: 'Approved for distribution. Ready for queue dispatch once social accounts are connected.',
@@ -615,6 +666,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeProject,
         savedIdeas,
         mediaAssets,
+        conversationMessages: updatedMessages.map((message) => ({ role: message.role, content: message.content })),
         createProject,
         updateProject,
         archiveProject,
@@ -711,6 +763,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeProject,
       savedIdeas,
       mediaAssets,
+      conversationMessages: activeConversation?.messages.map((message) => ({ role: message.role, content: message.content })) || [],
       createProject,
       updateProject,
       archiveProject,

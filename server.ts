@@ -15,14 +15,14 @@ const PORT = Number(process.env.PORT || 3000);
 const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'dist');
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '4mb' }));
 app.use('/api/tiktok', createTikTokRouter());
 
 app.use('/api', createAiRouter());
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (error && typeof error === 'object' && 'type' in error && error.type === 'entity.too.large') {
-    return res.status(413).json({ error: 'Request is too large. Please shorten the chat context.' });
+    return res.status(413).json({ error: 'Request is too large. Reduce reference media size or shorten the request.' });
   }
   console.error('[server] Request handling failed.');
   return res.status(500).json({ error: 'An unexpected server error occurred.' });

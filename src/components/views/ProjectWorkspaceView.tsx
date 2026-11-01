@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
-import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
-import { Scene, AspectRatio } from '../../types';
+import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
+import { Scene, AspectRatio, ProductionStage } from '../../types';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
 import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
@@ -40,6 +40,7 @@ type OpenRouterVideoModel = {
   supportedDurations?: number[];
   supportedResolutions?: string[];
   supportedAspectRatios?: string[];
+  supportedFrameImages?: string[];
 };
 type OpenRouterAudioModel = { id: string; supportedVoiceIds?: string[] };
 
@@ -165,6 +166,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     showToast,
     projects,
     setActiveProjectId,
+    setCurrentSection,
   } = useStudio();
 
   // If no active project, show selector
@@ -198,6 +200,10 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
   const [recoveryCycle, setRecoveryCycle] = useState(0);
   const attemptedRecoveryJobsRef = useRef(new Set<string>());
+  const [isGeneratingSceneImage, setIsGeneratingSceneImage] = useState(false);
+  const [sceneImageUrl, setSceneImageUrl] = useState('');
+  const [sceneImageError, setSceneImageError] = useState('');
+  const [sceneImageCostUsd, setSceneImageCostUsd] = useState<number | null>(null);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [voiceName, setVoiceName] = useState('');
   const [supportedVoiceIds, setSupportedVoiceIds] = useState<string[]>([]);
@@ -215,6 +221,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [generatedClipMimeType, setGeneratedClipMimeType] = useState('');
   const [clipCostUsd, setClipCostUsd] = useState<number | null>(null);
   const [isExportingVideo, setIsExportingVideo] = useState(false);
+  const [finalVideoPreviewUrl, setFinalVideoPreviewUrl] = useState('');
   const [exportProgress, setExportProgress] = useState('');
   const [burnInSubtitles, setBurnInSubtitles] = useState(true);
 
@@ -229,6 +236,25 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (generatedVoiceoverUrl) URL.revokeObjectURL(generatedVoiceoverUrl);
     };
   }, [generatedVoiceoverUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (finalVideoPreviewUrl) URL.revokeObjectURL(finalVideoPreviewUrl);
+    };
+  }, [finalVideoPreviewUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFinalVideoPreviewUrl('');
+    if (!project?.finalVideoId) return () => { cancelled = true; };
+    getSavedVideo(project.finalVideoId).then((saved) => {
+      if (!cancelled && saved) setFinalVideoPreviewUrl(URL.createObjectURL(saved.blob));
+    }).catch(() => {
+      if (!cancelled) showToast('The saved final preview could not be restored from this device.', 'warning');
+    });
+    return () => { cancelled = true; };
+  }, [project?.id, project?.finalVideoId]);
+
 
 
   useEffect(() => {
@@ -256,6 +282,28 @@ export const ProjectWorkspaceView: React.FC = () => {
   }, [project?.id, project?.aspectRatio]);
 
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    setSceneImageUrl('');
+    setSceneImageError('');
+    setSceneImageCostUsd(null);
+    if (!currentScene?.generatedImageId) return () => { cancelled = true; };
+    getSavedImages().then((images) => {
+      if (cancelled) return;
+      const saved = images.find((image) => image.id === currentScene.generatedImageId);
+      if (saved) {
+        setSceneImageUrl(saved.dataUrl);
+        setSceneImageCostUsd(saved.costUsd);
+      } else {
+        setSceneImageError('This scene image could not be found in this device’s media storage. Generate it again if needed.');
+      }
+    }).catch((error) => {
+      if (!cancelled) setSceneImageError(error instanceof Error ? error.message : 'Could not restore this scene image.');
+    });
+    return () => { cancelled = true; };
+  }, [project?.id, currentScene?.id, currentScene?.generatedImageId]);
+
   const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
   // Restore this scene's generated clip from IndexedDB when returning to the workspace.
   useEffect(() => {
@@ -508,6 +556,24 @@ export const ProjectWorkspaceView: React.FC = () => {
   }, 0) || 0;
   const estimatedReadingTime = Math.round((totalWords / 150) * 60); // 150 wpm
 
+  const productionStages: { id: ProductionStage; label: string }[] = [
+    { id: 'idea', label: 'Idea' },
+    { id: 'script_review', label: 'Script' },
+    { id: 'visual_review', label: 'Visuals' },
+    { id: 'voice_review', label: 'Voice' },
+    { id: 'sample_review', label: 'Sample' },
+    { id: 'full_production', label: 'Full video' },
+    { id: 'final_review', label: 'Final preview' },
+    { id: 'publish_ready', label: 'Publish' },
+  ];
+  const isLegacyWorkflow = !project?.productionStage;
+  const activeProductionStage = project?.productionStage || 'idea';
+  const activeProductionIndex = productionStages.findIndex((stage) => stage.id === activeProductionStage);
+  const imageGenerationUnlocked = !project?.productionStage || project.productionStage === 'visual_review';
+  const voiceGenerationUnlocked = !project?.productionStage || project.productionStage === 'voice_review';
+  const videoGenerationUnlocked = !project?.productionStage || ['sample_review', 'full_production'].includes(project.productionStage);
+
+
   // Playback timer simulation
   useEffect(() => {
     let interval: any;
@@ -541,6 +607,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateClip = async () => {
     if (!project || !currentScene || isGeneratingClip) return;
+    if (!videoGenerationUnlocked) { setClipError('Approve the voice samples first to unlock sample animation.'); return; }
     const existingJobs = await getVideoGenerationJobs(project.id).catch(() => []);
     for (const previousJob of existingJobs) {
       if (previousJob.sceneId === currentScene.id && previousJob.savedVideoId && previousJob.savedVideoId === currentScene.generatedVideoId) {
@@ -570,12 +637,25 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch { /* Show setup guidance below if session storage is unavailable. */ }
       const model = selectedModels.video;
       if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Video model in Settings before generating a clip.');
+      let videoReferencePayload: Record<string, unknown> = {};
+      if (targetScene.generatedImageId) {
+        const savedImages = await getSavedImages();
+        const referenceImage = savedImages.find((image) => image.id === targetScene.generatedImageId);
+        if (!referenceImage) throw new Error('The approved scene image is missing from this device. Regenerate the scene image before creating its video clip.');
+        const imageReference = { type: 'image_url', image_url: { url: referenceImage.dataUrl } };
+        videoReferencePayload = videoModelMetadata?.supportedFrameImages?.includes('first_frame')
+          ? { frame_images: [{ ...imageReference, frame_type: 'first_frame' }] }
+          : { input_references: [imageReference] };
+      } else if (project.productionStage && ['sample_review', 'full_production'].includes(project.productionStage)) {
+        throw new Error('Generate and approve a scene image first. VYRA uses that image as a visual reference for the video model.');
+      }
       const prompt = [
         'Generate a cinematic ' + clipDuration + '-second video clip for one scene in a larger video.',
         'Visual direction: ' + targetScene.visualPrompt,
         'Camera movement: ' + targetScene.cameraMovement,
         'Narrative context: ' + targetScene.narration,
         'Overall visual style: ' + project.visualStyle,
+        'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.',
         'Aspect ratio: ' + clipAspectRatio,
         'Keep motion coherent and visually polished. Do not add captions, subtitles, watermarks, or UI text.',
       ].join('\n');
@@ -583,7 +663,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const response = await fetch('/api/providers/openrouter/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
-        body: JSON.stringify({ model, prompt, aspect_ratio: clipAspectRatio, duration: clipDuration, ...(clipResolution ? { resolution: clipResolution } : {}) }),
+        body: JSON.stringify({ model, prompt, aspect_ratio: clipAspectRatio, duration: clipDuration, ...(clipResolution ? { resolution: clipResolution } : {}), ...videoReferencePayload }),
       });
       const submitted = await response.json().catch(() => ({})) as { jobId?: string; generationId?: string | null; error?: string };
       if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
@@ -748,8 +828,75 @@ export const ProjectWorkspaceView: React.FC = () => {
     }
   };
 
+  const handleGenerateSceneImage = async () => {
+    if (!project || !currentScene || isGeneratingSceneImage) return;
+    if (!imageGenerationUnlocked) { setSceneImageError('Approve the script and dialogue first to unlock scene image generation.'); return; }
+    let apiKey = '';
+    let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+    try {
+      apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+      selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+    } catch { /* Show setup guidance below. */ }
+    const model = selectedModels.image;
+    if (!apiKey || !model) {
+      setSceneImageError('Connect OpenRouter and discover/select an Image model in Settings first.');
+      return;
+    }
+    const targetScene = currentScene;
+    const prompt = [
+      targetScene.visualPrompt.trim(),
+      'Visual style: ' + project.visualStyle.replace(/_/g, ' '),
+      'Scene ' + targetScene.order + ' from the video "' + project.title + '".',
+      'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
+      'Keep the character design coherent with the project style and scene description.',
+    ].join('\n');
+    setSceneImageError('');
+    setSceneImageUrl('');
+    setSceneImageCostUsd(null);
+    setIsGeneratingSceneImage(true);
+    try {
+      const response = await fetch('/api/providers/openrouter/images/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio }),
+      });
+      const data = await response.json().catch(() => ({})) as {
+        error?: string;
+        imageDataUrl?: string;
+        costUsd?: number | null;
+        generationId?: string | null;
+        model?: string;
+      };
+      if (!response.ok || typeof data.imageDataUrl !== 'string' || !data.imageDataUrl.startsWith('data:image/')) {
+        throw new Error(data.error || 'The image model did not return a valid image. Check the selected model and retry.');
+      }
+      const saved = await saveGeneratedImage({
+        title: project.title + ' — Scene ' + targetScene.order,
+        dataUrl: data.imageDataUrl,
+        model: typeof data.model === 'string' ? data.model : model,
+        costUsd: typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0 ? data.costUsd : null,
+        generationId: typeof data.generationId === 'string' ? data.generationId : undefined,
+        projectId: project.id,
+        sceneId: targetScene.id,
+      });
+      updateScene(project.id, targetScene.id, { generatedImageId: saved.id });
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setSceneImageUrl(saved.dataUrl);
+        setSceneImageCostUsd(saved.costUsd);
+      }
+      showToast('Scene image generated and saved on this device', 'success');
+    } catch (error) {
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setSceneImageError(error instanceof Error ? error.message : 'Scene image generation failed. Please retry.');
+      }
+    } finally {
+      setIsGeneratingSceneImage(false);
+    }
+  };
+
   const handleGenerateVoiceover = async () => {
     if (!project || !currentScene || isGeneratingVoiceover) return;
+    if (!voiceGenerationUnlocked) { setVoiceoverError('Approve the scene visuals first to unlock voice generation.'); return; }
     const targetScene = currentScene;
     const narration = targetScene.narration.trim();
     if (!narration) {
@@ -1223,6 +1370,20 @@ export const ProjectWorkspaceView: React.FC = () => {
       });
       if (!output.size) throw new Error('The browser created an empty export file. Please try again.');
       const outputUrl = URL.createObjectURL(output);
+      setFinalVideoPreviewUrl(outputUrl);
+      try {
+        const savedFinal = await saveGeneratedVideo({
+          title: project.title + ' — Final Video',
+          blob: output,
+          model: 'VYRA Browser Compositor',
+          costUsd: null,
+          projectId: project.id,
+          sceneId: 'final',
+        });
+        updateProject(project.id, { finalVideoId: savedFinal.id, finalVideoExportedAt: new Date().toISOString() });
+      } catch {
+        showToast('Video downloaded, but the final preview could not be saved on this device.', 'warning');
+      }
       const link = document.createElement('a');
       const baseName = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vyra-video';
       const extension = output.type.includes('mp4') ? 'mp4' : 'webm';
@@ -1231,7 +1392,6 @@ export const ProjectWorkspaceView: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(outputUrl), 60000);
       const voiceoverCount = audioClips.filter(Boolean).length;
       showToast(voiceoverCount ? 'Full video exported with voiceovers' : 'Full video exported without voiceovers', 'success');
       setExportProgress('Export complete. Downloaded ' + scenes.length + ' scenes as one ' + extension.toUpperCase() + ' video' + (extension === 'webm' ? ' (this browser does not support MP4 recording; try a browser with MP4/H.264 MediaRecorder support for MP4).' : '') + (voiceoverCount ? ' with voiceover audio for ' + voiceoverCount + ' of ' + scenes.length + ' scenes.' : '. Generate scene voiceovers to include narration audio next time.'));
@@ -1353,6 +1513,48 @@ export const ProjectWorkspaceView: React.FC = () => {
         </div>
       </div>
 
+      {/* Approval-gated production progress. Chat remains the primary control surface. */}
+      <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Production Checkpoints</h2>
+            <p className="text-[11px] text-slate-400 light:text-slate-500">{isLegacyWorkflow ? 'Existing project: checkpoint tracking starts when you approve the idea or script in AI Ideas Chat.' : 'Each stage must be reviewed before the next one unlocks.'} Paid media generation is never started by approval alone.</p>
+          </div>
+          <button type="button" onClick={() => setCurrentSection('ideas')} className="inline-flex items-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] hover:bg-[#55F4FF]/90">
+            <Sparkles className="w-3.5 h-3.5" />
+            Continue in AI Ideas Chat
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2">
+          {productionStages.map((stage, index) => {
+            const completed = index < activeProductionIndex;
+            const active = index === activeProductionIndex;
+            return (
+              <div key={stage.id} aria-current={active ? 'step' : undefined} className={'rounded-lg border px-2 py-2 text-center ' + (active ? 'border-[#55F4FF] bg-[#55F4FF]/10' : completed ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-[#2B3058] light:border-slate-200')}>
+                <div className={'text-[10px] font-semibold ' + (active ? 'text-[#55F4FF]' : completed ? 'text-emerald-400' : 'text-slate-500')}>{completed ? '✓ ' : String(index + 1).padStart(2, '0') + ' '}{stage.label}</div>
+              </div>
+            );
+          })}
+        </div>
+        {project.productionStageNotes && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+            <p className="text-[10px] font-bold text-amber-300">Targeted revision request</p>
+            <p className="text-xs text-slate-300 light:text-slate-700">{project.productionStageNotes}</p>
+          </div>
+        )}
+      </section>
+
+      {finalVideoPreviewUrl && (
+        <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Full Video Preview</h2>
+            <span className="text-[10px] text-emerald-400">Saved on this device</span>
+          </div>
+          <video src={finalVideoPreviewUrl} controls playsInline className="w-full max-h-[560px] rounded-lg bg-black" />
+          <p className="text-[11px] text-slate-400 light:text-slate-500">Review the assembled video here. If changes are needed, request the specific scene or voice correction in AI Ideas Chat before final approval.</p>
+        </section>
+      )}
+
       {/* 2. Main Studio Grid: Left Media Preview + Right Scene Inspector */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start min-w-0">
         {/* LEFT COLUMN: Media Preview & Playback Monitor (5 cols on large) */}
@@ -1399,7 +1601,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             >
               {currentScene?.mediaUrl ? (
                 <img
-                  src={currentScene.mediaUrl}
+                  src={sceneImageUrl || currentScene.mediaUrl}
                   alt={`Scene ${currentSceneIndex + 1}`}
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover select-none"
@@ -1553,6 +1755,31 @@ export const ProjectWorkspaceView: React.FC = () => {
                 />
               </div>
 
+              {/* Generate and review a real image for this scene before approving visual assets. */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#55F4FF]" />
+                      Generate Scene Image
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Generate only this scene’s visual. Review it before moving to voice production. API usage may incur charges.</p>
+                    {!imageGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after the script and dialogue are approved in AI Ideas Chat.</p>}
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !imageGenerationUnlocked || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingSceneImage ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingSceneImage ? 'Generating…' : sceneImageUrl ? 'Regenerate Scene Image' : 'Generate Scene Image'}
+                  </button>
+                </div>
+                {sceneImageUrl && (
+                  <div className="space-y-1">
+                    <img src={sceneImageUrl} alt={'Generated visual for scene ' + currentScene.order} className="w-full max-h-64 rounded-lg object-contain bg-black/30" />
+                    <p className="text-[10px] text-slate-400">{sceneImageCostUsd === null ? "Generated image saved on this device." : "Reported image cost: $" + sceneImageCostUsd.toFixed(4) + " USD"}</p>
+                  </div>
+                )}
+                {sceneImageError && <p role="alert" className="text-[11px] text-rose-400">{sceneImageError}</p>}
+              </div>
+
               {/* Real OpenRouter text-to-speech generation for the selected scene */}
               <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1562,8 +1789,9 @@ export const ProjectWorkspaceView: React.FC = () => {
                       Generate AI Voiceover
                     </h3>
                     <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
+                    {!voiceGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after every scene image is generated and approved.</p>}
                   </div>
-                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !voiceGenerationUnlocked || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
                   </button>
@@ -1617,6 +1845,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     <p className="text-[11px] text-slate-400 light:text-slate-500">
                       Creates a real clip using your selected OpenRouter Video model and its published capabilities. API usage may incur charges.
                     </p>
+                    {!videoGenerationUnlocked && <p className="text-[10px] text-amber-400">Unlocks after all scene voice samples are generated and approved.</p>}
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
                         <span>Clip duration</span>
@@ -1640,7 +1869,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                     </div>
                     {!videoModelMetadata?.supportedDurations?.length && <p className="mt-2 text-[10px] text-amber-400">This model did not publish supported durations. VYRA will try 4 seconds; check the model details if the request is rejected.</p>}
                   </div>
-                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !videoGenerationUnlocked || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
                     {isGeneratingClip ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {isGeneratingClip ? 'Generating…' : 'Generate ' + clipDuration + 's Clip'}
                   </button>

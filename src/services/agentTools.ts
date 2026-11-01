@@ -18,6 +18,7 @@ import {
   AspectRatio,
   ToolExecutionRecord,
   NavSection,
+  ProductionStage,
 } from '../types';
 
 export interface AgentContext {
@@ -26,6 +27,7 @@ export interface AgentContext {
   activeProject?: Project;
   savedIdeas: SavedIdea[];
   mediaAssets: MediaAsset[];
+  conversationMessages?: { role: 'user' | 'assistant' | 'system'; content: string }[];
   createProject: (newProject: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => string;
   updateProject: (id: string, updates: Partial<Project>) => void;
   archiveProject: (id: string) => void;
@@ -50,6 +52,27 @@ export interface AgentToolDefinition {
 }
 
 export const AGENT_TOOLS_REGISTRY: AgentToolDefinition[] = [
+  {
+    name: 'get_production_status',
+    displayName: 'Get Production Status',
+    description: 'Show the current production checkpoint and the next approval required for a project.',
+    category: 'system',
+    isOperational: true,
+  },
+  {
+    name: 'approve_production_stage',
+    displayName: 'Approve Production Stage',
+    description: 'Approve only the current checkpoint and unlock the next production stage. This does not start paid generation.',
+    category: 'system',
+    isOperational: true,
+  },
+  {
+    name: 'request_production_changes',
+    displayName: 'Request Production Changes',
+    description: 'Record requested revisions without restarting or regenerating the entire project.',
+    category: 'system',
+    isOperational: true,
+  },
   {
     name: 'list_projects',
     displayName: 'List Projects',
@@ -201,6 +224,116 @@ export async function executeAgentTool(
 
   try {
     switch (toolName) {
+      case 'get_production_status': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found.', timestamp };
+        const stage = target.productionStage || 'idea';
+        const stageLabels: Record<ProductionStage, string> = {
+          idea: 'Idea approval',
+          script_review: 'Script & dialogue review',
+          visual_review: 'Character & scene visual review',
+          voice_review: 'Voice & pronunciation review',
+          sample_review: 'Sample animation & lip-sync review',
+          full_production: 'Full scene production',
+          final_review: 'Final video preview',
+          publish_ready: 'Ready for final publishing approval',
+        };
+        const nextActions: Record<ProductionStage, string> = {
+          idea: 'Approve the idea to begin script and dialogue preparation.',
+          script_review: 'Review and approve the script before visual assets are generated.',
+          visual_review: 'Review character designs and scene images before voice production.',
+          voice_review: 'Check voice samples and pronunciation before animation.',
+          sample_review: 'Approve a sample animation before rendering every scene.',
+          full_production: 'Complete the approved scene renders and assemble the full video.',
+          final_review: 'Preview the complete video and request only the changes needed.',
+          publish_ready: 'Give final publishing approval before sending the video to a platform.',
+        };
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: '"' + target.title + '" is at: ' + stageLabels[stage] + '.',
+          outputData: { projectId: target.id, title: target.title, stage, stageLabel: stageLabels[stage], nextAction: nextActions[stage], notes: target.productionStageNotes || null },
+          resourceLink: { label: 'Open Production Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
+      case 'approve_production_stage': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found. Create or select a project first.', timestamp };
+        const currentStage: ProductionStage = target.productionStage || 'idea';
+        const requestedStage = (args.stage || currentStage) as ProductionStage;
+        if (requestedStage !== currentStage) {
+          return {
+            id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+            errorMessage: '"' + target.title + '" is currently at "' + currentStage + '". Finish that checkpoint before approving "' + requestedStage + '".',
+            timestamp,
+          };
+        }
+        const nextStage: Partial<Record<ProductionStage, ProductionStage>> = {
+          idea: 'script_review',
+          script_review: 'visual_review',
+          visual_review: 'voice_review',
+          voice_review: 'sample_review',
+          sample_review: 'full_production',
+          full_production: 'final_review',
+          final_review: 'publish_ready',
+        };
+        const next = nextStage[currentStage];
+        if (currentStage === 'script_review' && (!target.scenes.length || target.scenes.some((scene) => scene.status !== 'scripted' || !scene.narration.trim() || !scene.visualPrompt.trim()))) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate or edit a complete narration script and visual prompt for every scene before approving the script.', timestamp };
+        }
+        if (currentStage === 'visual_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedImageId))) {
+          const missing = target.scenes.filter((scene) => !scene.generatedImageId).map((scene) => scene.order);
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review an image for every scene before approving visuals. Missing scene images: ' + missing.join(', ') + '.', timestamp };
+        }
+        if (currentStage === 'voice_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedAudioId))) {
+          const missing = target.scenes.filter((scene) => !scene.generatedAudioId).map((scene) => scene.order);
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review the voiceover for every scene before approving voices. Missing voiceovers: ' + missing.join(', ') + '.', timestamp };
+        }
+        if (currentStage === 'sample_review' && !target.scenes.some((scene) => scene.generatedVideoId)) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate at least one sample animation clip and review it before starting full production.', timestamp };
+        }
+        if (currentStage === 'full_production' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedVideoId))) {
+          const missing = target.scenes.filter((scene) => !scene.generatedVideoId).map((scene) => scene.order);
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate every scene clip before moving to final video review. Missing scene clips: ' + missing.join(', ') + '.', timestamp };
+        }
+        if (currentStage === 'final_review' && (!target.finalVideoId || !target.scenes.length || target.scenes.some((scene) => !scene.generatedVideoId))) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate a video clip for every scene, then export and save the assembled final video preview before approving the final video.', timestamp };
+        }
+        if (!next) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'The final publishing checkpoint is already reached. No further production stage can be approved.', timestamp };
+        }
+        context.updateProject(target.id, { productionStage: next, productionStageUpdatedAt: timestamp, productionStageNotes: undefined });
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: 'Approved "' + currentStage + '" for "' + target.title + '". Next checkpoint: "' + next + '". No paid media generation was started.',
+          outputData: { projectId: target.id, approvedStage: currentStage, nextStage: next, generationStarted: false },
+          resourceLink: { label: 'Continue in Production Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
+      case 'request_production_changes': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found.', timestamp };
+        const notes = typeof args.notes === 'string' ? args.notes.trim() : '';
+        if (!notes) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Describe the specific scene, image, voice, pronunciation, or other part that needs changing.', timestamp };
+        context.updateProject(target.id, {
+          productionStageNotes: notes,
+          productionStage: target.productionStage === 'publish_ready' ? 'final_review' : target.productionStage,
+          finalVideoId: ['final_review', 'publish_ready'].includes(target.productionStage || '') ? undefined : target.finalVideoId,
+          finalVideoExportedAt: ['final_review', 'publish_ready'].includes(target.productionStage || '') ? undefined : target.finalVideoExportedAt,
+          productionStageUpdatedAt: timestamp,
+        });
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: 'Recorded a targeted revision request for "' + target.title + '". The current checkpoint is unchanged; the whole project will not be restarted.',
+          outputData: { projectId: target.id, stage: target.productionStage || 'idea', notes, fullRegenerationRequested: false },
+          resourceLink: { label: 'Open Storyboard Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
       case 'list_projects': {
         const status = args.status?.toLowerCase();
         const query = args.query?.toLowerCase();
@@ -267,6 +400,9 @@ export async function executeAgentTool(
             title: target.title,
             topic: target.topic,
             status: target.status,
+            productionStage: target.productionStage || 'idea',
+            productionStageNotes: target.productionStageNotes || null,
+            finalVideoExportedAt: target.finalVideoExportedAt || null,
             targetDuration: `${target.targetDuration}s`,
             aspectRatio: target.aspectRatio,
             format: target.format,
@@ -291,8 +427,8 @@ export async function executeAgentTool(
         const format: VideoFormat = args.format === 'long_form' ? 'long_form' : 'short_form';
         const aspectRatio: AspectRatio = args.aspectRatio || (format === 'short_form' ? '9:16' : '16:9');
         const category: ContentCategory = args.category || 'Tech & AI';
-        const sceneCount = Number(args.sceneCount) || (format === 'short_form' ? 3 : 5);
         const targetDuration = Number(args.targetDuration) || (format === 'short_form' ? 45 : 90);
+        const sceneCount = Math.min(16, Math.max(3, Number(args.sceneCount) || Math.ceil(targetDuration / 12)));
 
         // Build scenes
         const initialScenes: Scene[] = [];
@@ -323,8 +459,8 @@ export async function executeAgentTool(
           category,
           format,
           aspectRatio,
-          visualStyle: 'cyber_minimal',
-          narrationStyle: 'energetic_tech',
+          visualStyle: args.visualStyle || 'cyber_minimal',
+          narrationStyle: args.narrationStyle || 'energetic_tech',
           subtitleStyle: 'dynamic_pop',
           targetDuration,
           targetPlatforms: format === 'short_form' ? ['YouTube Shorts', 'TikTok', 'Instagram Reels'] : ['YouTube & Shorts', 'LinkedIn Video'],
@@ -511,50 +647,261 @@ export async function executeAgentTool(
       }
 
       case 'generate_storyboard': {
+        if (args.createFromConversation === true) {
+          const chatHistory = (context.conversationMessages || []).slice(-24);
+          const userHistory = chatHistory.filter((message) => message.role === 'user');
+          if (userHistory.length < 2) {
+            return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Discuss the story idea with me in AI Ideas Chat first. When you are happy with it, say “approve idea” and I will create the project and script from that discussion.', timestamp };
+          }
+          let apiKey = '';
+          let selectedModels: { text?: string } = {};
+          try {
+            apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+            selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+          } catch { /* Explain setup below. */ }
+          const model = selectedModels.text;
+          if (!apiKey || !model) {
+            return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Connect OpenRouter and select a Text model in Settings first. Idea approval uses text generation to prepare the script; image, voice, and video generation will wait for later approvals.', timestamp };
+          }
+          const chatText = chatHistory.map((message) => message.role.toUpperCase() + ': ' + message.content).join('\n').slice(-12000);
+          const briefPrompt = [
+            'The user has finished brainstorming and explicitly approved the idea. Turn the conversation below into one complete video project and its first reviewable script/storyboard.',
+            'Return ONLY valid JSON. Required shape: {"title":"...","topic":"...","targetDuration":120,"format":"short_form","aspectRatio":"9:16","visualStyle":"cinematic_3d","narrationStyle":"empathetic_storyteller","category":"Lifestyle & Culture","scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":12}]}',
+            'Preserve every creative decision the user made. Do not invent a different story or ignore requested characters, language, style, audience, platform, or duration.',
+            'If the user asked for a two-minute video, set targetDuration to 120. Otherwise use the duration discussed; if none was specified, use 60 seconds.',
+            'Create 3 to 16 scenes. The number of scenes must be appropriate for the duration. Scene durations must add up exactly to targetDuration.',
+            'Write the dialogue/narration in the language the user requested. If the user discussed the story in Burmese and did not request another language, write spoken dialogue in natural Burmese.',
+            'For cartoons, maintain consistent character names, personalities, clothing, colors, and appearance across scenes. Use clear speaker labels in dialogue.',
+            'Every visualPrompt must describe a distinct, production-ready frame. Every scene needs narration, visualPrompt, cameraMovement, and a positive integer duration.',
+            'Allowed format: short_form or long_form. Allowed aspectRatio: 9:16, 16:9, or 1:1.',
+            'Allowed visualStyle: hyper_realistic, cyber_minimal, cinematic_3d, anime_vector, documentary_grain.',
+            'Allowed narrationStyle: authoritative, conversational, energetic_tech, empathetic_storyteller.',
+            'Allowed category: Tech & AI, Science & Future, Product Showcase, Business & Finance, Documentary, Lifestyle & Culture.',
+            'Conversation:\n' + chatText,
+          ].join('\n');
+          try {
+            const response = await fetch('/api/providers/openrouter/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+              body: JSON.stringify({ model, messages: [{ role: 'user', content: briefPrompt }] }),
+            });
+            const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+            if (!response.ok) throw new Error(data.error || 'Could not create the project from your approved idea.');
+            if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('The Text model returned an empty project brief.');
+            const fence = String.fromCharCode(96).repeat(3);
+            const cleanText = data.text.trim().startsWith(fence)
+              ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim()
+              : data.text.trim();
+            const parsed = JSON.parse(cleanText) as {
+              title?: unknown; topic?: unknown; targetDuration?: unknown; format?: unknown; aspectRatio?: unknown;
+              visualStyle?: unknown; narrationStyle?: unknown; category?: unknown;
+              scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }>;
+            };
+            const title = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim().slice(0, 120) : 'New Video Story';
+            const topic = typeof parsed.topic === 'string' && parsed.topic.trim() ? parsed.topic.trim().slice(0, 4000) : userHistory.map((message) => message.content).join('\n').slice(-3000);
+            const format: VideoFormat = parsed.format === 'long_form' ? 'long_form' : 'short_form';
+            const ratio = ['9:16', '16:9', '1:1'].includes(String(parsed.aspectRatio)) ? String(parsed.aspectRatio) as AspectRatio : format === 'long_form' ? '16:9' : '9:16';
+            const visualStyles = ['hyper_realistic', 'cyber_minimal', 'cinematic_3d', 'anime_vector', 'documentary_grain'];
+            const narrationStyles = ['authoritative', 'conversational', 'energetic_tech', 'empathetic_storyteller'];
+            const categories = ['Tech & AI', 'Science & Future', 'Product Showcase', 'Business & Finance', 'Documentary', 'Lifestyle & Culture'];
+            const visualStyle = visualStyles.includes(String(parsed.visualStyle)) ? String(parsed.visualStyle) as Project['visualStyle'] : 'cinematic_3d';
+            const narrationStyle = narrationStyles.includes(String(parsed.narrationStyle)) ? String(parsed.narrationStyle) as Project['narrationStyle'] : 'empathetic_storyteller';
+            const category = categories.includes(String(parsed.category)) ? String(parsed.category) as ContentCategory : 'Lifestyle & Culture';
+            const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+            if (rawScenes.length < 3 || rawScenes.length > 16) throw new Error('The Text model did not return between 3 and 16 scenes. Please approve again or adjust the story.');
+            const targetDuration = Number.isInteger(Number(parsed.targetDuration)) && Number(parsed.targetDuration) >= rawScenes.length
+              ? Math.min(3600, Number(parsed.targetDuration))
+              : 60;
+            const normalized = rawScenes.map((scene) => {
+              const narration = typeof scene.narration === 'string' ? scene.narration.trim() : '';
+              const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
+              const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
+              const duration = Number(scene.duration);
+              if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) {
+                throw new Error('The Text model returned an incomplete scene. No project was created; please retry.');
+              }
+              return { narration, visualPrompt, cameraMovement: cameraMovement || 'Static cinematic shot', duration };
+            });
+            const rawTotal = normalized.reduce((sum, scene) => sum + scene.duration, 0);
+            let assigned = 0;
+            const scenes: Scene[] = normalized.map((scene, index) => {
+              const remaining = normalized.length - index - 1;
+              const available = Math.max(1, targetDuration - assigned - remaining);
+              const duration = index === normalized.length - 1
+                ? Math.max(1, targetDuration - assigned)
+                : Math.min(available, Math.max(1, Math.round(scene.duration * targetDuration / rawTotal)));
+              assigned += duration;
+              return {
+                id: 'sc-' + Date.now().toString(36) + '-' + (index + 1),
+                order: index + 1,
+                narration: scene.narration,
+                visualPrompt: scene.visualPrompt,
+                cameraMovement: scene.cameraMovement,
+                duration,
+                mediaUrl: index % 2 === 0
+                  ? '/src/assets/images/hero_cyber_city_1792925206979.jpg'
+                  : '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+                status: 'scripted',
+              };
+            });
+            const platforms = format === 'short_form'
+              ? ['TikTok', 'YouTube Shorts', 'Instagram Reels']
+              : ['YouTube', 'Facebook'];
+            const newId = context.createProject({
+              title, topic, category, format, aspectRatio: ratio, visualStyle, narrationStyle,
+              subtitleStyle: 'dynamic_pop',
+              targetDuration,
+              targetPlatforms: platforms,
+              coverImage: scenes[0].mediaUrl,
+              publishingCaption: title + ' — ' + topic.slice(0, 120),
+              selectedPlatformsForPublishing: ['tiktok', 'youtube'],
+              scenes,
+            });
+            context.setActiveProjectId(newId);
+            context.updateProject(newId, { productionStage: 'script_review', productionStageUpdatedAt: timestamp });
+            return {
+              id: execId, toolName, displayName, status: 'success', inputArgs: args,
+              outputSummary: 'Created "' + title + '" from the approved Chat discussion with ' + scenes.length + ' scripted scenes. Only text generation was used; no image, voice, or video generation was started.',
+              outputData: { projectId: newId, title, sceneCount: scenes.length, targetDuration, stage: 'script_review', textModel: model },
+              resourceLink: { label: 'Review Script & Storyboard', section: 'workspace', resourceId: newId },
+              timestamp,
+            };
+          } catch (error) {
+            return {
+              id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+              errorMessage: error instanceof Error ? error.message : 'Could not create the project from this conversation.',
+              timestamp,
+            };
+          }
+        }
+
         const target = resolveProject(args.projectId);
         if (!target) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found to generate storyboard.', timestamp };
+        }
+
+        let apiKey = '';
+        let selectedModels: { text?: string } = {};
+        try {
+          apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+          selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+        } catch { /* Explain the required setup below. */ }
+        const model = selectedModels.text;
+        if (!apiKey || !model) {
           return {
-            id: execId,
-            toolName,
-            displayName,
-            status: 'failed',
-            inputArgs: args,
-            errorMessage: 'Target project not found to generate storyboard.',
+            id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+            errorMessage: 'Connect OpenRouter and select a Text model in Settings before asking VYRA to generate the script and storyboard. No paid image, voice, or video generation has been started.',
             timestamp,
           };
         }
 
-        const count = Math.min(10, Math.max(2, Number(args.sceneCount) || 4));
-        const theme = args.themePrompt || target.topic || target.title;
+        const count = Math.min(16, Math.max(3, Number(args.sceneCount) || Math.ceil(target.targetDuration / 12)));
+        const conversationText = (context.conversationMessages || []).map((message) => message.content).join('\n');
+        const language = typeof args.language === 'string' && args.language.trim()
+          ? args.language.trim()
+          : /(?:in|use|write|speak|dialogue in)\s+english/i.test(conversationText)
+            ? 'English'
+            : /[\u1000-\u109F]/.test(target.topic + ' ' + conversationText) ? 'Burmese' : 'English';
+        const prompt = [
+          'Create a production-ready scene-by-scene script and storyboard for this video project.',
+          'Return ONLY valid JSON with this exact shape: {"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}.',
+          'Do not wrap JSON in Markdown fences. Do not claim that any image, voice, or video has been generated.',
+          'Create exactly ' + count + ' scenes. Every scene needs complete spoken dialogue or narration, a detailed visual prompt, camera movement, and a positive integer duration.',
+          'The scene durations must add up to exactly ' + target.targetDuration + ' seconds.',
+          'Use ' + language + ' for the spoken dialogue. For cartoon stories, label each speaker clearly inside narration (for example, "MAYA: ...") and keep character voices distinguishable in the wording.',
+          'Keep character names, personalities, clothing, colors, and physical traits consistent across every scene. Do not introduce new characters without a story reason.',
+          'Visual style: ' + target.visualStyle.replace(/_/g, ' ') + '.',
+          'Narration style: ' + target.narrationStyle.replace(/_/g, ' ') + '.',
+          'Video title: ' + target.title,
+          'Story / topic: ' + target.topic,
+          'Format: ' + target.format + ', aspect ratio ' + target.aspectRatio + '.',
+          'Target duration: ' + target.targetDuration + ' seconds.',
+          'Project category: ' + target.category,
+          'Storyboard direction: ' + (args.themePrompt || 'Build a coherent beginning, middle, and ending with clear visual continuity.'),
+          'Prior brainstorming and user-approved creative decisions:\n' + (context.conversationMessages || []).slice(-20).map((message) => message.role.toUpperCase() + ': ' + message.content).join('\n').slice(-10000),
+        ].join('\n');
 
-        // Add additional scenes to reach target count
-        const currentCount = target.scenes.length;
-        const needed = Math.max(0, count - currentCount);
-
-        for (let i = 1; i <= needed; i++) {
-          const order = currentCount + i;
-          context.addScene(target.id, {
-            narration: `Scene ${order}: Exploring key perspectives of ${theme.slice(0, 60)}.`,
-            visualPrompt: `Futuristic cinematic visualization of ${theme.slice(0, 50)}`,
-            cameraMovement: i % 2 === 0 ? 'Sweeping aerial pedestal' : 'Inward macro push',
-            duration: 10,
+        try {
+          const response = await fetch('/api/providers/openrouter/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+            body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
           });
-        }
+          const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+          if (!response.ok) throw new Error(data.error || 'Storyboard generation failed. Check the selected Text model and retry.');
+          if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('The selected Text model returned an empty storyboard.');
+          const fence = String.fromCharCode(96).repeat(3);
+          const cleanText = data.text.trim().startsWith(fence)
+            ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim()
+            : data.text.trim();
+          const parsed = JSON.parse(cleanText) as { scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
+          if (!Array.isArray(parsed.scenes) || parsed.scenes.length !== count) {
+            throw new Error('The model did not return exactly ' + count + ' complete scenes. Retry or choose another Text model.');
+          }
+          const rawScenes = parsed.scenes.map((scene) => {
+            const narration = typeof scene.narration === 'string' ? scene.narration.trim() : '';
+            const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
+            const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
+            const duration = Number(scene.duration);
+            if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) {
+              throw new Error('The model returned an incomplete scene or invalid duration. No storyboard changes were saved.');
+            }
+            return { narration, visualPrompt, cameraMovement: cameraMovement || 'Static cinematic shot', duration };
+          });
+          const rawTotal = rawScenes.reduce((sum, scene) => sum + scene.duration, 0);
+          let assignedDuration = 0;
+          const scenes = rawScenes.map((scene, index) => {
+            const remainingScenes = rawScenes.length - index - 1;
+            const available = Math.max(1, target.targetDuration - assignedDuration - remainingScenes);
+            const duration = index === rawScenes.length - 1
+              ? Math.max(1, target.targetDuration - assignedDuration)
+              : Math.min(available, Math.max(1, Math.round(scene.duration * target.targetDuration / rawTotal)));
+            assignedDuration += duration;
+            return { ...scene, duration };
+          });
 
-        return {
-          id: execId,
-          toolName,
-          displayName,
-          status: 'success',
-          inputArgs: args,
-          outputSummary: `Generated storyboard sequence with ${target.scenes.length + needed} total scenes for "${target.title}".`,
-          resourceLink: {
-            label: 'Inspect Storyboard',
-            section: 'workspace',
-            resourceId: target.id,
-          },
-          timestamp,
-        };
+          const existing = [...target.scenes].sort((a, b) => a.order - b.order);
+          existing.forEach((scene, index) => {
+            if (index < scenes.length) {
+              context.updateScene(target.id, scene.id, {
+                order: index + 1,
+                narration: scenes[index].narration,
+                visualPrompt: scenes[index].visualPrompt,
+                cameraMovement: scenes[index].cameraMovement,
+                duration: scenes[index].duration,
+                generatedImageId: undefined,
+                generatedAudioId: undefined,
+                generatedVideoId: undefined,
+                status: 'scripted',
+              });
+            } else {
+              context.removeScene(target.id, scene.id);
+            }
+          });
+          for (let index = existing.length; index < scenes.length; index++) {
+            context.addScene(target.id, {
+              narration: scenes[index].narration,
+              visualPrompt: scenes[index].visualPrompt,
+              cameraMovement: scenes[index].cameraMovement,
+              duration: scenes[index].duration,
+              status: 'scripted',
+            });
+          }
+
+          return {
+            id: execId, toolName, displayName, status: 'success', inputArgs: args,
+            outputSummary: 'Generated a real AI script and storyboard with ' + scenes.length + ' scenes for "' + target.title + '". Only text generation was used; no paid image, voice, or video generation was started.',
+            outputData: { projectId: target.id, sceneCount: scenes.length, targetDuration: target.targetDuration, textModel: model, generatedMedia: false },
+            resourceLink: { label: 'Review Script & Storyboard', section: 'workspace', resourceId: target.id },
+            timestamp,
+          };
+        } catch (error) {
+          return {
+            id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+            errorMessage: error instanceof Error ? error.message : 'Could not generate the storyboard. No media generation was started.',
+            timestamp,
+          };
+        }
       }
 
       case 'save_content_idea': {
@@ -634,6 +981,17 @@ export async function executeAgentTool(
 
       case 'approve_project_for_review': {
         const target = resolveProject(args.projectId);
+        if (target?.productionStage && target.productionStage !== 'publish_ready') {
+          return {
+            id: execId,
+            toolName,
+            displayName,
+            status: 'failed',
+            inputArgs: args,
+            errorMessage: 'Complete all production checkpoints and approve the final video before approving this project for publishing.',
+            timestamp,
+          };
+        }
         if (!target) {
           return {
             id: execId,
@@ -758,19 +1116,107 @@ export async function processAgentRequest(
   const lower = text.toLowerCase();
   const toolExecutions: ToolExecutionRecord[] = [];
 
+  // Approval gates keep paid generation behind explicit user checkpoints.
+  if (/(production|workflow).*(status|stage)|what stage.*project|အဆင့်.*(ဘယ်|ပြ)|project.*အဆင့်/i.test(text)) {
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('get_production_status', { projectId: target?.id }, context);
+    toolExecutions.push(exec);
+    const data = exec.outputData;
+    return {
+      assistantResponse: data
+        ? '**' + data.title + ' — ' + data.stageLabel + '**\n\n' + data.nextAction + (data.notes ? '\n\n**Revision notes:** ' + data.notes : '') + '\n\nChecking status does not start generation.'
+        : exec.errorMessage || 'I could not find an active project.',
+      toolExecutions,
+    };
+  }
+
+  const approvalMatch =
+    lower.match(/approve\s+(?:the\s+)?(idea|script|dialogue|character(?:s)?|visuals?|images?|voice|audio|sample|animation|lip.?sync|full production|final video)/i) ||
+    lower.match(/(idea|script|dialogue|character(?:s)?|visuals?|images?|voice|audio|sample|animation|lip.?sync|full production|final video)(?:\s*ကို)?\s*(?:approve|အတည်ပြု)/i);
+  if (approvalMatch) {
+    const term = approvalMatch[1].toLowerCase();
+    const stage: ProductionStage =
+      term === 'idea' ? 'idea' :
+      ['script', 'dialogue'].includes(term) ? 'script_review' :
+      ['character', 'characters', 'visual', 'visuals', 'image', 'images'].includes(term) ? 'visual_review' :
+      ['voice', 'audio'].includes(term) ? 'voice_review' :
+      ['sample', 'animation', 'lip-sync', 'lipsync'].includes(term) ? 'sample_review' :
+      term === 'full production' ? 'full_production' : 'final_review';
+    const target = stage === 'idea' ? context.activeProject : context.activeProject || context.projects[0];
+    if (!target && stage === 'idea') {
+      const created = await executeAgentTool('generate_storyboard', { createFromConversation: true }, context);
+      toolExecutions.push(created);
+      return {
+        assistantResponse: created.status === 'success'
+          ? 'Your idea is approved. I created **"' + created.outputData?.title + '"** from our Chat discussion and prepared the script with ' + created.outputData?.sceneCount + ' scenes. The next checkpoint is **Script & Dialogue Review**. Text-model usage may incur a small charge; no image, voice, or video generation has started.'
+          : created.errorMessage || 'I could not create a project from this idea. The approval has not advanced.',
+        toolExecutions,
+      };
+    }
+    if (!target) {
+      return { assistantResponse: 'Select the project you want to approve first. I will not apply approval to an unrelated project.', toolExecutions: [] };
+    }
+
+    if (stage === 'idea') {
+      const storyboard = await executeAgentTool('generate_storyboard', { projectId: target.id }, context);
+      toolExecutions.push(storyboard);
+      if (storyboard.status !== 'success') {
+        return {
+          assistantResponse: storyboard.errorMessage || 'I could not prepare the script. The idea has not been advanced to the next checkpoint.',
+          toolExecutions,
+        };
+      }
+    }
+
+    const exec = await executeAgentTool('approve_production_stage', { projectId: target.id, stage }, context);
+    toolExecutions.push(exec);
+    return {
+      assistantResponse: exec.status === 'success'
+        ? (stage === 'idea'
+          ? 'Your idea is approved for **"' + target.title + '"**. I generated the script and scene-by-scene storyboard using the selected Text model.\n\nThe next checkpoint is **Script & Dialogue Review**. Text-model usage may incur a small charge. No image, voice, or video generation has started.'
+          : 'Approved **' + term + '** for **"' + target.title + '"**.\n\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not automatically start paid image, voice, or video generation.\n\nSay **"show production status"** to see what is next.')
+        : exec.errorMessage || 'This approval could not be applied.',
+      toolExecutions,
+    };
+  }
+
+  if (/(change|revise|regenerate|fix|not happy|မကြိုက်|ပြင်)/i.test(text) && /(scene|voice|audio|pronunciation|character|image|visual|lip.?sync|အသံ|မြန်မာ|ဇာတ်ကောင်)/i.test(text)) {
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('request_production_changes', { projectId: target?.id, notes: text }, context);
+    toolExecutions.push(exec);
+    return {
+      assistantResponse: exec.status === 'success'
+        ? 'I saved the targeted revision request for **"' + target?.title + '"**. No regeneration has started yet. The current stage is unchanged, and the whole project will not be restarted.'
+        : exec.errorMessage || 'I could not record that revision request.',
+      toolExecutions,
+    };
+  }
+
   // 1. "Create a new project called [name]" / "Create project [name]"
   const createProjectMatch =
     text.match(/create\s+(?:a\s+)?(?:new\s+)?project\s+(?:called|named|titled)?\s*["“]?([^"”\n\.]+)/i) ||
     (lower.startsWith('create project') ? text.match(/create project\s*["“]?([^"”\n\.]+)/i) : null);
 
   if (createProjectMatch && createProjectMatch[1]) {
-    const rawTitle = createProjectMatch[1].trim();
+    const durationMatch = text.match(/(\d+)\s*-?\s*(minutes?|mins?|seconds?|secs?)/i);
+    const durationValue = durationMatch ? Number(durationMatch[1]) : 0;
+    const targetDuration = durationMatch
+      ? durationValue * (/min/i.test(durationMatch[2]) ? 60 : 1)
+      : undefined;
+    const rawTitle = createProjectMatch[1].trim()
+      .replace(/\s+(?:with\s+)?\d+\s+scenes?.*$/i, '')
+      .replace(/\s+for\s+\d+\s*-?\s*(?:minutes?|mins?|seconds?|secs?).*$/i, '')
+      .trim() || 'New Video Project';
     const isShorts = lower.includes('short') || lower.includes('reel') || lower.includes('tiktok') || lower.includes('9:16');
-    const isLong = lower.includes('long') || lower.includes('16:9') || lower.includes('10-minute') || lower.includes('documentary');
+    const isLong = lower.includes('long') || lower.includes('16:9') || lower.includes('documentary');
+    const isCartoon = lower.includes('cartoon') || lower.includes('animation') || lower.includes('animated');
+    const visualStyle = lower.includes('anime') ? 'anime_vector' : isCartoon ? 'cinematic_3d' : 'cyber_minimal';
 
-    // Scene count extraction if present e.g. "with 8 scenes"
+    // Prefer the requested scene count; otherwise pace scenes at roughly 10–12 seconds each.
     const sceneCountMatch = text.match(/(\d+)\s+scenes?/i);
-    const sceneCount = sceneCountMatch ? parseInt(sceneCountMatch[1], 10) : (isShorts ? 3 : 4);
+    const sceneCount = sceneCountMatch
+      ? parseInt(sceneCountMatch[1], 10)
+      : Math.min(16, Math.max(3, Math.ceil((targetDuration || (isLong ? 90 : 45)) / 12)));
 
     const exec = await executeAgentTool(
       'create_project',
@@ -780,7 +1226,9 @@ export async function processAgentRequest(
         format: isLong ? 'long_form' : 'short_form',
         aspectRatio: isLong ? '16:9' : '9:16',
         sceneCount,
-        category: lower.includes('space') || lower.includes('science') ? 'Science & Future' : 'Tech & AI',
+        ...(targetDuration ? { targetDuration } : {}),
+        visualStyle,
+        category: isCartoon ? 'Lifestyle & Culture' : lower.includes('space') || lower.includes('science') ? 'Science & Future' : 'Tech & AI',
       },
       context
     );
