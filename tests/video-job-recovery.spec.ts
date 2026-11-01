@@ -26,7 +26,7 @@ async function openWorkspace(page: import('@playwright/test').Page) {
 async function savePendingJobInIndexedDb(page: import('@playwright/test').Page) {
   await page.evaluate(async (job) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 4);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -89,7 +89,7 @@ test('a saved OpenRouter video job survives refresh and resumes by its original 
 
   const recoveredJob = await page.evaluate(async (jobId) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 4);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });

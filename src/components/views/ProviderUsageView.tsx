@@ -7,6 +7,7 @@ import {
   getVideoGenerationJobs,
   updateSavedMediaCost,
   updateVideoGenerationJob,
+  updateLinkedVideoGenerationCost,
   type SavedMediaAudio,
   type SavedMediaImage,
   type SavedMediaVideo,
@@ -215,10 +216,13 @@ export const ProviderUsageView: React.FC = () => {
           });
           const data = await response.json().catch(() => ({})) as { costUsd?: unknown; error?: string };
           if (response.ok && typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0) {
-            if (entry.kind === 'video' && entry.id.startsWith('job:')) {
+            if (entry.kind === 'video' && entry.id.startsWith('job:') && entry.mediaId) {
+              // A linked job and its saved video are one logical usage record.
+              // Persist both costs in a single IndexedDB transaction.
+              await updateLinkedVideoGenerationCost(entry.id.slice(4), entry.mediaId, data.costUsd);
+            } else if (entry.kind === 'video' && entry.id.startsWith('job:')) {
               await updateVideoGenerationJob(entry.id.slice(4), { costUsd: data.costUsd });
-            }
-            if (entry.kind === 'video' && entry.mediaId) {
+            } else if (entry.kind === 'video' && entry.mediaId) {
               await updateSavedMediaCost('video', entry.mediaId, data.costUsd);
             } else if (entry.kind !== 'video') {
               await updateSavedMediaCost(entry.kind, entry.id.replace(/^(image|audio):/, ''), data.costUsd);
