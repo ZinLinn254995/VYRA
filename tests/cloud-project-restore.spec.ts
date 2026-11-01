@@ -38,8 +38,9 @@ test('restores portable project metadata and storyboard fields with safe default
   assert.equal(project.productionStage, 'script_review');
   assert.equal(project.scenes.length, 1);
   assert.equal(project.scenes[0].narration, 'A black hole bends spacetime.');
-  assert.equal(project.scenes[0].mediaUrl, '/src/assets/images/scene_quantum_chip_1792925206672.jpg');
+  assert.equal(project.scenes[0].mediaUrl, '', 'missing media must stay empty, not use demo artwork');
   assert.equal(project.scenes[0].generatedVideoId, undefined);
+  assert.equal(project.coverImage, '', 'missing cover media must stay empty, not use demo artwork');
 });
 
 test('rejects malformed cloud project rows and falls back from unknown enum values', () => {
