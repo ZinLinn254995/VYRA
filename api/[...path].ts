@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { createAiRouter } from '../src/server/ai.js';
 import { createPricingRouter } from '../src/server/pricing.js';
+import { createSupabaseAuthRouter } from '../src/server/supabaseAuth.js';
 
 // Vercel deploys this catch-all as a serverless function. The local Express
 // development server is not available in the Vercel runtime.
@@ -10,12 +11,15 @@ app.use(express.json({ limit: '1mb' }));
 
 const aiRouter = createAiRouter();
 const pricingRouter = createPricingRouter();
+const authRouter = createSupabaseAuthRouter();
 // Vercel normally strips the /api prefix for function routes. Also mount the
 // prefixed form for runtimes that preserve the original request pathname.
 app.use('/', pricingRouter);
 app.use('/', aiRouter);
+app.use('/', authRouter);
 app.use('/api', pricingRouter);
 app.use('/api', aiRouter);
+app.use('/api/auth', authRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'VYRA API route not found.' });
