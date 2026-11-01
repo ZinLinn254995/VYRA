@@ -442,7 +442,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const currentStage = proj.productionStage;
         const currentStageIndex = currentStage ? stageOrder.indexOf(currentStage) : -1;
         const resetStageIndex = resetStage ? stageOrder.indexOf(resetStage) : -1;
-        const nextStage = currentStage && resetStage && currentStageIndex > resetStageIndex ? resetStage : currentStage;
+        const nextStage = currentStage === 'publish_ready'
+          ? resetStage && currentStageIndex > resetStageIndex ? resetStage : 'final_review'
+          : currentStage && resetStage && currentStageIndex > resetStageIndex ? resetStage : currentStage;
         const contentChanged = updates.narration !== undefined || updates.visualPrompt !== undefined;
         return {
           ...proj,
