@@ -1,0 +1,30 @@
+name: VYRA Database Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/database.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/database.yml'
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase services
+        run: supabase start -x studio,imgproxy,inbucket
+      - name: Apply migrations and run RLS tests
+        run: |
+          supabase db reset
+          supabase test db
