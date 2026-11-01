@@ -60,6 +60,13 @@ export const AGENT_TOOLS_REGISTRY: AgentToolDefinition[] = [
     isOperational: true,
   },
   {
+    name: 'open_production_workspace',
+    displayName: 'Open Production Workspace',
+    description: 'Open the selected project workspace without starting generation.',
+    category: 'system',
+    isOperational: true,
+  },
+  {
     name: 'approve_production_stage',
     displayName: 'Approve Production Stage',
     description: 'Approve only the current checkpoint and unlock the next production stage. Scene images are optional references; text-to-video is also supported. Approval never starts paid generation.',
@@ -224,6 +231,14 @@ export async function executeAgentTool(
 
   try {
     switch (toolName) {
+      case 'open_production_workspace': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Project not found. Create or select a project first.', timestamp };
+        context.setActiveProjectId(target.id);
+        context.setCurrentSection('workspace');
+        return { id: execId, toolName, displayName, status: 'success', inputArgs: args, outputSummary: 'Opened ' + target.title + ' in the workspace. No media generation was started.', outputData: { projectId: target.id, generationStarted: false }, resourceLink: { label: 'Open Production Workspace', section: 'workspace', resourceId: target.id }, timestamp };
+      }
+
       case 'get_production_status': {
         const target = resolveProject(args.projectId);
         if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found.', timestamp };
@@ -1139,6 +1154,13 @@ export async function processAgentRequest(
         : exec.errorMessage || 'I could not find an active project.',
       toolExecutions,
     };
+  }
+
+  if (/(open|go to|continue).*(workspace|storyboard|production)|workspace ကိုဖွင့်/i.test(text)) {
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('open_production_workspace', { projectId: target?.id }, context);
+    toolExecutions.push(exec);
+    return { assistantResponse: exec.status === 'success' ? 'Opened **' + target?.title + '** in the Production Workspace. No image, voice, or video generation was started.' : exec.errorMessage || 'I could not open the workspace.', toolExecutions };
   }
 
   const approvalMatch =
