@@ -23,8 +23,8 @@ async function openWorkspace(page: import('@playwright/test').Page) {
   await expect(page.getByText(/Storyboard Timeline/)).toBeVisible();
 }
 
-async function savePendingJobInIndexedDb(page: import('@playwright/test').Page) {
-  await page.evaluate(async (job) => {
+async function savePendingJobsInIndexedDb(page: import('@playwright/test').Page, jobs: typeof savedJob[] = [savedJob]) {
+  await page.evaluate(async (jobs) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
@@ -33,7 +33,7 @@ async function savePendingJobInIndexedDb(page: import('@playwright/test').Page) 
     try {
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction('video-generation-jobs', 'readwrite');
-        transaction.objectStore('video-generation-jobs').put(job);
+        for (const job of job) transaction.objectStore('video-generation-jobs').put(job);
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
         transaction.onabort = () => reject(transaction.error);
@@ -41,7 +41,7 @@ async function savePendingJobInIndexedDb(page: import('@playwright/test').Page) 
     } finally {
       db.close();
     }
-  }, savedJob);
+  }, jobs);
 }
 
 test('a saved OpenRouter video job survives refresh and resumes by its original Job ID', async ({ page }) => {
@@ -105,5 +105,78 @@ test('a saved OpenRouter video job survives refresh and resumes by its original 
   expect(recoveredJob?.costUsd).toBe(0.001);
   expect(statusRequests).toBe(1);
   expect(contentRequests).toBe(1);
+  expect(generationRequests).toBe(0);
+});
+
+
+test('multiple saved OpenRouter video jobs recover sequentially without duplicate generation', async ({ page }) => {
+  const jobIds = [savedJob.jobId, 'test-openrouter-job-456'];
+  const statusRequests: string[] = [];
+  const contentRequests: string[] = [];
+  let generationRequests = 0;
+
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
+  });
+  await page.route('**/api/providers/openrouter/videos/generate', async (route) => {
+    generationRequests += 1;
+    await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'A duplicate generation request was made.' }) });
+  });
+  await page.route(/\/api\/providers\/openrouter\/videos\/([^/]+)$/, async (route) => {
+    const jobId = new URL(route.request().url()).pathname.split('/').pop() || '';
+    statusRequests.push(jobId);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ jobId, generationId: 'gen-' + jobId, status: 'completed', costUsd: 0.002 }),
+    });
+  });
+  await page.route(/\/api\/providers\/openrouter\/videos\/([^/]+)\/content$/, async (route) => {
+    const jobId = new URL(route.request().url()).pathname.split('/').slice(-2, -1)[0];
+    contentRequests.push(jobId);
+    await route.fulfill({ status: 200, contentType: 'video/mp4', body: Buffer.from([0, 0, 0, 0, 102, 116, 121, 112]) });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await openWorkspace(page);
+  await page.waitForTimeout(250);
+
+  const secondJob = await page.evaluate((baseJob) => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{
+      id: string;
+      title: string;
+      scenes: Array<{ id: string; order?: number; visualPrompt: string; cameraMovement: string; narration: string }>;
+    }>;
+    const project = projects.find((item) => item.id === baseJob.projectId);
+    const scene = project?.scenes.find((item) => item.id !== baseJob.sceneId);
+    if (!project || !scene) throw new Error('A second scene is required for the sequential recovery test.');
+    return {
+      ...baseJob,
+      jobId: 'test-openrouter-job-456',
+      sceneId: scene.id,
+      sceneOrder: 2,
+      visualPrompt: scene.visualPrompt,
+      cameraMovement: scene.cameraMovement,
+      narration: scene.narration,
+      prompt: 'A second mocked video generation request for recovery testing.',
+      status: 'pending' as const,
+      savedVideoId: undefined,
+      generationId: undefined,
+      costUsd: undefined,
+    };
+  }, savedJob);
+  await savePendingJobsInIndexedDb(page, [savedJob, secondJob]);
+
+  await page.reload();
+  await openWorkspace(page);
+
+  await expect.poll(async () => page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem('vyra_projects_v1') || '[]') as Array<{ id: string; scenes: Array<{ id: string; generatedVideoId?: string }> }>;
+    return projects.find(project => project.id === 'proj-01-quantum')?.scenes.filter(scene => Boolean(scene.generatedVideoId)).length || 0;
+  })).toBeGreaterThanOrEqual(2);
+
+  expect(statusRequests.sort()).toEqual([...jobIds].sort());
+  expect(contentRequests.sort()).toEqual([...jobIds].sort());
   expect(generationRequests).toBe(0);
 });
