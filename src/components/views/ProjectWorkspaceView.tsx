@@ -321,13 +321,17 @@ export const ProjectWorkspaceView: React.FC = () => {
 
     getVideoGenerationJobs(project.id).then((savedJobs) => {
       jobs = savedJobs;
-      recoveryJob = jobs.find((job) =>
+      const recoverableJobs = jobs.filter((job) =>
         ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status)
       );
+      recoveryJob = recoverableJobs.find((job) => {
+        const scene = latestScenesRef.current.find((item) => item.id === job.sceneId);
+        return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration);
+      }) || recoverableJobs[0];
       if (!recoveryJob) return;
       const targetScene = latestScenesRef.current.find((scene) => scene.id === recoveryJob?.sceneId);
       if (!targetScene) {
-        setClipStatus('A saved video job belongs to a scene that no longer exists. Review the job before generating another clip.');
+        setClipStatus('A saved video job belongs to a scene that no longer exists. Its Job ID remains saved for review.');
         return;
       }
       if (targetScene.generatedVideoId) {
@@ -498,7 +502,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   const handleGenerateClip = async () => {
     if (!project || !currentScene || isGeneratingClip) return;
     const existingJobs = await getVideoGenerationJobs(project.id).catch(() => []);
-    const existingJob = existingJobs.find((job) => job.sceneId === currentScene.id && ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status));
+    const existingJob = existingJobs.find((job) => job.sceneId === currentScene.id && ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status) && job.visualPrompt === currentScene.visualPrompt && job.cameraMovement === currentScene.cameraMovement && job.narration === currentScene.narration);
     if (existingJob) {
       setClipStatus('An existing video job (' + existingJob.jobId + ') is already saved. Resume or check that job before starting another generation.');
       return;
@@ -591,6 +595,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           // An expired/missing job is terminal. Never keep polling it as though
           // the provider were temporarily unavailable.
           if (statusResponse.status === 404) {
+            activeVideoJobStatus = 'expired';
+            await updateVideoGenerationJob(submitted.jobId, { status: 'expired', lastError: status.error || 'The provider no longer has this job.' }).catch(() => undefined);
             throw new Error(status.error || 'This video job was not found or has expired. Check your OpenRouter activity before starting another generation.');
           }
           // Retry rate limits and transient server errors against the SAME job ID.
