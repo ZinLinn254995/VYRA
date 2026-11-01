@@ -17,6 +17,7 @@ import { PublishingView } from './components/views/PublishingView';
 import { MediaLibraryView } from './components/views/MediaLibraryView';
 import { AnalyticsView } from './components/views/AnalyticsView';
 import { SettingsView } from './components/views/SettingsView';
+import { VideoJobRecoveryView } from './components/views/VideoJobRecoveryView';
 import { Toast } from './components/common/Toast';
 
 const StudioContent: React.FC = () => {
@@ -44,6 +45,8 @@ const StudioContent: React.FC = () => {
         return <PublishingView />;
       case 'analytics':
         return <AnalyticsView />;
+      case 'jobs':
+        return <VideoJobRecoveryView />;
       case 'settings':
         return <SettingsView />;
       default:

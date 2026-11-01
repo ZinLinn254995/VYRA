@@ -16,6 +16,7 @@ import {
   CheckSquare,
   Share2,
   BarChart3,
+  Activity,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -89,6 +90,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
       id: 'analytics',
       label: 'Analytics',
       icon: <BarChart3 className="w-5 h-5 shrink-0" />,
+    },
+    {
+      id: 'jobs',
+      label: 'Video Job Recovery',
+      icon: <Activity className="w-5 h-5 shrink-0" />,
     },
     {
       id: 'settings',

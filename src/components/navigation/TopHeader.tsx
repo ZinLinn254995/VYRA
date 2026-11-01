@@ -40,6 +40,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onOpenMobileMenu }) => {
     review: 'Review & Quality Queue',
     publishing: 'Social Distribution & Channels',
     analytics: 'Workspace & Studio Telemetry',
+    jobs: 'Video Job Recovery',
     settings: 'Settings & Brand Identity',
   };
 
