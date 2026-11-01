@@ -106,7 +106,10 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       signal: AbortSignal.timeout(60_000),
     });
     const data = await upstream.json().catch(() => ({})) as {
+      id?: string;
+      model?: string;
       choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; total_cost?: number };
     };
     if (!upstream.ok) {
       return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
@@ -126,7 +129,23 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
         ? rawContent.map((part) => typeof part.text === 'string' ? part.text : '').join('').trim()
         : '';
     if (!text) return res.status(502).json({ error: 'The selected model returned an empty response.' });
-    return res.status(200).json({ text, modelName: model, provider: 'openrouter' });
+    const finiteOrNull = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+    const generationId = typeof data.id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(data.id)
+      ? data.id
+      : upstream.headers.get('x-generation-id');
+    return res.status(200).json({
+      text,
+      modelName: typeof data.model === 'string' ? data.model : model,
+      provider: 'openrouter',
+      generationId: generationId && /^[a-zA-Z0-9_-]{1,200}$/.test(generationId) ? generationId : null,
+      usage: data.usage ? {
+        promptTokens: finiteOrNull(data.usage.prompt_tokens),
+        completionTokens: finiteOrNull(data.usage.completion_tokens),
+        totalTokens: finiteOrNull(data.usage.total_tokens),
+        costUsd: finiteOrNull(data.usage.cost ?? data.usage.total_cost),
+      } : null,
+    });
   } catch {
     return res.status(502).json({ error: 'Could not reach OpenRouter. Check your connection and retry.' });
   }
@@ -215,6 +234,84 @@ router.get('/providers/openrouter/usage/key', async (req: Request, res: Response
     });
   } catch {
     return res.status(502).json({ error: 'Could not reach OpenRouter. Check your connection and retry.' });
+  }
+});
+
+// Read-only generation metadata lookup. IDs must come from a real OpenRouter response;
+// this endpoint never submits a generation and never returns the raw provider payload.
+const generationLookupWindows = new Map<string, { count: number; resetAt: number }>();
+router.get('/providers/openrouter/generation/:generationId', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key in Settings to inspect generation details.' });
+
+  const generationId = req.params.generationId;
+  if (!/^[a-zA-Z0-9_-]{1,200}$/.test(generationId)) {
+    return res.status(400).json({ error: 'Invalid OpenRouter generation ID.' });
+  }
+
+  const now = Date.now();
+  const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
+  let window = generationLookupWindows.get(clientKey);
+  if (!window || window.resetAt <= now) {
+    window = { count: 0, resetAt: now + 60_000 };
+    generationLookupWindows.set(clientKey, window);
+  }
+  window.count += 1;
+  if (window.count > 30) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil((window.resetAt - now) / 1000))));
+    return res.status(429).json({ error: 'Generation lookup limit reached. Wait before retrying.' });
+  }
+  if (generationLookupWindows.size > 5000) {
+    for (const [entryKey, entry] of generationLookupWindows) {
+      if (entry.resetAt <= now) generationLookupWindows.delete(entryKey);
+    }
+  }
+
+  try {
+    const upstream = await openRouterFetch(
+      'https://openrouter.ai/api/v1/generation?id=' + encodeURIComponent(generationId),
+      apiKey,
+    );
+    const payload = await upstream.json().catch(() => ({})) as {
+      data?: {
+        id?: string; model?: string; provider_name?: string; total_cost?: number;
+        tokens_prompt?: number; tokens_completion?: number; native_tokens_prompt?: number;
+        native_tokens_completion?: number; generation_time?: number; finish_reason?: string;
+        created_at?: string; streamed?: boolean;
+      };
+    };
+    if (!upstream.ok || !payload.data) {
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401
+        : upstream.status === 404 ? 404 : upstream.status === 429 ? 429 : 502).json({
+        error: upstream.status === 401 || upstream.status === 403
+          ? 'OpenRouter rejected the key. Reconnect it in Settings.'
+          : upstream.status === 404
+            ? 'Generation details are not available for this ID yet.'
+            : upstream.status === 429
+              ? 'OpenRouter rate limit reached. Wait before retrying.'
+              : 'OpenRouter could not return generation details right now.',
+      });
+    }
+    const data = payload.data;
+    const finiteOrNull = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+    return res.status(200).json({
+      generationId: typeof data.id === 'string' ? data.id : generationId,
+      model: typeof data.model === 'string' ? data.model : null,
+      provider: typeof data.provider_name === 'string' ? data.provider_name : null,
+      costUsd: finiteOrNull(data.total_cost),
+      promptTokens: finiteOrNull(data.tokens_prompt),
+      completionTokens: finiteOrNull(data.tokens_completion),
+      nativePromptTokens: finiteOrNull(data.native_tokens_prompt),
+      nativeCompletionTokens: finiteOrNull(data.native_tokens_completion),
+      generationTimeSeconds: finiteOrNull(data.generation_time),
+      finishReason: typeof data.finish_reason === 'string' ? data.finish_reason.slice(0, 120) : null,
+      createdAt: typeof data.created_at === 'string' ? data.created_at : null,
+      streamed: typeof data.streamed === 'boolean' ? data.streamed : null,
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach OpenRouter generation details. Check connection and retry.' });
   }
 });
 
