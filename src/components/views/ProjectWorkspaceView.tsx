@@ -51,8 +51,8 @@ const activeVideoRecoveryJobs = new Set<string>();
 // Pricing metadata is not consistently available for every modality/model, so disclose
 // that limitation rather than inventing a dollar amount or credit estimate.
 const confirmBillableGeneration = (details: string): boolean => window.confirm(
-  'VYRA generation cost confirmation\\n\\n' + details +
-  '\\n\\nEstimated cost: UNAVAILABLE — this model/provider has not supplied a verified estimate.\\nActual charges may apply to your provider account. Check the provider pricing page before continuing.\\n\\nContinue and start this billable generation?'
+  'VYRA generation cost confirmation\n\n' + details +
+  '\n\nEstimated cost: UNAVAILABLE — this model/provider has not supplied a verified estimate.\nActual charges may apply to your provider account. Check the provider pricing page before continuing.\n\nContinue and start this billable generation?'
 );
 
 const getMediaFileExtension = (mimeType: string, kind: 'video' | 'audio'): string => {
@@ -672,7 +672,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         'Aspect ratio: ' + clipAspectRatio,
         'Keep motion coherent and visually polished. Do not add unrequested captions, subtitles, watermarks, or UI text.',
       ].join('\n');
-      if (!confirmBillableGeneration('Type: Video clip\\nModel: ' + model + '\\nDuration: ' + clipDuration + ' seconds\\nAspect ratio: ' + clipAspectRatio + '\\nResolution: ' + (clipResolution || 'Model default') + '\\nProject: ' + project.title + '\\nScene: ' + targetScene.order)) {
+      if (!confirmBillableGeneration('Type: Video clip\nModel: ' + model + '\nDuration: ' + clipDuration + ' seconds\nAspect ratio: ' + clipAspectRatio + '\nResolution: ' + (clipResolution || 'Model default') + '\nProject: ' + project.title + '\nScene: ' + targetScene.order)) {
         setIsGeneratingClip(false);
         setClipStatus('Generation cancelled. No video request was sent.');
         return;
@@ -872,7 +872,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
       'Keep the character design coherent with the project style and scene description.',
     ].join('\n');
-    if (!confirmBillableGeneration('Type: Scene image\\nModel: ' + model + '\\nAspect ratio: ' + project.aspectRatio + '\\nProject: ' + project.title + '\\nScene: ' + targetScene.order)) {
+    if (!confirmBillableGeneration('Type: Scene image\nModel: ' + model + '\nAspect ratio: ' + project.aspectRatio + '\nProject: ' + project.title + '\nScene: ' + targetScene.order)) {
       setSceneImageError('Generation cancelled. No image request was sent.');
       return;
     }
@@ -943,7 +943,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch { /* setup guidance below */ }
       const model = selectedModels.audio;
       if (!apiKey || !model) throw new Error('Connect OpenRouter and discover/select a Speech / Voiceover model in Settings first.');
-      if (!confirmBillableGeneration('Type: Voiceover audio\\nModel: ' + model + '\\nVoice: ' + (voiceName.trim() || 'Model default') + '\\nText length: ' + narration.length + ' characters\\nProject: ' + project.title + '\\nScene: ' + targetScene.order)) {
+      if (!confirmBillableGeneration('Type: Voiceover audio\nModel: ' + model + '\nVoice: ' + (voiceName.trim() || 'Model default') + '\nText length: ' + narration.length + ' characters\nProject: ' + project.title + '\nScene: ' + targetScene.order)) {
         setVoiceoverStatus('Generation cancelled. No audio request was sent.');
         setIsGeneratingVoiceover(false);
         return;
