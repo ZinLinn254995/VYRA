@@ -64,6 +64,8 @@ export interface Scene {
   cameraMovement: string;
   duration: number; // in seconds
   mediaUrl: string;
+  /** IndexedDB key for a generated scene image stored on this device. */
+  generatedImageId?: string;
   /** IndexedDB key for a generated clip stored on this device. */
   generatedVideoId?: string;
   /** IndexedDB key for a generated voiceover stored on this device. */
