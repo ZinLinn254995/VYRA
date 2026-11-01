@@ -344,3 +344,76 @@ test('Provider Usage rotates cost recovery batches so records after the first 20
   expect(lookedUpIds).toContain('gen-batch-021');
   expect(lookedUpIds).toContain('gen-batch-022');
 });
+
+
+test('Provider Usage does not report a deleted standalone video job cost as saved', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'sk-or-v1-test-session-secret');
+  });
+  await page.route('**/api/providers/openrouter/usage/key', async (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      usage: 0, usageDaily: 0, usageWeekly: 0, usageMonthly: 0, limit: null,
+      limitRemaining: null, limitReset: null, isFreeTier: true, expiresAt: null,
+      fetchedAt: '2026-11-01T09:30:00.000Z',
+    }),
+  }));
+  await page.route('**/api/providers/openrouter/generation/gen-standalone-video', async (route) => {
+    // Remove the job after the provider returns a cost but before IndexedDB writes it.
+    await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('vyra-media-library', 6);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction('video-generation-jobs', 'readwrite');
+        transaction.objectStore('video-generation-jobs').delete('job-standalone-video');
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      });
+      db.close();
+    });
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ costUsd: 0.006 }),
+    });
+  });
+
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('vyra-media-library', 6);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains('generated-images')) database.createObjectStore('generated-images', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('generated-audio')) database.createObjectStore('generated-audio', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('generated-videos')) database.createObjectStore('generated-videos', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('video-generation-jobs')) database.createObjectStore('video-generation-jobs', { keyPath: 'jobId' });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('video-generation-jobs', 'readwrite');
+      transaction.objectStore('video-generation-jobs').put({
+        jobId: 'job-standalone-video', projectId: 'project-standalone',
+        projectTitle: 'Standalone video job', sceneId: 'scene-standalone',
+        sceneOrder: 1, model: 'test/video-model', prompt: 'test',
+        visualPrompt: 'test', cameraMovement: 'static', narration: '',
+        duration: 5, aspectRatio: '9:16', status: 'completed',
+        createdAt: '2026-11-01T09:02:00.000Z', updatedAt: '2026-11-01T09:03:00.000Z',
+        costUsd: null, generationId: 'gen-standalone-video',
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    db.close();
+  });
+
+  await page.getByRole('button', { name: 'Open mobile menu' }).click();
+  await page.getByRole('button', { name: 'Provider Usage' }).click();
+  await expect(page.getByText('Standalone video job · Scene 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Look up missing costs' }).click();
+  await expect(page.getByRole('status')).toContainText('0 provider-reported cost(s) saved. 1 record(s) remain unavailable.');
+});
