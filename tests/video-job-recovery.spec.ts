@@ -23,7 +23,7 @@ async function openWorkspace(page: import('@playwright/test').Page) {
   await expect(page.getByText(/Storyboard Timeline/)).toBeVisible();
 }
 
-async function savePendingJobsInIndexedDb(page: import('@playwright/test').Page, jobs: typeof savedJob[] = [savedJob]) {
+async function savePendingJobsInIndexedDb(page: import('@playwright/test').Page, jobs: Array<typeof savedJob> = [savedJob]) {
   await page.evaluate(async (jobs) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('vyra-media-library', 6);
@@ -33,7 +33,7 @@ async function savePendingJobsInIndexedDb(page: import('@playwright/test').Page,
     try {
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction('video-generation-jobs', 'readwrite');
-        for (const job of job) transaction.objectStore('video-generation-jobs').put(job);
+        for (const job of jobs) transaction.objectStore('video-generation-jobs').put(job);
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
         transaction.onabort = () => reject(transaction.error);
