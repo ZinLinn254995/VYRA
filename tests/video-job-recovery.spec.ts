@@ -75,7 +75,7 @@ test('a saved OpenRouter video job survives refresh and resumes by its original 
   // Let the initial empty-job lookup finish before inserting the simulated pre-refresh job.
   await page.waitForTimeout(250);
   expect(statusRequests).toBe(0);
-  await savePendingJobInIndexedDb(page);
+  await savePendingJobsInIndexedDb(page);
 
   // A full reload simulates closing and reopening the workspace. The next visit
   // must recover the saved provider job rather than submit a second generation.
