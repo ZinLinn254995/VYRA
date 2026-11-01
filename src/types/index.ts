@@ -14,6 +14,7 @@ export type NavSection =
   | 'publishing'
   | 'analytics'
   | 'jobs'
+  | 'usage'
   | 'settings';
 
 export type AspectRatio = '9:16' | '16:9' | '1:1';
