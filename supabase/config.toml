@@ -1,0 +1,3 @@
+# Local Supabase project configuration for VYRA development.
+# Generated/local service settings can be customized with `supabase init` and the CLI.
+project_id = "vyra"
