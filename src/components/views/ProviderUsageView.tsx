@@ -13,7 +13,20 @@ import {
 
 type UsageKind = 'image' | 'video' | 'audio';
 type TimeRange = '7d' | '30d' | 'all';
-type OpenRouterKeyUsage = {\n  usage: number | null;\n  usageDaily: number | null;\n  usageWeekly: number | null;\n  usageMonthly: number | null;\n  limit: number | null;\n  limitRemaining: number | null;\n  limitReset: string | null;\n  isFreeTier: boolean | null;\n  expiresAt: string | null;\n  fetchedAt: string;\n};\n\ntype UsageEntry = {
+type OpenRouterKeyUsage = {
+  usage: number | null;
+  usageDaily: number | null;
+  usageWeekly: number | null;
+  usageMonthly: number | null;
+  limit: number | null;
+  limitRemaining: number | null;
+  limitReset: string | null;
+  isFreeTier: boolean | null;
+  expiresAt: string | null;
+  fetchedAt: string;
+};
+
+type UsageEntry = {
   id: string;
   kind: UsageKind;
   title: string;
@@ -107,7 +120,10 @@ export const ProviderUsageView: React.FC = () => {
   const [error, setError] = useState('');
   const [range, setRange] = useState<TimeRange>('30d');
   const [kind, setKind] = useState<'all' | UsageKind>('all');
-  const [query, setQuery] = useState('');\n  const [keyUsage, setKeyUsage] = useState<OpenRouterKeyUsage | null>(null);\n  const [keyUsageError, setKeyUsageError] = useState('');\n  const [keyUsageLoading, setKeyUsageLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [keyUsage, setKeyUsage] = useState<OpenRouterKeyUsage | null>(null);
+  const [keyUsageError, setKeyUsageError] = useState('');
+  const [keyUsageLoading, setKeyUsageLoading] = useState(false);
 
   const refresh = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true);
