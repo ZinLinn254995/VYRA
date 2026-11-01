@@ -416,6 +416,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           scenes: [...proj.scenes, newScene],
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -432,6 +434,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates } : sc)),
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -450,6 +454,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           scenes: renumbered,
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
@@ -470,6 +476,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           scenes: renumbered,
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
+          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
+          productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
       })
