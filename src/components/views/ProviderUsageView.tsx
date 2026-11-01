@@ -35,6 +35,7 @@ type UsageEntry = {
   costUsd: number | null;
   status: string;
   projectTitle?: string;
+  generationId?: string;
   detail?: string;
 };
 
@@ -61,7 +62,8 @@ function buildUsageEntries(
     title: image.title,
     model: image.model,
     createdAt: image.createdAt,
-    costUsd: typeof image.costUsd === 'number' && Number.isFinite(image.costUsd) ? image.costUsd : null,
+    costUsd: typeof image.costUsd === 'number' && Number.isFinite(image.costUsd) && image.costUsd >= 0 ? image.costUsd : null,
+    generationId: image.generationId,
     status: 'Saved',
     detail: 'Saved image',
   }));
@@ -105,8 +107,9 @@ function buildUsageEntries(
     model: audio.model,
     createdAt: audio.createdAt,
     costUsd: null,
+    generationId: audio.generationId,
     status: 'Saved',
-    detail: 'Voice: ' + audio.voice + ' · Cost not returned by current speech endpoint',
+    detail: 'Voice: ' + audio.voice + ' · Cost not reported by current speech endpoint',
   }));
 
   return [...imageEntries, ...videoEntries, ...remainingJobEntries, ...audioEntries]
@@ -183,7 +186,7 @@ export const ProviderUsageView: React.FC = () => {
       const timestamp = new Date(entry.createdAt).getTime();
       const matchesRange = range === 'all' || (Number.isFinite(timestamp) && timestamp >= cutoff);
       const matchesKind = kind === 'all' || entry.kind === kind;
-      const matchesQuery = !needle || [entry.title, entry.model, entry.projectTitle || '', entry.detail || '', entry.status]
+      const matchesQuery = !needle || [entry.title, entry.model, entry.projectTitle || '', entry.generationId || '', entry.detail || '', entry.status]
         .some((value) => value.toLowerCase().includes(needle));
       return matchesRange && matchesKind && matchesQuery;
     });
@@ -356,6 +359,7 @@ export const ProviderUsageView: React.FC = () => {
                   </div>
                   <p className="text-[10px] text-slate-400 light:text-slate-500 mt-1 break-all">{entry.model}</p>
                   <p className="text-[10px] text-slate-500 mt-1">{entry.detail} · {dateLabel(entry.createdAt)}</p>
+                  {entry.generationId && <p className="text-[10px] text-slate-500 font-mono mt-1 break-all">Generation ID: {entry.generationId}</p>}
                 </div>
                 <div className="sm:text-right shrink-0">
                   <p className="text-xs font-mono font-semibold tabular-nums text-white light:text-slate-900">{entry.costUsd === null ? 'Not reported' : money(entry.costUsd)}</p>
