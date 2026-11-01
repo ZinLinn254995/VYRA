@@ -347,7 +347,6 @@ export const ProjectWorkspaceView: React.FC = () => {
             return;
           }
           updateScene(recoveryJob.projectId, recoveryJob.sceneId, { generatedVideoId: alreadySaved.id, status: 'ready' });
-          await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
           if (selectedSceneIdRef.current === recoveryJob.sceneId) {
             setGeneratedClipMimeType(alreadySaved.blob.type || '');
             setGeneratedClipUrl(URL.createObjectURL(alreadySaved.blob));
