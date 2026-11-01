@@ -319,7 +319,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
     } catch { /* Storage may be unavailable in a restricted browser. */ }
 
-    getVideoGenerationJobs(project.id).then((savedJobs) => {
+    getVideoGenerationJobs(project.id).then(async (savedJobs) => {
       jobs = savedJobs;
       const recoverableJobs = jobs.filter((job) =>
         ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status)
@@ -334,8 +334,32 @@ export const ProjectWorkspaceView: React.FC = () => {
         setClipStatus('A saved video job belongs to a scene that no longer exists. Its Job ID remains saved for review.');
         return;
       }
-      if (targetScene.generatedVideoId) {
-        void deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+      if (recoveryJob.savedVideoId && targetScene.generatedVideoId === recoveryJob.savedVideoId) {
+        await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+        return;
+      }
+      if (recoveryJob.savedVideoId) {
+        const alreadySaved = await getSavedVideo(recoveryJob.savedVideoId).catch(() => undefined);
+        if (alreadySaved) {
+          if (targetScene.generatedVideoId && targetScene.generatedVideoId !== recoveryJob.previousVideoId) {
+            await updateVideoGenerationJob(recoveryJob.jobId, { status: 'needs_attention', lastError: 'The scene now points to a different clip; the recovered media was not attached.' });
+            setClipStatus('A saved video result is ready, but this scene has since been linked to another clip. Review the job before replacing it.');
+            return;
+          }
+          updateScene(recoveryJob.projectId, recoveryJob.sceneId, { generatedVideoId: alreadySaved.id, status: 'ready' });
+          await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+          if (selectedSceneIdRef.current === recoveryJob.sceneId) {
+            setGeneratedClipMimeType(alreadySaved.blob.type || '');
+            setGeneratedClipUrl(URL.createObjectURL(alreadySaved.blob));
+            setClipStatus('Recovered the saved video file and restored its scene link.');
+          }
+          showToast('Saved video clip link recovered', 'success');
+          return;
+        }
+      }
+      if (targetScene.generatedVideoId && targetScene.generatedVideoId !== recoveryJob.previousVideoId) {
+        await updateVideoGenerationJob(recoveryJob.jobId, { status: 'needs_attention', lastError: 'The scene now points to a different clip; the job was not allowed to overwrite it.' });
+        setClipStatus('A saved video job exists, but this scene now contains a different clip. Review the previous job before generating another.');
         return;
       }
       if (!apiKey) {
@@ -434,8 +458,8 @@ export const ProjectWorkspaceView: React.FC = () => {
             projectId: job.projectId,
             sceneId: job.sceneId,
           });
+          await updateVideoGenerationJob(job.jobId, { savedVideoId: saved.id, status: 'completed', costUsd, lastError: undefined });
           updateScene(job.projectId, job.sceneId, { generatedVideoId: saved.id, status: 'ready' });
-          await deleteVideoGenerationJob(job.jobId);
           if (selectedSceneIdRef.current === job.sceneId) {
             setGeneratedClipMimeType(blob.type || '');
             setGeneratedClipUrl(URL.createObjectURL(blob));
@@ -502,7 +526,12 @@ export const ProjectWorkspaceView: React.FC = () => {
   const handleGenerateClip = async () => {
     if (!project || !currentScene || isGeneratingClip) return;
     const existingJobs = await getVideoGenerationJobs(project.id).catch(() => []);
-    const existingJob = existingJobs.find((job) => job.sceneId === currentScene.id && ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status) && job.visualPrompt === currentScene.visualPrompt && job.cameraMovement === currentScene.cameraMovement && job.narration === currentScene.narration);
+    for (const previousJob of existingJobs) {
+      if (previousJob.sceneId === currentScene.id && previousJob.savedVideoId && previousJob.savedVideoId === currentScene.generatedVideoId) {
+        await deleteVideoGenerationJob(previousJob.jobId).catch(() => undefined);
+      }
+    }
+    const existingJob = existingJobs.find((job) => job.sceneId === currentScene.id && ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status) && job.savedVideoId !== currentScene.generatedVideoId && job.visualPrompt === currentScene.visualPrompt && job.cameraMovement === currentScene.cameraMovement && job.narration === currentScene.narration);
     if (existingJob) {
       setClipStatus('An existing video job (' + existingJob.jobId + ') is already saved. Resume or check that job before starting another generation.');
       return;
@@ -557,6 +586,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         duration: clipDuration,
         aspectRatio: clipAspectRatio,
         ...(clipResolution ? { resolution: clipResolution } : {}),
+        ...(targetScene.generatedVideoId ? { previousVideoId: targetScene.generatedVideoId } : {}),
         status: 'pending' as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -668,8 +698,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene changed while saving. Generate a fresh clip for the updated scene.');
           return;
         }
+        await updateVideoGenerationJob(submitted.jobId, { savedVideoId: saved.id, status: 'completed', costUsd: generatedCostUsd, lastError: undefined }).catch(() => undefined);
         updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
-        await deleteVideoGenerationJob(submitted.jobId).catch(() => undefined);
       } catch {
         if (selectedSceneIdRef.current === targetScene.id) setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
       }
