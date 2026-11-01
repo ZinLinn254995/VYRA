@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
+import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio, ProductionStage } from '../../types';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
@@ -46,14 +47,6 @@ type OpenRouterAudioModel = { id: string; supportedVoiceIds?: string[] };
 
 // Prevent duplicate recovery polling when the workspace is remounted in this tab.
 const activeVideoRecoveryJobs = new Set<string>();
-
-// Billable provider calls must never start from a workflow approval alone.
-// Pricing metadata is not consistently available for every modality/model, so disclose
-// that limitation rather than inventing a dollar amount or credit estimate.
-const confirmBillableGeneration = (details: string): boolean => window.confirm(
-  'VYRA generation cost confirmation\n\n' + details +
-  '\n\nEstimated cost: UNAVAILABLE — this model/provider has not supplied a verified estimate.\nActual charges may apply to your provider account. Check the provider pricing page before continuing.\n\nContinue and start this billable generation?'
-);
 
 const getMediaFileExtension = (mimeType: string, kind: 'video' | 'audio'): string => {
   const mime = mimeType.split(';', 1)[0].trim().toLowerCase();
@@ -672,7 +665,13 @@ export const ProjectWorkspaceView: React.FC = () => {
         'Aspect ratio: ' + clipAspectRatio,
         'Keep motion coherent and visually polished. Do not add unrequested captions, subtitles, watermarks, or UI text.',
       ].join('\n');
-      if (!confirmBillableGeneration('Type: Video clip\nModel: ' + model + '\nDuration: ' + clipDuration + ' seconds\nAspect ratio: ' + clipAspectRatio + '\nResolution: ' + (clipResolution || 'Model default') + '\nProject: ' + project.title + '\nScene: ' + targetScene.order)) {
+      if (!(await confirmSpendBeforeGeneration({
+        operation: 'Generate scene video clip',
+        capability: 'video',
+        model,
+        apiKey,
+        parameters: { durationSeconds: clipDuration, resolution: clipResolution || undefined },
+      }))) {
         setIsGeneratingClip(false);
         setClipStatus('Generation cancelled. No video request was sent.');
         return;
@@ -872,7 +871,13 @@ export const ProjectWorkspaceView: React.FC = () => {
       'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
       'Keep the character design coherent with the project style and scene description.',
     ].join('\n');
-    if (!confirmBillableGeneration('Type: Scene image\nModel: ' + model + '\nAspect ratio: ' + project.aspectRatio + '\nProject: ' + project.title + '\nScene: ' + targetScene.order)) {
+    if (!(await confirmSpendBeforeGeneration({
+      operation: 'Generate scene image',
+      capability: 'image',
+      model,
+      apiKey,
+      parameters: { imageCount: 1, inputImageCount: 0 },
+    }))) {
       setSceneImageError('Generation cancelled. No image request was sent.');
       return;
     }
@@ -943,7 +948,13 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch { /* setup guidance below */ }
       const model = selectedModels.audio;
       if (!apiKey || !model) throw new Error('Connect OpenRouter and discover/select a Speech / Voiceover model in Settings first.');
-      if (!confirmBillableGeneration('Type: Voiceover audio\nModel: ' + model + '\nVoice: ' + (voiceName.trim() || 'Model default') + '\nText length: ' + narration.length + ' characters\nProject: ' + project.title + '\nScene: ' + targetScene.order)) {
+      if (!(await confirmSpendBeforeGeneration({
+        operation: 'Generate scene voiceover',
+        capability: 'audio',
+        model,
+        apiKey,
+        parameters: { inputCharacters: narration.length },
+      }))) {
         setVoiceoverStatus('Generation cancelled. No audio request was sent.');
         setIsGeneratingVoiceover(false);
         return;
