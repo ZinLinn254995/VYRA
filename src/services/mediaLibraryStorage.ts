@@ -28,6 +28,8 @@ export interface SavedMediaVideo {
   blob: Blob;
   model: string;
   costUsd: number | null;
+  /** OpenRouter generation reference; distinct from the asynchronous video Job ID. */
+  generationId?: string;
   projectId: string;
   sceneId: string;
   createdAt: string;
@@ -321,6 +323,8 @@ export interface SavedVideoGenerationJob {
   createdAt: string;
   updatedAt: string;
   costUsd?: number | null;
+  /** OpenRouter generation reference; distinct from jobId. */
+  generationId?: string;
   lastError?: string;
 }
 
