@@ -71,6 +71,16 @@ export interface Scene {
   status: 'scripted' | 'rendering' | 'ready';
 }
 
+export type ProductionStage =
+  | 'idea'
+  | 'script_review'
+  | 'visual_review'
+  | 'voice_review'
+  | 'sample_review'
+  | 'full_production'
+  | 'final_review'
+  | 'publish_ready';
+
 export interface Project {
   id: string;
   title: string;
@@ -88,6 +98,10 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   coverImage: string;
+  /** Current approval checkpoint in the staged production workflow. */
+  productionStage?: ProductionStage;
+  productionStageUpdatedAt?: string;
+  productionStageNotes?: string;
   reviewNotes?: string;
   publishingCaption?: string;
   selectedPlatformsForPublishing?: string[];
