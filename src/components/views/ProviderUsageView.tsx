@@ -207,21 +207,27 @@ export const ProviderUsageView: React.FC = () => {
     let unavailable = 0;
     try {
       for (const entry of candidates) {
-        const response = await fetch('/api/providers/openrouter/generation/' + encodeURIComponent(entry.generationId!), {
-          headers: { 'x-openrouter-api-key': openRouterKey },
-        });
-        const data = await response.json().catch(() => ({})) as { costUsd?: unknown; error?: string };
-        if (response.ok && typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0) {
-          if (entry.kind === 'video' && entry.id.startsWith('job:')) {
-            await updateVideoGenerationJob(entry.id.slice(4), { costUsd: data.costUsd });
+        // Each generation lookup is independent: a transient network or storage
+        // error for one record must not prevent the remaining records from syncing.
+        try {
+          const response = await fetch('/api/providers/openrouter/generation/' + encodeURIComponent(entry.generationId!), {
+            headers: { 'x-openrouter-api-key': openRouterKey },
+          });
+          const data = await response.json().catch(() => ({})) as { costUsd?: unknown; error?: string };
+          if (response.ok && typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0) {
+            if (entry.kind === 'video' && entry.id.startsWith('job:')) {
+              await updateVideoGenerationJob(entry.id.slice(4), { costUsd: data.costUsd });
+            }
+            if (entry.kind === 'video' && entry.mediaId) {
+              await updateSavedMediaCost('video', entry.mediaId, data.costUsd);
+            } else if (entry.kind !== 'video') {
+              await updateSavedMediaCost(entry.kind, entry.id.replace(/^(image|audio):/, ''), data.costUsd);
+            }
+            updated += 1;
+          } else {
+            unavailable += 1;
           }
-          if (entry.kind === 'video' && entry.mediaId) {
-            await updateSavedMediaCost('video', entry.mediaId, data.costUsd);
-          } else if (entry.kind !== 'video') {
-            await updateSavedMediaCost(entry.kind, entry.id.replace(/^(image|audio):/, ''), data.costUsd);
-          }
-          updated += 1;
-        } else {
+        } catch {
           unavailable += 1;
         }
       }
