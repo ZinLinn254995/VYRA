@@ -695,8 +695,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // explicit spend approval; approving a creative brief is not spend approval.
       if (agentResult.toolExecutions.length === 0) {
         const isScriptOrStoryboardRequest =
-          /\\b(script|storyboard|dialogue|narration)\\b/i.test(content) ||
-          /\\b(generate|create|write|draft|develop)\\b.{0,50}\\b(scene|visual sequence)\\b/i.test(content);
+          /\b(script|storyboard|dialogue|narration)\b/i.test(content) ||
+          /\b(generate|create|write|draft|develop)\b.{0,50}\\b(scene|visual sequence)\b/i.test(content);
         let approvedForSpend = true;
         if (isScriptOrStoryboardRequest) {
           let apiKey = '';
