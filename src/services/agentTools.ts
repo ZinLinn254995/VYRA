@@ -641,6 +641,134 @@ export async function executeAgentTool(
       }
 
       case 'generate_storyboard': {
+        if (args.createFromConversation === true) {
+          const chatHistory = (context.conversationMessages || []).slice(-24);
+          const userHistory = chatHistory.filter((message) => message.role === 'user');
+          if (!userHistory.length) {
+            return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'I need the idea discussion in AI Ideas Chat before I can create a project from it.', timestamp };
+          }
+          let apiKey = '';
+          let selectedModels: { text?: string } = {};
+          try {
+            apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+            selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+          } catch { /* Explain setup below. */ }
+          const model = selectedModels.text;
+          if (!apiKey || !model) {
+            return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Connect OpenRouter and select a Text model in Settings first. Idea approval uses text generation to prepare the script; image, voice, and video generation will wait for later approvals.', timestamp };
+          }
+          const chatText = chatHistory.map((message) => message.role.toUpperCase() + ': ' + message.content).join('\n').slice(-12000);
+          const briefPrompt = [
+            'The user has finished brainstorming and explicitly approved the idea. Turn the conversation below into one complete video project and its first reviewable script/storyboard.',
+            'Return ONLY valid JSON. Required shape: {"title":"...","topic":"...","targetDuration":120,"format":"short_form","aspectRatio":"9:16","visualStyle":"cinematic_3d","narrationStyle":"empathetic_storyteller","category":"Lifestyle & Culture","scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":12}]}',
+            'Preserve every creative decision the user made. Do not invent a different story or ignore requested characters, language, style, audience, platform, or duration.',
+            'If the user asked for a two-minute video, set targetDuration to 120. Otherwise use the duration discussed; if none was specified, use 60 seconds.',
+            'Create 3 to 16 scenes. The number of scenes must be appropriate for the duration. Scene durations must add up exactly to targetDuration.',
+            'Write the dialogue/narration in the language the user requested. If the user discussed the story in Burmese and did not request another language, write spoken dialogue in natural Burmese.',
+            'For cartoons, maintain consistent character names, personalities, clothing, colors, and appearance across scenes. Use clear speaker labels in dialogue.',
+            'Every visualPrompt must describe a distinct, production-ready frame. Every scene needs narration, visualPrompt, cameraMovement, and a positive integer duration.',
+            'Allowed format: short_form or long_form. Allowed aspectRatio: 9:16, 16:9, or 1:1.',
+            'Allowed visualStyle: hyper_realistic, cyber_minimal, cinematic_3d, anime_vector, documentary_grain.',
+            'Allowed narrationStyle: authoritative, conversational, energetic_tech, empathetic_storyteller.',
+            'Allowed category: Tech & AI, Science & Future, Product Showcase, Business & Finance, Documentary, Lifestyle & Culture.',
+            'Conversation:\n' + chatText,
+          ].join('\n');
+          try {
+            const response = await fetch('/api/providers/openrouter/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+              body: JSON.stringify({ model, messages: [{ role: 'user', content: briefPrompt }] }),
+            });
+            const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+            if (!response.ok) throw new Error(data.error || 'Could not create the project from your approved idea.');
+            if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('The Text model returned an empty project brief.');
+            const fence = String.fromCharCode(96).repeat(3);
+            const cleanText = data.text.trim().startsWith(fence)
+              ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim()
+              : data.text.trim();
+            const parsed = JSON.parse(cleanText) as {
+              title?: unknown; topic?: unknown; targetDuration?: unknown; format?: unknown; aspectRatio?: unknown;
+              visualStyle?: unknown; narrationStyle?: unknown; category?: unknown;
+              scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }>;
+            };
+            const title = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim().slice(0, 120) : 'New Video Story';
+            const topic = typeof parsed.topic === 'string' && parsed.topic.trim() ? parsed.topic.trim().slice(0, 4000) : userHistory.map((message) => message.content).join('\n').slice(-3000);
+            const format: VideoFormat = parsed.format === 'long_form' ? 'long_form' : 'short_form';
+            const ratio = ['9:16', '16:9', '1:1'].includes(String(parsed.aspectRatio)) ? String(parsed.aspectRatio) as AspectRatio : format === 'long_form' ? '16:9' : '9:16';
+            const visualStyles = ['hyper_realistic', 'cyber_minimal', 'cinematic_3d', 'anime_vector', 'documentary_grain'];
+            const narrationStyles = ['authoritative', 'conversational', 'energetic_tech', 'empathetic_storyteller'];
+            const categories = ['Tech & AI', 'Science & Future', 'Product Showcase', 'Business & Finance', 'Documentary', 'Lifestyle & Culture'];
+            const visualStyle = visualStyles.includes(String(parsed.visualStyle)) ? String(parsed.visualStyle) as Project['visualStyle'] : 'cinematic_3d';
+            const narrationStyle = narrationStyles.includes(String(parsed.narrationStyle)) ? String(parsed.narrationStyle) as Project['narrationStyle'] : 'empathetic_storyteller';
+            const category = categories.includes(String(parsed.category)) ? String(parsed.category) as ContentCategory : 'Lifestyle & Culture';
+            const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+            if (rawScenes.length < 3 || rawScenes.length > 16) throw new Error('The Text model did not return between 3 and 16 scenes. Please approve again or adjust the story.');
+            const targetDuration = Number.isInteger(Number(parsed.targetDuration)) && Number(parsed.targetDuration) >= rawScenes.length
+              ? Math.min(3600, Number(parsed.targetDuration))
+              : 60;
+            const normalized = rawScenes.map((scene) => {
+              const narration = typeof scene.narration === 'string' ? scene.narration.trim() : '';
+              const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
+              const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
+              const duration = Number(scene.duration);
+              if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) {
+                throw new Error('The Text model returned an incomplete scene. No project was created; please retry.');
+              }
+              return { narration, visualPrompt, cameraMovement: cameraMovement || 'Static cinematic shot', duration };
+            });
+            const rawTotal = normalized.reduce((sum, scene) => sum + scene.duration, 0);
+            let assigned = 0;
+            const scenes: Scene[] = normalized.map((scene, index) => {
+              const remaining = normalized.length - index - 1;
+              const available = Math.max(1, targetDuration - assigned - remaining);
+              const duration = index === normalized.length - 1
+                ? Math.max(1, targetDuration - assigned)
+                : Math.min(available, Math.max(1, Math.round(scene.duration * targetDuration / rawTotal)));
+              assigned += duration;
+              return {
+                id: 'sc-' + Date.now().toString(36) + '-' + (index + 1),
+                order: index + 1,
+                narration: scene.narration,
+                visualPrompt: scene.visualPrompt,
+                cameraMovement: scene.cameraMovement,
+                duration,
+                mediaUrl: index % 2 === 0
+                  ? '/src/assets/images/hero_cyber_city_1792925206979.jpg'
+                  : '/src/assets/images/scene_avatar_presenter_1792925207281.jpg',
+                status: 'scripted',
+              };
+            });
+            const platforms = format === 'short_form'
+              ? ['TikTok', 'YouTube Shorts', 'Instagram Reels']
+              : ['YouTube', 'Facebook'];
+            const newId = context.createProject({
+              title, topic, category, format, aspectRatio: ratio, visualStyle, narrationStyle,
+              subtitleStyle: 'dynamic_pop',
+              targetDuration,
+              targetPlatforms: platforms,
+              coverImage: scenes[0].mediaUrl,
+              publishingCaption: title + ' — ' + topic.slice(0, 120),
+              selectedPlatformsForPublishing: ['tiktok', 'youtube'],
+              scenes,
+            });
+            context.setActiveProjectId(newId);
+            context.updateProject(newId, { productionStage: 'script_review', productionStageUpdatedAt: timestamp });
+            return {
+              id: execId, toolName, displayName, status: 'success', inputArgs: args,
+              outputSummary: 'Created "' + title + '" from the approved Chat discussion with ' + scenes.length + ' scripted scenes. Only text generation was used; no image, voice, or video generation was started.',
+              outputData: { projectId: newId, title, sceneCount: scenes.length, targetDuration, stage: 'script_review', textModel: model },
+              resourceLink: { label: 'Review Script & Storyboard', section: 'workspace', resourceId: newId },
+              timestamp,
+            };
+          } catch (error) {
+            return {
+              id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+              errorMessage: error instanceof Error ? error.message : 'Could not create the project from this conversation.',
+              timestamp,
+            };
+          }
+        }
+
         const target = resolveProject(args.projectId);
         if (!target) {
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found to generate storyboard.', timestamp };
