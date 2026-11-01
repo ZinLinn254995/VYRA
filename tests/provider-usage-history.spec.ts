@@ -97,7 +97,7 @@ test('Provider Usage continues recovering other costs when one generation lookup
   await page.goto('/');
   await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 5);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onupgradeneeded = () => {
         const database = request.result;
         if (!database.objectStoreNames.contains('generated-images')) database.createObjectStore('generated-images', { keyPath: 'id' });
@@ -151,7 +151,7 @@ test('Provider Usage continues recovering other costs when one generation lookup
 
   const persisted = await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 5);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -201,7 +201,7 @@ test('Provider Usage does not partially update a linked video job when its saved
   await page.goto('/');
   await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 5);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -233,7 +233,7 @@ test('Provider Usage does not partially update a linked video job when its saved
   // Simulate the saved clip being removed after the view loaded but before cost sync.
   await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 5);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -251,7 +251,7 @@ test('Provider Usage does not partially update a linked video job when its saved
 
   const jobCost = await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('vyra-media-library', 5);
+      const request = indexedDB.open('vyra-media-library', 6);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
