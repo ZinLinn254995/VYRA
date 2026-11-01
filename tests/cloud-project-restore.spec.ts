@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreCloudProject } from '../src/components/views/CloudProjectRestorePanel.tsx';
+import { restoreCloudProject } from '../src/services/cloudProjectRestore.js';
 
 test('restores portable project metadata and storyboard fields with safe defaults', () => {
   const project = restoreCloudProject({
