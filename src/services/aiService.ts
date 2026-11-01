@@ -28,6 +28,13 @@ export interface AIServiceResult {
   errorMessage?: string;
   providerName?: string;
   modelName?: string;
+  generationId?: string | null;
+  usage?: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+    costUsd: number | null;
+  } | null;
 }
 
 export interface AIServiceProvider {
@@ -129,7 +136,7 @@ class ModularAIService implements AIServiceProvider {
             messages: request.messages.filter((message) => message.role !== 'system'),
           }),
         });
-        const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; generationId?: string | null; usage?: AIServiceResult['usage']; modelName?: string };
         if (!response.ok) {
           const message = typeof data.error === 'string' && data.error.trim()
             ? data.error
@@ -156,7 +163,9 @@ class ModularAIService implements AIServiceProvider {
           content: data.text.trim(),
           status: 'success',
           providerName: 'OpenRouter',
-          modelName: openRouterModel,
+          modelName: typeof data.modelName === 'string' ? data.modelName : openRouterModel,
+          generationId: typeof data.generationId === 'string' ? data.generationId : null,
+          usage: data.usage || null,
         };
       } catch {
         const message = 'Could not reach OpenRouter. Check your connection and retry. VYRA did not switch providers automatically.';
