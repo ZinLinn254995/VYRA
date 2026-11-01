@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useStudio } from '../../context/StudioContext';
+import { useAuth } from '../../context/AuthContext';
+import { AuthPanel } from './AuthPanel';
 import {
   Menu,
   Sun,
@@ -116,15 +118,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onOpenMobileMenu }) => {
           </button>
         )}
 
-        {/* User Workspace Profile Pill */}
-        <div className="flex items-center gap-2 pl-2 border-l border-[#1E2345] light:border-slate-200">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#8D7CFF] to-[#55F4FF] p-[1.5px] shrink-0">
-            <div className="w-full h-full rounded-full bg-[#090B18] flex items-center justify-center text-[10px] font-bold text-white">
-              <Sparkles className="w-3.5 h-3.5 text-[#55F4FF]" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-};
+        {/* Account entry point */}
+        <button
+          type="button"
+          onClick={() => setAccountOpen(true)}
+          aria-label="Open account"
+          title={user?.email ?? 'Account'}
+          className="flex items-center gap-2 pl-2 border-l border-[#1E2345] light:border-slate-200"
+        >
+          <span className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#8D7CFF] to-[#55F4FF] p-[1.5px] shrink-0">
+            <span className="w-full h-full rounded-full bg-[#090B18] flex items-center justify-center text-[10px] font-bold text-white">
+              {user?.email?.slice(0, 1).toUpperCase() ?? <Sparkles className="w-3.5 h-3.5 text-[#55F4FF]" />}
+            </span>
+          </span>
+          <span className="hidden sm:block max-w-[110px] truncate text-[11px] font-medium text-slate-300 light:text-slate-700">
+            {loading ? 'Checking…' : user?.email ?? (configured ? 'Sign in' : 'Account')}
+          </span>
+        </button>
+        {accountOpen && <AuthPanel onClose={() => setAccountOpen(false)} />}
