@@ -112,7 +112,7 @@ function buildUsageEntries(
     costUsd: typeof audio.costUsd === 'number' && Number.isFinite(audio.costUsd) && audio.costUsd >= 0 ? audio.costUsd : null,
     generationId: audio.generationId,
     status: 'Saved',
-    detail: 'Voice: ' + audio.voice + ' · Cost not reported by current speech endpoint',
+    detail: 'Voice: ' + audio.voice + (typeof audio.costUsd === 'number' && Number.isFinite(audio.costUsd) && audio.costUsd >= 0 ? '' : ' · Cost not reported by current speech endpoint'),
   }));
 
   return [...imageEntries, ...videoEntries, ...remainingJobEntries, ...audioEntries]
