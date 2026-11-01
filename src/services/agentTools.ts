@@ -666,15 +666,15 @@ export async function executeAgentTool(
           const chatText = chatHistory.map((message) => message.role.toUpperCase() + ': ' + message.content).join('\n').slice(-12000);
           const briefPrompt = [
             'The user has finished brainstorming and explicitly approved the idea. Turn the conversation below into one complete video project and its first reviewable script/storyboard.',
-            'Return ONLY valid JSON. Required shape: {"title":"...","topic":"...","targetDuration":120,"format":"short_form","aspectRatio":"9:16","visualStyle":"cinematic_3d","narrationStyle":"empathetic_storyteller","category":"Lifestyle & Culture","scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":12}]}',
+            'Return ONLY valid JSON. Required shape: {"title":"...","topic":"...","videoType":"...","creativeDirection":"...","visualStyleDescription":"...","audioDirection":"...","audience":"...","language":"...","targetDuration":120,"format":"short_form","aspectRatio":"9:16","visualStyle":"cinematic_3d","narrationStyle":"empathetic_storyteller","category":"Lifestyle & Culture","scenes":[{"narration":"...","dialogue":"...","visualPrompt":"...","shotType":"...","cameraMovement":"...","onScreenText":"...","soundDesign":"...","transition":"...","duration":12}]}',
             'Preserve every creative decision the user made. Do not invent a different story or ignore requested characters, language, style, audience, platform, or duration.',
             'If the user asked for a two-minute video, set targetDuration to 120. Otherwise use the duration discussed; if none was specified, use 60 seconds.',
             'Create 3 to 16 scenes. The number of scenes must be appropriate for the duration. Scene durations must add up exactly to targetDuration.',
             'Write the dialogue/narration in the language the user requested. If the user discussed the story in Burmese and did not request another language, write spoken dialogue in natural Burmese.',
             'For cartoons, maintain consistent character names, personalities, clothing, colors, and appearance across scenes. Use clear speaker labels in dialogue.',
-            'Every visualPrompt must describe a distinct, production-ready frame. Every scene needs narration, visualPrompt, cameraMovement, and a positive integer duration.',
+            'Every visualPrompt must describe a distinct, production-ready frame. Every scene needs a positive integer duration and a visualPrompt. narration may be empty for music-only, silent, montage, or text-led videos. Preserve dialogue, shotType, onScreenText, soundDesign, and transition when relevant.',
             'Allowed format: short_form or long_form. Allowed aspectRatio: 9:16, 16:9, or 1:1.',
-            'Allowed visualStyle: hyper_realistic, cyber_minimal, cinematic_3d, anime_vector, documentary_grain.',
+            'visualStyle is only a fallback preset. Preserve the full requested visual treatment in visualStyleDescription; do not force a requested look into a preset. Any genre or format is allowed: animation, live-action, cinematic, documentary, educational, product ads, music videos, explainers, travel, sports, news, abstract visuals, and mixed media.',
             'Allowed narrationStyle: authoritative, conversational, energetic_tech, empathetic_storyteller.',
             'Allowed category: Tech & AI, Science & Future, Product Showcase, Business & Finance, Documentary, Lifestyle & Culture.',
             'Conversation:\n' + chatText,
@@ -693,9 +693,9 @@ export async function executeAgentTool(
               ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim()
               : data.text.trim();
             const parsed = JSON.parse(cleanText) as {
-              title?: unknown; topic?: unknown; targetDuration?: unknown; format?: unknown; aspectRatio?: unknown;
+              title?: unknown; topic?: unknown; videoType?: unknown; creativeDirection?: unknown; visualStyleDescription?: unknown; audioDirection?: unknown; audience?: unknown; language?: unknown; targetDuration?: unknown; format?: unknown; aspectRatio?: unknown;
               visualStyle?: unknown; narrationStyle?: unknown; category?: unknown;
-              scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }>;
+              scenes?: Array<{ narration?: unknown; dialogue?: unknown; visualPrompt?: unknown; shotType?: unknown; cameraMovement?: unknown; onScreenText?: unknown; soundDesign?: unknown; transition?: unknown; duration?: unknown }>;
             };
             const title = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim().slice(0, 120) : 'New Video Story';
             const topic = typeof parsed.topic === 'string' && parsed.topic.trim() ? parsed.topic.trim().slice(0, 4000) : userHistory.map((message) => message.content).join('\n').slice(-3000);
@@ -717,10 +717,10 @@ export async function executeAgentTool(
               const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
               const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
               const duration = Number(scene.duration);
-              if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) {
+              if (!visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) {
                 throw new Error('The Text model returned an incomplete scene. No project was created; please retry.');
               }
-              return { narration, visualPrompt, cameraMovement: cameraMovement || 'Static cinematic shot', duration };
+              return { narration, dialogue: typeof scene.dialogue === 'string' ? scene.dialogue.trim() : '', visualPrompt, shotType: typeof scene.shotType === 'string' ? scene.shotType.trim() : '', cameraMovement: cameraMovement || 'Static shot', onScreenText: typeof scene.onScreenText === 'string' ? scene.onScreenText.trim() : '', soundDesign: typeof scene.soundDesign === 'string' ? scene.soundDesign.trim() : '', transition: typeof scene.transition === 'string' ? scene.transition.trim() : '', duration };
             });
             const rawTotal = normalized.reduce((sum, scene) => sum + scene.duration, 0);
             let assigned = 0;
@@ -735,8 +735,13 @@ export async function executeAgentTool(
                 id: 'sc-' + Date.now().toString(36) + '-' + (index + 1),
                 order: index + 1,
                 narration: scene.narration,
+                dialogue: scene.dialogue,
                 visualPrompt: scene.visualPrompt,
+                shotType: scene.shotType,
                 cameraMovement: scene.cameraMovement,
+                onScreenText: scene.onScreenText,
+                soundDesign: scene.soundDesign,
+                transition: scene.transition,
                 duration,
                 mediaUrl: index % 2 === 0
                   ? '/src/assets/images/hero_cyber_city_1792925206979.jpg'
@@ -749,6 +754,12 @@ export async function executeAgentTool(
               : ['YouTube', 'Facebook'];
             const newId = context.createProject({
               title, topic, category, format, aspectRatio: ratio, visualStyle, narrationStyle,
+              videoType: typeof parsed.videoType === 'string' ? parsed.videoType.trim().slice(0, 120) : 'General video',
+              creativeDirection: typeof parsed.creativeDirection === 'string' ? parsed.creativeDirection.trim().slice(0, 4000) : '',
+              visualStyleDescription: typeof parsed.visualStyleDescription === 'string' ? parsed.visualStyleDescription.trim().slice(0, 2000) : '',
+              audioDirection: typeof parsed.audioDirection === 'string' ? parsed.audioDirection.trim().slice(0, 2000) : '',
+              audience: typeof parsed.audience === 'string' ? parsed.audience.trim().slice(0, 500) : '',
+              language: typeof parsed.language === 'string' ? parsed.language.trim().slice(0, 100) : '',
               subtitleStyle: 'dynamic_pop',
               targetDuration,
               targetPlatforms: platforms,
