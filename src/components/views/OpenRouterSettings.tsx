@@ -3,7 +3,22 @@ import { saveGeneratedImage } from '../../services/mediaLibraryStorage';
 import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 
 type Capability = 'text' | 'image' | 'video' | 'audio';
-type ModelOption = { id: string; name?: string; description?: string; contextLength?: number; pricing?: { prompt?: string; completion?: string } };
+type ModelOption = {
+  id: string;
+  name?: string;
+  description?: string;
+  contextLength?: number;
+  pricing?: { prompt?: string; completion?: string };
+  supportedDurations?: number[];
+  supportedResolutions?: string[];
+  supportedAspectRatios?: string[];
+  supportedSizes?: string[];
+  supportedFrameImages?: string[];
+  allowedPassthroughParameters?: string[];
+  supportedParameters?: string[];
+  generateAudio?: boolean;
+  pricingSkus?: Record<string, string>;
+};
 type SelectionMode = 'hybrid' | 'manual';
 type RecommendationStrategy = 'balanced' | 'cost' | 'context';
 
@@ -11,6 +26,7 @@ const KEY_STORAGE = 'vyra_openrouter_key_session';
 const MODEL_STORAGE = 'vyra_openrouter_models_v1';
 const MODE_STORAGE = 'vyra_model_selection_mode_v1';
 const STRATEGY_STORAGE = 'vyra_model_recommendation_strategy_v1';
+const CATALOG_STORAGE = 'vyra_openrouter_catalog_v1';
 
 function modelCost(model: ModelOption): number | null {
   const prompt = Number(model.pricing?.prompt);
@@ -73,6 +89,8 @@ export const OpenRouterSettings: React.FC = () => {
       setApiKey(sessionStorage.getItem(KEY_STORAGE) || '');
       const savedModels = sessionStorage.getItem(MODEL_STORAGE);
       if (savedModels) setSelectedModels(JSON.parse(savedModels) as Partial<Record<Capability, string>>);
+      const savedCatalog = sessionStorage.getItem(CATALOG_STORAGE);
+      if (savedCatalog) setModels(JSON.parse(savedCatalog) as Partial<Record<Capability, ModelOption[]>>);
       const savedMode = sessionStorage.getItem(MODE_STORAGE);
       if (savedMode === 'hybrid' || savedMode === 'manual') setSelectionMode(savedMode);
       const savedStrategy = sessionStorage.getItem(STRATEGY_STORAGE);
@@ -139,7 +157,11 @@ export const OpenRouterSettings: React.FC = () => {
     try {
       const result = await request('/api/providers/openrouter/models?capability=' + capability, apiKey.trim());
       const list = Array.isArray(result.models) ? result.models as ModelOption[] : [];
-      setModels((current) => ({ ...current, [capability]: list }));
+      setModels((current) => {
+        const nextCatalog = { ...current, [capability]: list };
+        try { sessionStorage.setItem(CATALOG_STORAGE, JSON.stringify(nextCatalog)); } catch { /* catalog cache is optional */ }
+        return nextCatalog;
+      });
       if (list.length === 0) setMessage('No models were returned for this capability. It may not be supported by the current account or API.');
       else {
         const next = { ...selectedModels };
@@ -258,7 +280,7 @@ export const OpenRouterSettings: React.FC = () => {
             {checking ? 'Testing…' : 'Test key'}
           </button>
         </div>
-        <p className="text-[11px] text-slate-500">For this first version, the key is held in session storage and sent to the VYRA server only when needed. It is not saved in VYRA's server environment. Anyone who can run code in this browser session could still access it; use this on a trusted device.</p>
+        <p className="text-[11px] text-slate-500">For this first version, the key is held in session storage and sent to the VYRA server only when needed. It is not saved in VYRA's server environment. Anyone who can run code in this browser session could still access it; use this on a trusted device. Model capability details are cached only for this browser session.</p>
         {apiKey && <button type="button" onClick={handleForgetKey} className="text-[11px] text-slate-400 hover:text-red-400">Forget key for this session</button>}
       </div>
 
@@ -314,6 +336,18 @@ export const OpenRouterSettings: React.FC = () => {
                     {loaded.map((model) => <option key={model.id} value={model.id}>{model.name || model.id}</option>)}
                   </select>
                   <p className="text-[10px] text-slate-500 break-all">{selectedModels[capability.id] || 'Choose a model'}</p>
+                  {capability.id === 'video' && (() => {
+                    const selected = loaded.find((model) => model.id === selectedModels.video);
+                    if (!selected) return null;
+                    const details = [
+                      selected.supportedDurations?.length ? 'Durations: ' + selected.supportedDurations.join(', ') + 's' : '',
+                      selected.supportedResolutions?.length ? 'Resolutions: ' + selected.supportedResolutions.join(', ') : '',
+                      selected.supportedAspectRatios?.length ? 'Aspect ratios: ' + selected.supportedAspectRatios.join(', ') : '',
+                      typeof selected.generateAudio === 'boolean' ? 'Audio generation: ' + (selected.generateAudio ? 'supported' : 'not supported') : '',
+                    ].filter(Boolean);
+                    return <p className="text-[10px] text-slate-400 light:text-slate-600">{details.length ? details.join(' · ') : 'OpenRouter did not publish capability details for this model. Check its model page before generating.'}</p>;
+                  })()}
+                  {capability.id === 'audio' && <p className="text-[10px] text-slate-500">Voice IDs are model-specific. OpenRouter does not return a universal voice list in this catalog; check the selected model’s documentation before generating.</p>}
                 </div>
               )}
             </div>
