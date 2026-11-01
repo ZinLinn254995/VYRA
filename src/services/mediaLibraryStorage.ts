@@ -6,6 +6,8 @@ export interface SavedMediaImage {
   costUsd: number | null;
   /** Provider-issued generation reference, when available. */
   generationId?: string;
+  projectId?: string;
+  sceneId?: string;
   createdAt: string;
 }
 
