@@ -417,7 +417,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           scenes: [...proj.scenes, newScene],
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
-          productionStage: ['voice_review', 'sample_review', 'full_production', 'final_review', 'publish_ready'].includes(proj.productionStage || '') ? 'visual_review' : proj.productionStage,
+          productionStage: proj.productionStage && proj.productionStage !== 'idea' ? 'script_review' : proj.productionStage,
           productionStageUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
