@@ -644,8 +644,8 @@ export async function executeAgentTool(
         if (args.createFromConversation === true) {
           const chatHistory = (context.conversationMessages || []).slice(-24);
           const userHistory = chatHistory.filter((message) => message.role === 'user');
-          if (!userHistory.length) {
-            return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'I need the idea discussion in AI Ideas Chat before I can create a project from it.', timestamp };
+          if (userHistory.length < 2) {
+            return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Discuss the story idea with me in AI Ideas Chat first. When you are happy with it, say “approve idea” and I will create the project and script from that discussion.', timestamp };
           }
           let apiKey = '';
           let selectedModels: { text?: string } = {};
