@@ -309,6 +309,10 @@ export interface SavedVideoGenerationJob {
   duration: number;
   aspectRatio: string;
   resolution?: string;
+  /** Scene clip already linked before this provider job started. */
+  previousVideoId?: string;
+  /** IndexedDB media record saved for this provider job, before the scene link is committed. */
+  savedVideoId?: string;
   status: VideoGenerationJobStatus;
   createdAt: string;
   updatedAt: string;
