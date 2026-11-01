@@ -11,9 +11,9 @@ test('text estimate requires exact token counts and uses per-token rates', () =>
 
   const estimate = estimateOpenRouterCost({
     capability: 'text', pricing: { prompt: '0.000001', completion: '0.000002' },
-    parameters: { promptTokens: 100, completionTokens: 50 },
+    parameters: { promptTokens: 100, completionTokenBudget: 50 },
   });
-  expect(estimate.status).toBe('exact');
+  expect(estimate.status).toBe('approximate');
   expect(estimate.estimatedCostUsd).toBe(0.0002);
 });
 
@@ -54,6 +54,22 @@ test('unknown video pricing SKUs are not guessed into a cost', () => {
   expect(result.status).toBe('unavailable');
   expect(result.reason).toBe('pricing_structure_unsupported');
   expect(result.estimatedCostUsd).toBeNull();
+});
+
+test('multiple billing lines for one provider are summed before comparing provider prices', () => {
+  const result = estimateOpenRouterCost({
+    capability: 'image',
+    pricingLines: [
+      { provider: 'provider-a', billable: 'input_image', unit: 'image', cost_usd: 0.01 },
+      { provider: 'provider-a', billable: 'output_image', unit: 'image', cost_usd: 0.04 },
+      { provider: 'provider-b', billable: 'input_image', unit: 'image', cost_usd: 0.02 },
+      { provider: 'provider-b', billable: 'output_image', unit: 'image', cost_usd: 0.05 },
+    ],
+    parameters: { inputImageCount: 1, imageCount: 1 },
+  });
+  expect(result.status).toBe('approximate');
+  expect(result.minimumCostUsd).toBe(0.05);
+  expect(result.maximumCostUsd).toBe(0.07);
 });
 
 test('provider price differences are reported as a range, not an invented single estimate', () => {
