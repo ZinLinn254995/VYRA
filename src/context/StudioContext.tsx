@@ -475,6 +475,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const approveProject = (projectId: string) => {
+    const target = projects.find((project) => project.id === projectId);
+    if (target?.productionStage && target.productionStage !== 'publish_ready') {
+      showToast('Complete the production checkpoints and approve the final video in AI Ideas Chat before publishing approval.', 'warning');
+      return;
+    }
     updateProject(projectId, {
       status: 'approved',
       reviewNotes: 'Approved for distribution. Ready for queue dispatch once social accounts are connected.',
