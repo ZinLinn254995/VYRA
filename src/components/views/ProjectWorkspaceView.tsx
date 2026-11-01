@@ -311,7 +311,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   // Recover any provider job saved before a refresh or browser close.
   // The API key remains session-only and is never written to IndexedDB.
   useEffect(() => {
-    if (!project || !currentScene) return;
+    if (!project) return;
     let jobs: Awaited<ReturnType<typeof getVideoGenerationJobs>> = [];
     let recoveryJob: typeof jobs[number] | undefined;
     let apiKey = '';
@@ -322,16 +322,24 @@ export const ProjectWorkspaceView: React.FC = () => {
     getVideoGenerationJobs(project.id).then((savedJobs) => {
       jobs = savedJobs;
       recoveryJob = jobs.find((job) =>
-        job.sceneId === currentScene.id &&
         ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status)
       );
-      if (!recoveryJob || currentScene.generatedVideoId) return;
+      if (!recoveryJob) return;
+      const targetScene = latestScenesRef.current.find((scene) => scene.id === recoveryJob?.sceneId);
+      if (!targetScene) {
+        setClipStatus('A saved video job belongs to a scene that no longer exists. Review the job before generating another clip.');
+        return;
+      }
+      if (targetScene.generatedVideoId) {
+        await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+        return;
+      }
       if (!apiKey) {
         setClipStatus('A saved video job (' + recoveryJob.jobId + ') is waiting. Reconnect OpenRouter in Settings to resume it; do not start another generation.');
         return;
       }
       const job = recoveryJob;
-      if (currentScene.visualPrompt !== job.visualPrompt || currentScene.cameraMovement !== job.cameraMovement || currentScene.narration !== job.narration) {
+      if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration) {
         setClipStatus('A saved video job exists, but this scene has changed since it was submitted. Review the previous job before generating a replacement.');
         return;
       }
@@ -447,7 +455,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     }).catch((error) => {
       setClipError(error instanceof Error ? error.message : 'Could not inspect saved video jobs.');
     });
-  }, [project?.id, currentScene?.id]);
+  }, [project?.id]);
 
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
