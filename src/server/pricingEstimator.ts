@@ -41,6 +41,8 @@ const validNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const positiveInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+const nonNegativeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const roundUsd = (value: number): number => Number(value.toFixed(10));
 
 const unavailable = (
@@ -124,7 +126,7 @@ export function estimateOpenRouterCost(input: {
       case 'images':
         if (capability !== 'image') return unavailable('pricing_structure_unsupported', 'Image billing units cannot price this modality.', fetchedAt, source);
         if (line.billable === 'input_image') {
-          if (!positiveInteger(parameters.inputImageCount)) return unavailable('parameters_incomplete', 'The number of input reference images is required for this price line.', fetchedAt, source);
+          if (!nonNegativeInteger(parameters.inputImageCount)) return unavailable('parameters_incomplete', 'The number of input reference images is required for this price line (zero is valid when none are attached).', fetchedAt, source);
           quantity = parameters.inputImageCount;
         } else if (line.billable === 'output_image') {
           if (!positiveInteger(parameters.imageCount)) return unavailable('parameters_incomplete', 'The number of output images is required for this price line.', fetchedAt, source);
