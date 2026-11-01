@@ -5,6 +5,7 @@ import {
   getSavedImages,
   getSavedVideos,
   getVideoGenerationJobs,
+  updateSavedMediaCost,
   type SavedMediaAudio,
   type SavedMediaImage,
   type SavedMediaVideo,
@@ -108,10 +109,10 @@ function buildUsageEntries(
     title: audio.title,
     model: audio.model,
     createdAt: audio.createdAt,
-    costUsd: null,
+    costUsd: typeof audio.costUsd === 'number' && Number.isFinite(audio.costUsd) && audio.costUsd >= 0 ? audio.costUsd : null,
     generationId: audio.generationId,
     status: 'Saved',
-    detail: 'Voice: ' + audio.voice + ' · Cost not reported by current speech endpoint',
+    detail: 'Voice: ' + audio.voice + (typeof audio.costUsd === 'number' && Number.isFinite(audio.costUsd) && audio.costUsd >= 0 ? '' : ' · Cost not reported by current speech endpoint'),
   }));
 
   return [...imageEntries, ...videoEntries, ...remainingJobEntries, ...audioEntries]
@@ -129,6 +130,8 @@ export const ProviderUsageView: React.FC = () => {
   const [keyUsage, setKeyUsage] = useState<OpenRouterKeyUsage | null>(null);
   const [keyUsageError, setKeyUsageError] = useState('');
   const [keyUsageLoading, setKeyUsageLoading] = useState(false);
+  const [costLookupLoading, setCostLookupLoading] = useState(false);
+  const [costLookupMessage, setCostLookupMessage] = useState('');
 
   const refresh = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -181,6 +184,46 @@ export const ProviderUsageView: React.FC = () => {
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh]);
 
+  const lookupMissingCosts = async () => {
+    let openRouterKey = '';
+    try { openRouterKey = sessionStorage.getItem('vyra_openrouter_key_session')?.trim() || ''; } catch { /* session storage may be unavailable */ }
+    if (!openRouterKey) {
+      setCostLookupMessage('Reconnect your OpenRouter key in Settings before looking up generation costs.');
+      return;
+    }
+    const candidates = entries.filter((entry) =>
+      (entry.kind === 'image' || entry.kind === 'audio') && entry.costUsd === null && Boolean(entry.generationId)
+    ).slice(0, 20);
+    if (candidates.length === 0) {
+      setCostLookupMessage('No saved image or voiceover records with missing costs and a Generation ID were found.');
+      return;
+    }
+    setCostLookupLoading(true);
+    setCostLookupMessage('');
+    let updated = 0;
+    let unavailable = 0;
+    try {
+      for (const entry of candidates) {
+        const response = await fetch('/api/providers/openrouter/generation/' + encodeURIComponent(entry.generationId!), {
+          headers: { 'x-openrouter-api-key': openRouterKey },
+        });
+        const data = await response.json().catch(() => ({})) as { costUsd?: unknown; error?: string };
+        if (response.ok && typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0) {
+          await updateSavedMediaCost(entry.kind as 'image' | 'audio', entry.id.replace(/^(image|audio):/, ''), data.costUsd);
+          updated += 1;
+        } else {
+          unavailable += 1;
+        }
+      }
+      await refresh(true);
+      setCostLookupMessage(updated + ' provider-reported cost(s) saved.' + (unavailable ? ' ' + unavailable + ' record(s) remain unavailable.' : ''));
+    } catch (cause) {
+      setCostLookupMessage(cause instanceof Error ? cause.message : 'Could not look up generation costs.');
+    } finally {
+      setCostLookupLoading(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     const cutoff = range === 'all' ? 0 : Date.now() - (range === '7d' ? 7 : 30) * 24 * 60 * 60 * 1000;
     const needle = query.trim().toLowerCase();
@@ -226,6 +269,9 @@ export const ProviderUsageView: React.FC = () => {
             Review saved OpenRouter image, video and voiceover activity with provider-reported costs where available.
           </p>
         </div>
+        <button onClick={() => void lookupMissingCosts()} disabled={costLookupLoading || loading} className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg border border-cyan-500/30 text-xs font-semibold text-cyan-200 light:text-cyan-700 hover:bg-cyan-500/10 disabled:opacity-50">
+          {costLookupLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Look up missing costs
+        </button>
         <button onClick={() => void refresh(true)} disabled={refreshing || loading}
           className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-slate-200 light:text-slate-700 hover:bg-[#171A35] light:hover:bg-slate-100 disabled:opacity-50">
           <RefreshCw className={'w-3.5 h-3.5 ' + (refreshing ? 'animate-spin' : '')} /> Refresh usage
@@ -296,12 +342,14 @@ export const ProviderUsageView: React.FC = () => {
         )}
       </section>
 
+      {costLookupMessage && <p role="status" className="text-xs text-slate-400 light:text-slate-600">{costLookupMessage}</p>}
+
       <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex gap-3">
         <AlertCircle className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
         <div className="min-w-0">
           <h2 className="text-xs font-bold text-cyan-300 light:text-cyan-700">Cost accuracy & storage</h2>
           <p className="text-xs leading-relaxed text-slate-300 light:text-slate-600 mt-1">
-            Costs are shown only when OpenRouter reports an amount. The current speech endpoint does not return a cost, so voiceover entries are marked unavailable. This history is stored in this browser: image entries appear after saving an image to Media Library, and deleting a saved asset may remove its usage record. It is not a live account-billing statement.
+            Costs are shown only when OpenRouter reports an amount. Some image and voiceover costs may be recovered later through the read-only generation metadata lookup when a Generation ID exists. This history is stored in this browser: image entries appear after saving an image to Media Library, and deleting a saved asset may remove its usage record. It is not a live account-billing statement.
           </p>
         </div>
       </div>
