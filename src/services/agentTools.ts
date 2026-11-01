@@ -420,8 +420,8 @@ export async function executeAgentTool(
         const format: VideoFormat = args.format === 'long_form' ? 'long_form' : 'short_form';
         const aspectRatio: AspectRatio = args.aspectRatio || (format === 'short_form' ? '9:16' : '16:9');
         const category: ContentCategory = args.category || 'Tech & AI';
-        const sceneCount = Number(args.sceneCount) || (format === 'short_form' ? 3 : 5);
         const targetDuration = Number(args.targetDuration) || (format === 'short_form' ? 45 : 90);
+        const sceneCount = Math.min(16, Math.max(3, Number(args.sceneCount) || Math.ceil(targetDuration / 12)));
 
         // Build scenes
         const initialScenes: Scene[] = [];
@@ -452,8 +452,8 @@ export async function executeAgentTool(
           category,
           format,
           aspectRatio,
-          visualStyle: 'cyber_minimal',
-          narrationStyle: 'energetic_tech',
+          visualStyle: args.visualStyle || 'cyber_minimal',
+          narrationStyle: args.narrationStyle || 'energetic_tech',
           subtitleStyle: 'dynamic_pop',
           targetDuration,
           targetPlatforms: format === 'short_form' ? ['YouTube Shorts', 'TikTok', 'Instagram Reels'] : ['YouTube & Shorts', 'LinkedIn Video'],
@@ -1032,13 +1032,25 @@ export async function processAgentRequest(
     (lower.startsWith('create project') ? text.match(/create project\s*["“]?([^"”\n\.]+)/i) : null);
 
   if (createProjectMatch && createProjectMatch[1]) {
-    const rawTitle = createProjectMatch[1].trim();
+    const durationMatch = text.match(/(\d+)\s*(minutes?|mins?|seconds?|secs?)/i);
+    const durationValue = durationMatch ? Number(durationMatch[1]) : 0;
+    const targetDuration = durationMatch
+      ? durationValue * (/min/i.test(durationMatch[2]) ? 60 : 1)
+      : undefined;
+    const rawTitle = createProjectMatch[1].trim()
+      .replace(/\s+(?:with\s+)?\d+\s+scenes?.*$/i, '')
+      .replace(/\s+for\s+\d+\s*(?:minutes?|mins?|seconds?|secs?).*$/i, '')
+      .trim() || 'New Video Project';
     const isShorts = lower.includes('short') || lower.includes('reel') || lower.includes('tiktok') || lower.includes('9:16');
-    const isLong = lower.includes('long') || lower.includes('16:9') || lower.includes('10-minute') || lower.includes('documentary');
+    const isLong = lower.includes('long') || lower.includes('16:9') || lower.includes('documentary');
+    const isCartoon = lower.includes('cartoon') || lower.includes('animation') || lower.includes('animated');
+    const visualStyle = lower.includes('anime') ? 'anime_vector' : isCartoon ? 'cinematic_3d' : 'cyber_minimal';
 
-    // Scene count extraction if present e.g. "with 8 scenes"
+    // Prefer the requested scene count; otherwise pace scenes at roughly 10–12 seconds each.
     const sceneCountMatch = text.match(/(\d+)\s+scenes?/i);
-    const sceneCount = sceneCountMatch ? parseInt(sceneCountMatch[1], 10) : (isShorts ? 3 : 4);
+    const sceneCount = sceneCountMatch
+      ? parseInt(sceneCountMatch[1], 10)
+      : Math.min(16, Math.max(3, Math.ceil((targetDuration || (isLong ? 90 : 45)) / 12)));
 
     const exec = await executeAgentTool(
       'create_project',
@@ -1048,7 +1060,9 @@ export async function processAgentRequest(
         format: isLong ? 'long_form' : 'short_form',
         aspectRatio: isLong ? '16:9' : '9:16',
         sceneCount,
-        category: lower.includes('space') || lower.includes('science') ? 'Science & Future' : 'Tech & AI',
+        ...(targetDuration ? { targetDuration } : {}),
+        visualStyle,
+        category: isCartoon ? 'Lifestyle & Culture' : lower.includes('space') || lower.includes('science') ? 'Science & Future' : 'Tech & AI',
       },
       context
     );
