@@ -16,6 +16,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
-    env: { PORT: '4173' },
+    env: { PORT: '4173', VITE_E2E_SEED_PROJECTS: 'true' },
   },
 });

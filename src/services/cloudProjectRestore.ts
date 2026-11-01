@@ -10,7 +10,6 @@ export type CloudProjectRow = {
   updated_at: string;
 };
 
-const DEFAULT_SCENE_IMAGE = '/src/assets/images/scene_quantum_chip_1792925206672.jpg';
 const CATEGORIES: ContentCategory[] = [
   'Tech & AI', 'Science & Future', 'Product Showcase',
   'Business & Finance', 'Documentary', 'Lifestyle & Culture',
@@ -52,7 +51,9 @@ export function restoreCloudProject(row: CloudProjectRow): Project | null {
     onScreenText: textValue(scene.onScreenText) || undefined,
     soundDesign: textValue(scene.soundDesign) || undefined,
     transition: textValue(scene.transition) || undefined,
-    mediaUrl: DEFAULT_SCENE_IMAGE,
+    // Media files are intentionally excluded from portable cloud backups.
+    // Keep the restored scene visibly empty instead of substituting demo artwork.
+    mediaUrl: '',
     status: enumValue(scene.status, ['scripted', 'rendering', 'ready'] as const, 'scripted'),
   }));
 
@@ -78,7 +79,8 @@ export function restoreCloudProject(row: CloudProjectRow): Project | null {
     scenes,
     createdAt: textValue(row.created_at, new Date().toISOString()),
     updatedAt: textValue(row.updated_at, new Date().toISOString()),
-    coverImage: DEFAULT_SCENE_IMAGE,
+    // A missing cloud media file must never be represented by sample/demo artwork.
+    coverImage: '',
     productionStage: enumValue(data.productionStage, PRODUCTION_STAGES, 'idea'),
     productionStageUpdatedAt: textValue(data.productionStageUpdatedAt) || undefined,
     productionStageNotes: textValue(data.productionStageNotes) || undefined,
