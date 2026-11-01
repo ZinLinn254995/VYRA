@@ -18,6 +18,7 @@ import {
   AspectRatio,
   ToolExecutionRecord,
   NavSection,
+  ProductionStage,
 } from '../types';
 
 export interface AgentContext {
@@ -50,6 +51,27 @@ export interface AgentToolDefinition {
 }
 
 export const AGENT_TOOLS_REGISTRY: AgentToolDefinition[] = [
+  {
+    name: 'get_production_status',
+    displayName: 'Get Production Status',
+    description: 'Show the current production checkpoint and the next approval required for a project.',
+    category: 'system',
+    isOperational: true,
+  },
+  {
+    name: 'approve_production_stage',
+    displayName: 'Approve Production Stage',
+    description: 'Approve only the current checkpoint and unlock the next production stage. This does not start paid generation.',
+    category: 'system',
+    isOperational: true,
+  },
+  {
+    name: 'request_production_changes',
+    displayName: 'Request Production Changes',
+    description: 'Record requested revisions without restarting or regenerating the entire project.',
+    category: 'system',
+    isOperational: true,
+  },
   {
     name: 'list_projects',
     displayName: 'List Projects',
@@ -201,6 +223,89 @@ export async function executeAgentTool(
 
   try {
     switch (toolName) {
+      case 'get_production_status': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found.', timestamp };
+        const stage = target.productionStage || 'idea';
+        const stageLabels: Record<ProductionStage, string> = {
+          idea: 'Idea approval',
+          script_review: 'Script & dialogue review',
+          visual_review: 'Character & scene visual review',
+          voice_review: 'Voice & pronunciation review',
+          sample_review: 'Sample animation & lip-sync review',
+          full_production: 'Full scene production',
+          final_review: 'Final video preview',
+          publish_ready: 'Ready for final publishing approval',
+        };
+        const nextActions: Record<ProductionStage, string> = {
+          idea: 'Approve the idea to begin script and dialogue preparation.',
+          script_review: 'Review and approve the script before visual assets are generated.',
+          visual_review: 'Review character designs and scene images before voice production.',
+          voice_review: 'Check voice samples and pronunciation before animation.',
+          sample_review: 'Approve a sample animation before rendering every scene.',
+          full_production: 'Complete the approved scene renders and assemble the full video.',
+          final_review: 'Preview the complete video and request only the changes needed.',
+          publish_ready: 'Give final publishing approval before sending the video to a platform.',
+        };
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: '"' + target.title + '" is at: ' + stageLabels[stage] + '.',
+          outputData: { projectId: target.id, title: target.title, stage, stageLabel: stageLabels[stage], nextAction: nextActions[stage], notes: target.productionStageNotes || null },
+          resourceLink: { label: 'Open Production Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
+      case 'approve_production_stage': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found. Create or select a project first.', timestamp };
+        const currentStage: ProductionStage = target.productionStage || 'idea';
+        const requestedStage = (args.stage || currentStage) as ProductionStage;
+        if (requestedStage !== currentStage) {
+          return {
+            id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+            errorMessage: '"' + target.title + '" is currently at "' + currentStage + '". Finish that checkpoint before approving "' + requestedStage + '".',
+            timestamp,
+          };
+        }
+        const nextStage: Partial<Record<ProductionStage, ProductionStage>> = {
+          idea: 'script_review',
+          script_review: 'visual_review',
+          visual_review: 'voice_review',
+          voice_review: 'sample_review',
+          sample_review: 'full_production',
+          full_production: 'final_review',
+          final_review: 'publish_ready',
+        };
+        const next = nextStage[currentStage];
+        if (!next) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'The final publishing checkpoint is already reached. No further production stage can be approved.', timestamp };
+        }
+        context.updateProject(target.id, { productionStage: next, productionStageUpdatedAt: timestamp, productionStageNotes: undefined });
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: 'Approved "' + currentStage + '" for "' + target.title + '". Next checkpoint: "' + next + '". No paid media generation was started.',
+          outputData: { projectId: target.id, approvedStage: currentStage, nextStage: next, generationStarted: false },
+          resourceLink: { label: 'Continue in Production Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
+      case 'request_production_changes': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found.', timestamp };
+        const notes = typeof args.notes === 'string' ? args.notes.trim() : '';
+        if (!notes) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Describe the specific scene, image, voice, pronunciation, or other part that needs changing.', timestamp };
+        context.updateProject(target.id, { productionStageNotes: notes, productionStageUpdatedAt: timestamp });
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: 'Recorded a targeted revision request for "' + target.title + '". The current checkpoint is unchanged; the whole project will not be restarted.',
+          outputData: { projectId: target.id, stage: target.productionStage || 'idea', notes, fullRegenerationRequested: false },
+          resourceLink: { label: 'Open Storyboard Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
       case 'list_projects': {
         const status = args.status?.toLowerCase();
         const query = args.query?.toLowerCase();
@@ -267,6 +372,8 @@ export async function executeAgentTool(
             title: target.title,
             topic: target.topic,
             status: target.status,
+            productionStage: target.productionStage || 'idea',
+            productionStageNotes: target.productionStageNotes || null,
             targetDuration: `${target.targetDuration}s`,
             aspectRatio: target.aspectRatio,
             format: target.format,
@@ -757,6 +864,53 @@ export async function processAgentRequest(
   const text = userInput.trim();
   const lower = text.toLowerCase();
   const toolExecutions: ToolExecutionRecord[] = [];
+
+  // Approval gates keep paid generation behind explicit user checkpoints.
+  if (/(production|workflow).*(status|stage)|what stage.*project/i.test(text)) {
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('get_production_status', { projectId: target?.id }, context);
+    toolExecutions.push(exec);
+    const data = exec.outputData;
+    return {
+      assistantResponse: data
+        ? '**' + data.title + ' — ' + data.stageLabel + '**\n\n' + data.nextAction + (data.notes ? '\n\n**Revision notes:** ' + data.notes : '') + '\n\nChecking status does not start generation.'
+        : exec.errorMessage || 'I could not find an active project.',
+      toolExecutions,
+    };
+  }
+
+  const approvalMatch = lower.match(/approve\s+(?:the\s+)?(idea|script|dialogue|character(?:s)?|visuals?|images?|voice|audio|sample|animation|lip.?sync|full production|final video)/i);
+  if (approvalMatch) {
+    const term = approvalMatch[1];
+    const stage: ProductionStage =
+      term === 'idea' ? 'idea' :
+      ['script', 'dialogue'].includes(term) ? 'script_review' :
+      ['character', 'characters', 'visual', 'visuals', 'image', 'images'].includes(term) ? 'visual_review' :
+      ['voice', 'audio'].includes(term) ? 'voice_review' :
+      ['sample', 'animation', 'lip-sync', 'lipsync'].includes(term) ? 'sample_review' :
+      term === 'full production' ? 'full_production' : 'final_review';
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('approve_production_stage', { projectId: target?.id, stage }, context);
+    toolExecutions.push(exec);
+    return {
+      assistantResponse: exec.status === 'success'
+        ? 'Approved **' + term + '** for **"' + target?.title + '"**.\n\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not start paid image, voice, or video generation.\n\nSay **"show production status"** to see what is next.'
+        : exec.errorMessage || 'This approval could not be applied.',
+      toolExecutions,
+    };
+  }
+
+  if (/(change|revise|regenerate|fix|not happy|မကြိုက်|ပြင်)/i.test(text) && /(scene|voice|audio|pronunciation|character|image|visual|lip.?sync|အသံ|မြန်မာ|ဇာတ်ကောင်)/i.test(text)) {
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('request_production_changes', { projectId: target?.id, notes: text }, context);
+    toolExecutions.push(exec);
+    return {
+      assistantResponse: exec.status === 'success'
+        ? 'I recorded the targeted revision request for **"' + target?.title + '"**. The current stage is unchanged, and approved assets remain untouched; the whole project will not be restarted.'
+        : exec.errorMessage || 'I could not record that revision request.',
+      toolExecutions,
+    };
+  }
 
   // 1. "Create a new project called [name]" / "Create project [name]"
   const createProjectMatch =
