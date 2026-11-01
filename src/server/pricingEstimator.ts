@@ -94,9 +94,13 @@ export function estimateOpenRouterCost(input: {
   }
 
   const source = 'openrouter-endpoint-pricing';
-  const lines = (input.pricingLines || []).filter((line) =>
+  const suppliedLines = input.pricingLines || [];
+  const lines = suppliedLines.filter((line) =>
     validNumber(line.cost_usd) && typeof line.unit === 'string' && line.unit.length > 0
   );
+  if (suppliedLines.length > 0 && lines.length !== suppliedLines.length) {
+    return unavailable('pricing_structure_unsupported', 'At least one provider pricing line is missing a valid cost or billing unit; a partial estimate would be unsafe.', fetchedAt, source);
+  }
   if (!lines.length) {
     return unavailable(
       input.pricingSkus && Object.keys(input.pricingSkus).length
