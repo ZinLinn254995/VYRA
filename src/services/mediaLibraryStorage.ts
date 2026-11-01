@@ -31,7 +31,7 @@ export interface SavedMediaVideo {
 
 const DB_NAME = 'vyra-media-library';
 const STORE_NAME = 'generated-images';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -56,6 +56,11 @@ function openDatabase(): Promise<IDBDatabase> {
         const videos = db.createObjectStore('generated-videos', { keyPath: 'id' });
         videos.createIndex('createdAt', 'createdAt');
         videos.createIndex('projectId', 'projectId');
+      }
+      if (!db.objectStoreNames.contains('video-generation-jobs')) {
+        const jobs = db.createObjectStore('video-generation-jobs', { keyPath: 'jobId' });
+        jobs.createIndex('projectId', 'projectId');
+        jobs.createIndex('updatedAt', 'updatedAt');
       }
     };
     request.onblocked = () => {
@@ -269,6 +274,135 @@ export async function deleteSavedVideo(id: string): Promise<void> {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(new Error('Could not remove this video.'));
       transaction.onabort = () => reject(new Error('Removing this video was cancelled.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+
+/**
+ * A provider job is persisted separately from the generated media blob so a
+ * browser refresh or closed tab cannot lose the OpenRouter job identifier.
+ * API keys are deliberately never stored in this record.
+ */
+export type VideoGenerationJobStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'expired'
+  | 'needs_attention';
+
+export interface SavedVideoGenerationJob {
+  jobId: string;
+  projectId: string;
+  projectTitle: string;
+  sceneId: string;
+  sceneOrder: number;
+  model: string;
+  prompt: string;
+  visualPrompt: string;
+  cameraMovement: string;
+  narration: string;
+  duration: number;
+  aspectRatio: string;
+  resolution?: string;
+  /** Scene clip already linked before this provider job started. */
+  previousVideoId?: string;
+  /** IndexedDB media record saved for this provider job, before the scene link is committed. */
+  savedVideoId?: string;
+  status: VideoGenerationJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  costUsd?: number | null;
+  lastError?: string;
+}
+
+export async function saveVideoGenerationJob(job: SavedVideoGenerationJob): Promise<void> {
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('video-generation-jobs', 'readwrite');
+      transaction.objectStore('video-generation-jobs').put(job);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('Could not save the video job. Browser storage may be unavailable.'));
+      transaction.onabort = () => reject(new Error('Saving the video job was cancelled.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function getVideoGenerationJob(jobId: string): Promise<SavedVideoGenerationJob | undefined> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<SavedVideoGenerationJob | undefined>((resolve, reject) => {
+      const request = db.transaction('video-generation-jobs', 'readonly').objectStore('video-generation-jobs').get(jobId);
+      request.onsuccess = () => resolve(request.result as SavedVideoGenerationJob | undefined);
+      request.onerror = () => reject(new Error('Could not load the saved video job.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function getVideoGenerationJobs(projectId?: string): Promise<SavedVideoGenerationJob[]> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<SavedVideoGenerationJob[]>((resolve, reject) => {
+      const store = db.transaction('video-generation-jobs', 'readonly').objectStore('video-generation-jobs');
+      const request = projectId
+        ? store.index('projectId').getAll(projectId)
+        : store.getAll();
+      request.onsuccess = () => {
+        const jobs = request.result as SavedVideoGenerationJob[];
+        resolve(jobs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      };
+      request.onerror = () => reject(new Error('Could not load saved video jobs.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function updateVideoGenerationJob(
+  jobId: string,
+  updates: Partial<Omit<SavedVideoGenerationJob, 'jobId' | 'projectId' | 'sceneId' | 'createdAt'>>,
+): Promise<SavedVideoGenerationJob | undefined> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<SavedVideoGenerationJob | undefined>((resolve, reject) => {
+      const transaction = db.transaction('video-generation-jobs', 'readwrite');
+      const store = transaction.objectStore('video-generation-jobs');
+      const request = store.get(jobId);
+      let updated: SavedVideoGenerationJob | undefined;
+      request.onsuccess = () => {
+        const current = request.result as SavedVideoGenerationJob | undefined;
+        if (!current) return;
+        updated = { ...current, ...updates, jobId: current.jobId, projectId: current.projectId, sceneId: current.sceneId, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
+        store.put(updated);
+      };
+      request.onerror = () => reject(new Error('Could not update the saved video job.'));
+      transaction.oncomplete = () => resolve(updated);
+      transaction.onerror = () => reject(new Error('Could not update the saved video job.'));
+      transaction.onabort = () => reject(new Error('Updating the saved video job was cancelled.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function deleteVideoGenerationJob(jobId: string): Promise<void> {
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('video-generation-jobs', 'readwrite');
+      transaction.objectStore('video-generation-jobs').delete(jobId);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('Could not remove the completed video job.'));
+      transaction.onabort = () => reject(new Error('Removing the video job was cancelled.'));
     });
   } finally {
     db.close();

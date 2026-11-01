@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
-import { deleteSavedAudio, deleteSavedVideo, getSavedAudio, getSavedVideo, saveGeneratedAudio, saveGeneratedVideo } from '../../services/mediaLibraryStorage';
+import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
@@ -42,6 +42,9 @@ type OpenRouterVideoModel = {
   supportedAspectRatios?: string[];
 };
 type OpenRouterAudioModel = { id: string; supportedVoiceIds?: string[] };
+
+// Prevent duplicate recovery polling when the workspace is remounted in this tab.
+const activeVideoRecoveryJobs = new Set<string>();
 
 const getMediaFileExtension = (mimeType: string, kind: 'video' | 'audio'): string => {
   const mime = mimeType.split(';', 1)[0].trim().toLowerCase();
@@ -305,6 +308,182 @@ export const ProjectWorkspaceView: React.FC = () => {
     return () => { cancelled = true; };
   }, [currentScene?.id, currentScene?.generatedAudioId]);
 
+  // Recover any provider job saved before a refresh or browser close.
+  // The API key remains session-only and is never written to IndexedDB.
+  useEffect(() => {
+    if (!project) return;
+    let jobs: Awaited<ReturnType<typeof getVideoGenerationJobs>> = [];
+    let recoveryJob: typeof jobs[number] | undefined;
+    let apiKey = '';
+    try {
+      apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+    } catch { /* Storage may be unavailable in a restricted browser. */ }
+
+    getVideoGenerationJobs(project.id).then(async (savedJobs) => {
+      jobs = savedJobs;
+      const recoverableJobs = jobs.filter((job) =>
+        ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status)
+      );
+      recoveryJob = recoverableJobs.find((job) => {
+        const scene = latestScenesRef.current.find((item) => item.id === job.sceneId);
+        return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration);
+      }) || recoverableJobs[0];
+      if (!recoveryJob) return;
+      const targetScene = latestScenesRef.current.find((scene) => scene.id === recoveryJob?.sceneId);
+      if (!targetScene) {
+        setClipStatus('A saved video job belongs to a scene that no longer exists. Its Job ID remains saved for review.');
+        return;
+      }
+      if (recoveryJob.savedVideoId && targetScene.generatedVideoId === recoveryJob.savedVideoId) {
+        await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+        return;
+      }
+      if (recoveryJob.savedVideoId) {
+        const alreadySaved = await getSavedVideo(recoveryJob.savedVideoId).catch(() => undefined);
+        if (alreadySaved) {
+          if (targetScene.generatedVideoId && targetScene.generatedVideoId !== recoveryJob.previousVideoId) {
+            await updateVideoGenerationJob(recoveryJob.jobId, { status: 'needs_attention', lastError: 'The scene now points to a different clip; the recovered media was not attached.' });
+            setClipStatus('A saved video result is ready, but this scene has since been linked to another clip. Review the job before replacing it.');
+            return;
+          }
+          updateScene(recoveryJob.projectId, recoveryJob.sceneId, { generatedVideoId: alreadySaved.id, status: 'ready' });
+          if (selectedSceneIdRef.current === recoveryJob.sceneId) {
+            setGeneratedClipMimeType(alreadySaved.blob.type || '');
+            setGeneratedClipUrl(URL.createObjectURL(alreadySaved.blob));
+            setClipStatus('Recovered the saved video file and restored its scene link.');
+          }
+          showToast('Saved video clip link recovered', 'success');
+          return;
+        }
+      }
+      if (targetScene.generatedVideoId && targetScene.generatedVideoId !== recoveryJob.previousVideoId) {
+        await updateVideoGenerationJob(recoveryJob.jobId, { status: 'needs_attention', lastError: 'The scene now points to a different clip; the job was not allowed to overwrite it.' });
+        setClipStatus('A saved video job exists, but this scene now contains a different clip. Review the previous job before generating another.');
+        return;
+      }
+      if (!apiKey) {
+        setClipStatus('A saved video job (' + recoveryJob.jobId + ') is waiting. Reconnect OpenRouter in Settings to resume it; do not start another generation.');
+        return;
+      }
+      const job = recoveryJob;
+      if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration) {
+        setClipStatus('A saved video job exists, but this scene has changed since it was submitted. Review the previous job before generating a replacement.');
+        return;
+      }
+      if (activeVideoRecoveryJobs.has(job.jobId)) return;
+      activeVideoRecoveryJobs.add(job.jobId);
+      setIsGeneratingClip(true);
+      setClipError('');
+      setClipStatus(job.status === 'completed' ? 'Video job completed earlier. Downloading the saved result…' : 'Resuming saved video job…');
+
+      const resume = async () => {
+        try {
+          let completed = job.status === 'completed';
+          let costUsd = job.costUsd ?? null;
+          let nextDelayMs = 30_000;
+          for (let attempt = 0; !completed && attempt < 40; attempt += 1) {
+            if (attempt > 0) await new Promise<void>((resolve) => window.setTimeout(resolve, nextDelayMs));
+            nextDelayMs = 30_000;
+            let response: Response;
+            try {
+              response = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(job.jobId), {
+                headers: { 'x-openrouter-api-key': apiKey },
+              });
+            } catch {
+              if (attempt === 39) throw new Error('Could not reconnect to the video status service. The saved job is still available to resume.');
+              continue;
+            }
+            const status = await response.json().catch(() => ({})) as { status?: string; error?: string; costUsd?: number | null };
+            if (!response.ok) {
+              if (response.status === 404) {
+                await updateVideoGenerationJob(job.jobId, { status: 'expired', lastError: status.error || 'The provider no longer has this job.' });
+                throw new Error(status.error || 'The saved video job was not found or has expired. Check OpenRouter activity before generating again.');
+              }
+              if ((response.status === 429 || response.status >= 500) && attempt < 39) {
+                const retryAfter = response.headers.get('retry-after');
+                const seconds = retryAfter ? Number(retryAfter) : NaN;
+                const date = retryAfter ? Date.parse(retryAfter) : NaN;
+                const requested = Number.isFinite(seconds) ? seconds * 1000
+                  : Number.isFinite(date) ? date - Date.now()
+                    : Math.min(60_000, 15_000 * (2 ** Math.min(attempt, 2)));
+                nextDelayMs = Math.min(120_000, Math.max(1_000, requested));
+                setClipStatus('Temporary status-service issue. Resuming the same job in ' + Math.ceil(nextDelayMs / 1000) + 's…');
+                continue;
+              }
+              throw new Error(status.error || 'Could not check the saved video job.');
+            }
+            if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') {
+              await updateVideoGenerationJob(job.jobId, { status: status.status, lastError: status.error || 'The provider job ' + status.status + '.' });
+              throw new Error(status.error || 'The saved video job ' + status.status + '.');
+            }
+            if (status.status === 'completed') {
+              completed = true;
+              costUsd = typeof status.costUsd === 'number' ? status.costUsd : costUsd;
+              await updateVideoGenerationJob(job.jobId, { status: 'completed', costUsd });
+              break;
+            }
+            await updateVideoGenerationJob(job.jobId, { status: status.status === 'pending' ? 'pending' : 'in_progress', lastError: undefined });
+            setClipStatus('Resuming saved video job… status check ' + (attempt + 1) + ' of 40');
+          }
+          if (!completed) {
+            await updateVideoGenerationJob(job.jobId, { status: 'needs_attention', lastError: 'The job is still processing after repeated status checks.' });
+            throw new Error('The saved video job is taking longer than expected. It remains saved; resume it later instead of submitting another job.');
+          }
+
+          setClipStatus('Video generated. Downloading clip…');
+          const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(job.jobId) + '/content', {
+            headers: { 'x-openrouter-api-key': apiKey },
+          });
+          if (!contentResponse.ok) {
+            const data = await contentResponse.json().catch(() => ({})) as { error?: string };
+            await updateVideoGenerationJob(job.jobId, { status: 'completed', costUsd, lastError: data.error || 'The completed video could not be downloaded.' });
+            throw new Error(data.error || 'The video is complete, but its file could not be downloaded. Retry recovery later.');
+          }
+          const blob = await contentResponse.blob();
+          if (!blob.size || !blob.type.startsWith('video/')) {
+            await updateVideoGenerationJob(job.jobId, { status: 'completed', costUsd, lastError: 'The provider returned an invalid video file.' });
+            throw new Error('The provider returned an invalid or empty video file. The completed job remains saved.');
+          }
+          const latestScene = latestScenesRef.current.find((scene) => scene.id === job.sceneId);
+          if (!latestScene || latestScene.visualPrompt !== job.visualPrompt || latestScene.cameraMovement !== job.cameraMovement || latestScene.narration !== job.narration) {
+            await updateVideoGenerationJob(job.jobId, { status: 'needs_attention', costUsd, lastError: 'The scene changed after this job was submitted; its result was not attached.' });
+            throw new Error('The saved result was not attached because this scene changed after generation started.');
+          }
+          const saved = await saveGeneratedVideo({
+            title: job.projectTitle + ' — Scene ' + job.sceneOrder,
+            blob,
+            model: job.model,
+            costUsd,
+            projectId: job.projectId,
+            sceneId: job.sceneId,
+          });
+          await updateVideoGenerationJob(job.jobId, { savedVideoId: saved.id, status: 'completed', costUsd, lastError: undefined });
+          updateScene(job.projectId, job.sceneId, { generatedVideoId: saved.id, status: 'ready' });
+          if (selectedSceneIdRef.current === job.sceneId) {
+            setGeneratedClipMimeType(blob.type || '');
+            setGeneratedClipUrl(URL.createObjectURL(blob));
+            setClipCostUsd(costUsd);
+            setClipStatus('Recovered video clip and saved it to this device.');
+          }
+          showToast('Previous video generation recovered successfully', 'success');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Could not resume the saved video job.';
+          if (selectedSceneIdRef.current === job.sceneId) {
+            setClipError(message);
+            setClipStatus('');
+          }
+          await updateVideoGenerationJob(job.jobId, { lastError: message }).catch(() => undefined);
+        } finally {
+          activeVideoRecoveryJobs.delete(job.jobId);
+          setIsGeneratingClip(false);
+        }
+      };
+      void resume();
+    }).catch((error) => {
+      setClipError(error instanceof Error ? error.message : 'Could not inspect saved video jobs.');
+    });
+  }, [project?.id]);
+
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
   const totalWords = project?.scenes.reduce((acc, sc) => {
@@ -345,6 +524,17 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   const handleGenerateClip = async () => {
     if (!project || !currentScene || isGeneratingClip) return;
+    const existingJobs = await getVideoGenerationJobs(project.id).catch(() => []);
+    for (const previousJob of existingJobs) {
+      if (previousJob.sceneId === currentScene.id && previousJob.savedVideoId && previousJob.savedVideoId === currentScene.generatedVideoId) {
+        await deleteVideoGenerationJob(previousJob.jobId).catch(() => undefined);
+      }
+    }
+    const existingJob = existingJobs.find((job) => job.sceneId === currentScene.id && ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status) && job.savedVideoId !== currentScene.generatedVideoId && job.visualPrompt === currentScene.visualPrompt && job.cameraMovement === currentScene.cameraMovement && job.narration === currentScene.narration);
+    if (existingJob) {
+      setClipStatus('An existing video job (' + existingJob.jobId + ') is already saved. Resume or check that job before starting another generation.');
+      return;
+    }
     const targetScene = currentScene;
     setClipError('');
     setClipStatus('');
@@ -352,6 +542,8 @@ export const ProjectWorkspaceView: React.FC = () => {
     setGeneratedClipUrl('');
     setGeneratedClipMimeType('');
     setIsGeneratingClip(true);
+    let activeVideoJobId: string | null = null;
+    let activeVideoJobStatus: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'expired' | 'needs_attention' = 'pending';
     try {
       let apiKey = '';
       let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
@@ -378,6 +570,31 @@ export const ProjectWorkspaceView: React.FC = () => {
       });
       const submitted = await response.json().catch(() => ({})) as { jobId?: string; error?: string };
       if (!response.ok || !submitted.jobId) throw new Error(submitted.error || 'Could not start video generation. Check the selected Video model and retry.');
+      activeVideoJobId = submitted.jobId;
+      const savedJob = {
+        jobId: submitted.jobId,
+        projectId: project.id,
+        projectTitle: project.title,
+        sceneId: targetScene.id,
+        sceneOrder: targetScene.order,
+        model,
+        prompt,
+        visualPrompt: targetScene.visualPrompt,
+        cameraMovement: targetScene.cameraMovement,
+        narration: targetScene.narration,
+        duration: clipDuration,
+        aspectRatio: clipAspectRatio,
+        ...(clipResolution ? { resolution: clipResolution } : {}),
+        ...(targetScene.generatedVideoId ? { previousVideoId: targetScene.generatedVideoId } : {}),
+        status: 'pending' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      try {
+        await saveVideoGenerationJob(savedJob);
+      } catch {
+        if (selectedSceneIdRef.current === targetScene.id) setClipError('The provider accepted this video job, but VYRA could not persist its Job ID. Keep this workspace open and do not submit another generation.');
+      }
       let completed = false;
       let generatedCostUsd: number | null = null;
       let nextPollDelayMs = 30_000;
@@ -407,6 +624,8 @@ export const ProjectWorkspaceView: React.FC = () => {
           // An expired/missing job is terminal. Never keep polling it as though
           // the provider were temporarily unavailable.
           if (statusResponse.status === 404) {
+            activeVideoJobStatus = 'expired';
+            await updateVideoGenerationJob(submitted.jobId, { status: 'expired', lastError: status.error || 'The provider no longer has this job.' }).catch(() => undefined);
             throw new Error(status.error || 'This video job was not found or has expired. Check your OpenRouter activity before starting another generation.');
           }
           // Retry rate limits and transient server errors against the SAME job ID.
@@ -426,11 +645,19 @@ export const ProjectWorkspaceView: React.FC = () => {
           }
           throw new Error(status.error || 'Could not check video generation status.');
         }
-        if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
+        if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') {
+          activeVideoJobStatus = status.status;
+          await updateVideoGenerationJob(submitted.jobId, { status: status.status, lastError: status.error || 'The provider job ' + status.status + '.' }).catch(() => undefined);
+          throw new Error(status.error || 'The video generation job ' + status.status + '. You can retry with another model.');
+        }
+        activeVideoJobStatus = status.status === 'pending' ? 'pending' : 'in_progress';
+        await updateVideoGenerationJob(submitted.jobId, { status: activeVideoJobStatus, lastError: undefined }).catch(() => undefined);
         if (status.status === 'completed') {
           completed = true;
           if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Video generated. Downloading clip…');
           generatedCostUsd = typeof status.costUsd === 'number' ? status.costUsd : null;
+          activeVideoJobStatus = 'completed';
+          await updateVideoGenerationJob(submitted.jobId, { status: 'completed', costUsd: generatedCostUsd, lastError: undefined }).catch(() => undefined);
           if (selectedSceneIdRef.current === targetScene.id) setClipCostUsd(generatedCostUsd);
           break;
         }
@@ -445,6 +672,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (!blob.size || !blob.type.startsWith('video/')) throw new Error('The video provider returned an invalid or empty video file.');
       const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
       if (!latestScene || latestScene.visualPrompt !== targetScene.visualPrompt || latestScene.cameraMovement !== targetScene.cameraMovement || latestScene.narration !== targetScene.narration) {
+        await updateVideoGenerationJob(submitted.jobId, { status: 'needs_attention', costUsd: generatedCostUsd, lastError: 'The scene changed after this job was submitted; its result was not attached.' }).catch(() => undefined);
         if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene script or visual direction changed during generation. Generate a fresh clip for the updated scene.');
         return;
       }
@@ -469,6 +697,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Discarded this result because the scene changed while saving. Generate a fresh clip for the updated scene.');
           return;
         }
+        await updateVideoGenerationJob(submitted.jobId, { savedVideoId: saved.id, status: 'completed', costUsd: generatedCostUsd, lastError: undefined }).catch(() => undefined);
         updateScene(project.id, targetScene.id, { generatedVideoId: saved.id, status: 'ready' });
       } catch {
         if (selectedSceneIdRef.current === targetScene.id) setClipError('Video generated, but could not save it to this device. Download it now before leaving this page.');
@@ -485,6 +714,10 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       showToast(savedVideoId ? 'AI video clip generated and saved' : 'AI video clip generated; local save failed', savedVideoId ? 'success' : 'warning');
     } catch (error) {
+      if (activeVideoJobId) {
+        const message = error instanceof Error ? error.message : 'Video generation failed. Please retry.';
+        await updateVideoGenerationJob(activeVideoJobId, { status: activeVideoJobStatus === 'pending' || activeVideoJobStatus === 'in_progress' ? 'needs_attention' : activeVideoJobStatus, lastError: message }).catch(() => undefined);
+      }
       if (selectedSceneIdRef.current === targetScene.id) {
         setClipError(error instanceof Error ? error.message : 'Video generation failed. Please retry.');
         setClipStatus('');
