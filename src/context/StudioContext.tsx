@@ -208,7 +208,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (stored) {
         try {
           const cached = JSON.parse(stored) as Project[];
-          return removeUnmodifiedDemoProjects(cached).map((project) => ({
+          return (E2E_SEED_PROJECTS ? cached : removeUnmodifiedDemoProjects(cached)).map((project) => ({
             ...project,
             coverImage: project.coverImage ? normalizeLegacySeedAssetPath(project.coverImage) : project.coverImage,
             scenes: project.scenes.map((scene) => ({
