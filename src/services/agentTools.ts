@@ -60,6 +60,13 @@ export const AGENT_TOOLS_REGISTRY: AgentToolDefinition[] = [
     isOperational: true,
   },
   {
+    name: 'check_production_readiness',
+    displayName: 'Check Production Readiness',
+    description: 'Inspect script, visual direction, voice assets, scene clips, and final export without starting generation.',
+    category: 'system',
+    isOperational: true,
+  },
+  {
     name: 'open_production_workspace',
     displayName: 'Open Production Workspace',
     description: 'Open the selected project workspace without starting generation.',
@@ -267,6 +274,32 @@ export async function executeAgentTool(
           id: execId, toolName, displayName, status: 'success', inputArgs: args,
           outputSummary: '"' + target.title + '" is at: ' + stageLabels[stage] + '.',
           outputData: { projectId: target.id, title: target.title, stage, stageLabel: stageLabels[stage], nextAction: nextActions[stage], notes: target.productionStageNotes || null },
+          resourceLink: { label: 'Open Production Workspace', section: 'workspace', resourceId: target.id },
+          timestamp,
+        };
+      }
+
+      case 'check_production_readiness': {
+        const target = resolveProject(args.projectId);
+        if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found. Create or select a project first.', timestamp };
+        const scenes = target.scenes || [];
+        const missingScript = scenes.filter((scene) => !scene.visualPrompt?.trim() || (!(scene.narration || '').trim() && !(scene.dialogue || '').trim() && !['music', 'music_video', 'silent'].includes(String(target.videoType || '').toLowerCase())));
+        const missingVisuals = scenes.filter((scene) => !scene.visualPrompt?.trim());
+        const missingVoices = scenes.filter((scene) => Boolean((scene.dialogue || scene.narration || '').trim()) && !scene.generatedAudioId);
+        const missingClips = scenes.filter((scene) => !scene.generatedVideoId);
+        const checks = [
+          { key: 'script', label: 'Script & scene direction', ready: scenes.length > 0 && missingScript.length === 0, detail: scenes.length === 0 ? 'No storyboard scenes yet.' : missingScript.length ? 'Incomplete scenes: ' + missingScript.map((scene) => scene.order).join(', ') : 'Every scene has its required text and visual direction.' },
+          { key: 'visuals', label: 'Visual direction', ready: scenes.length > 0 && missingVisuals.length === 0, detail: missingVisuals.length ? 'Missing visual prompts in scenes: ' + missingVisuals.map((scene) => scene.order).join(', ') : 'Visual prompts are present for every scene.' },
+          { key: 'voice', label: 'Voice assets', ready: missingVoices.length === 0, detail: missingVoices.length ? 'Voiceover needed for scenes: ' + missingVoices.map((scene) => scene.order).join(', ') : 'No required voice assets are missing.' },
+          { key: 'scene_clips', label: 'Scene video clips', ready: scenes.length > 0 && missingClips.length === 0, detail: missingClips.length ? 'Video clips missing for scenes: ' + missingClips.map((scene) => scene.order).join(', ') : 'Every scene has a generated video clip.' },
+          { key: 'final_export', label: 'Final video export', ready: Boolean(target.finalVideoId), detail: target.finalVideoId ? 'A saved final video is available.' : 'The final assembled video has not been saved yet.' },
+        ];
+        const readyCount = checks.filter((check) => check.ready).length;
+        const ready = checks.every((check) => check.ready);
+        return {
+          id: execId, toolName, displayName, status: 'success', inputArgs: args,
+          outputSummary: '"' + target.title + '" readiness: ' + readyCount + '/' + checks.length + ' checks passed.',
+          outputData: { projectId: target.id, title: target.title, ready, readyCount, totalChecks: checks.length, checks, generationStarted: false, paidGenerationStarted: false },
           resourceLink: { label: 'Open Production Workspace', section: 'workspace', resourceId: target.id },
           timestamp,
         };
@@ -1143,6 +1176,20 @@ export async function processAgentRequest(
   const toolExecutions: ToolExecutionRecord[] = [];
 
   // Approval gates keep paid generation behind explicit user checkpoints.
+  if (/(check|inspect|validate|review).*(production )?(readiness|ready|script|scenes?|voice|assets)|production readiness|readiness check|စစ်ဆေး.*(script|scene|voice|အဆင်သင့်)|အဆင်သင့်.*စစ်/i.test(text)) {
+    const target = context.activeProject || context.projects[0];
+    const exec = await executeAgentTool('check_production_readiness', { projectId: target?.id }, context);
+    toolExecutions.push(exec);
+    const checks = exec.outputData?.checks || [];
+    const details = checks.map((check: any) => (check.ready ? '✓ ' : '• ') + check.label + ': ' + check.detail).join('\n');
+    return {
+      assistantResponse: exec.outputData
+        ? '**' + exec.outputData.title + ' — Production Readiness (' + exec.outputData.readyCount + '/' + exec.outputData.totalChecks + ')**\n\n' + details + '\n\nThis is a read-only check. No image, voice, or video generation was started.'
+        : exec.errorMessage || 'I could not check production readiness.',
+      toolExecutions,
+    };
+  }
+
   if (/(production|workflow).*(status|stage)|what stage.*project|အဆင့်.*(ဘယ်|ပြ)|project.*အဆင့်/i.test(text)) {
     const target = context.activeProject || context.projects[0];
     const exec = await executeAgentTool('get_production_status', { projectId: target?.id }, context);
