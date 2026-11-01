@@ -642,48 +642,123 @@ export async function executeAgentTool(
       case 'generate_storyboard': {
         const target = resolveProject(args.projectId);
         if (!target) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found to generate storyboard.', timestamp };
+        }
+
+        let apiKey = '';
+        let selectedModels: { text?: string } = {};
+        try {
+          apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+          selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+        } catch { /* Explain the required setup below. */ }
+        const model = selectedModels.text;
+        if (!apiKey || !model) {
           return {
-            id: execId,
-            toolName,
-            displayName,
-            status: 'failed',
-            inputArgs: args,
-            errorMessage: 'Target project not found to generate storyboard.',
+            id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+            errorMessage: 'Connect OpenRouter and select a Text model in Settings before asking VYRA to generate the script and storyboard. No paid image, voice, or video generation has been started.',
             timestamp,
           };
         }
 
-        const count = Math.min(10, Math.max(2, Number(args.sceneCount) || 4));
-        const theme = args.themePrompt || target.topic || target.title;
+        const count = Math.min(16, Math.max(3, Number(args.sceneCount) || Math.ceil(target.targetDuration / 12)));
+        const language = /[\u1000-\u109F]/.test(target.topic) || /[\u1000-\u109F]/.test(String(args.language || '')) ? 'Burmese' : 'the language explicitly requested in the project brief, otherwise natural English';
+        const prompt = [
+          'Create a production-ready scene-by-scene script and storyboard for this video project.',
+          'Return ONLY valid JSON with this exact shape: {"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}.',
+          'Do not wrap JSON in Markdown fences. Do not claim that any image, voice, or video has been generated.',
+          'Create exactly ' + count + ' scenes. Every scene needs complete spoken dialogue or narration, a detailed visual prompt, camera movement, and a positive integer duration.',
+          'The scene durations must add up to exactly ' + target.targetDuration + ' seconds.',
+          'Use ' + language + ' for the spoken dialogue. For cartoon stories, label each speaker clearly inside narration (for example, "MAYA: ...") and keep character voices distinguishable in the wording.',
+          'Keep character names, personalities, clothing, colors, and physical traits consistent across every scene. Do not introduce new characters without a story reason.',
+          'Visual style: ' + target.visualStyle.replace(/_/g, ' ') + '.',
+          'Narration style: ' + target.narrationStyle.replace(/_/g, ' ') + '.',
+          'Video title: ' + target.title,
+          'Story / topic: ' + target.topic,
+          'Format: ' + target.format + ', aspect ratio ' + target.aspectRatio + '.',
+          'Target duration: ' + target.targetDuration + ' seconds.',
+          'Project category: ' + target.category,
+          'Storyboard direction: ' + (args.themePrompt || 'Build a coherent beginning, middle, and ending with clear visual continuity.'),
+        ].join('\n');
 
-        // Add additional scenes to reach target count
-        const currentCount = target.scenes.length;
-        const needed = Math.max(0, count - currentCount);
-
-        for (let i = 1; i <= needed; i++) {
-          const order = currentCount + i;
-          context.addScene(target.id, {
-            narration: `Scene ${order}: Exploring key perspectives of ${theme.slice(0, 60)}.`,
-            visualPrompt: `Futuristic cinematic visualization of ${theme.slice(0, 50)}`,
-            cameraMovement: i % 2 === 0 ? 'Sweeping aerial pedestal' : 'Inward macro push',
-            duration: 10,
+        try {
+          const response = await fetch('/api/providers/openrouter/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+            body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
           });
-        }
+          const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+          if (!response.ok) throw new Error(data.error || 'Storyboard generation failed. Check the selected Text model and retry.');
+          if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('The selected Text model returned an empty storyboard.');
+          const fence = String.fromCharCode(96).repeat(3);
+          const cleanText = data.text.trim().startsWith(fence)
+            ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim()
+            : data.text.trim();
+          const parsed = JSON.parse(cleanText) as { scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
+          if (!Array.isArray(parsed.scenes) || parsed.scenes.length !== count) {
+            throw new Error('The model did not return exactly ' + count + ' complete scenes. Retry or choose another Text model.');
+          }
+          const rawScenes = parsed.scenes.map((scene) => {
+            const narration = typeof scene.narration === 'string' ? scene.narration.trim() : '';
+            const visualPrompt = typeof scene.visualPrompt === 'string' ? scene.visualPrompt.trim() : '';
+            const cameraMovement = typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : '';
+            const duration = Number(scene.duration);
+            if (!narration || !visualPrompt || !Number.isInteger(duration) || duration < 1 || duration > 600) {
+              throw new Error('The model returned an incomplete scene or invalid duration. No storyboard changes were saved.');
+            }
+            return { narration, visualPrompt, cameraMovement: cameraMovement || 'Static cinematic shot', duration };
+          });
+          const rawTotal = rawScenes.reduce((sum, scene) => sum + scene.duration, 0);
+          let assignedDuration = 0;
+          const scenes = rawScenes.map((scene, index) => {
+            const duration = index === rawScenes.length - 1
+              ? Math.max(1, target.targetDuration - assignedDuration)
+              : Math.max(1, Math.round(scene.duration * target.targetDuration / rawTotal));
+            assignedDuration += duration;
+            return { ...scene, duration };
+          });
 
-        return {
-          id: execId,
-          toolName,
-          displayName,
-          status: 'success',
-          inputArgs: args,
-          outputSummary: `Generated storyboard sequence with ${target.scenes.length + needed} total scenes for "${target.title}".`,
-          resourceLink: {
-            label: 'Inspect Storyboard',
-            section: 'workspace',
-            resourceId: target.id,
-          },
-          timestamp,
-        };
+          const existing = [...target.scenes].sort((a, b) => a.order - b.order);
+          existing.forEach((scene, index) => {
+            if (index < scenes.length) {
+              context.updateScene(target.id, scene.id, {
+                order: index + 1,
+                narration: scenes[index].narration,
+                visualPrompt: scenes[index].visualPrompt,
+                cameraMovement: scenes[index].cameraMovement,
+                duration: scenes[index].duration,
+                generatedImageId: undefined,
+                generatedAudioId: undefined,
+                generatedVideoId: undefined,
+                status: 'scripted',
+              });
+            } else {
+              context.removeScene(target.id, scene.id);
+            }
+          });
+          for (let index = existing.length; index < scenes.length; index++) {
+            context.addScene(target.id, {
+              narration: scenes[index].narration,
+              visualPrompt: scenes[index].visualPrompt,
+              cameraMovement: scenes[index].cameraMovement,
+              duration: scenes[index].duration,
+              status: 'scripted',
+            });
+          }
+
+          return {
+            id: execId, toolName, displayName, status: 'success', inputArgs: args,
+            outputSummary: 'Generated a real AI script and storyboard with ' + scenes.length + ' scenes for "' + target.title + '". Only text generation was used; no paid image, voice, or video generation was started.',
+            outputData: { projectId: target.id, sceneCount: scenes.length, targetDuration: target.targetDuration, textModel: model, generatedMedia: false },
+            resourceLink: { label: 'Review Script & Storyboard', section: 'workspace', resourceId: target.id },
+            timestamp,
+          };
+        } catch (error) {
+          return {
+            id: execId, toolName, displayName, status: 'failed', inputArgs: args,
+            errorMessage: error instanceof Error ? error.message : 'Could not generate the storyboard. No media generation was started.',
+            timestamp,
+          };
+        }
       }
 
       case 'save_content_idea': {
