@@ -1752,7 +1752,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 {sceneImageUrl && (
                   <div className="space-y-1">
                     <img src={sceneImageUrl} alt={'Generated visual for scene ' + currentScene.order} className="w-full max-h-64 rounded-lg object-contain bg-black/30" />
-                    <p className="text-[10px] text-slate-400">Generated image saved on this device.</p>
+                    <p className="text-[10px] text-slate-400">{sceneImageCostUsd === null ? "Generated image saved on this device." : "Reported image cost: $" + sceneImageCostUsd.toFixed(4) + " USD"}</p>
                   </div>
                 )}
                 {sceneImageError && <p role="alert" className="text-[11px] text-rose-400">{sceneImageError}</p>}
