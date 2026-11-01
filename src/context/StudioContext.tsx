@@ -21,6 +21,7 @@ import {
   ChatSuggestedAction,
 } from '../types';
 import {
+  INITIAL_PROJECTS,
   INITIAL_JOBS,
   INITIAL_MEDIA_ASSETS,
   INITIAL_STATS,
@@ -155,6 +156,8 @@ function removeUnmodifiedDemoProjects(projects: Project[]): Project[] {
   });
 }
 
+const E2E_SEED_PROJECTS = import.meta.env.VITE_E2E_SEED_PROJECTS === 'true';
+
 const StudioContext = createContext<StudioContextType | undefined>(undefined);
 
 export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -186,7 +189,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Navigation
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(
+    E2E_SEED_PROJECTS ? INITIAL_PROJECTS[0]?.id ?? null : null
+  );
 
   // Brand state (editable via Settings)
   const [brandName, setBrandName] = useState<string>(BRAND_CONFIG.name);
@@ -218,7 +223,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     // New accounts and clean browsers must start empty. Seed/demo projects
     // should never be presented as customer-owned work or included in backups.
-    return [];
+    return E2E_SEED_PROJECTS ? INITIAL_PROJECTS : [];
   });
 
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>(INITIAL_MEDIA_ASSETS);
