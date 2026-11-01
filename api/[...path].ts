@@ -14,10 +14,11 @@ const aiRouter = createAiRouter();
 const pricingRouter = createPricingRouter();
 const authRouter = createSupabaseAuthRouter();
 const customerProjectsRouter = createCustomerProjectsRouter();
-// Vercel normally strips the /api prefix for function routes. Also mount the
-// prefixed form for runtimes that preserve the original request pathname.
+// Vercel may strip the /api prefix, leaving /auth/session for this catch-all.
+// Mount both stripped and unstripped paths so auth verification works either way.
 app.use('/', pricingRouter);
 app.use('/', aiRouter);
+app.use('/auth', authRouter);
 app.use('/', authRouter);
 app.use('/', customerProjectsRouter);
 app.use('/api', pricingRouter);
