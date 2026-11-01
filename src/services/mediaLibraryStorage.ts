@@ -38,7 +38,7 @@ export interface SavedMediaVideo {
 
 const DB_NAME = 'vyra-media-library';
 const STORE_NAME = 'generated-images';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
