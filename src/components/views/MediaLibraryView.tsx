@@ -278,6 +278,7 @@ export const MediaLibraryView: React.FC = () => {
                     <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{video.title}</h3>
                     <p className="text-[10px] text-slate-500 break-all">{video.model}</p>
                     <p className="text-[10px] text-slate-500">{new Date(video.createdAt).toLocaleString()} · {video.costUsd === null ? 'Cost not reported' : '$' + video.costUsd.toFixed(4)}</p>
+                    {video.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {video.generationId}</p>}
                     <div className="flex items-center justify-between gap-2 pt-1">
                       {savedVideoUrls[video.id] ? <a href={savedVideoUrls[video.id]} download={'vyra-' + video.id + '.' + (video.blob.type.includes('mp4') ? 'mp4' : video.blob.type.includes('webm') ? 'webm' : 'video')} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download clip</a> : <span className="text-[11px] text-slate-500">Preparing clip…</span>}
                       <button type="button" onClick={() => void handleDeleteSavedVideo(video)} aria-label={'Delete ' + video.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
