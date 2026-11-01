@@ -72,7 +72,7 @@ async function readApiError(response: Response): Promise<string> {
     }
   }
   const contentType = response.headers.get('content-type') || 'unknown content type';
-  const detail = body.replace(/\\s+/g, ' ').trim().slice(0, 180);
+  const detail = body.replace(/\s+/g, ' ').trim().slice(0, 180);
   return `Cloud API error ${response.status} ${response.statusText || ''} (${contentType}). ${detail || 'The server did not return a readable error message.'}`.trim();
 }
 
