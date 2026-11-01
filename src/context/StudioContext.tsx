@@ -321,6 +321,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...newProjectData,
       id: newId,
       status: 'draft',
+      productionStage: newProjectData.productionStage || 'idea',
+      productionStageUpdatedAt: newProjectData.productionStageUpdatedAt || now,
       createdAt: now,
       updatedAt: now,
     };
