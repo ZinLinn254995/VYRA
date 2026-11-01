@@ -331,7 +331,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         return;
       }
       if (targetScene.generatedVideoId) {
-        await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+        void deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
         return;
       }
       if (!apiKey) {
