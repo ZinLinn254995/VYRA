@@ -282,18 +282,18 @@ export async function executeAgentTool(
         if (currentStage === 'script_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.narration.trim() || !scene.visualPrompt.trim()))) {
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Complete the narration script and visual prompt for every scene before approving the script.', timestamp };
         }
-        if (currentStage === 'visual_review' && target.scenes.some((scene) => !scene.generatedImageId)) {
+        if (currentStage === 'visual_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedImageId))) {
           const missing = target.scenes.filter((scene) => !scene.generatedImageId).map((scene) => scene.order);
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review an image for every scene before approving visuals. Missing scene images: ' + missing.join(', ') + '.', timestamp };
         }
-        if (currentStage === 'voice_review' && target.scenes.some((scene) => !scene.generatedAudioId)) {
+        if (currentStage === 'voice_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedAudioId))) {
           const missing = target.scenes.filter((scene) => !scene.generatedAudioId).map((scene) => scene.order);
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate and review the voiceover for every scene before approving voices. Missing voiceovers: ' + missing.join(', ') + '.', timestamp };
         }
         if (currentStage === 'sample_review' && !target.scenes.some((scene) => scene.generatedVideoId)) {
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate at least one sample animation clip and review it before starting full production.', timestamp };
         }
-        if (currentStage === 'full_production' && target.scenes.some((scene) => !scene.generatedVideoId)) {
+        if (currentStage === 'full_production' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedVideoId))) {
           const missing = target.scenes.filter((scene) => !scene.generatedVideoId).map((scene) => scene.order);
           return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate every scene clip before moving to final video review. Missing scene clips: ' + missing.join(', ') + '.', timestamp };
         }
