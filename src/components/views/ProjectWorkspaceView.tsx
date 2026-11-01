@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
-import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
+import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, getSavedImages, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio } from '../../types';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
@@ -165,6 +165,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     showToast,
     projects,
     setActiveProjectId,
+    setCurrentSection,
   } = useStudio();
 
   // If no active project, show selector
@@ -198,6 +199,10 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
   const [recoveryCycle, setRecoveryCycle] = useState(0);
   const attemptedRecoveryJobsRef = useRef(new Set<string>());
+  const [isGeneratingSceneImage, setIsGeneratingSceneImage] = useState(false);
+  const [sceneImageUrl, setSceneImageUrl] = useState('');
+  const [sceneImageError, setSceneImageError] = useState('');
+  const [sceneImageCostUsd, setSceneImageCostUsd] = useState<number | null>(null);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [voiceName, setVoiceName] = useState('');
   const [supportedVoiceIds, setSupportedVoiceIds] = useState<string[]>([]);
@@ -256,6 +261,29 @@ export const ProjectWorkspaceView: React.FC = () => {
   }, [project?.id, project?.aspectRatio]);
 
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
+
+  // Restore the selected scene's generated image from IndexedDB without putting base64 data in localStorage.
+  useEffect(() => {
+    let cancelled = false;
+    setSceneImageUrl('');
+    setSceneImageError('');
+    setSceneImageCostUsd(null);
+    if (!currentScene?.generatedImageId) return () => { cancelled = true; };
+    getSavedImages().then((images) => {
+      if (cancelled) return;
+      const saved = images.find((image) => image.id === currentScene.generatedImageId);
+      if (saved) {
+        setSceneImageUrl(saved.dataUrl);
+        setSceneImageCostUsd(saved.costUsd);
+      } else {
+        setSceneImageError('This scene image could not be found in this device’s media storage. Generate it again if needed.');
+      }
+    }).catch((error) => {
+      if (!cancelled) setSceneImageError(error instanceof Error ? error.message : 'Could not restore this scene image.');
+    });
+    return () => { cancelled = true; };
+  }, [project?.id, currentScene?.id, currentScene?.generatedImageId]);
+
   const currentSceneIndex = project?.scenes.findIndex((s) => s.id === selectedSceneId) ?? 0;
   // Restore this scene's generated clip from IndexedDB when returning to the workspace.
   useEffect(() => {
@@ -745,6 +773,71 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
     } finally {
       setIsGeneratingClip(false);
+    }
+  };
+
+  const handleGenerateSceneImage = async () => {
+    if (!project || !currentScene || isGeneratingSceneImage) return;
+    let apiKey = '';
+    let selectedModels: Partial<Record<'text' | 'image' | 'video' | 'audio', string>> = {};
+    try {
+      apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+      selectedModels = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as typeof selectedModels;
+    } catch { /* Show setup guidance below. */ }
+    const model = selectedModels.image;
+    if (!apiKey || !model) {
+      setSceneImageError('Connect OpenRouter and discover/select an Image model in Settings first.');
+      return;
+    }
+    const targetScene = currentScene;
+    const prompt = [
+      targetScene.visualPrompt.trim(),
+      'Visual style: ' + project.visualStyle.replace(/_/g, ' '),
+      'Scene ' + targetScene.order + ' from the video "' + project.title + '".',
+      'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
+      'Keep the character design coherent with the project style and scene description.',
+    ].join('\n');
+    setSceneImageError('');
+    setSceneImageUrl('');
+    setSceneImageCostUsd(null);
+    setIsGeneratingSceneImage(true);
+    try {
+      const response = await fetch('/api/providers/openrouter/images/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio }),
+      });
+      const data = await response.json().catch(() => ({})) as {
+        error?: string;
+        imageDataUrl?: string;
+        costUsd?: number | null;
+        generationId?: string | null;
+        model?: string;
+      };
+      if (!response.ok || typeof data.imageDataUrl !== 'string' || !data.imageDataUrl.startsWith('data:image/')) {
+        throw new Error(data.error || 'The image model did not return a valid image. Check the selected model and retry.');
+      }
+      const saved = await saveGeneratedImage({
+        title: project.title + ' — Scene ' + targetScene.order,
+        dataUrl: data.imageDataUrl,
+        model: typeof data.model === 'string' ? data.model : model,
+        costUsd: typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0 ? data.costUsd : null,
+        generationId: typeof data.generationId === 'string' ? data.generationId : undefined,
+        projectId: project.id,
+        sceneId: targetScene.id,
+      });
+      updateScene(project.id, targetScene.id, { generatedImageId: saved.id });
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setSceneImageUrl(saved.dataUrl);
+        setSceneImageCostUsd(saved.costUsd);
+      }
+      showToast('Scene image generated and saved on this device', 'success');
+    } catch (error) {
+      if (selectedSceneIdRef.current === targetScene.id) {
+        setSceneImageError(error instanceof Error ? error.message : 'Scene image generation failed. Please retry.');
+      }
+    } finally {
+      setIsGeneratingSceneImage(false);
     }
   };
 
@@ -1399,7 +1492,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             >
               {currentScene?.mediaUrl ? (
                 <img
-                  src={currentScene.mediaUrl}
+                  src={sceneImageUrl || currentScene.mediaUrl}
                   alt={`Scene ${currentSceneIndex + 1}`}
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover select-none"
@@ -1551,6 +1644,293 @@ export const ProjectWorkspaceView: React.FC = () => {
                   placeholder="Enter the voiceover script for this scene..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF] leading-relaxed"
                 />
+              </div>
+
+              {/* Generate and review a real image for this scene before approving visual assets. */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#55F4FF]" />
+                      Generate Scene Image
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Generate only this scene’s visual. Review it before moving to voice production. API usage may incur charges.</p>
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateSceneImage()} disabled={isGeneratingSceneImage || !currentScene.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingSceneImage ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingSceneImage ? 'Generating…' : sceneImageUrl ? 'Regenerate Scene Image' : 'Generate Scene Image'}
+                  </button>
+                </div>
+                {sceneImageUrl && (
+                  <div className="space-y-1">
+                    <img src={sceneImageUrl} alt={'Generated visual for scene ' + currentScene.order} className="w-full max-h-64 rounded-lg object-contain bg-black/30" />
+                    <p className="text-[10px] text-slate-400">{sceneImageCostUsd !== null ? 'Reported image cost:               <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-[#8D7CFF]" />
+                      Generate AI Voiceover
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">Turns this scene’s narration into spoken audio. API usage may incur charges; voice names vary by model.</p>
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateVoiceover()} disabled={isGeneratingVoiceover || !currentScene.narration.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#8D7CFF] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8D7CFF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingVoiceover ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingVoiceover ? 'Generating…' : 'Generate Voiceover'}
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400 light:text-slate-600" htmlFor="vyra-voice-name">Voice name (model-dependent)</label>
+                  {supportedVoiceIds.length > 0 ? <select id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]">{supportedVoiceIds.map((voice) => <option key={voice} value={voice}>{voice}</option>)}</select> : <input id="vyra-voice-name" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} maxLength={80} placeholder="Enter this model's voice ID" className="w-full px-3 py-2 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]" />}
+                  <p className="text-[10px] text-slate-500">{supportedVoiceIds.length > 0 ? 'Choose a voice published for the selected Speech model.' : 'This model did not publish voice IDs. Check its documentation; VYRA does not guess a voice ID.'}</p>
+                </div>
+                {voiceoverStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{voiceoverStatus}</p>}
+                {voiceoverError && <p role="alert" className="text-[11px] text-rose-400">{voiceoverError}</p>}
+                {generatedVoiceoverUrl && (
+                  <div className="space-y-2">
+                    <audio src={generatedVoiceoverUrl} controls preload="metadata" className="w-full" />
+                    <a href={generatedVoiceoverUrl} download={(project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'vyra') + '-scene-' + (currentScene.order || 1) + '-voiceover.' + getMediaFileExtension(generatedVoiceoverMimeType, 'audio')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                      <Download className="h-3.5 w-3.5" /> Download Voiceover
+                    </a>
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500">
+                  {voiceoverStatus.includes('could not be saved on this device')
+                    ? 'This voiceover is only available in this page session. Download it before leaving; it will not be available after refresh.'
+                    : 'Voiceover audio is saved locally in IndexedDB and linked to this scene. Full-video export mixes saved scene voiceovers when available.'}
+                </p>
+              </div>
+
+              {/* Visual Prompt Specification */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 light:text-slate-700">
+                  Visual Generation Prompt & Lighting
+                </label>
+                <textarea
+                  rows={2}
+                  value={currentScene.visualPrompt}
+                  onChange={(e) =>
+                    updateScene(project.id, currentScene.id, { visualPrompt: e.target.value, generatedImageId: undefined, generatedVideoId: undefined })
+                  }
+                  placeholder="Detailed visual prompt describing scene environment, materials, lighting..."
+                  className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]"
+                />
+              </div>
+
+              {/* Real OpenRouter video generation for the selected scene */}
+              <div className="space-y-3 rounded-xl border border-[#2B3058] light:border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-white light:text-slate-900 flex items-center gap-2">
+                      <Video className="w-4 h-4 text-[#55F4FF]" />
+                      Generate AI Video Clip
+                    </h3>
+                    <p className="text-[11px] text-slate-400 light:text-slate-500">
+                      Creates a real clip using your selected OpenRouter Video model and its published capabilities. API usage may incur charges.
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+                        <span>Clip duration</span>
+                        <select value={clipDuration} onChange={(e) => setClipDuration(Number(e.target.value))} disabled={isGeneratingClip} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
+                          {(videoModelMetadata?.supportedDurations?.length ? videoModelMetadata.supportedDurations : [4]).map((duration) => <option key={duration} value={duration}>{duration} seconds</option>)}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+                        <span>Aspect ratio</span>
+                        <select value={clipAspectRatio} onChange={(e) => setClipAspectRatio(e.target.value)} disabled={isGeneratingClip} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
+                          {(videoModelMetadata?.supportedAspectRatios?.length ? videoModelMetadata.supportedAspectRatios : [project.aspectRatio]).map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+                        <span>Resolution</span>
+                        <select value={clipResolution} onChange={(e) => setClipResolution(e.target.value)} disabled={isGeneratingClip} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-2 text-xs text-white light:text-slate-900">
+                          <option value="">Model default</option>
+                          {(videoModelMetadata?.supportedResolutions || []).map((resolution) => <option key={resolution} value={resolution}>{resolution}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    {!videoModelMetadata?.supportedDurations?.length && <p className="mt-2 text-[10px] text-amber-400">This model did not publish supported durations. VYRA will try 4 seconds; check the model details if the request is rejected.</p>}
+                  </div>
+                  <button type="button" onClick={() => void handleGenerateClip()} disabled={isGeneratingClip || !currentScene?.visualPrompt.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isGeneratingClip ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#090B18] border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {isGeneratingClip ? 'Generating…' : 'Generate ' + clipDuration + 's Clip'}
+                  </button>
+                </div>
+                {clipStatus && <p role="status" className="text-[11px] text-slate-300 light:text-slate-600">{clipStatus}</p>}
+                {clipError && <p role="alert" className="text-[11px] text-rose-400">{clipError}</p>}
+                {generatedClipUrl && (
+                  <div className="space-y-2">
+                    <video src={generatedClipUrl} controls playsInline className="w-full max-h-80 rounded-lg bg-black" />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {clipCostUsd !== null ? <span className="text-[11px] text-slate-400">Reported generation cost: {'$' + clipCostUsd.toFixed(4)} USD</span> : <span className="text-[11px] text-slate-400">Generated clip · {clipDuration} seconds</span>}
+                      <a href={generatedClipUrl} download={project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-scene-' + (currentScene.order || 1) + '.' + getMediaFileExtension(generatedClipMimeType, 'video')} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs font-semibold text-[#55F4FF] hover:bg-[#1E2345] light:hover:bg-slate-100">
+                        <Download className="h-3.5 w-3.5" />
+                        Download Clip
+                      </a>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Clip is saved on this device and remains available after refresh. Generate a clip for every scene to enable full-video export.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Camera Movement Selector & Media switcher */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400">
+                    Camera Motion
+                  </label>
+                  <select
+                    value={currentScene.cameraMovement}
+                    onChange={(e) =>
+                      updateScene(project.id, currentScene.id, { cameraMovement: e.target.value, generatedVideoId: undefined })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none"
+                  >
+                    <option value="Slow inward macro push with shallow depth of field">
+                      Slow Inward Push (Macro)
+                    </option>
+                    <option value="Cinematic tracking pass across the skyline">
+                      Cinematic Tracking Pass
+                    </option>
+                    <option value="Dynamic ascending tilt into the golden sunset horizon">
+                      Ascending Tilt
+                    </option>
+                    <option value="Smooth arc pan from left to center">Arc Pan (Avatar)</option>
+                    <option value="Static tripod lock-off">Static Lock-off</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="vyra-visual-media-source" className="text-[11px] font-semibold text-slate-400">
+                    Visual Media Source
+                  </label>
+                  <select
+                    id="vyra-visual-media-source"
+                    value={currentScene.mediaUrl}
+                    onChange={(e) =>
+                      updateScene(project.id, currentScene.id, { mediaUrl: e.target.value })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none truncate"
+                  >
+                    <option value={sceneQuantumChip}>
+                      Quantum Optical Chip Macro
+                    </option>
+                    <option value={heroCyberCity}>
+                      Tokyo 2088 Sky-Rail Cityscape
+                    </option>
+                    <option value={sceneAvatarPresenter}>
+                      Holographic Anchor Avatar
+                    </option>
+                    <option value={sceneEcoHabitat}>
+                      Alpine Biosphere Eco-Habitat
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {exportProgress && <p role="status" className="rounded-lg border border-[#2B3058] light:border-slate-200 px-3 py-2 text-[11px] text-slate-300 light:text-slate-600">{exportProgress}</p>}
+
+          {/* Scene Sequencer Timeline List (Reordering, Adding, Deleting) */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-white light:text-slate-900 flex items-center gap-1.5">
+                <Film className="w-4 h-4 text-[#8D7CFF]" />
+                <span>Storyboard Timeline ({project.scenes.length} Scenes)</span>
+              </span>
+              <button
+                onClick={() => addScene(project.id)}
+                className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Scene</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {project.scenes.map((sc, idx) => {
+                const isSelected = sc.id === selectedSceneId;
+                return (
+                  <div
+                    key={sc.id}
+                    onClick={() => setSelectedSceneId(sc.id)}
+                    className={`p-2 sm:p-3 rounded-lg border transition-all cursor-pointer flex items-center gap-2 sm:gap-3 min-w-0 ${
+                      isSelected
+                        ? 'border-[#55F4FF] bg-[#171A35] light:bg-slate-100 shadow-xs'
+                        : 'border-[#2B3058] light:border-slate-200 bg-[#090B18] light:bg-white hover:border-slate-500'
+                    }`}
+                  >
+                    {/* Scene Order Badge */}
+                    <span className="font-mono text-xs font-bold text-slate-400 w-6 text-center">
+                      0{sc.order}
+                    </span>
+
+                    {/* Thumbnail */}
+                    <div className="w-12 sm:w-16 h-10 rounded bg-slate-900 overflow-hidden shrink-0">
+                      <img
+                        src={sc.mediaUrl}
+                        alt={`Scene ${sc.order}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    {/* Script Snippet */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-white light:text-slate-900 truncate font-medium">
+                        {sc.narration || '(Empty script)'}
+                      </p>
+                      <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                        <span className="font-mono tabular-nums">{sc.duration}s</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="truncate">{sc.cameraMovement}</span>
+                      </div>
+                    </div>
+
+                    {/* Reordering & Delete Controls */}
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        disabled={idx === 0}
+                        onClick={() => reorderScenes(project.id, idx, idx - 1)}
+                        title="Move scene up"
+                        className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        disabled={idx === project.scenes.length - 1}
+                        onClick={() => reorderScenes(project.id, idx, idx + 1)}
+                        title="Move scene down"
+                        className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {project.scenes.length > 1 && (
+                        <button
+                          onClick={() => removeScene(project.id, sc.id)}
+                          title="Delete scene"
+                          className="p-1 rounded text-slate-400 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+ + sceneImageCostUsd.toFixed(4) + ' USD' : 'Generated image saved on this device.'}</p>
+                  </div>
+                )}
+                {sceneImageError && <p role="alert" className="text-[11px] text-rose-400">{sceneImageError}</p>}
               </div>
 
               {/* Real OpenRouter text-to-speech generation for the selected scene */}
