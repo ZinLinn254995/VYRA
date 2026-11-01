@@ -429,13 +429,26 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setProjects((prev) =>
       prev.map((proj) => {
         if (proj.id !== projectId) return proj;
+        const resetStage: ProductionStage | undefined =
+          updates.narration !== undefined || updates.duration !== undefined
+            ? 'script_review'
+            : updates.visualPrompt !== undefined || updates.mediaUrl !== undefined
+              ? 'visual_review'
+              : updates.cameraMovement !== undefined
+                ? 'sample_review'
+                : undefined;
+        const stageOrder: ProductionStage[] = ['idea', 'script_review', 'visual_review', 'voice_review', 'sample_review', 'full_production', 'final_review', 'publish_ready'];
+        const currentStage = proj.productionStage;
+        const currentStageIndex = currentStage ? stageOrder.indexOf(currentStage) : -1;
+        const resetStageIndex = resetStage ? stageOrder.indexOf(resetStage) : -1;
+        const nextStage = currentStage && resetStage && currentStageIndex > resetStageIndex ? resetStage : currentStage;
+        const contentChanged = updates.narration !== undefined || updates.visualPrompt !== undefined;
         return {
           ...proj,
-          scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates, ...(updates.narration !== undefined || updates.visualPrompt !== undefined ? { status: 'scripted' as const } : {}) } : sc)),
+          scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates, ...(contentChanged ? { status: 'scripted' as const } : {}) } : sc)),
           finalVideoId: undefined,
           finalVideoExportedAt: undefined,
-          productionStage: proj.productionStage === 'publish_ready' ? 'final_review' : proj.productionStage,
-          productionStageUpdatedAt: new Date().toISOString(),
+          ...(nextStage !== currentStage ? { productionStage: nextStage, productionStageUpdatedAt: new Date().toISOString() } : {}),
           updatedAt: new Date().toISOString(),
         };
       })
