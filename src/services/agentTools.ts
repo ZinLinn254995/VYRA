@@ -963,7 +963,7 @@ export async function processAgentRequest(
   const toolExecutions: ToolExecutionRecord[] = [];
 
   // Approval gates keep paid generation behind explicit user checkpoints.
-  if (/(production|workflow).*(status|stage)|what stage.*project/i.test(text)) {
+  if (/(production|workflow).*(status|stage)|what stage.*project|အဆင့်.*(ဘယ်|ပြ)|project.*အဆင့်/i.test(text)) {
     const target = context.activeProject || context.projects[0];
     const exec = await executeAgentTool('get_production_status', { projectId: target?.id }, context);
     toolExecutions.push(exec);
@@ -976,9 +976,11 @@ export async function processAgentRequest(
     };
   }
 
-  const approvalMatch = lower.match(/approve\s+(?:the\s+)?(idea|script|dialogue|character(?:s)?|visuals?|images?|voice|audio|sample|animation|lip.?sync|full production|final video)/i);
+  const approvalMatch =
+    lower.match(/approve\s+(?:the\s+)?(idea|script|dialogue|character(?:s)?|visuals?|images?|voice|audio|sample|animation|lip.?sync|full production|final video)/i) ||
+    lower.match(/(idea|script|dialogue|character(?:s)?|visuals?|images?|voice|audio|sample|animation|lip.?sync|full production|final video)(?:\s*ကို)?\s*(?:approve|အတည်ပြု)/i);
   if (approvalMatch) {
-    const term = approvalMatch[1];
+    const term = approvalMatch[1].toLowerCase();
     const stage: ProductionStage =
       term === 'idea' ? 'idea' :
       ['script', 'dialogue'].includes(term) ? 'script_review' :
@@ -1007,8 +1009,8 @@ export async function processAgentRequest(
     return {
       assistantResponse: exec.status === 'success'
         ? (stage === 'idea'
-          ? 'Your idea is approved for **"' + target.title + '"**. I generated the script and scene-by-scene storyboard using the selected Text model.\\n\\nThe next checkpoint is **Script & Dialogue Review**. No image, voice, or video generation has started, so no media-generation charges were incurred.'
-          : 'Approved **' + term + '** for **"' + target.title + '"**.\\n\\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not automatically start paid image, voice, or video generation.\\n\\nSay **"show production status"** to see what is next.')
+          ? 'Your idea is approved for **"' + target.title + '"**. I generated the script and scene-by-scene storyboard using the selected Text model.\n\nThe next checkpoint is **Script & Dialogue Review**. No image, voice, or video generation has started, so no media-generation charges were incurred.'
+          : 'Approved **' + term + '** for **"' + target.title + '"**.\n\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not automatically start paid image, voice, or video generation.\n\nSay **"show production status"** to see what is next.')
         : exec.errorMessage || 'This approval could not be applied.',
       toolExecutions,
     };
@@ -1032,14 +1034,14 @@ export async function processAgentRequest(
     (lower.startsWith('create project') ? text.match(/create project\s*["“]?([^"”\n\.]+)/i) : null);
 
   if (createProjectMatch && createProjectMatch[1]) {
-    const durationMatch = text.match(/(\d+)\s*(minutes?|mins?|seconds?|secs?)/i);
+    const durationMatch = text.match(/(\d+)\s*-?\s*(minutes?|mins?|seconds?|secs?)/i);
     const durationValue = durationMatch ? Number(durationMatch[1]) : 0;
     const targetDuration = durationMatch
       ? durationValue * (/min/i.test(durationMatch[2]) ? 60 : 1)
       : undefined;
     const rawTitle = createProjectMatch[1].trim()
       .replace(/\s+(?:with\s+)?\d+\s+scenes?.*$/i, '')
-      .replace(/\s+for\s+\d+\s*(?:minutes?|mins?|seconds?|secs?).*$/i, '')
+      .replace(/\s+for\s+\d+\s*-?\s*(?:minutes?|mins?|seconds?|secs?).*$/i, '')
       .trim() || 'New Video Project';
     const isShorts = lower.includes('short') || lower.includes('reel') || lower.includes('tiktok') || lower.includes('9:16');
     const isLong = lower.includes('long') || lower.includes('16:9') || lower.includes('documentary');
