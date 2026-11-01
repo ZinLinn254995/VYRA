@@ -59,8 +59,21 @@ function toPortableProject(project: Project) {
 }
 
 async function readApiError(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => ({})) as { error?: string };
-  return payload.error || 'Cloud storage request failed. Please try again.';
+  const body = await response.text().catch(() => '');
+  if (body) {
+    try {
+      const payload = JSON.parse(body) as { error?: string; message?: string };
+      if (typeof payload.error === 'string' && payload.error.trim()) return payload.error;
+      if (typeof payload.message === 'string' && payload.message.trim()) {
+        return `Cloud API returned an error: ${payload.message.slice(0, 220)}`;
+      }
+    } catch {
+      // Non-JSON responses usually indicate a routing, proxy, or platform-level failure.
+    }
+  }
+  const contentType = response.headers.get('content-type') || 'unknown content type';
+  const detail = body.replace(/\\s+/g, ' ').trim().slice(0, 180);
+  return `Cloud API error ${response.status} ${response.statusText || ''} (${contentType}). ${detail || 'The server did not return a readable error message.'}`.trim();
 }
 
 export const CloudProjectBackupPanel: React.FC = () => {
