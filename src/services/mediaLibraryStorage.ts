@@ -421,13 +421,13 @@ export async function deleteVideoGenerationJob(jobId: string): Promise<void> {
 
 /** Persist a provider-reported cost without rewriting media blobs or generation references. */
 export async function updateSavedMediaCost(
-  kind: 'image' | 'audio',
+  kind: 'image' | 'audio' | 'video',
   id: string,
   costUsd: number,
 ): Promise<void> {
   if (!Number.isFinite(costUsd) || costUsd < 0) throw new Error('Invalid provider-reported cost.');
   const db = await openDatabase();
-  const storeName = kind === 'image' ? STORE_NAME : 'generated-audio';
+  const storeName = kind === 'image' ? STORE_NAME : kind === 'audio' ? 'generated-audio' : 'generated-videos';
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');

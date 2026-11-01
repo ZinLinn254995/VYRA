@@ -6,6 +6,7 @@ import {
   getSavedVideos,
   getVideoGenerationJobs,
   updateSavedMediaCost,
+  updateVideoGenerationJob,
   type SavedMediaAudio,
   type SavedMediaImage,
   type SavedMediaVideo,
@@ -37,6 +38,7 @@ type UsageEntry = {
   status: string;
   projectTitle?: string;
   generationId?: string;
+  mediaId?: string;
   detail?: string;
 };
 
@@ -81,6 +83,7 @@ function buildUsageEntries(
         ? (job?.costUsd ?? video.costUsd) as number
         : null,
       generationId: job?.generationId || video.generationId,
+      mediaId: video.id,
       status: 'Saved',
       projectTitle: job?.projectTitle,
       detail: job ? 'Video generation job · ' + job.jobId : 'Saved video clip',
@@ -192,10 +195,10 @@ export const ProviderUsageView: React.FC = () => {
       return;
     }
     const candidates = entries.filter((entry) =>
-      (entry.kind === 'image' || entry.kind === 'audio') && entry.costUsd === null && Boolean(entry.generationId)
+      (entry.kind === 'image' || entry.kind === 'audio' || entry.kind === 'video') && entry.costUsd === null && Boolean(entry.generationId)
     ).slice(0, 20);
     if (candidates.length === 0) {
-      setCostLookupMessage('No saved image or voiceover records with missing costs and a Generation ID were found.');
+      setCostLookupMessage('No saved media or video-job records with missing costs and a Generation ID were found.');
       return;
     }
     setCostLookupLoading(true);
@@ -209,7 +212,14 @@ export const ProviderUsageView: React.FC = () => {
         });
         const data = await response.json().catch(() => ({})) as { costUsd?: unknown; error?: string };
         if (response.ok && typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0) {
-          await updateSavedMediaCost(entry.kind as 'image' | 'audio', entry.id.replace(/^(image|audio):/, ''), data.costUsd);
+          if (entry.kind === 'video' && entry.id.startsWith('job:')) {
+            await updateVideoGenerationJob(entry.id.slice(4), { costUsd: data.costUsd });
+          }
+          if (entry.kind === 'video' && entry.mediaId) {
+            await updateSavedMediaCost('video', entry.mediaId, data.costUsd);
+          } else if (entry.kind !== 'video') {
+            await updateSavedMediaCost(entry.kind, entry.id.replace(/^(image|audio):/, ''), data.costUsd);
+          }
           updated += 1;
         } else {
           unavailable += 1;
@@ -349,7 +359,7 @@ export const ProviderUsageView: React.FC = () => {
         <div className="min-w-0">
           <h2 className="text-xs font-bold text-cyan-300 light:text-cyan-700">Cost accuracy & storage</h2>
           <p className="text-xs leading-relaxed text-slate-300 light:text-slate-600 mt-1">
-            Costs are shown only when OpenRouter reports an amount. Some image and voiceover costs may be recovered later through the read-only generation metadata lookup when a Generation ID exists. This history is stored in this browser: image entries appear after saving an image to Media Library, and deleting a saved asset may remove its usage record. It is not a live account-billing statement.
+            Costs are shown only when OpenRouter reports an amount. Missing image, voiceover and video costs may be recovered through the read-only generation metadata lookup when a Generation ID exists. This history is stored in this browser: image entries appear after saving an image to Media Library, and deleting a saved asset may remove its usage record. It is not a live account-billing statement.
           </p>
         </div>
       </div>
