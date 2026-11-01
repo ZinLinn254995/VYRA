@@ -27,6 +27,7 @@ export interface AgentContext {
   activeProject?: Project;
   savedIdeas: SavedIdea[];
   mediaAssets: MediaAsset[];
+  conversationMessages?: { role: 'user' | 'assistant' | 'system'; content: string }[];
   createProject: (newProject: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => string;
   updateProject: (id: string, updates: Partial<Project>) => void;
   archiveProject: (id: string) => void;
@@ -678,6 +679,7 @@ export async function executeAgentTool(
           'Target duration: ' + target.targetDuration + ' seconds.',
           'Project category: ' + target.category,
           'Storyboard direction: ' + (args.themePrompt || 'Build a coherent beginning, middle, and ending with clear visual continuity.'),
+          'Prior brainstorming and user-approved creative decisions:\n' + (context.conversationMessages || []).slice(-20).map((message) => message.role.toUpperCase() + ': ' + message.content).join('\n').slice(-10000),
         ].join('\n');
 
         try {
@@ -1022,7 +1024,7 @@ export async function processAgentRequest(
     toolExecutions.push(exec);
     return {
       assistantResponse: exec.status === 'success'
-        ? 'I recorded the targeted revision request for **"' + target?.title + '"**. The current stage is unchanged, and approved assets remain untouched; the whole project will not be restarted.'
+        ? 'I saved the targeted revision request for **"' + target?.title + '"**. No regeneration has started yet. The current stage is unchanged, and the whole project will not be restarted.'
         : exec.errorMessage || 'I could not record that revision request.',
       toolExecutions,
     };
