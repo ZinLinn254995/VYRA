@@ -150,6 +150,74 @@ router.post('/providers/openrouter/test', async (req: Request, res: Response) =>
   }
 });
 
+// Read-only key usage snapshot. This endpoint never returns the API key or raw provider payload.
+const keyUsageRequestWindows = new Map<string, { count: number; resetAt: number }>();
+router.get('/providers/openrouter/usage/key', async (req: Request, res: Response) => {
+  const apiKey = readOpenRouterKey(req);
+  if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key in Settings to view live key usage.' });
+
+  const now = Date.now();
+  const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
+  let window = keyUsageRequestWindows.get(clientKey);
+  if (!window || window.resetAt <= now) {
+    window = { count: 0, resetAt: now + 60_000 };
+    keyUsageRequestWindows.set(clientKey, window);
+  }
+  window.count += 1;
+  if (window.count > 10) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil((window.resetAt - now) / 1000))));
+    return res.status(429).json({ error: 'Usage refresh limit reached. Wait a moment and retry.' });
+  }
+  if (keyUsageRequestWindows.size > 5000) {
+    for (const [entryKey, entry] of keyUsageRequestWindows) {
+      if (entry.resetAt <= now) keyUsageRequestWindows.delete(entryKey);
+    }
+  }
+
+  try {
+    const upstream = await openRouterFetch('https://openrouter.ai/api/v1/key', apiKey);
+    const payload = await upstream.json().catch(() => ({})) as {
+      data?: {
+        usage?: number;
+        usage_daily?: number;
+        usage_weekly?: number;
+        usage_monthly?: number;
+        limit?: number | null;
+        limit_remaining?: number | null;
+        limit_reset?: string | null;
+        is_free_tier?: boolean;
+        expires_at?: string | null;
+      };
+    };
+    if (!upstream.ok || !payload.data) {
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : upstream.status === 429 ? 429 : 502).json({
+        error: upstream.status === 401 || upstream.status === 403
+          ? 'OpenRouter rejected this key. Reconnect it in Settings.'
+          : upstream.status === 429
+            ? 'OpenRouter rate limit reached. Wait before refreshing usage.'
+            : 'OpenRouter could not return key usage right now. Try again later.',
+      });
+    }
+    const data = payload.data;
+    const finiteOrNull = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+    return res.status(200).json({
+      usage: finiteOrNull(data.usage),
+      usageDaily: finiteOrNull(data.usage_daily),
+      usageWeekly: finiteOrNull(data.usage_weekly),
+      usageMonthly: finiteOrNull(data.usage_monthly),
+      limit: finiteOrNull(data.limit),
+      limitRemaining: finiteOrNull(data.limit_remaining),
+      limitReset: typeof data.limit_reset === 'string' ? data.limit_reset : null,
+      isFreeTier: typeof data.is_free_tier === 'boolean' ? data.is_free_tier : null,
+      expiresAt: typeof data.expires_at === 'string' ? data.expires_at : null,
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach OpenRouter. Check your connection and retry.' });
+  }
+});
+
 router.get('/providers/openrouter/models', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'An OpenRouter API key is required to discover models.' });
