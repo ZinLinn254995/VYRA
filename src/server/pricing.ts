@@ -105,10 +105,10 @@ router.post('/providers/openrouter/estimate', async (req: Request, res: Response
       const data = asRecord(payload.data);
       const endpoints = Array.isArray(data.endpoints) ? data.endpoints
         : Array.isArray(payload.endpoints) ? payload.endpoints : [];
-      pricingLines = endpoints.slice(0, 50).flatMap((endpoint) => {
+      pricingLines = endpoints.slice(0, 50).flatMap((endpoint, index) => {
         const record = asRecord(endpoint);
         const provider = typeof record.provider_name === 'string' ? record.provider_name
-          : typeof record.name === 'string' ? record.name : 'unknown-provider';
+          : typeof record.name === 'string' ? record.name : 'unknown-provider-' + index;
         return safePricingLines(record.pricing, provider);
       });
       if (!endpoints.length) return res.status(404).json({ error: 'No provider pricing endpoints were returned for this image model.' });
