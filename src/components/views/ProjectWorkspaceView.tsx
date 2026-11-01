@@ -196,6 +196,8 @@ export const ProjectWorkspaceView: React.FC = () => {
 
   // Generated clips stay in memory until downloaded; large video files are not written into localStorage.
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
+  const [recoveryCycle, setRecoveryCycle] = useState(0);
+  const attemptedRecoveryJobsRef = useRef(new Set<string>());
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [voiceName, setVoiceName] = useState('');
   const [supportedVoiceIds, setSupportedVoiceIds] = useState<string[]>([]);
@@ -324,18 +326,21 @@ export const ProjectWorkspaceView: React.FC = () => {
       const recoverableJobs = jobs.filter((job) =>
         ['pending', 'in_progress', 'completed', 'needs_attention'].includes(job.status)
       );
-      recoveryJob = recoverableJobs.find((job) => {
+      recoveryJob = recoverableJobs.filter((job) => !attemptedRecoveryJobsRef.current.has(job.jobId)).find((job) => {
         const scene = latestScenesRef.current.find((item) => item.id === job.sceneId);
         return Boolean(scene && scene.visualPrompt === job.visualPrompt && scene.cameraMovement === job.cameraMovement && scene.narration === job.narration);
-      }) || recoverableJobs[0];
+      }) || recoverableJobs.find((job) => !attemptedRecoveryJobsRef.current.has(job.jobId));
       if (!recoveryJob) return;
+      attemptedRecoveryJobsRef.current.add(recoveryJob.jobId);
       const targetScene = latestScenesRef.current.find((scene) => scene.id === recoveryJob?.sceneId);
       if (!targetScene) {
         setClipStatus('A saved video job belongs to a scene that no longer exists. Its Job ID remains saved for review.');
+        setRecoveryCycle((cycle) => cycle + 1);
         return;
       }
       if (recoveryJob.savedVideoId && targetScene.generatedVideoId === recoveryJob.savedVideoId) {
         await deleteVideoGenerationJob(recoveryJob.jobId).catch(() => undefined);
+        setRecoveryCycle((cycle) => cycle + 1);
         return;
       }
       if (recoveryJob.savedVideoId) {
@@ -344,6 +349,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           if (targetScene.generatedVideoId && targetScene.generatedVideoId !== recoveryJob.previousVideoId) {
             await updateVideoGenerationJob(recoveryJob.jobId, { status: 'needs_attention', lastError: 'The scene now points to a different clip; the recovered media was not attached.' });
             setClipStatus('A saved video result is ready, but this scene has since been linked to another clip. Review the job before replacing it.');
+            setRecoveryCycle((cycle) => cycle + 1);
             return;
           }
           updateScene(recoveryJob.projectId, recoveryJob.sceneId, { generatedVideoId: alreadySaved.id, status: 'ready' });
@@ -353,24 +359,31 @@ export const ProjectWorkspaceView: React.FC = () => {
             setClipStatus('Recovered the saved video file and restored its scene link.');
           }
           showToast('Saved video clip link recovered', 'success');
+          setRecoveryCycle((cycle) => cycle + 1);
           return;
         }
       }
       if (targetScene.generatedVideoId && targetScene.generatedVideoId !== recoveryJob.previousVideoId) {
         await updateVideoGenerationJob(recoveryJob.jobId, { status: 'needs_attention', lastError: 'The scene now points to a different clip; the job was not allowed to overwrite it.' });
         setClipStatus('A saved video job exists, but this scene now contains a different clip. Review the previous job before generating another.');
+        setRecoveryCycle((cycle) => cycle + 1);
         return;
       }
       if (!apiKey) {
         setClipStatus('A saved video job (' + recoveryJob.jobId + ') is waiting. Reconnect OpenRouter in Settings to resume it; do not start another generation.');
+        setRecoveryCycle((cycle) => cycle + 1);
         return;
       }
       const job = recoveryJob;
       if (targetScene.visualPrompt !== job.visualPrompt || targetScene.cameraMovement !== job.cameraMovement || targetScene.narration !== job.narration) {
         setClipStatus('A saved video job exists, but this scene has changed since it was submitted. Review the previous job before generating a replacement.');
+        setRecoveryCycle((cycle) => cycle + 1);
         return;
       }
-      if (activeVideoRecoveryJobs.has(job.jobId)) return;
+      if (activeVideoRecoveryJobs.has(job.jobId)) {
+        setRecoveryCycle((cycle) => cycle + 1);
+        return;
+      }
       activeVideoRecoveryJobs.add(job.jobId);
       setIsGeneratingClip(true);
       setClipError('');
@@ -479,13 +492,14 @@ export const ProjectWorkspaceView: React.FC = () => {
         } finally {
           activeVideoRecoveryJobs.delete(job.jobId);
           setIsGeneratingClip(false);
+          setRecoveryCycle((cycle) => cycle + 1);
         }
       };
       void resume();
     }).catch((error) => {
       setClipError(error instanceof Error ? error.message : 'Could not inspect saved video jobs.');
     });
-  }, [project?.id]);
+  }, [project?.id, recoveryCycle]);
 
   // Compute total duration and words
   const totalDuration = project?.scenes.reduce((acc, sc) => acc + sc.duration, 0) || 0;
