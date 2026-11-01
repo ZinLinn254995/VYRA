@@ -397,7 +397,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           cameraMovement: sceneData?.cameraMovement || 'Slow dynamic push inward',
           duration: sceneData?.duration || 8,
           mediaUrl: sceneData?.mediaUrl || proj.coverImage || '/src/assets/images/hero_cyber_city_1792925206979.jpg',
-          status: 'ready',
+          status: sceneData?.status || 'ready',
         };
         return {
           ...proj,
