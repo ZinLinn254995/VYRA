@@ -452,11 +452,13 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
     const mediaType = typeof image.media_type === 'string' && /^image\/(png|jpeg|webp)$/.test(image.media_type)
       ? image.media_type
       : 'image/png';
+    const generationId = upstream.headers.get('x-generation-id');
     return res.status(200).json({
       imageDataUrl: 'data:' + mediaType + ';base64,' + image.b64_json,
       mediaType,
       model,
-      costUsd: typeof data.usage?.cost === 'number' ? data.usage.cost : null,
+      generationId: generationId && /^[a-zA-Z0-9_-]{1,200}$/.test(generationId) ? generationId : null,
+      costUsd: typeof data.usage?.cost === 'number' && Number.isFinite(data.usage.cost) && data.usage.cost >= 0 ? data.usage.cost : null,
     });
   } catch {
     return res.status(502).json({ error: 'Image generation timed out or could not reach OpenRouter. Check connection and retry.' });
@@ -539,7 +541,7 @@ router.post('/providers/openrouter/audio/speech', async (req: Request, res: Resp
     res.setHeader('Content-Length', String(bytes.length));
     res.setHeader('Cache-Control', 'no-store');
     const generationId = upstream.headers.get('x-generation-id');
-    if (generationId) res.setHeader('X-Generation-Id', generationId);
+    if (generationId && /^[a-zA-Z0-9_-]{1,200}$/.test(generationId)) res.setHeader('X-Generation-Id', generationId);
     return res.status(200).send(bytes);
   } catch {
     return res.status(502).json({ error: 'Speech generation timed out or could not reach OpenRouter. Check connection and retry.' });
