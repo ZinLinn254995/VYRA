@@ -21,7 +21,6 @@ import {
   ChatSuggestedAction,
 } from '../types';
 import {
-  INITIAL_PROJECTS,
   INITIAL_JOBS,
   INITIAL_MEDIA_ASSETS,
   INITIAL_STATS,
