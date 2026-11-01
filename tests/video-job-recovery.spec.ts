@@ -61,7 +61,7 @@ test('a saved OpenRouter video job survives refresh and resumes by its original 
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ jobId: savedJob.jobId, status: 'completed', costUsd: 0.001 }),
+      body: JSON.stringify({ jobId: savedJob.jobId, generationId: 'gen-video-test-456', status: 'completed', costUsd: 0.001 }),
     });
   });
   await page.route('**/api/providers/openrouter/videos/test-openrouter-job-123/content', async (route) => {
@@ -87,6 +87,22 @@ test('a saved OpenRouter video job survives refresh and resumes by its original 
     return projects.find(project => project.id === 'proj-01-quantum')?.scenes.find(scene => scene.id === 'sc-01')?.generatedVideoId || '';
   })).not.toBe('');
 
+  const recoveredJob = await page.evaluate(async (jobId) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('vyra-media-library', 4);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<{ generationId?: string; costUsd?: number } | undefined>((resolve, reject) => {
+        const request = db.transaction('video-generation-jobs', 'readonly').objectStore('video-generation-jobs').get(jobId);
+        request.onsuccess = () => resolve(request.result as { generationId?: string; costUsd?: number } | undefined);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  }, savedJob.jobId);
+  expect(recoveredJob?.generationId).toBe('gen-video-test-456');
+  expect(recoveredJob?.costUsd).toBe(0.001);
   expect(statusRequests).toBe(1);
   expect(contentRequests).toBe(1);
   expect(generationRequests).toBe(0);
