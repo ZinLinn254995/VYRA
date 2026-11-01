@@ -414,6 +414,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...proj,
           scenes: [...proj.scenes, newScene],
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
           updatedAt: new Date().toISOString(),
         };
       })
@@ -428,6 +430,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...proj,
           scenes: proj.scenes.map((sc) => (sc.id === sceneId ? { ...sc, ...updates } : sc)),
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
           updatedAt: new Date().toISOString(),
         };
       })
@@ -444,6 +448,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...proj,
           scenes: renumbered,
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
           updatedAt: new Date().toISOString(),
         };
       })
@@ -462,6 +468,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...proj,
           scenes: renumbered,
+          finalVideoId: undefined,
+          finalVideoExportedAt: undefined,
           updatedAt: new Date().toISOString(),
         };
       })
