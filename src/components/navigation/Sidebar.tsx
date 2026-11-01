@@ -17,6 +17,7 @@ import {
   Share2,
   BarChart3,
   Activity,
+  Receipt,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -95,6 +96,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
       id: 'jobs',
       label: 'Video Job Recovery',
       icon: <Activity className="w-5 h-5 shrink-0" />,
+    },
+    {
+      id: 'usage',
+      label: 'Provider Usage',
+      icon: <Receipt className="w-5 h-5 shrink-0" />,
     },
     {
       id: 'settings',
