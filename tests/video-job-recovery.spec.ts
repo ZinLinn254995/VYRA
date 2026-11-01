@@ -72,6 +72,9 @@ test('a saved OpenRouter video job survives refresh and resumes by its original 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await openWorkspace(page);
+  // Let the initial empty-job lookup finish before inserting the simulated pre-refresh job.
+  await page.waitForTimeout(250);
+  expect(statusRequests).toBe(0);
   await savePendingJobInIndexedDb(page);
 
   // A full reload simulates closing and reopening the workspace. The next visit
