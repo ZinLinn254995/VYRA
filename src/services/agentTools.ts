@@ -987,11 +987,28 @@ export async function processAgentRequest(
       ['sample', 'animation', 'lip-sync', 'lipsync'].includes(term) ? 'sample_review' :
       term === 'full production' ? 'full_production' : 'final_review';
     const target = context.activeProject || context.projects[0];
-    const exec = await executeAgentTool('approve_production_stage', { projectId: target?.id, stage }, context);
+    if (!target) {
+      return { assistantResponse: 'Create or select a VYRA project first. I need a project workspace before I can record this approval.', toolExecutions: [] };
+    }
+
+    if (stage === 'idea') {
+      const storyboard = await executeAgentTool('generate_storyboard', { projectId: target.id }, context);
+      toolExecutions.push(storyboard);
+      if (storyboard.status !== 'success') {
+        return {
+          assistantResponse: storyboard.errorMessage || 'I could not prepare the script. The idea has not been advanced to the next checkpoint.',
+          toolExecutions,
+        };
+      }
+    }
+
+    const exec = await executeAgentTool('approve_production_stage', { projectId: target.id, stage }, context);
     toolExecutions.push(exec);
     return {
       assistantResponse: exec.status === 'success'
-        ? 'Approved **' + term + '** for **"' + target?.title + '"**.\n\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not start paid image, voice, or video generation.\n\nSay **"show production status"** to see what is next.'
+        ? (stage === 'idea'
+          ? 'Your idea is approved for **"' + target.title + '"**. I generated the script and scene-by-scene storyboard using the selected Text model.\\n\\nThe next checkpoint is **Script & Dialogue Review**. No image, voice, or video generation has started, so no media-generation charges were incurred.'
+          : 'Approved **' + term + '** for **"' + target.title + '"**.\\n\\nThe next checkpoint is **' + exec.outputData?.nextStage + '**. This approval only unlocks the next step; it does not automatically start paid image, voice, or video generation.\\n\\nSay **"show production status"** to see what is next.')
         : exec.errorMessage || 'This approval could not be applied.',
       toolExecutions,
     };
