@@ -67,7 +67,7 @@ test('Provider Usage History shows provider-reported live key totals without exp
 });
 
 
-test('Provider Usage can recover missing image and voiceover costs using saved generation IDs', async ({ page }) => {
+test('Provider Usage recovers provider-reported costs for saved image and voiceover records', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'sk-or-v1-test-session-secret');
@@ -79,17 +79,54 @@ test('Provider Usage can recover missing image and voiceover costs using saved g
       fetchedAt: '2026-11-01T09:30:00.000Z',
     }),
   }));
-  let lookupCount = 0;
+  const lookedUpIds: string[] = [];
   await page.route('**/api/providers/openrouter/generation/**', async (route) => {
-    lookupCount += 1;
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ costUsd: 0.0042 }) });
+    lookedUpIds.push(route.request().url().split('/').pop() || '');
+    expect(route.request().headers()['x-openrouter-api-key']).toBe('sk-or-v1-test-session-secret');
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ costUsd: 0.0042 }),
+    });
   });
+
   await page.goto('/');
+  await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('vyra-media-library', 4);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains('generated-images')) database.createObjectStore('generated-images', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('generated-audio')) database.createObjectStore('generated-audio', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('generated-videos')) database.createObjectStore('generated-videos', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('video-generation-jobs')) database.createObjectStore('video-generation-jobs', { keyPath: 'jobId' });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(['generated-images', 'generated-audio'], 'readwrite');
+      transaction.objectStore('generated-images').put({
+        id: 'image-cost-test', title: 'Cost test image', dataUrl: 'data:image/png;base64,AA==',
+        model: 'test/image-model', costUsd: null, generationId: 'gen-image-test-001',
+        createdAt: '2026-11-01T09:00:00.000Z',
+      });
+      transaction.objectStore('generated-audio').put({
+        id: 'audio-cost-test', title: 'Cost test voiceover', blob: new Blob(['audio']),
+        model: 'test/audio-model', voice: 'test-voice', generationId: 'gen-audio-test-002',
+        projectId: 'project-test', sceneId: 'scene-test', createdAt: '2026-11-01T09:01:00.000Z',
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    db.close();
+  });
+
   await page.getByRole('button', { name: 'Open mobile menu' }).click();
   await page.getByRole('button', { name: 'Provider Usage' }).click();
-  await expect(page.getByRole('button', { name: 'Look up missing costs' })).toBeVisible();
-  await expect(page.getByText(/No saved usage records yet/)).toBeVisible();
+  await expect(page.getByText('Cost test image')).toBeVisible();
+  await expect(page.getByText('Cost test voiceover')).toBeVisible();
   await page.getByRole('button', { name: 'Look up missing costs' }).click();
-  await expect(page.getByRole('status')).toContainText(/No saved image or voiceover records/);
-  expect(lookupCount).toBe(0);
+  await expect(page.getByRole('status')).toContainText('2 provider-reported cost(s) saved.');
+  await expect(page.getByText('$0.0042', { exact: true })).toHaveCount(2);
+  expect(lookedUpIds.sort()).toEqual(['gen-audio-test-002', 'gen-image-test-001']);
 });
