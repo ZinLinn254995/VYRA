@@ -1181,10 +1181,10 @@ export async function processAgentRequest(
     const exec = await executeAgentTool('check_production_readiness', { projectId: target?.id }, context);
     toolExecutions.push(exec);
     const checks = exec.outputData?.checks || [];
-    const details = checks.map((check: any) => (check.ready ? '✓ ' : '• ') + check.label + ': ' + check.detail).join('\\n');
+    const details = checks.map((check: any) => (check.ready ? '✓ ' : '• ') + check.label + ': ' + check.detail).join('\n');
     return {
       assistantResponse: exec.outputData
-        ? '**' + exec.outputData.title + ' — Production Readiness (' + exec.outputData.readyCount + '/' + exec.outputData.totalChecks + ')**\\n\\n' + details + '\\n\\nThis is a read-only check. No image, voice, or video generation was started.'
+        ? '**' + exec.outputData.title + ' — Production Readiness (' + exec.outputData.readyCount + '/' + exec.outputData.totalChecks + ')**\n\n' + details + '\n\nThis is a read-only check. No image, voice, or video generation was started.'
         : exec.errorMessage || 'I could not check production readiness.',
       toolExecutions,
     };
