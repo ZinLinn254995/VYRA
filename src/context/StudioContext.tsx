@@ -159,7 +159,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Navigation
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
-  const [activeProjectId, setActiveProjectId] = useState<string | null>('proj-01-quantum');
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   // Brand state (editable via Settings)
   const [brandName, setBrandName] = useState<string>(BRAND_CONFIG.name);
@@ -189,7 +189,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
     }
-    return INITIAL_PROJECTS;
+    // New accounts and clean browsers must start empty. Seed/demo projects
+    // should never be presented as customer-owned work or included in backups.
+    return [];
   });
 
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>(INITIAL_MEDIA_ASSETS);
