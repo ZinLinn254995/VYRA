@@ -840,6 +840,17 @@ export async function executeAgentTool(
 
       case 'approve_project_for_review': {
         const target = resolveProject(args.projectId);
+        if (target?.productionStage && target.productionStage !== 'publish_ready') {
+          return {
+            id: execId,
+            toolName,
+            displayName,
+            status: 'failed',
+            inputArgs: args,
+            errorMessage: 'Complete all production checkpoints and approve the final video before approving this project for publishing.',
+            timestamp,
+          };
+        }
         if (!target) {
           return {
             id: execId,
