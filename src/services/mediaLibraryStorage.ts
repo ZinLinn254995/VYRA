@@ -315,6 +315,7 @@ export interface SavedVideoGenerationJob {
   visualPrompt: string;
   cameraMovement: string;
   narration: string;
+  dialogue?: string;
   duration: number;
   aspectRatio: string;
   resolution?: string;
