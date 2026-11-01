@@ -194,9 +194,9 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
       });
     }
     const source = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
-    const stringList = (value: unknown): string[] | undefined =>
+    const stringList = (value: unknown, limit = 40): string[] | undefined =>
       Array.isArray(value)
-        ? value.filter((entry): entry is string => typeof entry === 'string').slice(0, 40)
+        ? value.filter((entry): entry is string => typeof entry === 'string').slice(0, limit)
         : undefined;
     const models = source
       .map((model) => ({
@@ -219,7 +219,7 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
         supportedFrameImages: stringList(model.supported_frame_images),
         allowedPassthroughParameters: stringList(model.allowed_passthrough_parameters),
         supportedParameters: stringList(model.supported_parameters),
-        supportedVoiceIds: stringList(model.supported_voices),
+        supportedVoiceIds: stringList(model.supported_voices, 500),
         generateAudio: typeof model.generate_audio === 'boolean' ? model.generate_audio : undefined,
         pricingSkus: model.pricing_skus && typeof model.pricing_skus === 'object'
           ? Object.fromEntries(Object.entries(model.pricing_skus).filter(([, value]) => typeof value === 'string' || typeof value === 'number').map(([key, value]) => [key, String(value)]).slice(0, 30))
@@ -314,7 +314,7 @@ router.post('/providers/openrouter/audio/speech', async (req: Request, res: Resp
   if (!model || model.length > 200) return res.status(400).json({ error: 'Discover and select a Speech model in Settings first.' });
   if (!input) return res.status(400).json({ error: 'Add narration text before generating voiceover.' });
   if (input.length > 4000) return res.status(413).json({ error: 'Narration is too long for one request. Keep it under 4,000 characters.' });
-  if (!voice || voice.length > 80 || !/^[a-zA-Z0-9_.:-]+$/.test(voice)) return res.status(400).json({ error: 'Enter a voice supported by the selected model. Voice IDs may contain letters, numbers, underscores, hyphens or colons.' });
+  if (!voice || voice.length > 80 || !/^[a-zA-Z0-9_.:-]+$/.test(voice)) return res.status(400).json({ error: 'Enter a voice supported by the selected model. Voice IDs may contain letters, numbers, dots, underscores, hyphens or colons.' });
 
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/audio/speech', {
