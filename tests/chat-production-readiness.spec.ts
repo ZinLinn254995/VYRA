@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('AI Ideas Chat reports production readiness without starting paid generation', async ({ page }) => {
   const generationRequests: string[] = [];
   page.on('request', request => {
-    if (/\\/api\\/providers\\/openrouter\\/(?:video|images|audio)/i.test(request.url())) {
+    if (/\/api\/providers\/openrouter\/(?:video|images|audio)/i.test(request.url())) {
       generationRequests.push(request.url());
     }
   });
