@@ -7,6 +7,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   NavSection,
   Project,
+  ProductionStage,
   Scene,
   JobQueueItem,
   MediaAsset,
