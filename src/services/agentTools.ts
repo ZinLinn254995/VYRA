@@ -279,8 +279,8 @@ export async function executeAgentTool(
           final_review: 'publish_ready',
         };
         const next = nextStage[currentStage];
-        if (currentStage === 'script_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.narration.trim() || !scene.visualPrompt.trim()))) {
-          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Complete the narration script and visual prompt for every scene before approving the script.', timestamp };
+        if (currentStage === 'script_review' && (!target.scenes.length || target.scenes.some((scene) => scene.status !== 'scripted' || !scene.narration.trim() || !scene.visualPrompt.trim()))) {
+          return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Generate or edit a complete narration script and visual prompt for every scene before approving the script.', timestamp };
         }
         if (currentStage === 'visual_review' && (!target.scenes.length || target.scenes.some((scene) => !scene.generatedImageId))) {
           const missing = target.scenes.filter((scene) => !scene.generatedImageId).map((scene) => scene.order);
