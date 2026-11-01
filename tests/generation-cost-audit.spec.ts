@@ -45,6 +45,10 @@ test('OpenRouter chat response includes provider generation metadata when suppli
   await composer.fill('Explain how quantum computing works.');
   await composer.press('Enter');
   await expect(page.getByText('Generation metadata test response.')).toBeVisible();
+  await expect(page.getByText('Provider usage · OpenRouter')).toBeVisible();
+  await expect(page.getByText('Generation ID: gen-test-123')).toBeVisible();
+  await expect(page.getByText('$0.001200')).toBeVisible();
+  await expect(page.getByText('Tokens: 12 prompt · 34 completion · 46 total')).toBeVisible();
   expect(forwardedKey).toBe('or-test-key-not-a-real-secret');
   await expect(page.getByText('or-test-key-not-a-real-secret')).toHaveCount(0);
 });
