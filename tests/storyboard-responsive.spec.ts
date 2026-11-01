@@ -186,6 +186,7 @@ test('Editing narration or visual direction invalidates the scene media referenc
 
 
 test('An in-flight video result is discarded if the scene changes before the clip arrives', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
@@ -237,6 +238,7 @@ test('An in-flight video result is discarded if the scene changes before the cli
 
 
 test('An in-flight voiceover is discarded if narration changes before audio arrives', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
@@ -341,6 +343,7 @@ test('Full-video export explains when the browser cannot record video', async ({
 });
 
 test('Generated voiceover remains downloadable when local IndexedDB saving fails', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
@@ -442,3 +445,23 @@ for (const width of [768, 1024, 1280, 1440]) {
     ).toBeGreaterThanOrEqual(collapsedSidebar!.x + collapsedSidebar!.width - 1);
   });
 }
+
+
+test('Cancelling the billable video confirmation sends no provider request', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'playwright-test-key');
+    sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ video: 'test/video-model' }));
+  });
+  let generationRequests = 0;
+  await page.route('**/api/providers/openrouter/videos/generate', async route => {
+    generationRequests += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jobId: 'should-not-start' }) });
+  });
+  page.on('dialog', dialog => dialog.dismiss());
+  await page.goto('/');
+  await page.locator('nav button').nth(4).click();
+  await page.getByRole('button', { name: 'Generate 4s Clip' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Generation cancelled. No video request was sent.' })).toBeVisible();
+  expect(generationRequests).toBe(0);
+});
