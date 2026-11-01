@@ -535,6 +535,22 @@ export const AIIdeasChatView: React.FC = () => {
                       {message.content}
                     </div>
 
+                    {/* Provider-reported generation details */}
+                    {!isUser && message.providerName === 'OpenRouter' && (message.generationId || message.usage) && (
+                      <div className="rounded-lg border border-[#2B3058] light:border-slate-200 bg-[#171A35]/70 light:bg-white p-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 text-[10px]">
+                          <span className="font-semibold text-slate-300 light:text-slate-700">Provider usage · OpenRouter</span>
+                          {message.usage?.costUsd !== null && message.usage?.costUsd !== undefined
+                            ? <span className="font-mono font-semibold text-emerald-300 light:text-emerald-700">${message.usage.costUsd.toFixed(6)}</span>
+                            : <span className="text-slate-500">Cost unavailable</span>}
+                        </div>
+                        {message.modelName && <p className="text-[10px] text-slate-400 light:text-slate-500 break-all">Model: {message.modelName}</p>}
+                        {message.usage && <p className="text-[10px] text-slate-400 light:text-slate-500">Tokens: {message.usage.promptTokens ?? '—'} prompt · {message.usage.completionTokens ?? '—'} completion · {message.usage.totalTokens ?? '—'} total</p>}
+                        {message.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {message.generationId}</p>}
+                        <p className="text-[9px] text-slate-500">Provider-reported values only. Missing values are not estimated.</p>
+                      </div>
+                    )}
+
                     {/* Tool Executions Display */}
                     {!isUser && message.toolExecutions && message.toolExecutions.length > 0 && (
                       <div className="pt-2 space-y-2.5 border-t border-[#2B3058]/80 light:border-slate-200">

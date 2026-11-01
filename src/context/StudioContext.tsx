@@ -635,6 +635,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       let finalContent = agentResult.assistantResponse;
       let finalSuggestedActions: ChatSuggestedAction[] = [];
       let isPreviewNotice = false;
+      let providerMetadata: Pick<ChatMessage, 'providerName' | 'modelName' | 'generationId' | 'usage'> = {};
 
       // 2. If no tool command matched, run creative ideation engine
       if (agentResult.toolExecutions.length === 0) {
@@ -648,6 +649,14 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         finalContent = response.content;
         finalSuggestedActions = response.suggestedActions || [];
         isPreviewNotice = response.isPreviewNotice || false;
+        if (response.status === 'success') {
+          providerMetadata = {
+            ...(response.providerName ? { providerName: response.providerName } : {}),
+            ...(response.modelName ? { modelName: response.modelName } : {}),
+            ...(response.generationId ? { generationId: response.generationId } : {}),
+            ...(response.usage ? { usage: response.usage } : {}),
+          };
+        }
         if (response.status === 'success' && response.providerName) {
           setAiStatus({
             status: 'connected',
@@ -669,6 +678,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         suggestedActions: finalSuggestedActions,
         isPreviewNotice,
         toolExecutions: agentResult.toolExecutions.length > 0 ? agentResult.toolExecutions : undefined,
+        ...providerMetadata,
       };
 
       setConversations((prev) =>
