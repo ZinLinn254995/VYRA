@@ -318,7 +318,13 @@ export async function executeAgentTool(
         if (!target) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Target project not found.', timestamp };
         const notes = typeof args.notes === 'string' ? args.notes.trim() : '';
         if (!notes) return { id: execId, toolName, displayName, status: 'failed', inputArgs: args, errorMessage: 'Describe the specific scene, image, voice, pronunciation, or other part that needs changing.', timestamp };
-        context.updateProject(target.id, { productionStageNotes: notes, productionStageUpdatedAt: timestamp });
+        context.updateProject(target.id, {
+          productionStageNotes: notes,
+          productionStage: target.productionStage === 'publish_ready' ? 'final_review' : target.productionStage,
+          finalVideoId: target.productionStage === 'publish_ready' ? undefined : target.finalVideoId,
+          finalVideoExportedAt: target.productionStage === 'publish_ready' ? undefined : target.finalVideoExportedAt,
+          productionStageUpdatedAt: timestamp,
+        });
         return {
           id: execId, toolName, displayName, status: 'success', inputArgs: args,
           outputSummary: 'Recorded a targeted revision request for "' + target.title + '". The current checkpoint is unchanged; the whole project will not be restarted.',
