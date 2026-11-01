@@ -76,9 +76,10 @@ function buildUsageEntries(
       title: video.title,
       model: video.model,
       createdAt: job?.createdAt || video.createdAt,
-      costUsd: typeof (job?.costUsd ?? video.costUsd) === 'number' && Number.isFinite(job?.costUsd ?? video.costUsd)
+      costUsd: typeof (job?.costUsd ?? video.costUsd) === 'number' && Number.isFinite(job?.costUsd ?? video.costUsd) && (job?.costUsd ?? video.costUsd)! >= 0
         ? (job?.costUsd ?? video.costUsd) as number
         : null,
+      generationId: job?.generationId || video.generationId,
       status: 'Saved',
       projectTitle: job?.projectTitle,
       detail: job ? 'Video generation job · ' + job.jobId : 'Saved video clip',
@@ -94,7 +95,8 @@ function buildUsageEntries(
       title: job.projectTitle + ' · Scene ' + job.sceneOrder,
       model: job.model,
       createdAt: job.createdAt,
-      costUsd: typeof job.costUsd === 'number' && Number.isFinite(job.costUsd) ? job.costUsd : null,
+      costUsd: typeof job.costUsd === 'number' && Number.isFinite(job.costUsd) && job.costUsd >= 0 ? job.costUsd : null,
+      generationId: job.generationId,
       status: job.status.replaceAll('_', ' '),
       projectTitle: job.projectTitle,
       detail: 'Video generation job · ' + job.jobId,
