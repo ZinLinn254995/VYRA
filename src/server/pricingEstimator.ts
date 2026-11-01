@@ -12,7 +12,7 @@ export interface PricingLine {
 
 export interface EstimateParameters {
   promptTokens?: number;
-  completionTokens?: number;
+  completionTokenBudget?: number;
   inputTokens?: number;
   outputTokens?: number;
   imageCount?: number;
@@ -80,14 +80,14 @@ export function estimateOpenRouterCost(input: {
     if (!validNumber(promptPrice) || !validNumber(completionPrice)) {
       return unavailable('pricing_structure_unsupported', 'The model pricing values are not valid numeric USD-per-token rates.', fetchedAt, source);
     }
-    if (!positiveInteger(parameters.promptTokens) || !positiveInteger(parameters.completionTokens)) {
-      return unavailable('parameters_incomplete', 'Exact prompt and completion token counts are required. Character counts are not silently converted to tokens.', fetchedAt, source);
+    if (!positiveInteger(parameters.promptTokens) || !positiveInteger(parameters.completionTokenBudget)) {
+      return unavailable('parameters_incomplete', 'An exact prompt-token count and a completion-token budget are required. Character counts are not silently converted to tokens.', fetchedAt, source);
     }
-    const cost = parameters.promptTokens * promptPrice + parameters.completionTokens * completionPrice;
+    const cost = parameters.promptTokens * promptPrice + parameters.completionTokenBudget * completionPrice;
     return {
-      status: 'exact', currency: 'USD', estimatedCostUsd: roundUsd(cost),
+      status: 'approximate', currency: 'USD', estimatedCostUsd: roundUsd(cost),
       pricingSource: source, pricingFetchedAt: fetchedAt, reason: 'priced',
-      message: 'Calculated from published per-token rates and exact token counts.',
+      message: 'Upper-bound estimate using exact prompt tokens and the requested completion-token budget. Actual output may be lower.',
     };
   }
 
