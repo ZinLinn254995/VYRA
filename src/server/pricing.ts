@@ -102,13 +102,16 @@ router.post('/providers/openrouter/estimate', async (req: Request, res: Response
         'https://openrouter.ai/api/v1/images/models/' + segments.join('/') + '/endpoints',
         apiKey,
       ));
-      const data = asRecord(payload.data);
-      const endpoints = Array.isArray(data.endpoints) ? data.endpoints
-        : Array.isArray(payload.endpoints) ? payload.endpoints : [];
+      const data = payload.data;
+      const dataRecord = asRecord(data);
+      const endpoints = Array.isArray(data) ? data
+        : Array.isArray(dataRecord.endpoints) ? dataRecord.endpoints
+          : Array.isArray(payload.endpoints) ? payload.endpoints : [];
       pricingLines = endpoints.slice(0, 50).flatMap((endpoint, index) => {
         const record = asRecord(endpoint);
         const provider = typeof record.provider_name === 'string' ? record.provider_name
-          : typeof record.name === 'string' ? record.name : 'unknown-provider-' + index;
+          : typeof record.provider === 'string' ? record.provider
+            : typeof record.name === 'string' ? record.name : 'unknown-provider-' + index;
         return safePricingLines(record.pricing, provider);
       });
       if (!endpoints.length) return res.status(404).json({ error: 'No provider pricing endpoints were returned for this image model.' });
