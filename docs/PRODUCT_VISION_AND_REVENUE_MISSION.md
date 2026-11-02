@@ -65,6 +65,24 @@ VYRA aims to connect the creative process from initial idea to finished delivera
 
 The intended customer experience is an integrated creative studio, not a collection of disconnected generators.
 
+### Advanced video formats, simple creation
+
+VYRA should support a growing range of advanced video outcomes without making customers learn a professional editing workflow. The experience should begin with the result the customer wants—not provider names, model parameters or a complicated timeline.
+
+Examples of target formats include:
+- Animated cartoons, character-led stories and recurring-character episodes.
+- Cinematic scenes, trailers, short films and narrative sequences.
+- Talking characters, avatars, dialogue scenes and lip-sync where verified.
+- Product showcases, advertisements, brand promos and small-business content.
+- Educational explainers, documentaries, science/history stories and tutorials.
+- Social-first vertical videos for TikTok, Reels and Shorts, plus landscape and long-form YouTube videos.
+- Music videos, lyric videos and audio-reactive visualizers.
+- Image-to-video, text-to-video and reference-guided video workflows where supported.
+
+A simple creation flow should let a customer describe the idea, choose or accept a suggested format, set a few understandable preferences (such as aspect ratio, duration, language and visual style), review the script/storyboard and character references, then approve generation. Advanced controls can remain available when needed, but should not overwhelm the default experience.
+
+VYRA should coordinate specialized providers and models behind the scenes according to the requested outcome, quality, availability and estimated cost. It must clearly label each format as available, tested, experimental or planned; never imply that every format, provider, character-consistency feature or lip-sync workflow is already production-ready. Customers retain creative approval, explicit paid-generation approval and final publishing approval as separate decisions.
+
 ## 4. Creative workflows and customer outcomes
 
 VYRA aims to support a range of visual-content needs, including:
