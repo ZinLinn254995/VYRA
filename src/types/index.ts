@@ -86,6 +86,23 @@ export interface ConsistencyReference {
     voiceId?: string;
     speed?: number;
   };
+  /** Structured soundtrack identity; descriptive only unless an audio-capable provider consumes the prompt. */
+  musicProfile?: {
+    genre?: string;
+    bpm?: number;
+    key?: string;
+    mood?: string;
+    instruments?: string;
+    arrangement?: string;
+  };
+  /** Structured sound-effect / ambience identity for continuity across scenes. */
+  soundProfile?: {
+    category?: string;
+    texture?: string;
+    intensity?: string;
+    spatial?: string;
+    notes?: string;
+  };
   tags?: string[];
   createdAt: string;
   updatedAt: string;
