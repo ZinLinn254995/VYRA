@@ -164,5 +164,5 @@ export function composeSceneAudioConsistencyInstructions(project: Project, scene
     'AUDIO CONTINUITY BRIEF — maintain a coherent soundtrack and sound world across scenes.',
     ...lines,
     'Do not introduce a new musical theme, instrument family, sound texture or abrupt mix change unless the scene direction explicitly requests it.',
-  ].join('\\n');
+  ].join('\n');
 }
