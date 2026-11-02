@@ -2,13 +2,16 @@
 
 ## Migrations
 
-The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`.
+The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`. The account-transfer migration adds immutable `credit_transfers` and a service-role-only atomic transfer RPC.
 
-- Customer sessions receive read-only access to their own usage and ledger rows.
-- Only the server `service_role` may execute the credit-ledger and provider-cost write functions. Never expose `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` to the browser.
+- Customer sessions receive read-only access to their own usage and ledger rows. Transfer history is visible only to the sender and recipient.
+- Only the server `service_role` may execute financial write functions. Never expose `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` to the browser.
 - Estimates, reserved credits, and provider-reported actual USD costs remain separate values.
 - Repeated financial operations use per-customer idempotency keys; corrections append compensating entries instead of editing ledger history.
-- This migration is schema groundwork only. Do not apply it to production until server integration, local pgTAP tests, and authenticated end-to-end validation are complete.
+- Each committed transfer must have exactly one sender debit and one equal recipient credit. A deferred database constraint verifies that the pair is balanced before commit.
+- Transfer RPC calls acquire account locks in stable order and use the same per-account lock namespace as generation ledger writes to prevent concurrent overspending.
+- The transfer RPC accepts account UUIDs for now. A public username/recipient-discovery flow and customer-facing API/UI are separate increments.
+- This migration is schema groundwork only. Do not apply it to production until the server API, authenticated end-to-end tests, backup/rollback plan, and explicit production approval are complete.
 
 ## Initial customer-data migration
 
@@ -30,10 +33,10 @@ supabase db reset
 supabase test db
 ```
 
-The pgTAP suite in `supabase/tests/database/rls.test.sql` creates two fixture customers and verifies that one customer cannot read, insert as, update, or delete the other customer's project or read the other profile.
+The pgTAP suite in `supabase/tests/database` verifies customer isolation, balanced transfer accounting, idempotency, insufficient-balance rejection, server-only financial writes, and immutable financial records.
 
 Before linking a real project, create a separate development Supabase project. Never point local development migrations at production by accident.
 
 ## Not implemented by the current migrations
 
-Authentication UI/session management, server-side bearer-token verification, project import/sync, assets, generation jobs, credit balance UI, generation-to-ledger server integration, subscriptions and payments. Those are separate increments. The current browser-only app remains unchanged.
+Authentication UI/session management, server-side bearer-token verification for transfer routes, project import/sync, assets, generation-to-ledger server integration, credit purchase packages, payment provider integration, public usernames/recipient discovery, and customer-facing transfer UI. Those are separate increments. No production migration or customer-facing credit charging is enabled by this change.
