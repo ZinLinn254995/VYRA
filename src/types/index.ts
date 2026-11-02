@@ -56,6 +56,20 @@ export type ProjectStatus =
   | 'ready_to_publish'
   | 'archived';
 
+/** A reusable, project-scoped character identity for reference-guided scene generation. */
+export interface CharacterReference {
+  id: string;
+  name: string;
+  /** Stable visual description used to reinforce identity across scenes. */
+  visualDescription: string;
+  /** Optional IndexedDB key for the approved character reference image on this device. */
+  referenceImageId?: string;
+  /** Wardrobe, palette, voice, and other continuity constraints. */
+  continuityNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Scene {
   id: string;
   order: number;
@@ -70,6 +84,8 @@ export interface Scene {
   soundDesign?: string;
   transition?: string;
   mediaUrl: string;
+  /** Character reference IDs from the owning project's reusable character library. */
+  characterIds?: string[];
   /** IndexedDB key for a generated scene image stored on this device. */
   generatedImageId?: string;
   /** IndexedDB key for a generated clip stored on this device. */
@@ -114,6 +130,8 @@ export interface Project {
   targetPlatforms: string[];
   status: ProjectStatus;
   scenes: Scene[];
+  /** Reusable character identities shared across scenes in this project. */
+  characters?: CharacterReference[];
   createdAt: string;
   updatedAt: string;
   coverImage: string;
