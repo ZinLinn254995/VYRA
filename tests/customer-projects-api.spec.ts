@@ -4,8 +4,10 @@ import express from 'express';
 import { createServer, type Server } from 'node:http';
 import {
   createCustomerProjectsRouter,
+  dedupeCloudProjectRows,
   sanitizePortableProjectData,
 } from '../src/server/customerProjects.js';
+import { createVercelCustomerProjectsHandler } from '../src/server/vercelCustomerProjectsHandler.js';
 
 const USER_ID = '10000000-0000-4000-8000-000000000001';
 
@@ -104,6 +106,28 @@ test('project import rejects invalid batches before storage is called', async ()
   }, fetcher);
 });
 
+test('cloud project listing is scoped to the verified user identity', async () => {
+  let capturedUrl = '';
+  let capturedAuthorization = '';
+  const fetcher: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedAuthorization = new Headers(init?.headers).get('Authorization') ?? '';
+    return Response.json([{ id: 'cloud-1', local_id: 'local-1' }]);
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/projects', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).projects.length, 1);
+  }, fetcher);
+
+  const endpoint = new URL(capturedUrl);
+  assert.equal(endpoint.searchParams.get('user_id'), 'eq.' + USER_ID);
+  assert.equal(capturedAuthorization, 'Bearer verified-token');
+});
+
 test('cloud project routes require a bearer token', async () => {
   let storageCalled = false;
   const fetcher: typeof fetch = async () => {
@@ -115,4 +139,83 @@ test('cloud project routes require a bearer token', async () => {
     assert.equal(response.status, 401);
     assert.equal(storageCalled, false);
   }, fetcher);
+});
+
+test('project import returns a safe Supabase diagnostic when storage rejects the backup', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: '42501',
+    message: 'new row violates row-level security policy',
+    details: 'policy check failed',
+  }, { status: 403 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/projects/import', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projects: [{
+          localId: 'local-1',
+          title: 'First project',
+          status: 'draft',
+          projectData: { topic: 'Space' },
+        }],
+      }),
+    });
+    assert.equal(response.status, 403);
+    const payload = await response.json() as { error: string };
+    assert.match(payload.error, /42501/);
+    assert.match(payload.error, /row-level security policy/);
+    assert.match(payload.error, /local projects have not been changed/);
+  }, fetcher);
+});
+
+
+test('Vercel project handler recognizes both /api/projects and normalized /projects paths', async () => {
+  const app = createVercelCustomerProjectsHandler();
+  const server: Server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not start.');
+  try {
+    for (const path of ['/api/projects', '/projects']) {
+      const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
+      assert.equal(response.status, 401, `${path} should reach the authenticated projects handler, not a platform-style 404`);
+      const payload = await response.json() as { error?: string };
+      assert.match(payload.error ?? '', /access token is required/i);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+
+test('cloud project listing hides legacy duplicate rows by local ID and keeps the newest row', () => {
+  const older = { id: 'cloud-old', local_id: 'local-1', updated_at: '2026-11-01T10:00:00Z' };
+  const newer = { id: 'cloud-new', local_id: 'local-1', updated_at: '2026-11-02T10:00:00Z' };
+  const other = { id: 'cloud-2', local_id: 'local-2', updated_at: '2026-11-02T09:00:00Z' };
+  assert.deepEqual(dedupeCloudProjectRows([newer, older, other]), [newer, other]);
+});
+
+test('project import deduplicates repeated local IDs in one backup batch', async () => {
+  let capturedBody: Array<Record<string, unknown>> = [];
+  const fetcher: typeof fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body)) as Array<Record<string, unknown>>;
+    return Response.json(capturedBody.map((row, index) => ({ id: 'cloud-' + index, local_id: row.local_id })));
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/projects/import', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projects: [
+        { localId: 'same-local-id', title: 'Original', status: 'draft', projectData: { topic: 'Keep first' } },
+        { localId: 'same-local-id', title: 'Duplicate row', status: 'draft', projectData: { topic: 'Do not duplicate' } },
+      ] }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).imported, 1);
+  }, fetcher);
+
+  assert.equal(capturedBody.length, 1);
+  assert.equal(capturedBody[0].title, 'Original');
 });

@@ -31,6 +31,7 @@ import {
 } from '../data/seedData';
 import { BRAND_CONFIG } from '../config/brand';
 import { aiService } from '../services/aiService';
+import { mergeCloudProjects } from '../services/cloudProjectRestore';
 import { confirmSpendBeforeGeneration } from '../services/spendConfirmation';
 import { processAgentRequest, executeAgentTool, AgentContext } from '../services/agentTools';
 import { ToolExecutionRecord } from '../types';
@@ -128,6 +129,11 @@ interface StudioContextType {
   executeToolDirectly: (toolName: string, args: Record<string, any>) => Promise<ToolExecutionRecord>;
 }
 
+// Never filter projects loaded from this device's local storage.
+// A project that resembles an old sample may contain the user's real work.
+
+const E2E_SEED_PROJECTS = import.meta.env.VITE_E2E_SEED_PROJECTS === 'true';
+
 const StudioContext = createContext<StudioContextType | undefined>(undefined);
 
 export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -159,7 +165,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Navigation
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
-  const [activeProjectId, setActiveProjectId] = useState<string | null>('proj-01-quantum');
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(
+    E2E_SEED_PROJECTS ? INITIAL_PROJECTS[0]?.id ?? null : null
+  );
 
   // Brand state (editable via Settings)
   const [brandName, setBrandName] = useState<string>(BRAND_CONFIG.name);
@@ -189,7 +197,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
     }
-    return INITIAL_PROJECTS;
+    // New accounts and clean browsers must start empty. Seed/demo projects
+    // should never be presented as customer-owned work or included in backups.
+    return E2E_SEED_PROJECTS ? INITIAL_PROJECTS : [];
   });
 
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>(INITIAL_MEDIA_ASSETS);
@@ -396,16 +406,23 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Project permanently deleted', 'warning');
   };
   
-  // Restore cloud projects without overwriting any project already on this device.
+  // Restore cloud projects without overwriting local work or adding duplicate IDs.
   const restoreCloudProjects = (restored: Project[]): number => {
+    const merged = mergeCloudProjects(projects, restored);
     const existingIds = new Set(projects.map((project) => project.id));
-    const additions = restored.filter((project) => !existingIds.has(project.id));
-    if (additions.length > 0) {
-      setProjects((prev) => {
-        const currentIds = new Set(prev.map((project) => project.id));
-        return [...additions.filter((project) => !currentIds.has(project.id)), ...prev];
-      });
-      showToast(`Restored ${additions.length} cloud project(s) to this device.`, 'success');
+    const additions = merged.filter((project) => !existingIds.has(project.id));
+    const removedDuplicateLocalEntries = merged.length < projects.length;
+
+    if (additions.length > 0 || removedDuplicateLocalEntries) {
+      // Recompute against the latest state to remain safe if restore is clicked
+      // repeatedly before React has completed the previous state update.
+      setProjects((prev) => mergeCloudProjects(prev, restored));
+      showToast(
+        additions.length > 0
+          ? `Restored ${additions.length} cloud project(s) to this device.`
+          : 'Removed repeated entries with the same project ID. Your original project copies were preserved.',
+        'success',
+      );
     } else {
       showToast('No new projects to restore. Existing local projects were left unchanged.', 'info');
     }

@@ -60,6 +60,22 @@ export function sanitizePortableProjectData(value: unknown): Record<string, unkn
   }
 }
 
+/** Keep one cloud row per original device project ID without deleting stored rows.
+ * The listing is ordered newest-first, so the newest backup wins when legacy duplicates exist.
+ */
+export function dedupeCloudProjectRows(rows: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const unique: unknown[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const localId = (row as Record<string, unknown>).local_id;
+    if (typeof localId !== 'string' || !localId.trim() || seen.has(localId)) continue;
+    seen.add(localId);
+    unique.push(row);
+  }
+  return unique;
+}
+
 function parseProject(input: unknown): PortableProject | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
   const item = input as Record<string, unknown>;
@@ -107,6 +123,9 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       const endpoint = new URL('/rest/v1/projects', supabaseUrl);
       endpoint.searchParams.set('select', 'id,local_id,title,status,project_data,created_at,updated_at');
       endpoint.searchParams.set('order', 'updated_at.desc');
+      // Defense in depth: scope reads to the identity verified from the bearer token,
+      // even if a database row-level security policy is accidentally too broad.
+      endpoint.searchParams.set('user_id', 'eq.' + identity.user.id);
       const response = await fetcher(endpoint, {
         headers: {
           apikey: anonKey,
@@ -118,8 +137,9 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       if (!response.ok) return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
         .json({ error: 'Could not load cloud projects.' });
       const projects: unknown = await response.json();
+      const uniqueProjects = Array.isArray(projects) ? dedupeCloudProjectRows(projects) : [];
       res.setHeader('Cache-Control', 'no-store');
-      return res.json({ projects });
+      return res.json({ projects: uniqueProjects });
     } catch {
       return res.status(503).json({ error: 'Cloud project storage is temporarily unavailable.' });
     }
@@ -139,7 +159,14 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       return res.status(400).json({ error: 'One or more projects are invalid or contain non-portable data.' });
     }
 
-    const rows = (projects as PortableProject[]).map((project) => ({
+    // A repeated project ID in one client backup batch must never become
+    // multiple cloud rows. Preserve the first local copy in the submitted batch.
+    const uniqueByLocalId = new Map<string, PortableProject>();
+    for (const project of projects as PortableProject[]) {
+      if (!uniqueByLocalId.has(project.localId)) uniqueByLocalId.set(project.localId, project);
+    }
+    const uniqueProjects = Array.from(uniqueByLocalId.values());
+    const rows = uniqueProjects.map((project) => ({
       user_id: identity.user.id,
       local_id: project.localId,
       title: project.title,
@@ -162,13 +189,29 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
         cache: 'no-store',
       });
       if (!response.ok) {
-        return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
-          .json({ error: 'Cloud project import failed. Your local projects have not been changed.' });
+        const providerBody = await response.text().catch(() => '');
+        let providerError: { message?: string; code?: string; details?: string; hint?: string } = {};
+        try { providerError = JSON.parse(providerBody) as typeof providerError; } catch { /* keep provider response generic */ }
+        const safeCode = typeof providerError.code === 'string' ? providerError.code.slice(0, 32) : undefined;
+        const safeMessage = typeof providerError.message === 'string' ? providerError.message.slice(0, 240) : undefined;
+        console.error('[cloud-projects] Supabase import rejected', {
+          status: response.status,
+          code: safeCode,
+          message: safeMessage,
+          details: typeof providerError.details === 'string' ? providerError.details.slice(0, 240) : undefined,
+        });
+        const status = response.status === 401 || response.status === 403 ? response.status
+          : response.status >= 400 && response.status < 500 ? 400 : 503;
+        const diagnostic = safeCode ? ` (${safeCode})` : '';
+        return res.status(status).json({
+          error: `Cloud backup was rejected by storage${diagnostic}: ${safeMessage || 'Supabase returned an error'}. Your local projects have not been changed.`,
+        });
       }
       const saved: unknown = await response.json();
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ imported: Array.isArray(saved) ? saved.length : rows.length, projects: saved });
-    } catch {
+    } catch (cause) {
+      console.error('[cloud-projects] Import request failed before a storage response', cause);
       return res.status(503).json({ error: 'Cloud project storage is temporarily unavailable. Your local projects have not been changed.' });
     }
   });
