@@ -100,7 +100,7 @@ These are product directions, not a claim that every format is already productio
 
 A representative AI-assisted video workflow is:
 
-1. Customer signs up and chooses an available plan or credit package.
+1. Customer signs up with a standard VYRA account and may purchase a credit package when needed.
 2. Customer describes a video idea through Chat or starts manually in the workspace.
 3. AI helps prepare a creative brief, script, scene plan, character/visual direction and audio direction.
 4. Customer reviews and approves the creative plan. **This approval alone must not start paid media generation.**
@@ -124,13 +124,17 @@ The existence, durability and cross-device availability of memory must be judged
 ## 7. Business model and revenue mission
 
 Primary model:
-- Recurring monthly subscriptions with clearly defined included credits or usage.
-- Optional credit top-ups for additional generation.
-- Transparent cost estimates before billable generation.
-- Usage limits and safeguards; **do not promise unlimited video generation** while provider costs are variable.
-- Consider a free trial or limited free credits only when abuse controls and unit economics are understood.
+- **Pay-as-you-go credit purchases.** Customers buy credits when they need them; a mandatory monthly subscription is not part of the current business-model direction.
+- Offer small credit purchases for customers who only need a little usage.
+- Offer volume-based bulk discounts so larger purchases have a lower effective price per credit. Package sizes, prices and discount thresholds must be validated against actual provider costs and sustainable margins; no prices are finalized yet.
+- Customers spend credits on supported AI generation. Show a clear estimate before billable generation when an estimate is available, and require explicit approval.
+- **Account-to-account credit transfers:** one VYRA account can transfer credits to another VYRA account. Both sender and recipient use ordinary VYRA accounts; there is no separate reseller account or role required for the basic transfer feature.
+- VYRA provides the credit-transfer capability and its transaction records. Users may independently arrange any external payment or resale between themselves outside VYRA. VYRA does not need to provide an in-app reseller marketplace, set users' resale prices, collect external payments, or calculate reseller commissions.
+- Transfers must be server-authorized, atomic and auditable. Prevent transfers beyond the sender's available balance, duplicate processing, and inconsistent balances. Keep immutable ledger records for purchases, generation reservations/charges/refunds and transfers.
+- Keep credit accounting separate from provider-reported USD costs. Validate credit package pricing, conversion/rounding, refunds, provider costs, payment fees, taxes and gross margins before launch.
+- Apply sensible purchase limits, fraud controls and generation safeguards; do not promise unlimited generation while provider costs vary.
 
-Previously discussed price points (฿299 / ฿999 / ฿2,999 per month) are hypotheses for testing, not finalized prices. Validate willingness to pay, competitor positioning, provider costs and payment fees before launch.
+There are currently **no approved credit package prices, bulk-discount thresholds, or transfer limits**. Do not reuse the previously discussed monthly subscription price examples as approved pricing. A future optional subscription may be considered only as a separate, explicitly approved product decision; it is not required for the current model.
 
 Revenue arithmetic is not profit: for example, 300 customers paying ฿999 would produce ฿299,700 in monthly gross subscription revenue before costs. Measure paid conversion, active subscribers, churn, average revenue per user, cost per generated minute/project, gross margin and support burden.
 
@@ -163,7 +167,7 @@ Revenue arithmetic is not profit: for example, 300 customers paying ฿999 would
 - Fix the biggest blockers before expanding scope.
 
 ### Phase C — Make VYRA commercially usable
-- Implement subscription/credit accounting, payment integration, receipts and usage history.
+- Implement pay-as-you-go credit packages, volume-based pricing, payment integration, receipts, usage history and account-to-account transfers.
 - Add server-side provider-key security, quotas, abuse prevention, job limits and cost monitoring.
 - Add customer onboarding, help, error recovery, privacy/terms and support processes.
 - Ensure publishing integrations use explicit user authorization and confirmation.
@@ -209,4 +213,8 @@ AI က User ရဲ့ Creative Preference၊ Project History၊ Character Refere
 
 ဒီမှတ်တမ်းတွေဟာ ရည်ရွယ်ချက်နဲ့ လုပ်ဆောင်နိုင်စွမ်းကို ရှင်းပြတာဖြစ်ပြီး Feature အားလုံး လက်ရှိအကောင်အထည်ဖော်ပြီးပြီလို့ မဆိုလိုဘူး။ လက်ရှိ Code၊ Test နဲ့ Provider Integration ကို စစ်ဆေးပြီးမှ Available၊ Tested၊ Experimental သို့မဟုတ် Planned အဖြစ် သတ်မှတ်ရမယ်။
 
-VYRA ရဲ့ စီးပွားရေးရည်မှန်းချက်က Subscription နဲ့ Usage Credits ကို အခြေခံပြီး Customer တွေ အမှန်တကယ် အသုံးပြုနိုင်တဲ့ ယုံကြည်စိတ်ချရသော AI Video SaaS တစ်ခု တည်ဆောက်ဖို့ ဖြစ်တယ်။ ကုန်ကျစရိတ်ရှိတဲ့ Generation မစခင် အသုံးပြုသူရဲ့ ခွင့်ပြုချက်ရယူရမယ်။ ဝင်ငွေ၊ API ကုန်ကျစရိတ်နဲ့ အမြတ်ကို သီးခြားတိုင်းတာရမယ်။
+VYRA ရဲ့ လက်ရှိစီးပွားရေးပုံစံက လစဉ်ကြေး မဖြစ်မနေ ပေးရတဲ့ Subscription မဟုတ်ဘဲ လိုအပ်သလို Credits ဝယ်ယူအသုံးပြုတဲ့ Pay-as-you-go စနစ်ဖြစ်တယ်။ Credits နည်းနည်းဝယ်လို့ရသလို များများဝယ်ရင် တစ် Credit ချင်းဈေး ပိုသက်သာတဲ့ Bulk Discount ပေးနိုင်တယ်။ ဈေးနှုန်းနဲ့ Discount အဆင့်တွေကို Provider ကုန်ကျစရိတ်နဲ့ အမြတ်နှုန်း စစ်ဆေးပြီးမှ သတ်မှတ်ရမယ်။
+
+VYRA Account တစ်ခုကနေ အခြား VYRA Account တစ်ခုဆီ Credits လွှဲပြောင်းနိုင်ရမယ်။ Account အမျိုးအစားက ပုံမှန် User Account တစ်မျိုးတည်းဖြစ်ပြီး Reseller Account သီးသန့် မလိုအပ်ဘူး။ User တွေက အပြင်မှာ ကိုယ်ပိုင်သဘောတူညီချက်နဲ့ ငွေပေးချေခြင်း၊ ပြန်ရောင်းခြင်းတို့ကို လုပ်နိုင်တယ်။ VYRA က Transfer Feature နဲ့ မှတ်တမ်းကိုသာ ပံ့ပိုးပြီး အပြင်ဘက် အရောင်းအဝယ်၊ ဈေးနှုန်းနဲ့ ငွေပေးချေမှုကို စီမံခန့်ခွဲရန် မလိုအပ်ဘူး။
+
+Credit Transfer တွေကို Server ဘက်က အတည်ပြု၊ တစ်ကြိမ်တည်း မှန်ကန်စွာ ဆောင်ရွက်ပြီး ပြန်လည်စစ်ဆေးနိုင်တဲ့ Ledger မှတ်တမ်းထားရမယ်။ ကုန်ကျစရိတ်ရှိတဲ့ Generation မစခင် အသုံးပြုသူရဲ့ ခွင့်ပြုချက်ရယူရမယ်။ ဝင်ငွေ၊ API ကုန်ကျစရိတ်နဲ့ အမြတ်ကို သီးခြားတိုင်းတာရမယ်။
