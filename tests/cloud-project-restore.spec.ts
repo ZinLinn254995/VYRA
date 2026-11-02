@@ -78,3 +78,16 @@ test('cloud restore merge preserves local projects and deduplicates restored IDs
   assert.equal(merged[0], cloudA, 'the first cloud copy is retained');
   assert.equal(merged[2], local, 'the existing local project is never overwritten');
 });
+
+
+test('repeated restores also collapse duplicate IDs already present on this device', () => {
+  const firstLocal = { id: 'local-1', title: 'Original local project' } as any;
+  const duplicateLocal = { id: 'local-1', title: 'Duplicate local entry' } as any;
+  const cloudCopy = { id: 'local-1', title: 'Cloud copy must not overwrite' } as any;
+  const newCloud = { id: 'cloud-new', title: 'New cloud project' } as any;
+
+  const merged = mergeCloudProjects([firstLocal, duplicateLocal], [cloudCopy, newCloud]);
+
+  assert.deepEqual(merged.map((project) => project.id), ['cloud-new', 'local-1']);
+  assert.equal(merged[1], firstLocal, 'the first local copy remains authoritative');
+});
