@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { validateProjectAudioTracksForExport } from '../../services/audioExportValidation';
+import { createAudioExportTrackWindow, createNarrationDuckingSchedule, createSceneSoundEffectSchedule } from '../../services/audioExportRuntime';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio, ProductionStage, CharacterReference, ProjectAudioTrack } from '../../types';
 import { composeSceneAudioConsistencyInstructions, composeSceneConsistencyInstructions, resolveSceneConsistencyContext, resolveSceneVoiceProfile } from '../../services/consistencyEngine';
@@ -1440,10 +1441,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             gain.connect(audioDestination!);
           }
           source.start(startsAt);
-          projectAudioTrackWindows.set(track.id, {
-            startsAt,
-            endsAt: track.loop ? Number.POSITIVE_INFINITY : startsAt + buffer.duration,
-          });
+          projectAudioTrackWindows.set(track.id, createAudioExportTrackWindow(startsAt, buffer.duration, track.loop));
           projectAudioSources.push(source);
           projectAudioGains.push(gain);
           projectAudioFadeOuts.push(fadeOut);
@@ -1592,15 +1590,13 @@ export const ProjectWorkspaceView: React.FC = () => {
                 const duckingGain = projectAudioDuckingNodes.get(track.id);
                 const window = projectAudioTrackWindows.get(track.id);
                 if (!duckingGain || !window) return;
-                const duckStart = Math.max(audioStartTime!, window.startsAt);
-                const duckEnd = Math.min(audioStartTime! + audioBuffer.duration, window.endsAt);
-                if (duckEnd <= duckStart) return;
-                const duckLevel = Math.max(0.1, Math.min(0.8, Number.isFinite(track.duckingLevel) ? track.duckingLevel! : 0.25));
-                duckingGain.gain.cancelScheduledValues(duckStart);
-                duckingGain.gain.setValueAtTime(duckingGain.gain.value, duckStart);
-                duckingGain.gain.linearRampToValueAtTime(duckLevel, duckStart + Math.min(0.12, (duckEnd - duckStart) / 2));
-                duckingGain.gain.setValueAtTime(duckLevel, Math.max(duckStart, duckEnd - 0.08));
-                duckingGain.gain.linearRampToValueAtTime(1, duckEnd + 0.18);
+                const schedule = createNarrationDuckingSchedule(audioStartTime!, audioBuffer.duration, window, track.duckingLevel ?? 0.25);
+                if (!schedule) return;
+                duckingGain.gain.cancelScheduledValues(schedule.startsAt);
+                duckingGain.gain.setValueAtTime(duckingGain.gain.value, schedule.startsAt);
+                duckingGain.gain.linearRampToValueAtTime(schedule.level, schedule.attackEndsAt);
+                duckingGain.gain.setValueAtTime(schedule.level, schedule.holdStartsAt);
+                duckingGain.gain.linearRampToValueAtTime(1, schedule.releaseEndsAt);
               });
             }
 
@@ -1615,27 +1611,21 @@ export const ProjectWorkspaceView: React.FC = () => {
                 if (!track.sceneId || track.sceneId !== scene.id || track.kind !== 'sound_effect') return;
                 const buffer = projectAudioBuffers[trackIndex];
                 if (!buffer) return;
-                const offset = Math.max(0, Math.min(86400, Number.isFinite(track.startTimeSeconds) ? track.startTimeSeconds : 0));
-                if (offset >= sceneDuration) return;
+                const schedule = createSceneSoundEffectSchedule(sceneStart, sceneDuration, track.startTimeSeconds, track.volume, track.fadeInSeconds, track.fadeOutSeconds);
+                if (!schedule) return;
                 const source = audioContext!.createBufferSource();
                 const gain = audioContext!.createGain();
-                const volume = Math.max(0, Math.min(1, Number.isFinite(track.volume) ? track.volume : 1));
-                const fadeIn = Math.max(0, Math.min(30, Number.isFinite(track.fadeInSeconds) ? track.fadeInSeconds : 0));
-                const fadeOut = Math.max(0, Math.min(30, Number.isFinite(track.fadeOutSeconds) ? track.fadeOutSeconds : 0));
-                const startsAt = sceneStart + offset;
-                const endsAt = sceneStart + sceneDuration;
                 source.buffer = buffer;
-                gain.gain.setValueAtTime(fadeIn > 0 ? 0 : volume, startsAt);
-                if (fadeIn > 0) gain.gain.linearRampToValueAtTime(volume, startsAt + fadeIn);
+                gain.gain.setValueAtTime(schedule.fadeInSeconds > 0 ? 0 : schedule.volume, schedule.startsAt);
+                if (schedule.fadeInSeconds > 0) gain.gain.linearRampToValueAtTime(schedule.volume, schedule.startsAt + schedule.fadeInSeconds);
                 source.connect(gain);
                 gain.connect(audioDestination!);
-                source.start(startsAt);
-                if (fadeOut > 0) {
-                  const fadeStart = Math.max(startsAt, endsAt - fadeOut);
-                  gain.gain.setValueAtTime(volume, fadeStart);
-                  gain.gain.linearRampToValueAtTime(0, endsAt);
+                source.start(schedule.startsAt);
+                if (schedule.fadeOutSeconds > 0) {
+                  gain.gain.setValueAtTime(schedule.volume, schedule.fadeOutStartsAt);
+                  gain.gain.linearRampToValueAtTime(0, schedule.endsAt);
                 }
-                source.stop(endsAt + 0.02);
+                source.stop(schedule.endsAt + 0.02);
                 projectAudioSources.push(source);
                 projectAudioGains.push(gain);
                 projectAudioFadeOuts.push(0);
