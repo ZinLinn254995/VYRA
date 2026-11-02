@@ -46,7 +46,7 @@ begin
 
   insert into public.profile_lookup_limits (user_id, window_started_at, request_count)
   values (v_user_id, now(), 1)
-  on conflict (user_id) do update
+  on conflict on constraint profile_lookup_limits_pkey do update
   set
     request_count = case
       when public.profile_lookup_limits.window_started_at <= now() - interval '1 minute' then 1
