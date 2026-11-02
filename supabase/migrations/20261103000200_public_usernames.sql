@@ -67,7 +67,7 @@ begin
   from public.profiles p
   where p.id <> v_user_id
     and p.username is not null
-    and p.username like v_query || '%'
+    and left(p.username, length(v_query)) = v_query
   order by p.username
   limit 8;
 end;
