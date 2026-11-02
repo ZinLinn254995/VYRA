@@ -88,8 +88,14 @@ select is(
   'Authenticated users cannot inspect lookup rate-limit records'
 );
 
+do $ begin
+  for i in 1..17 loop
+    perform * from public.search_credit_recipients('vyra');
+  end loop;
+end $;
+
 select throws_ok(
-  $$ select * from public.search_credit_recipients('vyra') $$,
+  $ select * from public.search_credit_recipients('vyra') $,
   'P4290',
   'Recipient lookup rate limit exceeded.',
   'Recipient discovery is rate limited after 20 lookups per minute'
