@@ -16,6 +16,7 @@ import { ProjectWorkspaceView } from './components/views/ProjectWorkspaceView';
 import { ReviewQueueView } from './components/views/ReviewQueueView';
 import { PublishingView } from './components/views/PublishingView';
 import { MediaLibraryView } from './components/views/MediaLibraryView';
+import { ConsistencyLibraryView } from './components/views/ConsistencyLibraryView';
 import { AnalyticsView } from './components/views/AnalyticsView';
 import { SettingsView } from './components/views/SettingsView';
 import { VideoJobRecoveryView } from './components/views/VideoJobRecoveryView';
@@ -41,6 +42,8 @@ const StudioContent: React.FC = () => {
         return <ProjectWorkspaceView />;
       case 'media':
         return <MediaLibraryView />;
+      case 'consistency':
+        return <ConsistencyLibraryView />;
       case 'review':
         return <ReviewQueueView />;
       case 'publishing':

@@ -10,6 +10,7 @@ export type NavSection =
   | 'ideas'
   | 'workspace'
   | 'media'
+  | 'consistency'
   | 'review'
   | 'publishing'
   | 'analytics'
@@ -65,6 +66,8 @@ export type ConsistencyAssetKind =
   | 'visual_style'
   | 'voice'
   | 'music'
+  | 'audio'
+  | 'story'
   | 'other';
 
 export type ConsistencyRuleScope = 'global' | 'project' | 'scene';

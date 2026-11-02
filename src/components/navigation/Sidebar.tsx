@@ -24,6 +24,7 @@ import {
   X,
   Zap,
   Bot,
+  Layers3,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -75,6 +76,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
       id: 'media',
       label: 'Media Library',
       icon: <Image className="w-5 h-5 shrink-0" />,
+    },
+    {
+      id: 'consistency',
+      label: 'Consistency Library',
+      icon: <Layers3 className="w-5 h-5 shrink-0" />,
+      badgeCount: projects.reduce((sum, project) => sum + (project.consistencyBible?.references.length || 0), 0) || undefined,
     },
     {
       id: 'review',
