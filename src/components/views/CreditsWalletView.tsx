@@ -296,7 +296,7 @@ export const CreditsWalletView: React.FC = () => {
           <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-[#55F4FF]/10 blur-3xl" />
           <div className="relative flex items-center gap-2 text-xs font-semibold text-slate-400 light:text-slate-500"><Wallet className="h-4 w-4 text-[#55F4FF]" /> AVAILABLE CREDITS</div>
           <div className="relative mt-3 flex items-baseline gap-2">
-            <span className="text-4xl font-extrabold tracking-tight text-white light:text-slate-900 tabular-nums">{walletLoading && !wallet ? '—' : formatCredits(wallet?.availableBalance ?? '0')}</span>
+            <span className="text-4xl font-extrabold tracking-tight text-white light:text-slate-900 tabular-nums">{wallet ? formatCredits(wallet.availableBalance) : '—'}</span>
             <span className="text-sm font-semibold text-[#55F4FF]">credits</span>
           </div>
           <p className="relative mt-2 text-xs text-slate-500">Calculated from your verified credit ledger. Credits are not displayed as cash value.</p>
@@ -304,7 +304,7 @@ export const CreditsWalletView: React.FC = () => {
         <section className={cardClass + ' p-5 sm:p-6'}>
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 light:text-slate-500"><Clock3 className="h-4 w-4 text-violet-400" /> RESERVED CREDITS</div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-4xl font-extrabold tracking-tight text-white light:text-slate-900 tabular-nums">{formatCredits(wallet?.reservedBalance ?? '0')}</span>
+            <span className="text-4xl font-extrabold tracking-tight text-white light:text-slate-900 tabular-nums">{wallet ? formatCredits(wallet.reservedBalance) : '—'}</span>
             <span className="text-sm font-semibold text-violet-400">credits</span>
           </div>
           <p className="mt-2 text-xs text-slate-500">Credits temporarily held for generation jobs.</p>
