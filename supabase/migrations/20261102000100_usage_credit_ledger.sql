@@ -2,10 +2,13 @@
 -- This migration is schema-only. Do not apply to the production Supabase project
 -- until the API integration and authenticated end-to-end tests are complete.
 
+alter table public.projects
+  add constraint projects_id_user_unique unique (id, user_id);
+
 create table if not exists public.generation_jobs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  project_id uuid references public.projects (id) on delete set null,
+  project_id uuid,
   idempotency_key text not null check (char_length(idempotency_key) between 1 and 160),
   capability text not null check (capability in ('text', 'image', 'audio', 'video')),
   model_id text not null check (char_length(model_id) between 1 and 240),
@@ -19,6 +22,8 @@ create table if not exists public.generation_jobs (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint generation_jobs_user_idempotency_unique unique (user_id, idempotency_key),
+  constraint generation_jobs_project_owner_fk
+    foreign key (project_id, user_id) references public.projects (id, user_id) on delete set null (project_id),
   constraint generation_jobs_id_user_unique unique (id, user_id)
 );
 
@@ -119,6 +124,11 @@ begin
     using errcode = '55000';
 end;
 $$;
+
+drop trigger if exists provider_cost_records_immutable on public.provider_cost_records;
+create trigger provider_cost_records_immutable
+before update or delete on public.provider_cost_records
+for each row execute function public.reject_credit_ledger_mutation();
 
 drop trigger if exists credit_ledger_entries_immutable on public.credit_ledger_entries;
 create trigger credit_ledger_entries_immutable
