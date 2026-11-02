@@ -359,6 +359,8 @@ export const ProjectWorkspaceView: React.FC = () => {
   }, [project?.id, project?.aspectRatio]);
 
   const currentScene = project?.scenes.find((s) => s.id === selectedSceneId) || project?.scenes[0];
+  const currentSceneConsistencyInstructions = project && currentScene ? composeSceneConsistencyInstructions(project, currentScene) : ''; 
+  const currentSceneConsistencyReferences = project && currentScene ? resolveSceneConsistencyContext(project, currentScene).references : [];
 
   useEffect(() => {
     let cancelled = false;
@@ -2113,6 +2115,19 @@ export const ProjectWorkspaceView: React.FC = () => {
                   placeholder="Detailed visual prompt describing scene environment, materials, lighting..."
                   className="w-full p-3 text-xs rounded-lg bg-[#090B18] light:bg-slate-50 text-white light:text-slate-900 border border-[#2B3058] light:border-slate-300 focus:outline-none focus:border-[#55F4FF]"
                 />
+                <details className="rounded-lg border border-[#2B3058] light:border-slate-200 bg-[#090B18]/50 light:bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-[#55F4FF]">
+                    Scene Prompt Composer · {currentSceneConsistencyReferences.length} linked reference(s) · preview continuity instructions
+                  </summary>
+                  <p className="mt-2 text-[10px] text-slate-500">
+                    The image and video generation prompts automatically include the active Project Consistency Bible rules and selected references below.
+                  </p>
+                  {currentSceneConsistencyInstructions ? (
+                    <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-5 text-slate-300 light:text-slate-700">{currentSceneConsistencyInstructions}</pre>
+                  ) : (
+                    <p className="mt-2 text-[10px] text-slate-500">No consistency references or active rules are assigned to this scene yet. Add them in Consistency Library.</p>
+                  )}
+                </details>
               </div>
 
               {/* Real OpenRouter video generation for the selected scene */}
