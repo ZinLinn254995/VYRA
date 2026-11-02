@@ -88,9 +88,19 @@ export const CloudProjectBackupPanel: React.FC = () => {
   const [cloudProjects, setCloudProjects] = useState<CloudProjectRow[] | null>(null);
   const [showCloudList, setShowCloudList] = useState(false);
 
-  const portableProjects = useMemo(() => projects.map(toPortableProject), [projects]);
+  // A local ID is the stable identity shared by this device and cloud backup.
+  // Ignore duplicate entries with the same ID in previews and upload batches.
+  const uniqueLocalProjects = useMemo(() => {
+    const seen = new Set<string>();
+    return projects.filter((project) => {
+      if (!project.id || seen.has(project.id)) return false;
+      seen.add(project.id);
+      return true;
+    });
+  }, [projects]);
+  const portableProjects = useMemo(() => uniqueLocalProjects.map(toPortableProject), [uniqueLocalProjects]);
   const accessToken = session?.access_token;
-  const localProjectIds = useMemo(() => new Set(projects.map((project) => project.id)), [projects]);
+  const localProjectIds = useMemo(() => new Set(uniqueLocalProjects.map((project) => project.id)), [uniqueLocalProjects]);
 
   const restoreSelectedProject = (row: CloudProjectRow) => {
     const restored = restoreCloudProject(row);
@@ -219,7 +229,7 @@ export const CloudProjectBackupPanel: React.FC = () => {
                 </div>
               </div>
               <ul className="max-h-40 overflow-y-auto space-y-1.5">
-                {projects.map((project) => (
+                {uniqueLocalProjects.map((project) => (
                   <li key={project.id} className="flex items-center justify-between gap-3 text-xs">
                     <span className="truncate text-slate-200 light:text-slate-800">{project.title}</span>
                     <span className="shrink-0 text-slate-500">{project.scenes.length} scenes</span>
