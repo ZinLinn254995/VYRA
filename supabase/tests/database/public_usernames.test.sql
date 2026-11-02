@@ -89,9 +89,9 @@ select is(
 );
 
 select is(
-  has_function_privilege('anon', 'public.search_credit_recipients(text)', 'EXECUTE'),
-  false,
-  'Anonymous users cannot execute recipient lookup'
+  has_function_privilege('authenticated', 'public.search_credit_recipients(text)', 'EXECUTE'),
+  true,
+  'Authenticated users can execute recipient lookup'
 );
 
 select is(
