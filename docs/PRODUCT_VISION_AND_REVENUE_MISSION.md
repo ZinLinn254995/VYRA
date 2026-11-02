@@ -198,6 +198,7 @@ Prioritize a small, dependable path to a product customers will pay to use witho
 - [Cloud Project Restore](./CLOUD_PROJECT_RESTORE.md) — current backup/restore behavior and limitations.
 - [Supabase Auth Foundation](./SUPABASE_AUTH_FOUNDATION.md) and [Supabase Account UI Setup](./SUPABASE_ACCOUNT_UI_SETUP.md) — authentication foundation and UI setup.
 - [Usage Ledger API Integration](./USAGE_LEDGER_API_INTEGRATION.md) — usage/credit integration contract and rollout safeguards.
+- [Credit Economy & Transfer Model](./CREDIT_ECONOMY_AND_TRANSFER_MODEL.md) — pay-as-you-go credit purchases, bulk discounts, standard-account transfers and external resale boundaries.
 
 This product vision and the Project Overview define product intent. Technical documents describe narrower implementation decisions or current behavior; they do not replace or silently redefine the product's overall direction.
 
