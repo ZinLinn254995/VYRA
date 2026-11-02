@@ -33,6 +33,17 @@ create index if not exists credit_ledger_entries_transfer_idx
   where transfer_id is not null;
 
 alter table public.credit_ledger_entries
+  drop constraint if exists credit_ledger_entries_entry_type_check;
+
+alter table public.credit_ledger_entries
+  add constraint credit_ledger_entries_entry_type_check check (
+    entry_type in (
+      'grant', 'reserve', 'commit', 'release', 'refund', 'adjustment',
+      'transfer_debit', 'transfer_credit'
+    )
+  );
+
+alter table public.credit_ledger_entries
   drop constraint if exists credit_ledger_entries_valid_transition;
 
 alter table public.credit_ledger_entries
