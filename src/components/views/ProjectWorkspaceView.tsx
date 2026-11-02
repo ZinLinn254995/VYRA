@@ -892,6 +892,12 @@ export const ProjectWorkspaceView: React.FC = () => {
       return;
     }
     const targetScene = currentScene;
+    const selectedCharacters = (project.characters || [])
+      .filter((character) => (targetScene.characterIds || []).includes(character.id));
+    if (selectedCharacters.some((character) => !character.visualDescription.trim())) {
+      setSceneImageError('Add a visual description for each selected character before generating this scene image.');
+      return;
+    }
     const prompt = [
       targetScene.visualPrompt.trim(),
       'Visual style: ' + project.visualStyle.replace(/_/g, ' '),
