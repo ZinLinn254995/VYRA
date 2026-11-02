@@ -6,6 +6,7 @@ import {
   createCustomerProjectsRouter,
   sanitizePortableProjectData,
 } from '../src/server/customerProjects.js';
+import { createVercelCustomerProjectsHandler } from '../src/server/vercelCustomerProjectsHandler.js';
 
 const USER_ID = '10000000-0000-4000-8000-000000000001';
 
@@ -143,4 +144,23 @@ test('project import returns a safe Supabase diagnostic when storage rejects the
     assert.match(payload.error, /row-level security policy/);
     assert.match(payload.error, /local projects have not been changed/);
   }, fetcher);
+});
+
+
+test('Vercel project handler recognizes both /api/projects and normalized /projects paths', async () => {
+  const app = createVercelCustomerProjectsHandler();
+  const server: Server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not start.');
+  try {
+    for (const path of ['/api/projects', '/projects']) {
+      const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
+      assert.equal(response.status, 401, `${path} should reach the authenticated projects handler, not a platform-style 404`);
+      const payload = await response.json() as { error?: string };
+      assert.match(payload.error ?? '', /access token is required/i);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
