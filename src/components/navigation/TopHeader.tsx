@@ -39,6 +39,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onOpenMobileMenu }) => {
     analytics: 'Workspace & Studio Telemetry',
     jobs: 'Video Job Recovery',
     usage: 'Provider Usage History',
+    credits: 'Credit Wallet',
     settings: 'Settings & Brand Identity',
   };
 
