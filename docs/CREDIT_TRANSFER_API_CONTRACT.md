@@ -56,3 +56,20 @@ A duplicate username returns `409`. The database enforces the format and uniquen
 ### GET /api/credits/recipients?query=prefix
 
 Requires a valid Supabase access token. Search uses a prefix of at least 3 valid characters and returns at most 8 matches. Results contain only `userId`, `username`, and optional `displayName`; email addresses and private profile fields are never returned. The database enforces a durable limit of 20 lookups per authenticated user per minute, including across serverless instances. Exceeding the limit returns `429`.
+
+## Credit wallet
+
+### GET /api/credits/wallet
+
+Requires a valid Supabase access token. The API calls the authenticated `get_credit_wallet()` RPC using the customer's bearer session. The account ID is derived from `auth.uid()`; clients cannot request another account's wallet.
+
+The response contains:
+- `account.username` and `account.displayName` (public profile values only).
+- `availableBalance` and `reservedBalance` as integer strings to preserve exact bigint values.
+- `recentActivity`: at most 50 safe ledger fields, with no raw metadata or private account data.
+
+The balances are calculated across the complete append-only ledger. The activity list is a recent display window, not the source of the total. The RPC is read-only and does not create, grant, reserve, transfer, or charge credits.
+
+## Wallet UI status
+
+The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, authenticated end-to-end tests, and transfer velocity policy.
