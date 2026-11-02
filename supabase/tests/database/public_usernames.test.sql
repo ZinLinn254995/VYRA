@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(12);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password,
@@ -49,6 +49,12 @@ select set_config('request.jwt.claim.sub', '21000000-0000-4000-8000-000000000001
 select set_config('request.jwt.claims',
   '{"sub":"21000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
+select lives_ok(
+  $ update public.profiles set username = 'vyra_member'
+     where id = auth.uid() $,
+  'An authenticated customer can set their own public username'
+);
+
 select is(
   (select count(*)::integer from public.search_credit_recipients('vyra')),
   2,
@@ -80,6 +86,12 @@ select is(
   has_function_privilege('anon', 'public.search_credit_recipients(text)', 'EXECUTE'),
   false,
   'Anonymous users cannot search recipient profiles'
+);
+
+select is(
+  has_function_privilege('anon', 'public.search_credit_recipients(text)', 'EXECUTE'),
+  false,
+  'Anonymous users cannot execute recipient lookup'
 );
 
 select is(
