@@ -11,6 +11,7 @@ import { createAiRouter } from './src/server/ai.js';
 import { createPricingRouter } from './src/server/pricing.js';
 import { createSupabaseAuthRouter } from './src/server/supabaseAuth.js';
 import { createCustomerProjectsRouter } from './src/server/customerProjects.js';
+import { createCreditTransfersRouter } from './src/server/creditTransfers.js';
 
 const app = express();
 const httpServer = createHttpServer(app);
@@ -22,6 +23,7 @@ app.use(express.json({ limit: '4mb' }));
 app.use('/api/tiktok', createTikTokRouter());
 app.use('/api/auth', createSupabaseAuthRouter());
 app.use('/api', createCustomerProjectsRouter());
+app.use('/api', createCreditTransfersRouter());
 
 app.use('/api', createPricingRouter());
 app.use('/api', createAiRouter());
