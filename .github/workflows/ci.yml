@@ -29,6 +29,8 @@ jobs:
         run: npm run test:restore
       - name: Usage ledger contract tests
         run: npm run test:usage-ledger
+      - name: Credit transfer API tests
+        run: npm run test:credit-transfers
       - name: Universal consistency engine tests
         run: npm run test:consistency
       - name: Audio export validation and runtime tests
