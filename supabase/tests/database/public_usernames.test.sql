@@ -100,11 +100,11 @@ select is(
   'Authenticated users cannot inspect lookup rate-limit records'
 );
 
-do $ begin
+do $$ begin
   for i in 1..17 loop
     perform * from public.search_credit_recipients('vyra');
   end loop;
-end $;
+end $$;
 
 select throws_ok(
   $$ select * from public.search_credit_recipients('vyra') $$,
