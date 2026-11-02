@@ -67,6 +67,107 @@ export function createCreditTransfersRouter(options: CreditTransfersOptions = {}
   const serviceRoleKey = (options.serviceRoleKey ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
   const fetcher = options.fetcher ?? fetch;
 
+  router.get('/credits/recipients', async (req: Request, res: Response) => {
+    const identity = await verifyRequestUser(req, options);
+    if ('error' in identity) return res.status(identity.status).json({ error: identity.error });
+    if (!supabaseUrl || !anonKey) return res.status(503).json({ error: 'Recipient lookup is not configured.' });
+
+    const query = typeof req.query.query === 'string' ? req.query.query.trim().toLowerCase() : '';
+    if (!/^[a-z0-9_]{3,24}$/.test(query)) {
+      return res.status(400).json({ error: 'Enter at least 3 valid username characters.' });
+    }
+
+    try {
+      const endpoint = new URL('/rest/v1/rpc/search_credit_recipients', supabaseUrl);
+      const response = await fetcher(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: anonKey,
+          Authorization: 'Bearer ' + identity.accessToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ p_query: query }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (response.status === 429) {
+        return res.status(429).json({ error: 'Too many recipient searches. Please wait a minute and try again.' });
+      }
+      if (!response.ok) {
+        const payload = asRecord(await response.json().catch(() => null));
+        if (payload.code === 'P4290') {
+          return res.status(429).json({ error: 'Too many recipient searches. Please wait a minute and try again.' });
+        }
+        return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
+          .json({ error: 'Recipient lookup is temporarily unavailable.' });
+      }
+      const payload: unknown = await response.json();
+      const recipients = Array.isArray(payload) ? payload.flatMap((item) => {
+        const profile = asRecord(item);
+        if (typeof profile.user_id !== 'string' || !UUID_PATTERN.test(profile.user_id)
+            || typeof profile.username !== 'string' || !/^[a-z0-9_]{3,24}$/.test(profile.username)) return [];
+        return [{
+          userId: profile.user_id,
+          username: profile.username,
+          ...(typeof profile.display_name === 'string' ? { displayName: profile.display_name.slice(0, 80) } : {}),
+        }];
+      }).slice(0, 8) : [];
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({ recipients });
+    } catch {
+      return res.status(503).json({ error: 'Recipient lookup is temporarily unavailable.' });
+    }
+  });
+
+  router.post('/credits/username', async (req: Request, res: Response) => {
+    const identity = await verifyRequestUser(req, options);
+    if ('error' in identity) return res.status(identity.status).json({ error: identity.error });
+    if (!supabaseUrl || !anonKey) return res.status(503).json({ error: 'Username settings are not configured.' });
+
+    const body = asRecord(req.body);
+    const username = body.username === null ? null
+      : typeof body.username === 'string' ? body.username.trim().toLowerCase() : undefined;
+    if (username === undefined || (username !== null && !/^[a-z0-9_]{3,24}$/.test(username))) {
+      return res.status(400).json({ error: 'Username must be 3–24 characters using letters, numbers or underscores.' });
+    }
+
+    try {
+      const endpoint = new URL('/rest/v1/profiles', supabaseUrl);
+      endpoint.searchParams.set('id', 'eq.' + identity.user.id);
+      endpoint.searchParams.set('select', 'id,username');
+      const response = await fetcher(endpoint, {
+        method: 'PATCH',
+        headers: {
+          apikey: anonKey,
+          Authorization: 'Bearer ' + identity.accessToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({ username }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (response.status === 409) return res.status(409).json({ error: 'That username is already in use.' });
+      if (!response.ok) {
+        const payload = asRecord(await response.json().catch(() => null));
+        if (payload.code === '23505') return res.status(409).json({ error: 'That username is already in use.' });
+        return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
+          .json({ error: 'Username could not be saved.' });
+      }
+      const rows: unknown = await response.json();
+      const profile = asRecord(Array.isArray(rows) ? rows[0] : rows);
+      if (profile.id !== identity.user.id || (profile.username !== null && typeof profile.username !== 'string')) {
+        return res.status(502).json({ error: 'Username update could not be verified.' });
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({ username: profile.username });
+    } catch {
+      return res.status(503).json({ error: 'Username settings are temporarily unavailable.' });
+    }
+  });
+
   router.get('/credits/transfers', async (req: Request, res: Response) => {
     const identity = await verifyRequestUser(req, options);
     if ('error' in identity) return res.status(identity.status).json({ error: identity.error });
