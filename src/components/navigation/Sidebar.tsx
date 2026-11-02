@@ -25,6 +25,7 @@ import {
   Zap,
   Bot,
   Layers3,
+  Wallet,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -108,6 +109,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen, col
       id: 'usage',
       label: 'Provider Usage',
       icon: <Receipt className="w-5 h-5 shrink-0" />,
+    },
+    {
+      id: 'credits',
+      label: 'Credit Wallet',
+      icon: <Wallet className="w-5 h-5 shrink-0" />,
     },
     {
       id: 'settings',
