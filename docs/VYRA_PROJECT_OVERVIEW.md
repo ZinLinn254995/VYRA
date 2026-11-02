@@ -38,6 +38,20 @@ VYRA's intended creative scope includes:
 
 The long-term experience is an integrated path from an initial idea to a completed creative deliverable, rather than a collection of disconnected generators.
 
+### Advanced video formats with a simple user experience
+
+VYRA's intended format range includes animated cartoons and recurring characters, cinematic stories and short films, talking avatars and dialogue scenes, product and brand advertisements, educational explainers and documentaries, vertical social videos, long-form YouTube videos, music and lyric videos, and text-to-video, image-to-video or reference-guided workflows where supported.
+
+The default workflow should be simple:
+1. Describe the video in natural language or choose a clear starting template.
+2. Let VYRA recommend a suitable format, structure and production approach.
+3. Review the script, scenes, characters, visual references and voice direction.
+4. Adjust a small number of understandable settings such as aspect ratio, duration, language and style.
+5. See an honest cost/credit estimate when available and explicitly approve paid generation.
+6. Review the result, refine only the parts that need work, then export or separately approve publishing.
+
+Advanced controls should be available without being forced on beginners. Provider and model complexity should stay behind the scenes unless a user wants to inspect or change it. Each format must be marked accurately as available, tested, experimental or planned; listing a target format here does not mean its end-to-end workflow is already implemented or production-ready.
+
 ## AI Context and Memory
 
 VYRA is intended to make AI assistance more context-aware over time. Useful context may include a user's creative preferences, project history, approved ideas, character descriptions and references, stylistic decisions, and production progress.
