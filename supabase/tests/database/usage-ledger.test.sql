@@ -159,6 +159,7 @@ select throws_ok(
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select throws_ok(
   $$ update public.credit_ledger_entries
      set note = 'tampered'
