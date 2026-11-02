@@ -13,7 +13,8 @@
     "test:projects": "node --import tsx --test tests/customer-projects-api.spec.ts",
     "test:restore": "node --import tsx --test tests/cloud-project-restore.spec.ts",
     "test:usage-ledger": "node --import tsx --test tests/usage-ledger-contract.spec.ts",
-    "test:consistency": "node --import tsx --test tests/consistency-engine.spec.ts"
+    "test:consistency": "node --import tsx --test tests/consistency-engine.spec.ts",
+    "test:audio-export": "node --import tsx --test tests/audio-export-validation.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
