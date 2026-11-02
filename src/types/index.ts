@@ -134,6 +134,8 @@ export interface Scene {
   mediaUrl: string;
   /** Character reference IDs from the owning project's reusable character library. */
   characterIds?: string[];
+  /** Universal consistency reference IDs selected for this scene. */
+  consistencyReferenceIds?: string[];
   /** IndexedDB key for a generated scene image stored on this device. */
   generatedImageId?: string;
   /** IndexedDB key for a generated clip stored on this device. */
