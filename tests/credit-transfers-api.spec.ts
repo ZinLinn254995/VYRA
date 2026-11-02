@@ -181,3 +181,130 @@ test('transfer history uses the user session and returns only safe transfer fiel
   assert.equal(capturedHeaders.get('apikey'), 'public-anon-key');
   assert.equal(capturedHeaders.get('Authorization'), 'Bearer verified-token');
 });
+
+
+test('recipient lookup returns only public username fields and uses the caller session', async () => {
+  let capturedUrl = '';
+  let capturedHeaders = new Headers();
+  let capturedBody: Record<string, unknown> = {};
+  const fetcher: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedHeaders = new Headers(init?.headers);
+    capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json([{
+      user_id: USER_B,
+      username: 'vyra_friend',
+      display_name: 'VYRA Friend',
+      email: 'must-not-leak@example.invalid',
+      private_metadata: { secret: true },
+    }]);
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/recipients?query=VYRA', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { recipients: Array<Record<string, unknown>> };
+    assert.deepEqual(payload.recipients, [{
+      userId: USER_B,
+      username: 'vyra_friend',
+      displayName: 'VYRA Friend',
+    }]);
+    assert.equal('email' in payload.recipients[0], false);
+    assert.equal('private_metadata' in payload.recipients[0], false);
+  }, fetcher);
+
+  assert.equal(new URL(capturedUrl).pathname, '/rest/v1/rpc/search_credit_recipients');
+  assert.equal(capturedHeaders.get('apikey'), 'public-anon-key');
+  assert.equal(capturedHeaders.get('Authorization'), 'Bearer verified-token');
+  assert.deepEqual(capturedBody, { p_query: 'vyra' });
+});
+
+test('recipient lookup validates short and malformed search queries before database access', async () => {
+  let called = false;
+  const fetcher: typeof fetch = async () => {
+    called = true;
+    return Response.json([]);
+  };
+
+  await withApi(async (baseUrl) => {
+    for (const query of ['ab', 'contains space', 'bad%', '']) {
+      const response = await fetch(baseUrl + '/api/credits/recipients?query=' + encodeURIComponent(query), {
+        headers: { Authorization: 'Bearer verified-token' },
+      });
+      assert.equal(response.status, 400);
+    }
+    assert.equal(called, false);
+  }, fetcher);
+});
+
+test('recipient lookup maps database rate limits to HTTP 429', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: 'P4290',
+    message: 'Recipient lookup rate limit exceeded.',
+  }, { status: 400 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/recipients?query=vyra', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
+    assert.equal(response.status, 429);
+  }, fetcher);
+});
+
+test('username updates use the verified user identity and never accept a caller-supplied owner ID', async () => {
+  let capturedUrl = '';
+  let capturedHeaders = new Headers();
+  let capturedBody: Record<string, unknown> = {};
+  const fetcher: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedHeaders = new Headers(init?.headers);
+    capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json([{ id: USER_A, username: 'vyra_creator' }]);
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/username', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: USER_B, username: 'VYRA_Creator' }),
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { username: string };
+    assert.equal(payload.username, 'vyra_creator');
+  }, fetcher);
+
+  const endpoint = new URL(capturedUrl);
+  assert.equal(endpoint.pathname, '/rest/v1/profiles');
+  assert.equal(endpoint.searchParams.get('id'), 'eq.' + USER_A);
+  assert.equal(capturedHeaders.get('Authorization'), 'Bearer verified-token');
+  assert.deepEqual(capturedBody, { username: 'vyra_creator' });
+});
+
+test('username updates reject invalid names and report uniqueness conflicts', async () => {
+  let called = false;
+  const fetcher: typeof fetch = async () => {
+    called = true;
+    return Response.json({ code: '23505' }, { status: 409 });
+  };
+
+  await withApi(async (baseUrl) => {
+    for (const username of ['ab', 'contains space', 'invalid-name', 'this_username_is_far_too_long']) {
+      const invalid = await fetch(baseUrl + '/api/credits/username', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      assert.equal(invalid.status, 400);
+    }
+    assert.equal(called, false);
+
+    const conflict = await fetch(baseUrl + '/api/credits/username', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'taken_name' }),
+    });
+    assert.equal(conflict.status, 409);
+  }, fetcher);
+});
