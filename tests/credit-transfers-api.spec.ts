@@ -308,3 +308,78 @@ test('username updates reject invalid names and report uniqueness conflicts', as
     assert.equal(conflict.status, 409);
   }, fetcher);
 });
+
+
+test('wallet API returns ledger balances and safe recent activity using the verified session', async () => {
+  let capturedUrl = '';
+  let capturedHeaders = new Headers();
+  const fetcher: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedHeaders = new Headers(init?.headers);
+    return Response.json({
+      account: { username: 'vyra_creator', displayName: 'VYRA Creator', email: 'private@example.invalid' },
+      availableBalance: 1250,
+      reservedBalance: 40,
+      recentActivity: [{
+        id: TRANSFER_ID,
+        entryType: 'transfer_credit',
+        availableDelta: 50,
+        reservedDelta: 0,
+        note: 'Incoming gift',
+        createdAt: '2026-11-03T00:00:00Z',
+        counterpartyUsername: 'vyra_friend',
+        counterpartyDisplayName: 'VYRA Friend',
+        metadata: { private: true },
+      }],
+      privateMetadata: { secret: true },
+    });
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/wallet', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, any>;
+    assert.equal(payload.availableBalance, '1250');
+    assert.equal(payload.reservedBalance, '40');
+    assert.equal(payload.account.username, 'vyra_creator');
+    assert.equal(payload.recentActivity[0].counterpartyUsername, 'vyra_friend');
+    assert.equal('email' in payload.account, false);
+    assert.equal('metadata' in payload.recentActivity[0], false);
+    assert.equal('privateMetadata' in payload, false);
+  }, fetcher);
+
+  assert.equal(new URL(capturedUrl).pathname, '/rest/v1/rpc/get_credit_wallet');
+  assert.equal(capturedHeaders.get('apikey'), 'public-anon-key');
+  assert.equal(capturedHeaders.get('Authorization'), 'Bearer verified-token');
+});
+
+test('wallet API rejects missing authentication without querying Supabase', async () => {
+  let called = false;
+  const fetcher: typeof fetch = async () => {
+    called = true;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/wallet');
+    assert.equal(response.status, 401);
+    assert.equal(called, false);
+  }, fetcher);
+});
+
+test('wallet API rejects malformed ledger snapshots instead of displaying a guessed balance', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    availableBalance: 'not-a-number',
+    reservedBalance: '0',
+    recentActivity: [],
+  });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/wallet', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
+    assert.equal(response.status, 502);
+  }, fetcher);
+});

@@ -21,6 +21,7 @@ import { AnalyticsView } from './components/views/AnalyticsView';
 import { SettingsView } from './components/views/SettingsView';
 import { VideoJobRecoveryView } from './components/views/VideoJobRecoveryView';
 import { ProviderUsageView } from './components/views/ProviderUsageView';
+import { CreditsWalletView } from './components/views/CreditsWalletView';
 import { Toast } from './components/common/Toast';
 
 const StudioContent: React.FC = () => {
@@ -54,6 +55,8 @@ const StudioContent: React.FC = () => {
         return <VideoJobRecoveryView />;
       case 'usage':
         return <ProviderUsageView />;
+      case 'credits':
+        return <CreditsWalletView />;
       case 'settings':
         return <SettingsView />;
       default:
