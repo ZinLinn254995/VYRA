@@ -193,7 +193,7 @@ export function createCreditTransfersRouter(options: CreditTransfersOptions = {}
       }
       const payload = asRecord(await response.json());
       const integerString = (value: unknown): string | null => {
-        if (typeof value === 'string' && /^-?\\d+$/.test(value)) return value;
+        if (typeof value === 'string' && /^-?\d+$/.test(value)) return value;
         if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
         return null;
       };
