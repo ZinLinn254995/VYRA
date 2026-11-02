@@ -37,7 +37,22 @@ Requires a valid Supabase access token. Reads up to 100 recent transfers through
 
 - Configure and validate `SUPABASE_SERVICE_ROLE_KEY` only in server-side deployment secrets.
 - Apply the database migration to a dedicated development Supabase project and verify rollback/backup procedures.
-- Add public recipient lookup by VYRA username before expecting customers to discover UUIDs; do not expose email-based lookup.
-- Add durable rate/velocity controls and customer-facing confirmation UI before public launch.
+- Public username management and recipient lookup are implemented in the API and database migration. Recipient lookup uses a minimum 3-character prefix, returns at most 8 matches, exposes only user ID/username/display name, and is limited to 20 requests per authenticated user per minute by a database-backed counter. No email lookup is provided.
+- Customer-facing confirmation UI and transfer velocity controls (including limits on transfer amount/volume, not only search requests) remain required before public launch.
 - Complete authenticated end-to-end tests against a non-production Supabase project.
 - Do not enable paid credit purchases, generation charging, or external resale through this API.
+
+## Public username and recipient discovery
+
+### POST /api/credits/username
+
+Requires a valid Supabase access token. The server derives the profile owner from the verified session and updates only that user's profile row.
+
+Request body:
+- `username`: 3–24 characters using lowercase letters, numbers or underscores. Input is normalized to lowercase. Send `null` to clear the handle.
+
+A duplicate username returns `409`. The database enforces the format and uniqueness constraints independently of API validation.
+
+### GET /api/credits/recipients?query=prefix
+
+Requires a valid Supabase access token. Search uses a prefix of at least 3 valid characters and returns at most 8 matches. Results contain only `userId`, `username`, and optional `displayName`; email addresses and private profile fields are never returned. The database enforces a durable limit of 20 lookups per authenticated user per minute, including across serverless instances. Exceeding the limit returns `429`.
