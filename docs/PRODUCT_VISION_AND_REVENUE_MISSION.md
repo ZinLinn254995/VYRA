@@ -1,83 +1,141 @@
 # VYRA Product Vision & Revenue Mission
 
-_Last updated: 2026-11-01_
+_Last updated: 2026-11-02_
 
 ## 1. Mission — the non-negotiable project goal
 
-VYRA is being built as a customer-facing AI video creation SaaS business. The goal is not merely to finish a demo or a collection of AI tools: **take VYRA from its current development state to a reliable product that real customers can pay for, then grow it into sustainable recurring revenue.**
+VYRA is a customer-facing **AI Video Creation SaaS and AI Creative Studio**. Its goal is to help customers turn creative ideas into finished visual content through one connected production environment, then grow into a reliable business with sustainable recurring revenue.
+
+The product direction is **Chat-First, Not Chat-Only**:
+- Natural-language Chat is a primary way to understand, control, and use VYRA's capabilities.
+- The visual workspace remains fully important: customers can also create, inspect, edit, organize, and manage work manually.
+- Chat and the visual workspace are two interaction methods for the same product and should work with shared project data and state.
 
 Founder constraints and target:
 - Monthly revenue ambition: **฿300,000+**.
 - Starting capital: **almost zero**.
 - Founder operating time: **about 1–2 hours per day**.
-- Main income strategy: **earn through VYRA itself** (subscriptions and usage credits), not by depending on a separate video-editing agency/service.
+- Main income strategy: earn through VYRA itself (subscriptions and usage credits), not by depending on a separate video-editing agency/service.
 - The revenue target is an ambition, not a forecast or guarantee. Track gross revenue, provider/API costs, hosting, payment fees, refunds, support and taxes separately; optimize for sustainable net profit.
 
-This mission must guide product scope, architecture, UX, prioritization and release decisions. Do not lose sight of the path from working software to paying customers.
+This mission guides product scope, architecture, UX, prioritization and release decisions. The mission does not replace the product identity and capability overview in [VYRA Project Overview](./VYRA_PROJECT_OVERVIEW.md); the two documents are complementary.
 
-## 2. Product experience
+## 2. Product experience — Chat-First, Not Chat-Only
 
-**Recommended experience: AI does the heavy work, while the customer can review, edit and control every important stage.**
+VYRA should be approachable for beginners while providing meaningful creative control to experienced creators. It should not require customers to operate a complicated professional editor or understand AI infrastructure.
 
-VYRA should be approachable for beginners but provide meaningful control to experienced creators. It should not force customers to operate a complicated professional editor.
+### Conversational control
 
-Core customer journey:
-1. Sign up and choose a plan / credit package.
-2. Describe a video idea in natural language.
-3. AI Creative Assistant prepares a creative brief, script, scene plan, character/visual direction and audio direction.
-4. Customer reviews and approves the plan. **This approval must not start paid media generation.**
-5. Customer reviews visual references/characters and voice choices where relevant.
-6. Generate a low-cost/limited sample or selected test scene; show the estimated credit cost before starting.
-7. Customer reviews the sample (visual quality, motion, consistency, voice, timing and lip-sync where applicable).
-8. Generate the approved full scenes.
-9. Assemble, edit, preview and export the final video.
-10. Customer gives final approval and publishes/downloads through supported destinations.
+Customers can describe ideas naturally, brainstorm with the AI Creative Assistant, compare creative directions, and ask it to perform supported tasks in the application. As capabilities are implemented, Chat is intended to provide a conversational control surface for project and production work, including:
+- Developing and saving creative ideas and turning approved ideas into projects.
+- Creating, viewing, updating and organizing projects.
+- Working with characters, reference images, media and other assets.
+- Preparing and refining scripts, storyboards, scenes and creative plans.
+- Starting supported image, video, voice and audio workflows.
+- Reviewing project status, production progress, previews and results.
+- Finding application features, navigating to relevant workspaces, learning how to use them and troubleshooting issues.
+- Understanding account, plan, credit and usage information where those systems are available.
 
-At every stage, preserve project progress. If one scene is rejected, allow that scene or asset to be regenerated without unnecessarily repeating the entire project. Show costs and require explicit approval before billable generation or publishing actions.
+Chat should invoke real application capabilities when available; it should not imply that an action was completed merely by describing it. The assistant should communicate limitations and distinguish implemented capabilities from planned ones.
 
-## 3. Customer services VYRA aims to provide
+### Manual creative workspace
 
-Build toward one integrated workflow for:
-- AI animation and cartoon stories, including recurring characters.
+Chat is not the only way to use VYRA. Customers can also work directly in the visual application: create and open projects, upload and organize assets, edit scripts and scenes, adjust creative decisions, inspect previews, use timelines and production tools, and export supported results.
+
+### One shared product state
+
+Chat and manual workspace are not separate products. They should operate on the same underlying projects, characters, assets and production state. A change made through Chat should appear in the relevant workspace, and manual changes should be available to the AI when it works with that project. The actual completeness of this synchronization must be verified in the implementation; this is a product direction, not a claim that every data type is already synchronized.
+
+## 3. Integrated creative capabilities
+
+VYRA aims to connect the creative process from initial idea to finished deliverable:
+
+- **Idea development:** conversational brainstorming, concept exploration, creative feedback and saved ideas.
+- **Project management:** creating, viewing, updating, organizing and tracking projects and production progress.
+- **Character creation and continuity:** generating or importing character references, saving reusable characters in a Character Library, associating them with projects and scenes, and using reference details to help maintain recognizable character appearance.
+- **Image creation:** generating and refining images through Chat or the visual workspace, and organizing approved results.
+- **Script and story development:** premises, stories, scripts, scene descriptions and other creative material.
+- **Storyboards and scene planning:** structuring stories into scenes and reviewing visual direction before production.
+- **Video production:** creating and refining video content through supported generation and production workflows.
+- **Media and asset organization:** uploading, browsing, reusing and managing creative assets.
+- **Voice and audio:** relevant voice, narration, music and audio workflows as available.
+- **Editing and review:** inspecting previews, refining output, reviewing production stages and preparing work for completion.
+- **Export and delivery:** preparing finished creative work for supported export, download and publishing destinations.
+- **In-app guidance:** explaining features, helping users navigate the product, identifying next steps and troubleshooting.
+
+The intended customer experience is an integrated creative studio, not a collection of disconnected generators.
+
+## 4. Creative workflows and customer outcomes
+
+VYRA aims to support a range of visual-content needs, including:
+- AI animation and cartoon stories with recurring characters.
 - Cinematic, narrative and short-film videos.
-- Educational, explainer, documentary and history/science videos.
+- Educational, explainer, documentary, history and science videos.
 - Product, restaurant, small-business and brand advertisements.
-- Talking avatars, narration and lip-sync (only where provider capability and quality are verified).
+- Talking avatars, narration and lip-sync where provider capability and quality are verified.
 - Social media videos for TikTok, Reels, Shorts and longer YouTube formats.
 - Music, lyric and visualizer videos.
 
-These are product directions, not a claim that every format is already production-ready. Mark each capability as available, experimental or planned until it has been tested end-to-end with real providers and representative content. In particular, test Burmese language, voice quality, pronunciation, character consistency and lip-sync before marketing them as reliable features.
+These are product directions, not a claim that every format is already production-ready. Mark capabilities as available, tested, experimental or planned based on actual implementation and end-to-end verification. In particular, test Burmese language, voice quality, pronunciation, character consistency and lip-sync before marketing them as reliable features.
 
-## 4. Business model
+## 5. Customer journey and user control
+
+A representative AI-assisted video workflow is:
+
+1. Customer signs up and chooses an available plan or credit package.
+2. Customer describes a video idea through Chat or starts manually in the workspace.
+3. AI helps prepare a creative brief, script, scene plan, character/visual direction and audio direction.
+4. Customer reviews and approves the creative plan. **This approval alone must not start paid media generation.**
+5. Customer reviews visual references, characters and voice choices where relevant.
+6. Before any billable generation, VYRA explains the expected credit use or cost when it can be estimated and asks for explicit approval.
+7. Customer reviews a sample or test scene where the workflow supports it.
+8. Customer approves further generation, reviews scenes, and regenerates only rejected parts where supported.
+9. Customer assembles, edits, previews and exports the final video.
+10. Customer gives any required final approval before publishing or other consequential actions.
+
+Preserve project progress. Avoid unnecessarily repeating completed work when a scene or asset is rejected. Distinguish creative approval, paid-generation approval and final publishing approval. Destructive or account-impacting actions require suitable confirmation. Be honest when costs are unavailable or uncertain; never present an estimate as an actual provider charge.
+
+## 6. AI context and memory
+
+VYRA is intended to make AI assistance context-aware over time. Relevant context may include user creative preferences, project history, approved ideas, character descriptions and references, style decisions, and production progress.
+
+This context should help the AI continue work coherently rather than treating every conversation as unrelated. Project-specific information should remain associated with its project, while reusable character information should be available to projects that use those characters. Memory should support continuity while keeping users in control of their creative information.
+
+The existence, durability and cross-device availability of memory must be judged from the actual implementation; do not describe planned memory as already available.
+
+## 7. Business model and revenue mission
 
 Primary model:
-- Recurring monthly subscriptions with clearly defined included credits/usage.
+- Recurring monthly subscriptions with clearly defined included credits or usage.
 - Optional credit top-ups for additional generation.
-- Transparent cost estimates before generation.
+- Transparent cost estimates before billable generation.
 - Usage limits and safeguards; **do not promise unlimited video generation** while provider costs are variable.
 - Consider a free trial or limited free credits only when abuse controls and unit economics are understood.
 
-Previously discussed price points (฿299 / ฿999 / ฿2,999 per month) are **hypotheses for testing, not finalized prices**. Validate willingness to pay, competitor positioning, provider costs and payment fees before launch.
+Previously discussed price points (฿299 / ฿999 / ฿2,999 per month) are hypotheses for testing, not finalized prices. Validate willingness to pay, competitor positioning, provider costs and payment fees before launch.
 
-Revenue arithmetic is not profit: for example, 300 customers paying ฿999 would produce ฿299,700 in monthly gross subscription revenue before all costs. Measure paid conversion, active subscribers, churn, average revenue per user, cost per generated minute/project, gross margin and support burden.
+Revenue arithmetic is not profit: for example, 300 customers paying ฿999 would produce ฿299,700 in monthly gross subscription revenue before costs. Measure paid conversion, active subscribers, churn, average revenue per user, cost per generated minute/project, gross margin and support burden.
 
-## 5. Product principles
+## 8. Product principles
 
-1. **Cost-aware by design:** choose suitable models/providers per task; estimate credits before paid work; log actual provider cost.
-2. **Approval gates:** creative approval, sample approval and final approval are distinct. No hidden paid generation.
-3. **Recoverable workflow:** persist jobs/assets/project state and support retries and partial regeneration.
-4. **Honest capability claims:** distinguish working, tested, experimental and planned features.
-5. **Simple UX:** natural-language guidance, compact screens, responsive desktop/mobile, Burmese and English support.
-6. **Provider flexibility:** avoid unnecessary lock-in; route tasks to suitable text, image, video, audio and lip-sync providers. A gateway key alone must not be assumed to cover every modality.
-7. **Customer trust:** clear usage, privacy, rights/licensing considerations, publishing confirmation and failure/refund handling.
+1. **Integrated creative production:** connect ideation, planning, character and asset preparation, generation, editing, review and delivery.
+2. **Chat-first interaction:** make natural-language conversation a central way to access and control VYRA.
+3. **Manual creative freedom:** preserve a capable visual workspace for direct user control and detailed work.
+4. **Shared project state:** Chat and manual interactions work with the same underlying creative information.
+5. **Context-aware assistance:** use relevant project, character and preference context to support continuity.
+6. **Simple for different skill levels:** emphasize creative goals and understandable choices, not technical implementation details.
+7. **User control and transparency:** communicate meaningful actions, costs, approvals, limitations and progress.
+8. **Honest capability claims:** distinguish implemented, tested, experimental and planned features.
+9. **Cost-aware and recoverable workflows:** prevent hidden paid generation, preserve progress, and support safe retries and partial regeneration.
+10. **Provider flexibility:** avoid unnecessary lock-in and verify the actual capabilities of each text, image, video, voice and audio provider.
 
-## 6. Roadmap — from current app to revenue
+## 9. Roadmap — from current app to revenue
 
 ### Phase A — Finish a dependable core workflow
 - Audit the existing application and distinguish implemented features from mocked or unverified ones.
-- Make the Chat-to-Workspace production journey reliable.
+- Make the Chat-to-Workspace production journey reliable while preserving manual workflows.
 - Validate brief/script/scene review, visual and voice review, sample generation, scene generation, final assembly/export and recovery.
-- Verify that approval gates never trigger paid generation unexpectedly.
+- Verify approval gates never trigger paid generation unexpectedly.
 - Test with real provider credentials before calling generation features production-ready.
 
 ### Phase B — Validate the first sellable use case
@@ -96,27 +154,41 @@ Revenue arithmetic is not profit: for example, 300 customers paying ฿999 would
 - Start with a limited beta and paid pilot; gather evidence before broad marketing.
 - Improve retention and repeat usage before scaling acquisition.
 - Track gross revenue and net contribution, and only scale workflows with healthy unit economics.
-- Expand formats/providers based on customer demand and verified quality.
+- Expand formats and providers based on customer demand and verified quality.
 
-## 7. Operating rule for future development
+## 10. Operating rule for future development
 
-For every proposed feature or PR, ask:
-- Does it move VYRA closer to a reliable customer outcome or paid conversion?
-- Does it reduce generation cost, failure rate or support effort?
-- Is it necessary for the first sellable workflow, or can it wait?
-- Can it be tested without spending money, and what real-provider test remains?
-- Does it preserve customer control and explicit cost approval?
+For proposed features, changes and releases, consider whether they:
+- Support VYRA's integrated AI video and creative-studio purpose.
+- Make Chat and manual workspace work coherently with shared project state.
+- Move the product toward reliable customer outcomes and paid conversion.
+- Reduce generation cost, failure rate or support effort.
+- Preserve customer control, privacy, cost approval and recoverability.
+- Can be tested honestly against the current implementation.
 
-Prioritize the smallest reliable path to a product customers will pay to use. Avoid building impressive but commercially unvalidated features just for feature count.
+Prioritize a small, dependable path to a product customers will pay to use without losing the broader product vision.
+
+## Related documentation and source of truth
+
+- [VYRA Project Overview](./VYRA_PROJECT_OVERVIEW.md) — what VYRA is and the capabilities it aims to provide.
+- [SaaS Backend Architecture](./SAAS_BACKEND_ARCHITECTURE.md) — proposed technical foundation and security decisions.
+- [Customer Project API](./CUSTOMER_PROJECT_SYNC_API.md) — implemented API scope and limitations.
+- [Cloud Project Restore](./CLOUD_PROJECT_RESTORE.md) — current backup/restore behavior and limitations.
+- [Supabase Auth Foundation](./SUPABASE_AUTH_FOUNDATION.md) and [Supabase Account UI Setup](./SUPABASE_ACCOUNT_UI_SETUP.md) — authentication foundation and UI setup.
+- [Usage Ledger API Integration](./USAGE_LEDGER_API_INTEGRATION.md) — usage/credit integration contract and rollout safeguards.
+
+This product vision and the Project Overview define product intent. Technical documents describe narrower implementation decisions or current behavior; they do not replace or silently redefine the product's overall direction.
 
 ---
 
 ## Burmese summary
 
-VYRA ကို AI Video SaaS လုပ်ငန်းတစ်ခုအဖြစ် အမှန်တကယ် customer တွေ အသုံးပြုပြီး ငွေပေးချေသုံးစွဲနိုင်တဲ့အဆင့်အထိ တည်ဆောက်မယ်။ ရည်မှန်းချက်က တစ်လ ฿300,000 အထက် ဝင်ငွေရရှိဖို့ဖြစ်ပြီး စတင်အရင်းအနှီးနည်းပါးသလို တစ်နေ့ ၁–၂ နာရီသာ အချိန်ပေးနိုင်တာကို ထည့်တွက်ရမယ်။ ဒီကိန်းဂဏန်းဟာ ရည်မှန်းချက်ဖြစ်ပြီး အာမခံချက်မဟုတ်ဘူး။
+VYRA ဟာ AI Video Creation SaaS နဲ့ AI Creative Studio ဖြစ်တယ်။ Idea ကနေ Script၊ Character၊ Storyboard၊ Image၊ Video၊ Voice/Audio၊ Editing၊ Preview နဲ့ Export အထိ ဖန်တီးမှုလုပ်ငန်းစဉ်တွေကို တစ်နေရာတည်းမှာ ချိတ်ဆက်ပေးဖို့ ရည်ရွယ်တယ်။
 
-VYRA ရဲ့ အဓိကပုံစံက **AI က အလုပ်အများစုကို အလိုအလျောက်လုပ်ပေးမယ်၊ customer က အဆင့်တိုင်းကို စစ်ဆေး၊ ပြင်ဆင်၊ အတည်ပြုနိုင်မယ်** ဆိုတဲ့ပုံစံဖြစ်တယ်။ Idea ကနေ Script၊ Storyboard၊ Character/Visual၊ Voice၊ Sample၊ Full Scenes၊ Final Export နဲ့ Publish အထိ တစ်နေရာတည်းမှာ ဆောင်ရွက်နိုင်ဖို့ ရည်ရွယ်တယ်။ Creative plan ကို approve လုပ်တာနဲ့ အခကြေးငွေရှိတဲ့ generation မစရဘူး။ စတင်မယ့် generation တိုင်းမှာ ကုန်ကျမယ့် credit ကို ကြိုပြပြီး customer ခွင့်ပြုချက်ယူရမယ်။
+VYRA ရဲ့ အသုံးပြုမှုအယူအဆက **Chat-First, Not Chat-Only** ဖြစ်တယ်။ အသုံးပြုသူက Chat မှာ သဘာဝကျကျပြောပြီး AI ကို အလုပ်ခိုင်းနိုင်သလို Visual Workspace ထဲမှာလည်း ကိုယ်တိုင်ဖန်တီး၊ ပြင်ဆင်၊ စီမံနိုင်တယ်။ Chat နဲ့ Manual Workspace နှစ်ခုလုံးဟာ Project Data တစ်ခုတည်းကို အခြေခံပြီး အတူတကွ အလုပ်လုပ်နိုင်ဖို့ ရည်ရွယ်တယ်။
 
-VYRA ကနေ ဝင်ငွေရဖို့ အဓိကစနစ်က Monthly Subscription + Usage Credits ဖြစ်မယ်။ Unlimited generation ကို မကတိပေးဘူး။ ฿299 / ฿999 / ฿2,999 ဆိုတဲ့ ယခင်ဈေးနှုန်းတွေဟာ စမ်းသပ်ရန် အကြမ်းဖျဉ်းသာဖြစ်ပြီး အတည်မပြုရသေးဘူး။ ဝင်ငွေတိုးတာနဲ့အတူ API ကုန်ကျစရိတ်၊ hosting၊ payment fees၊ support နဲ့ အခြားအသုံးစရိတ်တွေကိုပါ တွက်ရမယ်။
+AI က User ရဲ့ Creative Preference၊ Project History၊ Character Reference၊ ဆုံးဖြတ်ချက်နဲ့ Production Progress တွေကို သက်ဆိုင်ရာအတိုင်း မှတ်မိပြီး ဆက်လက်ကူညီနိုင်ဖို့ ရည်ရွယ်တယ်။ Chat ဟာ Creative Assistant သာမက App အသုံးပြုနည်း၊ Navigation နဲ့ Troubleshooting အတွက်လည်း လမ်းညွှန်ပေးနိုင်တဲ့ နေရာဖြစ်တယ်။
 
-**နောက်ဆုံးဦးတည်ချက် — App ပြီးအောင်လုပ်ရုံမဟုတ်ဘဲ၊ ယုံကြည်စိတ်ချရတဲ့ ပထမဆုံး paid workflow ကို အရင်ထုတ်၊ customer အမှန်တွေနဲ့ စမ်းသပ်၊ ကုန်ကျစရိတ်နဲ့ အမြတ်ကိုတိုင်းတာပြီး VYRA ကို ရေရှည်ဝင်ငွေရတဲ့ SaaS လုပ်ငန်းတစ်ခုအဖြစ် တဖြည်းဖြည်းတိုးချဲ့မယ်။**
+ဒီမှတ်တမ်းတွေဟာ ရည်ရွယ်ချက်နဲ့ လုပ်ဆောင်နိုင်စွမ်းကို ရှင်းပြတာဖြစ်ပြီး Feature အားလုံး လက်ရှိအကောင်အထည်ဖော်ပြီးပြီလို့ မဆိုလိုဘူး။ လက်ရှိ Code၊ Test နဲ့ Provider Integration ကို စစ်ဆေးပြီးမှ Available၊ Tested၊ Experimental သို့မဟုတ် Planned အဖြစ် သတ်မှတ်ရမယ်။
+
+VYRA ရဲ့ စီးပွားရေးရည်မှန်းချက်က Subscription နဲ့ Usage Credits ကို အခြေခံပြီး Customer တွေ အမှန်တကယ် အသုံးပြုနိုင်တဲ့ ယုံကြည်စိတ်ချရသော AI Video SaaS တစ်ခု တည်ဆောက်ဖို့ ဖြစ်တယ်။ ကုန်ကျစရိတ်ရှိတဲ့ Generation မစခင် အသုံးပြုသူရဲ့ ခွင့်ပြုချက်ရယူရမယ်။ ဝင်ငွေ၊ API ကုန်ကျစရိတ်နဲ့ အမြတ်ကို သီးခြားတိုင်းတာရမယ်။
