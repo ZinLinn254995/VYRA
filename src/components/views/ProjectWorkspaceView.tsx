@@ -638,15 +638,41 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch { /* Show setup guidance below if session storage is unavailable. */ }
       const model = selectedModels.video;
       if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Video model in Settings before generating a clip.');
+      const savedImages = await getSavedImages();
+      const characterReferences = (project.characters || [])
+        .filter((character) => (targetScene.characterIds || []).includes(character.id));
+      const missingCharacterDescriptions = characterReferences.filter((character) => !character.visualDescription.trim());
+      if (missingCharacterDescriptions.length) {
+        throw new Error('Add a visual description for each selected character before generating this scene.');
+      }
+      const missingCharacterImages = characterReferences.filter((character) => character.referenceImageId
+        && !savedImages.some((image) => image.id === character.referenceImageId));
+      if (missingCharacterImages.length) {
+        throw new Error('A selected character reference image is missing from this device. Re-add the reference image before generating this clip.');
+      }
+      const characterImageReferences = characterReferences.flatMap((character) => {
+        if (!character.referenceImageId) return [];
+        const image = savedImages.find((saved) => saved.id === character.referenceImageId);
+        return image ? [{ type: 'image_url', image_url: { url: image.dataUrl } }] : [];
+      });
       let videoReferencePayload: Record<string, unknown> = {};
+      let sceneImageReference: { type: 'image_url'; image_url: { url: string } } | undefined;
       if (targetScene.generatedImageId) {
-        const savedImages = await getSavedImages();
         const referenceImage = savedImages.find((image) => image.id === targetScene.generatedImageId);
         if (!referenceImage) throw new Error('The approved scene image is missing from this device. Regenerate the scene image before creating its video clip.');
-        const imageReference = { type: 'image_url', image_url: { url: referenceImage.dataUrl } };
-        videoReferencePayload = videoModelMetadata?.supportedFrameImages?.includes('first_frame')
-          ? { frame_images: [{ ...imageReference, frame_type: 'first_frame' }] }
-          : { input_references: [imageReference] };
+        sceneImageReference = { type: 'image_url', image_url: { url: referenceImage.dataUrl } };
+      }
+      const allInputReferences = [
+        ...(sceneImageReference ? [sceneImageReference] : []),
+        ...characterImageReferences,
+      ];
+      if (sceneImageReference && videoModelMetadata?.supportedFrameImages?.includes('first_frame')) {
+        videoReferencePayload = {
+          frame_images: [{ ...sceneImageReference, frame_type: 'first_frame' }],
+          ...(characterImageReferences.length ? { input_references: characterImageReferences } : {}),
+        };
+      } else if (allInputReferences.length) {
+        videoReferencePayload = { input_references: allInputReferences };
       }
       const prompt = [
         'Generate a ' + (project.videoType || 'video') + ' clip lasting ' + clipDuration + ' seconds for one scene in a larger production.',
@@ -661,7 +687,12 @@ export const ProjectWorkspaceView: React.FC = () => {
         targetScene.soundDesign ? 'Scene sound design: ' + targetScene.soundDesign : '',
         targetScene.transition ? 'Transition to next scene: ' + targetScene.transition : '',
         'Overall visual style: ' + project.visualStyle,
-        Object.keys(videoReferencePayload).length ? 'Use the supplied scene reference image to preserve the character design, clothing, colors, and composition. Animate that scene naturally.' : 'Create the scene directly from its visual direction using text-to-video generation.',
+        ...characterReferences.flatMap((character) => [
+          'Recurring character "' + character.name + '" visual identity: ' + character.visualDescription,
+          character.continuityNotes ? 'Continuity constraints for "' + character.name + '": ' + character.continuityNotes : '',
+        ]),
+        characterReferences.length ? 'Keep every selected recurring character visually consistent with the supplied character reference images and written identity descriptions. Do not redesign faces, hair, body proportions, signature clothing, or colors.' : '',
+        Object.keys(videoReferencePayload).length ? 'Use the supplied scene and character reference images to preserve character identity, clothing, colors, and composition. Animate the scene naturally.' : 'Create the scene directly from its visual direction using text-to-video generation.',
         'Aspect ratio: ' + clipAspectRatio,
         'Keep motion coherent and visually polished. Do not add unrequested captions, subtitles, watermarks, or UI text.',
       ].join('\n');
@@ -868,6 +899,12 @@ export const ProjectWorkspaceView: React.FC = () => {
       project.creativeDirection ? 'Creative direction: ' + project.creativeDirection : '',
       project.videoType ? 'Video type: ' + project.videoType : '',
       'Scene ' + targetScene.order + ' from the video "' + project.title + '".',
+      ...(project.characters || [])
+        .filter((character) => (targetScene.characterIds || []).includes(character.id))
+        .flatMap((character) => [
+          'Recurring character "' + character.name + '" visual identity: ' + character.visualDescription,
+          character.continuityNotes ? 'Continuity constraints for "' + character.name + '": ' + character.continuityNotes : '',
+        ]),
       'Create a clean cinematic frame with no captions, no watermarks, and no written text.',
       'Keep the character design coherent with the project style and scene description.',
     ].join('\n');
