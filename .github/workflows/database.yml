@@ -2,12 +2,12 @@ name: VYRA Database Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, development]
     paths:
       - 'supabase/**'
       - '.github/workflows/database.yml'
   push:
-    branches: [main]
+    branches: [main, development]
     paths:
       - 'supabase/**'
       - '.github/workflows/database.yml'
