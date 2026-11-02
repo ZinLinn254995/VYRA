@@ -1119,7 +1119,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const blob = await response.blob();
       if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
       const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-      if (!latestScene || latestScene.narration.trim() !== narration) {
+      if (!latestScene || (latestScene.dialogue || latestScene.narration).trim() !== narration) {
         if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed during generation. Generate voiceover again for the updated script.');
         return;
       }
@@ -1138,7 +1138,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         // Keep a successful provider result usable even when local IndexedDB storage fails.
         // The existing preview/download controls let the user save the audio manually.
         const latestAfterSaveFailure = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-        if (!latestAfterSaveFailure || latestAfterSaveFailure.narration.trim() !== narration) {
+        if (!latestAfterSaveFailure || (latestAfterSaveFailure.dialogue || latestAfterSaveFailure.narration).trim() !== narration) {
           if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
           return;
         }
@@ -1153,7 +1153,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       // IndexedDB writes are asynchronous too; re-check narration immediately before linking.
       const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-      if (!sceneBeforeLink || sceneBeforeLink.narration.trim() !== narration) {
+      if (!sceneBeforeLink || (sceneBeforeLink.dialogue || sceneBeforeLink.narration).trim() !== narration) {
         // Do not leave an unlinked stale voiceover in local Media Library storage.
         await deleteSavedAudio(saved.id).catch(() => undefined);
         if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
