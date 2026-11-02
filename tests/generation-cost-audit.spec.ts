@@ -38,6 +38,22 @@ test('OpenRouter chat response includes provider generation metadata when suppli
     });
   });
 
+  await page.route('**/api/providers/openrouter/estimate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        estimate: {
+          status: 'unavailable',
+          estimatedCostUsd: null,
+          reason: 'parameters_incomplete',
+          message: 'Exact prompt token count is required.',
+        },
+      }),
+    });
+  });
+  page.on('dialog', (dialog) => dialog.accept());
+
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.getByRole('button', { name: 'AI Ideas Chat' }).click();
