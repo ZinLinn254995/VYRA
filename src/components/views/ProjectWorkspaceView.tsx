@@ -1410,6 +1410,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (audioContext && audioDestination && projectAudioBuffers.length > 0) {
         const mixStartTime = audioContext.currentTime + 0.05;
         activeProjectAudioTracks.forEach((track, index) => {
+          if (track.sceneId) return;
           const source = audioContext!.createBufferSource();
           const gain = audioContext!.createGain();
           const buffer = projectAudioBuffers[index];
@@ -1788,6 +1789,9 @@ export const ProjectWorkspaceView: React.FC = () => {
         fadeOutSeconds: trackKind === 'music' ? 2 : 0,
         loop: trackKind === 'music',
         enabled: true,
+        sceneId: undefined,
+        duckingEnabled: trackKind === 'music',
+        duckingLevel: 0.25,
       };
       updateProject(project.id, { audioTracks: [...(project.audioTracks || []), track] });
       showToast((trackKind === 'music' ? 'Music' : 'Sound effect') + ' added to the project audio timeline', 'success');
@@ -2011,9 +2015,36 @@ export const ProjectWorkspaceView: React.FC = () => {
                   </label>
                 </div>
                 {track.kind === 'music' && (
-                  <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
-                    <input type="checkbox" checked={track.loop} onChange={(event) => updateProjectAudioTrack(track.id, { loop: event.target.checked })} />
-                    Loop music until the final video ends
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                      <input type="checkbox" checked={track.loop} onChange={(event) => updateProjectAudioTrack(track.id, { loop: event.target.checked })} />
+                      Loop music until the final video ends
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                      <input type="checkbox" checked={track.duckingEnabled !== false} onChange={(event) => updateProjectAudioTrack(track.id, { duckingEnabled: event.target.checked })} />
+                      Lower music during narration
+                    </label>
+                    {track.duckingEnabled !== false && (
+                      <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <span>Narration ducking · {Math.round((track.duckingLevel ?? 0.25) * 100)}%</span>
+                        <input type="range" min="0.1" max="0.8" step="0.05" value={track.duckingLevel ?? 0.25} onChange={(event) => updateProjectAudioTrack(track.id, { duckingLevel: Math.max(0.1, Math.min(0.8, Number(event.target.value))) })} className="w-28 accent-cyan-400" />
+                      </label>
+                    )}
+                  </div>
+                )}
+                {track.kind === 'sound_effect' && (
+                  <label className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+                    <span>Play in</span>
+                    <select
+                      aria-label={'Scene for ' + track.name}
+                      value={track.sceneId || ''}
+                      onChange={(event) => updateProjectAudioTrack(track.id, { sceneId: event.target.value || undefined })}
+                      className="rounded-md border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-1.5 text-xs text-white light:text-slate-900"
+                    >
+                      <option value="">Every scene (project-wide)</option>
+                      {scenes.map((scene) => <option key={scene.id} value={scene.id}>Scene {scene.order}: {scene.title || scene.narration.slice(0, 32)}</option>)}
+                    </select>
+                    <span>Choose one scene to trigger this effect only there.</span>
                   </label>
                 )}
               </article>
