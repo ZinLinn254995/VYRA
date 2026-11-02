@@ -143,7 +143,10 @@ test('full video export records a mixed audio stream with voiceover, music, and 
   const outputStats = await stat(outputPath!);
   expect(outputStats.size).toBeGreaterThan(0);
 
-  await expect.poll(() => page.evaluate(() => (window as any).__vyraExportTrackKinds || [])).toEqual(['video', 'audio']);
+  const recordedTrackKinds = await page.evaluate(() => (window as any).__vyraExportTrackKinds as string[]);
+  expect(recordedTrackKinds).toContain('video');
+  expect(recordedTrackKinds).toContain('audio');
+  expect(recordedTrackKinds).toHaveLength(2);
   const mimeType = await page.evaluate(() => (window as any).__vyraExportMimeType as string);
   expect(mimeType).toMatch(/^video\\/(mp4|webm)/);
   await expect(page.getByText(/Full video exported with 1 voiceovers and 2 music\\/SFX tracks/)).toBeVisible({ timeout: 15000 });
