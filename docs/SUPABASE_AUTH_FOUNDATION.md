@@ -1,5 +1,7 @@
 # Supabase Auth verification foundation
 
+**Document scope:** server-side authentication verification endpoint only. For the later account UI and setup instructions, see [Supabase Account UI Setup](./SUPABASE_ACCOUNT_UI_SETUP.md). This document does not describe the entire customer account experience.
+
 VYRA now exposes an optional server-side session verification endpoint. It is intentionally separate from the existing local-first Studio experience.
 
 ## Environment
@@ -23,9 +25,11 @@ Send `Authorization: Bearer <supabase-access-token>`.
 
 The server does not trust a user ID supplied in the request. It asks Supabase Auth to validate the bearer token and derives the identity from the verified response. Responses are not cacheable.
 
-## Deliberate scope
+## Scope and relationship to account UI
 
-This endpoint does not yet add sign-in UI, browser session management, project synchronization, tenant-scoped API enforcement, credits, or billing. Existing local-only usage remains unchanged. Do not treat this endpoint alone as a production SaaS authentication rollout; protected project APIs must verify the token and rely on database RLS before cloud data is enabled.
+This document records the server-side token-verification foundation. The separate [Supabase Account UI Setup](./SUPABASE_ACCOUNT_UI_SETUP.md) document describes the optional email/password sign-in UI and browser session behavior added around that foundation.
+
+Sign-in alone does not enable cloud project storage, automatic synchronization, credits, billing, or a production SaaS launch. Existing local-first usage remains available. Protected cloud APIs must verify the token and enforce database ownership policies before customer cloud data is enabled.
 
 ## Tests
 
