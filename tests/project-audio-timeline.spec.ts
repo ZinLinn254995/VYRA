@@ -25,7 +25,7 @@ test('Project audio tracks can be uploaded, edited, and restored after refresh',
   await startTime.fill('4.5');
   await expect(startTime).toHaveValue('4.5');
 
-  const volume = track.locator('input[type="range"]');
+  const volume = track.locator('input[type="range"]').first();
   await volume.fill('0.4');
   await expect(volume).toHaveValue('0.4');
 
