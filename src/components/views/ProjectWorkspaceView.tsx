@@ -8,6 +8,7 @@ import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { validateProjectAudioTracksForExport } from '../../services/audioExportValidation';
 import { createAudioExportTrackWindow, createNarrationDuckingSchedule, createSceneSoundEffectSchedule } from '../../services/audioExportRuntime';
+import { createVideoExportRecorder } from '../../services/videoExportRecorder';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio, ProductionStage, CharacterReference, ProjectAudioTrack } from '../../types';
 import { composeSceneAudioConsistencyInstructions, composeSceneConsistencyInstructions, resolveSceneConsistencyContext, resolveSceneVoiceProfile } from '../../services/consistencyEngine';
@@ -1377,29 +1378,11 @@ export const ProjectWorkspaceView: React.FC = () => {
         audioDestination.stream.getAudioTracks().forEach((track) => stream!.addTrack(track));
       }
 
-      // Some browsers report a MIME type as supported but still reject it in the
-      // MediaRecorder constructor. Try each supported candidate instead of failing
-      // the entire export when the preferred MP4 codec cannot actually be created.
-      const mimeCandidates = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-      let mimeType = '';
-      let recorderInitError: unknown;
-      for (const candidate of mimeCandidates) {
-        if (!MediaRecorder.isTypeSupported(candidate)) continue;
-        try {
-          recorder = new MediaRecorder(stream, { mimeType: candidate, videoBitsPerSecond: 6_000_000 });
-          mimeType = candidate;
-          break;
-        } catch (error) {
-          recorderInitError = error;
-        }
-      }
-      if (!recorder || !mimeType) {
-        throw new Error(
-          recorderInitError instanceof Error
-            ? 'This browser rejected every supported export format. Try an updated Chrome or Edge browser. Details: ' + recorderInitError.message
-            : 'This browser cannot encode an export format supported by VYRA. Try an updated Chrome or Edge browser.'
-        );
-      }
+      // A supported MIME type may still be rejected by the recorder constructor.
+      // Keep the ordered MP4-first, WebM-fallback behavior in a unit-tested helper.
+      const selectedRecorder = createVideoExportRecorder(stream, MediaRecorder);
+      recorder = selectedRecorder.recorder;
+      const mimeType = selectedRecorder.mimeType;
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.push(event.data);
