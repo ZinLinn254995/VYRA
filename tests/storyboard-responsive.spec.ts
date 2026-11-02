@@ -28,6 +28,28 @@ for (const viewport of viewports) {
     await page.locator('nav button').nth(4).click();
     await expect(page.getByText(/Storyboard Timeline/)).toBeVisible();
 
+    const toolbar = page.getByRole('group', { name: 'Storyboard project toolbar' });
+    const projectTitle = toolbar.getByRole('textbox', { name: 'Project title' });
+    const controls = toolbar.getByRole('group', { name: 'Storyboard project controls' });
+    await expect(projectTitle).toBeVisible();
+    await expect(controls).toBeVisible();
+    const [toolbarBox, titleBox, controlsBox] = await Promise.all([
+      toolbar.boundingBox(),
+      projectTitle.boundingBox(),
+      controls.boundingBox(),
+    ]);
+    expect(toolbarBox).not.toBeNull();
+    expect(titleBox).not.toBeNull();
+    expect(controlsBox).not.toBeNull();
+    expect(
+      controlsBox!.x + controlsBox!.width,
+      'Storyboard actions must remain inside the toolbar at every viewport width',
+    ).toBeLessThanOrEqual(toolbarBox!.x + toolbarBox!.width + 1);
+    expect(
+      titleBox!.y + titleBox!.height,
+      'Project title and action controls must not overlap',
+    ).toBeLessThanOrEqual(controlsBox!.y + 1);
+
     // Imported Vite assets must resolve in production builds; legacy /src/assets paths break after bundling.
     await expect.poll(async () => page.locator('img').evaluateAll(images =>
       images.some(image => {
