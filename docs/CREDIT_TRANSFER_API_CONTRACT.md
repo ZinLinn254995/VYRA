@@ -73,3 +73,11 @@ The balances are calculated across the complete append-only ledger. The activity
 ## Wallet UI status
 
 The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, authenticated end-to-end tests, and transfer velocity policy.
+
+## Transfer velocity enforcement
+
+Every newly inserted transfer is checked inside PostgreSQL, not in serverless memory or only in the browser. The sender account lock serializes concurrent transfers before the database counts recent completed transfers. An idempotent retry returns the original transfer before a new insert and therefore does not consume another transfer slot.
+
+The initial configurable policy is **10 new transfers per rolling hour and 30 per rolling 24 hours per sender**. Exceeding either limit returns database code `P4291`, mapped by the API to HTTP `429`. The policy is stored in the private singleton table `credit_transfer_policy`; clients and the service role cannot read or change it. Adjustments require a reviewed database migration by an authorized database operator. These are operational anti-abuse defaults, not finalized commercial terms or transfer amount limits.
+
+No per-transfer or daily credit-amount cap has been selected. The existing positive-integer, available-balance and atomic-ledger checks continue to apply. Revisit the provisional velocity defaults using actual abuse/support data before a public launch.
