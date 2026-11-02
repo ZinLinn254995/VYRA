@@ -62,7 +62,7 @@ test('Project audio tracks can be uploaded, edited, and restored after refresh',
   const restoredTrack = restoredTimeline.locator('article').filter({ hasText: 'test-background-music.wav' });
   await expect(restoredTrack).toBeVisible();
   await expect(restoredTrack.getByLabel('Start time (seconds)')).toHaveValue('4.5');
-  await expect(restoredTrack.locator('input[type="range"]')).toHaveValue('0.4');
+  await expect(restoredTrack.locator('input[type="range"]').first()).toHaveValue('0.4');
   await expect(restoredTrack.getByRole('checkbox', { name: 'Loop music until the final video ends' })).not.toBeChecked();
   await expect(restoredTrack.getByRole('checkbox', { name: 'Lower music during narration' })).toBeChecked();
   await expect(restoredTrack.locator('input[type="range"]').nth(1)).toHaveValue('0.35');
