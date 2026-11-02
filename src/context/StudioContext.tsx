@@ -409,10 +409,20 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Restore cloud projects without overwriting local work or adding duplicate IDs.
   const restoreCloudProjects = (restored: Project[]): number => {
     const merged = mergeCloudProjects(projects, restored);
-    const additions = merged.slice(0, Math.max(0, merged.length - projects.length));
-    if (additions.length > 0) {
-      setProjects((prev) => mergeCloudProjects(prev, additions));
-      showToast(`Restored ${additions.length} cloud project(s) to this device.`, 'success');
+    const existingIds = new Set(projects.map((project) => project.id));
+    const additions = merged.filter((project) => !existingIds.has(project.id));
+    const removedDuplicateLocalEntries = merged.length < projects.length;
+
+    if (additions.length > 0 || removedDuplicateLocalEntries) {
+      // Recompute against the latest state to remain safe if restore is clicked
+      // repeatedly before React has completed the previous state update.
+      setProjects((prev) => mergeCloudProjects(prev, restored));
+      showToast(
+        additions.length > 0
+          ? `Restored ${additions.length} cloud project(s) to this device.`
+          : 'Removed repeated entries with the same project ID. Your original project copies were preserved.',
+        'success',
+      );
     } else {
       showToast('No new projects to restore. Existing local projects were left unchanged.', 'info');
     }
