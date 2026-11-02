@@ -178,7 +178,7 @@ export const CreditsWalletView: React.FC = () => {
     }
   };
 
-  const parsedAmount = /^\\d+$/.test(amount) && Number.isSafeInteger(Number(amount)) ? Number(amount) : 0;
+  const parsedAmount = /^\d+$/.test(amount) && Number.isSafeInteger(Number(amount)) ? Number(amount) : 0;
   const hasEnoughCredits = useMemo(() => {
     try {
       return parsedAmount > 0 && BigInt(String(parsedAmount)) <= BigInt(wallet?.availableBalance ?? '0');
@@ -389,7 +389,6 @@ export const CreditsWalletView: React.FC = () => {
             {(wallet?.recentActivity ?? []).map((entry) => {
               const delta = BigInt(entry.availableDelta);
               const positive = delta > 0n;
-              const transfer = entry.entryType.startsWith('transfer_');
               return (
                 <div key={entry.id} className="flex items-center gap-3 border-b border-[#2B3058]/60 light:border-slate-100 py-3 last:border-0">
                   <span className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-full ' + (positive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[#55F4FF]/10 text-[#55F4FF]')}>
