@@ -383,3 +383,55 @@ test('wallet API rejects malformed ledger snapshots instead of displaying a gues
     assert.equal(response.status, 502);
   }, fetcher);
 });
+
+
+test('transfer API maps hourly velocity limit to HTTP 429', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: 'P4291',
+    message: 'Credit transfer hourly limit exceeded.',
+  }, { status: 400 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/transfers', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipientUserId: USER_B, amount: 1, idempotencyKey: 'hourly-limit-001' }),
+    });
+    assert.equal(response.status, 429);
+    assert.match((await response.json()).error, /hourly transfer limit/i);
+  }, fetcher);
+});
+
+test('transfer API maps per-transfer amount limit to HTTP 400', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: 'P4292',
+    message: 'Transfer amount exceeds the configured per-transfer limit.',
+  }, { status: 400 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/transfers', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipientUserId: USER_B, amount: 50001, idempotencyKey: 'amount-limit-001' }),
+    });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /per-transfer credit limit/i);
+  }, fetcher);
+});
+
+test('transfer API maps rolling daily amount limit to HTTP 429', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: 'P4293',
+    message: 'Credit transfer 24-hour amount limit exceeded.',
+  }, { status: 400 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/transfers', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipientUserId: USER_B, amount: 1, idempotencyKey: 'daily-limit-001' }),
+    });
+    assert.equal(response.status, 429);
+    assert.match((await response.json()).error, /24-hour transfer amount limit/i);
+  }, fetcher);
+});
