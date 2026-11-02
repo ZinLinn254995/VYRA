@@ -107,6 +107,9 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       const endpoint = new URL('/rest/v1/projects', supabaseUrl);
       endpoint.searchParams.set('select', 'id,local_id,title,status,project_data,created_at,updated_at');
       endpoint.searchParams.set('order', 'updated_at.desc');
+      // Defense in depth: scope reads to the identity verified from the bearer token,
+      // even if a database row-level security policy is accidentally too broad.
+      endpoint.searchParams.set('user_id', 'eq.' + identity.user.id);
       const response = await fetcher(endpoint, {
         headers: {
           apikey: anonKey,
