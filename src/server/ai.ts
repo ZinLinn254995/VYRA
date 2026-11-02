@@ -605,7 +605,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
         'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
         'X-OpenRouter-Title': 'VYRA',
       },
-      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false, ...(resolution ? { resolution } : {}), ...(frameImages.length ? { frame_images: frameImages } : inputReferences.length ? { input_references: inputReferences } : {}) }),
+      body: JSON.stringify({ model, prompt, aspect_ratio: aspectRatio, duration, generate_audio: false, ...(resolution ? { resolution } : {}), ...(frameImages.length ? { frame_images: frameImages } : {}), ...(inputReferences.length ? { input_references: inputReferences } : {}) }),
       signal: AbortSignal.timeout(60_000),
     });
     const data = await upstream.json().catch(() => ({})) as { id?: string; generation_id?: string; status?: string; error?: string | { message?: string } };
