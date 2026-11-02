@@ -1462,7 +1462,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   return (
     <div className="w-full min-w-0 space-y-6 max-w-7xl mx-auto pb-16">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-3 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 min-w-0">
+      <div role="group" aria-label="Storyboard project toolbar" className="flex flex-col gap-3 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 light:text-slate-500 min-w-0">
             <span>Project:</span>
@@ -1494,7 +1494,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         </div>
 
         {/* Storyboard telemetry and actions use a dedicated wrapping row to avoid desktop collisions. */}
-        <div className="flex flex-wrap items-center gap-2 min-w-0 w-full">
+        <div role="group" aria-label="Storyboard project controls" className="flex flex-wrap items-center gap-2 min-w-0 w-full">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 max-w-full px-3 py-2 rounded-lg bg-[#090B18] light:bg-slate-100 text-xs border border-[#2B3058] light:border-slate-200">
             <span className="flex items-center gap-1 text-slate-400">
               <Clock className="w-3.5 h-3.5 text-[#55F4FF]" />
