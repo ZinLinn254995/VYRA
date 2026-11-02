@@ -174,11 +174,11 @@ select throws_ok(
   $$ update public.provider_cost_records
      set actual_cost_usd = 99
      where user_id = '20000000-0000-4000-8000-000000000001'
-       and idempotency_key = 'provider-cost-job-a' $$,
+       and idempotency_key = 'provider-cost-job-a' $,
   '55000',
   'Credit ledger entries are immutable; append a compensating entry instead.',
   'Provider-reported actual cost records cannot be rewritten'
-)
+);
 
 select * from finish();
 rollback;
