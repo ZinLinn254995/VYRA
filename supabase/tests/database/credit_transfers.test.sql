@@ -173,7 +173,7 @@ reset role;
 set local role postgres;
 
 select throws_ok(
-  $ update public.credit_ledger_entries
+  $$ update public.credit_ledger_entries
      set note = 'tampered'
      where transfer_id = (select id from public.credit_transfers limit 1) $$,
   '55000',
