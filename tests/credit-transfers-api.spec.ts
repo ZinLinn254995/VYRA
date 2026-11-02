@@ -383,3 +383,29 @@ test('wallet API rejects malformed ledger snapshots instead of displaying a gues
     assert.equal(response.status, 502);
   }, fetcher);
 });
+
+
+test('transfer velocity limits map to HTTP 429 without exposing database details', async () => {
+  const fetcher: typeof fetch = async () => Response.json({
+    code: 'P4291',
+    message: 'Credit transfer hourly limit exceeded.',
+    details: 'private policy implementation detail',
+  }, { status: 400 });
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/credits/transfers', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipientUserId: USER_B,
+        amount: 10,
+        idempotencyKey: 'velocity-limit-001',
+      }),
+    });
+    assert.equal(response.status, 429);
+    const payload = await response.json() as { error: string };
+    assert.match(payload.error, /transfer limit/i);
+    assert.doesNotMatch(payload.error, /private policy implementation detail/i);
+  }, fetcher);
+});
+

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(18);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password,
@@ -132,6 +132,27 @@ select is(
   ),
   false,
   'Authenticated browser sessions cannot execute the financial transfer RPC'
+);
+
+-- Lower the configured limit in this isolated test transaction to prove
+-- the database rejects excess transfers even if the API/UI is bypassed.
+reset role;
+update public.credit_transfer_policy
+set max_transfers_per_hour = 1, max_transfers_per_day = 30
+where id = 1;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+select throws_ok(
+  $$ select public.transfer_credits(
+    '20000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000003',
+    1, 'transfer-test:velocity', null
+  ) $$,
+  'P4291',
+  'Credit transfer hourly limit exceeded.',
+  'The database enforces the configured hourly transfer limit'
 );
 
 set local role authenticated;
