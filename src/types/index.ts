@@ -56,6 +56,54 @@ export type ProjectStatus =
   | 'ready_to_publish'
   | 'archived';
 
+/** Shared vocabulary for reusable visual, audio, story, and brand references. */
+export type ConsistencyAssetKind =
+  | 'character'
+  | 'environment'
+  | 'object'
+  | 'brand'
+  | 'visual_style'
+  | 'voice'
+  | 'music'
+  | 'other';
+
+export type ConsistencyRuleScope = 'global' | 'project' | 'scene';
+export type ConsistencyRuleStrength = 'locked' | 'preferred' | 'flexible';
+
+/** A reusable reference that can be attached to one or many scenes. */
+export interface ConsistencyReference {
+  id: string;
+  kind: ConsistencyAssetKind;
+  name: string;
+  description: string;
+  /** IDs of media assets stored by the media library; storage remains device-local for now. */
+  mediaIds?: string[];
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Human-readable continuity instruction with explicit scope and priority. */
+export interface ConsistencyRule {
+  id: string;
+  scope: ConsistencyRuleScope;
+  instruction: string;
+  strength: ConsistencyRuleStrength;
+  priority: number;
+  active: boolean;
+  /** Optional scene IDs; required when scope is scene. */
+  sceneIds?: string[];
+  /** Optional asset kinds this rule applies to. */
+  appliesTo?: ConsistencyAssetKind[];
+}
+
+/** Versioned project-level source of truth for reusable consistency references and rules. */
+export interface ProjectConsistencyBible {
+  version: 1;
+  references: ConsistencyReference[];
+  rules: ConsistencyRule[];
+}
+
 /** A reusable, project-scoped character identity for reference-guided scene generation. */
 export interface CharacterReference {
   id: string;
@@ -132,6 +180,8 @@ export interface Project {
   scenes: Scene[];
   /** Reusable character identities shared across scenes in this project. */
   characters?: CharacterReference[];
+  /** Optional universal continuity data; absent on older projects remains valid. */
+  consistencyBible?: ProjectConsistencyBible;
   createdAt: string;
   updatedAt: string;
   coverImage: string;
