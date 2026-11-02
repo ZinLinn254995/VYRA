@@ -31,7 +31,7 @@ jobs:
         run: npm run test:usage-ledger
       - name: Universal consistency engine tests
         run: npm run test:consistency
-      - name: Audio export validation tests
+      - name: Audio export validation and runtime tests
         run: npm run test:audio-export
       - name: Production build
         run: npm run build
