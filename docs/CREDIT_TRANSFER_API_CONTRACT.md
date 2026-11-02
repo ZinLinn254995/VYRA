@@ -25,6 +25,7 @@ Known errors:
 - `400`: invalid recipient identifier, amount, idempotency key or note.
 - `401`: missing or invalid customer session.
 - `409`: insufficient available credits or an idempotency-key conflict.
+- `429`: the sender has reached the database-enforced transfer velocity limit (10 new transfers per rolling hour or 30 per rolling 24 hours by default).
 - `503`: transfer infrastructure is not configured or temporarily unavailable.
 
 A network timeout can leave the client uncertain whether the transfer completed. The client must query transaction history using the same authenticated account before deciding whether to retry, and must reuse the original idempotency key.
@@ -38,7 +39,7 @@ Requires a valid Supabase access token. Reads up to 100 recent transfers through
 - Configure and validate `SUPABASE_SERVICE_ROLE_KEY` only in server-side deployment secrets.
 - Apply the database migration to a dedicated development Supabase project and verify rollback/backup procedures.
 - Public username management and recipient lookup are implemented in the API and database migration. Recipient lookup uses a minimum 3-character prefix, returns at most 8 matches, exposes only user ID/username/display name, and is limited to 20 requests per authenticated user per minute by a database-backed counter. No email lookup is provided.
-- Customer-facing confirmation UI and transfer velocity controls (including limits on transfer amount/volume, not only search requests) remain required before public launch.
+- The authenticated wallet includes a review-and-confirm transfer flow, and durable database-backed transfer velocity controls are implemented (10 new transfers/hour and 30/24 hours per sender by default). Decide separately whether per-transfer or daily credit-amount caps are needed before public launch; no amount cap is currently implemented.
 - Complete authenticated end-to-end tests against a non-production Supabase project.
 - Do not enable paid credit purchases, generation charging, or external resale through this API.
 
@@ -72,7 +73,7 @@ The balances are calculated across the complete append-only ledger. The activity
 
 ## Wallet UI status
 
-The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, authenticated end-to-end tests, and transfer velocity policy.
+The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, and passing authenticated end-to-end tests. The transfer velocity policy is implemented in the migration but is not active until that migration is applied.
 
 ## Transfer velocity enforcement
 
