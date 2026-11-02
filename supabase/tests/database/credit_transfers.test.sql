@@ -155,8 +155,16 @@ select throws_ok(
   'The database enforces the configured hourly transfer limit'
 );
 
+-- Age the fixture transfer beyond the rolling hourly window while
+-- keeping it inside the daily window, so the daily guard is isolated.
+alter table public.credit_transfers disable trigger credit_transfers_immutable;
+update public.credit_transfers
+set created_at = now() - interval '2 hours'
+where sender_user_id = '20000000-0000-4000-8000-000000000001';
+alter table public.credit_transfers enable trigger credit_transfers_immutable;
+
 update public.credit_transfer_policy
-set max_transfers_per_hour = 10, max_transfers_per_day = 1
+set max_transfers_per_hour = 1, max_transfers_per_day = 1
 where id = 1;
 
 select throws_ok(
