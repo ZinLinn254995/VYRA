@@ -1462,15 +1462,15 @@ export const ProjectWorkspaceView: React.FC = () => {
   return (
     <div className="w-full min-w-0 space-y-6 max-w-7xl mx-auto pb-16">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200">
-        <div className="space-y-1 min-w-0 xl:flex-1">
-          <div className="flex items-center gap-2 text-xs text-slate-400 light:text-slate-500">
+      <div role="group" aria-label="Storyboard project toolbar" className="flex flex-col gap-3 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 light:text-slate-500 min-w-0">
             <span>Project:</span>
             {/* Quick Project Switcher Dropdown */}
             <select
               value={project.id}
               onChange={(e) => setActiveProjectId(e.target.value)}
-              className="bg-[#090B18] light:bg-slate-100 border border-[#2B3058] light:border-slate-300 rounded px-2 py-0.5 text-xs text-white light:text-slate-900 font-semibold focus:outline-none"
+              className="min-w-0 max-w-full sm:max-w-[min(28rem,55vw)] bg-[#090B18] light:bg-slate-100 border border-[#2B3058] light:border-slate-300 rounded px-2 py-1 text-xs text-white light:text-slate-900 font-semibold focus:outline-none"
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -1486,15 +1486,16 @@ export const ProjectWorkspaceView: React.FC = () => {
 
           <input
             type="text"
+            aria-label="Project title"
             value={project.title}
             onChange={(e) => updateProject(project.id, { title: e.target.value })}
-            className="text-base sm:text-lg font-bold text-white light:text-slate-900 bg-transparent border-b border-transparent hover:border-[#55F4FF] focus:border-[#55F4FF] focus:outline-none w-full max-w-xl transition-colors"
+            className="text-base sm:text-lg font-bold text-white light:text-slate-900 bg-transparent border-b border-transparent hover:border-[#55F4FF] focus:border-[#55F4FF] focus:outline-none w-full sm:max-w-xl min-w-0 transition-colors"
           />
         </div>
 
-        {/* Storyboard Telemetry (Duration, word count, aspect ratio) */}
-        <div className="flex flex-wrap items-center gap-3 min-w-0 xl:justify-end">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 px-3 py-1.5 rounded-lg bg-[#090B18] light:bg-slate-100 text-xs border border-[#2B3058] light:border-slate-200">
+        {/* Storyboard telemetry and actions use a dedicated wrapping row to avoid desktop collisions. */}
+        <div role="group" aria-label="Storyboard project controls" className="flex flex-wrap items-center gap-2 min-w-0 w-full">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 max-w-full px-3 py-2 rounded-lg bg-[#090B18] light:bg-slate-100 text-xs border border-[#2B3058] light:border-slate-200">
             <span className="flex items-center gap-1 text-slate-400">
               <Clock className="w-3.5 h-3.5 text-[#55F4FF]" />
               <strong className="font-mono tabular-nums text-white light:text-slate-900">
@@ -1502,8 +1503,8 @@ export const ProjectWorkspaceView: React.FC = () => {
               </strong>
             </span>
             <span aria-hidden="true" className="text-slate-600">·</span>
-            <span className="flex items-center gap-1 text-slate-400">
-              <FileText className="w-3.5 h-3.5 text-[#8D7CFF]" />
+            <span className="flex items-center gap-1 text-slate-400 min-w-0">
+              <FileText className="w-3.5 h-3.5 text-[#8D7CFF] shrink-0" />
               <span className="font-mono tabular-nums text-white light:text-slate-900">
                 {totalWords} words (~{estimatedReadingTime}s pace)
               </span>
@@ -1515,12 +1516,12 @@ export const ProjectWorkspaceView: React.FC = () => {
             onClick={() => void handleExportVideo()}
             disabled={isExportingVideo || project.scenes.length === 0 || project.scenes.some((scene) => !scene.generatedVideoId)}
             title={project.scenes.some((scene) => !scene.generatedVideoId) ? 'Generate and save a clip for every scene to export the full video' : 'Export all scene clips as one video, including saved voiceovers where available'}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-[#55F4FF] light:text-indigo-600 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-[#55F4FF] light:text-indigo-600 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isExportingVideo ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Video className="w-3.5 h-3.5" />}
             <span>{isExportingVideo ? 'Exporting…' : 'Export Full Video'}</span>
           </button>
-                    <label className="inline-flex items-center gap-2 px-2 py-2 text-xs text-slate-300 light:text-slate-700 cursor-pointer" title="Include narration captions directly in the exported video">
+          <label className="inline-flex shrink-0 items-center gap-2 px-2 py-2 text-xs text-slate-300 light:text-slate-700 cursor-pointer" title="Include narration captions directly in the exported video">
             <input type="checkbox" checked={burnInSubtitles} onChange={(event) => setBurnInSubtitles(event.target.checked)} className="accent-indigo-500" />
             Burn in subtitles
           </label>
@@ -1529,25 +1530,28 @@ export const ProjectWorkspaceView: React.FC = () => {
             onClick={handleExportSubtitles}
             disabled={!project.scenes.some((scene) => scene.narration.trim())}
             title="Export editable SRT subtitles using saved clip and voiceover durations where available"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-slate-300 light:text-slate-700 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-xs font-semibold text-slate-300 light:text-slate-700 hover:bg-[#1E2345] light:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Export Subtitles (.srt)</span>
           </button>
           <button
+            type="button"
             onClick={handleExportSpec}
             title="Export Storyboard Spec JSON"
-            className="p-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#1E2345] transition-colors"
+            aria-label="Export Storyboard Spec JSON"
+            className="shrink-0 p-2 rounded-lg border border-[#2B3058] light:border-slate-300 text-slate-400 hover:text-white light:hover:text-slate-900 hover:bg-[#1E2345] transition-colors"
           >
             <Download className="w-4 h-4" />
           </button>
 
           <button
+            type="button"
             onClick={() => {
               submitForReview(project.id);
               navigateToReviewQueue(project.id);
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-[#8D7CFF] text-[#090B18] hover:bg-[#8D7CFF]/90 transition-all shadow-[0_0_12px_rgba(141,124,255,0.25)]"
+            className="inline-flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-[#8D7CFF] text-[#090B18] hover:bg-[#8D7CFF]/90 transition-all shadow-[0_0_12px_rgba(141,124,255,0.25)]"
           >
             <Send className="w-3.5 h-3.5" />
             <span>Send to Review Queue</span>
