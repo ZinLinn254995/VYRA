@@ -1,6 +1,16 @@
 # Supabase database development
 
-## First migration
+## Migrations
+
+The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`.
+
+- Customer sessions receive read-only access to their own usage and ledger rows.
+- Only the server `service_role` may execute the credit-ledger and provider-cost write functions. Never expose `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` to the browser.
+- Estimates, reserved credits, and provider-reported actual USD costs remain separate values.
+- Repeated financial operations use per-customer idempotency keys; corrections append compensating entries instead of editing ledger history.
+- This migration is schema groundwork only. Do not apply it to production until server integration, local pgTAP tests, and authenticated end-to-end validation are complete.
+
+## Initial customer-data migration
 
 The initial schema is intentionally small:
 - `profiles`: one private profile per Supabase Auth user.
@@ -24,6 +34,6 @@ The pgTAP suite in `supabase/tests/database/rls.test.sql` creates two fixture cu
 
 Before linking a real project, create a separate development Supabase project. Never point local development migrations at production by accident.
 
-## Not implemented by this migration
+## Not implemented by the current migrations
 
-Authentication UI/session management, server-side bearer-token verification, project import/sync, assets, generation jobs, credits, actual provider-cost ledger, subscriptions and payments. Those are separate increments. The current browser-only app remains unchanged.
+Authentication UI/session management, server-side bearer-token verification, project import/sync, assets, generation jobs, credit balance UI, generation-to-ledger server integration, subscriptions and payments. Those are separate increments. The current browser-only app remains unchanged.
