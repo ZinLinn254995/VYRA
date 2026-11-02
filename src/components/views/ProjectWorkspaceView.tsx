@@ -1314,6 +1314,8 @@ export const ProjectWorkspaceView: React.FC = () => {
     const projectAudioSources: AudioBufferSourceNode[] = [];
     const projectAudioGains: GainNode[] = [];
     const projectAudioFadeOuts: number[] = [];
+    const projectAudioDuckingNodes = new Map<string, GainNode>();
+    const projectAudioTrackWindows = new Map<string, { startsAt: number; endsAt: number }>();
     try {
       const savedClips = await Promise.all(scenes.map(async (scene) => {
         const saved = await getSavedVideo(scene.generatedVideoId!);
@@ -1408,6 +1410,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (audioContext && audioDestination && projectAudioBuffers.length > 0) {
         const mixStartTime = audioContext.currentTime + 0.05;
         activeProjectAudioTracks.forEach((track, index) => {
+          if (track.sceneId) return;
           const source = audioContext!.createBufferSource();
           const gain = audioContext!.createGain();
           const buffer = projectAudioBuffers[index];
@@ -1421,8 +1424,20 @@ export const ProjectWorkspaceView: React.FC = () => {
           gain.gain.setValueAtTime(fadeIn > 0 ? 0 : volume, startsAt);
           if (fadeIn > 0) gain.gain.linearRampToValueAtTime(volume, startsAt + fadeIn);
           source.connect(gain);
-          gain.connect(audioDestination!);
+          if (track.kind === 'music' && track.duckingEnabled !== false) {
+            const duckingGain = audioContext!.createGain();
+            duckingGain.gain.value = 1;
+            gain.connect(duckingGain);
+            duckingGain.connect(audioDestination!);
+            projectAudioDuckingNodes.set(track.id, duckingGain);
+          } else {
+            gain.connect(audioDestination!);
+          }
           source.start(startsAt);
+          projectAudioTrackWindows.set(track.id, {
+            startsAt,
+            endsAt: track.loop ? Number.POSITIVE_INFINITY : startsAt + buffer.duration,
+          });
           projectAudioSources.push(source);
           projectAudioGains.push(gain);
           projectAudioFadeOuts.push(fadeOut);
@@ -1565,6 +1580,60 @@ export const ProjectWorkspaceView: React.FC = () => {
             if (audioSource && audioBuffer && audioContext) {
               audioStartTime = audioContext.currentTime;
               audioSource.start();
+              // Duck only the music tracks that overlap this narration segment.
+              activeProjectAudioTracks.forEach((track) => {
+                if (track.kind !== 'music' || track.duckingEnabled === false) return;
+                const duckingGain = projectAudioDuckingNodes.get(track.id);
+                const window = projectAudioTrackWindows.get(track.id);
+                if (!duckingGain || !window) return;
+                const duckStart = Math.max(audioStartTime!, window.startsAt);
+                const duckEnd = Math.min(audioStartTime! + audioBuffer.duration, window.endsAt);
+                if (duckEnd <= duckStart) return;
+                const duckLevel = Math.max(0.1, Math.min(0.8, Number.isFinite(track.duckingLevel) ? track.duckingLevel! : 0.25));
+                duckingGain.gain.cancelScheduledValues(duckStart);
+                duckingGain.gain.setValueAtTime(duckingGain.gain.value, duckStart);
+                duckingGain.gain.linearRampToValueAtTime(duckLevel, duckStart + Math.min(0.12, (duckEnd - duckStart) / 2));
+                duckingGain.gain.setValueAtTime(duckLevel, Math.max(duckStart, duckEnd - 0.08));
+                duckingGain.gain.linearRampToValueAtTime(1, duckEnd + 0.18);
+              });
+            }
+
+            // Trigger scene-scoped sound effects relative to the actual scene playback start.
+            if (audioContext && audioDestination) {
+              const sceneStart = audioContext.currentTime;
+              const sceneDuration = Math.max(
+                Number.isFinite(video.duration) ? video.duration : 0,
+                audioBuffer?.duration || 0,
+              );
+              activeProjectAudioTracks.forEach((track, trackIndex) => {
+                if (!track.sceneId || track.sceneId !== scene.id || track.kind !== 'sound_effect') return;
+                const buffer = projectAudioBuffers[trackIndex];
+                if (!buffer) return;
+                const offset = Math.max(0, Math.min(86400, Number.isFinite(track.startTimeSeconds) ? track.startTimeSeconds : 0));
+                if (offset >= sceneDuration) return;
+                const source = audioContext!.createBufferSource();
+                const gain = audioContext!.createGain();
+                const volume = Math.max(0, Math.min(1, Number.isFinite(track.volume) ? track.volume : 1));
+                const fadeIn = Math.max(0, Math.min(30, Number.isFinite(track.fadeInSeconds) ? track.fadeInSeconds : 0));
+                const fadeOut = Math.max(0, Math.min(30, Number.isFinite(track.fadeOutSeconds) ? track.fadeOutSeconds : 0));
+                const startsAt = sceneStart + offset;
+                const endsAt = sceneStart + sceneDuration;
+                source.buffer = buffer;
+                gain.gain.setValueAtTime(fadeIn > 0 ? 0 : volume, startsAt);
+                if (fadeIn > 0) gain.gain.linearRampToValueAtTime(volume, startsAt + fadeIn);
+                source.connect(gain);
+                gain.connect(audioDestination!);
+                source.start(startsAt);
+                if (fadeOut > 0) {
+                  const fadeStart = Math.max(startsAt, endsAt - fadeOut);
+                  gain.gain.setValueAtTime(volume, fadeStart);
+                  gain.gain.linearRampToValueAtTime(0, endsAt);
+                }
+                source.stop(endsAt + 0.02);
+                projectAudioSources.push(source);
+                projectAudioGains.push(gain);
+                projectAudioFadeOuts.push(0);
+              });
             }
             draw();
           }).catch((error) => {
@@ -1670,6 +1739,9 @@ export const ProjectWorkspaceView: React.FC = () => {
       projectAudioGains.forEach((gain) => {
         try { gain.disconnect(); } catch { /* already disconnected */ }
       });
+      projectAudioDuckingNodes.forEach((gain) => {
+        try { gain.disconnect(); } catch { /* already disconnected */ }
+      });
       stream?.getTracks().forEach((track) => track.stop());
       if (audioContext) void audioContext.close().catch(() => undefined);
       setIsExportingVideo(false);
@@ -1717,6 +1789,9 @@ export const ProjectWorkspaceView: React.FC = () => {
         fadeOutSeconds: trackKind === 'music' ? 2 : 0,
         loop: trackKind === 'music',
         enabled: true,
+        sceneId: undefined,
+        duckingEnabled: trackKind === 'music',
+        duckingLevel: 0.25,
       };
       updateProject(project.id, { audioTracks: [...(project.audioTracks || []), track] });
       showToast((trackKind === 'music' ? 'Music' : 'Sound effect') + ' added to the project audio timeline', 'success');
@@ -1940,9 +2015,36 @@ export const ProjectWorkspaceView: React.FC = () => {
                   </label>
                 </div>
                 {track.kind === 'music' && (
-                  <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
-                    <input type="checkbox" checked={track.loop} onChange={(event) => updateProjectAudioTrack(track.id, { loop: event.target.checked })} />
-                    Loop music until the final video ends
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                      <input type="checkbox" checked={track.loop} onChange={(event) => updateProjectAudioTrack(track.id, { loop: event.target.checked })} />
+                      Loop music until the final video ends
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                      <input type="checkbox" checked={track.duckingEnabled !== false} onChange={(event) => updateProjectAudioTrack(track.id, { duckingEnabled: event.target.checked })} />
+                      Lower music during narration
+                    </label>
+                    {track.duckingEnabled !== false && (
+                      <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <span>Narration ducking · {Math.round((track.duckingLevel ?? 0.25) * 100)}%</span>
+                        <input type="range" min="0.1" max="0.8" step="0.05" value={track.duckingLevel ?? 0.25} onChange={(event) => updateProjectAudioTrack(track.id, { duckingLevel: Math.max(0.1, Math.min(0.8, Number(event.target.value))) })} className="w-28 accent-cyan-400" />
+                      </label>
+                    )}
+                  </div>
+                )}
+                {track.kind === 'sound_effect' && (
+                  <label className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+                    <span>Play in</span>
+                    <select
+                      aria-label={'Scene for ' + track.name}
+                      value={track.sceneId || ''}
+                      onChange={(event) => updateProjectAudioTrack(track.id, { sceneId: event.target.value || undefined })}
+                      className="rounded-md border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-1.5 text-xs text-white light:text-slate-900"
+                    >
+                      <option value="">Every scene (project-wide)</option>
+                      {project.scenes.map((scene) => <option key={scene.id} value={scene.id}>Scene {scene.order}: {scene.narration.slice(0, 32)}</option>)}
+                    </select>
+                    <span>Choose one scene to trigger this effect only there.</span>
                   </label>
                 )}
               </article>
