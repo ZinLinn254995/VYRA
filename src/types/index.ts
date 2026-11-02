@@ -194,6 +194,12 @@ export interface ProjectAudioTrack {
   fadeOutSeconds: number;
   loop: boolean;
   enabled: boolean;
+  /** When set, this sound effect is triggered relative to the selected scene. */
+  sceneId?: string;
+  /** Automatically lower this music bed while scene narration is playing. */
+  duckingEnabled?: boolean;
+  /** Music gain multiplier while narration is active (0.1–0.8). */
+  duckingLevel?: number;
 }
 
 export interface Project {
