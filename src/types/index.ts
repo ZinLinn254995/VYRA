@@ -180,6 +180,22 @@ export type ProductionStage =
   | 'final_review'
   | 'publish_ready';
 
+export type ProjectAudioTrackKind = 'music' | 'sound_effect';
+
+/** A project-level music or sound-effect asset mixed into the final export. */
+export interface ProjectAudioTrack {
+  id: string;
+  mediaId: string;
+  name: string;
+  kind: ProjectAudioTrackKind;
+  startTimeSeconds: number;
+  volume: number;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+  loop: boolean;
+  enabled: boolean;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -198,6 +214,8 @@ export interface Project {
   visualStyleDescription?: string;
   /** Music, ambience, sound effects, and voice direction for the whole video. */
   audioDirection?: string;
+  /** Optional project-level music and SFX timeline; absent on older projects remains valid. */
+  audioTracks?: ProjectAudioTrack[];
   /** Intended audience and language for dialogue, narration, and on-screen text. */
   audience?: string;
   language?: string;

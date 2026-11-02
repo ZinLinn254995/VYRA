@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export const MediaLibraryView: React.FC = () => {
-  const { mediaAssets, addMediaAsset, deleteMediaAsset, updateScene, showToast } = useStudio();
+  const { mediaAssets, addMediaAsset, deleteMediaAsset, updateScene, updateProject, projects, showToast } = useStudio();
 
   const [activeTab, setActiveTab] = useState<string>('all');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
@@ -140,14 +140,26 @@ export const MediaLibraryView: React.FC = () => {
   };
 
   const handleDeleteSavedAudio = async (audio: SavedMediaAudio) => {
-    if (!window.confirm('Delete "' + audio.title + '" from this device’s Media Library? This also unlinks the voiceover from its scene.')) return;
+    const isUploadedTrack = audio.sourceType === 'uploaded';
+    const warning = isUploadedTrack
+      ? 'Delete "' + audio.title + '" from this device’s Media Library? Any project timeline using this file will be unlinked.'
+      : 'Delete "' + audio.title + '" from this device’s Media Library? This also unlinks the voiceover from its scene.';
+    if (!window.confirm(warning)) return;
     try {
       await deleteSavedAudio(audio.id);
-      updateScene(audio.projectId, audio.sceneId, { generatedAudioId: undefined });
+      if (audio.sceneId !== '__project_audio_track__') {
+        updateScene(audio.projectId, audio.sceneId, { generatedAudioId: undefined });
+      }
+      const owningProject = projects.find((project) => project.id === audio.projectId);
+      if (owningProject) {
+        updateProject(owningProject.id, {
+          audioTracks: (owningProject.audioTracks || []).filter((track) => track.mediaId !== audio.id),
+        });
+      }
       setSavedAudios((current) => current.filter((item) => item.id !== audio.id));
-      showToast('Saved voiceover removed from this device', 'success');
+      showToast(isUploadedTrack ? 'Audio asset removed from this device and project timeline' : 'Saved voiceover removed from this device', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Could not delete voiceover', 'warning');
+      showToast(error instanceof Error ? error.message : 'Could not delete audio', 'warning');
     }
   };
 
@@ -295,13 +307,13 @@ export const MediaLibraryView: React.FC = () => {
       {(activeTab === 'all' || activeTab === 'audio') && (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Voiceovers</h2>
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Saved Audio Assets & Voiceovers</h2>
             <span className="text-[11px] text-slate-500">{savedAudios.length} saved on this device</span>
           </div>
           {loadingSavedAudios ? (
             <p className="text-xs text-slate-500">Loading saved voiceovers…</p>
           ) : savedAudios.length === 0 ? (
-            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Voiceovers generated in a project workspace will appear here and remain available on this device.</p>
+            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Uploaded music/SFX and generated voiceovers appear here and remain available on this device.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {savedAudios.map((audio) => (
@@ -315,7 +327,7 @@ export const MediaLibraryView: React.FC = () => {
                   </div>
                   <div className="p-3 space-y-2">
                     <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{audio.title}</h3>
-                    <p className="text-[10px] text-slate-500 break-all">{audio.model} · Voice: {audio.voice}</p>
+                    <p className="text-[10px] text-slate-500 break-all">{audio.sourceType === 'uploaded' ? 'Local upload · ' + audio.voice : audio.model + ' · Voice: ' + audio.voice}</p>
                     <p className="text-[10px] text-slate-500">{new Date(audio.createdAt).toLocaleString()}</p>
                     {audio.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {audio.generationId}</p>}
                     <div className="flex items-center justify-between gap-2 pt-1">
