@@ -37,6 +37,7 @@ create table if not exists public.provider_attempts (
   started_at timestamptz not null default now(),
   completed_at timestamptz,
   created_at timestamptz not null default now(),
+  constraint provider_attempts_id_user_unique unique (id, user_id),
   constraint provider_attempts_job_owner_fk
     foreign key (generation_job_id, user_id)
     references public.generation_jobs (id, user_id) on delete restrict
@@ -284,6 +285,7 @@ begin
        or v_existing.provider <> p_provider
        or v_existing.model_id <> p_model_id
        or v_existing.actual_cost_usd <> p_actual_cost_usd
+       or v_existing.provider_generation_id is distinct from nullif(p_provider_generation_id, '')
     then
       raise exception 'Provider cost idempotency key conflicts with a different record.' using errcode = '23505';
     end if;
