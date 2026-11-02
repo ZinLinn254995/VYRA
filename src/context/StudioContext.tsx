@@ -128,33 +128,8 @@ interface StudioContextType {
   executeToolDirectly: (toolName: string, args: Record<string, any>) => Promise<ToolExecutionRecord>;
 }
 
-const DEMO_PROJECT_SIGNATURES: Record<string, { title: string; topic: string }> = {
-  'proj-01-quantum': {
-    title: 'The Quantum Frontier: Light-Speed Photonic Processing',
-    topic: 'How optical photonic computing is replacing traditional silicon microchips to power next-gen neural models',
-  },
-  'proj-02-tokyo': {
-    title: 'Sky-Rail 2088: Autonomous Transit in Neon Metropolises',
-    topic: 'Exploration of magnetic elevation railways and decentralized urban commute in 2088',
-  },
-  'proj-03-aura': {
-    title: 'AuraOS: Zero-Latency Synthetic Avatars for Founders',
-    topic: 'Product walkthrough of instant multilingual holographic avatars for executive communication',
-  },
-  'proj-04-biophilic': {
-    title: 'Biophilic Habitats: Architecture Meets Aeroponics',
-    topic: 'Documentary exploration of sustainable glass dome cities producing their own food and microclimate',
-  },
-};
-
-function removeUnmodifiedDemoProjects(projects: Project[]): Project[] {
-  return projects.filter((project) => {
-    const signature = DEMO_PROJECT_SIGNATURES[project.id];
-    // Remove only untouched built-in samples. If a user edited either field,
-    // keep the project so an existing local project is never silently lost.
-    return !signature || project.title !== signature.title || project.topic !== signature.topic;
-  });
-}
+// Never filter projects loaded from this device's local storage.
+// A project that resembles an old sample may contain the user's real work.
 
 const E2E_SEED_PROJECTS = import.meta.env.VITE_E2E_SEED_PROJECTS === 'true';
 
@@ -208,7 +183,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (stored) {
         try {
           const cached = JSON.parse(stored) as Project[];
-          return (E2E_SEED_PROJECTS ? cached : removeUnmodifiedDemoProjects(cached)).map((project) => ({
+          return cached.map((project) => ({
             ...project,
             coverImage: project.coverImage ? normalizeLegacySeedAssetPath(project.coverImage) : project.coverImage,
             scenes: project.scenes.map((scene) => ({
