@@ -408,7 +408,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // Restore cloud projects without overwriting local work or adding duplicate IDs.
   const restoreCloudProjects = (restored: Project[]): number => {
-    const additions = mergeCloudProjects(projects, restored).slice(0, Math.max(0, mergeCloudProjects(projects, restored).length - projects.length));
+    const merged = mergeCloudProjects(projects, restored);
+    const additions = merged.slice(0, Math.max(0, merged.length - projects.length));
     if (additions.length > 0) {
       setProjects((prev) => mergeCloudProjects(prev, additions));
       showToast(`Restored ${additions.length} cloud project(s) to this device.`, 'success');
