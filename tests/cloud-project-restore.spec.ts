@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreCloudProject } from '../src/services/cloudProjectRestore.js';
+import { mergeCloudProjects, restoreCloudProject } from '../src/services/cloudProjectRestore.js';
 
 test('restores portable project metadata and storyboard fields with safe defaults', () => {
   const project = restoreCloudProject({
@@ -62,4 +62,19 @@ test('rejects malformed cloud project rows and falls back from unknown enum valu
   assert.equal(project.status, 'draft');
   assert.equal(project.category, 'Science & Future');
   assert.equal(project.aspectRatio, '9:16');
+});
+
+
+test('cloud restore merge preserves local projects and deduplicates restored IDs', () => {
+  const local = { id: 'local-1', title: 'My local project' } as any;
+  const cloudA = { id: 'cloud-1', title: 'Cloud project A' } as any;
+  const cloudB = { id: 'cloud-2', title: 'Cloud project B' } as any;
+  const duplicateCloudA = { id: 'cloud-1', title: 'Duplicate cloud project A' } as any;
+  const duplicateLocal = { id: 'local-1', title: 'Must not replace local project' } as any;
+
+  const merged = mergeCloudProjects([local], [cloudA, duplicateCloudA, duplicateLocal, cloudB]);
+
+  assert.deepEqual(merged.map((project) => project.id), ['cloud-1', 'cloud-2', 'local-1']);
+  assert.equal(merged[0], cloudA, 'the first cloud copy is retained');
+  assert.equal(merged[2], local, 'the existing local project is never overwritten');
 });
