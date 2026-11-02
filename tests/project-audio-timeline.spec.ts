@@ -50,7 +50,7 @@ test('Project audio tracks can be uploaded, edited, and restored after refresh',
   await expect(effectTrack).toBeVisible();
   const sceneScope = effectTrack.locator('select[aria-label^="Scene for"]');
   await expect(sceneScope).toBeVisible();
-  await expect(sceneScope.locator('option')).toHaveCountGreaterThan(1);
+  expect(await sceneScope.locator('option').count()).toBeGreaterThan(1);
   await sceneScope.selectOption({ index: 1 });
   await expect(sceneScope).not.toHaveValue('');
 
