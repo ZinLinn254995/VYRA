@@ -105,6 +105,28 @@ test('project import rejects invalid batches before storage is called', async ()
   }, fetcher);
 });
 
+test('cloud project listing is scoped to the verified user identity', async () => {
+  let capturedUrl = '';
+  let capturedAuthorization = '';
+  const fetcher: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedAuthorization = new Headers(init?.headers).get('Authorization') ?? '';
+    return Response.json([{ id: 'cloud-1', local_id: 'local-1' }]);
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/projects', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).projects.length, 1);
+  }, fetcher);
+
+  const endpoint = new URL(capturedUrl);
+  assert.equal(endpoint.searchParams.get('user_id'), 'eq.' + USER_ID);
+  assert.equal(capturedAuthorization, 'Bearer verified-token');
+});
+
 test('cloud project routes require a bearer token', async () => {
   let storageCalled = false;
   const fetcher: typeof fetch = async () => {
