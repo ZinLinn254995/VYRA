@@ -741,7 +741,9 @@ export const ProjectWorkspaceView: React.FC = () => {
         ...(sceneImageReference ? [sceneImageReference] : []),
         ...characterImageReferences,
       ];
-      if (sceneImageReference && videoModelMetadata?.supportedFrameImages?.includes('first_frame')) {
+      // OpenRouter gives frame_images precedence over input_references. When characters are
+      // selected, keep the scene image and character images together as guidance references.
+      if (sceneImageReference && characterImageReferences.length === 0 && videoModelMetadata?.supportedFrameImages?.includes('first_frame')) {
         videoReferencePayload = {
           frame_images: [{ ...sceneImageReference, frame_type: 'first_frame' }],
           ...(characterImageReferences.length ? { input_references: characterImageReferences } : {}),
