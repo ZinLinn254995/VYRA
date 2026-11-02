@@ -1129,7 +1129,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
           blob,
           model,
-          voice: voiceName.trim(),
+          voice: effectiveVoiceId,
           generationId,
           projectId: project.id,
           sceneId: targetScene.id,
