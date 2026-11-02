@@ -76,6 +76,16 @@ The first migration should start with the minimum required tables and RLS polici
 - No generation starts without the existing explicit spend confirmation.
 - Never persist raw OpenRouter/API keys in plaintext database records. Prefer user-supplied session keys initially; if persistent encrypted keys are later required, design a dedicated encryption/key-rotation boundary first.
 
+### Transfer ledger reconciliation and risk policy
+
+The credit ledger must use a balanced, double-entry representation for each completed account-to-account transfer: an equal sender debit and recipient credit, committed atomically and linked by one transfer reference. The signed credit movements for each transfer must sum to zero. A transfer must not be marked completed unless both entries are present. If cached balance columns are maintained for performance, update them in the same transaction and reconcile them against the immutable ledger.
+
+Preserve credit provenance (purchased, promotional/bonus, and administrative adjustment) across transfers. Refunds and chargebacks require linked compensating entries; do not delete or mutate historical entries. Before payment launch, explicitly decide how refunds and chargebacks affect credits that have already been spent or transferred. Do not silently debit an unrelated recipient or create an undocumented negative balance.
+
+Recipient lookup should use a public VYRA identifier and reveal only minimum confirmation details, not private email addresses. Enforce positive integer amounts, account eligibility, self-transfer prevention, configured limits, rate/velocity controls, privacy-preserving lookup and explicit final confirmation on the server. Define support and risk procedures for mistaken transfers, suspended accounts, compromised accounts and suspicious activity. A completed transfer is not automatically reversible; any correction must be an authorized compensating ledger event.
+
+Transfers that allow or facilitate external resale need a separate legal and payment-provider review for Thailand and each intended market before release. Product documentation may define that VYRA does not operate an in-app marketplace or process external user-to-user payments, but must not claim that this automatically removes VYRA's legal or compliance responsibilities.
+ 
 ## Storage strategy
 
 Store project and generation metadata in Postgres. Store large binary outputs in object storage and keep only object keys, checksums, content types, byte sizes, and ownership metadata in Postgres. Do not store base64 video/image payloads in relational rows.
