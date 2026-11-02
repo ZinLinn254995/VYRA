@@ -7,7 +7,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
-import { Scene, AspectRatio, ProductionStage } from '../../types';
+import { Scene, AspectRatio, ProductionStage, CharacterReference } from '../../types';
+import type { SavedMediaImage } from '../../services/mediaLibraryStorage';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
 import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
@@ -225,6 +226,80 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [finalVideoPreviewUrl, setFinalVideoPreviewUrl] = useState('');
   const [exportProgress, setExportProgress] = useState('');
   const [burnInSubtitles, setBurnInSubtitles] = useState(true);
+
+  // Project-scoped character library; reference images remain in local IndexedDB.
+  const [characterImages, setCharacterImages] = useState<SavedMediaImage[]>([]);
+  const [characterDraft, setCharacterDraft] = useState<{
+    id?: string;
+    name: string;
+    visualDescription: string;
+    continuityNotes: string;
+    referenceImageId: string;
+  }>({ name: '', visualDescription: '', continuityNotes: '', referenceImageId: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    getSavedImages()
+      .then((images) => { if (!cancelled) setCharacterImages(images); })
+      .catch(() => { if (!cancelled) setCharacterImages([]); });
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
+  const beginCharacterDraft = (character?: CharacterReference) => {
+    setCharacterDraft(character ? {
+      id: character.id,
+      name: character.name,
+      visualDescription: character.visualDescription,
+      continuityNotes: character.continuityNotes || '',
+      referenceImageId: character.referenceImageId || '',
+    } : { name: '', visualDescription: '', continuityNotes: '', referenceImageId: '' });
+  };
+
+  const saveCharacterDraft = () => {
+    if (!project || !characterDraft.name.trim() || !characterDraft.visualDescription.trim()) return;
+    const now = new Date().toISOString();
+    const existing = (project.characters || []).find((item) => item.id === characterDraft.id);
+    const character: CharacterReference = {
+      id: existing?.id || (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : 'character-' + Date.now().toString(36)),
+      name: characterDraft.name.trim(),
+      visualDescription: characterDraft.visualDescription.trim(),
+      continuityNotes: characterDraft.continuityNotes.trim() || undefined,
+      referenceImageId: characterDraft.referenceImageId || undefined,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    const characters = project.characters || [];
+    updateProject(project.id, {
+      characters: existing
+        ? characters.map((item) => item.id === existing.id ? character : item)
+        : [...characters, character],
+    });
+    beginCharacterDraft();
+    showToast(existing ? 'Character reference updated' : 'Character added to this project', 'success');
+  };
+
+  const deleteCharacter = (characterId: string) => {
+    if (!project) return;
+    updateProject(project.id, {
+      characters: (project.characters || []).filter((item) => item.id !== characterId),
+      scenes: project.scenes.map((scene) => ({
+        ...scene,
+        characterIds: (scene.characterIds || []).filter((id) => id !== characterId),
+      })),
+    });
+    if (characterDraft.id === characterId) beginCharacterDraft();
+    showToast('Character removed and scene assignments cleared', 'info');
+  };
+
+  const toggleSceneCharacter = (characterId: string, checked: boolean) => {
+    if (!project || !currentScene) return;
+    const ids = new Set(currentScene.characterIds || []);
+    if (checked) ids.add(characterId);
+    else ids.delete(characterId);
+    updateScene(project.id, currentScene.id, { characterIds: Array.from(ids) });
+  };
 
   useEffect(() => {
     return () => {
@@ -1657,6 +1732,76 @@ export const ProjectWorkspaceView: React.FC = () => {
           <p className="text-[11px] text-slate-400 light:text-slate-500">Review the assembled video here. If changes are needed, request the specific scene or voice correction in AI Ideas Chat before final approval.</p>
         </section>
       )}
+
+
+      {/* Reusable project character library and per-scene assignment */}
+      <section className="rounded-xl border border-[#2B3058] light:border-slate-200 bg-[#171A35] light:bg-white p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Character Library</h2>
+            <p className="text-[11px] text-slate-400 light:text-slate-500">Create recurring characters once, then assign them to any scene in this project.</p>
+          </div>
+          <button type="button" onClick={() => beginCharacterDraft()} className="rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18]">+ Add Character</button>
+        </div>
+
+        {(project.characters || []).length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {(project.characters || []).map((character) => {
+              const assigned = (currentScene?.characterIds || []).includes(character.id);
+              const reference = characterImages.find((image) => image.id === character.referenceImageId);
+              return (
+                <div key={character.id} className="rounded-lg border border-[#2B3058] light:border-slate-200 p-3 space-y-2 min-w-0">
+                  <div className="flex items-start gap-2">
+                    {reference ? <img src={reference.dataUrl} alt={character.name + ' reference'} className="h-14 w-14 rounded-md object-cover bg-black shrink-0" /> : <div className="h-14 w-14 rounded-md bg-[#090B18] light:bg-slate-100 flex items-center justify-center text-[10px] text-slate-500 shrink-0">No image</div>}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-white light:text-slate-900 truncate">{character.name}</p>
+                      <p className="text-[10px] text-slate-400 light:text-slate-500 line-clamp-2">{character.visualDescription}</p>
+                      <label className="mt-2 flex items-center gap-2 text-[11px] text-[#55F4FF]">
+                        <input type="checkbox" checked={assigned} onChange={(event) => toggleSceneCharacter(character.id, event.target.checked)} />
+                        Use in Scene {currentScene?.order || 1}
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-3 text-[11px]">
+                    <button type="button" onClick={() => beginCharacterDraft(character)} className="text-[#55F4FF] hover:underline">Edit</button>
+                    <button type="button" onClick={() => deleteCharacter(character.id)} className="text-rose-400 hover:underline">Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : <p className="rounded-lg border border-dashed border-[#2B3058] light:border-slate-300 p-3 text-xs text-slate-400">No characters yet. Add a character to keep its visual identity consistent across scenes.</p>}
+
+        <div className="rounded-lg border border-[#2B3058] light:border-slate-200 bg-[#090B18]/50 light:bg-slate-50 p-3 space-y-2">
+          <p className="text-xs font-bold text-white light:text-slate-900">{characterDraft.id ? 'Edit Character' : 'New Character'}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+              <span>Character name *</span>
+              <input value={characterDraft.name} onChange={(event) => setCharacterDraft((draft) => ({ ...draft, name: event.target.value }))} maxLength={80} placeholder="e.g. Luna" className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900" />
+            </label>
+            <label className="space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+              <span>Reference image (optional)</span>
+              <select value={characterDraft.referenceImageId} onChange={(event) => setCharacterDraft((draft) => ({ ...draft, referenceImageId: event.target.value }))} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900">
+                <option value="">No reference image</option>
+                {characterImages.filter((image) => image.projectId === project.id).map((image) => <option key={image.id} value={image.id}>{image.title}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="block space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+            <span>Visual description * (appearance, face, hair, body, distinctive features)</span>
+            <textarea value={characterDraft.visualDescription} onChange={(event) => setCharacterDraft((draft) => ({ ...draft, visualDescription: event.target.value }))} rows={3} maxLength={1800} placeholder="Describe the character's stable visual identity in detail…" className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900" />
+          </label>
+          <label className="block space-y-1 text-[10px] text-slate-400 light:text-slate-600">
+            <span>Continuity notes (optional)</span>
+            <textarea value={characterDraft.continuityNotes} onChange={(event) => setCharacterDraft((draft) => ({ ...draft, continuityNotes: event.target.value }))} rows={2} maxLength={1200} placeholder="Clothing, colors, accessories, voice, and details that must stay consistent…" className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900" />
+          </label>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {characterDraft.id && <button type="button" onClick={() => beginCharacterDraft()} className="rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2 text-xs text-slate-300 light:text-slate-700">Cancel</button>}
+            <button type="button" disabled={!characterDraft.name.trim() || !characterDraft.visualDescription.trim()} onClick={saveCharacterDraft} className="rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] disabled:opacity-40">Save Character</button>
+          </div>
+          <p className="text-[10px] text-slate-500">Reference images are stored locally on this device. Generate or save an image in this project first, then select it here. Video consistency still depends on the selected model supporting reference images.</p>
+        </div>
+      </section>
 
       {/* 2. Main Studio Grid: Left Media Preview + Right Scene Inspector */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start min-w-0">
