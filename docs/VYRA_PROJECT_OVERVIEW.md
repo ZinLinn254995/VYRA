@@ -2,6 +2,8 @@
 
 ## What VYRA Is
 
+This overview is the high-level explanation of VYRA's identity and intended capabilities. The complementary [Product Vision & Revenue Mission](./PRODUCT_VISION_AND_REVENUE_MISSION.md) explains the customer experience, business direction and guiding principles. Technical documents describe implementation details and current limitations; they do not override the overall product identity.
+
 VYRA is an AI-powered Creative Studio delivered as a SaaS platform. Its central purpose is to help people turn creative ideas into finished visual content—especially videos—through an integrated workspace supported by AI.
 
 VYRA is intended to bring the creative process into one coherent environment: developing ideas, planning stories, creating and maintaining characters, preparing scripts and storyboards, generating images and video, organizing media, refining scenes, reviewing the result, and exporting finished work.
