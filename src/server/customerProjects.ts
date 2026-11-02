@@ -161,9 +161,11 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
 
     // A repeated project ID in one client backup batch must never become
     // multiple cloud rows. Preserve the first local copy in the submitted batch.
-    const uniqueProjects = Array.from(
-      new Map((projects as PortableProject[]).map((project) => [project.localId, project])).values(),
-    );
+    const uniqueByLocalId = new Map<string, PortableProject>();
+    for (const project of projects as PortableProject[]) {
+      if (!uniqueByLocalId.has(project.localId)) uniqueByLocalId.set(project.localId, project);
+    }
+    const uniqueProjects = Array.from(uniqueByLocalId.values());
     const rows = uniqueProjects.map((project) => ({
       user_id: identity.user.id,
       local_id: project.localId,
