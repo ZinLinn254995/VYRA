@@ -2,7 +2,7 @@
 
 ## Migrations
 
-The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`. The account-transfer migration adds immutable `credit_transfers` and a service-role-only atomic transfer RPC. The wallet snapshot migration adds an authenticated read-only RPC that calculates balances from the append-only ledger and returns a limited recent activity list.
+The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`. The account-transfer migration adds immutable `credit_transfers` and a service-role-only atomic transfer RPC. The wallet snapshot migration adds an authenticated read-only RPC that calculates balances from the append-only ledger and returns a limited recent activity list. The transfer velocity migration enforces private database policy limits before every new transfer.
 
 - Customer sessions receive read-only access to their own usage and ledger rows. Transfer history is visible only to the sender and recipient.
 - Only the server `service_role` may execute financial write functions. Never expose `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` to the browser.
@@ -46,3 +46,12 @@ Authentication UI/session management, project import/sync, assets, generation-to
 
 The `20261103000200_public_usernames.sql` migration adds `profiles.username`, a unique lowercase handle. Authenticated users can update only their own profile row. `POST /api/credits/username` accepts `{ "username": "handle" }` (or `null` to clear it); `GET /api/credits/recipients?query=han` returns at most eight prefix matches. Search requires at least three valid characters and is limited to 20 requests per user per minute by a database-backed counter, so limits remain effective across serverless instances. Public results contain only `userId`, `username`, and optional `displayName`. Never expose email addresses or private profile columns in recipient lookup.
 \n## Credit wallet snapshot\n\nThe `20261103000400_credit_wallet_snapshot.sql` migration adds `get_credit_wallet()`. It requires an authenticated Supabase session, derives the account from `auth.uid()`, and returns available/reserved totals as exact integer strings plus at most 50 safe activity fields. Balances are derived from the complete append-only ledger; the recent activity list is only a display window. The function does not allow financial writes and does not expose ledger metadata.\n
+## Credit transfer velocity policy
+
+The `20261103000500_credit_transfer_velocity_policy.sql` migration creates a private operator-controlled policy and a database trigger. Initial defaults are:
+
+- At most 10 transfers per sender in a rolling hour.
+- At most 50,000 credits in one transfer.
+- At most 100,000 credits sent in a rolling 24-hour window.
+
+The checks run inside the same transaction as the transfer. The trigger acquires the sender's advisory transaction lock used by the transfer RPC, preventing concurrent requests from racing past the limits. The policy table is not readable or writable by browser roles or the service role; change values only through an audited database migration after product review. These are provisional safeguards, not a substitute for fraud monitoring, payment-provider terms, or legal review.
