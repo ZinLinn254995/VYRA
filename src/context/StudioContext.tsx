@@ -31,6 +31,7 @@ import {
 } from '../data/seedData';
 import { BRAND_CONFIG } from '../config/brand';
 import { aiService } from '../services/aiService';
+import { mergeCloudProjects } from '../services/cloudProjectRestore';
 import { confirmSpendBeforeGeneration } from '../services/spendConfirmation';
 import { processAgentRequest, executeAgentTool, AgentContext } from '../services/agentTools';
 import { ToolExecutionRecord } from '../types';
@@ -405,15 +406,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Project permanently deleted', 'warning');
   };
   
-  // Restore cloud projects without overwriting any project already on this device.
+  // Restore cloud projects without overwriting local work or adding duplicate IDs.
   const restoreCloudProjects = (restored: Project[]): number => {
-    const existingIds = new Set(projects.map((project) => project.id));
-    const additions = restored.filter((project) => !existingIds.has(project.id));
+    const additions = mergeCloudProjects(projects, restored).slice(0, Math.max(0, mergeCloudProjects(projects, restored).length - projects.length));
     if (additions.length > 0) {
-      setProjects((prev) => {
-        const currentIds = new Set(prev.map((project) => project.id));
-        return [...additions.filter((project) => !currentIds.has(project.id)), ...prev];
-      });
+      setProjects((prev) => mergeCloudProjects(prev, additions));
       showToast(`Restored ${additions.length} cloud project(s) to this device.`, 'success');
     } else {
       showToast('No new projects to restore. Existing local projects were left unchanged.', 'info');
