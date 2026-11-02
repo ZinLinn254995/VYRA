@@ -10,6 +10,7 @@ export type NavSection =
   | 'ideas'
   | 'workspace'
   | 'media'
+  | 'consistency'
   | 'review'
   | 'publishing'
   | 'analytics'
@@ -18,43 +19,12 @@ export type NavSection =
   | 'settings';
 
 export type AspectRatio = '9:16' | '16:9' | '1:1';
-
 export type VideoFormat = 'short_form' | 'long_form';
-
-export type VisualStyle =
-  | 'hyper_realistic'
-  | 'cyber_minimal'
-  | 'cinematic_3d'
-  | 'anime_vector'
-  | 'documentary_grain';
-
-export type NarrationStyle =
-  | 'authoritative'
-  | 'conversational'
-  | 'energetic_tech'
-  | 'empathetic_storyteller';
-
-export type SubtitleStyle =
-  | 'dynamic_pop'
-  | 'minimal_lower'
-  | 'karaoke_neon'
-  | 'none';
-
-export type ContentCategory =
-  | 'Tech & AI'
-  | 'Science & Future'
-  | 'Product Showcase'
-  | 'Business & Finance'
-  | 'Documentary'
-  | 'Lifestyle & Culture';
-
-export type ProjectStatus =
-  | 'draft'
-  | 'in_review'
-  | 'changes_requested'
-  | 'approved'
-  | 'ready_to_publish'
-  | 'archived';
+export type VisualStyle = 'hyper_realistic' | 'cyber_minimal' | 'cinematic_3d' | 'anime_vector' | 'documentary_grain';
+export type NarrationStyle = 'authoritative' | 'conversational' | 'energetic_tech' | 'empathetic_storyteller';
+export type SubtitleStyle = 'dynamic_pop' | 'minimal_lower' | 'karaoke_neon' | 'none';
+export type ContentCategory = 'Tech & AI' | 'Science & Future' | 'Product Showcase' | 'Business & Finance' | 'Documentary' | 'Lifestyle & Culture';
+export type ProjectStatus = 'draft' | 'in_review' | 'changes_requested' | 'approved' | 'ready_to_publish' | 'archived';
 
 /** Shared vocabulary for reusable visual, audio, story, and brand references. */
 export type ConsistencyAssetKind =
@@ -65,8 +35,9 @@ export type ConsistencyAssetKind =
   | 'visual_style'
   | 'voice'
   | 'music'
+  | 'audio'
+  | 'story'
   | 'other';
-
 export type ConsistencyRuleScope = 'global' | 'project' | 'scene';
 export type ConsistencyRuleStrength = 'locked' | 'preferred' | 'flexible';
 
@@ -91,28 +62,21 @@ export interface ConsistencyRule {
   strength: ConsistencyRuleStrength;
   priority: number;
   active: boolean;
-  /** Optional scene IDs; required when scope is scene. */
   sceneIds?: string[];
-  /** Optional asset kinds this rule applies to. */
   appliesTo?: ConsistencyAssetKind[];
 }
-
-/** Versioned project-level source of truth for reusable consistency references and rules. */
 export interface ProjectConsistencyBible {
   version: 1;
   references: ConsistencyReference[];
   rules: ConsistencyRule[];
 }
 
-/** A reusable, project-scoped character identity for reference-guided scene generation. */
+/** Existing character identity records remain supported without migration. */
 export interface CharacterReference {
   id: string;
   name: string;
-  /** Stable visual description used to reinforce identity across scenes. */
   visualDescription: string;
-  /** Optional IndexedDB key for the approved character reference image on this device. */
   referenceImageId?: string;
-  /** Wardrobe, palette, voice, and other continuity constraints. */
   continuityNotes?: string;
   createdAt: string;
   updatedAt: string;
@@ -124,37 +88,22 @@ export interface Scene {
   narration: string;
   visualPrompt: string;
   cameraMovement: string;
-  duration: number; // in seconds
-  /** Optional shot/scene intent for formats such as ads, documentary, music videos, and animation. */
+  duration: number;
   shotType?: string;
   dialogue?: string;
   onScreenText?: string;
   soundDesign?: string;
   transition?: string;
   mediaUrl: string;
-  /** Character reference IDs from the owning project's reusable character library. */
   characterIds?: string[];
-  /** Universal consistency reference IDs selected for this scene. */
   consistencyReferenceIds?: string[];
-  /** IndexedDB key for a generated scene image stored on this device. */
   generatedImageId?: string;
-  /** IndexedDB key for a generated clip stored on this device. */
   generatedVideoId?: string;
-  /** IndexedDB key for a generated voiceover stored on this device. */
   generatedAudioId?: string;
   status: 'scripted' | 'rendering' | 'ready';
 }
 
-export type ProductionStage =
-  | 'idea'
-  | 'script_review'
-  | 'visual_review'
-  | 'voice_review'
-  | 'sample_review'
-  | 'full_production'
-  | 'final_review'
-  | 'publish_ready';
-
+export type ProductionStage = 'idea' | 'script_review' | 'visual_review' | 'voice_review' | 'sample_review' | 'full_production' | 'final_review' | 'publish_ready';
 export interface Project {
   id: string;
   title: string;
@@ -165,33 +114,24 @@ export interface Project {
   visualStyle: VisualStyle;
   narrationStyle: NarrationStyle;
   subtitleStyle: SubtitleStyle;
-  /** User's requested video genre/type, kept open-ended rather than limited to presets. */
   videoType?: string;
-  /** Creative brief preserving the user's style, audience, language, tone, and production constraints. */
   creativeDirection?: string;
-  /** Free-form visual treatment, including styles beyond the built-in presets. */
   visualStyleDescription?: string;
-  /** Music, ambience, sound effects, and voice direction for the whole video. */
   audioDirection?: string;
-  /** Intended audience and language for dialogue, narration, and on-screen text. */
   audience?: string;
   language?: string;
-  targetDuration: number; // in seconds
+  targetDuration: number;
   targetPlatforms: string[];
   status: ProjectStatus;
   scenes: Scene[];
-  /** Reusable character identities shared across scenes in this project. */
   characters?: CharacterReference[];
-  /** Optional universal continuity data; absent on older projects remains valid. */
   consistencyBible?: ProjectConsistencyBible;
   createdAt: string;
   updatedAt: string;
   coverImage: string;
-  /** Current approval checkpoint in the staged production workflow. */
   productionStage?: ProductionStage;
   productionStageUpdatedAt?: string;
   productionStageNotes?: string;
-  /** IndexedDB key for the assembled final video, kept outside localStorage. */
   finalVideoId?: string;
   finalVideoExportedAt?: string;
   reviewNotes?: string;
@@ -199,119 +139,14 @@ export interface Project {
   selectedPlatformsForPublishing?: string[];
 }
 
-export interface JobQueueItem {
-  id: string;
-  projectId: string;
-  projectTitle: string;
-  jobType: 'scene_synthesis' | 'voice_synthesis' | 'video_render' | 'composite_export';
-  progress: number;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-  estimatedSecondsLeft: number;
-  startedAt: string;
-}
-
-export interface MediaAsset {
-  id: string;
-  title: string;
-  type: 'video' | 'image' | 'audio' | 'brand_asset';
-  url: string;
-  dimensions?: string;
-  duration?: string;
-  tags: string[];
-  createdAt: string;
-}
-
-export interface WorkspaceStats {
-  totalProjects: number;
-  activeDrafts: number;
-  awaitingReview: number;
-  approvedCount: number;
-  totalScenesRendered: number;
-  generationSecondsUsed: number;
-  monthlyQuotaSeconds: number;
-}
-
+export interface JobQueueItem { id: string; projectId: string; projectTitle: string; jobType: 'scene_synthesis' | 'voice_synthesis' | 'video_render' | 'composite_export'; progress: number; status: 'queued' | 'processing' | 'completed' | 'failed'; estimatedSecondsLeft: number; startedAt: string; }
+export interface MediaAsset { id: string; title: string; type: 'video' | 'image' | 'audio' | 'brand_asset'; url: string; dimensions?: string; duration?: string; tags: string[]; createdAt: string; }
+export interface WorkspaceStats { totalProjects: number; activeDrafts: number; awaitingReview: number; approvedCount: number; totalScenesRendered: number; generationSecondsUsed: number; monthlyQuotaSeconds: number; }
 export type ChatRole = 'user' | 'assistant' | 'system';
-
-export interface ChatSuggestedAction {
-  label: string;
-  action: 'create_project' | 'save_idea' | 'develop_script';
-  data?: {
-    title?: string;
-    topic?: string;
-    category?: ContentCategory;
-    format?: VideoFormat;
-  };
-}
-
-export type ToolStatus =
-  | 'executing'
-  | 'success'
-  | 'failed'
-  | 'requires_confirmation'
-  | 'unsupported';
-
-export interface ToolExecutionRecord {
-  id: string;
-  toolName: string;
-  displayName: string;
-  status: ToolStatus;
-  inputArgs: Record<string, any>;
-  outputSummary?: string;
-  outputData?: any;
-  errorMessage?: string;
-  timestamp: string;
-  resourceLink?: {
-    label: string;
-    section: NavSection;
-    resourceId?: string;
-  };
-}
-
-export interface ChatMessage {
-  id: string;
-  role: ChatRole;
-  content: string;
-  timestamp: string;
-  isPreviewNotice?: boolean;
-  suggestedActions?: ChatSuggestedAction[];
-  toolExecutions?: ToolExecutionRecord[];
-  providerName?: string;
-  modelName?: string;
-  generationId?: string;
-  usage?: {
-    promptTokens: number | null;
-    completionTokens: number | null;
-    totalTokens: number | null;
-    costUsd: number | null;
-  };
-}
-
-export interface Conversation {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  messages: ChatMessage[];
-  category?: string;
-  isPinned?: boolean;
-}
-
-export interface SavedIdea {
-  id: string;
-  title: string;
-  concept: string;
-  category?: ContentCategory;
-  tags: string[];
-  sourceConversationId?: string;
-  createdAt: string;
-}
-
-export interface AIServiceStatus {
-  status: 'connected' | 'preview_mode' | 'error';
-  providerName: string;
-  modelName: string;
-  backendEndpoint?: string;
-  message?: string;
-}
-
+export interface ChatSuggestedAction { label: string; action: 'create_project' | 'save_idea' | 'develop_script'; data?: { title?: string; topic?: string; category?: ContentCategory; format?: VideoFormat; }; }
+export type ToolStatus = 'executing' | 'success' | 'failed' | 'requires_confirmation' | 'unsupported';
+export interface ToolExecutionRecord { id: string; toolName: string; displayName: string; status: ToolStatus; inputArgs: Record<string, any>; outputSummary?: string; outputData?: any; errorMessage?: string; timestamp: string; resourceLink?: { label: string; section: NavSection; resourceId?: string; }; }
+export interface ChatMessage { id: string; role: ChatRole; content: string; timestamp: string; isPreviewNotice?: boolean; suggestedActions?: ChatSuggestedAction[]; toolExecutions?: ToolExecutionRecord[]; providerName?: string; modelName?: string; generationId?: string; usage?: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null; costUsd: number | null; }; }
+export interface Conversation { id: string; title: string; createdAt: string; updatedAt: string; messages: ChatMessage[]; category?: string; isPinned?: boolean; }
+export interface SavedIdea { id: string; title: string; concept: string; category?: ContentCategory; tags: string[]; sourceConversationId?: string; createdAt: string; }
+export interface AIServiceStatus { status: 'connected' | 'preview_mode' | 'error'; providerName: string; modelName: string; backendEndpoint?: string; message?: string; }
