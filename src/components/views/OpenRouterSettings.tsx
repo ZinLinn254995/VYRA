@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { saveGeneratedImage } from '../../services/mediaLibraryStorage';
+import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 
 type Capability = 'text' | 'image' | 'video' | 'audio';
@@ -209,8 +210,20 @@ export const OpenRouterSettings: React.FC = () => {
     setGeneratedImage('');
     setImageCost(null);
     setImageGenerationId(null);
-    setMessage('Generating image… this can take up to two minutes.');
+    setMessage('Checking current image pricing before generation…');
     try {
+      const approved = await confirmSpendBeforeGeneration({
+        operation: 'OpenRouter Settings image test generation',
+        capability: 'image',
+        model,
+        apiKey: key,
+        parameters: { imageCount: 1, inputImageCount: 0 },
+      });
+      if (!approved) {
+        setMessage('Image generation cancelled. No image request was sent.');
+        return;
+      }
+      setMessage('Generating image… this can take up to two minutes.');
       const response = await fetch('/api/providers/openrouter/images/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': key },
