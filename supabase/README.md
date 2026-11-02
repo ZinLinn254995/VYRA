@@ -2,7 +2,7 @@
 
 ## Migrations
 
-The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`. The account-transfer migration adds immutable `credit_transfers` and a service-role-only atomic transfer RPC.
+The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`. The account-transfer migration adds immutable `credit_transfers` and a service-role-only atomic transfer RPC. The wallet snapshot migration adds an authenticated read-only RPC that calculates balances from the append-only ledger and returns a limited recent activity list.
 
 - Customer sessions receive read-only access to their own usage and ledger rows. Transfer history is visible only to the sender and recipient.
 - Only the server `service_role` may execute financial write functions. Never expose `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` to the browser.
@@ -40,8 +40,9 @@ Before linking a real project, create a separate development Supabase project. N
 
 ## Not implemented by the current migrations
 
-Authentication UI/session management, server-side bearer-token verification for transfer routes, project import/sync, assets, generation-to-ledger server integration, credit purchase packages, payment provider integration, customer-facing transfer UI. Those are separate increments. No production migration or customer-facing credit charging is enabled by this change.
+Authentication UI/session management, project import/sync, assets, generation-to-ledger server integration, credit purchase packages, and payment provider integration remain separate increments. The wallet and transfer UI/API are an early customer-facing layer, not a production billing launch. No production migration or customer-facing credit charging is enabled by this change.
 
 ## Public username and recipient lookup
 
 The `20261103000200_public_usernames.sql` migration adds `profiles.username`, a unique lowercase handle. Authenticated users can update only their own profile row. `POST /api/credits/username` accepts `{ "username": "handle" }` (or `null` to clear it); `GET /api/credits/recipients?query=han` returns at most eight prefix matches. Search requires at least three valid characters and is limited to 20 requests per user per minute by a database-backed counter, so limits remain effective across serverless instances. Public results contain only `userId`, `username`, and optional `displayName`. Never expose email addresses or private profile columns in recipient lookup.
+\n## Credit wallet snapshot\n\nThe `20261103000400_credit_wallet_snapshot.sql` migration adds `get_credit_wallet()`. It requires an authenticated Supabase session, derives the account from `auth.uid()`, and returns available/reserved totals as exact integer strings plus at most 50 safe activity fields. Balances are derived from the complete append-only ledger; the recent activity list is only a display window. The function does not allow financial writes and does not expose ledger metadata.\n
