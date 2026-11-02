@@ -27,5 +27,7 @@ jobs:
         run: npm run test:projects
       - name: Cloud project restore tests
         run: npm run test:restore
+      - name: Usage ledger contract tests
+        run: npm run test:usage-ledger
       - name: Production build
         run: npm run build
