@@ -4,7 +4,7 @@ _Last updated: 2026-11-02_
 
 ## 1. Mission — the non-negotiable project goal
 
-VYRA is a customer-facing **AI Video Creation SaaS and AI Creative Studio**. Its goal is to help customers turn creative ideas into finished visual content through one connected production environment, then grow into a reliable business with sustainable recurring revenue.
+VYRA is a customer-facing **AI Video Creation SaaS and AI Creative Studio**. Its goal is to help customers turn creative ideas into finished visual content through one connected production environment, then grow into a reliable business with sustainable repeat-purchase revenue.
 
 The product direction is **Chat-First, Not Chat-Only**:
 - Natural-language Chat is a primary way to understand, control, and use VYRA's capabilities.
