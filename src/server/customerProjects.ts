@@ -60,6 +60,22 @@ export function sanitizePortableProjectData(value: unknown): Record<string, unkn
   }
 }
 
+/** Keep one cloud row per original device project ID without deleting stored rows.
+ * The listing is ordered newest-first, so the newest backup wins when legacy duplicates exist.
+ */
+export function dedupeCloudProjectRows(rows: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const unique: unknown[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const localId = (row as Record<string, unknown>).local_id;
+    if (typeof localId !== 'string' || !localId.trim() || seen.has(localId)) continue;
+    seen.add(localId);
+    unique.push(row);
+  }
+  return unique;
+}
+
 function parseProject(input: unknown): PortableProject | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
   const item = input as Record<string, unknown>;
@@ -121,8 +137,9 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       if (!response.ok) return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
         .json({ error: 'Could not load cloud projects.' });
       const projects: unknown = await response.json();
+      const uniqueProjects = Array.isArray(projects) ? dedupeCloudProjectRows(projects) : [];
       res.setHeader('Cache-Control', 'no-store');
-      return res.json({ projects });
+      return res.json({ projects: uniqueProjects });
     } catch {
       return res.status(503).json({ error: 'Cloud project storage is temporarily unavailable.' });
     }
@@ -142,7 +159,14 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       return res.status(400).json({ error: 'One or more projects are invalid or contain non-portable data.' });
     }
 
-    const rows = (projects as PortableProject[]).map((project) => ({
+    // A repeated project ID in one client backup batch must never become
+    // multiple cloud rows. Preserve the first local copy in the submitted batch.
+    const uniqueByLocalId = new Map<string, PortableProject>();
+    for (const project of projects as PortableProject[]) {
+      if (!uniqueByLocalId.has(project.localId)) uniqueByLocalId.set(project.localId, project);
+    }
+    const uniqueProjects = Array.from(uniqueByLocalId.values());
+    const rows = uniqueProjects.map((project) => ({
       user_id: identity.user.id,
       local_id: project.localId,
       title: project.title,

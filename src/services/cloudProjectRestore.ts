@@ -95,12 +95,21 @@ export function restoreCloudProject(row: CloudProjectRow): Project | null {
 
 /** Merge restored projects without replacing local work or duplicating IDs. */
 export function mergeCloudProjects(existing: Project[], restored: Project[]): Project[] {
-  const seenIds = new Set(existing.map((project) => project.id));
+  // Treat project.id as the stable identity. Keep the first local copy so
+  // repeated restores never duplicate or overwrite existing user work.
+  const seenIds = new Set<string>();
+  const uniqueExisting: Project[] = [];
+  for (const project of existing) {
+    if (!project || typeof project.id !== 'string' || !project.id.trim() || seenIds.has(project.id)) continue;
+    seenIds.add(project.id);
+    uniqueExisting.push(project);
+  }
+
   const additions: Project[] = [];
   for (const project of restored) {
     if (!project || typeof project.id !== 'string' || !project.id.trim() || seenIds.has(project.id)) continue;
     seenIds.add(project.id);
     additions.push(project);
   }
-  return [...additions, ...existing];
+  return [...additions, ...uniqueExisting];
 }

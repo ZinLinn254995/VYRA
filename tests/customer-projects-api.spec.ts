@@ -4,6 +4,7 @@ import express from 'express';
 import { createServer, type Server } from 'node:http';
 import {
   createCustomerProjectsRouter,
+  dedupeCloudProjectRows,
   sanitizePortableProjectData,
 } from '../src/server/customerProjects.js';
 import { createVercelCustomerProjectsHandler } from '../src/server/vercelCustomerProjectsHandler.js';
@@ -185,4 +186,36 @@ test('Vercel project handler recognizes both /api/projects and normalized /proje
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+
+test('cloud project listing hides legacy duplicate rows by local ID and keeps the newest row', () => {
+  const older = { id: 'cloud-old', local_id: 'local-1', updated_at: '2026-11-01T10:00:00Z' };
+  const newer = { id: 'cloud-new', local_id: 'local-1', updated_at: '2026-11-02T10:00:00Z' };
+  const other = { id: 'cloud-2', local_id: 'local-2', updated_at: '2026-11-02T09:00:00Z' };
+  assert.deepEqual(dedupeCloudProjectRows([newer, older, other]), [newer, other]);
+});
+
+test('project import deduplicates repeated local IDs in one backup batch', async () => {
+  let capturedBody: Array<Record<string, unknown>> = [];
+  const fetcher: typeof fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body)) as Array<Record<string, unknown>>;
+    return Response.json(capturedBody.map((row, index) => ({ id: 'cloud-' + index, local_id: row.local_id })));
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/projects/import', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projects: [
+        { localId: 'same-local-id', title: 'Original', status: 'draft', projectData: { topic: 'Keep first' } },
+        { localId: 'same-local-id', title: 'Duplicate row', status: 'draft', projectData: { topic: 'Do not duplicate' } },
+      ] }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).imported, 1);
+  }, fetcher);
+
+  assert.equal(capturedBody.length, 1);
+  assert.equal(capturedBody[0].title, 'Original');
 });
