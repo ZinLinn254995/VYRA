@@ -8,7 +8,7 @@ import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio, ProductionStage, CharacterReference } from '../../types';
-import { composeSceneConsistencyInstructions, resolveSceneConsistencyContext } from '../../services/consistencyEngine';
+import { composeSceneConsistencyInstructions, resolveSceneConsistencyContext, resolveSceneVoiceProfile } from '../../services/consistencyEngine';
 import type { SavedMediaImage } from '../../services/mediaLibraryStorage';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
@@ -1088,6 +1088,12 @@ export const ProjectWorkspaceView: React.FC = () => {
       } catch { /* setup guidance below */ }
       const model = selectedModels.audio;
       if (!apiKey || !model) throw new Error('Connect OpenRouter and discover/select a Speech / Voiceover model in Settings first.');
+      const voiceProfile = resolveSceneVoiceProfile(project, targetScene);
+      const effectiveVoiceId = voiceProfile?.voiceId || voiceName.trim();
+      const effectiveSpeed = voiceProfile?.speed ?? 1;
+      if (voiceProfile?.voiceId && supportedVoiceIds.length > 0 && !supportedVoiceIds.includes(voiceProfile.voiceId)) {
+        throw new Error('The Voice Consistency Reference "' + voiceProfile.referenceName + '" uses Voice ID "' + voiceProfile.voiceId + '", which is not supported by the selected speech model. Choose a compatible model or update the reference.');
+      }
       if (!(await confirmSpendBeforeGeneration({
         operation: 'Generate scene voiceover',
         capability: 'audio',
@@ -1102,7 +1108,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const response = await fetch('/api/providers/openrouter/audio/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
-        body: JSON.stringify({ model, input: narration, voice: voiceName.trim(), speed: 1 }),
+        body: JSON.stringify({ model, input: narration, voice: effectiveVoiceId, speed: effectiveSpeed }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({})) as { error?: string };
@@ -1113,7 +1119,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const blob = await response.blob();
       if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('The provider returned an invalid or empty audio file.');
       const latestScene = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-      if (!latestScene || latestScene.narration.trim() !== narration) {
+      if (!latestScene || (latestScene.dialogue || latestScene.narration).trim() !== narration) {
         if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed during generation. Generate voiceover again for the updated script.');
         return;
       }
@@ -1123,7 +1129,7 @@ export const ProjectWorkspaceView: React.FC = () => {
           title: project.title + ' — Scene ' + targetScene.order + ' Voiceover',
           blob,
           model,
-          voice: voiceName.trim(),
+          voice: effectiveVoiceId,
           generationId,
           projectId: project.id,
           sceneId: targetScene.id,
@@ -1132,7 +1138,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         // Keep a successful provider result usable even when local IndexedDB storage fails.
         // The existing preview/download controls let the user save the audio manually.
         const latestAfterSaveFailure = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-        if (!latestAfterSaveFailure || latestAfterSaveFailure.narration.trim() !== narration) {
+        if (!latestAfterSaveFailure || (latestAfterSaveFailure.dialogue || latestAfterSaveFailure.narration).trim() !== narration) {
           if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
           return;
         }
@@ -1147,7 +1153,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       // IndexedDB writes are asynchronous too; re-check narration immediately before linking.
       const sceneBeforeLink = latestScenesRef.current.find((scene) => scene.id === targetScene.id);
-      if (!sceneBeforeLink || sceneBeforeLink.narration.trim() !== narration) {
+      if (!sceneBeforeLink || (sceneBeforeLink.dialogue || sceneBeforeLink.narration).trim() !== narration) {
         // Do not leave an unlinked stale voiceover in local Media Library storage.
         await deleteSavedAudio(saved.id).catch(() => undefined);
         if (selectedSceneIdRef.current === targetScene.id) setVoiceoverStatus('Discarded this result because the narration changed while saving. Generate voiceover again for the updated script.');
@@ -1158,7 +1164,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (selectedSceneIdRef.current === targetScene.id) {
         setGeneratedVoiceoverMimeType(blob.type || '');
         setGeneratedVoiceoverUrl(URL.createObjectURL(blob));
-        setVoiceoverStatus('Voiceover generated and saved on this device. It remains available after refresh.');
+        setVoiceoverStatus(voiceProfile ? 'Voiceover generated with the "' + voiceProfile.referenceName + '" consistency profile and saved on this device.' : 'Voiceover generated and saved on this device. It remains available after refresh.');
       }
       showToast('AI voiceover generated and saved', 'success');
     } catch (error) {

@@ -81,6 +81,11 @@ export interface ConsistencyReference {
   description: string;
   /** IDs of media assets stored by the media library; storage remains device-local for now. */
   mediaIds?: string[];
+  /** Optional provider voice settings. Only applied by compatible speech-generation models. */
+  voiceProfile?: {
+    voiceId?: string;
+    speed?: number;
+  };
   tags?: string[];
   createdAt: string;
   updatedAt: string;

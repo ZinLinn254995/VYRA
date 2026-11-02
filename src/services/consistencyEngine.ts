@@ -90,3 +90,35 @@ export function composeSceneConsistencyInstructions(
     'Do not silently alter named identities, brand details, environment layout, visual treatment, or continuity facts.',
   ].join('\n\n');
 }
+
+
+export interface SceneVoiceProfile {
+  referenceId: string;
+  referenceName: string;
+  voiceId?: string;
+  speed: number;
+}
+
+/**
+ * Resolve the selected voice identity for speech generation.
+ * Multiple different configured voice IDs are rejected rather than silently
+ * choosing one and breaking continuity between scenes.
+ */
+export function resolveSceneVoiceProfile(project: Project, scene: Scene): SceneVoiceProfile | null {
+  const voiceReferences = resolveSceneConsistencyContext(project, scene).references
+    .filter((reference) => reference.kind === 'voice' && reference.voiceProfile);
+  const configured = voiceReferences.filter((reference) => reference.voiceProfile?.voiceId?.trim());
+  const distinctVoiceIds = unique(configured.map((reference) => reference.voiceProfile!.voiceId!.trim()));
+  if (distinctVoiceIds.length > 1) {
+    throw new Error('This scene has multiple Voice references with different Voice IDs. Keep only one configured Voice ID per scene to preserve a stable voice identity.');
+  }
+  const selected = configured[0] || voiceReferences[0];
+  if (!selected) return null;
+  const speed = selected.voiceProfile?.speed;
+  return {
+    referenceId: selected.id,
+    referenceName: selected.name,
+    voiceId: selected.voiceProfile?.voiceId?.trim() || undefined,
+    speed: typeof speed === 'number' && Number.isFinite(speed) ? Math.max(0.5, Math.min(2, speed)) : 1,
+  };
+}
