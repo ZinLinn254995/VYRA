@@ -58,8 +58,10 @@ select is(
 );
 
 select is(
-  public.get_credit_wallet() #>> '{recentActivity,0,counterpartyUsername}',
-  'wallet_friend',
+  (select count(*)::integer
+   from jsonb_array_elements(public.get_credit_wallet() -> 'recentActivity') activity
+   where activity ->> 'counterpartyUsername' = 'wallet_friend'),
+  1,
   'Transfer activity resolves only the public counterparty username'
 );
 
