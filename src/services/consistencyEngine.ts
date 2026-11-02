@@ -122,3 +122,47 @@ export function resolveSceneVoiceProfile(project: Project, scene: Scene): SceneV
     speed: typeof speed === 'number' && Number.isFinite(speed) ? Math.max(0.5, Math.min(2, speed)) : 1,
   };
 }
+
+
+/**
+ * Build an explicit soundtrack/sound-design brief from selected references.
+ * This is prompt guidance only; it does not claim that a video or audio provider
+ * will synthesize a separate music or effects track.
+ */
+export function composeSceneAudioConsistencyInstructions(project: Project, scene: Scene): string {
+  const context = resolveSceneConsistencyContext(project, scene);
+  const music = context.references.filter((reference) => reference.kind === 'music');
+  const sounds = context.references.filter((reference) => reference.kind === 'audio');
+  const lines: string[] = [];
+  if (project.audioDirection?.trim()) lines.push('PROJECT AUDIO DIRECTION: ' + project.audioDirection.trim());
+  for (const reference of music) {
+    const profile = reference.musicProfile;
+    lines.push('[MUSIC CONTINUITY: ' + reference.name + ']');
+    if (reference.description.trim()) lines.push('Identity: ' + reference.description.trim());
+    if (profile?.genre) lines.push('Genre: ' + profile.genre);
+    if (typeof profile?.bpm === 'number' && Number.isFinite(profile.bpm)) lines.push('Tempo: ' + Math.round(profile.bpm) + ' BPM');
+    if (profile?.key) lines.push('Key: ' + profile.key);
+    if (profile?.mood) lines.push('Mood: ' + profile.mood);
+    if (profile?.instruments) lines.push('Instrumentation: ' + profile.instruments);
+    if (profile?.arrangement) lines.push('Arrangement: ' + profile.arrangement);
+    lines.push('Keep the same musical identity, tempo feel, tonal center, instrumentation and mix character in every scene using this reference.');
+  }
+  for (const reference of sounds) {
+    const profile = reference.soundProfile;
+    lines.push('[SOUND DESIGN CONTINUITY: ' + reference.name + ']');
+    if (reference.description.trim()) lines.push('Identity: ' + reference.description.trim());
+    if (profile?.category) lines.push('Type: ' + profile.category);
+    if (profile?.texture) lines.push('Texture: ' + profile.texture);
+    if (profile?.intensity) lines.push('Intensity: ' + profile.intensity);
+    if (profile?.spatial) lines.push('Spatial character: ' + profile.spatial);
+    if (profile?.notes) lines.push('Continuity notes: ' + profile.notes);
+    lines.push('Preserve the same recognizable sound character and spatial treatment wherever this reference is used.');
+  }
+  if (scene.soundDesign?.trim()) lines.push('SCENE-SPECIFIC SOUND EVENTS: ' + scene.soundDesign.trim());
+  if (!lines.length) return '';
+  return [
+    'AUDIO CONTINUITY BRIEF — maintain a coherent soundtrack and sound world across scenes.',
+    ...lines,
+    'Do not introduce a new musical theme, instrument family, sound texture or abrupt mix change unless the scene direction explicitly requests it.',
+  ].join('\n');
+}

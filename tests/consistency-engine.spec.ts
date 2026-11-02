@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Project, Scene } from '../src/types';
 import {
+  composeSceneAudioConsistencyInstructions,
   composeSceneConsistencyInstructions,
   resolveSceneConsistencyContext,
   resolveSceneVoiceProfile,
@@ -148,4 +149,76 @@ test('rejects conflicting configured voice identities instead of silently switch
 
 test('returns no voice profile when the scene has no selected voice reference', () => {
   assert.equal(resolveSceneVoiceProfile(project, scene), null);
+});
+
+
+test('composes selected music and sound-effect profiles into a reusable audio continuity brief', () => {
+  const audioProject = {
+    ...project,
+    audioDirection: 'Warm, cinematic mix with restrained low end',
+    consistencyBible: {
+      ...project.consistencyBible!,
+      references: [
+        ...project.consistencyBible!.references,
+        {
+          id: 'music-1',
+          kind: 'music' as const,
+          name: 'Milo Theme',
+          description: 'A recognizable hopeful motif',
+          musicProfile: {
+            genre: 'cinematic orchestral',
+            bpm: 96,
+            key: 'D minor',
+            mood: 'hopeful and curious',
+            instruments: 'piano, warm strings, soft synth pulse',
+            arrangement: 'Keep the four-note motif; build gently without changing genre',
+          },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'audio-1',
+          kind: 'audio' as const,
+          name: 'Workshop Ambience',
+          description: 'A quiet mechanical room tone',
+          soundProfile: {
+            category: 'workshop ambience',
+            texture: 'soft metallic hum',
+            intensity: 'subtle',
+            spatial: 'wide but distant',
+            notes: 'Keep the hum steady between adjacent workshop scenes',
+          },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    },
+  } as Project;
+  const audioScene = { ...scene, consistencyReferenceIds: ['music-1', 'audio-1'], soundDesign: 'A single gentle tool click when the robot touches the bench' };
+  const brief = composeSceneAudioConsistencyInstructions(audioProject, audioScene);
+  assert.match(brief, /MUSIC CONTINUITY: Milo Theme/);
+  assert.match(brief, /96 BPM/);
+  assert.match(brief, /D minor/);
+  assert.match(brief, /piano, warm strings/);
+  assert.match(brief, /SOUND DESIGN CONTINUITY: Workshop Ambience/);
+  assert.match(brief, /soft metallic hum/);
+  assert.match(brief, /single gentle tool click/);
+  assert.match(brief, /Warm, cinematic mix/);
+});
+
+test('does not add unselected music or sound references to the scene audio brief', () => {
+  const emptyAudioScene = { ...scene, consistencyReferenceIds: [] };
+  const emptyAudioProject = {
+    ...project,
+    consistencyBible: {
+      ...project.consistencyBible!,
+      references: [
+        {
+          id: 'music-unselected', kind: 'music' as const, name: 'Unused Music', description: 'Must not leak into prompt',
+          musicProfile: { genre: 'metal' }, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    },
+  } as Project;
+  assert.equal(composeSceneAudioConsistencyInstructions(emptyAudioProject, emptyAudioScene), '');
 });
