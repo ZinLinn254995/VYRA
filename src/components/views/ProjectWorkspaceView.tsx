@@ -2042,7 +2042,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                       className="rounded-md border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-1.5 text-xs text-white light:text-slate-900"
                     >
                       <option value="">Every scene (project-wide)</option>
-                      {scenes.map((scene) => <option key={scene.id} value={scene.id}>Scene {scene.order}: {scene.title || scene.narration.slice(0, 32)}</option>)}
+                      {project.scenes.map((scene) => <option key={scene.id} value={scene.id}>Scene {scene.order}: {scene.title || scene.narration.slice(0, 32)}</option>)}
                     </select>
                     <span>Choose one scene to trigger this effect only there.</span>
                   </label>
