@@ -168,6 +168,77 @@ export function createCreditTransfersRouter(options: CreditTransfersOptions = {}
     }
   });
 
+  router.get('/credits/wallet', async (req: Request, res: Response) => {
+    const identity = await verifyRequestUser(req, options);
+    if ('error' in identity) return res.status(identity.status).json({ error: identity.error });
+    if (!supabaseUrl || !anonKey) return res.status(503).json({ error: 'Credit wallet is not configured.' });
+
+    try {
+      const endpoint = new URL('/rest/v1/rpc/get_credit_wallet', supabaseUrl);
+      const response = await fetcher(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: anonKey,
+          Authorization: 'Bearer ' + identity.accessToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: '{}',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) {
+        return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
+          .json({ error: 'Could not load your credit wallet.' });
+      }
+      const payload = asRecord(await response.json());
+      const integerString = (value: unknown): string | null => {
+        if (typeof value === 'string' && /^-?\\d+$/.test(value)) return value;
+        if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
+        return null;
+      };
+      const account = asRecord(payload.account);
+      const availableBalance = integerString(payload.availableBalance);
+      const reservedBalance = integerString(payload.reservedBalance);
+      if (availableBalance === null || reservedBalance === null || !Array.isArray(payload.recentActivity)) {
+        return res.status(502).json({ error: 'Wallet response could not be verified.' });
+      }
+      const recentActivity = payload.recentActivity.flatMap((item) => {
+        const entry = asRecord(item);
+        const availableDelta = integerString(entry.availableDelta);
+        const reservedDelta = integerString(entry.reservedDelta);
+        if (typeof entry.id !== 'string' || !UUID_PATTERN.test(entry.id)
+            || typeof entry.entryType !== 'string'
+            || availableDelta === null || reservedDelta === null
+            || typeof entry.createdAt !== 'string') return [];
+        return [{
+          id: entry.id,
+          entryType: entry.entryType,
+          availableDelta,
+          reservedDelta,
+          ...(typeof entry.note === 'string' ? { note: entry.note.slice(0, 160) } : {}),
+          createdAt: entry.createdAt,
+          ...(typeof entry.counterpartyUsername === 'string'
+            ? { counterpartyUsername: entry.counterpartyUsername } : {}),
+          ...(typeof entry.counterpartyDisplayName === 'string'
+            ? { counterpartyDisplayName: entry.counterpartyDisplayName.slice(0, 80) } : {}),
+        }];
+      }).slice(0, 50);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({
+        account: {
+          ...(typeof account.username === 'string' ? { username: account.username } : { username: null }),
+          ...(typeof account.displayName === 'string' ? { displayName: account.displayName.slice(0, 80) } : { displayName: null }),
+        },
+        availableBalance,
+        reservedBalance,
+        recentActivity,
+      });
+    } catch {
+      return res.status(503).json({ error: 'Credit wallet is temporarily unavailable.' });
+    }
+  });
+
   router.get('/credits/transfers', async (req: Request, res: Response) => {
     const identity = await verifyRequestUser(req, options);
     if ('error' in identity) return res.status(identity.status).json({ error: identity.error });
