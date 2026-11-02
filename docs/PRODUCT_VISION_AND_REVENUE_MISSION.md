@@ -15,7 +15,7 @@ Founder constraints and target:
 - Monthly revenue ambition: **฿300,000+**.
 - Starting capital: **almost zero**.
 - Founder operating time: **about 1–2 hours per day**.
-- Main income strategy: earn through VYRA itself (subscriptions and usage credits), not by depending on a separate video-editing agency/service.
+- Main income strategy: earn through VYRA itself by selling usage credits, not by depending on a separate video-editing agency/service.
 - The revenue target is an ambition, not a forecast or guarantee. Track gross revenue, provider/API costs, hosting, payment fees, refunds, support and taxes separately; optimize for sustainable net profit.
 
 This mission guides product scope, architecture, UX, prioritization and release decisions. The mission does not replace the product identity and capability overview in [VYRA Project Overview](./VYRA_PROJECT_OVERVIEW.md); the two documents are complementary.
@@ -136,7 +136,7 @@ Primary model:
 
 There are currently **no approved credit package prices, bulk-discount thresholds, or transfer limits**. Do not reuse the previously discussed monthly subscription price examples as approved pricing. A future optional subscription may be considered only as a separate, explicitly approved product decision; it is not required for the current model.
 
-Revenue arithmetic is not profit: for example, 300 customers paying ฿999 would produce ฿299,700 in monthly gross subscription revenue before costs. Measure paid conversion, active subscribers, churn, average revenue per user, cost per generated minute/project, gross margin and support burden.
+Revenue arithmetic is not profit. Measure monthly gross credit sales, purchase frequency, average order value, effective revenue per credit, credit usage, cost per generated minute/project, gross margin, repeat-purchase rate and support burden. Deduct provider/API costs, hosting, payment fees, refunds, taxes and operating costs before assessing net profit.
 
 ## 8. Product principles
 
