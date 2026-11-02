@@ -37,12 +37,12 @@ alter table public.credit_ledger_entries
 
 alter table public.credit_ledger_entries
   add constraint credit_ledger_entries_valid_transition check (
-    (entry_type = 'grant' and available_delta > 0 and reserved_delta = 0 and generation_job_id is null) or
+    (entry_type = 'grant' and available_delta > 0 and reserved_delta = 0) or
     (entry_type = 'reserve' and available_delta < 0 and reserved_delta > 0 and available_delta = -reserved_delta and generation_job_id is not null) or
     (entry_type = 'commit' and available_delta = 0 and reserved_delta < 0 and generation_job_id is not null) or
     (entry_type = 'release' and available_delta > 0 and reserved_delta < 0 and available_delta = -reserved_delta and generation_job_id is not null) or
-    (entry_type = 'refund' and available_delta > 0 and reserved_delta = 0 and generation_job_id is null) or
-    (entry_type = 'adjustment' and reserved_delta = 0 and available_delta <> 0 and generation_job_id is null) or
+    (entry_type = 'refund' and available_delta > 0 and reserved_delta = 0) or
+    (entry_type = 'adjustment' and reserved_delta = 0 and available_delta <> 0) or
     (entry_type = 'transfer_debit' and available_delta < 0 and reserved_delta = 0 and generation_job_id is null and transfer_id is not null) or
     (entry_type = 'transfer_credit' and available_delta > 0 and reserved_delta = 0 and generation_job_id is null and transfer_id is not null)
   );
@@ -265,7 +265,7 @@ create policy credit_transfers_select_participant
   );
 
 revoke all on public.credit_transfers from anon, authenticated, service_role;
-grant select on public.credit_transfers to authenticated;
+grant select on public.credit_transfers to authenticated, service_role;
 
 revoke all on function public.transfer_credits(uuid, uuid, bigint, text, text)
   from public, anon, authenticated;
