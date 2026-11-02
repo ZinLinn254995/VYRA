@@ -145,11 +145,11 @@ select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 select throws_ok(
-  $ select public.transfer_credits(
+  $$ select public.transfer_credits(
     '20000000-0000-4000-8000-000000000001',
     '20000000-0000-4000-8000-000000000003',
     1, 'transfer-test:velocity', null
-  ) $,
+  ) $$,
   'P4291',
   'Credit transfer hourly limit exceeded.',
   'The database enforces the configured hourly transfer limit'
