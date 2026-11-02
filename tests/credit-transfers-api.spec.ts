@@ -201,7 +201,9 @@ test('recipient lookup returns only public username fields and uses the caller s
   };
 
   await withApi(async (baseUrl) => {
-    const response = await fetch(baseUrl + '/api/credits/recipients?query=VYRA', {\n      headers: { Authorization: 'Bearer verified-token' },\n    });
+    const response = await fetch(baseUrl + '/api/credits/recipients?query=VYRA', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
     assert.equal(response.status, 200);
     const payload = await response.json() as { recipients: Array<Record<string, unknown>> };
     assert.deepEqual(payload.recipients, [{
@@ -228,7 +230,9 @@ test('recipient lookup validates short and malformed search queries before datab
 
   await withApi(async (baseUrl) => {
     for (const query of ['ab', 'contains space', 'bad%', '']) {
-      const response = await fetch(baseUrl + '/api/credits/recipients?query=' + encodeURIComponent(query), {\n        headers: { Authorization: 'Bearer verified-token' },\n      });
+      const response = await fetch(baseUrl + '/api/credits/recipients?query=' + encodeURIComponent(query), {
+        headers: { Authorization: 'Bearer verified-token' },
+      });
       assert.equal(response.status, 400);
     }
     assert.equal(called, false);
@@ -242,7 +246,9 @@ test('recipient lookup maps database rate limits to HTTP 429', async () => {
   }, { status: 400 });
 
   await withApi(async (baseUrl) => {
-    const response = await fetch(baseUrl + '/api/credits/recipients?query=vyra', {\n      headers: { Authorization: 'Bearer verified-token' },\n    });
+    const response = await fetch(baseUrl + '/api/credits/recipients?query=vyra', {
+      headers: { Authorization: 'Bearer verified-token' },
+    });
     assert.equal(response.status, 429);
   }, fetcher);
 });
