@@ -107,6 +107,9 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
       const endpoint = new URL('/rest/v1/projects', supabaseUrl);
       endpoint.searchParams.set('select', 'id,local_id,title,status,project_data,created_at,updated_at');
       endpoint.searchParams.set('order', 'updated_at.desc');
+      // Defense in depth: scope reads to the identity verified from the bearer token,
+      // even if a database row-level security policy is accidentally too broad.
+      endpoint.searchParams.set('user_id', 'eq.' + identity.user.id);
       const response = await fetcher(endpoint, {
         headers: {
           apikey: anonKey,
@@ -162,13 +165,29 @@ export function createCustomerProjectsRouter(options: ProjectsRouterOptions = {}
         cache: 'no-store',
       });
       if (!response.ok) {
-        return res.status(response.status === 401 || response.status === 403 ? 401 : 503)
-          .json({ error: 'Cloud project import failed. Your local projects have not been changed.' });
+        const providerBody = await response.text().catch(() => '');
+        let providerError: { message?: string; code?: string; details?: string; hint?: string } = {};
+        try { providerError = JSON.parse(providerBody) as typeof providerError; } catch { /* keep provider response generic */ }
+        const safeCode = typeof providerError.code === 'string' ? providerError.code.slice(0, 32) : undefined;
+        const safeMessage = typeof providerError.message === 'string' ? providerError.message.slice(0, 240) : undefined;
+        console.error('[cloud-projects] Supabase import rejected', {
+          status: response.status,
+          code: safeCode,
+          message: safeMessage,
+          details: typeof providerError.details === 'string' ? providerError.details.slice(0, 240) : undefined,
+        });
+        const status = response.status === 401 || response.status === 403 ? response.status
+          : response.status >= 400 && response.status < 500 ? 400 : 503;
+        const diagnostic = safeCode ? ` (${safeCode})` : '';
+        return res.status(status).json({
+          error: `Cloud backup was rejected by storage${diagnostic}: ${safeMessage || 'Supabase returned an error'}. Your local projects have not been changed.`,
+        });
       }
       const saved: unknown = await response.json();
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ imported: Array.isArray(saved) ? saved.length : rows.length, projects: saved });
-    } catch {
+    } catch (cause) {
+      console.error('[cloud-projects] Import request failed before a storage response', cause);
       return res.status(503).json({ error: 'Cloud project storage is temporarily unavailable. Your local projects have not been changed.' });
     }
   });

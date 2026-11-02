@@ -3,12 +3,14 @@ import { Cloud, CloudDownload, CloudUpload, RefreshCw, ShieldCheck, AlertTriangl
 import { useAuth } from '../../context/AuthContext';
 import { useStudio } from '../../context/StudioContext';
 import type { Project } from '../../types';
+import { restoreCloudProject } from '../../services/cloudProjectRestore';
 
 type CloudProjectRow = {
   id: string;
   local_id: string;
   title: string;
   status: string;
+  project_data: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -59,13 +61,26 @@ function toPortableProject(project: Project) {
 }
 
 async function readApiError(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => ({})) as { error?: string };
-  return payload.error || 'Cloud storage request failed. Please try again.';
+  const body = await response.text().catch(() => '');
+  if (body) {
+    try {
+      const payload = JSON.parse(body) as { error?: string; message?: string };
+      if (typeof payload.error === 'string' && payload.error.trim()) return payload.error;
+      if (typeof payload.message === 'string' && payload.message.trim()) {
+        return `Cloud API returned an error: ${payload.message.slice(0, 220)}`;
+      }
+    } catch {
+      // Non-JSON responses usually indicate a routing, proxy, or platform-level failure.
+    }
+  }
+  const contentType = response.headers.get('content-type') || 'unknown content type';
+  const detail = body.replace(/\s+/g, ' ').trim().slice(0, 180);
+  return `Cloud API error ${response.status} ${response.statusText || ''} (${contentType}). ${detail || 'The server did not return a readable error message.'}`.trim();
 }
 
 export const CloudProjectBackupPanel: React.FC = () => {
   const { user, session, serverVerified } = useAuth();
-  const { projects } = useStudio();
+  const { projects, restoreCloudProjects } = useStudio();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -75,6 +90,34 @@ export const CloudProjectBackupPanel: React.FC = () => {
 
   const portableProjects = useMemo(() => projects.map(toPortableProject), [projects]);
   const accessToken = session?.access_token;
+  const localProjectIds = useMemo(() => new Set(projects.map((project) => project.id)), [projects]);
+
+  const restoreSelectedProject = (row: CloudProjectRow) => {
+    const restored = restoreCloudProject(row);
+    if (!restored) {
+      setError(`Could not restore "${row.title}" because its cloud data is invalid.`);
+      return;
+    }
+    const count = restoreCloudProjects([restored]);
+    setMessage(count > 0
+      ? `Restored "${row.title}" to this device. Generated media must be recreated or reattached.`
+      : `"${row.title}" is already on this device. Nothing was overwritten.`);
+    setError('');
+  };
+
+  const restoreAllNewProjects = () => {
+    if (!cloudProjects?.length) return;
+    const uniqueRows = Array.from(new Map(cloudProjects.map((row) => [row.local_id, row])).values());
+    const restored = uniqueRows
+      .filter((row) => !localProjectIds.has(row.local_id))
+      .map((row) => restoreCloudProject(row))
+      .filter((project): project is Project => project !== null);
+    const count = restoreCloudProjects(restored);
+    setMessage(count > 0
+      ? `Restored ${count} new cloud project(s). Existing local projects were left unchanged; generated media is not included.`
+      : 'No new cloud projects to restore. Existing local projects were left unchanged.');
+    setError('');
+  };
 
   const loadCloudProjects = async () => {
     if (!accessToken || !serverVerified) return;
@@ -199,14 +242,40 @@ export const CloudProjectBackupPanel: React.FC = () => {
                 <button type="button" onClick={() => setShowCloudList(false)} className="text-[11px] text-slate-400 hover:text-white light:hover:text-slate-900">Hide</button>
               </div>
               {cloudProjects.length ? (
-                <ul className="max-h-40 overflow-y-auto space-y-2">
-                  {cloudProjects.map((project) => (
-                    <li key={project.id} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="truncate text-slate-200 light:text-slate-800">{project.title}</span>
-                      <span className="shrink-0 text-slate-500">{project.status.replace('_', ' ')}</span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="max-h-56 overflow-y-auto space-y-2">
+                    {cloudProjects.map((project) => {
+                      const alreadyLocal = localProjectIds.has(project.local_id);
+                      return (
+                        <li key={project.id} className="flex items-center justify-between gap-3 text-xs border-b border-[#2B3058]/60 light:border-slate-100 pb-2 last:border-0">
+                          <div className="min-w-0">
+                            <p className="truncate text-slate-200 light:text-slate-800">{project.title}</p>
+                            <p className="mt-0.5 text-[10px] text-slate-500">{project.status.replace(/_/g, ' ')}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busy || alreadyLocal}
+                            onClick={() => restoreSelectedProject(project)}
+                            className="shrink-0 rounded-md border border-[#55F4FF]/40 px-2.5 py-1.5 text-[11px] font-semibold text-[#55F4FF] hover:bg-[#55F4FF]/10 light:text-sky-700 light:border-sky-300 disabled:opacity-50"
+                          >
+                            {alreadyLocal ? 'On this device' : 'Restore'}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-[#2B3058] light:border-slate-200 pt-3">
+                    <p className="text-[10px] leading-relaxed text-slate-500">Restore adds missing projects only. It never replaces local projects or restores generated media files.</p>
+                    <button
+                      type="button"
+                      disabled={busy || !cloudProjects.some((project) => !localProjectIds.has(project.local_id))}
+                      onClick={restoreAllNewProjects}
+                      className="shrink-0 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] hover:bg-[#55F4FF]/90 disabled:opacity-50"
+                    >
+                      Restore all new projects
+                    </button>
+                  </div>
+                </>
               ) : <p className="text-xs text-slate-500">No cloud projects saved yet.</p>}
             </div>
           )}
