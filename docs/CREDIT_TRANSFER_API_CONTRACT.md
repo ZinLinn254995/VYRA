@@ -38,7 +38,7 @@ Requires a valid Supabase access token. Reads up to 100 recent transfers through
 - Configure and validate `SUPABASE_SERVICE_ROLE_KEY` only in server-side deployment secrets.
 - Apply the database migration to a dedicated development Supabase project and verify rollback/backup procedures.
 - Public username management and recipient lookup are implemented in the API and database migration. Recipient lookup uses a minimum 3-character prefix, returns at most 8 matches, exposes only user ID/username/display name, and is limited to 20 requests per authenticated user per minute by a database-backed counter. No email lookup is provided.
-- Customer-facing confirmation UI and transfer velocity controls (including limits on transfer amount/volume, not only search requests) remain required before public launch.
+- The wallet includes a separate review-and-confirm step. The database now enforces provisional transfer limits: 10 transfers per sender per rolling hour, 50,000 credits per transfer, and 100,000 credits per rolling 24 hours. These values are operator-controlled in a private policy table and must be reviewed before public launch.
 - Complete authenticated end-to-end tests against a non-production Supabase project.
 - Do not enable paid credit purchases, generation charging, or external resale through this API.
 
@@ -73,3 +73,13 @@ The balances are calculated across the complete append-only ledger. The activity
 ## Wallet UI status
 
 The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, authenticated end-to-end tests, and transfer velocity policy.
+
+## Transfer velocity policy
+
+The `20261103000500_credit_transfer_velocity_policy.sql` migration enforces these initial safeguards inside the database transaction:
+
+- `P4291` / HTTP `429`: more than 10 transfers in a rolling hour.
+- `P4292` / HTTP `400`: amount above 50,000 credits per transfer.
+- `P4293` / HTTP `429`: more than 100,000 credits sent in a rolling 24-hour window.
+
+The database trigger serializes checks using the sender's existing advisory lock, so parallel requests cannot bypass the limits. Defaults are provisional and stored in a private operator-only policy table. Changing them requires an audited database migration; no public endpoint exposes policy administration.

@@ -330,6 +330,9 @@ export function createCreditTransfersRouter(options: CreditTransfersOptions = {}
       if (!response.ok) {
         const payload = asRecord(await response.json().catch(() => null));
         const code = typeof payload.code === 'string' ? payload.code : '';
+        if (code === 'P4291') return res.status(429).json({ error: 'You have reached the hourly transfer limit. Please try again later.' });
+        if (code === 'P4292') return res.status(400).json({ error: 'This amount exceeds the current per-transfer credit limit.' });
+        if (code === 'P4293') return res.status(429).json({ error: 'You have reached the rolling 24-hour transfer amount limit. Please try again later.' });
         if (code === 'P0001') return res.status(409).json({ error: 'There are not enough available credits for this transfer.' });
         if (code === '23505') return res.status(409).json({ error: 'This transfer request ID was already used with different details.' });
         if (code === '22023') return res.status(400).json({ error: 'The recipient account or transfer details are not valid.' });
