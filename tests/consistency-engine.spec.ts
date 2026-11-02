@@ -4,6 +4,7 @@ import type { Project, Scene } from '../src/types';
 import {
   composeSceneConsistencyInstructions,
   resolveSceneConsistencyContext,
+  resolveSceneVoiceProfile,
 } from '../src/services/consistencyEngine.ts';
 
 const scene: Scene = {
@@ -92,4 +93,59 @@ test('composes clear prompt instructions and returns an empty string when no con
   const emptyScene = { ...scene, characterIds: [], consistencyReferenceIds: [] };
   const emptyProject = { ...project, consistencyBible: { version: 1 as const, references: [], rules: [] } } as Project;
   assert.equal(composeSceneConsistencyInstructions(emptyProject, emptyScene), '');
+});
+
+
+test('resolves a reusable voice identity and clamps speech speed to supported bounds', () => {
+  const voiceProject = {
+    ...project,
+    consistencyBible: {
+      ...project.consistencyBible!,
+      references: [
+        ...project.consistencyBible!.references,
+        {
+          id: 'voice-1',
+          kind: 'voice' as const,
+          name: 'Milo Voice',
+          description: 'Warm, calm, friendly delivery',
+          voiceProfile: { voiceId: 'alloy', speed: 2.5 },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    },
+  } as Project;
+  const voiceScene = { ...scene, consistencyReferenceIds: ['voice-1'] };
+  assert.deepEqual(resolveSceneVoiceProfile(voiceProject, voiceScene), {
+    referenceId: 'voice-1',
+    referenceName: 'Milo Voice',
+    voiceId: 'alloy',
+    speed: 2,
+  });
+});
+
+test('rejects conflicting configured voice identities instead of silently switching voices', () => {
+  const voiceProject = {
+    ...project,
+    consistencyBible: {
+      ...project.consistencyBible!,
+      references: [
+        ...project.consistencyBible!.references,
+        {
+          id: 'voice-1', kind: 'voice' as const, name: 'Voice A', description: '',
+          voiceProfile: { voiceId: 'alloy' }, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'voice-2', kind: 'voice' as const, name: 'Voice B', description: '',
+          voiceProfile: { voiceId: 'nova' }, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    },
+  } as Project;
+  const voiceScene = { ...scene, consistencyReferenceIds: ['voice-1', 'voice-2'] };
+  assert.throws(() => resolveSceneVoiceProfile(voiceProject, voiceScene), /multiple Voice references/);
+});
+
+test('returns no voice profile when the scene has no selected voice reference', () => {
+  assert.equal(resolveSceneVoiceProfile(project, scene), null);
 });
