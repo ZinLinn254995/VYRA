@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "test:auth": "node --import tsx --test tests/supabase-auth.spec.ts",
     "test:projects": "node --import tsx --test tests/customer-projects-api.spec.ts",
-    "test:restore": "node --import tsx --test tests/cloud-project-restore.spec.ts"
+    "test:restore": "node --import tsx --test tests/cloud-project-restore.spec.ts",
+    "test:usage-ledger": "node --import tsx --test tests/usage-ledger-contract.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
