@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(9);
+select plan(10);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password,
@@ -25,7 +25,7 @@ select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 select lives_ok(
-  $$ select public.apply_credit_ledger_entry(
+  $ select public.apply_credit_ledger_entry(
     '23000000-0000-4000-8000-000000000001', null, 'velocity:grant-a',
     'grant', 200000, 'test fixture', '{}'::jsonb
   ) $$,
@@ -102,8 +102,14 @@ select is(
   'The sender has exactly ten completed transfers'
 );
 
+select is(
+  has_table_privilege('authenticated', 'public.credit_transfer_policy', 'SELECT'),
+  false,
+  'Customers cannot read internal transfer policy values'
+);
+
 select throws_ok(
-  $$ select public.transfer_credits(
+  $ select public.transfer_credits(
     '23000000-0000-4000-8000-000000000003',
     '23000000-0000-4000-8000-000000000002',
     1, 'velocity:c-hourly-over', null
