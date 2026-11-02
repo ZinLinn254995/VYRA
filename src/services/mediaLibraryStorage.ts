@@ -17,6 +17,8 @@ export interface SavedMediaAudio {
   blob: Blob;
   model: string;
   voice: string;
+  /** Distinguishes user-uploaded music/SFX from provider-generated voiceovers. */
+  sourceType?: 'voiceover' | 'uploaded';
   costUsd?: number | null;
   /** Provider-issued generation reference, when available. */
   generationId?: string;
