@@ -89,6 +89,53 @@ test('AI Ideas Chat sends script generation only after explicit spend approval',
   expect(generationRequests).toBe(1);
 });
 
+
+test('AI Ideas Chat requires spend approval for ordinary OpenRouter chat, not only scripts', async ({ page }) => {
+  await openAiIdeas(page);
+  let estimateRequests = 0;
+  let generationRequests = 0;
+
+  await page.route('**/api/providers/openrouter/estimate', async (route) => {
+    estimateRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        estimate: {
+          status: 'unavailable',
+          estimatedCostUsd: null,
+          reason: 'parameters_incomplete',
+          message: 'Exact prompt token count is required.',
+        },
+      }),
+    });
+  });
+  await page.route('**/api/providers/openrouter/chat', async (route) => {
+    generationRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: 'This response requires approval.' }),
+    });
+  });
+
+  let dialogMessage = '';
+  page.on('dialog', async (dialog) => {
+    dialogMessage = dialog.message();
+    await dialog.dismiss();
+  });
+
+  const composer = page.getByPlaceholder('Ask for video ideas, hooks, full scripts, or storyboard visual prompts...');
+  await composer.fill('Explain the difference between solar and wind energy.');
+  await composer.press('Enter');
+
+  await expect.poll(() => estimateRequests).toBe(1);
+  await expect.poll(() => dialogMessage).toContain('AI Ideas Chat response generation');
+  await expect(dialogMessage).toContain('Estimated cost: UNAVAILABLE');
+  await expect(page.getByText(/Generation cancelled.*No AI generation request was sent/)).toBeVisible();
+  expect(generationRequests).toBe(0);
+});
+
 test('Create Video storyboard is not generated when spend confirmation is declined', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.addInitScript(() => {
