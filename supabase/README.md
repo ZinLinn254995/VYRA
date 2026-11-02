@@ -10,7 +10,8 @@ The initial migration creates `profiles` and `projects`. The usage-ledger migrat
 - Repeated financial operations use per-customer idempotency keys; corrections append compensating entries instead of editing ledger history.
 - Each committed transfer must have exactly one sender debit and one equal recipient credit. A deferred database constraint verifies that the pair is balanced before commit.
 - Transfer RPC calls acquire account locks in stable order and use the same per-account lock namespace as generation ledger writes to prevent concurrent overspending.
-- The transfer RPC accepts account UUIDs for now. A public username/recipient-discovery flow and customer-facing API/UI are separate increments.
+- Recipient discovery uses public usernames only. The lookup RPC requires authentication, accepts prefixes of at least 3 characters, returns at most 8 results, and enforces 20 lookups per user per minute using a database-backed counter. It returns only account ID, username and display name; it never returns email addresses.
+- Users can set or clear their own username through the authenticated API. Handles are 3–24 lowercase letters, numbers or underscores and must be unique.
 - This migration is schema groundwork only. Do not apply it to production until the server API, authenticated end-to-end tests, backup/rollback plan, and explicit production approval are complete.
 
 ## Initial customer-data migration
@@ -39,4 +40,8 @@ Before linking a real project, create a separate development Supabase project. N
 
 ## Not implemented by the current migrations
 
-Authentication UI/session management, server-side bearer-token verification for transfer routes, project import/sync, assets, generation-to-ledger server integration, credit purchase packages, payment provider integration, public usernames/recipient discovery, and customer-facing transfer UI. Those are separate increments. No production migration or customer-facing credit charging is enabled by this change.
+Authentication UI/session management, server-side bearer-token verification for transfer routes, project import/sync, assets, generation-to-ledger server integration, credit purchase packages, payment provider integration, customer-facing transfer UI. Those are separate increments. No production migration or customer-facing credit charging is enabled by this change.
+
+## Public username and recipient lookup
+
+The `20261103000200_public_usernames.sql` migration adds `profiles.username`, a unique lowercase handle. Authenticated users can update only their own profile row. `POST /api/credits/username` accepts `{ "username": "handle" }` (or `null` to clear it); `GET /api/credits/recipients?query=han` returns at most eight prefix matches. Search requires at least three valid characters and is limited to 20 requests per user per minute by a database-backed counter, so limits remain effective across serverless instances. Public results contain only `userId`, `username`, and optional `displayName`. Never expose email addresses or private profile columns in recipient lookup.
