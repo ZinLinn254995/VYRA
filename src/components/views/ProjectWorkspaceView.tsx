@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
-import { Scene, AspectRatio, ProductionStage, CharacterReference } from '../../types';
+import { Scene, AspectRatio, ProductionStage, CharacterReference, ProjectAudioTrack } from '../../types';
 import { composeSceneAudioConsistencyInstructions, composeSceneConsistencyInstructions, resolveSceneConsistencyContext, resolveSceneVoiceProfile } from '../../services/consistencyEngine';
 import type { SavedMediaImage } from '../../services/mediaLibraryStorage';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
@@ -227,6 +227,9 @@ export const ProjectWorkspaceView: React.FC = () => {
   const [finalVideoPreviewUrl, setFinalVideoPreviewUrl] = useState('');
   const [exportProgress, setExportProgress] = useState('');
   const [burnInSubtitles, setBurnInSubtitles] = useState(true);
+  const [audioTrackKind, setAudioTrackKind] = useState<ProjectAudioTrack['kind']>('music');
+  const [audioTrackError, setAudioTrackError] = useState('');
+  const [isAddingAudioTrack, setIsAddingAudioTrack] = useState(false);
 
   // Project-scoped character library; reference images remain in local IndexedDB.
   const [characterImages, setCharacterImages] = useState<SavedMediaImage[]>([]);
@@ -1598,6 +1601,72 @@ export const ProjectWorkspaceView: React.FC = () => {
   };
 
 
+  const handleAddProjectAudioTrack = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file || !project || isAddingAudioTrack) return;
+    const supportedExtension = /\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i.test(file.name);
+    if (!file.type.startsWith('audio/') && !supportedExtension) {
+      setAudioTrackError('Choose a supported audio file (MP3, WAV, OGG, M4A, AAC, FLAC, OPUS or WEBM).');
+      return;
+    }
+    if (!file.size || file.size > 50 * 1024 * 1024) {
+      setAudioTrackError('Audio files must be between 1 byte and 50 MB.');
+      return;
+    }
+    setAudioTrackError('');
+    setIsAddingAudioTrack(true);
+    try {
+      const trackKind = audioTrackKind;
+      const saved = await saveGeneratedAudio({
+        title: file.name,
+        blob: file,
+        model: 'Local Upload',
+        voice: trackKind === 'music' ? 'Music Track' : 'Sound Effect',
+        sourceType: 'uploaded',
+        costUsd: null,
+        projectId: project.id,
+        sceneId: '__project_audio_track__',
+      });
+      const track: ProjectAudioTrack = {
+        id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : 'track-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        mediaId: saved.id,
+        name: file.name,
+        kind: trackKind,
+        startTimeSeconds: 0,
+        volume: trackKind === 'music' ? 0.25 : 0.8,
+        fadeInSeconds: trackKind === 'music' ? 1.5 : 0,
+        fadeOutSeconds: trackKind === 'music' ? 2 : 0,
+        loop: trackKind === 'music',
+        enabled: true,
+      };
+      updateProject(project.id, { audioTracks: [...(project.audioTracks || []), track] });
+      showToast((trackKind === 'music' ? 'Music' : 'Sound effect') + ' added to the project audio timeline', 'success');
+    } catch (error) {
+      setAudioTrackError(error instanceof Error ? error.message : 'Could not save this audio file on this device.');
+    } finally {
+      setIsAddingAudioTrack(false);
+    }
+  };
+
+  const updateProjectAudioTrack = (trackId: string, updates: Partial<ProjectAudioTrack>) => {
+    if (!project) return;
+    updateProject(project.id, {
+      audioTracks: (project.audioTracks || []).map((track) =>
+        track.id === trackId ? { ...track, ...updates } : track
+      ),
+    });
+  };
+
+  const removeProjectAudioTrack = (trackId: string) => {
+    if (!project) return;
+    updateProject(project.id, {
+      audioTracks: (project.audioTracks || []).filter((track) => track.id !== trackId),
+    });
+  };
+
   if (!project) {
     return (
       <div className="p-12 text-center text-slate-400">
@@ -1720,6 +1789,91 @@ export const ProjectWorkspaceView: React.FC = () => {
           {project.audioDirection && <p className="text-[11px] text-slate-400 light:text-slate-500">Audio: {project.audioDirection}</p>}
         </section>
       )}
+
+      {/* Project-level music and SFX timeline. Audio bytes stay local to this browser. */}
+      <section className="rounded-xl border border-[#2B3058] light:border-slate-200 bg-[#171A35] light:bg-white p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-white light:text-slate-900">Music & Sound Effects Timeline</h2>
+            <p className="text-[11px] text-slate-400 light:text-slate-500">Add local audio files, position them on the project timeline, and mix them with scene voiceovers during final export. Audio files remain on this device.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="New audio track type"
+              value={audioTrackKind}
+              onChange={(event) => setAudioTrackKind(event.target.value as ProjectAudioTrack['kind'])}
+              className="rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2.5 py-2 text-xs text-white light:text-slate-900"
+            >
+              <option value="music">Music</option>
+              <option value="sound_effect">Sound Effect</option>
+            </select>
+            <label className="inline-flex items-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2 text-xs font-bold text-[#090B18] cursor-pointer hover:bg-[#55F4FF]/90">
+              {isAddingAudioTrack ? 'Adding…' : '＋ Add Audio File'}
+              <input
+                type="file"
+                accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,.webm"
+                className="sr-only"
+                disabled={isAddingAudioTrack}
+                onChange={(event) => void handleAddProjectAudioTrack(event)}
+              />
+            </label>
+          </div>
+        </div>
+        {audioTrackError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-300">{audioTrackError}</p>}
+        {(project.audioTracks || []).length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#2B3058] light:border-slate-300 p-4 text-center">
+            <p className="text-xs text-slate-400 light:text-slate-600">No music or sound effects added yet.</p>
+            <p className="mt-1 text-[10px] text-slate-500">Upload a royalty-cleared music bed or sound effect file to begin.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {(project.audioTracks || []).map((track) => (
+              <article key={track.id} className="rounded-lg border border-[#2B3058] light:border-slate-200 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Music className="w-4 h-4 text-[#55F4FF] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white light:text-slate-900 break-all">{track.name}</p>
+                      <p className="text-[10px] text-slate-500">{track.kind === 'music' ? 'Music bed' : 'Sound effect'} · Local file</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                      <input type="checkbox" checked={track.enabled} onChange={(event) => updateProjectAudioTrack(track.id, { enabled: event.target.checked })} />
+                      Enabled
+                    </label>
+                    <button type="button" onClick={() => removeProjectAudioTrack(track.id)} className="text-[10px] font-semibold text-red-400 hover:text-red-300">Remove</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                  <label className="space-y-1 text-[10px] text-slate-400">
+                    <span>Start time (seconds)</span>
+                    <input type="number" min="0" max="86400" step="0.1" value={track.startTimeSeconds} onChange={(event) => updateProjectAudioTrack(track.id, { startTimeSeconds: Math.max(0, Math.min(86400, Number(event.target.value) || 0)) })} className="w-full rounded-md border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-1.5 text-xs text-white light:text-slate-900" />
+                  </label>
+                  <label className="space-y-1 text-[10px] text-slate-400">
+                    <span>Volume · {Math.round(track.volume * 100)}%</span>
+                    <input type="range" min="0" max="1" step="0.01" value={track.volume} onChange={(event) => updateProjectAudioTrack(track.id, { volume: Math.max(0, Math.min(1, Number(event.target.value))) })} className="w-full accent-cyan-400" />
+                  </label>
+                  <label className="space-y-1 text-[10px] text-slate-400">
+                    <span>Fade in (seconds)</span>
+                    <input type="number" min="0" max="30" step="0.1" value={track.fadeInSeconds} onChange={(event) => updateProjectAudioTrack(track.id, { fadeInSeconds: Math.max(0, Math.min(30, Number(event.target.value) || 0)) })} className="w-full rounded-md border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-1.5 text-xs text-white light:text-slate-900" />
+                  </label>
+                  <label className="space-y-1 text-[10px] text-slate-400">
+                    <span>Fade out (seconds)</span>
+                    <input type="number" min="0" max="30" step="0.1" value={track.fadeOutSeconds} onChange={(event) => updateProjectAudioTrack(track.id, { fadeOutSeconds: Math.max(0, Math.min(30, Number(event.target.value) || 0)) })} className="w-full rounded-md border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-2 py-1.5 text-xs text-white light:text-slate-900" />
+                  </label>
+                </div>
+                {track.kind === 'music' && (
+                  <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                    <input type="checkbox" checked={track.loop} onChange={(event) => updateProjectAudioTrack(track.id, { loop: event.target.checked })} />
+                    Loop music until the final video ends
+                  </label>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Approval-gated production progress. Chat remains the primary control surface. */}
       <section className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 p-4 space-y-3">
