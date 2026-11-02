@@ -217,8 +217,9 @@ test('full video export records a real scene clip with voiceover, music, and sce
   const chunks: Buffer[] = [];
   for await (const chunk of outputBytes) chunks.push(Buffer.from(chunk));
   const output = Buffer.concat(chunks);
-  const mediaTracks = await page.evaluate(async (bytes) => {
-    const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' });
+  const outputMimeType = download.suggestedFilename().toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'video/webm';
+  const mediaTracks = await page.evaluate(async ({ bytes, mimeType }) => {
+    const blob = new Blob([new Uint8Array(bytes)], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const video = document.createElement('video');
     video.muted = true;
@@ -239,7 +240,7 @@ test('full video export records a real scene clip with voiceover, music, and sce
     stream.getTracks().forEach((track) => track.stop());
     URL.revokeObjectURL(url);
     return result;
-  }, Array.from(output));
+  }, { bytes: Array.from(output), mimeType: outputMimeType });
 
   expect(mediaTracks.duration).toBeGreaterThan(0);
   expect(mediaTracks.videoTracks).toBeGreaterThan(0);
