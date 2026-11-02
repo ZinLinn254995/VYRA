@@ -13,7 +13,6 @@ create table if not exists public.generation_jobs (
     check (status in ('pending', 'submitted', 'processing', 'succeeded', 'failed', 'cancelled', 'unknown')),
   estimate_status text not null check (estimate_status in ('exact', 'approximate', 'unavailable')),
   estimated_cost_usd numeric(20, 10) check (estimated_cost_usd is null or estimated_cost_usd >= 0),
-  reserved_credits bigint not null default 0 check (reserved_credits >= 0),
   request_parameters jsonb not null default '{}'::jsonb
     check (jsonb_typeof(request_parameters) = 'object'),
   provider_request_id text,
@@ -178,8 +177,15 @@ begin
   if found then
     if v_existing.entry_type <> p_entry_type
        or v_existing.generation_job_id is distinct from p_generation_job_id
-       or v_existing.available_delta + v_existing.reserved_delta <> p_amount
-       and p_entry_type <> 'reserve'
+       or (case p_entry_type
+         when 'reserve' then -v_existing.available_delta
+         when 'commit' then -v_existing.reserved_delta
+         when 'release' then v_existing.available_delta
+         when 'grant' then v_existing.available_delta
+         when 'refund' then v_existing.available_delta
+         when 'adjustment' then v_existing.available_delta
+         else null
+       end) is distinct from p_amount
     then
       raise exception 'Idempotency key was already used with different parameters.' using errcode = '23505';
     end if;
