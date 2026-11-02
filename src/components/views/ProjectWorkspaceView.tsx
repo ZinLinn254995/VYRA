@@ -29,6 +29,7 @@ import {
   Download,
   RotateCcw,
   Volume2,
+  Music,
   Maximize2,
   Smartphone,
   Monitor,
