@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
+import { validateProjectAudioTracksForExport } from '../../services/audioExportValidation';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio, ProductionStage, CharacterReference, ProjectAudioTrack } from '../../types';
 import { composeSceneAudioConsistencyInstructions, composeSceneConsistencyInstructions, resolveSceneConsistencyContext, resolveSceneVoiceProfile } from '../../services/consistencyEngine';
@@ -1294,6 +1295,11 @@ export const ProjectWorkspaceView: React.FC = () => {
       return;
     }
     const missing = scenes.filter((scene) => !scene.generatedVideoId);
+    const audioIssues = validateProjectAudioTracksForExport(project.audioTracks || [], scenes);
+    if (audioIssues.length) {
+      setClipError('Fix these audio track settings before exporting:\n' + audioIssues.map((issue) => issue.trackName + ': ' + issue.message).join('\n'));
+      return;
+    }
     if (missing.length) {
       setClipError('Generate and save a video clip for every scene before exporting the full video. Missing clips: ' + missing.map((scene) => scene.order).join(', ') + '.');
       return;
