@@ -50,8 +50,8 @@ select set_config('request.jwt.claims',
   '{"sub":"21000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
 select lives_ok(
-  $ update public.profiles set username = 'vyra_member'
-     where id = auth.uid() $,
+  $$ update public.profiles set username = 'vyra_member'
+     where id = auth.uid() $$,
   'An authenticated customer can set their own public username'
 );
 
@@ -107,7 +107,7 @@ do $ begin
 end $;
 
 select throws_ok(
-  $ select * from public.search_credit_recipients('vyra') $,
+  $$ select * from public.search_credit_recipients('vyra') $$,
   'P4290',
   'Recipient lookup rate limit exceeded.',
   'Recipient discovery is rate limited after 20 lookups per minute'
