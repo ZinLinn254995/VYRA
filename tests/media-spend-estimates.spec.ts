@@ -97,3 +97,86 @@ test('voiceover requests an exact character-count estimate before generation and
   await expect(page.getByRole('status').filter({ hasText: 'Generation cancelled. No audio request was sent.' })).toBeVisible();
   expect(generationRequests).toBe(0);
 });
+
+
+async function openSettingsWithImageModel(page: import('@playwright/test').Page) {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
+    sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ image: 'test/image-model' }));
+  });
+  await page.goto('/');
+  await page.route('**/api/providers/openrouter/test', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'OpenRouter key verified.' }),
+    });
+  });
+  await page.getByRole('navigation').getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Test key' }).click();
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible();
+  await page.getByLabel('Image prompt').fill('A small friendly robot in a bright studio');
+}
+
+test('Settings image generator requires spend approval and sends no request when declined', async ({ page }) => {
+  await openSettingsWithImageModel(page);
+  let estimateBody: Record<string, unknown> | null = null;
+  let generationRequests = 0;
+  await page.route('**/api/providers/openrouter/estimate', async route => {
+    estimateBody = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        estimate: { status: 'unavailable', reason: 'pricing_unavailable', message: 'No structured image price.' },
+      }),
+    });
+  });
+  await page.route('**/api/providers/openrouter/images/generate', async route => {
+    generationRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,AA==' }),
+    });
+  });
+  page.on('dialog', dialog => dialog.dismiss());
+
+  await page.getByRole('button', { name: 'Generate image' }).click();
+  await expect.poll(() => estimateBody).not.toBeNull();
+  expect(estimateBody).toMatchObject({
+    capability: 'image',
+    model: 'test/image-model',
+    parameters: { imageCount: 1, inputImageCount: 0 },
+  });
+  await expect(page.getByText('Image generation cancelled. No image request was sent.')).toBeVisible();
+  expect(generationRequests).toBe(0);
+});
+
+test('Settings image generator sends exactly one request after explicit spend approval', async ({ page }) => {
+  await openSettingsWithImageModel(page);
+  let generationRequests = 0;
+  await page.route('**/api/providers/openrouter/estimate', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        estimate: { status: 'exact', estimatedCostUsd: 0.0002, message: 'Calculated from the provider image price.' },
+      }),
+    });
+  });
+  await page.route('**/api/providers/openrouter/images/generate', async route => {
+    generationRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,AA==', costUsd: 0.0002, model: 'test/image-model' }),
+    });
+  });
+  page.on('dialog', dialog => dialog.accept());
+
+  await page.getByRole('button', { name: 'Generate image' }).click();
+  await expect(page.getByText('Image generated successfully with test/image-model.')).toBeVisible();
+  expect(generationRequests).toBe(1);
+});
