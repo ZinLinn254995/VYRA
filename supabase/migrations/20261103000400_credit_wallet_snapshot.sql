@@ -36,8 +36,8 @@ begin
       jsonb_build_object(
         'id', activity.id,
         'entryType', activity.entry_type,
-        'availableDelta', activity.available_delta,
-        'reservedDelta', activity.reserved_delta,
+        'availableDelta', activity.available_delta::text,
+        'reservedDelta', activity.reserved_delta::text,
         'note', activity.note,
         'createdAt', activity.created_at,
         'counterpartyUsername', counterparty.username,
@@ -63,8 +63,8 @@ begin
       'username', v_username,
       'displayName', v_display_name
     ),
-    'availableBalance', v_available,
-    'reservedBalance', v_reserved,
+    'availableBalance', v_available::text,
+    'reservedBalance', v_reserved::text,
     'recentActivity', v_recent_activity
   );
 end;
