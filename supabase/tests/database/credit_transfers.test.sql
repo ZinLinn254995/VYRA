@@ -170,12 +170,10 @@ select is(
 );
 
 reset role;
-set local role service_role;
-select set_config('request.jwt.claim.role', 'service_role', true);
-select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role postgres;
 
 select throws_ok(
-  $$ update public.credit_ledger_entries
+  $ update public.credit_ledger_entries
      set note = 'tampered'
      where transfer_id = (select id from public.credit_transfers limit 1) $$,
   '55000',
