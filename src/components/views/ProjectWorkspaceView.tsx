@@ -8,6 +8,7 @@ import { useStudio } from '../../context/StudioContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { deleteSavedAudio, deleteSavedVideo, deleteVideoGenerationJob, getSavedAudio, getSavedVideo, getSavedImages, getVideoGenerationJobs, saveGeneratedAudio, saveGeneratedImage, saveGeneratedVideo, saveVideoGenerationJob, updateVideoGenerationJob } from '../../services/mediaLibraryStorage';
 import { Scene, AspectRatio, ProductionStage, CharacterReference } from '../../types';
+import { composeSceneConsistencyInstructions, resolveSceneConsistencyContext } from '../../services/consistencyEngine';
 import type { SavedMediaImage } from '../../services/mediaLibraryStorage';
 import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg';
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
@@ -730,6 +731,20 @@ export const ProjectWorkspaceView: React.FC = () => {
         const image = savedImages.find((saved) => saved.id === character.referenceImageId);
         return image ? [{ type: 'image_url', image_url: { url: image.dataUrl } }] : [];
       });
+      const sceneConsistency = resolveSceneConsistencyContext(project, targetScene);
+      const missingConsistencyImages = sceneConsistency.references.flatMap((reference) =>
+        (reference.mediaIds || []).filter((mediaId) => !savedImages.some((image) => image.id === mediaId))
+          .map(() => reference.name),
+      );
+      if (missingConsistencyImages.length) {
+        throw new Error('A selected consistency reference image is missing from this device: ' + [...new Set(missingConsistencyImages)].join(', ') + '. Re-upload it in Consistency Library before generating this clip.');
+      }
+      const consistencyImageReferences = sceneConsistency.references.flatMap((reference) =>
+        (reference.mediaIds || []).flatMap((mediaId) => {
+          const image = savedImages.find((saved) => saved.id === mediaId);
+          return image ? [{ type: 'image_url', image_url: { url: image.dataUrl } }] : [];
+        }),
+      );
       let videoReferencePayload: Record<string, unknown> = {};
       let sceneImageReference: { type: 'image_url'; image_url: { url: string } } | undefined;
       if (targetScene.generatedImageId) {
@@ -740,6 +755,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       const allInputReferences = [
         ...(sceneImageReference ? [sceneImageReference] : []),
         ...characterImageReferences,
+        ...consistencyImageReferences,
       ];
       // OpenRouter gives frame_images precedence over input_references. When characters are
       // selected, keep the scene image and character images together as guidance references.
@@ -764,6 +780,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         targetScene.soundDesign ? 'Scene sound design: ' + targetScene.soundDesign : '',
         targetScene.transition ? 'Transition to next scene: ' + targetScene.transition : '',
         'Overall visual style: ' + project.visualStyle,
+        composeSceneConsistencyInstructions(project, targetScene),
         ...characterReferences.flatMap((character) => [
           'Recurring character "' + character.name + '" visual identity: ' + character.visualDescription,
           character.continuityNotes ? 'Continuity constraints for "' + character.name + '": ' + character.continuityNotes : '',
@@ -977,6 +994,7 @@ export const ProjectWorkspaceView: React.FC = () => {
     }
     const prompt = [
       targetScene.visualPrompt.trim(),
+      composeSceneConsistencyInstructions(project, targetScene),
       'Visual style: ' + project.visualStyle.replace(/_/g, ' '),
       project.visualStyleDescription ? 'Specific visual treatment: ' + project.visualStyleDescription : '',
       project.creativeDirection ? 'Creative direction: ' + project.creativeDirection : '',
