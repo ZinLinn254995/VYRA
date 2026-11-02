@@ -725,36 +725,42 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       let isPreviewNotice = false;
       let providerMetadata: Pick<ChatMessage, 'providerName' | 'modelName' | 'generationId' | 'usage'> = {};
 
-      // 2. If no tool command matched, run creative ideation engine.
-      // Script/storyboard requests are potentially billable and require their own
-      // explicit spend approval; approving a creative brief is not spend approval.
+      // 2. If no tool command matched, run the AI response engine.
+      // Any connected provider may incur charges, not only script/storyboard prompts.
+      // Local application commands and honest Preview Mode remain available without a spend gate.
       if (agentResult.toolExecutions.length === 0) {
-        const isScriptOrStoryboardRequest =
-          /\b(script|storyboard|dialogue|narration)\b/i.test(content) ||
-          /\b(generate|create|write|draft|develop)\b.{0,50}\b(scene|visual sequence)\b/i.test(content);
+        let apiKey = '';
+        let model = 'Configured AI provider';
+        let providerConnected = false;
+        try {
+          apiKey = sessionStorage.getItem('vyra_openrouter_key_session')?.trim() || '';
+          const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: unknown };
+          if (typeof selections.text === 'string' && selections.text.trim()) model = selections.text.trim();
+          providerConnected = Boolean(apiKey && model !== 'Configured AI provider');
+        } catch {
+          // Storage may be unavailable; check the server-configured provider below.
+        }
+
+        if (!providerConnected) {
+          const providerStatus = await aiService.checkStatus();
+          providerConnected = providerStatus.status === 'connected';
+          if (providerStatus.modelName) model = providerStatus.modelName;
+        }
+
         let approvedForSpend = true;
-        if (isScriptOrStoryboardRequest) {
-          let apiKey = '';
-          let model = 'Configured AI provider';
-          try {
-            apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
-            const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: unknown };
-            if (typeof selections.text === 'string' && selections.text.trim()) model = selections.text.trim();
-          } catch {
-            // If browser storage is unavailable, ask for approval with pricing unavailable.
-          }
+        if (providerConnected) {
           approvedForSpend = await confirmSpendBeforeGeneration({
-            operation: 'AI Ideas Chat script/storyboard generation',
+            operation: 'AI Ideas Chat response generation',
             capability: 'text',
             model,
             apiKey,
-            // Exact prompt tokenization is provider-specific; do not estimate from characters.
+            // Do not invent prompt token counts from characters.
             parameters: { completionTokenBudget: 2048 },
           });
         }
 
         if (!approvedForSpend) {
-          finalContent = 'Generation cancelled. No AI generation request was sent. You can continue discussing ideas without starting this script/storyboard generation.';
+          finalContent = 'Generation cancelled. No AI generation request was sent. You can continue using local project tools or Preview Mode.';
           isPreviewNotice = true;
         } else {
           const response = await aiService.generateResponse({
