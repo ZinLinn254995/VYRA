@@ -109,7 +109,7 @@ interface StudioContextType {
   selectConversation: (id: string) => void;
   renameConversation: (id: string, newTitle: string) => void;
   deleteConversation: (id: string) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, requestId?: string) => Promise<void>;
   isSendingMessage: boolean;
   chatError: string | null;
   retryLastMessage: () => Promise<void>;
@@ -650,7 +650,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Conversation deleted', 'info');
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, requestId?: string) => {
     if (!content.trim() || isSendingMessage) return;
 
     let targetConvId = activeConversationId;
@@ -765,11 +765,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           finalContent = 'Generation cancelled. No AI generation request was sent. You can continue using local project tools or Preview Mode.';
           isPreviewNotice = true;
         } else {
-          const idempotencyKey = 'chat-' + (
-            typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-              ? crypto.randomUUID()
-              : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
-          );
+          const idempotencyKey = 'chat-' + (requestId || userMsg.id);
           const response = await aiService.generateResponse({
             messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
             conversationId: targetConvId || undefined,
@@ -888,7 +884,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!activeConversation || activeConversation.messages.length === 0) return;
     const lastUserMsg = [...activeConversation.messages].reverse().find((m) => m.role === 'user');
     if (lastUserMsg) {
-      await sendMessage(lastUserMsg.content);
+      await sendMessage(lastUserMsg.content, lastUserMsg.id);
     }
   };
 
