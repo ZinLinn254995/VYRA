@@ -36,10 +36,11 @@ export type CreditLedgerEntry = {
 
 export type CreditLedgerResult =
   | { ok: true; entry: CreditLedgerEntry }
-  | { ok: false; reason: 'not_configured' | 'invalid_input' | 'insufficient_balance' | 'idempotency_conflict' | 'unavailable' };
+  | { ok: false; reason: 'not_configured' | 'invalid_input' | 'insufficient_balance' | 'reservation_conflict' | 'idempotency_conflict' | 'unavailable' };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9._:-]{1,160}$/;
+const ENTRY_TYPES = new Set<CreditLedgerEntryType>(['grant', 'reserve', 'commit', 'release', 'refund', 'adjustment']);
 const INT64_MIN = -(1n << 63n);
 const INT64_MAX = (1n << 63n) - 1n;
 const PRIVATE_METADATA_KEY = /(api.?key|access.?token|refresh.?token|authorization|secret|password|prompt|message|content)/i;
@@ -112,7 +113,8 @@ export async function applyCreditLedgerEntry(
   const amount = normalizeAmount(input.amount, input.entryType);
   const generationJobId = input.generationJobId ?? null;
   const metadata = input.metadata ?? {};
-  if (!UUID_PATTERN.test(input.userId)
+  if (!ENTRY_TYPES.has(input.entryType)
+      || !UUID_PATTERN.test(input.userId)
       || (generationJobId !== null && !UUID_PATTERN.test(generationJobId))
       || !IDEMPOTENCY_PATTERN.test(input.idempotencyKey)
       || !amount
@@ -161,8 +163,11 @@ export async function applyCreditLedgerEntry(
       if (code === '23505' || message.includes('idempotency key was already used')) {
         return { ok: false, reason: 'idempotency_conflict' };
       }
-      if (code === 'P0001' && (message.includes('insufficient') || message.includes('reserved'))) {
+      if (code === 'P0001' && message.includes('insufficient available')) {
         return { ok: false, reason: 'insufficient_balance' };
+      }
+      if (code === 'P0001' && message.includes('reserved')) {
+        return { ok: false, reason: 'reservation_conflict' };
       }
       if (code === '22023') return { ok: false, reason: 'invalid_input' };
       return { ok: false, reason: 'unavailable' };
