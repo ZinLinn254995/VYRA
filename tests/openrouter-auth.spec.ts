@@ -19,7 +19,7 @@ test('OpenRouter BYOK generation rejects requests without a verified Supabase se
       body: JSON.stringify({ model: 'openai/test', messages: [{ role: 'user', content: 'Hello' }] }),
     });
     assert.equal(response.status, 401);
-    assert.deepEqual(await response.json(), { error: 'Sign in to use OpenRouter BYOK generation.' });
+    assert.deepEqual(await response.json(), { error: 'Sign in to use VYRA AI features.' });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
