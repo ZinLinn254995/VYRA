@@ -2,7 +2,7 @@
 
 ## Status
 
-The API routes are an integration layer over the database transfer RPC. The production Supabase migration must still be applied separately after an approved backup/rollback plan. The route must not be enabled for customers until the required server-only secret and production schema are configured.
+The API routes are an integration layer over the database transfer RPC. The full migration chain is applied and database-tested in the separate `VYRA Development` Supabase project only. Production has not received these migrations and remains gated on authenticated end-to-end testing, verified server-only deployment secrets, backup/restore preparation, and explicit production approval. Passing database tests does not mean customer transfers are live.
 
 ## Endpoint
 
@@ -37,9 +37,9 @@ Requires a valid Supabase access token. Reads up to 100 recent transfers through
 ## Release gates
 
 - Configure and validate `SUPABASE_SERVICE_ROLE_KEY` only in server-side deployment secrets.
-- Apply the database migration to a dedicated development Supabase project and verify rollback/backup procedures.
+- The dedicated `VYRA Development` project already has the complete migration chain applied; keep future schema changes development-first and version-controlled.
 - Public username management and recipient lookup are implemented in the API and database migration. Recipient lookup uses a minimum 3-character prefix, returns at most 8 matches, exposes only user ID/username/display name, and is limited to 20 requests per authenticated user per minute by a database-backed counter. No email lookup is provided.
-- The authenticated wallet includes a review-and-confirm transfer flow, and durable database-backed transfer velocity controls are implemented (10 new transfers/hour and 30/24 hours per sender by default). Decide separately whether per-transfer or daily credit-amount caps are needed before public launch; no amount cap is currently implemented.
+- The authenticated wallet includes a review-and-confirm transfer flow, and durable database-backed transfer velocity controls are active in the development database (10 new transfers/hour and 30/24 hours per sender by default). They are not active in production because the production migration has not been approved or applied. Decide separately whether per-transfer or daily credit-amount caps are needed before public launch; no amount cap is currently implemented.
 - Complete authenticated end-to-end tests against a non-production Supabase project.
 - Do not enable paid credit purchases, generation charging, or external resale through this API.
 
@@ -73,7 +73,7 @@ The balances are calculated across the complete append-only ledger. The activity
 
 ## Wallet UI status
 
-The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, and passing authenticated end-to-end tests. The transfer velocity policy is implemented in the migration but is not active until that migration is applied.
+The Credit Wallet screen provides authenticated balance viewing, username management, recipient lookup, a review-and-confirm transfer flow, and recent ledger activity. It does not provide credit purchases, cash withdrawals, generation charging, or provider billing. Production use remains gated on applying migrations to a dedicated development Supabase project, validating the server-only service-role secret, and passing authenticated end-to-end tests. The transfer velocity policy is active in the development database only; it is not active in production until the production migration is approved and applied.
 
 ## Transfer velocity enforcement
 
@@ -82,3 +82,10 @@ Every newly inserted transfer is checked inside PostgreSQL, not in serverless me
 The initial configurable policy is **10 new transfers per rolling hour and 30 per rolling 24 hours per sender**. Exceeding either limit returns database code `P4291`, mapped by the API to HTTP `429`. The policy is stored in the private singleton table `credit_transfer_policy`; clients and the service role cannot read or change it. Adjustments require a reviewed database migration by an authorized database operator. These are operational anti-abuse defaults, not finalized commercial terms or transfer amount limits.
 
 No per-transfer or daily credit-amount cap has been selected. The existing positive-integer, available-balance and atomic-ledger checks continue to apply. Revisit the provisional velocity defaults using actual abuse/support data before a public launch.
+
+
+## Current environment status
+
+As of 2026-11-03, all eight Supabase migrations are applied to the separate `VYRA Development` project and the five database pgTAP suites pass. Authenticated HTTP end-to-end testing with two dedicated development accounts is still outstanding. The production project remains on its pre-existing `profiles` / `projects` schema; do not apply the new migrations or enable customer-facing transfers there yet.
+
+The Supabase organization is currently on the Free plan. Supabase documents Leaked Password Protection as a Pro-plan-and-above feature, so that particular Auth hardening setting cannot be enabled on the current plan.

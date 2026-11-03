@@ -36,7 +36,7 @@ supabase test db
 
 The pgTAP suite in `supabase/tests/database` verifies customer isolation, balanced transfer accounting, idempotency, insufficient-balance rejection, server-only financial writes, and immutable financial records.
 
-Before linking a real project, create a separate development Supabase project. Never point local development migrations at production by accident.
+The dedicated `VYRA Development` Supabase project already exists and has the eight checked-in migrations applied. Keep all future schema work local-first and development-first. Never point local development migrations at production by accident.
 
 ## Not implemented by the current migrations
 
@@ -58,3 +58,10 @@ Migration `20261103101251_credit_transfer_velocity_limits.sql` enforces sender-l
 ## Migration history alignment
 
 The checked-in migration filenames use the exact versions recorded in the `VYRA Development` database. Keep these versions unchanged once applied; add future migrations with `supabase migration new` and apply them to development before promoting them. The trigger-only helper functions are not callable as application RPCs; PostgreSQL invokes them through their attached triggers.
+
+
+## Current environment state
+
+As of 2026-11-03, the repository migration filenames match the migration versions recorded in `VYRA Development`. All five database pgTAP suites have passed against that development project. The production project has not received these migrations; production rollout remains gated on authenticated API end-to-end tests, verified environment secrets, and a tested backup/restore plan.
+
+The internal trigger helper functions are not application RPCs. Their execute privileges are revoked from application roles; PostgreSQL invokes them through their attached triggers.

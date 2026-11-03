@@ -1,46 +1,67 @@
 # Supabase Development Environment Runbook
 
-**Status:** preparation only. No Supabase project has been linked and no remote migration has been applied by this runbook.
+**Current state (2026-11-03):** the dedicated `VYRA Development` Supabase project exists and is healthy. All eight repository migrations are applied there. The five pgTAP database suites have passed against the development database. Production remains unchanged and is not approved for migration.
 
-## Non-negotiable environment boundary
+## Environment boundary
 
-- Create a dedicated Supabase project named for VYRA development. It must be separate from any production project.
-- Do not use a production Project URL, project ref, database password, access token, or service-role key during development.
+- Development project: `VYRA Development`, region `eu-west-3`, PostgreSQL 17, status `ACTIVE_HEALTHY`.
+- Production project: `VYRA`, region `eu-west-3`, PostgreSQL 17, status `ACTIVE_HEALTHY`.
+- The two projects are separate. Never use production credentials or project references during development.
 - Do not paste credentials, connection strings, access tokens, or service-role keys into GitHub issues, pull requests, chat, source files, or screenshots.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only. Never use a `VITE_` prefix for it.
-- Stop before any remote command if the selected project ref and Dashboard project name do not clearly identify the development project.
+- Do not apply migrations to production until the release gates below are complete and production approval is explicit.
 
-## 1. Create the development project
+## 1. Applied development migrations
 
-In the Supabase Dashboard:
+The following filenames are aligned with the exact migration versions recorded in the development database. Do not rename or rewrite already-applied migrations.
 
-1. Create a new project dedicated to VYRA development.
-2. Use a strong, unique database password and store it in a password manager.
-3. Select a region appropriate for the development team and expected test users.
-4. Wait until the project reports that the database is ready.
-5. Record the project name and project ref privately. Do not commit either value if it is considered environment-specific configuration.
-6. In Authentication > Providers, enable Email for the development project.
-7. Configure the development Site URL and allowed redirect URLs for the development VYRA URL. Do not copy production callback URLs unless they are intentionally shared.
+1. `20261103101212_initial_customer_data.sql`
+2. `20261103101221_usage_credit_ledger.sql`
+3. `20261103101229_atomic_credit_transfers.sql`
+4. `20261103101236_public_usernames.sql`
+5. `20261103101243_credit_wallet_snapshot.sql`
+6. `20261103101251_credit_transfer_velocity_limits.sql`
+7. `20261103101446_restrict_trigger_helper_execution.sql`
+8. `20261103101701_index_composite_owner_foreign_keys.sql`
 
-No production project should be linked in this workflow.
+The migrations create customer profiles/projects, the append-only usage and credit ledger, provider cost records, atomic transfers, public username lookup, a read-only wallet snapshot, transfer velocity enforcement, restricted trigger-helper execution, and composite foreign-key indexes.
 
-## 2. Configure local environment variables
+## 2. Development verification already completed
 
-Copy `.env.example` to `.env.local` (or the environment file convention used by the local runtime) and fill only development-project values:
+- Development project is `ACTIVE_HEALTHY`.
+- All eight migrations are recorded in its migration history.
+- The five database pgTAP suites passed against the development project:
+  - `rls.test.sql`
+  - `usage-ledger.test.sql`
+  - `public_usernames.test.sql`
+  - `credit_wallet.test.sql`
+  - `credit_transfers.test.sql`
+- GitHub CI checks for PR #94 passed: database, verify, and browser UI.
+- Security Advisor no longer reports public execution of internal trigger helpers.
+- Performance Advisor no longer reports unindexed composite ownership foreign keys.
 
-| Variable | Value |
-| --- | --- |
-| `VITE_SUPABASE_URL` | Development Project URL; browser-visible |
-| `VITE_SUPABASE_ANON_KEY` | Development anon/publishable key; browser-visible by design |
-| `SUPABASE_URL` | Same development Project URL; server runtime |
-| `SUPABASE_ANON_KEY` | Same development anon/publishable key; server runtime |
-| `SUPABASE_SERVICE_ROLE_KEY` | Development service-role key; server runtime only |
+Remaining development Advisor findings are understood:
+- The `credit_transfer_policy` and `profile_lookup_limits` tables intentionally have RLS enabled with no application policies; application roles have no table access.
+- `get_credit_wallet()` and `search_credit_recipients()` are intentionally callable by authenticated users and validate the caller inside the function.
+- Leaked Password Protection is unavailable on the current Free plan (Supabase documents it as Pro and above).
+- Unused-index notices are informational on the still-small development dataset.
 
-Never commit local env files. Verify `.gitignore` excludes them before adding credentials. Do not add the service-role key to browser code, build-time `VITE_` variables, client storage, or logs.
+## 3. Development configuration still to verify
 
-## 3. Validate migrations locally first
+Before authenticated API end-to-end tests:
 
-Install the Supabase CLI and Docker, then run the repository's documented local workflow from the project root:
+1. In the development Supabase Dashboard, confirm Email authentication is enabled.
+2. Set the development Site URL and allowed redirect URLs to the actual VYRA development URL.
+3. Confirm the development project URL, publishable/anon key, and service-role key are configured in the correct Vercel environment scopes.
+4. Confirm `SUPABASE_SERVICE_ROLE_KEY` exists only as a server-side encrypted/sensitive variable; never add a `VITE_` variant.
+5. Create two dedicated development test accounts. Do not use real customer accounts or production accounts.
+6. Run authenticated tests for wallet reads, username changes, recipient lookup, transfer history, and transfers between the two test accounts.
+
+Do not copy production callback URLs or production credentials into development.
+
+## 4. Local validation workflow
+
+Install the Supabase CLI and Docker, then run from the repository root:
 
 ```sh
 supabase start
@@ -48,87 +69,38 @@ supabase db reset
 supabase test db
 ```
 
-These commands target the local Supabase stack. Confirm the local stack is running before resetting it. The database test suite must pass before proceeding to the remote development project.
+These commands target the local Supabase stack. Confirm the local stack is running before resetting it. Use the current migration filenames in `supabase/migrations`.
 
-Expected migration order:
+For a new migration, create the file with `supabase migration new <descriptive_name>`, review the SQL, apply and test it locally, then apply it to the development project. Never rewrite an already-applied migration; add a corrective migration instead.
 
-1. `20261101000100_initial_customer_data.sql`
-2. `20261102000100_usage_credit_ledger.sql`
-3. `20261103000100_atomic_credit_transfers.sql`
-4. `20261103000200_public_usernames.sql`
-5. `20261103000400_credit_wallet_snapshot.sql`
-6. `20261103000500_credit_transfer_velocity_limits.sql`
+## 5. Development end-to-end test gate
 
-Do not invent a missing migration for the numeric gap in the filenames. Use the migration files actually committed to the target branch.
+The database suites passing does not replace authenticated HTTP end-to-end tests. Still required:
 
-## 4. Link and inspect the development project
+- Missing/invalid Supabase access token is rejected.
+- User A cannot read or update User B's profile, projects, wallet, or transfers.
+- A user cannot spoof the sender ID in a transfer request.
+- Same idempotency key returns the original transfer and does not create another ledger pair.
+- Insufficient balance and invalid recipient are rejected.
+- Concurrent transfers cannot overspend the same sender.
+- The hourly and daily transfer limits return HTTP 429 across separate serverless requests.
+- Recipient lookup returns only public username/display name/user ID and is rate-limited.
+- Service-role credentials never appear in browser bundles, client storage, API responses, or logs.
+- No production user, balance, ledger row, or secret is present in development.
 
-Only after independently confirming the Dashboard project name and ref:
+Record test results and the migration version. Use only the dedicated development test accounts.
 
-```sh
-supabase projects list
-supabase link --project-ref "$DEV_PROJECT_REF"
-supabase migration list
-```
+## 6. Production state and release gates
 
-Set `DEV_PROJECT_REF` locally from the development project details. Do not put the value or database password in source control.
+The production project is still separate and has not received the eight development migrations. Its current public schema contains only the existing `profiles` and `projects` tables. Its migration history is not yet aligned with the repository, so do not run `db push` against production.
 
-Before applying anything remotely:
+Production remains **not approved** until all of the following are complete:
 
-- Re-check the linked project ref against the development project in the Dashboard.
-- Inspect the migration list and resolve any unexpected remote/local history mismatch.
-- Review the pending migration files and the CLI plan/output.
-- If the linked target is ambiguous, stop. Do not try a different project ref as a guess.
+- Authenticated wallet, username, recipient, and transfer API end-to-end tests pass in development.
+- Vercel production and preview environment variables are independently verified without exposing secret values.
+- Backup and restore/rollback options are confirmed for the actual production plan; a recoverable backup/export is created and verified.
+- The restore procedure is documented and tested in a separate non-production project where possible.
+- A production migration plan, monitoring plan, and explicit production approval exist.
+- The production migration history is reconciled safely; do not assume the production schema matches the migration chain merely because table names look similar.
 
-Apply migrations to the development project only after the above checks are complete:
-
-```sh
-supabase db push
-```
-
-Read the CLI output before confirming any prompt. If it identifies a project other than the dedicated development project, cancel immediately.
-
-## 5. Development verification gate
-
-After migrations are applied to the development project:
-
-- Confirm all expected tables, functions, triggers, indexes, and RLS policies exist.
-- Confirm ordinary authenticated users can access only their own private rows.
-- Confirm anonymous users cannot access private wallet or transfer data.
-- Confirm financial write functions are unavailable to `anon` and `authenticated`.
-- Confirm the service-role key is used only by server-side code and is not returned in API responses.
-- Run the database pgTAP suite against a clean local stack; retain the CI result as evidence.
-- Configure two dedicated development test accounts and run authenticated wallet and transfer E2E tests.
-- Verify successful transfers produce equal sender debit and recipient credit entries.
-- Verify idempotent retries do not create duplicate transfers.
-- Verify insufficient balance and concurrent transfer cases are rejected safely.
-- Verify the hourly and daily transfer limits return HTTP 429 and remain enforced across separate serverless requests.
-- Verify recipient lookup privacy and its database-backed rate limit.
-- Verify no production user, balance, ledger row, or secret is present in the development project.
-
-Record the test run, migration version, project ref (in a private operations record), and any failures. Do not use real customer accounts or production credit balances for these tests.
-
-## 6. Backup and rollback discipline
-
-Before any production migration is even considered:
-
-- Confirm what backup and point-in-time recovery options are available for the production project's plan and current settings.
-- Create and verify a recoverable backup/export using the supported Supabase procedure for that project.
-- Write down the restore procedure and identify who can perform it.
-- Test the restore procedure in a separate non-production project where possible.
-- Review whether each schema change has a safe forward-fix path. Do not assume every migration can be reversed by simply dropping objects.
-- Preserve applied migration files. For an already-applied migration, prefer a new corrective migration over rewriting its history.
-- For a disposable development database only, rebuilding from migrations is acceptable after confirming the target is the development project.
-
-## 7. Production release gate
-
-Production remains **not approved** until all of the following are explicitly reviewed:
-
-- Development migrations applied cleanly and the complete database verification suite passes.
-- Authenticated wallet and transfer E2E tests pass with dedicated development users.
-- RLS, grants, RPC permissions, idempotency, concurrency, and velocity limits are verified.
-- Backup and restore/rollback procedures are documented and tested.
-- Production environment variables are checked independently, with service-role credentials stored only as server secrets.
-- A separate production migration plan, maintenance/monitoring plan, and explicit production approval exist.
-
-A successful GitHub CI run or a successful development migration does not by itself authorize a production migration. Until this gate is completed, credit wallet and transfer functionality must not be represented as live financial functionality.
+A successful GitHub CI run or successful development migration does not authorize a production migration. Until this gate is complete, do not represent wallet transfers or credit charging as live production financial functionality.
