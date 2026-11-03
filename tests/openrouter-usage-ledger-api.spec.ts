@@ -157,3 +157,46 @@ test('duplicate generation idempotency key blocks a second OpenRouter submission
     assert.equal(providerCalls, 0);
   }, fetcher);
 });
+
+
+test('ledger-enabled mode blocks untracked image generation instead of bypassing usage accounting', async () => {
+  let providerCalls = 0;
+  const fetcher: typeof fetch = async () => {
+    providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/providers/openrouter/images/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': OPENROUTER_KEY },
+      body: JSON.stringify({ model: 'image-model', prompt: 'A sunrise over the sea' }),
+    });
+    assert.equal(response.status, 503);
+    const payload = await response.json() as { code: string; capability: string };
+    assert.equal(payload.code, 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED');
+    assert.equal(payload.capability, 'image');
+    assert.equal(providerCalls, 0);
+  }, fetcher);
+});
+
+test('ledger-enabled mode blocks Gemini generation until its usage recorder exists', async () => {
+  let providerCalls = 0;
+  const fetcher: typeof fetch = async () => {
+    providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a script.' }] }),
+    });
+    assert.equal(response.status, 503);
+    const payload = await response.json() as { code: string; capability: string };
+    assert.equal(payload.code, 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED');
+    assert.equal(payload.capability, 'gemini-text');
+    assert.equal(providerCalls, 0);
+  }, fetcher);
+});
