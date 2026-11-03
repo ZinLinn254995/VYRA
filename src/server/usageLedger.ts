@@ -177,7 +177,7 @@ export async function finishOpenRouterTextJob(
     : usage.generationId;
 
   try {
-    if (input.status === 'succeeded' && usage.costUsd !== null) {
+    if (usage.costUsd !== null) {
       const costEndpoint = new URL('/rest/v1/rpc/record_provider_cost', supabaseUrl);
       const costResponse = await fetcher(costEndpoint, {
         method: 'POST',
