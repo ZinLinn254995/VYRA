@@ -50,59 +50,74 @@ Examples may include characters, creatures, objects, clothing, weapons, vehicles
 
 ---
 
+### 2.1 VYRAL — a prompt-based digital creation collection
+### ၂.၁ VYRAL — Prompt အခြေပြု Digital Creation Collection
+
+**VYRAL** is the VYRA-specific name for a digital creation or collection that can be reused, shared, licensed, or sold, subject to the creator's actual rights and applicable rules. A VYRAL may contain one asset or many assets. It may be a simple, incomplete creation or a large collection combining different kinds of creative work. It is not limited to one image, one video, one character, or one predefined asset type.
+
+**VYRAL** ဆိုသည်မှာ VYRA အတွင်း ပြန်လည်အသုံးပြုနိုင်ခြင်း၊ မျှဝေနိုင်ခြင်း၊ License ပေးနိုင်ခြင်း သို့မဟုတ် ရောင်းချနိုင်ခြင်းရှိသော Digital Creation သို့မဟုတ် Collection ကို ခေါ်သည့် VYRA ၏ ကိုယ်ပိုင်အမည်ဖြစ်သည်။ သို့သော် Creator ၏ အမှန်တကယ်ရရှိထားသော အခွင့်အရေးနှင့် သက်ဆိုင်ရာစည်းမျဉ်းများကို လိုက်နာရမည်။ VYRAL တစ်ခုတွင် Asset တစ်ခုတည်းလည်း ပါနိုင်သလို Asset အများအပြားလည်း ပါနိုင်သည်။ ရိုးရှင်းပြီး မပြည့်စုံသေးသော Creation ဖြစ်နိုင်သလို ဖန်တီးမှုအမျိုးအစားမျိုးစုံ ပေါင်းစပ်ထားသည့် Collection ကြီးတစ်ခုလည်း ဖြစ်နိုင်သည်။ ပုံတစ်ပုံ၊ Video တစ်ခု၊ Character တစ်ကောင် သို့မဟုတ် ကြိုတင်သတ်မှတ်ထားသော Asset Type တစ်မျိုးတည်းဖြင့် ကန့်သတ်မထားရ။
+
+A VYRAL may contain, for example, characters, locations, outfits, voices, music, dance or motion, visual styles, stories, scenes, props, objects, prompts, and other creative components. These are flexible examples, not a closed taxonomy. Types should help organize and discover creations; they must not become a gate that prevents creators from making unusual combinations or inventing new types.
+
+VYRAL တစ်ခုတွင် Character၊ Location၊ Outfit၊ Voice၊ Music၊ Dance သို့မဟုတ် Motion၊ Visual Style၊ Story၊ Scene၊ အသုံးအဆောင်ပစ္စည်း၊ အရာဝတ္ထု၊ Prompt နှင့် အခြား Creative Component များ ပါဝင်နိုင်သည်။ ဤအရာများသည် လွတ်လပ်စွာ အသုံးပြုနိုင်သည့် ဥပမာများသာဖြစ်ပြီး အကန့်အသတ်ရှိသော Type စာရင်း မဟုတ်ပါ။ Type များသည် Creation များကို စုစည်းရန်နှင့် ရှာဖွေရန်သာ အထောက်အကူဖြစ်ရမည်။ Creator များ၏ ထူးခြားသော ပေါင်းစပ်ဖန်တီးမှုများ သို့မဟုတ် Type အသစ်များ ဖန်တီးမှုကို တားဆီးသည့် စည်းမျဉ်း မဖြစ်ရ။
+
+**A creation prompt or creation instruction record is mandatory for every VYRAL; media files are optional.** A VYRAL may therefore begin as a prompt/instruction-based creation with no generated image, video, or audio yet. Conversely, an image or video alone is not enough to describe a reusable VYRAL: its creation prompt/instructions must be retained so the AI can understand the intended concept and use it as context when recreating, modifying, or combining the creation.
+
+**VYRAL တိုင်းတွင် ဖန်တီးခဲ့သည့် Prompt သို့မဟုတ် Creation Instruction မှတ်တမ်း မဖြစ်မနေရှိရမည်။ Media File များမှာ ရွေးချယ်နိုင်သည့်အရာများသာ ဖြစ်သည်။** ထို့ကြောင့် ပုံ၊ Video သို့မဟုတ် Audio မထုတ်ရသေးသည့် Prompt/Instruction အခြေပြု Creation တစ်ခုအဖြစ် VYRAL ကို စတင်ထားနိုင်သည်။ တစ်ဖက်တွင် ပုံ သို့မဟုတ် Video သက်သက်ရှိရုံဖြင့် ပြန်လည်အသုံးပြုနိုင်သော VYRAL တစ်ခုကို အပြည့်အဝဖော်ပြနိုင်မည် မဟုတ်ပါ။ AI က မူလရည်ရွယ်ချက်ကို နားလည်ပြီး ပြန်လည်ဖန်တီးခြင်း၊ ပြင်ဆင်ခြင်း သို့မဟုတ် ပေါင်းစပ်ခြင်းတို့တွင် Context အဖြစ် အသုံးပြုနိုင်ရန် မူလ Prompt/Instruction များကို ထိန်းသိမ်းထားရမည်။
+
+Creators should be able to build a VYRAL from flexible, creator-defined profile fields. They may add a blank section, choose or create a type, name it, describe it, and attach any relevant prompt, instruction, reference, or media. AI may suggest structure or labels, but the creator decides. Drafts may be saved at any stage; there is no mandatory completeness or quality threshold merely to qualify as a VYRAL. Marketplace listings must, however, accurately disclose what is included and what permissions are granted.
+
+Creator များသည် ကိုယ်ပိုင်သတ်မှတ်နိုင်သော Profile Field များဖြင့် VYRAL ကို တည်ဆောက်နိုင်ရမည်။ Blank Section တစ်ခုထည့်ခြင်း၊ Type ရွေးခြင်း သို့မဟုတ် အသစ်ဖန်တီးခြင်း၊ အမည်ပေးခြင်း၊ ဖော်ပြချက်ရေးခြင်းနှင့် သက်ဆိုင်ရာ Prompt၊ Instruction၊ Reference သို့မဟုတ် Media များ ချိတ်ဆက်ခြင်းတို့ကို လွတ်လပ်စွာ လုပ်နိုင်ရမည်။ AI က ဖွဲ့စည်းပုံ သို့မဟုတ် အမည်များကို အကြံပြုနိုင်သော်လည်း နောက်ဆုံးဆုံးဖြတ်သူမှာ Creator ဖြစ်ရမည်။ Draft များကို မည်သည့်အဆင့်တွင်မဆို သိမ်းထားနိုင်ပြီး VYRAL ဖြစ်ရန် မဖြစ်မနေပြည့်စုံရမည့် သတ်မှတ်ချက် သို့မဟုတ် အရည်အသွေးအနိမ့်ဆုံးစံ မရှိရ။ သို့သော် Marketplace တွင် တင်သည့်အခါ ပါဝင်သည့်အရာများနှင့် ပေးအပ်သည့် Permission များကို တိကျစွာ ဖော်ပြရမည်။
+
+---
+
 ## 3. Each asset has its own profile
 ## ၃။ Asset တစ်ခုချင်းစီတွင် ကိုယ်ပိုင် Profile ရှိရမည်
 
 A profile should stay understandable and simple for creators. It should not become a complicated technical form. At a high level, it brings together:
 
 - **Identity:** name, creator, description, and whether it is an original or a derivative.
-- **Reference images and media:** multiple separate images or other references that clearly show the asset.
-- **Useful details:** the characteristics and information needed to understand and reuse it.
+- **Creation prompt and instructions (mandatory):** the prompt or structured/natural-language instructions that define what was intended and how the creation was made. Media is optional.
+- **Reference images and media (optional):** any separate images, video, audio, or other references that help identify or use the creation.
+- **Useful details:** the characteristics, relationships, and context needed to understand and reuse it.
 - **Permissions:** what other people may do with it and any usage price.
 - **Lineage:** where it came from and which version it was derived from.
 
 Profile ကို Creator များအတွက် နားလည်ရလွယ်ကူပြီး ရိုးရှင်းစွာ ထားရမည်။ ရှုပ်ထွေးသော နည်းပညာ Form တစ်ခု မဖြစ်သင့်ပါ။ အခြေခံအားဖြင့် အောက်ပါအချက်များကို စုစည်းထားမည်။
 
 - **Identity:** နာမည်၊ ဖန်တီးသူ၊ ဖော်ပြချက်နှင့် Original သို့မဟုတ် Derivative ဖြစ်ကြောင်း။
-- **Reference ပုံများနှင့် Media:** Asset ကို ရှင်းလင်းစွာ ဖော်ပြနိုင်သည့် သီးခြားပုံများ သို့မဟုတ် အခြား Reference များ။
-- **အသုံးဝင်သော အချက်အလက်:** Asset ကို နားလည်ပြီး ပြန်လည်အသုံးပြုနိုင်ရန် လိုအပ်သည့် လက္ခဏာနှင့် အချက်အလက်များ။
+- **Creation Prompt နှင့် Instruction (မဖြစ်မနေ):** ဖန်တီးလိုသည့် ရည်ရွယ်ချက်နှင့် ဖန်တီးပုံကို သတ်မှတ်ပေးသော Prompt သို့မဟုတ် စာသား/ဖွဲ့စည်းထားသည့် ညွှန်ကြားချက်များ။ Media များမှာ ရွေးချယ်နိုင်သည်။
+- **Reference ပုံများနှင့် Media (Optional):** Creation ကို ခွဲခြားသိရှိရန် သို့မဟုတ် အသုံးပြုရန် အထောက်အကူဖြစ်သော ပုံ၊ Video၊ Audio နှင့် အခြား Reference များ။
+- **အသုံးဝင်သော အချက်အလက်:** Creation ကို နားလည်ပြီး ပြန်လည်အသုံးပြုနိုင်ရန် လိုအပ်သော လက္ခဏာ၊ ဆက်နွယ်မှုနှင့် Context များ။
 - **Permissions:** အခြားသူများ ဘာလုပ်ခွင့်ရှိသလဲနှင့် အသုံးပြုခ။
 - **Lineage:** မူလရင်းမြစ်နှင့် ဘယ် Version မှ ဆင်းသက်လာသလဲ။
 
-### 3.1 VYRA Creation Standard
-### ၃.၁ VYRA Creation Standard
+#### 3.1 Flexible references, not mandatory completeness
+### ၃.၁ လွတ်လပ်သော Reference များ — မဖြစ်မနေပြည့်စုံရန် မလို
 
-The profile should not rely on one combined image that attempts to show every detail. Where different views or parts matter, they should be represented by separate, clearly identified images inside the profile.
+Creators may add as many or as few reference views and media items as they have or need. A Character VYRAL, for example, may contain only one face image. Another creator may choose to add front, back, side, outfit, hair, voice, or motion references. The profile should clearly label what each item represents, but no particular view, number of files, production quality, or completeness level is required just to qualify as a VYRAL.
 
-For example, a character profile may require separate references for:
-- Front view
-- Back view
-- Side view
-- Face details
-- Hair
-- Body
-- Outfit and clothing details
-- Shoes, accessories, and distinctive features where relevant
+Creator များသည် မိမိတွင်ရှိသည့် သို့မဟုတ် လိုအပ်သည့် Reference မြင်ကွင်းနှင့် Media အရေအတွက်ကို လွတ်လပ်စွာ ထည့်နိုင်ရမည်။ ဥပမာ Character VYRAL တစ်ခုတွင် မျက်နှာပုံတစ်ပုံတည်းသာ ပါဝင်နိုင်သည်။ အခြား Creator တစ်ဦးက ရှေ့၊ နောက်၊ ဘေး၊ Outfit၊ ဆံပင်၊ Voice သို့မဟုတ် Motion Reference များကို ထပ်ထည့်နိုင်သည်။ Profile ထဲရှိ Item တစ်ခုချင်းစီက ဘာကိုဖော်ပြသလဲဆိုတာ ရှင်းလင်းစွာ အမည်တပ်ထားသင့်သော်လည်း VYRAL ဖြစ်ရန် သတ်မှတ်ထားသော မြင်ကွင်းတစ်ခုခု၊ File အရေအတွက်၊ ထုတ်လုပ်မှုအရည်အသွေး သို့မဟုတ် ပြည့်စုံမှုအဆင့် မဖြစ်မနေလိုအပ်စေရ။
 
-Profile သည် အသေးစိတ်အားလုံးကို ပုံတစ်ပုံတည်းထဲ ပေါင်းထည့်ထားခြင်းအပေါ် မမူတည်သင့်ပါ။ မတူညီသော မြင်ကွင်းများ သို့မဟုတ် အစိတ်အပိုင်းများ အရေးကြီးပါက Profile အတွင်း သီးခြားခွဲထားပြီး ဘာကိုဖော်ပြသည့်ပုံလဲဆိုတာ ရှင်းလင်းစွာ သတ်မှတ်ထားရမည်။
+VYRA may offer optional guidance, completeness indicators, or quality signals to help creators and buyers understand what is available and what is missing. These are informational aids, not eligibility gates. A simple or incomplete VYRAL remains a valid VYRAL. If it is listed for reuse or sale, its listing must honestly describe its limitations and included materials.
 
-ဥပမာ Character Profile တစ်ခုတွင် လိုအပ်သလို အောက်ပါ Reference ပုံများကို သီးခြားထားနိုင်သည်။
-- ရှေ့ဘက်မြင်ကွင်း
-- နောက်ဘက်မြင်ကွင်း
-- ဘေးတိုက်မြင်ကွင်း
-- မျက်နှာအသေးစိတ်
-- ဆံပင်
-- ခန္ဓာကိုယ်
-- အဝတ်အစားနှင့် ဝတ်စုံအသေးစိတ်
-- လိုအပ်ပါက ဖိနပ်၊ Accessories နှင့် ထူးခြားသော အမှတ်အသားများ
+VYRA သည် Creator နှင့် ဝယ်ယူသူများအနေဖြင့် ဘာတွေပါဝင်ပြီး ဘာတွေမရှိသေးသည်ကို နားလည်စေရန် Optional လမ်းညွှန်ချက်၊ ပြည့်စုံမှုညွှန်ပြချက် သို့မဟုတ် အရည်အသွေးဆိုင်ရာ အချက်ပြမှုများ ပေးနိုင်သည်။ သို့သော် ၎င်းတို့သည် အချက်အလက်အထောက်အကူများသာဖြစ်ပြီး VYRAL ဖြစ်ခွင့်ကို ကန့်သတ်သည့် Gate များ မဟုတ်ရ။ ရိုးရှင်းသော သို့မဟုတ် မပြည့်စုံသေးသော VYRAL သည်လည်း VYRAL အဖြစ် တရားဝင်ရှိနေနိုင်သည်။ ပြန်လည်အသုံးပြုရန် သို့မဟုတ် ရောင်းချရန် တင်ထားပါက ပါဝင်သည့်အရာများနှင့် ကန့်သတ်ချက်များကို ရိုးသားတိကျစွာ ဖော်ပြရမည်။
 
-VYRA should define the required reference views and quality criteria for each kind of asset as the product design matures. The creator should be able to see what is missing. A profile may be saved while incomplete, but it should not be presented as meeting the relevant VYRA standard until its required elements have been checked.
+References and prompts can improve AI understanding and consistency, but they cannot guarantee identical results across every model or provider. VYRA must communicate this limitation honestly.
 
-VYRA သည် Product Design ပိုမိုပြည့်စုံလာသည့်အခါ Asset တစ်မျိုးချင်းစီအတွက် မဖြစ်မနေလိုအပ်သော Reference မြင်ကွင်းများနှင့် အရည်အသွေးစံနှုန်းများကို သတ်မှတ်မည်။ Creator က ဘာတွေလိုအပ်နေသေးသလဲဆိုတာ မြင်နိုင်ရမည်။ မပြည့်စုံသေးသည့် Profile ကို သိမ်းထားနိုင်သော်လည်း သက်ဆိုင်ရာ VYRA Standard ပြည့်မီပြီးဖြစ်သည်ဟု မဖော်ပြသင့်ပါ။
+Reference နှင့် Prompt များသည် AI ၏ နားလည်မှုနှင့် တည်ငြိမ်မှုကို ပိုမိုကောင်းမွန်စေနိုင်သော်လည်း Model သို့မဟုတ် Provider အားလုံးတွင် Result တူညီမည်ဟု အာမမခံနိုင်ပါ။ VYRA သည် ဤကန့်သတ်ချက်ကို ရိုးသားစွာ ဖော်ပြရမည်။
 
-The standard should improve the information available for consistent generation, but it cannot guarantee identical results from every AI model or provider. This limitation must be communicated honestly.
 
-ဤစံနှုန်းသည် Character နှင့် Asset ကို တည်ငြိမ်စွာ ပြန်လည်ဖန်တီးနိုင်ရန် လိုအပ်သည့် အချက်အလက်များကို ပိုမိုပြည့်စုံစေမည်။ သို့သော် AI Model သို့မဟုတ် Provider တိုင်းတွင် Result အမြဲတူညီမည်ဟု အာမမခံနိုင်ပါ။ ဤကန့်သတ်ချက်ကို အသုံးပြုသူများအား မှန်ကန်စွာ ရှင်းပြရမည်။
+### 3.2 Prompt provenance and revision history
+### ၃.၂ Prompt မူလရင်းမြစ်နှင့် ပြင်ဆင်မှုမှတ်တမ်း
+
+The creation prompt/instruction record is the minimum semantic foundation of every VYRAL. It explains what the creator intended, what the AI was asked to make, and which constraints or style directions should guide later reuse. Where available and appropriate, the record may also retain model/provider, relevant generation settings, selected references, and creator-approved clarifications. These extra technical details are useful but are not all mandatory for a VYRAL to exist.
+
+Creation Prompt/Instruction မှတ်တမ်းသည် VYRAL တိုင်း၏ အနည်းဆုံး အဓိပ္ပာယ်ဆိုင်ရာ အခြေခံအချက်ဖြစ်သည်။ ၎င်းက Creator ၏ ရည်ရွယ်ချက်၊ AI ကို ဘာဖန်တီးရန် ညွှန်ကြားခဲ့သလဲ၊ နောင်ပြန်လည်အသုံးပြုရာတွင် ဘယ်ကန့်သတ်ချက်နှင့် Style လမ်းညွှန်ချက်များကို လိုက်နာသင့်သလဲဆိုတာ ရှင်းပြပေးသည်။ ရရှိနိုင်ပြီး သင့်လျော်ပါက အသုံးပြုခဲ့သော Model/Provider၊ သက်ဆိုင်ရာ Generation Setting၊ ရွေးချယ်ထားသော Reference နှင့် Creator အတည်ပြုထားသော ရှင်းလင်းချက်များကိုလည်း မှတ်တမ်းတင်နိုင်သည်။ ဤနည်းပညာဆိုင်ရာ အသေးစိတ်များသည် အသုံးဝင်သော်လည်း VYRAL တစ်ခု ရှိနေရန် အားလုံး မဖြစ်မနေလိုအပ်သည် မဟုတ်ပါ။
+
+The original prompt/instruction record must be preserved as the source record rather than silently overwritten. When a creator modifies a VYRAL, the new prompt, added instructions, and recorded changes should be stored as a new revision or derivative history entry. This allows the AI and users to understand what changed, why it changed, and which instructions belong to which version. A derivative must retain the source lineage and must not misrepresent inherited prompts or rights as its own original work.
+
+မူလ Prompt/Instruction မှတ်တမ်းကို Source Record အဖြစ် ထိန်းသိမ်းထားရမည်ဖြစ်ပြီး အစားထိုးပြင်ဆင်မှုကြောင့် တိတ်တဆိတ် ပျောက်ကွယ်မသွားစေရ။ Creator က VYRAL ကို ပြင်ဆင်သည့်အခါ Prompt အသစ်၊ ထပ်ဖြည့်ထားသော Instruction နှင့် မှတ်တမ်းတင်ထားသော ပြောင်းလဲမှုများကို Revision အသစ် သို့မဟုတ် Derivative History Entry အဖြစ် သီးခြားသိမ်းဆည်းသင့်သည်။ ထိုသို့ပြုလုပ်ခြင်းဖြင့် AI နှင့် အသုံးပြုသူများသည် ဘာတွေပြောင်းလဲခဲ့သလဲ၊ ဘာကြောင့်ပြောင်းလဲခဲ့သလဲ၊ ဘယ် Instruction တွေက ဘယ် Version နှင့်သက်ဆိုင်သလဲဆိုတာ နားလည်နိုင်မည်။ Derivative တစ်ခုသည် မူလ Lineage ကို ထိန်းသိမ်းရမည်ဖြစ်ပြီး အမွေဆက်ခံရရှိထားသော Prompt သို့မဟုတ် အခွင့်အရေးများကို မိမိ၏ မူလဖန်တီးမှုကဲ့သို့ မှားယွင်းမဖော်ပြရ။
 
 ---
 
@@ -282,21 +297,21 @@ The underlying system may be sophisticated, but the visible creation experience 
 
 နောက်ကွယ်ရှိ နည်းပညာစနစ်များသည် ရှုပ်ထွေးနိုင်သော်လည်း Creator မြင်ရသည့် Creation Experience သည် ရိုးရှင်းပြီး အသုံးပြုရလွယ်ကူနေရမည်။ အသုံးဝင်သော Profile တစ်ခု ဖန်တီးရန် Embedding၊ Model Training၊ Rigging၊ File Format သို့မဟုတ် Database Structure များကို Creator က နားလည်ထားရန် မလိုအပ်သင့်ပါ။
 
-A possible simple flow:
-1. Start with the thing the creator wants to make.
-2. Add the required reference images and basic information.
-3. Let VYRA explain which required elements are missing.
-4. Complete and review the profile.
-5. Set permissions and any usage price.
-6. Publish when ready.
+An example Chat-First flow:
+1. The creator describes the idea naturally in VYRA AI Chat.
+2. The AI helps draft the VYRAL profile and its mandatory creation prompt/instructions, while asking only for clarifications that materially matter.
+3. The creator can add, rename, reorganize, or remove profile sections and assets through chat or the manual workspace.
+4. The creator may attach optional references or generate media, but neither is required to save a VYRAL draft.
+5. The creator reviews the prompt, profile, included assets, and any AI-suggested details; the creator remains the decision-maker.
+6. The draft can be saved at any stage. If published for reuse or sale, the creator sets permissions and accurately describes what is included.
 
-ဖြစ်နိုင်သည့် ရိုးရှင်းသော လုပ်ငန်းစဉ်မှာ—
-1. Creator ဖန်တီးချင်သည့်အရာမှ စတင်မည်။
-2. လိုအပ်သော Reference ပုံများနှင့် အခြေခံအချက်အလက်များ ထည့်မည်။
-3. မပြည့်စုံသေးသည့် လိုအပ်ချက်များကို VYRA က ရှင်းပြမည်။
-4. Profile ကို ပြည့်စုံအောင်လုပ်ပြီး ပြန်လည်စစ်ဆေးမည်။
-5. အသုံးပြုခွင့်နှင့် အသုံးပြုခကို သတ်မှတ်မည်။
-6. အဆင်သင့်ဖြစ်သည့်အခါ Publish လုပ်မည်။
+Chat-First အခြေပြု ဖြစ်နိုင်သည့် လုပ်ငန်းစဉ်မှာ—
+1. Creator သည် VYRA AI Chat ထဲတွင် မိမိ၏ စိတ်ကူးကို သဘာဝဘာသာစကားဖြင့် ရှင်းပြမည်။
+2. AI သည် VYRAL Profile နှင့် မဖြစ်မနေလိုအပ်သော Creation Prompt/Instruction များကို တည်ဆောက်ရာတွင် ကူညီမည်။ အရေးကြီးသော ရှင်းလင်းချက်လိုအပ်မှသာ မေးမြန်းမည်။
+3. Creator သည် Chat သို့မဟုတ် Manual Workspace မှတစ်ဆင့် Profile Section နှင့် Asset များကို ထည့်ခြင်း၊ အမည်ပြောင်းခြင်း၊ ပြန်လည်စီစဉ်ခြင်း သို့မဟုတ် ဖယ်ရှားခြင်းတို့ ပြုလုပ်နိုင်မည်။
+4. Creator သည် Optional Reference များ ထည့်နိုင်သလို Media များ Generate လုပ်နိုင်သော်လည်း VYRAL Draft သိမ်းရန် ၎င်းတို့ မဖြစ်မနေမလိုအပ်ပါ။
+5. Creator သည် Prompt၊ Profile၊ ပါဝင်သည့် Asset များနှင့် AI အကြံပြုထားသော အချက်အလက်များကို ပြန်လည်စစ်ဆေးမည်။ နောက်ဆုံးဆုံးဖြတ်ချက်ကို Creator ကသာ ချမှတ်မည်။
+6. Draft ကို မည်သည့်အဆင့်တွင်မဆို သိမ်းနိုင်သည်။ ပြန်လည်အသုံးပြုရန် သို့မဟုတ် ရောင်းချရန် Publish လုပ်ပါက Creator သည် Permission များသတ်မှတ်ပြီး ပါဝင်သည့်အရာများကို တိကျစွာ ဖော်ပြရမည်။
 
 AI assistance and manual control should work together. The creator should remain in control of important creative decisions and should be able to correct AI-suggested information.
 
@@ -334,12 +349,12 @@ This document is a living brainstorming record. The following questions must be 
 
 ဤဖိုင်သည် အကြိမ်ကြိမ် ပြန်လည်ဆွေးနွေးပြင်ဆင်မည့် Idea မှတ်တမ်းဖြစ်သည်။ အောက်ပါအချက်များကို Product ဆွေးနွေးမှုများမှတစ်ဆင့် ထပ်မံစဉ်းစား၊ ပြင်ဆင်၊ အတည်ပြုရမည်။ ဤနေရာတွင် ရေးထားခြင်းတစ်ခုတည်းကြောင့် အပြီးသတ်ဆုံးဖြတ်ချက် ဖြစ်သွားသည်ဟု မယူဆရပါ။
 
-1. What is the minimum VYRA profile standard for each broad kind of creation, without restricting new kinds of assets?
-   ဖန်တီးမှုအမျိုးအစားအသစ်များကို မကန့်သတ်ဘဲ Asset အမျိုးအစားအလိုက် အနည်းဆုံး VYRA Profile Standard ကို ဘယ်လိုသတ်မှတ်မလဲ။
-2. Which reference images are required, and how should VYRA verify that they represent the same asset?
-   ဘယ် Reference ပုံတွေ မဖြစ်မနေလိုအပ်မလဲ၊ ပုံအားလုံးဟာ Asset တစ်ခုတည်းကို ကိုယ်စားပြုကြောင်း VYRA က ဘယ်လိုစစ်ဆေးမလဲ။
-3. Which creation steps should be AI-assisted, and which should remain manual?
-   Creation လုပ်ငန်းစဉ်ထဲမှာ ဘယ်အပိုင်းတွေကို AI က ကူညီမလဲ၊ ဘယ်အပိုင်းတွေကို Manual ထားမလဲ။
+1. How should VYRAL types and creator-defined profile fields support discovery without becoming restrictive?
+   VYRAL Type များနှင့် Creator ကိုယ်တိုင်သတ်မှတ်သော Profile Field များကို ဖန်တီးမှုမကန့်သတ်စေဘဲ ရှာဖွေရလွယ်ကူအောင် ဘယ်လိုစီစဉ်မလဲ။
+2. What prompt/instruction history should be preserved for each revision, and which optional generation metadata is worth retaining?
+   Revision တစ်ခုချင်းစီအတွက် ဘယ် Prompt/Instruction History ကို ထိန်းသိမ်းမလဲ၊ ဘယ် Optional Generation Metadata များကို သိမ်းထားသင့်သလဲ။
+3. How should AI suggestions and manual editing work together while keeping the creator in control?
+   Creator ၏ ထိန်းချုပ်ခွင့်ကို ထိန်းသိမ်းရင်း AI အကြံပြုချက်နှင့် Manual Editing တို့ကို ဘယ်လိုပေါင်းစပ်မလဲ။
 4. How should partial editing work, and what consistency level can actually be achieved?
    အစိတ်အပိုင်းတစ်ခုတည်း ပြင်ဆင်ခြင်းကို ဘယ်လိုလုပ်ဆောင်မလဲ၊ လက်တွေ့ရရှိနိုင်သည့် Consistency အဆင့်က ဘယ်လောက်လဲ။
 5. How should permissions combine—for example, clone allowed but commercial use forbidden?
@@ -364,8 +379,8 @@ This document is a living brainstorming record. The following questions must be 
    **လွတ်လပ်စွာဖန်တီးနိုင်ခြင်း:** စိတ်ကူးများကို ကြိုတင်သတ်မှတ်ထားသော Category စာရင်းဖြင့် မကန့်သတ်ရ။
 2. **Own profile:** Every reusable asset has its own profile.
    **ကိုယ်ပိုင် Profile:** ပြန်လည်အသုံးပြုနိုင်သော Asset တစ်ခုချင်းစီတွင် ကိုယ်ပိုင် Profile ရှိရမည်။
-3. **VYRA standard:** Profiles meet clear reference and quality requirements appropriate to the asset.
-   **VYRA Standard:** Asset နှင့်ကိုက်ညီသော Reference နှင့် အရည်အသွေးစံနှုန်းများ ပြည့်မီရမည်။
+3. **No forced completeness:** A VYRAL may be simple or incomplete; prompt/instruction context is mandatory, while media and extra references are optional.
+   **မဖြစ်မနေပြည့်စုံရန် မလို:** VYRAL သည် ရိုးရှင်းနိုင်ပြီး မပြည့်စုံသေးလည်း ရသည်။ Prompt/Instruction Context သာ မဖြစ်မနေလိုအပ်ပြီး Media နှင့် အပို Reference များမှာ Optional ဖြစ်သည်။
 4. **Reuse and evolve:** Assets can be reused and, when permitted, developed into new versions.
    **ပြန်လည်အသုံးပြု၍ ဆင့်ကဲဖန်တီးနိုင်ခြင်း:** ခွင့်ပြုချက်ရှိပါက Asset များကို ပြန်သုံးပြီး Version အသစ်များ ဖန်တီးနိုင်ရမည်။
 5. **Protect the source:** Derivatives never overwrite the original.
@@ -385,6 +400,11 @@ This document is a living brainstorming record. The following questions must be 
 
 ## 13. Change log
 ## ၁၃။ ပြင်ဆင်မှုမှတ်တမ်း
+
+- **2026-11-03 — VYRAL and prompt foundation update:** Defined VYRAL as a flexible, potentially multi-asset digital creation collection; made a creation prompt/instruction record mandatory while keeping media optional; removed mandatory reference-view, completeness, and quality gates; added prompt provenance/revision history and a Chat-First creation flow. This remains future-version design, not current implementation authorization.
+
+- **2026-11-03 — VYRAL နှင့် Prompt အခြေခံမူ Update:** VYRAL ကို Asset တစ်ခု သို့မဟုတ် အများအပြားပါဝင်နိုင်သော လွတ်လပ်သည့် Digital Creation Collection အဖြစ် သတ်မှတ်ထားသည်။ Creation Prompt/Instruction မှတ်တမ်းကို မဖြစ်မနေလိုအပ်စေပြီး Media ကို Optional ထားသည်။ Reference မြင်ကွင်း၊ ပြည့်စုံမှုနှင့် အရည်အသွေးဆိုင်ရာ မဖြစ်မနေ Gate များကို ဖယ်ရှားထားသည်။ Prompt မူလရင်းမြစ်/Revision History နှင့် Chat-First ဖန်တီးမှုလုပ်ငန်းစဉ်ကို ထည့်သွင်းထားသည်။ ဤအရာသည် အနာဂတ် Version အတွက် Design သာဖြစ်ပြီး လက်ရှိ Implementation ပြောင်းလဲရန် ခွင့်ပြုချက် မဟုတ်ပါ။
+
 
 - **2026-11-03 — Initial brainstorming record:** Captured the proposed Creator & Reusable Asset Ecosystem, individual asset profiles, VYRA reference standard, clone/customize and derivative lineage, creator-defined permissions and pricing, community videos, AI profile understanding, and open questions. This initial document is not a final specification.
 
