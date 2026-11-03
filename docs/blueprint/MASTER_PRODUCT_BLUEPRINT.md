@@ -398,3 +398,85 @@ VYRA should create value beyond producing a single video. Through the Vyral ecos
 The intended customer benefit is the opportunity to build reusable creative resources and gradually grow a creative business, while also saving the time and expense of building every consistent Asset package from scratch. This is a product goal, not a guarantee of customer income.
 
 **Status:** The broad end-to-end creative-service direction, wide range of intended video use cases, direct publishing goal, and Vyral-enabled customer growth opportunity are confirmed product direction. Exact first-release scope, supported formats, provider capabilities, platform integrations, customer journey and publishing controls remain to be discovered and approved.
+
+
+## 24. Chat Mode and Workspace Mode
+
+### 24.1 Two full-screen working modes
+
+The primary VYRA experience should provide two distinct full-screen modes:
+
+- **Chat Mode:** a simple, conversational entry point where customers can discuss ideas with VYRA's AI, refine creative direction and request supported actions.
+- **Workspace Mode:** a visual creative studio where customers inspect, organize and manually edit their projects and creative materials.
+
+The customer should be able to move between Chat Mode and Workspace Mode using a swipe interaction. They are two views of the same product and the same underlying project data, not separate applications or disconnected workflows.
+
+**Status:** The two-mode, full-screen concept and swipe transition are approved at the product-direction level. Exact gestures, navigation details and visual design remain open.
+
+### 24.2 Global, page-aware AI Chat
+
+AI Chat should remain globally available throughout VYRA, including while the customer is viewing Workspace pages or browsing Vyrals. The conversation should persist when the customer changes pages; page navigation should not reset the chat.
+
+The AI should understand the current live context, including the active page, selected project, selected scene or item, relevant settings and the data currently shown. The currently open page is the primary working context. When relevant and authorized, the AI may also access or act on other pages and projects without requiring the customer to navigate there first.
+
+When a Vyral is active, the AI should understand its included Assets, creative rules and applicable permissions, and use them only within those permissions.
+
+Chat-driven changes and manual Workspace edits must operate on the same underlying data and remain synchronized. The customer should not have to reconcile separate chat and visual-editor versions of the same project.
+
+**Status:** Global persistent chat, awareness of live page context, active Vyral context, and shared data between AI and manual editing are approved product direction. Exact context boundaries, action controls, audit history and recovery behavior remain to be specified.
+
+### 24.3 Creative planning before media generation
+
+For a new video, the customer may begin in Chat Mode by asking for ideas—for example, a Knowledge Sharing video. The AI should help brainstorm and refine the concept, then prepare an overall rough video plan for the customer to review.
+
+After the customer approves that creative plan, VYRA should create a scene-by-scene Storyboard automatically. At this planning stage, the Storyboard should contain rough descriptions, ideas and placeholders only; actual images, video clips or audio should not be generated yet.
+
+The customer can then inspect and edit individual scenes, durations and settings in Workspace. Changes may be made manually or through AI Chat and must remain synchronized.
+
+**Important distinction:** Approval of the creative plan is not approval to spend credits or start paid media generation. Paid generation requires its own clear review and explicit approval before it begins.
+
+**Status:** The planning → customer review → approval → automatic rough Storyboard sequence is approved in principle. Detailed plan format, storyboard fields and later generation workflow remain open.
+
+## 25. Workspace Product Direction
+
+### 25.1 Purpose
+
+Workspace is the visual creative studio where customers can inspect, manage and manually edit the work VYRA is helping them create. It should complement Chat Mode: Chat provides conversational direction and control, while Workspace provides a clear visual working surface.
+
+The Workspace should look and feel like a premium, professional, futuristic AI Creative Studio while remaining clean, minimal and easy to understand. Sophistication should come from what VYRA handles behind the scenes—not from exposing a large number of complex controls to the customer.
+
+The interface should show only useful, relevant controls at the right time. Advanced orchestration, automation, quality checks and other complex processes should generally be handled behind the scenes unless the customer needs to inspect or control them.
+
+**Status:** The simple, uncluttered Workspace principle and futuristic professional creative-studio direction are confirmed. Exact visual language, colors, layout and responsive behavior remain open.
+
+### 25.2 Initial Workspace areas — proposal only
+
+The following five areas were suggested as a possible way to organize Workspace capabilities:
+
+1. **Project Workspace** — manage the active video project.
+2. **Storyboard & Scene Editor** — inspect and edit scenes, durations and scene settings.
+3. **Vyral Workspace** — manage a Vyral and the Assets it contains.
+4. **Media & Production** — create, organize and reuse image, video and audio materials.
+5. **Review & Publishing** — review finished work and publish to supported social platforms.
+
+This is an initial discussion proposal only. It is not an approved page structure, final navigation, fixed number of sections or MVP commitment. The Product Owner has not yet decided whether Workspace should open directly into one active project or first show a place to manage all projects.
+
+**Status:** Proposed / discussing.
+
+### 25.3 Workspace and global AI control
+
+While in Workspace, the currently open page and its live data should be the AI's primary focus. The customer must still be able to make direct manual edits. The AI should be able to help configure settings and make meaningful changes through Chat, with those changes reflected in the same Workspace data.
+
+The AI should be context-aware without taking away the customer's control. The exact authority model—what it may do immediately, what it must preview, and what requires explicit confirmation—remains to be defined alongside the Human-Controlled Area.
+
+**Status:** Shared-context and dual manual/chat control are approved direction; detailed action authority remains open.
+
+## 26. Human-Controlled Area
+
+VYRA should include a distinct **Human-Controlled Area** for controls and decisions that only the human customer may directly control. This is intended to preserve meaningful human authority over important parts of the account and platform experience.
+
+The existence of this dedicated area is approved. However, its exact contents and the AI's access level have not yet been decided. In particular, it remains open whether the AI is completely excluded from the area or may view and explain information there while being prohibited from changing settings or taking actions.
+
+The Human-Controlled Area must be distinguished from ordinary reversible Workspace changes and from high-impact actions such as paid generation, publishing, financial operations, security changes or destructive actions. The exact classification and confirmation rules still require discussion.
+
+**Status:** Dedicated Human-Controlled Area approved in principle; scope, AI visibility, permissions and confirmation rules remain open.
