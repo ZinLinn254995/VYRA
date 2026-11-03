@@ -73,6 +73,10 @@ test('credit transfer retry reuses the original idempotency key after an uncerta
   await expect(page.getByRole('alert')).toContainText('Transfer status is not confirmed');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(submitted).toHaveLength(1);
+  const persistedRequest = await page.evaluate(() => localStorage.getItem('vyra.pending-credit-transfers.v1') ?? '');
+  expect(persistedRequest).toContain('idempotencyKey');
+  expect(persistedRequest).not.toContain('friend');
+  expect(persistedRequest).not.toContain('"amount"');
 
   // A full page reload must not discard the idempotency key for an uncertain transfer.
   await page.reload();
