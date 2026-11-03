@@ -106,7 +106,7 @@ test('reserve, commit, release and refund call the server-only RPC with exact in
     }
   }
 
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   for (const call of calls) {
     assert.equal(call.url.pathname, '/rest/v1/rpc/apply_credit_ledger_entry');
     assert.equal(call.headers.get('apikey'), SERVICE_KEY);
