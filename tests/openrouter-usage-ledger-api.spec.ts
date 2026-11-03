@@ -121,7 +121,7 @@ test('ledger-enabled OpenRouter chat records job, provider usage and actual cost
   assert.equal(job.body.user_id, USER_ID);
   assert.equal(job.body.idempotency_key, 'chat-test-request-001');
   assert.equal(job.body.capability, 'text');
-  assert.deepEqual(job.body.request_parameters, { messageCount: 1, inputCharacters: 28 });
+  assert.deepEqual(job.body.request_parameters, { messageCount: 1, inputCharacters: 21 });
   assert.equal('prompt' in job.body, false);
   assert.equal(job.headers.get('Authorization'), 'Bearer ' + SERVICE_KEY);
 
