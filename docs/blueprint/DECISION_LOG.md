@@ -167,3 +167,12 @@ For each future decision, record:
 - **Reason:** The Product Owner confirmed that the proposed Project Creative Studio first-view UI matches the desired experience and explicitly requested that this UI be used.
 - **Scope:** This approves the first-view concept and information hierarchy, not exact visual styling, spacing, responsive behavior, project switching, the no-active-project empty state, or the proposed five-area Workspace structure in BP-014.
 - **Approval source:** Product Owner explicitly said the proposed UI is exactly what they want and asked to record it.
+
+
+### BP-018 — Storyboard is the video work-unit and has its own library
+
+- **Status:** Approved
+- **Decision:** In the customer-facing Workspace, a complete video project is called a **Storyboard**; do not use a separate **Project** label for this work unit. Workspace navigation uses simple, large page buttons and shows recent Storyboards on the Workspace entry view. The dedicated **Storyboard** page lists the customer's existing Storyboards and provides **Create New Storyboard**. Opening a Storyboard shows all of its Scenes together. Scenes can be created manually or through global AI Chat, and both creation paths add Scenes to the same Storyboard.
+- **Reason:** The Product Owner wants the complete video work to be represented and navigated as a Storyboard, with a simple library and one unified place for its Scenes.
+- **Scope:** Exact Workspace button set, Storyboard list sorting/layout, Scene structure and fields, manual creation controls, empty states and detailed editing behavior remain open. This decision refines the Project-centric navigation framing in BP-017; it does not approve the five-area proposal in BP-014.
+- **Approval source:** Product Owner explicitly confirmed that Storyboards are the video projects, asked for all Storyboards to appear in the Workspace Storyboard page, approved creating new Storyboards from that page, and confirmed that Scenes can be created manually or through AI Chat.
