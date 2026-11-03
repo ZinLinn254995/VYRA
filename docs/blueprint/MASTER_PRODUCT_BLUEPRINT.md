@@ -480,3 +480,25 @@ The existence of this dedicated area is approved. However, its exact contents an
 The Human-Controlled Area must be distinguished from ordinary reversible Workspace changes and from high-impact actions such as paid generation, publishing, financial operations, security changes or destructive actions. The exact classification and confirmation rules still require discussion.
 
 **Status:** Dedicated Human-Controlled Area approved in principle; scope, AI visibility, permissions and confirmation rules remain open.
+
+
+## 27. Workspace First View — Project Creative Studio
+
+When a customer enters Workspace, the first view should be **Project Creative Studio**. This is the approved first-view direction, not a generic SaaS dashboard.
+
+The first view should make the current/active project the main focus and provide clear, quick access to the project's key work areas:
+
+- Storyboard.
+- Vyral.
+- Media.
+- Settings.
+
+It should also show the production journey in a simple, understandable progress sequence:
+
+**Plan → Storyboard → Generate → Review → Publish**
+
+The global AI Chat remains available throughout Workspace and can work with the active project and currently open page context. The first view should feel like entering a focused creative studio, not navigating a collection of unrelated admin cards.
+
+This approval covers the first-view concept and its principal information hierarchy. It does not finalize exact spacing, component styling, responsive behavior, project switching, or the empty state when no project is active. The proposed Workspace information architecture in §25.2 remains a proposal and is not automatically approved by this decision.
+
+**Status:** First Workspace view approved. Detailed visual specification and edge states remain open.
