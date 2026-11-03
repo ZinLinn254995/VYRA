@@ -24,3 +24,33 @@ test('OpenRouter BYOK generation rejects requests without a verified Supabase se
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
+
+
+test('recognizes a Bearer token and asks Supabase to verify it', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalAnon = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_URL = 'https://auth-test.supabase.co';
+  process.env.SUPABASE_ANON_KEY = 'anon-test-only';
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).startsWith('https://auth-test.supabase.co/')) {
+      return Response.json({ message: 'invalid token' }, { status: 401 });
+    }
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(baseUrl + '/providers/openrouter/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer abc.session.token', 'x-openrouter-api-key': 'or-test-key-not-a-real-secret', 'Idempotency-Key': 'req-test-valid-shaped' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Test' }], model: 'openai/test' }),
+      });
+      assert.equal(response.status, 401);
+      assert.deepEqual(await response.json(), { error: 'Your session is invalid or expired. Please sign in again.' });
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = originalUrl;
+    if (originalAnon === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = originalAnon;
+  }
+});
