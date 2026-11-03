@@ -91,7 +91,7 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   // This records provider usage; it does not reserve or charge VYRA credits.
   let ledgerContext: { userId: string; job: OpenRouterTextJob } | null = null;
   if (isUsageLedgerServerEnabled()) {
-    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     if (!bearer) return res.status(401).json({ error: 'Sign in to VYRA before recording generation usage.' });
 
     const verified = await verifySupabaseAccessToken(bearer[1]);
