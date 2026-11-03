@@ -58,7 +58,6 @@ Examples may include characters, creatures, objects, clothing, weapons, vehicles
 **VYRAL** ဆိုသည်မှာ VYRA အတွင်း ပြန်လည်အသုံးပြုနိုင်ခြင်း၊ မျှဝေနိုင်ခြင်း၊ License ပေးနိုင်ခြင်း သို့မဟုတ် ရောင်းချနိုင်ခြင်းရှိသော Digital Creation သို့မဟုတ် Collection ကို ခေါ်သည့် VYRA ၏ ကိုယ်ပိုင်အမည်ဖြစ်သည်။ သို့သော် Creator ၏ အမှန်တကယ်ရရှိထားသော အခွင့်အရေးနှင့် သက်ဆိုင်ရာစည်းမျဉ်းများကို လိုက်နာရမည်။ VYRAL တစ်ခုတွင် Asset တစ်ခုတည်းလည်း ပါနိုင်သလို Asset အများအပြားလည်း ပါနိုင်သည်။ ရိုးရှင်းပြီး မပြည့်စုံသေးသော Creation ဖြစ်နိုင်သလို ဖန်တီးမှုအမျိုးအစားမျိုးစုံ ပေါင်းစပ်ထားသည့် Collection ကြီးတစ်ခုလည်း ဖြစ်နိုင်သည်။ ပုံတစ်ပုံ၊ Video တစ်ခု၊ Character တစ်ကောင် သို့မဟုတ် ကြိုတင်သတ်မှတ်ထားသော Asset Type တစ်မျိုးတည်းဖြင့် ကန့်သတ်မထားရ။
 
 A VYRAL may contain, for example, characters, locations, outfits, voices, music, dance or motion, visual styles, stories, scenes, props, objects, prompts, and other creative components. These are flexible examples, not a closed taxonomy. Types should help organize and discover creations; they must not become a gate that prevents creators from making unusual combinations or inventing new types.
-
 VYRAL တစ်ခုတွင် Character၊ Location၊ Outfit၊ Voice၊ Music၊ Dance သို့မဟုတ် Motion၊ Visual Style၊ Story၊ Scene၊ အသုံးအဆောင်ပစ္စည်း၊ အရာဝတ္ထု၊ Prompt နှင့် အခြား Creative Component များ ပါဝင်နိုင်သည်။ ဤအရာများသည် လွတ်လပ်စွာ အသုံးပြုနိုင်သည့် ဥပမာများသာဖြစ်ပြီး အကန့်အသတ်ရှိသော Type စာရင်း မဟုတ်ပါ။ Type များသည် Creation များကို စုစည်းရန်နှင့် ရှာဖွေရန်သာ အထောက်အကူဖြစ်ရမည်။ Creator များ၏ ထူးခြားသော ပေါင်းစပ်ဖန်တီးမှုများ သို့မဟုတ် Type အသစ်များ ဖန်တီးမှုကို တားဆီးသည့် စည်းမျဉ်း မဖြစ်ရ။
 
 **A creation prompt or creation instruction record is mandatory for every VYRAL; media files are optional.** A VYRAL may therefore begin as a prompt/instruction-based creation with no generated image, video, or audio yet. Conversely, an image or video alone is not enough to describe a reusable VYRAL: its creation prompt/instructions must be retained so the AI can understand the intended concept and use it as context when recreating, modifying, or combining the creation.
@@ -117,7 +116,6 @@ Creators may add as many or as few reference views and media items as they have 
 Creator များသည် မိမိတွင်ရှိသည့် သို့မဟုတ် လိုအပ်သည့် Reference မြင်ကွင်းနှင့် Media အရေအတွက်ကို လွတ်လပ်စွာ ထည့်နိုင်ရမည်။ ဥပမာ Character VYRAL တစ်ခုတွင် မျက်နှာပုံတစ်ပုံတည်းသာ ပါဝင်နိုင်သည်။ အခြား Creator တစ်ဦးက ရှေ့၊ နောက်၊ ဘေး၊ Outfit၊ ဆံပင်၊ Voice သို့မဟုတ် Motion Reference များကို ထပ်ထည့်နိုင်သည်။ Profile ထဲရှိ Item တစ်ခုချင်းစီက ဘာကိုဖော်ပြသလဲဆိုတာ ရှင်းလင်းစွာ အမည်တပ်ထားသင့်သော်လည်း VYRAL ဖြစ်ရန် သတ်မှတ်ထားသော မြင်ကွင်းတစ်ခုခု၊ File အရေအတွက်၊ ထုတ်လုပ်မှုအရည်အသွေး သို့မဟုတ် ပြည့်စုံမှုအဆင့် မဖြစ်မနေလိုအပ်စေရ။
 
 VYRA may offer optional guidance, completeness indicators, or quality signals to help creators and buyers understand what is available and what is missing. These are informational aids, not eligibility gates. A simple or incomplete VYRAL remains a valid VYRAL. If it is listed for reuse or sale, its listing must honestly describe its limitations and included materials.
-
 VYRA သည် Creator နှင့် ဝယ်ယူသူများအနေဖြင့် ဘာတွေပါဝင်ပြီး ဘာတွေမရှိသေးသည်ကို နားလည်စေရန် Optional လမ်းညွှန်ချက်၊ ပြည့်စုံမှုညွှန်ပြချက် သို့မဟုတ် အရည်အသွေးဆိုင်ရာ အချက်ပြမှုများ ပေးနိုင်သည်။ သို့သော် ၎င်းတို့သည် အချက်အလက်အထောက်အကူများသာဖြစ်ပြီး VYRAL ဖြစ်ခွင့်ကို ကန့်သတ်သည့် Gate များ မဟုတ်ရ။ ရိုးရှင်းသော သို့မဟုတ် မပြည့်စုံသေးသော VYRAL သည်လည်း VYRAL အဖြစ် တရားဝင်ရှိနေနိုင်သည်။ ပြန်လည်အသုံးပြုရန် သို့မဟုတ် ရောင်းချရန် တင်ထားပါက ပါဝင်သည့်အရာများနှင့် ကန့်သတ်ချက်များကို ရိုးသားတိကျစွာ ဖော်ပြရမည်။
 
 References and prompts can improve AI understanding and consistency, but they cannot guarantee identical results across every model or provider. VYRA must communicate this limitation honestly.
@@ -178,7 +176,6 @@ Some edits may naturally affect connected areas, so the product must not promise
 ## ၅။ Creator ကိုယ်တိုင် သတ်မှတ်နိုင်သော ခွင့်ပြုချက်နှင့် အသုံးပြုခ
 
 The creator of an asset should be able to decide which reuse permissions to offer. The available permission choices should be understandable and explicit.
-
 Asset ဖန်တီးသူသည် သူ့ဖန်တီးမှုကို အခြားသူများအား ဘယ်လိုပြန်လည်အသုံးပြုခွင့်ပေးမလဲဆိုတာ ကိုယ်တိုင်ဆုံးဖြတ်နိုင်ရမည်။ ခွင့်ပြုချက်တစ်ခုချင်းစီ၏ အဓိပ္ပာယ်ကို နားလည်ရလွယ်ကူပြီး ရှင်းလင်းစွာ ဖော်ပြရမည်။
 
 Possible permission controls / စဉ်းစားထားသော ခွင့်ပြုချက်များ:
@@ -238,7 +235,6 @@ A lineage record may show:
 - The relationship between versions.
 - Recorded modifications, where available.
 - The relevant permission or license record.
-
 Lineage မှတ်တမ်းတွင် အောက်ပါအချက်များ ပါဝင်နိုင်သည်။
 - မူရင်း Asset နှင့် မူရင်း Creator။
 - တိုက်ရိုက်ဆင်းသက်လာသည့် Parent Version။
@@ -298,7 +294,6 @@ Example request / ဥပမာ:
 > “ဒီ Character သုံးကောင်၊ ဒီအိမ်နဲ့ ဒီဓားကို အသုံးပြုပြီး တိုက်ခိုက်ရေးဇာတ်ဝင်ခန်းတစ်ခု ဖန်တီးပေးပါ။”
 
 The AI should use the selected profiles and their available references rather than inventing unsupported details. If the house profile contains only an exterior and living room, the AI should not claim that a bedroom or kitchen already exists. It may ask whether the user wants to add the missing part or propose creating it as a new derivative/update, with the user's approval.
-
 AI သည် ရွေးချယ်ထားသော Profile များနှင့် ရရှိနိုင်သည့် Reference များကို အသုံးပြုရမည်ဖြစ်ပြီး အထောက်အထားမရှိသော အသေးစိတ်များကို ရှိပြီးသားအဖြစ် မဖန်တီးသင့်ပါ။ ဥပမာ အိမ် Profile တွင် အပြင်ပိုင်းနှင့် Living Room သာ ပါဝင်ပါက Bedroom သို့မဟုတ် Kitchen ရှိပြီးသားဟု မယူဆရပါ။ လိုအပ်နေသည့်အပိုင်းကို ထပ်ထည့်လိုသလား မေးမြန်းနိုင်ပြီး အသုံးပြုသူ၏ ခွင့်ပြုချက်ဖြင့် Profile အသစ် သို့မဟုတ် Derivative အဖြစ် ဖန်တီးရန် အကြံပြုနိုင်သည်။
 
 AI must check permissions before using paid or restricted assets. Asset licensing cost and AI generation cost are separate and should be shown separately where applicable. The user must approve billable actions.
@@ -358,7 +353,6 @@ Important distinctions to preserve:
 - Launch မလုပ်မီ Copyright၊ Trademark၊ Publicity/Personality Rights၊ Privacy၊ Fraud၊ Abuse၊ Moderation နှင့် သက်ဆိုင်ရာဥပဒေများကို စဉ်းစားရမည်။
 
 ---
-
 ## 11. Decisions still open for future discussions
 ## ၁၁။ နောက်ထပ် ဆွေးနွေးဆုံးဖြတ်ရန် ကျန်ရှိသည့်အချက်များ
 
@@ -417,7 +411,6 @@ This document is a living brainstorming record. The following questions must be 
 
 ## 13. Storyboard — simple scene composition, independent of VYRAL
 ## ၁၃။ Storyboard — VYRAL နှင့် သီးခြားရပ်တည်သော ရိုးရှင်းသည့် Scene စီစဉ်မှု
-
 **VYRAL is a reusable source collection; a generated video is an output made using that VYRAL, not an inherent or mandatory part of the VYRAL itself.** For example, a VYRAL may contain a character, a dance/motion asset, and music. A creator can use those components together to generate a video. The resulting video is an output/example made from the VYRAL. The creator may later replace the character, dance, music, or any combination of them and generate another output. A VYRAL can exist without any video output.
 
 **VYRAL သည် ပြန်လည်အသုံးပြုနိုင်သော မူလ Source Collection ဖြစ်ပြီး၊ ထို VYRAL ကို အသုံးပြု၍ Generate လုပ်ထားသော Video သည် Output သာဖြစ်သည်။ Video သည် VYRAL ၏ မဖြစ်မနေပါဝင်ရမည့် အစိတ်အပိုင်း မဟုတ်ပါ။** ဥပမာ VYRAL တစ်ခုတွင် Character၊ Dance/Motion Asset နှင့် Music ပါဝင်နိုင်သည်။ Creator သည် ၎င်းတို့ကို ပေါင်းစပ်အသုံးပြုပြီး Video တစ်ခု Generate လုပ်နိုင်သည်။ ထွက်လာသော Video သည် ထို VYRAL မှ ဖန်တီးထားသည့် Output/Example ဖြစ်သည်။ နောက်တစ်ကြိမ်တွင် Character၊ Dance၊ Music သို့မဟုတ် ၎င်းတို့အနက် အချို့/အားလုံးကို အစားထိုးပြီး Video အသစ်တစ်ခု ထပ်မံဖန်တီးနိုင်သည်။ Video Output မရှိသေးသော်လည်း VYRAL တစ်ခု သီးခြားတည်ရှိနိုင်သည်။
@@ -478,7 +471,6 @@ The intended workflow is deliberately simple:
 - **Final Video:** Storyboard အတွင်း အစီအစဉ်ချထားသော Scene များကို ပေါင်းစပ်ထုတ်လုပ်ထားသည့် နောက်ဆုံး Video။
 
 This separation keeps VYRAL reusable beyond a single video, while allowing the Storyboard to accept creative material from VYRAL-based generation, independent generation, and existing media. This is a future product direction, not a statement that the current application already implements it.
-
 ဤခွဲခြားမှုကြောင့် VYRAL ကို Video တစ်ခုတည်းအတွက်သာ မဟုတ်ဘဲ အကြိမ်ကြိမ် ပြန်လည်အသုံးပြုနိုင်မည်ဖြစ်ပြီး Storyboard သည် VYRAL မှ ဖန်တီးထားသော Media၊ သီးခြား Generate လုပ်ထားသော Media နှင့် ရှိပြီးသား Media များအားလုံးကို လက်ခံနိုင်မည်ဖြစ်သည်။ ဤအချက်များသည် အနာဂတ် Product Direction သာဖြစ်ပြီး လက်ရှိ Application တွင် အကောင်အထည်ဖော်ပြီးသားဟု မဆိုလိုပါ။
 
 
@@ -538,7 +530,60 @@ Platform သည် ဤဆက်နွယ်မှုများကို စာ
 
 ---
 
+### 2.3 VYRAL as a native file format and AI-native media formats
+### ၂.၃ VYRAL ကိုယ်ပိုင် Native File Format နှင့် AI Native Media Format များ
+
+The long-term direction is for VYRAL to have its own native file format and extension: `.vyral`. A saved Original, Modified, or Cloned VYRAL remains a `.vyral` file. It is the portable file/container representation of the structured VYRAL creation entity described above; it is not merely an ordinary image, video, or audio file. The native format should preserve the VYRAL's structured data, mandatory creation prompt/instructions, assets, version identity, permissions where appropriate, and provenance/lineage.
+
+ရေရှည်ဦးတည်ချက်အရ VYRAL တွင် ကိုယ်ပိုင် Native File Format နှင့် Extension ဖြစ်သော `.vyral` ရှိရမည်။ သိမ်းဆည်းထားသော Original၊ Modified သို့မဟုတ် Cloned VYRAL တစ်ခုသည် `.vyral` File အဖြစ်ပင် ဆက်လက်တည်ရှိမည်။ ၎င်းသည် အထက်တွင်ဖော်ပြထားသော Structured VYRAL Creation Entity ကို Portable File/Container အဖြစ် ကိုယ်စားပြုခြင်းဖြစ်ပြီး သာမန် Image၊ Video သို့မဟုတ် Audio File တစ်ခုသာ မဟုတ်ပါ။ Native Format သည် VYRAL ၏ Structured Data၊ မဖြစ်မနေလိုအပ်သော Creation Prompt/Instruction၊ Asset များ၊ Version Identity၊ သင့်လျော်သည့် Permission နှင့် မူလရင်းမြစ်/Lineage မှတ်တမ်းများကို ထိန်းသိမ်းရမည်။
+
+VYRA may generate purpose-specific native media representations from a VYRAL, using the VYRAL version together with a new prompt or instruction. Candidate compound names include `.vyral.png`, `.vyral.mp4`, `.vyral.wav`, and `.vyral.glb`. These are proposed naming conventions, not a finalized technical specification. A saved transformation or customization that remains a VYRAL version should still use `.vyral`; the compound media form is for a generated Image, Video, Audio, or 3D output.
+
+VYRA သည် VYRAL Version နှင့် ရည်ရွယ်ချက်အလိုက် Prompt/Instruction အသစ်ကို တွဲဖက်အသုံးပြုပြီး သက်ဆိုင်ရာ Native Media Representation များကို Generate လုပ်နိုင်မည်။ စဉ်းစားထားသော Compound File Name များမှာ `.vyral.png`၊ `.vyral.mp4`၊ `.vyral.wav` နှင့် `.vyral.glb` တို့ဖြစ်သည်။ ၎င်းတို့သည် အဆိုပြုထားသော Naming Convention များသာဖြစ်ပြီး အပြီးသတ် Technical Specification မဟုတ်သေးပါ။ သိမ်းဆည်းထားသော ပြောင်းလဲမှုသည် VYRAL Version အဖြစ် ဆက်လက်တည်ရှိပါက `.vyral` ကိုသာ အသုံးပြုရမည်။ Compound Media Form သည် Generate လုပ်ထားသော Image၊ Video၊ Audio သို့မဟုတ် 3D Output အတွက် ဖြစ်သည်။
+
+**Important current-stage behavior:** These VYRA-native media files are intended to be rendered and used as media inside the VYRA app only at the initial stage. For example, a `.vyral.png` output should be viewable as an image inside VYRA, but it is not intended to appear as an ordinary viewable PNG on unrelated phones, computers, or generic image viewers yet. The internal payload therefore cannot simply be a standard PNG with a renamed extension; it must use a VYRA-defined format/container or protected representation that the VYRA app understands. The familiar suffix (such as `.png`) is a proposed media-type hint, not a promise of compatibility with ordinary PNG software.
+
+**လက်ရှိအစောပိုင်းအဆင့်၏ အရေးကြီးသော အပြုအမူ:** ဤ VYRA Native Media File များကို အစပိုင်းတွင် VYRA App အတွင်း၌သာ Media အဖြစ် Render လုပ်၍ အသုံးပြုနိုင်ရန် ရည်ရွယ်သည်။ ဥပမာ `.vyral.png` Output ကို VYRA အတွင်း၌ ပုံအဖြစ် ကြည့်ရှုနိုင်သော်လည်း အခြားဖုန်း၊ ကွန်ပျူတာ သို့မဟုတ် သာမန် Image Viewer များတွင် သာမန်ပုံဖိုင်အဖြစ် ဖွင့်ကြည့်နိုင်ရန် လက်ရှိအဆင့်၌ မရည်ရွယ်သေးပါ။ ထို့ကြောင့် အတွင်းရှိ Payload သည် Extension အမည်သာပြောင်းထားသော Standard PNG သက်သက် မဖြစ်ရဘဲ VYRA App က နားလည်နိုင်သော VYRA သတ်မှတ် Format/Container သို့မဟုတ် ကာကွယ်ထားသည့် Representation ဖြစ်ရမည်။ `.png` ကဲ့သို့ ရင်းနှီးပြီးသား Suffix သည် Media Type ကို ညွှန်ပြရန် အဆိုပြုထားခြင်းသာဖြစ်ပြီး သာမန် PNG Software များနှင့် ကိုက်ညီမည်ဟု အာမခံခြင်း မဟုတ်ပါ။
+
+The generated media must retain a reliable link to the exact source VYRAL version(s), generation prompt/instructions, selected assets, and recorded transformations. Where practical, this provenance should travel with the file through embedded metadata and/or a documented sidecar manifest. If the media is separated from its VYRAL source, VYRA should still be able to identify the source or clearly indicate when provenance data is missing or unverifiable. File names alone must never be treated as proof of lineage.
+
+Generate လုပ်ထားသော Media တစ်ခုချင်းစီသည် အသုံးပြုခဲ့သည့် Source VYRAL Version များ၊ Generation Prompt/Instruction၊ ရွေးချယ်ထားသော Asset များနှင့် မှတ်တမ်းတင်ထားသော ပြောင်းလဲမှုများကို တိကျစွာ ပြန်လည်ချိတ်ဆက်နိုင်ရမည်။ လက်တွေ့ဖြစ်နိုင်သည့်အခါ ဤ Provenance ကို Embedded Metadata နှင့်/သို့မဟုတ် မှတ်တမ်းတင်ထားသော Sidecar Manifest မှတစ်ဆင့် File နှင့်အတူ သယ်ဆောင်နိုင်ရန် စီစဉ်သင့်သည်။ Media ကို မူရင်း VYRAL မှ ခွဲထုတ်လိုက်သည့်အခါတွင်လည်း VYRA သည် Source ကို ဖော်ထုတ်နိုင်ရမည်၊ မဟုတ်ပါက Provenance Data မရှိခြင်း သို့မဟုတ် အတည်မပြုနိုင်ခြင်းကို ရှင်းလင်းစွာ ပြသရမည်။ File Name တစ်ခုတည်းကို Lineage အထောက်အထားအဖြစ် မယူဆရ။
+
+### 2.4 VYRAL format interoperability as a future goal
+### ၂.၄ အနာဂတ်ရည်မှန်းချက်အဖြစ် VYRAL Format ကို အခြားစနစ်များနှင့် ကိုက်ညီစေခြင်း
+
+At the initial stage, the VYRA app is the only intended application that can fully interpret, render, edit, and use `.vyral` and VYRA-native compound media files. This is an initial ecosystem boundary, not a claim that the format should remain permanently closed.
+
+အစပိုင်းအဆင့်တွင် `.vyral` နှင့် VYRA Native Compound Media File များကို အပြည့်အဝ နားလည်ဖတ်ရှုခြင်း၊ Render လုပ်ခြင်း၊ ပြင်ဆင်ခြင်းနှင့် အသုံးပြုခြင်းတို့ကို VYRA App တစ်ခုတည်းကသာ လုပ်ဆောင်နိုင်ရန် ရည်ရွယ်သည်။ ဤအချက်သည် အစောပိုင်း Ecosystem ကန့်သတ်ချက်သာဖြစ်ပြီး Format ကို အမြဲတမ်း ပိတ်ထားရမည်ဟု ဆိုလိုခြင်း မဟုတ်ပါ။
+
+The long-term goal is to make the format technically capable of future support by operating systems and other software. This requires a documented and versioned file specification, stable identifiers, defined container/payload structure, MIME type and file association guidance, compatibility and migration rules, and a safe way for third-party applications to inspect or render permitted content. A future open specification or SDK may enable wider interoperability. Such support is a future possibility, not an existing capability or guaranteed outcome.
+
+ရေရှည်ရည်မှန်းချက်မှာ Operating System များနှင့် အခြား Software များက နောင်တစ်ချိန်တွင် Support ပေးနိုင်လောက်သည့် နည်းပညာအခြေခံရှိစေရန် ဖြစ်သည်။ ထိုသို့ဖြစ်ရန် Version သတ်မှတ်ထားသော File Specification၊ တည်ငြိမ်သည့် Identifier များ၊ Container/Payload ဖွဲ့စည်းပုံ၊ MIME Type နှင့် File Association လမ်းညွှန်ချက်၊ Compatibility/Migration စည်းမျဉ်းများနှင့် ခွင့်ပြုထားသော Content ကို Third-party Application များက လုံခြုံစွာ စစ်ဆေး သို့မဟုတ် Render လုပ်နိုင်မည့် နည်းလမ်းများ လိုအပ်မည်။ အနာဂတ်တွင် Open Specification သို့မဟုတ် SDK တစ်ခုက ပိုမိုကျယ်ပြန့်သော Interoperability ကို ဖြစ်စေနိုင်သည်။ ဤ Support သည် အနာဂတ်ဖြစ်နိုင်ခြေတစ်ခုသာဖြစ်ပြီး လက်ရှိရှိပြီးသား Feature သို့မဟုတ် အာမခံထားသော ရလဒ် မဟုတ်ပါ။
+
+Format interoperability and marketplace access are separate concerns. Even if an operating system or third-party application eventually supports reading or rendering VYRAL files, buying, selling, licensing, and managing VYRAL transactions are intended to remain within the VYRA app/marketplace at the initial stage. Wider marketplace access would require a separate explicit product and business decision; file-format support alone does not grant marketplace access or transaction authority.
+
+Format ကို အခြားစနစ်များနှင့် ကိုက်ညီစေခြင်းနှင့် Marketplace အသုံးပြုခွင့်တို့သည် သီးခြားကိစ္စများဖြစ်သည်။ နောင်တစ်ချိန်တွင် Operating System သို့မဟုတ် Third-party Application များက VYRAL File ကို ဖတ်ရှုခြင်း သို့မဟုတ် Render လုပ်ခြင်း Support ပေးလာသော်လည်း အစောပိုင်းအဆင့်တွင် VYRAL ဝယ်ယူခြင်း၊ ရောင်းချခြင်း၊ License ပေးခြင်းနှင့် Transaction စီမံခန့်ခွဲခြင်းတို့ကို VYRA App/Marketplace အတွင်း၌သာ ပြုလုပ်နိုင်ရန် ရည်ရွယ်သည်။ Marketplace ကို ပိုမိုကျယ်ပြန့်စွာ အသုံးပြုခွင့်ပေးရန်မှာ သီးခြား Product နှင့် Business ဆုံးဖြတ်ချက် လိုအပ်သည်။ File Format ကို Support လုပ်နိုင်ခြင်းတစ်ခုတည်းကြောင့် Marketplace ဝင်ရောက်ခွင့် သို့မဟုတ် Transaction ပြုလုပ်ခွင့် အလိုအလျောက် မရရှိစေရ။
+
+---
+
+### 13.8 Storyboard accepts direct media independently of VYRAL
+### ၁၃.၈ Storyboard တွင် VYRAL မလိုအပ်ဘဲ Direct Media ထည့်သွင်းနိုင်ခြင်း
+
+Storyboard must support a direct-media route that is independent of VYRAL creation. Users may import ordinary images, videos, or audio files they already have and place them into Storyboard Scenes without first converting them into VYRALs. This is a separate capability from selecting media generated from VYRALs.
+
+Storyboard တွင် VYRAL ဖန်တီးမှုနှင့် သီးခြားဖြစ်သော Direct Media ထည့်သွင်းသည့် လမ်းကြောင်းကို ထောက်ပံ့ရမည်။ အသုံးပြုသူများသည် မိမိတို့ထံတွင် ရှိပြီးသား သာမန် Image၊ Video သို့မဟုတ် Audio File များကို VYRAL အဖြစ် အရင်ပြောင်းလဲရန် မလိုဘဲ Import လုပ်ပြီး Storyboard Scene များတွင် တိုက်ရိုက်ထည့်သွင်းနိုင်ရမည်။ ဤလုပ်ဆောင်ချက်သည် VYRAL မှ Generate လုပ်ထားသော Media ကို ရွေးချယ်အသုံးပြုခြင်းနှင့် သီးခြားစွမ်းရည်တစ်ခုဖြစ်သည်။
+
+A Storyboard may therefore contain both VYRAL-generated media and directly imported media. It may also contain media generated directly from prompts without using a VYRAL. The Storyboard should identify the source type accurately and must not falsely label direct imports as VYRAL-derived. Direct imports should retain their own file information and attribution where available.
+
+ထို့ကြောင့် Storyboard တစ်ခုတည်းတွင် VYRAL မှ Generate လုပ်ထားသော Media နှင့် တိုက်ရိုက် Import လုပ်ထားသော Media နှစ်မျိုးလုံး ပါဝင်နိုင်သည်။ VYRAL မသုံးဘဲ Prompt မှ တိုက်ရိုက် Generate လုပ်ထားသော Media များလည်း ပါဝင်နိုင်သည်။ Storyboard သည် Source Type ကို မှန်ကန်စွာ ခွဲခြားပြသရမည်ဖြစ်ပြီး Direct Import ကို VYRAL မှ ဆင်းသက်လာသည်ဟု မှားယွင်းဖော်ပြခြင်း မပြုရ။ ရရှိနိုင်သည့်အခါ Direct Import များ၏ မူရင်း File အချက်အလက်နှင့် Attribution ကိုလည်း ထိန်းသိမ်းရမည်။
+
 ## 14. Change log
+
+- **2026-11-03 — VYRAL native format, app-only initial rendering, future interoperability, and Storyboard direct import:** Added the proposed `.vyral` native file direction and VYRA-native compound media formats; clarified that these custom payloads are initially rendered only inside VYRA, that future OS/software support is a goal requiring a documented specification, that marketplace transactions remain VYRA-only at the initial stage, and that Storyboard can independently import ordinary media without converting it to VYRAL.
+
+- **2026-11-03 — VYRAL Native Format၊ အစောပိုင်း VYRA App အတွင်းသာ Render လုပ်နိုင်မှု၊ အနာဂတ် Interoperability နှင့် Storyboard Direct Import:** `.vyral` Native File ဦးတည်ချက်နှင့် VYRA Native Compound Media Format များကို အဆိုပြုမှတ်တမ်းတင်ထားသည်။ Custom Payload များကို အစပိုင်းတွင် VYRA အတွင်း၌သာ Render လုပ်နိုင်မည်၊ အနာဂတ် OS/Software Support သည် Specification မှတ်တမ်းတင်မှုလိုအပ်သော ရည်မှန်းချက်ဖြစ်မည်၊ Marketplace Transaction များကို အစောပိုင်းတွင် VYRA အတွင်း၌သာ ပြုလုပ်မည်၊ Storyboard တွင် သာမန် Media များကို VYRAL အဖြစ်ပြောင်းရန်မလိုဘဲ သီးခြား Direct Import လုပ်နိုင်မည်ဟု ရှင်းလင်းထားသည်။
+
+
 ## ၁၄။ ပြင်ဆင်မှုမှတ်တမ်း
 
 - **2026-11-03 — VYRAL AI transformation and multi-level lineage update:** Clarified that a VYRAL is not itself an image/video/audio file; AI uses a VYRAL version plus purpose-specific prompts/instructions to generate media outputs. Added multi-source provenance for generated media and traceability across nested clones back to the authorized Original VYRAL.
