@@ -1044,7 +1044,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (!accessToken) throw new Error('Sign in again before generating a scene image.');
       const response = await fetch('/api/providers/openrouter/images/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': 'vyra-image-' + crypto.randomUUID() },
         body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio }),
       });
       const data = await response.json().catch(() => ({})) as {
@@ -1053,6 +1053,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         costUsd?: number | null;
         generationId?: string | null;
         model?: string;
+        usageWarning?: string;
       };
       if (!response.ok || typeof data.imageDataUrl !== 'string' || !data.imageDataUrl.startsWith('data:image/')) {
         throw new Error(data.error || 'The image model did not return a valid image. Check the selected model and retry.');
@@ -1067,6 +1068,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         sceneId: targetScene.id,
       });
       updateScene(project.id, targetScene.id, { generatedImageId: saved.id });
+      if (data.usageWarning) setSceneImageError(data.usageWarning);
       if (selectedSceneIdRef.current === targetScene.id) {
         setSceneImageUrl(saved.dataUrl);
         setSceneImageCostUsd(saved.costUsd);

@@ -47,9 +47,12 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     }
     if (url.hostname === 'openrouter.ai' && url.pathname === '/api/v1/images') {
       imageProviderCalls += 1;
-      return Response.json({
+      return new Response(JSON.stringify({
         data: [{ b64_json: 'aGVsbG8=', media_type: 'image/png' }],
         usage: { cost: 0.0001 },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'x-generation-id': 'gen-image-local-e2e-1' },
       });
     }
     return originalFetch(input, init);
@@ -151,15 +154,15 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     assert.equal(duplicate.status, 409);
     assert.equal(providerCalls, 1);
 
-    // The first increment records Text only. With the flag off, a real local
-    // Supabase session must still authorize a mocked OpenRouter Image request.
-    process.env.VYRA_USAGE_LEDGER_ENABLED = 'false';
+    // Image usage is now recorded by the same verified local session.
+    const imageIdempotencyKey = 'local-e2e-image-' + randomUUID();
     const imageResponse = await originalFetch(baseUrl + '/providers/openrouter/images/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-openrouter-api-key': 'or-local-e2e-test-key',
         Authorization: 'Bearer ' + signedIn.data.session.access_token,
+        'Idempotency-Key': imageIdempotencyKey,
       },
       body: JSON.stringify({
         model: 'openai/gpt-image-1',
@@ -168,18 +171,65 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
       }),
     });
     assert.equal(imageResponse.status, 200);
-    const imageBody = await imageResponse.json() as { imageDataUrl: string; mediaType: string; costUsd: number };
+    const imageBody = await imageResponse.json() as { imageDataUrl: string; mediaType: string; costUsd: number; generationId: string };
     assert.equal(imageBody.imageDataUrl, 'data:image/png;base64,aGVsbG8=');
     assert.equal(imageBody.mediaType, 'image/png');
     assert.equal(imageBody.costUsd, 0.0001);
+    assert.equal(imageBody.generationId, 'gen-image-local-e2e-1');
     assert.equal(imageProviderCalls, 1);
+
+    const imageJobs = await admin.from('generation_jobs')
+      .select('id,status,capability,request_parameters,provider_request_id')
+      .eq('user_id', userId)
+      .eq('idempotency_key', imageIdempotencyKey);
+    assert.equal(imageJobs.error, null);
+    assert.equal(imageJobs.data?.length, 1);
+    assert.equal(imageJobs.data?.[0].status, 'succeeded');
+    assert.equal(imageJobs.data?.[0].capability, 'image');
+    assert.deepEqual(imageJobs.data?.[0].request_parameters, { promptCharacters: 45, aspectRatio: '1:1' });
+    assert.equal(imageJobs.data?.[0].provider_request_id, 'gen-image-local-e2e-1');
+
+    const imageAttempts = await admin.from('provider_attempts')
+      .select('id,status,provider,provider_request_id,usage')
+      .eq('user_id', userId)
+      .eq('generation_job_id', imageJobs.data![0].id);
+    assert.equal(imageAttempts.error, null);
+    assert.equal(imageAttempts.data?.length, 1);
+    assert.equal(imageAttempts.data?.[0].status, 'succeeded');
+    assert.equal((imageAttempts.data?.[0].usage as Record<string, unknown>).costUsd, 0.0001);
+
+    const imageCosts = await admin.from('provider_cost_records')
+      .select('actual_cost_usd,source,provider_generation_id')
+      .eq('user_id', userId)
+      .eq('generation_job_id', imageJobs.data![0].id);
+    assert.equal(imageCosts.error, null);
+    assert.equal(imageCosts.data?.length, 1);
+    assert.equal(Number(imageCosts.data?.[0].actual_cost_usd), 0.0001);
+    assert.equal(imageCosts.data?.[0].source, 'provider_usage');
+    assert.equal(imageCosts.data?.[0].provider_generation_id, 'gen-image-local-e2e-1');
+
+    const duplicateImage = await originalFetch(baseUrl + '/providers/openrouter/images/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-openrouter-api-key': 'or-local-e2e-test-key',
+        Authorization: 'Bearer ' + signedIn.data.session.access_token,
+        'Idempotency-Key': imageIdempotencyKey,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-image-1',
+        prompt: 'A simple test image of a sunrise over the sea',
+        aspect_ratio: '1:1',
+      }),
+    });
+    assert.equal(duplicateImage.status, 409);
+    assert.equal(imageProviderCalls, 1);
+
   } finally {
     if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
-    if (userId) {
-      await admin.from('provider_attempts').delete().eq('user_id', userId);
-      await admin.from('generation_jobs').delete().eq('user_id', userId);
-      await admin.auth.admin.deleteUser(userId).catch(() => undefined);
-    }
+    // The local CI database is disposable. Keep the synthetic ledger rows intact
+    // because provider cost records are immutable by design; the Supabase stack
+    // is destroyed when this workflow job ends.
     globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(originalEnv)) {
       if (value === undefined) delete process.env[key];

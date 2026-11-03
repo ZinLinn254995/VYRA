@@ -5,14 +5,26 @@ on:
     branches: [main]
     paths:
       - 'supabase/**'
+      - 'src/server/ai.ts'
+      - 'src/server/usageLedger.ts'
+      - 'src/server/usageLedgerContract.ts'
+      - 'src/server/supabaseAuth.ts'
       - 'tests/openrouter-usage-ledger-local-e2e.spec.ts'
+      - 'tests/openrouter-usage-ledger-api.spec.ts'
+      - 'tests/usage-ledger-recorder.spec.ts'
       - 'package.json'
       - '.github/workflows/database.yml'
   push:
     branches: [main]
     paths:
       - 'supabase/**'
+      - 'src/server/ai.ts'
+      - 'src/server/usageLedger.ts'
+      - 'src/server/usageLedgerContract.ts'
+      - 'src/server/supabaseAuth.ts'
       - 'tests/openrouter-usage-ledger-local-e2e.spec.ts'
+      - 'tests/openrouter-usage-ledger-api.spec.ts'
+      - 'tests/usage-ledger-recorder.spec.ts'
       - 'package.json'
       - '.github/workflows/database.yml'
 

@@ -1,7 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { verifySupabaseAccessToken } from './supabaseAuth.js';
-import { beginOpenRouterTextJob, finishOpenRouterTextJob, type OpenRouterTextJob } from './usageLedger.js';
+import { beginOpenRouterImageJob, beginOpenRouterTextJob, finishOpenRouterImageJob, finishOpenRouterTextJob, type OpenRouterImageJob, type OpenRouterTextJob } from './usageLedger.js';
 import { isUsageLedgerRequested, isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedgerContract.js';
 
 const router = express.Router();
@@ -28,9 +28,9 @@ async function requireOpenRouterSession(req: Request, res: Response): Promise<st
 }
 
 function blockUntrackedGeneration(res: Response, capability: string): boolean {
-  if (!isUsageLedgerRequested()) return false;
+  if (!isUsageLedgerRequested() || capability === 'image') return false;
   res.status(503).json({
-    error: 'Usage tracking is currently enabled for OpenRouter Text chat only. This generation capability is paused until its ledger integration is verified.',
+    error: 'Usage tracking is currently enabled for OpenRouter Text and Image only. This generation capability is paused until its ledger integration is verified.',
     code: 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED',
     capability,
   });
@@ -539,7 +539,8 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;
+  const userId = await requireOpenRouterSession(req, res);
+  if (!userId) return;
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -553,6 +554,35 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
   }
   if (!prompt) return res.status(400).json({ error: 'Describe the image you want to generate.' });
   if (prompt.length > 4000) return res.status(413).json({ error: 'Image prompt is too long. Keep it under 4,000 characters.' });
+
+  let ledgerContext: { userId: string; job: OpenRouterImageJob } | null = null;
+  if (isUsageLedgerRequested()) {
+    if (!isUsageLedgerServerEnabled()) {
+      return res.status(503).json({
+        error: 'Usage tracking is enabled but its server-side Supabase configuration is incomplete. No provider request was sent.',
+        code: 'USAGE_LEDGER_NOT_CONFIGURED',
+      });
+    }
+    const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
+    if (!isValidIdempotencyKey(idempotencyKey)) {
+      return res.status(400).json({ error: 'A valid image generation request ID is required.' });
+    }
+    const started = await beginOpenRouterImageJob({
+      userId,
+      idempotencyKey,
+      model,
+      promptCharacters: prompt.length,
+      aspectRatio,
+    });
+    if (!started.ok) {
+      return res.status(started.reason === 'duplicate' ? 409 : 503).json({
+        error: started.reason === 'duplicate'
+          ? 'This image generation request was already recorded. Check your generation history before submitting another request.'
+          : 'Usage tracking could not start safely. No provider request was sent.',
+      });
+    }
+    ledgerContext = { userId, job: started.job };
+  }
 
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/images', {
@@ -571,7 +601,22 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
       data?: Array<{ b64_json?: string; media_type?: string; url?: string }>;
       usage?: { cost?: number };
     };
+    const generationId = upstream.headers.get('x-generation-id');
+    const usage = {
+      ...(typeof data.usage?.cost === 'number' ? { costUsd: data.usage.cost } : {}),
+      ...(generationId && /^[a-zA-Z0-9_-]{1,200}$/.test(generationId) ? { generationId } : {}),
+    };
+
     if (!upstream.ok) {
+      if (ledgerContext) {
+        await finishOpenRouterImageJob({
+          ...ledgerContext,
+          status: 'failed',
+          model,
+          generationId,
+          usage,
+        });
+      }
       return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
         error: upstream.status === 401 || upstream.status === 403
           ? 'OpenRouter rejected the key. Verify it in Settings.'
@@ -582,22 +627,50 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
               : 'Image generation failed. Check the selected model and supported options, then retry.',
       });
     }
+
     const image = data.data?.find((item) => typeof item.b64_json === 'string' && item.b64_json.length > 0);
     if (!image?.b64_json) {
+      if (ledgerContext) {
+        await finishOpenRouterImageJob({
+          ...ledgerContext,
+          status: 'failed',
+          model,
+          generationId,
+          usage,
+        });
+      }
       return res.status(502).json({ error: 'The selected model did not return a buffered image. Try another Image API model.' });
     }
+
     const mediaType = typeof image.media_type === 'string' && /^image\/(png|jpeg|webp)$/.test(image.media_type)
       ? image.media_type
       : 'image/png';
-    const generationId = upstream.headers.get('x-generation-id');
+    const usageRecorded = ledgerContext
+      ? await finishOpenRouterImageJob({
+          ...ledgerContext,
+          status: 'succeeded',
+          model,
+          generationId,
+          usage,
+        })
+      : null;
+
     return res.status(200).json({
       imageDataUrl: 'data:' + mediaType + ';base64,' + image.b64_json,
       mediaType,
       model,
       generationId: generationId && /^[a-zA-Z0-9_-]{1,200}$/.test(generationId) ? generationId : null,
       costUsd: typeof data.usage?.cost === 'number' && Number.isFinite(data.usage.cost) && data.usage.cost >= 0 ? data.usage.cost : null,
+      ...(usageRecorded === false ? { usageRecorded: false, usageWarning: 'Image generated, but usage recording could not be finalized. Do not retry this request.' } : {}),
     });
   } catch {
+    if (ledgerContext) {
+      await finishOpenRouterImageJob({
+        ...ledgerContext,
+        status: 'unknown',
+        model,
+      });
+    }
     return res.status(502).json({ error: 'Image generation timed out or could not reach OpenRouter. Check connection and retry.' });
   }
 });

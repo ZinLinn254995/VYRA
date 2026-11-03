@@ -159,25 +159,96 @@ test('duplicate generation idempotency key blocks a second OpenRouter submission
 });
 
 
-test('ledger-enabled mode blocks untracked image generation instead of bypassing usage accounting', async () => {
+test('ledger-enabled OpenRouter Image generation records safe metadata and provider-reported cost', async () => {
+  const calls: Array<{ url: URL; method: string; body: Record<string, unknown>; headers: Headers }> = [];
+  let jobPosts = 0;
   let providerCalls = 0;
-  const fetcher: typeof fetch = async () => {
-    providerCalls += 1;
-    return Response.json({});
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const method = init?.method || 'GET';
+    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    const headers = new Headers(init?.headers);
+    calls.push({ url, method, body, headers });
+
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
+      jobPosts += 1;
+      return jobPosts === 1
+        ? Response.json([{ id: JOB_ID }], { status: 201 })
+        : Response.json([], { status: 201 });
+    }
+    if (url.pathname === '/rest/v1/provider_attempts' && method === 'POST') {
+      return Response.json([{ id: ATTEMPT_ID }], { status: 201 });
+    }
+    if (url.pathname === '/api/v1/images') {
+      providerCalls += 1;
+      return new Response(JSON.stringify({
+        data: [{ b64_json: 'aGVsbG8=', media_type: 'image/png' }],
+        usage: { cost: 0.0042 },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'x-generation-id': 'gen-image-001' },
+      });
+    }
+    if (url.pathname === '/rest/v1/rpc/record_provider_cost') return Response.json({ id: 'image-cost-record-id' });
+    if (url.pathname === '/rest/v1/provider_attempts' && method === 'PATCH') return new Response(null, { status: 204 });
+    if (url.pathname === '/rest/v1/generation_jobs' && method === 'PATCH') return new Response(null, { status: 204 });
+    throw new Error('Unexpected test endpoint: ' + method + ' ' + url.pathname);
   };
 
   await withApi(async (baseUrl, clientFetch) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-openrouter-api-key': OPENROUTER_KEY,
+      Authorization: 'Bearer verified-development-session',
+      'Idempotency-Key': 'image-test-request-001',
+    };
+    const body = JSON.stringify({
+      model: 'openai/gpt-image-1',
+      prompt: 'A sunrise over the sea with golden clouds',
+      aspect_ratio: '16:9',
+    });
     const response = await clientFetch(baseUrl + '/providers/openrouter/images/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': OPENROUTER_KEY },
-      body: JSON.stringify({ model: 'image-model', prompt: 'A sunrise over the sea' }),
+      headers,
+      body,
     });
-    assert.equal(response.status, 503);
-    const payload = await response.json() as { code: string; capability: string };
-    assert.equal(payload.code, 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED');
-    assert.equal(payload.capability, 'image');
-    assert.equal(providerCalls, 0);
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { imageDataUrl: string; costUsd: number; generationId: string };
+    assert.equal(payload.imageDataUrl, 'data:image/png;base64,aGVsbG8=');
+    assert.equal(payload.costUsd, 0.0042);
+    assert.equal(payload.generationId, 'gen-image-001');
+    assert.equal(providerCalls, 1);
+
+    const duplicate = await clientFetch(baseUrl + '/providers/openrouter/images/generate', {
+      method: 'POST',
+      headers,
+      body,
+    });
+    assert.equal(duplicate.status, 409);
+    assert.equal(providerCalls, 1);
   }, fetcher);
+
+  const job = calls.find((call) => call.url.pathname === '/rest/v1/generation_jobs' && call.method === 'POST');
+  assert.ok(job);
+  assert.equal(job.body.user_id, USER_ID);
+  assert.equal(job.body.idempotency_key, 'image-test-request-001');
+  assert.equal(job.body.capability, 'image');
+  assert.deepEqual(job.body.request_parameters, { promptCharacters: 41, aspectRatio: '16:9' });
+  assert.equal('prompt' in job.body, false);
+
+  const attempt = calls.find((call) => call.url.pathname === '/rest/v1/provider_attempts' && call.method === 'POST');
+  assert.ok(attempt);
+  assert.equal(attempt.body.generation_job_id, JOB_ID);
+
+  const cost = calls.find((call) => call.url.pathname === '/rest/v1/rpc/record_provider_cost');
+  assert.ok(cost);
+  assert.equal(cost.body.p_actual_cost_usd, 0.0042);
+  assert.equal(cost.body.p_idempotency_key, 'openrouter-image-cost:' + JOB_ID);
+
+  const jobUpdate = calls.find((call) => call.url.pathname === '/rest/v1/generation_jobs' && call.method === 'PATCH');
+  assert.ok(jobUpdate);
+  assert.equal(jobUpdate.body.status, 'succeeded');
 });
 
 test('ledger-enabled mode blocks Gemini generation until its usage recorder exists', async () => {
