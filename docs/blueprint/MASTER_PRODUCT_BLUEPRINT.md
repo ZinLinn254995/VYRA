@@ -18,16 +18,20 @@ The user is the Product Owner and supplies goals, preferences, ideas, constraint
 ### Product Architect / Engineering Assistant
 The assistant may independently research, propose product improvements, design the technical solution and make implementation-level decisions. It must explain meaningful product-impacting recommendations in plain language and must not silently convert its own proposals into approved requirements.
 
-### Working sequence
+### Working sequence — iterative idea-to-preview workflow
 
-1. Listen to the Product Owner's idea or requirement.
-2. Clarify only what is necessary; ask one useful question at a time.
-3. Add relevant professional recommendations, including alternatives and trade-offs.
-4. Discuss the options in plain language.
-5. Record the outcome and its status in the Decision Log.
-6. Update the relevant blueprint section.
-7. Treat only explicitly approved requirements as committed scope.
-8. Begin implementation only when the relevant product scope is approved.
+The Product Owner prefers an iterative, visual way of developing VYRA. Blueprint writing and UI prototyping are complementary activities and do not have to happen in two separate, strictly sequential phases.
+
+1. The Product Owner shares an idea, need or rough concept whenever it comes to mind. It does not need to be fully specified.
+2. The assistant helps clarify the intent only where necessary, and may offer practical recommendations.
+3. Record the current idea in the relevant Blueprint section with an honest status (for example Proposed, Discussing or Approved). Do not require the whole Blueprint to be complete before exploring an idea.
+4. When a visual prototype would help, build or adjust the UI on a separate feature branch and deploy a Preview so the Product Owner can experience the idea.
+5. The Product Owner reviews the Preview and gives feedback: keep it, change it, simplify it, expand it or discard it.
+6. Update both the Blueprint and the prototype as the idea evolves. The Blueprint should describe the current agreed direction and preserve meaningful decision history; it is a living document, not a one-time gate.
+7. Repeat the idea → Blueprint note → UI Preview → feedback → revision cycle until the Product Owner is satisfied.
+8. Before a change is merged into main or released to production, verify its scope, backend integration, tests, safety and acceptance criteria, and obtain the required approval.
+
+A prototype is an exploration tool, not automatic approval of its design or behavior. The Product Owner may change their mind after seeing it. The assistant should make iteration easy and must not treat an early draft as a binding commitment.
 
 The Product Owner does not need to direct coding, frameworks, database design or other technical implementation details. The assistant owns those technical decisions, while remaining accountable for explaining decisions that materially affect the product.
 
@@ -37,7 +41,9 @@ Until this blueprint is complete and approved:
 
 - Work on this blueprint in the dedicated branch `docs/master-product-blueprint`.
 - Do not merge blueprint work into `main` without explicit authorization.
-- Do not change production code, production data, customer-facing behavior, billing, credits, integrations or deployment configuration as part of blueprint discovery.
+- UI prototypes and implementation experiments may be created on dedicated feature branches and deployed to Preview environments while the Blueprint is evolving.
+- Do not merge experimental work into `main` or change production behavior, production data, billing, credits, live integrations or production deployment configuration without the appropriate review and explicit authorization.
+- Preserve existing backend logic and data contracts when redesigning the UI. Remove or replace legacy UI only after checking that required backend capabilities remain intact and can be reconnected to the new experience.
 - Existing code and documents may be inspected to understand the current state.
 - Record implementation gaps and risks; do not silently fix them in this blueprint branch.
 - When the user says **“VYRA ကိုဆက်လုပ်”** during this phase, continue the blueprint process—not unrelated feature implementation—until the blueprint is approved.
@@ -502,3 +508,41 @@ The global AI Chat remains available throughout Workspace and can work with the 
 This approval covers the first-view concept and its principal information hierarchy. It does not finalize exact spacing, component styling, responsive behavior, project switching, or the empty state when no project is active. The proposed Workspace information architecture in §25.2 remains a proposal and is not automatically approved by this decision.
 
 **Status:** First Workspace view approved. Detailed visual specification and edge states remain open.
+
+
+## 28. Iterative Blueprint and UI Development Workflow
+
+### 28.1 Core principle
+
+VYRA should be developed through an iterative, idea-led process that lets the Product Owner think, see and refine the product continuously. The Product Owner does not want to be forced to finish a large Blueprint before seeing any implementation.
+
+The Product Owner may share ideas in any order and at any level of detail. The assistant should help turn those ideas into understandable Blueprint notes and, whenever useful, a working UI prototype. The Product Owner can then judge the actual experience and request changes—even when that means revising an earlier Blueprint decision.
+
+### 28.2 The repeatable cycle
+
+**Idea → Blueprint note → UI implementation / Preview → Product Owner feedback → Blueprint and UI revision → repeat.**
+
+- **Idea:** Capture the Product Owner's current thought without demanding a complete specification.
+- **Blueprint note:** Record the intent, relevant constraints, open questions and current decision status. A rough idea may remain Proposed or Discussing.
+- **UI implementation / Preview:** Build a concrete visual representation on a separate feature branch when seeing and interacting with it will help. Use Preview deployments for review.
+- **Feedback:** The Product Owner decides what feels right and what should change. Feedback may revise the UI, the Blueprint or both.
+- **Revision:** Iterate until the experience matches the Product Owner's intent.
+- **Delivery:** Only after review and appropriate verification should work be proposed for merge into main and eventual production release.
+
+### 28.3 Prototypes are allowed before the full Blueprint is complete
+
+A UI prototype may be created while other parts of the Blueprint remain undecided. The prototype is a way to explore and test an idea, not evidence that every detail has been approved. Do not block useful visual experimentation merely because the overall Master Blueprint is still marked DRAFT / DISCOVERY IN PROGRESS.
+
+### 28.4 Product Owner feedback controls direction
+
+The Product Owner may accept, reject, simplify, expand or rethink any prototype. The assistant should not defend an implementation simply because it has already been built. When feedback changes the direction, update the relevant Blueprint notes and prototype accordingly, while retaining meaningful decision history.
+
+### 28.5 Safe implementation boundaries
+
+- Keep experimental UI work on dedicated feature branches and use Preview deployments for review.
+- Do not change `main` or production without explicit authorization.
+- Preserve existing backend logic, APIs, database behavior, authentication, billing, credits, jobs, AI services, integrations and other working capabilities unless the Product Owner explicitly approves a change to them.
+- When replacing legacy UI, inspect dependencies and reconnect the required existing backend capabilities to the new UI rather than deleting backend functionality.
+- Before merge or release, run appropriate checks and verify the actual customer journey—not just whether the page renders.
+
+**Status:** The iterative idea-led Blueprint and UI Preview workflow is approved by the Product Owner.
