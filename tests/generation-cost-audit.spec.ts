@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// The chat usage metadata flow includes a signed-in OpenRouter spend preflight.
+test.use({ storageState: './tests/e2e-auth-state.json' });
+
 test('OpenRouter generation lookup rejects missing keys and unauthenticated requests without contacting the provider', async ({ request, baseURL }) => {
   const missingKey = await request.get(new URL('/api/providers/openrouter/generation/gen-test-123', baseURL).toString());
   expect(missingKey.status()).toBe(400);
