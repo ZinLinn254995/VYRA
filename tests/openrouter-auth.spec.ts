@@ -54,3 +54,16 @@ test('recognizes a Bearer token and asks Supabase to verify it', async () => {
     if (originalAnon === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = originalAnon;
   }
 });
+
+
+async function withServer(run: (baseUrl: string) => Promise<void>) {
+  const app = express();
+  app.use(express.json());
+  app.use(createAiRouter());
+  const server = app.listen(0);
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind to a TCP port.');
+  try { await run('http://127.0.0.1:' + address.port); }
+  finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+}
