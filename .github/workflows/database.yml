@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 22
       - name: Install app dependencies
-        run: npm ci
+        run: npm install --no-package-lock --no-audit --no-fund
       - name: Discover local Supabase status options
         run: supabase status --help
       - name: Run authenticated local Supabase usage-ledger E2E
