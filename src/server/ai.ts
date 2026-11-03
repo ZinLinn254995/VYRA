@@ -6,6 +6,27 @@ import { beginOpenRouterTextUsageJob, finishOpenRouterTextUsageJob } from './ope
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
+
+async function requireOpenRouterSession(req: Request, res: Response): Promise<string | null> {
+  const authorization = req.header('authorization') ?? '';
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
+  if (!tokenMatch) {
+    res.status(401).json({ error: 'Sign in to use OpenRouter media generation.' });
+    return null;
+  }
+  const auth = await verifySupabaseAccessToken(tokenMatch[1]);
+  if (!auth.ok) {
+    if (auth.reason === 'not_configured' || auth.reason === 'provider_unavailable') {
+      res.status(503).json({ error: 'VYRA authentication is temporarily unavailable.' });
+    } else {
+      res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+    }
+    return null;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  return auth.user.id;
+}
+
 function readOpenRouterKey(req: Request): string {
   const key = req.header('x-openrouter-api-key')?.trim() || '';
   // Do not log this value. Reject oversized values before forwarding them.
@@ -462,6 +483,7 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
 router.post('/providers/openrouter/images/generate', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
 
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
@@ -529,6 +551,7 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
 router.post('/providers/openrouter/audio/speech', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
 
   const body = req.body as { model?: string; input?: string; voice?: string; speed?: number };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
@@ -611,6 +634,7 @@ router.post('/providers/openrouter/audio/speech', async (req: Request, res: Resp
 router.post('/providers/openrouter/videos/generate', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
 
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string; frame_images?: unknown; input_references?: unknown };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
@@ -691,6 +715,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
 router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
   const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
 
@@ -742,6 +767,7 @@ router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Resp
 router.get('/providers/openrouter/videos/:jobId/content', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
   const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
   const index = typeof req.query.index === 'string' && /^\d{1,2}$/.test(req.query.index)
