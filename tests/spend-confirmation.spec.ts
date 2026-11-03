@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { installAuthenticatedE2ESession } from './helpers/auth';
 
 async function openAiIdeas(page: import('@playwright/test').Page) {
   await page.setViewportSize({ width: 1024, height: 768 });
+  await installAuthenticatedE2ESession(page);
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
     sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ text: 'openai/gpt-4.1-mini' }));
@@ -138,6 +140,7 @@ test('AI Ideas Chat requires spend approval for ordinary OpenRouter chat, not on
 
 test('Create Video storyboard is not generated when spend confirmation is declined', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
+  await installAuthenticatedE2ESession(page);
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
     sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ text: 'openai/gpt-4.1-mini' }));
