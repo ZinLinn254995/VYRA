@@ -161,7 +161,9 @@ const wrapCaptionLines = (context: CanvasRenderingContext2D, caption: string, ma
   return lines;
 };
 
-export const ProjectWorkspaceView: React.FC = () => {
+interface ProjectWorkspaceViewProps { initialSceneId?: string; }
+
+export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ initialSceneId }) => {
   const {
     activeProject,
     updateProject,
@@ -184,7 +186,7 @@ export const ProjectWorkspaceView: React.FC = () => {
   latestScenesRef.current = project?.scenes || [];
 
   const [selectedSceneId, setSelectedSceneId] = useState<string>(
-    project?.scenes[0]?.id || ''
+    initialSceneId || project?.scenes[0]?.id || ''
   );
   // Async generation handlers must read the latest selection after scene switches.
   const selectedSceneIdRef = useRef(selectedSceneId);
@@ -196,6 +198,12 @@ export const ProjectWorkspaceView: React.FC = () => {
       setSelectedSceneId(project.scenes[0]?.id || '');
     }
   }, [project, selectedSceneId]);
+
+  useEffect(() => {
+    if (initialSceneId && project?.scenes.some((scene) => scene.id === initialSceneId)) {
+      setSelectedSceneId(initialSceneId);
+    }
+  }, [initialSceneId, project?.id]);
 
   // Video playback preview state
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
