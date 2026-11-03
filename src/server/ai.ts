@@ -1,5 +1,8 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { GoogleGenAI } from '@google/genai';
+import { verifySupabaseAccessToken } from './supabaseAuth.js';
+import { beginOpenRouterTextJob, finishOpenRouterTextJob, type OpenRouterTextJob } from './usageLedger.js';
+import { isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedgerContract.js';
 
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
@@ -84,6 +87,43 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   const totalChars = messages.reduce((sum, item) => sum + item.content.length, 0);
   if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
 
+  // Opt-in first increment: authenticated OpenRouter Text usage only.
+  // This records provider usage; it does not reserve or charge VYRA credits.
+  let ledgerContext: { userId: string; job: OpenRouterTextJob } | null = null;
+  if (isUsageLedgerServerEnabled()) {
+    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    if (!bearer) return res.status(401).json({ error: 'Sign in to VYRA before recording generation usage.' });
+
+    const verified = await verifySupabaseAccessToken(bearer[1]);
+    if (!verified.ok) {
+      return res.status(verified.reason === 'provider_unavailable' || verified.reason === 'not_configured' ? 503 : 401)
+        .json({ error: verified.reason === 'provider_unavailable'
+          ? 'Authentication service is temporarily unavailable.'
+          : 'Your VYRA session is invalid or expired.' });
+    }
+
+    const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
+    if (!isValidIdempotencyKey(idempotencyKey)) {
+      return res.status(400).json({ error: 'A valid generation request ID is required.' });
+    }
+
+    const started = await beginOpenRouterTextJob({
+      userId: verified.user.id,
+      idempotencyKey,
+      model,
+      messageCount: messages.length,
+      inputCharacters: totalChars,
+    });
+    if (!started.ok) {
+      return res.status(started.reason === 'duplicate' ? 409 : 503).json({
+        error: started.reason === 'duplicate'
+          ? 'This generation request was already recorded. Check your generation history before submitting another request.'
+          : 'Usage tracking could not start safely. No provider request was sent.',
+      });
+    }
+    ledgerContext = { userId: verified.user.id, job: started.job };
+  }
+
   const systemInstruction = 'You are VYRA, a creative assistant for planning educational and social video content. Help with original ideas, accurate scripts, hooks, outlines and storyboards. Do not claim to create media files, publish content, or execute workspace actions unless a connected tool confirms it. For factual topics, distinguish facts from uncertainty and do not invent sources or statistics. Respond clearly in the user’s language.';
   // Keep VYRA's system instruction server-controlled; do not let client-supplied
   // system-role messages replace the server's behavior and capability boundaries.
@@ -112,6 +152,12 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; total_cost?: number };
     };
     if (!upstream.ok) {
+      if (ledgerContext) {
+        const recorded = await finishOpenRouterTextJob({
+          userId: ledgerContext.userId, job: ledgerContext.job, status: 'failed', model,
+        });
+        if (!recorded) console.error('[usage-ledger] Could not finalize rejected OpenRouter text request.');
+      }
       return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
         error: upstream.status === 401 || upstream.status === 403
           ? 'OpenRouter rejected the key. Verify it in Settings.'
@@ -128,12 +174,51 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       : Array.isArray(rawContent)
         ? rawContent.map((part) => typeof part.text === 'string' ? part.text : '').join('').trim()
         : '';
-    if (!text) return res.status(502).json({ error: 'The selected model returned an empty response.' });
+    if (!text) {
+      if (ledgerContext) {
+        const recorded = await finishOpenRouterTextJob({
+          userId: ledgerContext.userId,
+          job: ledgerContext.job,
+          status: 'failed',
+          model,
+          generationId: typeof data.id === 'string' ? data.id : null,
+          usage: data.usage ? {
+            promptTokens: data.usage.prompt_tokens,
+            completionTokens: data.usage.completion_tokens,
+            totalTokens: data.usage.total_tokens,
+            costUsd: data.usage.cost ?? data.usage.total_cost,
+          } : null,
+        });
+        if (!recorded) console.error('[usage-ledger] Could not finalize empty OpenRouter text response.');
+      }
+      return res.status(502).json({ error: 'The selected model returned an empty response.' });
+    }
     const finiteOrNull = (value: unknown): number | null =>
       typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
     const generationId = typeof data.id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(data.id)
       ? data.id
       : upstream.headers.get('x-generation-id');
+    if (ledgerContext) {
+      const recorded = await finishOpenRouterTextJob({
+        userId: ledgerContext.userId,
+        job: ledgerContext.job,
+        status: 'succeeded',
+        model: typeof data.model === 'string' ? data.model : model,
+        generationId: typeof generationId === 'string' ? generationId : null,
+        usage: data.usage ? {
+          promptTokens: data.usage.prompt_tokens,
+          completionTokens: data.usage.completion_tokens,
+          totalTokens: data.usage.total_tokens,
+          costUsd: data.usage.cost ?? data.usage.total_cost,
+        } : null,
+      });
+      if (!recorded) {
+        return res.status(503).json({
+          error: 'The provider may have completed this generation, but its usage record could not be confirmed. Check provider activity before retrying.',
+          code: 'USAGE_RECORD_UNCONFIRMED',
+        });
+      }
+    }
     return res.status(200).json({
       text,
       modelName: typeof data.model === 'string' ? data.model : model,
@@ -147,7 +232,18 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       } : null,
     });
   } catch {
-    return res.status(502).json({ error: 'Could not reach OpenRouter. Check your connection and retry.' });
+    if (ledgerContext) {
+      const recorded = await finishOpenRouterTextJob({
+        userId: ledgerContext.userId, job: ledgerContext.job, status: 'unknown', model,
+      });
+      if (!recorded) console.error('[usage-ledger] Could not mark uncertain OpenRouter text request.');
+    }
+    return res.status(502).json({
+      error: ledgerContext
+        ? 'The provider request may have completed but its result is unknown. Check provider activity before retrying.'
+        : 'Could not reach OpenRouter. Check your connection and retry.',
+      ...(ledgerContext ? { code: 'GENERATION_STATUS_UNKNOWN' } : {}),
+    });
   }
 });
 
