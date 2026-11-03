@@ -69,9 +69,10 @@ async function withServer(run: (baseUrl: string) => Promise<void>) {
 }
 
 
-test('OpenRouter image, speech, and video endpoints reject unauthenticated requests before contacting the provider', async () => {
+test('VYRA AI and OpenRouter account, catalog, and generation endpoints reject unauthenticated requests', async () => {
   await withServer(async (baseUrl) => {
     const requests: Array<{ path: string; method: string; body?: unknown }> = [
+      { path: '/ai/chat', method: 'POST', body: { messages: [{ role: 'user', content: 'Hello' }] } },
       { path: '/providers/openrouter/test', method: 'POST' },
       { path: '/providers/openrouter/models?capability=text', method: 'GET' },
       { path: '/providers/openrouter/usage/key', method: 'GET' },
@@ -92,7 +93,21 @@ test('OpenRouter image, speech, and video endpoints reject unauthenticated reque
         ...(item.body ? { body: JSON.stringify(item.body) } : {}),
       });
       assert.equal(response.status, 401, item.method + ' ' + item.path + ' must require a verified session');
-      assert.deepEqual(await response.json(), { error: 'Sign in to use OpenRouter media generation.' });
+      assert.deepEqual(await response.json(), { error: 'Sign in to use VYRA AI features.' });
     }
+  });
+});
+
+test('Gemini health ping remains available without a user session and does not invoke generation', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ping: true }),
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { status?: string; geminiConfigured?: boolean };
+    assert.ok(payload.status === 'connected' || payload.status === 'preview_mode' || payload.status === 'error');
+    assert.equal(typeof payload.geminiConfigured, 'boolean');
   });
 });
