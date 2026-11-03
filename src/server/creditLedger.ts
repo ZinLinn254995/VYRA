@@ -174,8 +174,17 @@ export async function applyCreditLedgerEntry(
     }
 
     const entry = parseEntry(await response.json().catch(() => null));
-    if (!entry || entry.userId !== input.userId || entry.idempotencyKey !== input.idempotencyKey
-        || entry.entryType !== input.entryType) {
+    const expectedAvailableDelta = input.entryType === 'reserve' ? (-BigInt(amount)).toString()
+      : input.entryType === 'commit' ? '0' : amount;
+    const expectedReservedDelta = input.entryType === 'reserve' ? amount
+      : input.entryType === 'commit' || input.entryType === 'release' ? (-BigInt(amount)).toString()
+        : '0';
+    if (!entry || entry.userId !== input.userId
+        || entry.generationJobId !== generationJobId
+        || entry.idempotencyKey !== input.idempotencyKey
+        || entry.entryType !== input.entryType
+        || entry.availableDelta !== expectedAvailableDelta
+        || entry.reservedDelta !== expectedReservedDelta) {
       return { ok: false, reason: 'unavailable' };
     }
     return { ok: true, entry };
