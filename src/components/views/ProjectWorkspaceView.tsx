@@ -868,7 +868,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         let statusResponse: Response;
         try {
           statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), {
-            headers: { 'x-openrouter-api-key': apiKey },
+            headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
           });
         } catch {
           // A temporary network interruption should not abandon a paid provider job.
