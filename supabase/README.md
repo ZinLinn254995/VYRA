@@ -34,6 +34,8 @@ supabase db reset
 supabase test db
 ```
 
+The database CI workflow also runs `npm run test:usage-ledger-local-e2e` against the local Supabase Auth and PostgREST services. It creates a temporary Auth user, verifies a real session through the VYRA API, mocks only the OpenRouter upstream response, checks the generation job/provider attempt, and removes the temporary test rows. The local service-role key is supplied only to the test process and must never be committed.
+
 The pgTAP suite in `supabase/tests/database` verifies customer isolation, balanced transfer accounting, idempotency, insufficient-balance rejection, server-only financial writes, and immutable financial records.
 
 The dedicated `VYRA Development` Supabase project already exists and has the eight checked-in migrations applied. Keep all future schema work local-first and development-first. Never point local development migrations at production by accident.
