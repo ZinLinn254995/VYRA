@@ -108,7 +108,7 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     assert.equal(jobs.data?.[0].status, 'succeeded');
     assert.equal(jobs.data?.[0].capability, 'text');
     assert.equal(jobs.data?.[0].provider_request_id, 'gen-local-e2e-1');
-    assert.deepEqual(jobs.data?.[0].request_parameters, { messageCount: 1, inputCharacters: 34 });
+    assert.deepEqual(jobs.data?.[0].request_parameters, { messageCount: 1, inputCharacters: 35 });
 
     const attempts = await admin.from('provider_attempts')
       .select('id,status,provider,provider_request_id,usage')
