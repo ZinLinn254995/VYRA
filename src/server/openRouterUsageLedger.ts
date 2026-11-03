@@ -11,7 +11,7 @@ type LedgerInput = {
 type Fetcher = typeof fetch;
 
 function config() {
-  const url = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+  const url = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
   const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
   if (!isUsageLedgerServerEnabled() || !url || !key) return null;
   return { url, key };
