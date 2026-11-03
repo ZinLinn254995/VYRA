@@ -69,6 +69,19 @@ supabase db reset
 supabase test db
 ```
 
+For the authenticated OpenRouter Text ledger E2E test against the local Supabase stack, export the local connection values without copying them into source control:
+
+```sh
+eval "$(supabase status -o env)"
+export SUPABASE_URL="$API_URL"
+export SUPABASE_ANON_KEY="$ANON_KEY"
+export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+export VYRA_USAGE_LEDGER_ENABLED=true
+npm run test:usage-ledger-local-e2e
+```
+
+This test creates a temporary local Auth user, obtains a real local session, calls the VYRA API while mocking only the OpenRouter provider, verifies the job/attempt rows through PostgREST, and removes its test rows afterward. The local service-role key is only used by the test process and must never be committed or used as a hosted secret.
+
 These commands target the local Supabase stack. Confirm the local stack is running before resetting it. Use the current migration filenames in `supabase/migrations`.
 
 For a new migration, create the file with `supabase migration new <descriptive_name>`, review the SQL, apply and test it locally, then apply it to the development project. Never rewrite an already-applied migration; add a corrective migration instead.
