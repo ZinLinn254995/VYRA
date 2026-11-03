@@ -18,11 +18,11 @@ import { Toast } from './components/common/Toast';
 import { BrandLogo } from './components/common/BrandLogo';
 import {
   ArrowRight, BookOpen, Clapperboard, Image, Layers3, ChevronUp, ChevronDown, FileText, PlayCircle,
-  MessageCircle, Plus, Settings, ShieldCheck, Sparkles, Film,
+  MessageCircle, Plus, Settings, Sparkles, Film,
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
-type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'media' | 'settings' | 'human' | 'create';
+type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'media' | 'settings' | 'create';
 
 const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void }> = ({ onNavigate }) => {
   const { projects, activeProject, setActiveProjectId } = useStudio();
@@ -155,15 +155,6 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void }> = ({ o
   );
 };
 
-const HumanControlledArea: React.FC = () => (
-  <div className="mx-auto flex min-h-[65vh] max-w-3xl flex-col justify-center px-5 py-12">
-    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-amber-300"><ShieldCheck className="h-6 w-6" /></div>
-    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Human authority</p>
-    <h1 className="mt-2 text-3xl font-semibold text-white">Human-Controlled Area</h1>
-    <p className="mt-4 max-w-xl text-sm leading-7 text-slate-400">This dedicated area is reserved for controls and decisions that must remain under the customer's direct control. The exact controls and AI visibility rules have not yet been defined in the Blueprint, so no account, security, financial, or publishing controls are being added here prematurely.</p>
-  </div>
-);
-
 const StudioContent: React.FC = () => {
   const { theme, toggleTheme, currentSection, setCurrentSection, projects, setActiveProjectId, navigateToProjectWorkspace } = useStudio();
   const [mode, setMode] = useState<AppMode>('workspace');
@@ -201,7 +192,7 @@ const StudioContent: React.FC = () => {
     touchStart.current = null;
   };
 
-  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : page === 'human' ? 'Human-Controlled Area' : 'Create Storyboard';
+  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
 
   return (
     <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100">
@@ -223,7 +214,7 @@ const StudioContent: React.FC = () => {
           <nav className="border-b border-slate-800/70 bg-[#0B1020]">
             <div className="mx-auto flex max-w-[1440px] items-center gap-2 overflow-x-auto px-4 py-3 sm:px-7">
               {([
-                ['home', 'Workspace'], ['storyboards', 'Storyboards'], ['vyrals', 'Vyrals'], ['media', 'Media Library'], ['settings', 'Settings'], ['human', 'Human-Controlled Area'],
+                ['home', 'Workspace'], ['storyboards', 'Storyboards'], ['vyrals', 'Vyrals'], ['media', 'Media Library'], ['settings', 'Settings'],
               ] as [WorkspacePage, string][]).map(([id, label]) => <button key={id} onClick={() => navigate(id)} className={`shrink-0 rounded-xl px-4 py-2 text-xs font-semibold transition ${page === id ? 'bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/30' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}>{label}</button>)}
             </div>
           </nav>
@@ -235,7 +226,6 @@ const StudioContent: React.FC = () => {
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
-            {page === 'human' && <HumanControlledArea />}
             {page === 'create' && <CreateVideoView />}
           </main>
         </>
