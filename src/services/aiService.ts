@@ -126,11 +126,18 @@ class ModularAIService implements AIServiceProvider {
 
     if (openRouterKey && openRouterModel) {
       try {
+        const accessToken = await getCurrentAccessToken();
+        if (!accessToken) {
+          const message = 'Sign in before using OpenRouter BYOK generation.';
+          return { content: message, status: 'error', errorMessage: message, providerName: 'OpenRouter', modelName: openRouterModel };
+        }
         const response = await fetch('/api/providers/openrouter/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-openrouter-api-key': openRouterKey,
+            Authorization: 'Bearer ' + accessToken,
+            'Idempotency-Key': 'vyra-chat-' + crypto.randomUUID(),
           },
           body: JSON.stringify({
             model: openRouterModel,

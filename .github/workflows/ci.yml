@@ -25,6 +25,8 @@ jobs:
         run: npm run test:auth
       - name: Gemini API authentication tests
         run: npm run test:ai-security
+      - name: OpenRouter BYOK authentication tests
+        run: npm run test:openrouter-security
       - name: Customer project API tests
         run: npm run test:projects
       - name: Cloud project restore tests

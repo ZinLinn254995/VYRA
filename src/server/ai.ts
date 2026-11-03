@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { verifySupabaseAccessToken } from './supabaseAuth.js';
+import { beginOpenRouterTextUsageJob, finishOpenRouterTextUsageJob } from './openRouterUsageLedger.js';
 
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
@@ -61,6 +62,22 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
+  const authorization = req.header('authorization') ?? '';
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
+  if (!tokenMatch) return res.status(401).json({ error: 'Sign in to use OpenRouter BYOK generation.' });
+  const auth = await verifySupabaseAccessToken(tokenMatch[1]);
+  if (!auth.ok) {
+    if (auth.reason === 'not_configured' || auth.reason === 'provider_unavailable') {
+      return res.status(503).json({ error: 'VYRA authentication is temporarily unavailable.' });
+    }
+    return res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+
+  const idempotencyKey = req.header('idempotency-key')?.trim() || '';
+  if (!/^[a-zA-Z0-9._:-]{1,160}$/.test(idempotencyKey)) {
+    return res.status(400).json({ error: 'A valid idempotency key is required for each generation request.' });
+  }
   const body = req.body as {
     model?: string;
     messages?: Array<{ role?: string; content?: string }>;
@@ -93,7 +110,15 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
     ...messages.filter((item) => item.role !== 'system'),
   ];
 
+  let ledgerJob: Awaited<ReturnType<typeof beginOpenRouterTextUsageJob>> | null = null;
   try {
+    ledgerJob = await beginOpenRouterTextUsageJob({
+      userId: auth.user.id,
+      idempotencyKey,
+      model,
+      messageCount: apiMessages.length,
+      totalCharacters: totalChars,
+    });
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -113,7 +138,8 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; total_cost?: number };
     };
     if (!upstream.ok) {
-      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : 502).json({
+      if (ledgerJob) await finishOpenRouterTextUsageJob(ledgerJob, { status: 'failed', model });
+      return res.status(upstream.status === 401 || upstream.status === 403 ? 401 : upstream.status === 402 ? 402 : upstream.status === 429 ? 429 : 502).json({
         error: upstream.status === 401 || upstream.status === 403
           ? 'OpenRouter rejected the key. Verify it in Settings.'
           : upstream.status === 402
@@ -129,13 +155,37 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       : Array.isArray(rawContent)
         ? rawContent.map((part) => typeof part.text === 'string' ? part.text : '').join('').trim()
         : '';
-    if (!text) return res.status(502).json({ error: 'The selected model returned an empty response.' });
+    if (!text) {
+      if (ledgerJob) await finishOpenRouterTextUsageJob(ledgerJob, { status: 'failed', model, usage: data.usage });
+      return res.status(502).json({ error: 'The selected model returned an empty response.' });
+    }
     const finiteOrNull = (value: unknown): number | null =>
       typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
     const generationId = typeof data.id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(data.id)
       ? data.id
       : upstream.headers.get('x-generation-id');
+    const safeUsage = data.usage ? {
+      generationId,
+      promptTokens: finiteOrNull(data.usage.prompt_tokens),
+      completionTokens: finiteOrNull(data.usage.completion_tokens),
+      totalTokens: finiteOrNull(data.usage.total_tokens),
+      costUsd: finiteOrNull(data.usage.cost ?? data.usage.total_cost),
+    } : { generationId };
+    let usageTrackingStatus: 'recorded' | 'disabled' | 'pending_reconciliation' = ledgerJob?.enabled ? 'recorded' : 'disabled';
+    if (ledgerJob) {
+      try {
+        await finishOpenRouterTextUsageJob(ledgerJob, { status: 'succeeded', model: typeof data.model === 'string' ? data.model : model, usage: safeUsage });
+      } catch (error) {
+        // The provider has already completed this generation. Return its result instead of
+        // encouraging a duplicate paid request; reconcile the ledger asynchronously.
+        usageTrackingStatus = 'pending_reconciliation';
+        const code = error instanceof Error && /^USAGE_LEDGER_[A-Z0-9_]+$/.test(error.message)
+          ? error.message : 'USAGE_LEDGER_WRITE_FAILED';
+        console.error('[openrouter/usage-ledger] completion write failed:', code);
+      }
+    }
     return res.status(200).json({
+      usageTrackingStatus,
       text,
       modelName: typeof data.model === 'string' ? data.model : model,
       provider: 'openrouter',
@@ -147,8 +197,17 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
         costUsd: finiteOrNull(data.usage.cost ?? data.usage.total_cost),
       } : null,
     });
-  } catch {
-    return res.status(502).json({ error: 'Could not reach OpenRouter. Check your connection and retry.' });
+  } catch (error) {
+    if (ledgerJob) {
+      await finishOpenRouterTextUsageJob(ledgerJob, { status: 'unknown', model }).catch(() => undefined);
+    }
+    if (error instanceof Error && error.message === 'USAGE_LEDGER_DUPLICATE_REQUEST') {
+      return res.status(409).json({ error: 'This generation request was already submitted. Check its status before starting another.' });
+    }
+    if (error instanceof Error && error.message.startsWith('USAGE_LEDGER_')) {
+      return res.status(503).json({ error: 'Usage tracking is temporarily unavailable. The provider request was not safely started; retry with a new request.' });
+    }
+    return res.status(502).json({ error: 'Could not reach OpenRouter. The request may need reconciliation before retrying.' });
   }
 });
 
@@ -794,7 +853,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   }
 
   const authorization = req.header('authorization') ?? '';
-  const tokenMatch = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!tokenMatch) {
     return res.status(401).json({ error: 'Sign in to use server-managed Gemini AI.' });
   }

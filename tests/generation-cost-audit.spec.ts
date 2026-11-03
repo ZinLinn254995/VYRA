@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installAuthenticatedE2ESession } from './helpers/auth';
 
 test('OpenRouter generation lookup rejects missing keys and malformed IDs without contacting the provider', async ({ request, baseURL }) => {
   const missingKey = await request.get(new URL('/api/providers/openrouter/generation/gen-test-123', baseURL).toString());
@@ -17,6 +18,7 @@ test('OpenRouter generation lookup rejects missing keys and malformed IDs withou
 });
 
 test('OpenRouter chat response includes provider generation metadata when supplied', async ({ page }) => {
+  await installAuthenticatedE2ESession(page);
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
     sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({ text: 'openai/gpt-4.1-mini' }));

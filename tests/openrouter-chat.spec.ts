@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { installAuthenticatedE2ESession } from './helpers/auth';
 
 test('AI Ideas Chat uses the configured OpenRouter Text model', async ({ page }) => {
   let capturedRequest: { model?: string; apiKey?: string } = {};
 
+  await installAuthenticatedE2ESession(page);
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
     sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({
