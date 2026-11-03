@@ -35,6 +35,8 @@ jobs:
         run: npm run test:pricing-auth
       - name: Credit transfer API tests
         run: npm run test:credit-transfers
+      - name: Credit ledger lifecycle service tests
+        run: npm run test:credit-ledger
       - name: Universal consistency engine tests
         run: npm run test:consistency
       - name: Audio export validation and runtime tests
