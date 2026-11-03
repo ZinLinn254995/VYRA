@@ -546,3 +546,12 @@ The Product Owner may accept, reject, simplify, expand or rethink any prototype.
 - Before merge or release, run appropriate checks and verify the actual customer journey—not just whether the page renders.
 
 **Status:** The iterative idea-led Blueprint and UI Preview workflow is approved by the Product Owner.
+
+
+### 26.1 Placement within Settings
+
+The Human-Controlled Area should be presented as a compact section within the Settings page, rather than as a separate top-level Workspace navigation item or a standalone full page. This keeps the concept discoverable without giving it disproportionate visual weight or adding unnecessary navigation complexity.
+
+The section should remain concise. It may explain that important decisions and controls remain under the customer's direct authority. Specific controls must not be invented; add them only after their scope and AI access rules have been discussed.
+
+**Status:** Compact placement inside Settings and removal of the standalone Workspace navigation entry are approved. Exact controls and permissions remain open.
