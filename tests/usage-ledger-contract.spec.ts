@@ -5,6 +5,7 @@ import {
   isValidIdempotencyKey,
   normalizeActualProviderCost,
   normalizeProviderUsage,
+  isUsageLedgerRequested,
   isUsageLedgerServerEnabled,
   resolveLedgerOwnerId,
 } from '../src/server/usageLedgerContract.ts';
@@ -57,6 +58,8 @@ test('allowlists provider usage metadata and drops unsafe/unrecognized fields', 
 });
 
 test('requires explicit feature flag and all server-only Supabase credentials', () => {
+  assert.equal(isUsageLedgerRequested({ VYRA_USAGE_LEDGER_ENABLED: 'true' }), true);
+  assert.equal(isUsageLedgerRequested({ VYRA_USAGE_LEDGER_ENABLED: 'false' }), false);
   const complete = {
     VYRA_USAGE_LEDGER_ENABLED: 'true',
     SUPABASE_URL: 'https://example.supabase.co',
