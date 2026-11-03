@@ -13,6 +13,10 @@ import { ChatMessage, ChatSuggestedAction, AIServiceStatus, ContentCategory } fr
 export interface AIServiceRequest {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
   conversationId?: string;
+  /** Optional verified Supabase session for server-side usage accounting. */
+  accessToken?: string;
+  /** Stable per-generation request ID used only for server-side idempotency. */
+  idempotencyKey?: string;
   context?: {
     category?: ContentCategory;
     targetFormat?: 'short_form' | 'long_form';
@@ -130,6 +134,8 @@ class ModularAIService implements AIServiceProvider {
           headers: {
             'Content-Type': 'application/json',
             'x-openrouter-api-key': openRouterKey,
+            ...(request.accessToken ? { Authorization: 'Bearer ' + request.accessToken } : {}),
+            ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
           },
           body: JSON.stringify({
             model: openRouterModel,
