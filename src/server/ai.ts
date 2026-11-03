@@ -289,6 +289,7 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
 router.post('/providers/openrouter/test', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter a valid-looking OpenRouter API key.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
   try {
     const response = await openRouterFetch('https://openrouter.ai/api/v1/key', apiKey);
     if (!response.ok) {
@@ -309,6 +310,7 @@ const keyUsageRequestWindows = new Map<string, { count: number; resetAt: number 
 router.get('/providers/openrouter/usage/key', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key in Settings to view live key usage.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
 
   const now = Date.now();
   const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
@@ -378,6 +380,7 @@ const generationLookupWindows = new Map<string, { count: number; resetAt: number
 router.get('/providers/openrouter/generation/:generationId', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key in Settings to inspect generation details.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
 
   const generationId = req.params.generationId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(generationId)) {
@@ -453,6 +456,7 @@ router.get('/providers/openrouter/generation/:generationId', async (req: Request
 router.get('/providers/openrouter/models', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'An OpenRouter API key is required to discover models.' });
+  if (!(await requireOpenRouterSession(req, res))) return;
 
   const capability = String(req.query.capability || 'text');
   const endpointByCapability: Record<string, string> = {
