@@ -74,8 +74,17 @@ test('credit transfer retry reuses the original idempotency key after an uncerta
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(submitted).toHaveLength(1);
 
-  // The server response was ambiguous. Re-reviewing the exact same transfer
-  // must reuse the original key rather than minting a second transfer request.
+  // A full page reload must not discard the idempotency key for an uncertain transfer.
+  await page.reload();
+  await page.getByRole('button', { name: 'Credit Wallet' }).click();
+  await expect(page.getByRole('heading', { name: 'Credit Wallet' })).toBeVisible();
+  await page.getByPlaceholder('Search username…').fill('fri');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: /@friend/ }).click();
+  await page.getByPlaceholder('Enter amount').fill('25');
+
+  // Re-reviewing the exact same transfer must reuse the persisted key rather
+  // than minting a second transfer request.
   await page.getByRole('button', { name: 'Review transfer' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm & send' }).click();
