@@ -8,14 +8,14 @@ This is an internal topic tracker, not a questionnaire to send all at once. Disc
 |---:|---|---|---|
 | 1 | Product experience and simplicity | What the customer should feel and achieve; what “simple” means in practice | In progress |
 | 2 | Primary customer and use cases | Who VYRA is mainly for and what they come to create | Not started |
-| 3 | Main customer outcome | The core result VYRA must reliably deliver | Not started |
-| 4 | Creation approach | How much should be conversational, guided or manual | Not started |
+| 3 | Main customer outcome | The core result VYRA must reliably deliver | Direction recorded; scope still open |
+| 4 | Creation approach | How much should be conversational, guided or manual | Discussing |
 | 5 | Customer journey | From first visit to completed video and delivery | Not started |
 | 6 | Page structure | Minimum useful navigation and page grouping | Not started |
 | 7 | Page details | Content and behavior of each agreed page | Not started |
 | 8 | Creation features | Required creative controls and what should remain advanced/hidden | Not started |
-| 9 | Review, export and publishing | Customer approval and delivery workflow | Not started |
-| 10 | Account, credit and payment experience | What customers need to see and manage | In progress |
+| 9 | Review, export and publishing | Customer approval and delivery workflow, including supported direct social publishing | Direction recorded; workflow details open |
+| 10 | Account, credit and payment experience | What customers need to see and manage, including Vyral-related earning opportunities | In progress |
 | 11 | Settings and support | What customers should configure and where they get help | Not started |
 | 12 | Admin operations | What the business owner needs separately from customer pages | Not started |
 | 13 | Release scope | MVP, exclusions and later phases | Not started |
