@@ -237,3 +237,166 @@ export async function finishOpenRouterTextJob(
     return false;
   }
 }
+
+
+export type OpenRouterImageJobInput = {
+  userId: string;
+  idempotencyKey: string;
+  model: string;
+  promptCharacters: number;
+  aspectRatio?: string;
+};
+
+export type OpenRouterImageJob = OpenRouterTextJob;
+
+export async function beginOpenRouterImageJob(
+  input: OpenRouterImageJobInput,
+  options: UsageLedgerServerOptions = {},
+): Promise<UsageLedgerResult> {
+  const { supabaseUrl, serviceRoleKey, fetcher } = readOptions(options);
+  if (!supabaseUrl || !serviceRoleKey || !UUID_PATTERN.test(input.userId)
+      || !/^[A-Za-z0-9._:-]{1,160}$/.test(input.idempotencyKey)
+      || !input.model.trim() || input.model.length > 240
+      || !Number.isSafeInteger(input.promptCharacters) || input.promptCharacters < 1 || input.promptCharacters > 4000) {
+    return { ok: false, reason: 'unavailable' };
+  }
+
+  try {
+    const jobsEndpoint = new URL('/rest/v1/generation_jobs', supabaseUrl);
+    jobsEndpoint.searchParams.set('on_conflict', 'user_id,idempotency_key');
+    const jobResponse = await fetcher(jobsEndpoint, {
+      method: 'POST',
+      headers: serviceHeaders(serviceRoleKey, {
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=ignore-duplicates,return=representation',
+      }),
+      body: JSON.stringify({
+        user_id: input.userId,
+        idempotency_key: input.idempotencyKey,
+        capability: 'image',
+        model_id: input.model.trim(),
+        status: 'pending',
+        estimate_status: 'unavailable',
+        estimated_cost_usd: null,
+        request_parameters: {
+          promptCharacters: Math.max(1, Math.min(4000, Math.trunc(input.promptCharacters))),
+          ...(input.aspectRatio ? { aspectRatio: input.aspectRatio } : {}),
+        },
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!jobResponse.ok) return { ok: false, reason: 'unavailable' };
+    const rows: unknown = await jobResponse.json();
+    const created = Array.isArray(rows) ? asRecord(rows[0]) : {};
+    const jobId = typeof created.id === 'string' && UUID_PATTERN.test(created.id) ? created.id : '';
+    if (!jobId) return { ok: false, reason: 'duplicate' };
+
+    const attemptsEndpoint = new URL('/rest/v1/provider_attempts', supabaseUrl);
+    const attemptResponse = await fetcher(attemptsEndpoint, {
+      method: 'POST',
+      headers: serviceHeaders(serviceRoleKey, {
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      }),
+      body: JSON.stringify({
+        user_id: input.userId,
+        generation_job_id: jobId,
+        provider: 'openrouter',
+        model_id: input.model.trim(),
+        status: 'submitted',
+        usage: {},
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!attemptResponse.ok) {
+      await patchJob(options, input.userId, jobId, { status: 'failed' });
+      return { ok: false, reason: 'unavailable' };
+    }
+    const attemptRows: unknown = await attemptResponse.json();
+    const attempt = Array.isArray(attemptRows) ? asRecord(attemptRows[0]) : {};
+    const attemptId = typeof attempt.id === 'string' && UUID_PATTERN.test(attempt.id) ? attempt.id : '';
+    if (!attemptId) {
+      await patchJob(options, input.userId, jobId, { status: 'failed' });
+      return { ok: false, reason: 'unavailable' };
+    }
+    return { ok: true, job: { jobId, attemptId } };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+export async function finishOpenRouterImageJob(
+  input: {
+    userId: string;
+    job: OpenRouterImageJob;
+    status: 'succeeded' | 'failed' | 'unknown';
+    model: string;
+    generationId?: string | null;
+    usage?: unknown;
+  },
+  options: UsageLedgerServerOptions = {},
+): Promise<boolean> {
+  const { supabaseUrl, serviceRoleKey, fetcher } = readOptions(options);
+  if (!supabaseUrl || !serviceRoleKey || !UUID_PATTERN.test(input.userId)
+      || !UUID_PATTERN.test(input.job.jobId) || !UUID_PATTERN.test(input.job.attemptId)) return false;
+
+  const usage: NormalizedProviderUsage = normalizeProviderUsage(input.usage);
+  const now = new Date().toISOString();
+  const generationId = input.generationId && /^[A-Za-z0-9_-]{1,200}$/.test(input.generationId)
+    ? input.generationId
+    : usage.generationId;
+
+  try {
+    if (usage.costUsd !== null) {
+      const costEndpoint = new URL('/rest/v1/rpc/record_provider_cost', supabaseUrl);
+      const costResponse = await fetcher(costEndpoint, {
+        method: 'POST',
+        headers: serviceHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          p_user_id: input.userId,
+          p_generation_job_id: input.job.jobId,
+          p_provider_attempt_id: input.job.attemptId,
+          p_idempotency_key: 'openrouter-image-cost:' + input.job.jobId,
+          p_provider: 'openrouter',
+          p_model_id: input.model,
+          p_provider_generation_id: generationId,
+          p_actual_cost_usd: usage.costUsd,
+          p_usage: usage.costUsd === null ? {} : { costUsd: usage.costUsd },
+          p_source: 'provider_usage',
+        }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!costResponse.ok) return false;
+    }
+
+    const attemptEndpoint = new URL('/rest/v1/provider_attempts', supabaseUrl);
+    attemptEndpoint.searchParams.set('id', 'eq.' + input.job.attemptId);
+    attemptEndpoint.searchParams.set('user_id', 'eq.' + input.userId);
+    const attemptResponse = await fetcher(attemptEndpoint, {
+      method: 'PATCH',
+      headers: serviceHeaders(serviceRoleKey, {
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      }),
+      body: JSON.stringify({
+        status: input.status,
+        provider_request_id: generationId,
+        usage: usage.costUsd === null ? {} : { costUsd: usage.costUsd },
+        completed_at: now,
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!attemptResponse.ok) return false;
+
+    return patchJob(options, input.userId, input.job.jobId, {
+      status: input.status,
+      provider_request_id: generationId,
+    });
+  } catch {
+    return false;
+  }
+}
