@@ -34,7 +34,7 @@ supabase db reset
 supabase test db
 ```
 
-The database CI workflow also runs `npm run test:usage-ledger-local-e2e` against the local Supabase Auth and PostgREST services. It creates a temporary Auth user, verifies a real session through the VYRA API, mocks only the OpenRouter upstream response, checks the generation job/provider attempt, and removes the temporary test rows. The local service-role key is supplied only to the test process and must never be committed.
+The database CI workflow also runs `npm run test:usage-ledger-local-e2e` against the local Supabase Auth and PostgREST services. It creates a temporary Auth user, verifies a real session through the VYRA API, mocks only the OpenRouter upstream response, and checks Text and Image generation jobs, provider attempts, idempotency, and provider-reported image cost. Synthetic rows remain in the disposable local CI database because provider cost records are immutable; the local Supabase stack is destroyed when the workflow job ends. The local service-role key is supplied only to the test process and must never be committed.
 
 The pgTAP suite in `supabase/tests/database` verifies customer isolation, balanced transfer accounting, idempotency, insufficient-balance rejection, server-only financial writes, and immutable financial records.
 
@@ -42,7 +42,7 @@ The dedicated `VYRA Development` Supabase project already exists and has the eig
 
 ## Not implemented by the current migrations
 
-Authentication UI/session management, project import/sync, assets, generation-to-ledger server integration, credit purchase packages, and payment provider integration remain separate increments. The wallet and transfer UI/API are an early customer-facing layer, not a production billing launch. No production migration or customer-facing credit charging is enabled by this change.
+Project import/sync, assets, Gemini Text, Audio and Video usage recording, credit purchase packages, and payment provider integration remain separate increments. The wallet and transfer UI/API are an early customer-facing layer, not a production billing launch. No production migration or customer-facing credit charging is enabled by this change.
 
 ## Public username and recipient lookup
 
@@ -69,8 +69,8 @@ As of 2026-11-03, the repository migration filenames match the migration version
 The internal trigger helper functions are not application RPCs. Their execute privileges are revoked from application roles; PostgreSQL invokes them through their attached triggers.
 
 
-## OpenRouter Text usage recorder
+## OpenRouter Text and Image usage recorder
 
-The server includes an opt-in first increment for OpenRouter Text chat. With `VYRA_USAGE_LEDGER_ENABLED=true`, an authenticated request with an idempotency key creates a generation job and provider attempt before provider submission, then records provider-reported usage/cost when available. Only safe counts and allowlisted usage fields are stored; prompts and BYOK keys are not written to the ledger.
+The server includes an opt-in usage recorder for OpenRouter Text chat and Image generation. With `VYRA_USAGE_LEDGER_ENABLED=true`, an authenticated request with an idempotency key creates a generation job and provider attempt before provider submission, then records provider-reported actual cost when available. Only safe counts and allowlisted usage fields are stored; prompts and BYOK keys are not written to the ledger.
 
-This is usage recording only. It does not reserve or charge credits, and Gemini/Image/Audio/Video paths are not yet integrated. Keep the flag disabled until authenticated Development E2E testing is complete. Never enable it in Production based solely on passing database tests.
+This is usage recording only. It does not reserve or charge credits. Gemini Text, Audio and Video paths are not yet integrated. Keep the flag disabled until authenticated Development E2E testing is complete and the server-only service-role key is configured in the intended environment. Never enable it in Production based solely on passing database tests.
