@@ -32,11 +32,11 @@ select lives_ok(
 );
 
 select lives_ok(
-  $ select public.transfer_credits(
+  $$ select public.transfer_credits(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000002',
     20, 'wallet-test:transfer', 'Wallet test'
-  ) $,
+  ) $$,
   'Wallet fixture transfer completes'
 );
 
@@ -52,66 +52,66 @@ insert into public.generation_jobs (
 );
 
 select lives_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000010',
     'wallet-test:reserve', 'reserve', 50, 'Reserve for generation', '{}'::jsonb
-  ) $,
+  ) $$,
   'Wallet can reserve credits for a generation job'
 );
 
 select lives_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000010',
     'wallet-test:commit', 'commit', 30, 'Commit consumed credits', '{}'::jsonb
-  ) $,
+  ) $$,
   'Wallet can commit only consumed reserved credits'
 );
 
 select lives_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000010',
     'wallet-test:release', 'release', 20, 'Release unused reservation', '{}'::jsonb
-  ) $,
+  ) $$,
   'Wallet can release unused reserved credits'
 );
 
 select lives_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001', null,
     'wallet-test:refund', 'refund', 10, 'Refund approved credits', '{}'::jsonb
-  ) $,
+  ) $$,
   'Wallet can append a compensating refund credit'
 );
 
 select lives_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000010',
     'wallet-test:reserve', 'reserve', 50, 'Reserve for generation', '{}'::jsonb
-  ) $,
+  ) $$,
   'Repeated reserve idempotency key returns the original entry'
 );
 
 select throws_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000010',
     'wallet-test:insufficient', 'reserve', 1000, 'Too many credits', '{}'::jsonb
-  ) $,
+  ) $$,
   'P0001',
   'Insufficient available credits.',
   'Wallet rejects a reservation above the available balance'
 );
 
 select throws_ok(
-  $ select public.apply_credit_ledger_entry(
+  $$ select public.apply_credit_ledger_entry(
     '22000000-0000-4000-8000-000000000001',
     '22000000-0000-4000-8000-000000000010',
     'wallet-test:overcommit', 'commit', 1, 'Commit without reservation', '{}'::jsonb
-  ) $,
+  ) $$,
   'P0001',
   'Cannot commit more credits than are reserved for this job.',
   'Wallet rejects committing credits that are not reserved'
