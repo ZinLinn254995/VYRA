@@ -41,7 +41,7 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
         id: 'gen-local-e2e-' + providerCalls,
         model: 'openai/gpt-4.1-mini',
         choices: [{ message: { content: 'Local Supabase ledger integration succeeded.' } }],
-        usage: { prompt_tokens: 8, completion_tokens: 11, total_tokens: 19, cost: 0.00027 },
+        usage: { prompt_tokens: 8, completion_tokens: 11, total_tokens: 19 },
       });
     }
     return originalFetch(input, init);
@@ -93,10 +93,10 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
       }),
     });
     assert.equal(response.status, 200);
-    const responseBody = await response.json() as { text: string; generationId: string; usage: { costUsd: number } };
+    const responseBody = await response.json() as { text: string; generationId: string; usage: { costUsd: number | null } };
     assert.match(responseBody.text, /Local Supabase ledger integration succeeded/);
     assert.equal(responseBody.generationId, 'gen-local-e2e-1');
-    assert.equal(responseBody.usage.costUsd, 0.00027);
+    assert.equal(responseBody.usage.costUsd, null);
     assert.equal(providerCalls, 1);
 
     const jobs = await admin.from('generation_jobs')
@@ -118,17 +118,14 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     assert.equal(attempts.data?.length, 1);
     assert.equal(attempts.data?.[0].status, 'succeeded');
     assert.equal(attempts.data?.[0].provider, 'openrouter');
-    assert.equal(attempts.data?.[0].usage && (attempts.data[0].usage as Record<string, unknown>).costUsd, 0.00027);
+    assert.equal((attempts.data?.[0].usage as Record<string, unknown>).promptTokens, 8);
 
     const costs = await admin.from('provider_cost_records')
-      .select('actual_cost_usd,source,provider_generation_id')
+      .select('id')
       .eq('user_id', userId)
       .eq('generation_job_id', jobs.data![0].id);
     assert.equal(costs.error, null);
-    assert.equal(costs.data?.length, 1);
-    assert.equal(Number(costs.data?.[0].actual_cost_usd), 0.00027);
-    assert.equal(costs.data?.[0].source, 'provider_usage');
-    assert.equal(costs.data?.[0].provider_generation_id, 'gen-local-e2e-1');
+    assert.equal(costs.data?.length, 0, 'Unknown provider cost remains absent rather than guessed');
 
     const duplicate = await originalFetch(baseUrl + '/providers/openrouter/chat', {
       method: 'POST',
@@ -147,7 +144,11 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     assert.equal(providerCalls, 1);
   } finally {
     if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
-    if (userId) await admin.auth.admin.deleteUser(userId).catch(() => undefined);
+    if (userId) {
+      await admin.from('provider_attempts').delete().eq('user_id', userId);
+      await admin.from('generation_jobs').delete().eq('user_id', userId);
+      await admin.auth.admin.deleteUser(userId).catch(() => undefined);
+    }
     globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(originalEnv)) {
       if (value === undefined) delete process.env[key];
