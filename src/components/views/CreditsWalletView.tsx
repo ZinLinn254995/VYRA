@@ -42,6 +42,82 @@ type Recipient = {
   displayName?: string;
 };
 
+type PendingTransferRequest = {
+  recipientUserId: string;
+  amount: number;
+  note: string | null;
+  fingerprint: string;
+  idempotencyKey: string;
+  attempted: boolean;
+};
+
+type StoredPendingTransfer = {
+  fingerprint: string;
+  idempotencyKey: string;
+  attempted: boolean;
+  createdAt: number;
+};
+
+const PENDING_TRANSFER_STORAGE_KEY = 'vyra.pending-credit-transfers.v1';
+const PENDING_TRANSFER_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const PENDING_TRANSFER_MAX_RECORDS = 10;
+
+function readPendingTransferRecords(): Record<string, StoredPendingTransfer> {
+  try {
+    const raw = localStorage.getItem(PENDING_TRANSFER_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, StoredPendingTransfer>;
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(parsed)
+      .filter(([fingerprint, record]) =>
+        /^[a-f0-9]{64}$/.test(fingerprint)
+        && record
+        && record.fingerprint === fingerprint
+        && /^wallet-[a-f0-9-]{36}$/.test(record.idempotencyKey)
+        && typeof record.attempted === 'boolean'
+        && Number.isFinite(record.createdAt)
+        && now - record.createdAt >= 0
+        && now - record.createdAt <= PENDING_TRANSFER_MAX_AGE_MS
+      ));
+  } catch {
+    return {};
+  }
+}
+
+function writePendingTransferRecord(record: StoredPendingTransfer): void {
+  try {
+    const records = readPendingTransferRecords();
+    records[record.fingerprint] = record;
+    const recent = Object.entries(records)
+      .sort((a, b) => b[1].createdAt - a[1].createdAt)
+      .slice(0, PENDING_TRANSFER_MAX_RECORDS);
+    localStorage.setItem(PENDING_TRANSFER_STORAGE_KEY, JSON.stringify(Object.fromEntries(recent)));
+  } catch {
+    // In-memory idempotency still protects retries during the current page session.
+  }
+}
+
+function removePendingTransferRecord(fingerprint: string): void {
+  try {
+    const records = readPendingTransferRecords();
+    delete records[fingerprint];
+    localStorage.setItem(PENDING_TRANSFER_STORAGE_KEY, JSON.stringify(records));
+  } catch {
+    // Storage is best-effort; the server remains the source of truth.
+  }
+}
+
+async function fingerprintTransferRequest(request: {
+  senderUserId: string;
+  recipientUserId: string;
+  amount: number;
+  note: string | null;
+}): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(request));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+}
+
 const cardClass = 'rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#171A35] light:bg-white';
 const fieldClass = 'w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-3 py-2.5 text-sm text-white light:text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-[#55F4FF] light:focus:border-indigo-500';
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-4 py-2.5 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50';
@@ -94,6 +170,8 @@ export const CreditsWalletView: React.FC = () => {
   const [note, setNote] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transferLoading, setTransferLoading] = useState(false);
+  const [pendingTransfer, setPendingTransfer] = useState<PendingTransferRequest | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const apiHeaders = useMemo(() => ({
     Authorization: 'Bearer ' + accessToken,
@@ -187,7 +265,7 @@ export const CreditsWalletView: React.FC = () => {
     }
   }, [parsedAmount, wallet?.availableBalance]);
 
-  const reviewTransfer = (event: React.FormEvent) => {
+  const reviewTransfer = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedRecipient) {
       setError('Choose a recipient before continuing.');
@@ -201,12 +279,68 @@ export const CreditsWalletView: React.FC = () => {
       setError('The note must be 500 characters or fewer.');
       return;
     }
-    setError(null);
-    setConfirmOpen(true);
+    const request = {
+      recipientUserId: selectedRecipient.userId,
+      amount: parsedAmount,
+      note: note.trim() || null,
+    };
+    setReviewLoading(true);
+    try {
+      const fingerprint = await fingerprintTransferRequest({ senderUserId: session?.user.id ?? '', ...request });
+      const current = pendingTransfer?.fingerprint === fingerprint ? pendingTransfer : null;
+      const stored = readPendingTransferRecords()[fingerprint];
+      const existingKey = current?.idempotencyKey ?? stored?.idempotencyKey;
+      const attempted = current?.attempted ?? stored?.attempted ?? false;
+      const next: PendingTransferRequest = {
+        ...request,
+        fingerprint,
+        idempotencyKey: existingKey ?? 'wallet-' + crypto.randomUUID(),
+        attempted,
+      };
+      setPendingTransfer(next);
+      writePendingTransferRecord({
+        fingerprint,
+        idempotencyKey: next.idempotencyKey,
+        attempted: next.attempted,
+        createdAt: stored?.createdAt ?? Date.now(),
+      });
+      setError(null);
+      setConfirmOpen(true);
+    } catch {
+      setError('Could not prepare a secure transfer request. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const closeTransferReview = () => {
+    setConfirmOpen(false);
+    // An attempted request may have completed even if its response was lost.
+    // Keep its fingerprint/key in local storage until confirmed or expired.
+    if (pendingTransfer && !pendingTransfer.attempted) {
+      removePendingTransferRecord(pendingTransfer.fingerprint);
+      setPendingTransfer(null);
+    }
   };
 
   const sendTransfer = async () => {
     if (!selectedRecipient || !hasEnoughCredits) return;
+    const request = pendingTransfer;
+    const requestNote = note.trim() || null;
+    if (!request || request.recipientUserId !== selectedRecipient.userId
+        || request.amount !== parsedAmount || request.note !== requestNote) {
+      setConfirmOpen(false);
+      setPendingTransfer(null);
+      setError('Transfer details changed. Review the transfer again before sending.');
+      return;
+    }
+    setPendingTransfer({ ...request, attempted: true });
+    writePendingTransferRecord({
+      fingerprint: request.fingerprint,
+      idempotencyKey: request.idempotencyKey,
+      attempted: true,
+      createdAt: readPendingTransferRecords()[request.fingerprint]?.createdAt ?? Date.now(),
+    });
     setTransferLoading(true);
     setError(null);
     setNotice(null);
@@ -215,10 +349,10 @@ export const CreditsWalletView: React.FC = () => {
         method: 'POST',
         headers: apiHeaders,
         body: JSON.stringify({
-          recipientUserId: selectedRecipient.userId,
-          amount: parsedAmount,
-          idempotencyKey: 'wallet-' + crypto.randomUUID(),
-          note: note.trim() || null,
+          recipientUserId: request.recipientUserId,
+          amount: request.amount,
+          idempotencyKey: request.idempotencyKey,
+          note: request.note,
         }),
       });
       const payload = await response.json().catch(() => ({})) as { transfer?: { id: string }; error?: string };
@@ -228,7 +362,12 @@ export const CreditsWalletView: React.FC = () => {
         }
         throw new Error(payload.error ?? 'The transfer could not be completed.');
       }
+      if (!payload.transfer?.id) {
+        throw new Error('Transfer status is not confirmed. Check wallet history before retrying this same request.');
+      }
       setConfirmOpen(false);
+      removePendingTransferRecord(request.fingerprint);
+      setPendingTransfer(null);
       setNotice('Credits sent successfully. Your wallet has been refreshed.');
       setAmount('');
       setNote('');
@@ -371,10 +510,10 @@ export const CreditsWalletView: React.FC = () => {
                 <span className="text-xs font-medium text-slate-300 light:text-slate-700">Note (optional)</span>
                 <input value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} placeholder="Add a short note" className={fieldClass} />
               </label>
-              <button type="submit" disabled={!hasEnoughCredits || transferLoading} className={buttonClass + ' w-full'}>Review transfer</button>
+              <button type="submit" disabled={!hasEnoughCredits || transferLoading || reviewLoading} className={buttonClass + ' w-full'}>{reviewLoading ? 'Preparing secure request…' : 'Review transfer'}</button>
             </form>
           )}
-          <p className="text-[10px] leading-relaxed text-slate-500">Transfers are final once confirmed. Always check the recipient username and amount carefully. If a request times out, check wallet activity before retrying.</p>
+          <p className="text-[10px] leading-relaxed text-slate-500">Transfers are final once confirmed. Always check the recipient username and amount carefully. If a request times out, retry the same details; VYRA reuses the original request ID to prevent duplicate transfers.</p>
         </section>
 
         <section className={cardClass + ' p-5 sm:p-6'}>
@@ -414,14 +553,14 @@ export const CreditsWalletView: React.FC = () => {
       </div>
 
       {confirmOpen && selectedRecipient && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) setConfirmOpen(false); }}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) closeTransferReview(); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="transfer-confirm-title" className={cardClass + ' w-full max-w-md space-y-5 p-5 sm:p-6 shadow-2xl'}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[10px] font-bold tracking-widest text-[#55F4FF]">FINAL CONFIRMATION</div>
                 <h2 id="transfer-confirm-title" className="mt-1 text-lg font-bold text-white light:text-slate-900">Confirm credit transfer</h2>
               </div>
-              <button type="button" onClick={() => setConfirmOpen(false)} disabled={transferLoading} aria-label="Close confirmation" className="rounded-lg p-1.5 text-slate-400 hover:bg-[#2B3058] disabled:opacity-40"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={closeTransferReview} disabled={transferLoading} aria-label="Close confirmation" className="rounded-lg p-1.5 text-slate-400 hover:bg-[#2B3058] disabled:opacity-40"><X className="h-4 w-4" /></button>
             </div>
             <div className="rounded-xl bg-[#090B18] light:bg-slate-50 p-4 text-center">
               <div className="text-xs text-slate-400">You are sending</div>
@@ -432,7 +571,7 @@ export const CreditsWalletView: React.FC = () => {
             </div>
             <p className="text-xs leading-relaxed text-slate-400 light:text-slate-600">This transfer cannot be cancelled after it completes. Verify the username and amount before confirming.</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirmOpen(false)} disabled={transferLoading} className="flex-1 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2.5 text-xs font-semibold text-slate-300 light:text-slate-700">Go back</button>
+              <button type="button" onClick={closeTransferReview} disabled={transferLoading} className="flex-1 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2.5 text-xs font-semibold text-slate-300 light:text-slate-700">Go back</button>
               <button type="button" onClick={() => void sendTransfer()} disabled={transferLoading} className={buttonClass + ' flex-1'}>
                 {transferLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 Confirm & send

@@ -28,7 +28,7 @@ Known errors:
 - `429`: the sender has reached the database-enforced transfer velocity limit (10 new transfers per rolling hour or 30 per rolling 24 hours by default).
 - `503`: transfer infrastructure is not configured or temporarily unavailable.
 
-A network timeout can leave the client uncertain whether the transfer completed. The client must query transaction history using the same authenticated account before deciding whether to retry, and must reuse the original idempotency key.
+A network timeout can leave the client uncertain whether the transfer completed. The client must query transaction history using the same authenticated account before deciding whether to retry, and must reuse the original idempotency key. The Credit Wallet UI now retains the same key for the same recipient/amount/note after an uncertain response; changing any of those details creates a new request key. A successful transfer clears the pending key so a later intentional transfer of the same amount can proceed as a new operation.
 
 ### GET /api/credits/transfers
 
