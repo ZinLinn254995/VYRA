@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import express from 'express';
+import { once } from 'node:events';
+import { createAiRouter } from '../src/server/ai.js';
+
+test('OpenRouter BYOK generation rejects requests without a verified Supabase session', async () => {
+  const app = express();
+  app.use(express.json());
+  app.use(createAiRouter());
+  const server = app.listen(0);
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind to a TCP port.');
+  try {
+    const response = await fetch('http://127.0.0.1:' + address.port + '/providers/openrouter/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': 'or-test-key-not-a-real-secret', 'Idempotency-Key': 'req-test-123' },
+      body: JSON.stringify({ model: 'openai/test', messages: [{ role: 'user', content: 'Hello' }] }),
+    });
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: 'Sign in to use OpenRouter BYOK generation.' });
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
