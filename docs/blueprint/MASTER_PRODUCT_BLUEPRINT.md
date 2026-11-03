@@ -67,7 +67,16 @@ The Product Owner has explicitly stated:
 
 ### 4.3 Product vision
 
-_To be discussed and approved._
+VYRA is intended to be an AI Creative Economy Platform where people can create videos and other creative outputs, maintain consistency across scenes and projects, use AI through conversational workspaces, and publish content to social platforms.
+
+A central product concept is **Vyral**, an **AI Creative Asset Package**. A Vyral can contain one or many reusable creative Assets, and creators should be able to share, sell or license their Vyrals under defined permissions. Vyrals can evolve through derivative Versions while retaining traceable lineage to their original source.
+
+Each Vyral should have a dedicated AI Chat Workspace through which its owner or an authorized user can ask the AI to use, adapt and create with the Assets and consistency rules inside that Vyral.
+
+VYRA's intended business model includes credit-based AI usage and a credit-based marketplace for Vyrals and eligible derivative Versions. The Product Owner's explicit commercial goal is to generate revenue through this ecosystem.
+
+**Status:** Product Owner-approved vision concepts. Detailed customer journeys, licensing rules, marketplace policies, pricing and release scope remain open.
+
 
 ### 4.4 Target customers and their needs
 
@@ -184,7 +193,17 @@ These recommendations are not approved design requirements until reviewed.
 
 ## 12. Business model and customer trust
 
-Define customer plans, pricing, credits, payments, refunds, usage visibility, cost transparency and support expectations.
+The Product Owner's intended model is credit-based:
+
+- Customers use credits for AI capabilities such as image, video, audio and other supported creative actions.
+- Customers buy Vyrals and eligible derivative Versions using credits.
+- Users may share or trade credits with one another, subject to a future policy and system rules.
+- Creators may offer Vyrals and permitted derivative Versions in a marketplace.
+- VYRA earns revenue through the credit economy and marketplace activity.
+
+The Product Owner's value proposition is that buyers save the time and expense of building complex, consistent creative assets from scratch. They can start from a reusable Vyral and adapt it for their own work.
+
+**Not yet decided:** credit pricing and bundles, marketplace fees, creator payouts, refunds, credit transfers, resale revenue sharing, taxes, fraud prevention and regional/legal requirements. No fee percentage or payout promise is approved.
 
 Existing credit and usage documents are technical/business references to review. Their current rules must be reconciled with the intended customer experience before being treated as final.
 
@@ -265,3 +284,92 @@ The Master Blueprint is ready for implementation planning only when:
 - [ ] Release roadmap is agreed.
 
 **Overall status: DISCOVERY IN PROGRESS — DO NOT TREAT THIS DRAFT AS APPROVAL TO BUILD.**
+
+
+## 20. Vyral — AI Creative Asset Package
+
+### 20.1 Definition
+
+**Vyral** is the product term for an **AI Creative Asset Package**. The individual items contained inside a Vyral are called **Assets**.
+
+A Vyral is flexible: it may contain a single Asset or many Assets, and there is no fixed limit to the kinds of creative materials it may contain. The creator must be able to understand what Asset types are available and clearly see which Assets are currently included in their Vyral.
+
+Potential Asset types include, but are not limited to:
+
+- Characters and character references.
+- Locations, environments and worlds.
+- Objects, props and products.
+- 2D and 3D models, materials and textures.
+- Movements, animation and performance.
+- Voices, music, sound effects and other audio.
+- Art styles, visual identity, camera and lighting setups.
+- Stories, relationships, world rules, prompts and consistency instructions.
+- Reusable templates and other creative production resources.
+
+**Status:** The flexible package concept, the term Vyral, and the term Assets are approved. The examples are an open-ended catalogue, not a restrictive list or a promise that every type is supported in the first release.
+
+### 20.2 Reuse across projects
+
+A Vyral is not limited to one video or one project. Users should be able to reuse an authorized Vyral and its Assets across multiple videos, series and future projects, subject to its license and permissions.
+
+**Status:** Approved concept. Exact reuse controls remain open.
+
+### 20.3 Vyral AI Chat Workspace
+
+Each Vyral should have its own dedicated AI Chat Workspace. Users interact with the AI through this chat to ask it to use, organize, adapt or create with the Vyral's Assets.
+
+The dedicated chat must understand the selected Vyral's available Assets, consistency requirements and applicable permissions. It is a Vyral-specific workspace, not merely a generic chat with no knowledge of the package.
+
+**Status:** Approved product concept. Detailed chat capabilities, tool permissions, model routing, UI and credit disclosure remain open.
+
+## 21. Vyral Versions and Lineage
+
+### 21.1 Original and derivative Versions
+
+The original Vyral is the source/root. An authorized buyer or user may use it and may create modified copies, Clones or new Versions where the original creator's permissions allow it.
+
+A derivative Version may substantially transform the source—for example, adapting a cartoon-style Fruit Universe into a realistic 3D interpretation—and may be offered for resale only when the applicable permissions allow resale.
+
+**Status:** Approved concept. The precise permission model and legal terms remain to be designed.
+
+### 21.2 Root, trunk and branches
+
+Vyral evolution should behave like a growing tree:
+
+- **Root:** the original Vyral.
+- **Trunk / major branches:** important Versions derived from earlier Versions.
+- **Branches:** user-created derivatives.
+- **Further growth:** additional derivatives created from any eligible branch.
+
+No matter how many generations are created, users with appropriate access should be able to trace a Version back through its parent Versions to the original Root and inspect the lineage.
+
+The lineage must preserve the relationship between the original Vyral and every intermediate branch. It must not silently flatten or erase the source history.
+
+**Status:** Approved product concept. Exact graph display, access rights, attribution and technical implementation remain open.
+
+### 21.3 Licensing and derivative-use rules
+
+The original creator's permissions and the platform's separate Vyral licensing rules govern what can happen to a Vyral and its descendants. Permissions may include use, modification, cloning, creating derivative Versions and resale. A downstream Version must continue to respect applicable restrictions inherited from its source lineage.
+
+The Product Owner expects a dedicated set of rules and legal terms for derivative Versions and resale. This blueprint records the need for that system but does not yet define legally binding license wording.
+
+**Status:** Approved need for a dedicated rules/legal framework; individual license options and inheritance details remain open.
+
+## 22. Credit Marketplace and Monetization
+
+VYRA is intended to support credit-based transactions for AI usage and the Vyral ecosystem. The marketplace may include original Vyrals and derivative Versions when their permissions allow them to be listed.
+
+The Product Owner's commercial goal is to earn revenue through this system while giving buyers value: a buyer can save the substantial time and expense of creating a consistent creative package from scratch, then adapt it for their own projects within the license.
+
+The following need separate decisions before implementation:
+
+- Credit purchase bundles and value/discount structure.
+- AI action pricing and cost visibility.
+- Marketplace listing and purchase flow.
+- Platform fees and creator earnings.
+- Credit transfers between users.
+- Revenue sharing for derivative Version sales.
+- Refunds, disputes, fraud and chargeback handling.
+- Tax, copyright, licensing and consumer-law compliance.
+
+**Status:** Credit-based economy and marketplace direction approved; all detailed commercial rules remain open.
