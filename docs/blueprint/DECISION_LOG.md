@@ -100,3 +100,12 @@ For each future decision, record:
 - **Reason:** Credit-based usage and trading create the intended commercial model, while reusable Vyrals provide buyers with value by reducing the time and expense of building consistent assets themselves.
 - **Scope:** Pricing, bundles, platform fees, creator payouts, transfers, refunds, resale revenue sharing and compliance remain open.
 - **Approval source:** Product Owner explicitly stated that Vyral transactions and usage will use credits and that this is the intended revenue model.
+
+
+### BP-010 — End-to-end video creation, social publishing and customer growth
+
+- **Status:** Approved
+- **Decision:** VYRA should aim to provide an integrated service for creating a wide range of video types and taking reviewed, completed videos directly to supported social platforms. The Vyral ecosystem should also give customers opportunities to earn from reusable creative packages and grow their own creative activity or business over time.
+- **Reason:** The Product Owner wants customers to receive a complete service rather than a collection of disconnected AI tools, and to gain economic value from the Vyral ecosystem.
+- **Scope:** The range of video formats is an open-ended product ambition, not a claim that every format is currently supported. Exact capabilities, first-release scope, supported social platforms, publishing workflow, creator earnings and legal/commercial rules remain open.
+- **Approval source:** Product Owner explicitly stated that the service should cover the video types customers want to create, extend through direct social-media publishing, and provide benefits and growth opportunities through Vyral's revenue-generating capabilities.
