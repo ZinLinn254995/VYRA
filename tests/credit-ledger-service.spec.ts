@@ -140,3 +140,24 @@ test('credit ledger service maps insufficient balance and idempotency conflicts 
     assert.deepEqual(result, { ok: false, reason: expected[i] });
   }
 });
+
+
+test('credit ledger service rejects a mismatched database response instead of trusting it', async () => {
+  const result = await applyCreditLedgerEntry({
+    userId: USER_ID,
+    generationJobId: JOB_ID,
+    idempotencyKey: 'response-mismatch-test',
+    entryType: 'reserve',
+    amount: 25,
+  }, {
+    supabaseUrl: 'https://vyra-development.supabase.co',
+    serviceRoleKey: SERVICE_KEY,
+    fetcher: async () => Response.json({
+      ...entry('reserve', '25'),
+      idempotency_key: 'different-request',
+      available_delta: '-24',
+      reserved_delta: '24',
+    }),
+  });
+  assert.deepEqual(result, { ok: false, reason: 'unavailable' });
+});
