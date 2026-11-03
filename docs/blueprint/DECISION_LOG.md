@@ -109,3 +109,52 @@ For each future decision, record:
 - **Reason:** The Product Owner wants customers to receive a complete service rather than a collection of disconnected AI tools, and to gain economic value from the Vyral ecosystem.
 - **Scope:** The range of video formats is an open-ended product ambition, not a claim that every format is currently supported. Exact capabilities, first-release scope, supported social platforms, publishing workflow, creator earnings and legal/commercial rules remain open.
 - **Approval source:** Product Owner explicitly stated that the service should cover the video types customers want to create, extend through direct social-media publishing, and provide benefits and growth opportunities through Vyral's revenue-generating capabilities.
+
+
+### BP-011 — Full-screen Chat Mode and Workspace Mode with swipe transition
+
+- **Status:** Approved
+- **Decision:** VYRA should provide Chat Mode and Workspace Mode as two full-screen views of the same product and shared project data. Customers should be able to switch between them using a swipe interaction.
+- **Reason:** The Product Owner wants ChatGPT-like simplicity for conversation and a separate visual creative-studio space without forcing both into a crowded split-screen layout.
+- **Scope:** Exact gesture behavior, navigation details and visual design remain open.
+- **Approval source:** Product Owner explicitly accepted the full-screen two-mode concept and swipe-based switching.
+
+### BP-012 — Global, persistent and page-aware AI Chat
+
+- **Status:** Approved
+- **Decision:** AI Chat should be available throughout VYRA, including Workspace and Vyral browsing. The conversation persists across page changes. The AI should understand the active page, selected project/scene/item, relevant settings and live app data; the active page is its primary context, while it may access other relevant pages or projects when needed and authorized. AI actions and manual edits must update the same shared data.
+- **Reason:** The Product Owner wants one continuous AI assistant that understands the current work and can help across the application, without splitting chat state from visual Workspace state.
+- **Scope:** Context boundaries, action permissions, audit history, undo/recovery and detailed UI remain open.
+- **Approval source:** Product Owner explicitly described global chat, persistent context, page awareness, cross-page actions and shared live data.
+
+### BP-013 — Human-Controlled Area
+
+- **Status:** Approved
+- **Decision:** VYRA should have a distinct Human-Controlled Area for controls and decisions that only the human customer may directly control.
+- **Reason:** Preserve human authority over important account and platform decisions rather than allowing AI to control everything.
+- **Scope:** The exact controls included and whether AI is completely excluded or may view/explain without modifying anything remain open. The general action-confirmation model for reversible changes, paid generation, publishing, financial, security and destructive actions also remains open.
+- **Approval source:** Product Owner explicitly stated that a dedicated area should exist for things only a human can control.
+
+### BP-014 — Workspace structure proposal
+
+- **Status:** Proposed
+- **Proposal:** Organize Workspace into five possible areas: Project Workspace; Storyboard & Scene Editor; Vyral Workspace; Media & Production; Review & Publishing.
+- **Reason:** Provide a simple way to organize the major creative work areas.
+- **Not decided:** Whether these are separate pages, tabs, contextual panels or another structure; whether five areas are sufficient; and whether Workspace opens directly into one project or a project overview.
+- **Approval source:** Assistant proposal only; Product Owner has not approved the structure.
+
+### BP-015 — Creative plan approval before storyboard and paid generation
+
+- **Status:** Approved
+- **Decision:** For a new video, AI should help develop ideas and prepare an overall rough creative plan. The customer reviews and approves that plan before VYRA automatically creates a scene-by-scene rough Storyboard. The initial Storyboard contains descriptions/placeholders, not generated media. Actual paid media generation must wait for a separate explicit approval.
+- **Reason:** Let customers validate the creative direction before generation costs are incurred, while giving them an editable scene plan.
+- **Scope:** Exact plan format, storyboard structure, scene fields and generation controls remain open.
+- **Approval source:** Product Owner explicitly described this sequence and the distinction that no real image/video/audio is generated during initial storyboard planning.
+
+### BP-016 — Minimalist futuristic Creative Studio Workspace
+
+- **Status:** Approved
+- **Decision:** Workspace should be clean, minimal, uncluttered and functional, with a futuristic, premium, professional AI Creative Studio aesthetic. Product sophistication should be delivered through capable behind-the-scenes automation and orchestration, not by exposing unnecessary complexity in the UI.
+- **Reason:** The Product Owner wants a simple customer experience supported by sophisticated internal systems.
+- **Scope:** Exact colors, layout, typography, navigation and responsive details remain open.
+- **Approval source:** Product Owner explicitly clarified the simplicity and behind-the-scenes sophistication principles and accepted the futuristic professional creative-studio direction.
