@@ -17,12 +17,12 @@ import { SettingsView } from './components/views/SettingsView';
 import { Toast } from './components/common/Toast';
 import { BrandLogo } from './components/common/BrandLogo';
 import {
-  ArrowRight, BookOpen, Clapperboard, Image, Layers3,
+  ArrowRight, BookOpen, Clapperboard, Image, Layers3, ChevronUp, ChevronDown, FileText, PlayCircle,
   MessageCircle, Plus, Settings, ShieldCheck, Sparkles, Film,
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
-type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'vyrals' | 'media' | 'settings' | 'human' | 'create';
+type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'media' | 'settings' | 'human' | 'create';
 
 const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void }> = ({ onNavigate }) => {
   const { projects, activeProject, setActiveProjectId } = useStudio();
@@ -99,6 +99,48 @@ const StoryboardLibrary: React.FC<{ onOpen: (id: string) => void; onCreate: () =
   );
 };
 
+const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void }> = ({ onOpenScene }) => {
+  const { activeProject, addScene, reorderScenes } = useStudio();
+  if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
+  const orderedScenes = [...activeProject.scenes].sort((a, b) => a.order - b.order);
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Storyboard overview</p><h1 className="mt-2 text-3xl font-semibold text-white">{activeProject.title}</h1><p className="mt-2 text-sm text-slate-400">Arrange the creative items in the order you want them to appear.</p></div>
+        <button onClick={() => addScene(activeProject.id)} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>
+      </div>
+      <div className="space-y-3">
+        {orderedScenes.map((scene, index) => {
+          const isVideo = Boolean(scene.generatedVideoId);
+          const isImage = Boolean(scene.generatedImageId || scene.mediaUrl);
+          return (
+            <div key={scene.id} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:gap-5 sm:p-4">
+              <div className="flex shrink-0 flex-col gap-1">
+                <button aria-label={`Move item ${index + 1} up`} disabled={index === 0} onClick={() => reorderScenes(activeProject.id, index, index - 1)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-20"><ChevronUp className="h-4 w-4" /></button>
+                <span className="text-center text-xs font-semibold tabular-nums text-slate-500">{index + 1}</span>
+                <button aria-label={`Move item ${index + 1} down`} disabled={index === orderedScenes.length - 1} onClick={() => reorderScenes(activeProject.id, index, index + 1)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-20"><ChevronDown className="h-4 w-4" /></button>
+              </div>
+              <button onClick={() => onOpenScene(scene.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-5">
+                <div className="relative flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-800 sm:h-24 sm:w-40">
+                  {scene.mediaUrl ? <img src={scene.mediaUrl} alt="" className="h-full w-full object-cover" /> : <FileText className="h-7 w-7 text-slate-500" />}
+                  <span className="absolute bottom-1 left-1 rounded-md bg-slate-950/80 px-2 py-1 text-[9px] font-semibold uppercase text-slate-200">{isVideo ? 'Video' : isImage ? 'Image' : 'Idea'}</span>
+                  {isVideo && <PlayCircle className="absolute right-2 top-2 h-5 w-5 text-white drop-shadow" />}
+                </div>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-white">Scene {index + 1}</span>
+                  <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-400">{scene.narration || scene.visualPrompt || 'Creative idea — open to add details.'}</span>
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-300">Open Scene Workspace <ArrowRight className="h-3 w-3" /></span>
+                </span>
+              </button>
+            </div>
+          );
+        })}
+        {!orderedScenes.length && <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center text-sm text-slate-400">This Storyboard has no Scenes yet. Add a Scene or ask AI Chat to create one.</div>}
+      </div>
+    </div>
+  );
+};
+
 const HumanControlledArea: React.FC = () => (
   <div className="mx-auto flex min-h-[65vh] max-w-3xl flex-col justify-center px-5 py-12">
     <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-amber-300"><ShieldCheck className="h-6 w-6" /></div>
@@ -112,6 +154,7 @@ const StudioContent: React.FC = () => {
   const { theme, toggleTheme, currentSection, setCurrentSection, projects, setActiveProjectId, navigateToProjectWorkspace } = useStudio();
   const [mode, setMode] = useState<AppMode>('workspace');
   const [page, setPage] = useState<WorkspacePage>('home');
+  const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -144,7 +187,7 @@ const StudioContent: React.FC = () => {
     touchStart.current = null;
   };
 
-  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'vyrals' ? 'Vyrals' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : page === 'human' ? 'Human-Controlled Area' : 'Create Storyboard';
+  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : page === 'human' ? 'Human-Controlled Area' : 'Create Storyboard';
 
   return (
     <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100">
@@ -173,7 +216,8 @@ const StudioContent: React.FC = () => {
           <main className="min-h-[calc(100dvh-7.5rem)]">
             {page === 'home' && <WorkspaceHome onNavigate={navigate} />}
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={() => navigate('create')} />}
-            {page === 'storyboard' && (projects.length ? <ProjectWorkspaceView /> : <WorkspaceHome onNavigate={navigate} />)}
+            {page === 'storyboard' && (projects.length ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} /> : <WorkspaceHome onNavigate={navigate} />)}
+            {page === 'scene' && <ProjectWorkspaceView initialSceneId={selectedSceneId} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
