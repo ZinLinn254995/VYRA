@@ -7,11 +7,11 @@ import { isUsageLedgerRequested, isUsageLedgerServerEnabled, isValidIdempotencyK
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
-async function requireOpenRouterSession(req: Request, res: Response): Promise<string | null> {
+async function requireVerifiedVYraSession(req: Request, res: Response): Promise<string | null> {
   const authorization = req.header('authorization') ?? '';
   const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!tokenMatch) {
-    res.status(401).json({ error: 'Sign in to use OpenRouter media generation.' });
+    res.status(401).json({ error: 'Sign in to use VYRA AI features.' });
     return null;
   }
   const auth = await verifySupabaseAccessToken(tokenMatch[1]);
@@ -289,7 +289,7 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
 router.post('/providers/openrouter/test', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter a valid-looking OpenRouter API key.' });
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   try {
     const response = await openRouterFetch('https://openrouter.ai/api/v1/key', apiKey);
     if (!response.ok) {
@@ -310,7 +310,7 @@ const keyUsageRequestWindows = new Map<string, { count: number; resetAt: number 
 router.get('/providers/openrouter/usage/key', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key in Settings to view live key usage.' });
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
 
   const now = Date.now();
   const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
@@ -380,7 +380,7 @@ const generationLookupWindows = new Map<string, { count: number; resetAt: number
 router.get('/providers/openrouter/generation/:generationId', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key in Settings to inspect generation details.' });
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
 
   const generationId = req.params.generationId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(generationId)) {
@@ -456,7 +456,7 @@ router.get('/providers/openrouter/generation/:generationId', async (req: Request
 router.get('/providers/openrouter/models', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'An OpenRouter API key is required to discover models.' });
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
 
   const capability = String(req.query.capability || 'text');
   const endpointByCapability: Record<string, string> = {
@@ -543,7 +543,7 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -612,7 +612,7 @@ router.post('/providers/openrouter/audio/speech', async (req: Request, res: Resp
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   const body = req.body as { model?: string; input?: string; voice?: string; speed?: number };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const input = typeof body.input === 'string' ? body.input.trim() : '';
@@ -696,7 +696,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string; frame_images?: unknown; input_references?: unknown };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -777,7 +777,7 @@ router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Resp
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
 
@@ -830,7 +830,7 @@ router.get('/providers/openrouter/videos/:jobId/content', async (req: Request, r
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
   const index = typeof req.query.index === 'string' && /^\d{1,2}$/.test(req.query.index)
@@ -940,6 +940,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   if (body?.ping === true) {
     return res.status(200).json(getGeminiStatus());
   }
+  if (!(await requireVerifiedVYraSession(req, res))) return;
   if (blockUntrackedGeneration(res, 'gemini-text')) return;
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
