@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStudio } from '../../context/StudioContext';
+import { getCurrentAccessToken } from '../../context/AuthContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { validateProjectAudioTracksForExport } from '../../services/audioExportValidation';
 import { createAudioExportTrackWindow, createNarrationDuckingSchedule, createSceneSoundEffectSchedule } from '../../services/audioExportRuntime';
@@ -526,6 +527,8 @@ export const ProjectWorkspaceView: React.FC = () => {
 
       const resume = async () => {
         try {
+          const accessToken = await getCurrentAccessToken();
+          if (!accessToken) throw new Error('Sign in again to resume this saved video job.');
           let completed = job.status === 'completed';
           let costUsd = job.costUsd ?? null;
           let generationId = job.generationId ?? undefined;
@@ -536,7 +539,7 @@ export const ProjectWorkspaceView: React.FC = () => {
             let response: Response;
             try {
               response = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(job.jobId), {
-                headers: { 'x-openrouter-api-key': apiKey },
+                headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
               });
             } catch {
               if (attempt === 39) throw new Error('Could not reconnect to the video status service. The saved job is still available to resume.');
@@ -582,7 +585,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
           setClipStatus('Video generated. Downloading clip…');
           const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(job.jobId) + '/content', {
-            headers: { 'x-openrouter-api-key': apiKey },
+            headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
           });
           if (!contentResponse.ok) {
             const data = await contentResponse.json().catch(() => ({})) as { error?: string };
@@ -812,10 +815,12 @@ export const ProjectWorkspaceView: React.FC = () => {
         setClipStatus('Generation cancelled. No video request was sent.');
         return;
       }
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before generating a video clip.');
       if (selectedSceneIdRef.current === targetScene.id) setClipStatus('Submitting video generation job…');
       const response = await fetch('/api/providers/openrouter/videos/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
         body: JSON.stringify({ model, prompt, aspect_ratio: clipAspectRatio, duration: clipDuration, ...(clipResolution ? { resolution: clipResolution } : {}), ...videoReferencePayload }),
       });
       const submitted = await response.json().catch(() => ({})) as { jobId?: string; generationId?: string | null; error?: string };
@@ -863,7 +868,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         let statusResponse: Response;
         try {
           statusResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId!), {
-            headers: { 'x-openrouter-api-key': apiKey },
+            headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
           });
         } catch {
           // A temporary network interruption should not abandon a paid provider job.
@@ -917,7 +922,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         }
       }
       if (!completed) throw new Error('Video generation is taking longer than expected. Retry later; check your OpenRouter account before submitting another job.');
-      const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId) + '/content', { headers: { 'x-openrouter-api-key': apiKey } });
+      const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId) + '/content', { headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken } });
       if (!contentResponse.ok) {
         const data = await contentResponse.json().catch(() => ({})) as { error?: string };
         throw new Error(data.error || 'The video was generated but could not be downloaded. Please retry the download.');
@@ -1035,9 +1040,11 @@ export const ProjectWorkspaceView: React.FC = () => {
     setSceneImageCostUsd(null);
     setIsGeneratingSceneImage(true);
     try {
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before generating a scene image.');
       const response = await fetch('/api/providers/openrouter/images/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
         body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio }),
       });
       const data = await response.json().catch(() => ({})) as {
@@ -1114,9 +1121,11 @@ export const ProjectWorkspaceView: React.FC = () => {
         setIsGeneratingVoiceover(false);
         return;
       }
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before generating voiceover.');
       const response = await fetch('/api/providers/openrouter/audio/speech', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
         body: JSON.stringify({ model, input: narration, voice: effectiveVoiceId, speed: effectiveSpeed }),
       });
       if (!response.ok) {

@@ -7,6 +7,26 @@ import { isUsageLedgerRequested, isUsageLedgerServerEnabled, isValidIdempotencyK
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
+async function requireOpenRouterSession(req: Request, res: Response): Promise<string | null> {
+  const authorization = req.header('authorization') ?? '';
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
+  if (!tokenMatch) {
+    res.status(401).json({ error: 'Sign in to use OpenRouter media generation.' });
+    return null;
+  }
+  const auth = await verifySupabaseAccessToken(tokenMatch[1]);
+  if (!auth.ok) {
+    if (auth.reason === 'not_configured' || auth.reason === 'provider_unavailable') {
+      res.status(503).json({ error: 'VYRA authentication is temporarily unavailable.' });
+    } else {
+      res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+    }
+    return null;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  return auth.user.id;
+}
+
 function blockUntrackedGeneration(res: Response, capability: string): boolean {
   if (!isUsageLedgerRequested()) return false;
   res.status(503).json({
@@ -97,6 +117,24 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   const totalChars = messages.reduce((sum, item) => sum + item.content.length, 0);
   if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
 
+  // Every OpenRouter generation request is tied to a verified customer session.
+  const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!bearer) return res.status(401).json({ error: 'Sign in to use OpenRouter BYOK generation.' });
+
+  const verified = await verifySupabaseAccessToken(bearer[1]);
+  if (!verified.ok) {
+    if (verified.reason === 'not_configured' || verified.reason === 'provider_unavailable') {
+      return res.status(503).json({ error: 'VYRA authentication is temporarily unavailable.' });
+    }
+    return res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+
+  const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
+  if (!isValidIdempotencyKey(idempotencyKey)) {
+    return res.status(400).json({ error: 'A valid generation request ID is required.' });
+  }
+
   // Opt-in first increment: authenticated OpenRouter Text usage only.
   // This records provider usage; it does not reserve or charge VYRA credits.
   let ledgerContext: { userId: string; job: OpenRouterTextJob } | null = null;
@@ -106,21 +144,6 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
         error: 'Usage tracking is enabled but its server-side Supabase configuration is incomplete. No provider request was sent.',
         code: 'USAGE_LEDGER_NOT_CONFIGURED',
       });
-    }
-    const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
-    if (!bearer) return res.status(401).json({ error: 'Sign in to VYRA before recording generation usage.' });
-
-    const verified = await verifySupabaseAccessToken(bearer[1]);
-    if (!verified.ok) {
-      return res.status(verified.reason === 'provider_unavailable' || verified.reason === 'not_configured' ? 503 : 401)
-        .json({ error: verified.reason === 'provider_unavailable'
-          ? 'Authentication service is temporarily unavailable.'
-          : 'Your VYRA session is invalid or expired.' });
-    }
-
-    const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
-    if (!isValidIdempotencyKey(idempotencyKey)) {
-      return res.status(400).json({ error: 'A valid generation request ID is required.' });
     }
 
     const started = await beginOpenRouterTextJob({
@@ -516,6 +539,7 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
+  if (!(await requireOpenRouterSession(req, res))) return;
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -584,6 +608,7 @@ router.post('/providers/openrouter/audio/speech', async (req: Request, res: Resp
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
+  if (!(await requireOpenRouterSession(req, res))) return;
   const body = req.body as { model?: string; input?: string; voice?: string; speed?: number };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const input = typeof body.input === 'string' ? body.input.trim() : '';
@@ -667,6 +692,7 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
+  if (!(await requireOpenRouterSession(req, res))) return;
   const body = req.body as { model?: string; prompt?: string; aspect_ratio?: string; duration?: number; resolution?: string; frame_images?: unknown; input_references?: unknown };
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -746,6 +772,8 @@ router.post('/providers/openrouter/videos/generate', async (req: Request, res: R
 router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
+
+  if (!(await requireOpenRouterSession(req, res))) return;
   const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
 
@@ -797,6 +825,8 @@ router.get('/providers/openrouter/videos/:jobId', async (req: Request, res: Resp
 router.get('/providers/openrouter/videos/:jobId/content', async (req: Request, res: Response) => {
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
+
+  if (!(await requireOpenRouterSession(req, res))) return;
   const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
   const index = typeof req.query.index === 'string' && /^\d{1,2}$/.test(req.query.index)

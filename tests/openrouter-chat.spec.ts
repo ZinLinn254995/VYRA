@@ -1,7 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+// This test exercises the authenticated OpenRouter Text path with a fake, non-production session.
+test.use({ storageState: './tests/e2e-auth-state.json' });
+
 test('AI Ideas Chat uses the configured OpenRouter Text model', async ({ page }) => {
   let capturedRequest: { model?: string; apiKey?: string } = {};
+
+  await page.route('**/api/auth/session', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ authenticated: true, user: { id: '00000000-0000-4000-8000-000000000001' } }),
+    });
+  });
 
   await page.addInitScript(() => {
     sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
