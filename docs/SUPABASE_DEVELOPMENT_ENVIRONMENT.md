@@ -88,7 +88,7 @@ export VYRA_USAGE_LEDGER_ENABLED=true
 npm run test:usage-ledger-local-e2e
 ```
 
-This test creates a temporary local Auth user, obtains a real local session, calls the VYRA API while mocking only the OpenRouter provider, verifies the job/attempt rows through PostgREST, and removes its test rows afterward. The local service-role key is only used by the test process and must never be committed or used as a hosted secret.
+This test creates a temporary local Auth user, obtains a real local session, calls the VYRA API while mocking only the OpenRouter provider, and verifies Text and Image job/attempt rows plus provider-reported image cost through PostgREST. Synthetic rows remain in the disposable local CI database because provider cost records are immutable; the local Supabase stack is destroyed when the workflow job ends. The local service-role key is only used by the test process and must never be committed or used as a hosted secret.
 
 These commands target the local Supabase stack. Confirm the local stack is running before resetting it. Use the current migration filenames in `supabase/migrations`.
 
@@ -111,12 +111,12 @@ The database suites passing does not replace authenticated HTTP end-to-end tests
 
 ## 6. First usage-recorder integration increment
 
-The server has an opt-in recorder for OpenRouter Text chat only. When `VYRA_USAGE_LEDGER_ENABLED=true`, it requires a verified Supabase session and an idempotency key, creates a generation job/provider attempt before calling OpenRouter, and stores safe usage metadata plus provider-reported cost when available. It does not store prompts or BYOK keys and does not charge credits.
+The server has an opt-in recorder for OpenRouter Text chat and Image generation. When `VYRA_USAGE_LEDGER_ENABLED=true`, it requires a verified Supabase session and an idempotency key, creates a generation job/provider attempt before calling OpenRouter, and stores safe usage metadata plus provider-reported actual cost when available. It does not store prompts or BYOK keys and does not charge credits.
 
 This is not yet a complete generation-to-ledger implementation:
-- Gemini text and OpenRouter Image, Audio, and Video are not yet recorded.
+- Gemini Text, OpenRouter Audio, and OpenRouter Video are not yet recorded.
 - No credit reservation, settlement, or charging is enabled.
-- Keep the flag `false` until two-account authenticated Development E2E tests pass.
+- Keep the flag `false` until authenticated Development E2E tests for Text and Image pass and the server-only service-role key is configured safely.
 - Do not set this flag in Preview or Production yet.
 
 Record test results and the migration version. Use only the dedicated development test accounts.
