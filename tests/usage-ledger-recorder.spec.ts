@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  beginOpenRouterImageJob,
   beginOpenRouterTextJob,
+  finishOpenRouterImageJob,
   finishOpenRouterTextJob,
 } from '../src/server/usageLedger.js';
 
@@ -156,4 +158,72 @@ test('keeps unknown provider cost absent and records an uncertain job status', a
   assert.equal(calls[0].body.status, 'unknown');
   assert.deepEqual(calls[0].body.usage, {});
   assert.equal(calls[1].body.status, 'unknown');
+});
+
+
+test('creates an OpenRouter image job with safe prompt metadata and an idempotent provider attempt', async () => {
+  const calls: Array<{ url: URL; method: string; body: Record<string, unknown> }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    calls.push({ url, method: init?.method || 'GET', body });
+    if (url.pathname === '/rest/v1/generation_jobs') return Response.json([{ id: JOB_ID }], { status: 201 });
+    if (url.pathname === '/rest/v1/provider_attempts') return Response.json([{ id: ATTEMPT_ID }], { status: 201 });
+    throw new Error('Unexpected endpoint: ' + url.pathname);
+  };
+
+  const result = await beginOpenRouterImageJob({
+    userId: USER_ID,
+    idempotencyKey: 'image-request-001',
+    model: 'openai/gpt-image-1',
+    promptCharacters: 42,
+    aspectRatio: '16:9',
+  }, {
+    supabaseUrl: 'https://vyra-dev.supabase.co',
+    serviceRoleKey: SERVICE_KEY,
+    fetcher,
+  });
+
+  assert.deepEqual(result, { ok: true, job: { jobId: JOB_ID, attemptId: ATTEMPT_ID } });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].body.capability, 'image');
+  assert.equal(calls[0].body.idempotency_key, 'image-request-001');
+  assert.deepEqual(calls[0].body.request_parameters, { promptCharacters: 42, aspectRatio: '16:9' });
+  assert.equal('prompt' in calls[0].body, false);
+  assert.equal(calls[1].body.generation_job_id, JOB_ID);
+  assert.equal(calls[1].body.status, 'submitted');
+});
+
+test('records provider-reported OpenRouter image cost without storing the prompt', async () => {
+  const calls: Array<{ url: URL; method: string; body: Record<string, unknown> }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    calls.push({ url, method: init?.method || 'GET', body });
+    return new Response(null, { status: 204 });
+  };
+
+  const ok = await finishOpenRouterImageJob({
+    userId: USER_ID,
+    job: { jobId: JOB_ID, attemptId: ATTEMPT_ID },
+    status: 'succeeded',
+    model: 'openai/gpt-image-1',
+    generationId: 'gen-image-123',
+    usage: { costUsd: 0.0042, generationId: 'gen-image-123', prompt: 'must never be persisted' },
+  }, {
+    supabaseUrl: 'https://vyra-dev.supabase.co',
+    serviceRoleKey: SERVICE_KEY,
+    fetcher,
+  });
+
+  assert.equal(ok, true);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].url.pathname, '/rest/v1/rpc/record_provider_cost');
+  assert.equal(calls[0].body.p_idempotency_key, 'openrouter-image-cost:' + JOB_ID);
+  assert.equal(calls[0].body.p_actual_cost_usd, 0.0042);
+  assert.deepEqual(calls[0].body.p_usage, { costUsd: 0.0042 });
+  assert.equal(calls[1].url.pathname, '/rest/v1/provider_attempts');
+  assert.deepEqual(calls[1].body.usage, { costUsd: 0.0042 });
+  assert.equal(calls[2].url.pathname, '/rest/v1/generation_jobs');
+  assert.equal(calls[2].body.status, 'succeeded');
 });
