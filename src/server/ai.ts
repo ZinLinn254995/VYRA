@@ -2,13 +2,13 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { GoogleGenAI } from '@google/genai';
 import { verifySupabaseAccessToken } from './supabaseAuth.js';
 import { beginOpenRouterTextJob, finishOpenRouterTextJob, type OpenRouterTextJob } from './usageLedger.js';
-import { isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedgerContract.js';
+import { isUsageLedgerRequested, isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedgerContract.js';
 
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
 function blockUntrackedGeneration(res: Response, capability: string): boolean {
-  if (!isUsageLedgerServerEnabled()) return false;
+  if (!isUsageLedgerRequested()) return false;
   res.status(503).json({
     error: 'Usage tracking is currently enabled for OpenRouter Text chat only. This generation capability is paused until its ledger integration is verified.',
     code: 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED',
@@ -100,7 +100,13 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   // Opt-in first increment: authenticated OpenRouter Text usage only.
   // This records provider usage; it does not reserve or charge VYRA credits.
   let ledgerContext: { userId: string; job: OpenRouterTextJob } | null = null;
-  if (isUsageLedgerServerEnabled()) {
+  if (isUsageLedgerRequested()) {
+    if (!isUsageLedgerServerEnabled()) {
+      return res.status(503).json({
+        error: 'Usage tracking is enabled but its server-side Supabase configuration is incomplete. No provider request was sent.',
+        code: 'USAGE_LEDGER_NOT_CONFIGURED',
+      });
+    }
     const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     if (!bearer) return res.status(401).json({ error: 'Sign in to VYRA before recording generation usage.' });
 
