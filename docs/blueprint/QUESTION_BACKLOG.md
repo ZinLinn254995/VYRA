@@ -60,3 +60,9 @@ This is an internal topic tracker, not a questionnaire to send all at once. Disc
 | Human-Controlled Area | Which settings/actions are human-only, and whether AI may view/explain or is fully excluded | Existence approved; scope and AI access open |
 | AI action authority | Which reversible actions may be applied directly, which need preview, and which require explicit confirmation | Not decided |
 | Workspace visual design | Futuristic professional creative-studio look with minimal functional UI; exact visual system and responsive behavior | Direction approved; details open |
+
+
+### Workspace first-view follow-up
+
+- **Workspace first view — Project Creative Studio:** Approved. Current/active project is the main focus; quick access to Storyboard, Vyral, Media and Settings; production progress shown as Plan → Storyboard → Generate → Review → Publish; global AI Chat remains available.
+- **Still open:** Exact visual specification, responsive behavior, project switching, and the empty state when no project is active.
