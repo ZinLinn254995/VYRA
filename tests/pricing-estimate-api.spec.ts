@@ -10,16 +10,16 @@ test('pricing estimate rejects missing OpenRouter credentials without contacting
   });
 });
 
-test('pricing estimate validates capability and model before provider lookup', async ({ request, baseURL }) => {
+test('pricing estimate rejects requests with a BYOK key but no verified VYRA session', async ({ request, baseURL }) => {
   const invalidCapability = await request.post(new URL('/api/providers/openrouter/estimate', baseURL).toString(), {
     headers: { 'x-openrouter-api-key': 'or-test-key-not-a-real-secret' },
     data: { capability: 'unknown', model: 'openai/gpt-4.1-mini', parameters: {} },
   });
-  expect(invalidCapability.status()).toBe(400);
+  expect(invalidCapability.status()).toBe(401);
 
   const invalidModel = await request.post(new URL('/api/providers/openrouter/estimate', baseURL).toString(), {
     headers: { 'x-openrouter-api-key': 'or-test-key-not-a-real-secret' },
     data: { capability: 'video', model: 'not-a-model-id', parameters: { durationSeconds: 4 } },
   });
-  expect(invalidModel.status()).toBe(400);
+  expect(invalidModel.status()).toBe(401);
 });
