@@ -823,7 +823,8 @@ router.get('/providers/openrouter/videos/:jobId/content', async (req: Request, r
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Your OpenRouter session key is missing. Reconnect in Settings.' });
 
-  if (!(await requireOpenRouterSession(req, res))) return;  const jobId = req.params.jobId;
+  if (!(await requireOpenRouterSession(req, res))) return;
+  const jobId = req.params.jobId;
   if (!/^[a-zA-Z0-9_-]{1,200}$/.test(jobId)) return res.status(400).json({ error: 'Invalid video job ID.' });
   const index = typeof req.query.index === 'string' && /^\d{1,2}$/.test(req.query.index)
     ? Math.min(20, Number(req.query.index))
