@@ -171,8 +171,21 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       totalTokens: finiteOrNull(data.usage.total_tokens),
       costUsd: finiteOrNull(data.usage.cost ?? data.usage.total_cost),
     } : { generationId };
-    if (ledgerJob) await finishOpenRouterTextUsageJob(ledgerJob, { status: 'succeeded', model: typeof data.model === 'string' ? data.model : model, usage: safeUsage });
+    let usageTrackingStatus: 'recorded' | 'disabled' | 'pending_reconciliation' = ledgerJob?.enabled ? 'recorded' : 'disabled';
+    if (ledgerJob) {
+      try {
+        await finishOpenRouterTextUsageJob(ledgerJob, { status: 'succeeded', model: typeof data.model === 'string' ? data.model : model, usage: safeUsage });
+      } catch (error) {
+        // The provider has already completed this generation. Return its result instead of
+        // encouraging a duplicate paid request; reconcile the ledger asynchronously.
+        usageTrackingStatus = 'pending_reconciliation';
+        const code = error instanceof Error && /^USAGE_LEDGER_[A-Z0-9_]+$/.test(error.message)
+          ? error.message : 'USAGE_LEDGER_WRITE_FAILED';
+        console.error('[openrouter/usage-ledger] completion write failed:', code);
+      }
+    }
     return res.status(200).json({
+      usageTrackingStatus,
       text,
       modelName: typeof data.model === 'string' ? data.model : model,
       provider: 'openrouter',
