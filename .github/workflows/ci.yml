@@ -23,6 +23,8 @@ jobs:
         run: npm run lint
       - name: Supabase auth verification tests
         run: npm run test:auth
+      - name: Gemini API authentication tests
+        run: npm run test:ai-security
       - name: Customer project API tests
         run: npm run test:projects
       - name: Cloud project restore tests
