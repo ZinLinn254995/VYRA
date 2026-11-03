@@ -373,3 +373,28 @@ The following need separate decisions before implementation:
 - Tax, copyright, licensing and consumer-law compliance.
 
 **Status:** Credit-based economy and marketplace direction approved; all detailed commercial rules remain open.
+
+
+## 23. End-to-End Creative Production and Social Publishing
+
+### 23.1 Core customer outcome
+
+VYRA should provide a broad, integrated creative service: customers can bring an idea for the kind of video they want to make, use VYRA's supported creative capabilities to produce it, and continue through review, export and direct social-platform publishing from the same platform.
+
+The intended experience covers a wide range of video formats, rather than limiting VYRA to one genre or one short-form template. Examples include animation and cartoons, cinematic and story-based videos, talking characters and dialogue, advertisements, educational explainers, documentaries, music videos, short-form social videos and long-form content. This is an open-ended product ambition, not a claim that every format or generation technique is already supported.
+
+The integrated production journey may include idea development, scripts, characters and reusable Assets, images, scenes and storyboards, voice and audio, video generation, editing, review, export and publishing. The exact supported capabilities, quality levels, provider dependencies and release phases must be specified and verified separately.
+
+### 23.2 Social publishing as part of the service
+
+The customer should be able to take a completed and reviewed video from VYRA and publish it directly to supported social platforms without having to manually rebuild the workflow elsewhere, subject to each platform's API, account permissions, content policies and technical limitations.
+
+Publishing must preserve the customer's control: creative approval, any paid-generation approval and final publishing approval are separate decisions. VYRA must clearly show which platforms and publishing actions are actually available and must not promise unsupported integrations or automatic publishing where platform rules do not permit it.
+
+### 23.3 Customer economic benefit and growth
+
+VYRA should create value beyond producing a single video. Through the Vyral ecosystem, customers should be able to use and adapt reusable creative packages, and creators should have opportunities to earn from Vyrals and eligible derivative Versions under the applicable permissions and marketplace rules.
+
+The intended customer benefit is the opportunity to build reusable creative resources and gradually grow a creative business, while also saving the time and expense of building every consistent Asset package from scratch. This is a product goal, not a guarantee of customer income.
+
+**Status:** The broad end-to-end creative-service direction, wide range of intended video use cases, direct publishing goal, and Vyral-enabled customer growth opportunity are confirmed product direction. Exact first-release scope, supported formats, provider capabilities, platform integrations, customer journey and publishing controls remain to be discovered and approved.
