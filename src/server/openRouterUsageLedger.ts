@@ -68,29 +68,37 @@ export async function beginOpenRouterTextUsageJob(input: LedgerInput, fetcher: F
     throw new Error('USAGE_LEDGER_DUPLICATE_REQUEST');
   }
 
-  const attemptResponse = await restRequest('provider_attempts?select=id', {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({
-      user_id: input.userId,
-      generation_job_id: jobId,
-      provider: 'openrouter',
-      model_id: input.model,
-      status: 'submitted',
-      usage: { billing_mode: 'byok' },
-    }),
-  }, fetcher);
-  await requireOk(attemptResponse);
-  const attempts = await attemptResponse.json() as Array<{ id?: unknown }>;
-  const attemptId = attempts[0]?.id;
-  if (typeof attemptId !== 'string') throw new Error('USAGE_LEDGER_ATTEMPT_CREATE_FAILED');
+  let attemptId: string;
+  try {
+    const attemptResponse = await restRequest('provider_attempts?select=id', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        user_id: input.userId,
+        generation_job_id: jobId,
+        provider: 'openrouter',
+        model_id: input.model,
+        status: 'submitted',
+        usage: { billing_mode: 'byok' },
+      }),
+    }, fetcher);
+    await requireOk(attemptResponse);
+    const attempts = await attemptResponse.json() as Array<{ id?: unknown }>;
+    if (typeof attempts[0]?.id !== 'string') throw new Error('USAGE_LEDGER_ATTEMPT_CREATE_FAILED');
+    attemptId = attempts[0].id;
 
-  const updateResponse = await restRequest('generation_jobs?id=eq.' + encodeURIComponent(jobId), {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ status: 'submitted' }),
-  }, fetcher);
-  await requireOk(updateResponse);
+    const updateResponse = await restRequest('generation_jobs?id=eq.' + encodeURIComponent(jobId), {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'submitted' }),
+    }, fetcher);
+    await requireOk(updateResponse);
+  } catch (error) {
+    await restRequest('generation_jobs?id=eq.' + encodeURIComponent(jobId), {
+      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'failed' }),
+    }, fetcher).catch(() => undefined);
+    throw error;
+  }
   return { enabled: true, id: jobId, userId: input.userId, idempotencyKey: input.idempotencyKey, attemptId };
 }
 
@@ -133,7 +141,7 @@ export async function finishOpenRouterTextUsageJob(
         p_user_id: job.userId,
         p_generation_job_id: job.id,
         p_provider_attempt_id: job.attemptId,
-        p_idempotency_key: job.idempotencyKey + ':actual-cost',
+        p_idempotency_key: job.id + ':actual-cost',
         p_provider: 'openrouter',
         p_model_id: result.model,
         p_provider_generation_id: usage.generationId,
