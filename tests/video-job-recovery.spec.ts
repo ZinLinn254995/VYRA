@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Media generation tests use an isolated, non-production session; other browser suites remain signed out.
+test.use({ storageState: './tests/e2e-auth-state.json' });
+
 const savedJob = {
   jobId: 'test-openrouter-job-123',
   projectId: 'proj-01-quantum',
