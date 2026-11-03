@@ -40,3 +40,23 @@ This is an internal topic tracker, not a questionnaire to send all at once. Disc
 | Credit economy | Credit bundles, pricing, user-to-user transfers, marketplace settlement, fees and refunds | Not started |
 | Marketplace and legal policy | Copyright checks, ownership evidence, takedowns, disputes, taxes and regional legal requirements | Not started |
 | Asset catalogue and support | How creators discover Asset types and see what is included in each Vyral | Not started |
+
+
+## Workspace and global AI discovery topics
+
+| Topic | What needs to become clear | Status |
+|---|---|---|
+| Chat Mode ↔ Workspace Mode | Two full-screen modes and swipe transition; exact interaction and navigation | Direction approved; details open |
+| Global AI context | What live page/project/scene/Vyral context the AI can see and when cross-page access is appropriate | Direction approved; boundaries open |
+| Shared AI/manual editing | How chat actions and manual edits stay synchronized, with clear history and recovery | Direction approved; behavior details open |
+| Creative plan and Storyboard | What the customer reviews in the rough plan and what fields appear in the generated rough Storyboard | Workflow direction approved; details open |
+| Workspace entry point | Whether Workspace opens directly into the active project or first shows all projects | Not decided |
+| Workspace information architecture | Whether the proposed Project, Storyboard, Vyral, Media/Production and Review/Publishing areas are pages, tabs, panels or another structure | Proposed; not approved |
+| Project Workspace | What the user sees and does when entering a project; project overview versus active project focus | Next discussion |
+| Storyboard & Scene Editor | Scene layout, duration controls, scene settings, manual editing and AI editing | Not started |
+| Vyral Workspace | How the user inspects and manages the Assets, rules and permissions in a Vyral | Not started |
+| Media & Production | How generated and imported media are created, organized, reused and connected to scenes | Not started |
+| Review & Publishing | Review stages, export behavior, supported social platforms and final human publishing approval | Direction recorded; details open |
+| Human-Controlled Area | Which settings/actions are human-only, and whether AI may view/explain or is fully excluded | Existence approved; scope and AI access open |
+| AI action authority | Which reversible actions may be applied directly, which need preview, and which require explicit confirmation | Not decided |
+| Workspace visual design | Futuristic professional creative-studio look with minimal functional UI; exact visual system and responsive behavior | Direction approved; details open |
