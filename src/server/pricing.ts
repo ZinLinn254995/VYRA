@@ -65,7 +65,7 @@ router.post('/providers/openrouter/estimate', async (req: Request, res: Response
   if (!apiKey) return res.status(400).json({ error: 'Reconnect your OpenRouter API key before requesting a live estimate.' });
 
   const authorization = req.header('authorization') ?? '';
-  const tokenMatch = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!tokenMatch) return res.status(401).json({ error: 'Sign in to VYRA before requesting a live pricing estimate.' });
   const auth = await verifySupabaseAccessToken(tokenMatch[1]);
   if (!auth.ok) {
