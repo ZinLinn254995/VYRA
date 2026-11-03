@@ -90,12 +90,12 @@ export async function beginOpenRouterTextUsageJob(input: LedgerInput, fetcher: F
     const updateResponse = await restRequest('generation_jobs?id=eq.' + encodeURIComponent(jobId), {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ status: 'submitted' }),
+      body: JSON.stringify({ status: 'submitted', updated_at: new Date().toISOString() }),
     }, fetcher);
     await requireOk(updateResponse);
   } catch (error) {
     await restRequest('generation_jobs?id=eq.' + encodeURIComponent(jobId), {
-      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'failed' }),
+      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'failed', updated_at: new Date().toISOString() }),
     }, fetcher).catch(() => undefined);
     throw error;
   }
@@ -129,7 +129,7 @@ export async function finishOpenRouterTextUsageJob(
   const jobResponse = await restRequest('generation_jobs?id=eq.' + encodeURIComponent(job.id), {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ status: result.status }),
+    body: JSON.stringify({ status: result.status, updated_at: new Date().toISOString() }),
   }, fetcher);
   await requireOk(jobResponse);
 
