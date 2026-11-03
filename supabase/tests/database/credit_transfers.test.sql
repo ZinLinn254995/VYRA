@@ -157,6 +157,8 @@ select throws_ok(
 
 -- Age the fixture transfer beyond the rolling hourly window while
 -- keeping it inside the daily window, so the daily guard is isolated.
+-- Trigger management requires table ownership; use the migration owner role.
+set local role postgres;
 alter table public.credit_transfers disable trigger credit_transfers_immutable;
 update public.credit_transfers
 set created_at = now() - interval '2 hours'
@@ -166,6 +168,9 @@ alter table public.credit_transfers enable trigger credit_transfers_immutable;
 update public.credit_transfer_policy
 set max_transfers_per_hour = 1, max_transfers_per_day = 1
 where id = 1;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 select throws_ok(
   $$ select public.transfer_credits(
