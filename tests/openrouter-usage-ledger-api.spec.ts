@@ -149,8 +149,8 @@ test('duplicate generation idempotency key blocks a second OpenRouter submission
     return Response.json({});
   };
 
-  await withApi(async (baseUrl) => {
-    const response = await request(baseUrl, { Authorization: 'Bearer verified-development-session' });
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await request(baseUrl, clientFetch, { Authorization: 'Bearer verified-development-session' });
     assert.equal(response.status, 409);
     const payload = await response.json() as { error: string };
     assert.match(payload.error, /already recorded/i);
