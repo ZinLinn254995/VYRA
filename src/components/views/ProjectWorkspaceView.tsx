@@ -1044,7 +1044,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       if (!accessToken) throw new Error('Sign in again before generating a scene image.');
       const response = await fetch('/api/providers/openrouter/images/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': 'vyra-image-' + crypto.randomUUID() },
         body: JSON.stringify({ model, prompt, aspect_ratio: project.aspectRatio }),
       });
       const data = await response.json().catch(() => ({})) as {
