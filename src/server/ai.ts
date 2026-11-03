@@ -7,6 +7,16 @@ import { isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedger
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
+function blockUntrackedGeneration(res: Response, capability: string): boolean {
+  if (!isUsageLedgerServerEnabled()) return false;
+  res.status(503).json({
+    error: 'Usage tracking is currently enabled for OpenRouter Text chat only. This generation capability is paused until its ledger integration is verified.',
+    code: 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED',
+    capability,
+  });
+  return true;
+}
+
 function readOpenRouterKey(req: Request): string {
   const key = req.header('x-openrouter-api-key')?.trim() || '';
   // Do not log this value. Reject oversized values before forwarding them.
@@ -496,6 +506,7 @@ router.get('/providers/openrouter/models', async (req: Request, res: Response) =
 });
 
 router.post('/providers/openrouter/images/generate', async (req: Request, res: Response) => {
+  if (blockUntrackedGeneration(res, 'image')) return;
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
@@ -563,6 +574,7 @@ router.post('/providers/openrouter/images/generate', async (req: Request, res: R
 
 
 router.post('/providers/openrouter/audio/speech', async (req: Request, res: Response) => {
+  if (blockUntrackedGeneration(res, 'audio')) return;
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
@@ -645,6 +657,7 @@ router.post('/providers/openrouter/audio/speech', async (req: Request, res: Resp
 });
 
 router.post('/providers/openrouter/videos/generate', async (req: Request, res: Response) => {
+  if (blockUntrackedGeneration(res, 'video')) return;
   const apiKey = readOpenRouterKey(req);
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
@@ -887,6 +900,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   if (body?.ping === true) {
     return res.status(200).json(getGeminiStatus());
   }
+  if (blockUntrackedGeneration(res, 'gemini-text')) return;
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
