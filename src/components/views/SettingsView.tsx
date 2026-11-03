@@ -170,6 +170,22 @@ export const SettingsView: React.FC = () => {
         </div>
       </section>
 
+      {/* Human-controlled settings — compact placeholder until controls are defined */}
+      <section className="flex items-start gap-3 rounded-2xl border border-amber-400/20 bg-[#171A35] px-4 py-4 light:bg-white light:border-amber-200">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold text-white light:text-slate-900">Human-Controlled Area</h2>
+            <span className="rounded-full border border-amber-400/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">You stay in control</span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-slate-400 light:text-slate-600">
+            Reserved for important decisions and settings that must remain under your direct control. Specific controls and AI access rules will be added after they are defined.
+          </p>
+        </div>
+      </section>
+
       <OpenRouterSettings />
 
       {/* 3. Service Integration Matrix (Readiness Status) */}
