@@ -5,6 +5,7 @@ import express from 'express';
 import { createServer, type Server } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import { createAiRouter } from '../src/server/ai.js';
+import { applyCreditLedgerEntry } from '../src/server/creditLedger.js';
 
 const supabaseUrl = process.env.SUPABASE_URL?.trim() || '';
 const anonKey = process.env.SUPABASE_ANON_KEY?.trim() || '';
@@ -150,6 +151,70 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     });
     assert.equal(duplicate.status, 409);
     assert.equal(providerCalls, 1);
+
+    // Exercise the real server-only credit RPC against local Postgres. The
+    // provider usage record above is BYOK metadata and does not itself charge
+    // VYRA credits; these explicit lifecycle calls are separate test fixtures.
+    const generationJobId = jobs.data![0].id;
+    const grantKey = 'local-e2e:grant:' + randomUUID();
+    const reserveKey = 'local-e2e:reserve:' + randomUUID();
+    const grant = await applyCreditLedgerEntry({
+      userId,
+      idempotencyKey: grantKey,
+      entryType: 'grant',
+      amount: '100',
+      note: 'Local E2E starter grant',
+    });
+    assert.equal(grant.ok, true);
+
+    const reserveInput = {
+      userId,
+      generationJobId,
+      idempotencyKey: reserveKey,
+      entryType: 'reserve' as const,
+      amount: '50',
+      note: 'Local E2E generation reserve',
+    };
+    const reserve = await applyCreditLedgerEntry(reserveInput);
+    assert.equal(reserve.ok, true);
+    const reserveRetry = await applyCreditLedgerEntry(reserveInput);
+    assert.equal(reserveRetry.ok, true);
+    if (reserve.ok && reserveRetry.ok) assert.equal(reserveRetry.entry.id, reserve.entry.id);
+
+    const commit = await applyCreditLedgerEntry({
+      userId,
+      generationJobId,
+      idempotencyKey: 'local-e2e:commit:' + randomUUID(),
+      entryType: 'commit',
+      amount: '30',
+      note: 'Local E2E consumed credits',
+    });
+    assert.equal(commit.ok, true);
+
+    const release = await applyCreditLedgerEntry({
+      userId,
+      generationJobId,
+      idempotencyKey: 'local-e2e:release:' + randomUUID(),
+      entryType: 'release',
+      amount: '20',
+      note: 'Local E2E unused credits',
+    });
+    assert.equal(release.ok, true);
+
+    const refund = await applyCreditLedgerEntry({
+      userId,
+      idempotencyKey: 'local-e2e:refund:' + randomUUID(),
+      entryType: 'refund',
+      amount: '5',
+      note: 'Local E2E approved refund',
+    });
+    assert.equal(refund.ok, true);
+
+    const wallet = await userClient.rpc('get_credit_wallet');
+    assert.equal(wallet.error, null);
+    const walletSnapshot = wallet.data as { availableBalance: string; reservedBalance: string };
+    assert.equal(walletSnapshot.availableBalance, '75');
+    assert.equal(walletSnapshot.reservedBalance, '0');
 
     // The first increment records Text only. With the flag off, a real local
     // Supabase session must still authorize a mocked OpenRouter Image request.
