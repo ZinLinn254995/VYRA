@@ -93,7 +93,7 @@ test('ledger-enabled OpenRouter chat records job, provider usage and actual cost
     if (url.pathname === '/rest/v1/provider_attempts' && method === 'POST') {
       return Response.json([{ id: ATTEMPT_ID }], { status: 201 });
     }
-    if (url.pathname === '/chat/completions') {
+    if (url.pathname === '/api/v1/chat/completions') {
       return Response.json({
         id: 'gen-openrouter-001',
         model: 'openai/gpt-4.1-mini',
