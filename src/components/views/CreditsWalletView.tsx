@@ -42,6 +42,14 @@ type Recipient = {
   displayName?: string;
 };
 
+type PendingTransferRequest = {
+  recipientUserId: string;
+  amount: number;
+  note: string | null;
+  idempotencyKey: string;
+  attempted: boolean;
+};
+
 const cardClass = 'rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#171A35] light:bg-white';
 const fieldClass = 'w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-3 py-2.5 text-sm text-white light:text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-[#55F4FF] light:focus:border-indigo-500';
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-[#55F4FF] px-4 py-2.5 text-xs font-bold text-[#090B18] transition-colors hover:bg-[#55F4FF]/90 disabled:cursor-not-allowed disabled:opacity-50';
@@ -94,6 +102,7 @@ export const CreditsWalletView: React.FC = () => {
   const [note, setNote] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transferLoading, setTransferLoading] = useState(false);
+  const [pendingTransfer, setPendingTransfer] = useState<PendingTransferRequest | null>(null);
 
   const apiHeaders = useMemo(() => ({
     Authorization: 'Bearer ' + accessToken,
@@ -201,12 +210,40 @@ export const CreditsWalletView: React.FC = () => {
       setError('The note must be 500 characters or fewer.');
       return;
     }
+    const request = {
+      recipientUserId: selectedRecipient.userId,
+      amount: parsedAmount,
+      note: note.trim() || null,
+    };
+    setPendingTransfer((current) => current
+      && current.recipientUserId === request.recipientUserId
+      && current.amount === request.amount
+      && current.note === request.note
+      ? current
+      : { ...request, idempotencyKey: 'wallet-' + crypto.randomUUID(), attempted: false });
     setError(null);
     setConfirmOpen(true);
   };
 
+  const closeTransferReview = () => {
+    setConfirmOpen(false);
+    // Once submitted, keep the same idempotency key across modal close/reopen
+    // so an uncertain timeout can never become a second transfer on retry.
+    setPendingTransfer((current) => current?.attempted ? current : null);
+  };
+
   const sendTransfer = async () => {
     if (!selectedRecipient || !hasEnoughCredits) return;
+    const request = pendingTransfer;
+    const requestNote = note.trim() || null;
+    if (!request || request.recipientUserId !== selectedRecipient.userId
+        || request.amount !== parsedAmount || request.note !== requestNote) {
+      setConfirmOpen(false);
+      setPendingTransfer(null);
+      setError('Transfer details changed. Review the transfer again before sending.');
+      return;
+    }
+    setPendingTransfer({ ...request, attempted: true });
     setTransferLoading(true);
     setError(null);
     setNotice(null);
@@ -215,10 +252,10 @@ export const CreditsWalletView: React.FC = () => {
         method: 'POST',
         headers: apiHeaders,
         body: JSON.stringify({
-          recipientUserId: selectedRecipient.userId,
-          amount: parsedAmount,
-          idempotencyKey: 'wallet-' + crypto.randomUUID(),
-          note: note.trim() || null,
+          recipientUserId: request.recipientUserId,
+          amount: request.amount,
+          idempotencyKey: request.idempotencyKey,
+          note: request.note,
         }),
       });
       const payload = await response.json().catch(() => ({})) as { transfer?: { id: string }; error?: string };
@@ -229,6 +266,7 @@ export const CreditsWalletView: React.FC = () => {
         throw new Error(payload.error ?? 'The transfer could not be completed.');
       }
       setConfirmOpen(false);
+      setPendingTransfer(null);
       setNotice('Credits sent successfully. Your wallet has been refreshed.');
       setAmount('');
       setNote('');
@@ -374,7 +412,7 @@ export const CreditsWalletView: React.FC = () => {
               <button type="submit" disabled={!hasEnoughCredits || transferLoading} className={buttonClass + ' w-full'}>Review transfer</button>
             </form>
           )}
-          <p className="text-[10px] leading-relaxed text-slate-500">Transfers are final once confirmed. Always check the recipient username and amount carefully. If a request times out, check wallet activity before retrying.</p>
+          <p className="text-[10px] leading-relaxed text-slate-500">Transfers are final once confirmed. Always check the recipient username and amount carefully. If a request times out, retry the same details; VYRA reuses the original request ID to prevent duplicate transfers.</p>
         </section>
 
         <section className={cardClass + ' p-5 sm:p-6'}>
@@ -414,14 +452,14 @@ export const CreditsWalletView: React.FC = () => {
       </div>
 
       {confirmOpen && selectedRecipient && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) setConfirmOpen(false); }}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) closeTransferReview(); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="transfer-confirm-title" className={cardClass + ' w-full max-w-md space-y-5 p-5 sm:p-6 shadow-2xl'}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[10px] font-bold tracking-widest text-[#55F4FF]">FINAL CONFIRMATION</div>
                 <h2 id="transfer-confirm-title" className="mt-1 text-lg font-bold text-white light:text-slate-900">Confirm credit transfer</h2>
               </div>
-              <button type="button" onClick={() => setConfirmOpen(false)} disabled={transferLoading} aria-label="Close confirmation" className="rounded-lg p-1.5 text-slate-400 hover:bg-[#2B3058] disabled:opacity-40"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={closeTransferReview} disabled={transferLoading} aria-label="Close confirmation" className="rounded-lg p-1.5 text-slate-400 hover:bg-[#2B3058] disabled:opacity-40"><X className="h-4 w-4" /></button>
             </div>
             <div className="rounded-xl bg-[#090B18] light:bg-slate-50 p-4 text-center">
               <div className="text-xs text-slate-400">You are sending</div>
@@ -432,7 +470,7 @@ export const CreditsWalletView: React.FC = () => {
             </div>
             <p className="text-xs leading-relaxed text-slate-400 light:text-slate-600">This transfer cannot be cancelled after it completes. Verify the username and amount before confirming.</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirmOpen(false)} disabled={transferLoading} className="flex-1 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2.5 text-xs font-semibold text-slate-300 light:text-slate-700">Go back</button>
+              <button type="button" onClick={closeTransferReview} disabled={transferLoading} className="flex-1 rounded-lg border border-[#2B3058] light:border-slate-300 px-3 py-2.5 text-xs font-semibold text-slate-300 light:text-slate-700">Go back</button>
               <button type="button" onClick={() => void sendTransfer()} disabled={transferLoading} className={buttonClass + ' flex-1'}>
                 {transferLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 Confirm & send
