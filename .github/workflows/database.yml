@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - 'supabase/**'
+      - 'tests/openrouter-usage-ledger-local-e2e.spec.ts'
+      - 'package.json'
       - '.github/workflows/database.yml'
   push:
     branches: [main]
     paths:
       - 'supabase/**'
+      - 'tests/openrouter-usage-ledger-local-e2e.spec.ts'
+      - 'package.json'
       - '.github/workflows/database.yml'
 
 jobs:

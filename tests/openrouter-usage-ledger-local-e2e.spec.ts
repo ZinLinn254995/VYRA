@@ -31,6 +31,7 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
   const password = 'Local-E2E-' + randomUUID() + '!Aa9';
   let userId = '';
   let providerCalls = 0;
+  let imageProviderCalls = 0;
   let server: Server | null = null;
 
   globalThis.fetch = async (input, init) => {
@@ -42,6 +43,13 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
         model: 'openai/gpt-4.1-mini',
         choices: [{ message: { content: 'Local Supabase ledger integration succeeded.' } }],
         usage: { prompt_tokens: 8, completion_tokens: 11, total_tokens: 19 },
+      });
+    }
+    if (url.hostname === 'openrouter.ai' && url.pathname === '/api/v1/images') {
+      imageProviderCalls += 1;
+      return Response.json({
+        data: [{ b64_json: 'aGVsbG8=', media_type: 'image/png' }],
+        usage: { cost: 0.0001 },
       });
     }
     return originalFetch(input, init);
@@ -142,6 +150,29 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     });
     assert.equal(duplicate.status, 409);
     assert.equal(providerCalls, 1);
+
+    // The first increment records Text only. With the flag off, a real local
+    // Supabase session must still authorize a mocked OpenRouter Image request.
+    process.env.VYRA_USAGE_LEDGER_ENABLED = 'false';
+    const imageResponse = await originalFetch(baseUrl + '/providers/openrouter/images/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-openrouter-api-key': 'or-local-e2e-test-key',
+        Authorization: 'Bearer ' + signedIn.data.session.access_token,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-image-1',
+        prompt: 'A simple test image of a sunrise over the sea',
+        aspect_ratio: '1:1',
+      }),
+    });
+    assert.equal(imageResponse.status, 200);
+    const imageBody = await imageResponse.json() as { imageDataUrl: string; mediaType: string; costUsd: number };
+    assert.equal(imageBody.imageDataUrl, 'data:image/png;base64,aGVsbG8=');
+    assert.equal(imageBody.mediaType, 'image/png');
+    assert.equal(imageBody.costUsd, 0.0001);
+    assert.equal(imageProviderCalls, 1);
   } finally {
     if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
     if (userId) {
