@@ -1053,6 +1053,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         costUsd?: number | null;
         generationId?: string | null;
         model?: string;
+        usageWarning?: string;
       };
       if (!response.ok || typeof data.imageDataUrl !== 'string' || !data.imageDataUrl.startsWith('data:image/')) {
         throw new Error(data.error || 'The image model did not return a valid image. Check the selected model and retry.');
@@ -1067,6 +1068,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         sceneId: targetScene.id,
       });
       updateScene(project.id, targetScene.id, { generatedImageId: saved.id });
+      if (data.usageWarning) setSceneImageError(data.usageWarning);
       if (selectedSceneIdRef.current === targetScene.id) {
         setSceneImageUrl(saved.dataUrl);
         setSceneImageCostUsd(saved.costUsd);
