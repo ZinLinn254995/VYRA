@@ -108,6 +108,7 @@ function removePendingTransferRecord(fingerprint: string): void {
 }
 
 async function fingerprintTransferRequest(request: {
+  senderUserId: string;
   recipientUserId: string;
   amount: number;
   note: string | null;
@@ -285,7 +286,7 @@ export const CreditsWalletView: React.FC = () => {
     };
     setReviewLoading(true);
     try {
-      const fingerprint = await fingerprintTransferRequest(request);
+      const fingerprint = await fingerprintTransferRequest({ senderUserId: session?.user.id ?? '', ...request });
       const current = pendingTransfer?.fingerprint === fingerprint ? pendingTransfer : null;
       const stored = readPendingTransferRecords()[fingerprint];
       const existingKey = current?.idempotencyKey ?? stored?.idempotencyKey;
