@@ -113,15 +113,22 @@ const StoryboardLibrary: React.FC<{ onOpen: (id: string) => void; onCreate: () =
   );
 };
 
-const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void }> = ({ onOpenScene }) => {
-  const { activeProject, addScene, reorderScenes } = useStudio();
+const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreateScene: () => void }> = ({ onOpenScene, onCreateScene }) => {
+  const { activeProject, updateProject, reorderScenes } = useStudio();
   if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
   const orderedScenes = [...activeProject.scenes].sort((a, b) => a.order - b.order);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Storyboard overview</p><h1 className="mt-2 text-3xl font-semibold text-white">{activeProject.title}</h1><p className="mt-2 text-sm text-slate-400">Arrange the creative items in the order you want them to appear.</p></div>
-        <button onClick={() => addScene(activeProject.id)} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Storyboard details</p>
+          <input aria-label="Storyboard name" value={activeProject.title} onChange={(event) => updateProject(activeProject.id, { title: event.target.value })} className="mt-2 w-full max-w-2xl bg-transparent text-2xl font-semibold text-white outline-none placeholder:text-slate-600 sm:text-3xl" />
+          <textarea aria-label="Storyboard description" value={activeProject.topic} onChange={(event) => updateProject(activeProject.id, { topic: event.target.value })} placeholder="Add a description..." rows={2} className="mt-2 w-full max-w-2xl resize-y rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-300">Status · {activeProject.status.replaceAll('_', ' ')}</span>
+            <span className="text-slate-500">{activeProject.scenes.length} scenes</span>
+          </div>
+        </div>
       </div>
       <div className="space-y-3">
         {orderedScenes.map((scene, index) => {
@@ -149,14 +156,21 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void }> = ({ o
             </div>
           );
         })}
-        {!orderedScenes.length && <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center text-sm text-slate-400">This Storyboard has no Scenes yet. Add a Scene or ask AI Chat to create one.</div>}
+        {!orderedScenes.length && (
+          <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 px-6 py-14 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300/10 text-cyan-300"><Plus className="h-6 w-6" /></div>
+            <h2 className="mt-4 text-base font-semibold text-white">No scenes yet</h2>
+            <p className="mt-1 text-sm text-slate-400">Start building this Storyboard by adding your first Scene.</p>
+            <button onClick={onCreateScene} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Scene</button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 const StudioContent: React.FC = () => {
-  const { theme, toggleTheme, currentSection, setCurrentSection, projects, setActiveProjectId, navigateToProjectWorkspace } = useStudio();
+  const { theme, toggleTheme, currentSection, setCurrentSection, projects, setActiveProjectId, navigateToProjectWorkspace, createProject, addScene, activeProject } = useStudio();
   const [mode, setMode] = useState<AppMode>('workspace');
   const [page, setPage] = useState<WorkspacePage>('home');
   const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
@@ -182,7 +196,41 @@ const StudioContent: React.FC = () => {
     const section = sectionMap[next];
     if (section) setCurrentSection(section as any);
   };
+  const createNewStoryboard = () => {
+    const projectId = createProject({
+      title: 'Untitled Storyboard',
+      topic: '',
+      category: 'Tech & AI',
+      format: 'short_form',
+      aspectRatio: '9:16',
+      visualStyle: 'hyper_realistic',
+      narrationStyle: 'conversational',
+      subtitleStyle: 'minimal_lower',
+      targetDuration: 30,
+      targetPlatforms: [],
+      coverImage: '',
+      publishingCaption: '',
+      selectedPlatformsForPublishing: [],
+      scenes: [],
+    });
+    setSelectedSceneId(undefined);
+    setPage('storyboard');
+    setCurrentSection('workspace' as any);
+    return projectId;
+  };
   const openStoryboard = (id: string) => { setActiveProjectId(id); navigateToProjectWorkspace(id); setPage('storyboard'); };
+  const createScene = () => {
+    if (!activeProject) return;
+    addScene(activeProject.id, {
+      narration: '',
+      visualPrompt: '',
+      cameraMovement: '',
+      duration: 8,
+      mediaUrl: '',
+      status: 'scripted',
+    });
+    setSelectedSceneId(undefined);
+  };
   const startTouch = (event: React.TouchEvent) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; };
   const endTouch = (event: React.TouchEvent) => {
     if (!touchStart.current) return;
@@ -220,8 +268,8 @@ const StudioContent: React.FC = () => {
           </nav>
           <main className="min-h-[calc(100dvh-7.5rem)]">
             {page === 'home' && <WorkspaceHome onNavigate={navigate} />}
-            {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={() => navigate('create')} />}
-            {page === 'storyboard' && (projects.length ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} /> : <WorkspaceHome onNavigate={navigate} />)}
+            {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
+            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} />)}
             {page === 'scene' && <ProjectWorkspaceView initialSceneId={selectedSceneId} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
