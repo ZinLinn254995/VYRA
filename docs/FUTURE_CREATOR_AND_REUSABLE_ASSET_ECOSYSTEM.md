@@ -398,10 +398,78 @@ This document is a living brainstorming record. The following questions must be 
 
 ---
 
-## 13. Change log
-## ၁၃။ ပြင်ဆင်မှုမှတ်တမ်း
+## 13. Storyboard — simple scene composition, independent of VYRAL
+## ၁၃။ Storyboard — VYRAL နှင့် သီးခြားရပ်တည်သော ရိုးရှင်းသည့် Scene စီစဉ်မှု
 
-- **2026-11-03 — VYRAL and prompt foundation update:** Defined VYRAL as a flexible, potentially multi-asset digital creation collection; made a creation prompt/instruction record mandatory while keeping media optional; removed mandatory reference-view, completeness, and quality gates; added prompt provenance/revision history and a Chat-First creation flow. This remains future-version design, not current implementation authorization.
+**VYRAL is a reusable source collection; a generated video is an output made using that VYRAL, not an inherent or mandatory part of the VYRAL itself.** For example, a VYRAL may contain a character, a dance/motion asset, and music. A creator can use those components together to generate a video. The resulting video is an output/example made from the VYRAL. The creator may later replace the character, dance, music, or any combination of them and generate another output. A VYRAL can exist without any video output.
+
+**VYRAL သည် ပြန်လည်အသုံးပြုနိုင်သော မူလ Source Collection ဖြစ်ပြီး၊ ထို VYRAL ကို အသုံးပြု၍ Generate လုပ်ထားသော Video သည် Output သာဖြစ်သည်။ Video သည် VYRAL ၏ မဖြစ်မနေပါဝင်ရမည့် အစိတ်အပိုင်း မဟုတ်ပါ။** ဥပမာ VYRAL တစ်ခုတွင် Character၊ Dance/Motion Asset နှင့် Music ပါဝင်နိုင်သည်။ Creator သည် ၎င်းတို့ကို ပေါင်းစပ်အသုံးပြုပြီး Video တစ်ခု Generate လုပ်နိုင်သည်။ ထွက်လာသော Video သည် ထို VYRAL မှ ဖန်တီးထားသည့် Output/Example ဖြစ်သည်။ နောက်တစ်ကြိမ်တွင် Character၊ Dance၊ Music သို့မဟုတ် ၎င်းတို့အနက် အချို့/အားလုံးကို အစားထိုးပြီး Video အသစ်တစ်ခု ထပ်မံဖန်တီးနိုင်သည်။ Video Output မရှိသေးသော်လည်း VYRAL တစ်ခု သီးခြားတည်ရှိနိုင်သည်။
+
+### 13.1 Storyboard Scenes are independent production units
+### ၁၃.၁ Storyboard Scene များသည် သီးခြား Production Unit များဖြစ်သည်
+
+A Storyboard Scene is not itself a VYRAL and must not be forced into a fixed VYRAL type or asset taxonomy. A Scene is a production unit that holds or refers to the media selected for that part of the story. It can be created from different sources:
+
+1. **One or more VYRALs:** Select a whole VYRAL or individual assets from one VYRAL, or combine selected assets from multiple VYRALs, to generate the Scene's media. The AI should use the relevant profiles, prompts, permissions, identities, and relationships as context.
+2. **Direct/native prompts without a VYRAL:** Create Scene media directly through Video Generation, Image Generation, Voice Generation, or other supported generation tools. A VYRAL is not a prerequisite.
+3. **Existing media:** Bring an existing image, video, voice/audio, or other supported media into the Scene, subject to the user's rights and permissions.
+
+Storyboard Scene တစ်ခုသည် VYRAL ကိုယ်တိုင် မဟုတ်သကဲ့သို့ ကြိုတင်သတ်မှတ်ထားသော VYRAL Type သို့မဟုတ် Asset Taxonomy တစ်ခုထဲသို့ အတင်းထည့်သွင်းရန်လည်း မလိုအပ်ပါ။ Scene သည် Story ၏ သက်ဆိုင်ရာအပိုင်းအတွက် ရွေးချယ်ထားသော Media များကို ထည့်သွင်းထားသည့် သို့မဟုတ် ရည်ညွှန်းထားသည့် Production Unit တစ်ခုဖြစ်သည်။ အောက်ပါ Source များမှ ဖန်တီးနိုင်သည်။
+
+1. **VYRAL တစ်ခု သို့မဟုတ် အများအပြားမှ:** VYRAL တစ်ခုလုံး သို့မဟုတ် ၎င်းအတွင်းရှိ Asset တစ်ခုချင်းစီကို ရွေးချယ်နိုင်သည်။ VYRAL အများအပြားမှ Asset များကိုလည်း ပေါင်းစပ်ပြီး Scene Media ကို Generate လုပ်နိုင်သည်။ AI သည် သက်ဆိုင်ရာ Profile၊ Prompt၊ Permission၊ Identity နှင့် Relationship များကို Context အဖြစ် အသုံးပြုရမည်။
+2. **VYRAL မလိုအပ်သော Direct/Native Prompt မှ:** Video Generation၊ Image Generation၊ Voice Generation သို့မဟုတ် အခြားထောက်ပံ့ထားသော Generation Tool များမှ Scene Media ကို တိုက်ရိုက်ဖန်တီးနိုင်သည်။ VYRAL ရှိရန် မဖြစ်မနေမလိုအပ်ပါ။
+3. **ရှိပြီးသား Media မှ:** အသုံးပြုသူတွင် ရှိပြီးသား Image၊ Video၊ Voice/Audio သို့မဟုတ် ထောက်ပံ့ထားသော Media များကို မိမိတွင် သက်ဆိုင်ရာအခွင့်အရေးနှင့် Permission ရှိသည့်အခြေအနေတွင် Scene ထဲသို့ ထည့်သွင်းနိုင်သည်။
+
+A Scene may therefore combine assets from multiple VYRALs, use only selected parts of one VYRAL, or contain media that has no VYRAL relationship at all. The system should preserve source references where applicable, including which VYRALs/assets and instructions were used to create generated media. It must not falsely label independently prompted or imported media as VYRAL-derived.
+
+ထို့ကြောင့် Scene တစ်ခုတွင် VYRAL အများအပြားမှ Asset များကို ပေါင်းစပ်နိုင်သည်၊ VYRAL တစ်ခုထဲမှ လိုအပ်သည့်အစိတ်အပိုင်းများကိုသာ အသုံးပြုနိုင်သည်၊ သို့မဟုတ် VYRAL နှင့် လုံးဝမသက်ဆိုင်သော Media များလည်း ပါဝင်နိုင်သည်။ သက်ဆိုင်သည့်အခါ မည်သည့် VYRAL/Asset နှင့် Instruction များကို အသုံးပြု၍ Media ကို ဖန်တီးခဲ့ကြောင်း Source Reference များကို ထိန်းသိမ်းရမည်။ Direct Prompt ဖြင့် သီးခြားဖန်တီးထားသော သို့မဟုတ် Import လုပ်ထားသော Media ကို VYRAL မှ ဆင်းသက်လာသည်ဟု မှားယွင်းဖော်ပြခြင်း မပြုရ။
+
+### 13.2 Simple Storyboard workflow
+### ၁၃.၂ ရိုးရှင်းသော Storyboard လုပ်ငန်းစဉ်
+
+The intended workflow is deliberately simple:
+
+1. Create or add a Scene.
+2. Generate/create its media from VYRAL assets, direct prompts, or existing media.
+3. Review the result and replace the media or regenerate it if needed.
+4. Add more Scenes and reorder them into the desired story sequence.
+5. Produce/export the final video from the ordered Scenes.
+
+ရည်ရွယ်ထားသော လုပ်ငန်းစဉ်ကို ရိုးရှင်းစွာထားမည်။
+
+1. Scene အသစ်ဖန်တီးခြင်း သို့မဟုတ် ထည့်သွင်းခြင်း။
+2. VYRAL Asset၊ Direct Prompt သို့မဟုတ် ရှိပြီးသား Media များမှ Scene အတွက် Media ဖန်တီးခြင်း။
+3. ရလဒ်ကို ကြည့်ရှုစစ်ဆေးပြီး လိုအပ်ပါက Media ကို အစားထိုးခြင်း သို့မဟုတ် ပြန်လည် Generate လုပ်ခြင်း။
+4. Scene များ ထပ်ထည့်ပြီး Story အစီအစဉ်အတိုင်း ပြန်လည်စီစဉ်ခြင်း။
+5. အစီအစဉ်တကျရှိသော Scene များမှ Final Video ကို ထုတ်လုပ်ခြင်း/Export လုပ်ခြင်း။
+
+**Do not turn the Storyboard into a complex professional nonlinear video editor.** The intended experience does not require detailed clip splitting, trimming, frame-by-frame editing, or a complicated timeline with granular timing controls. Prioritize adding scenes, creating or replacing their media, reordering scenes, previewing the sequence, and producing the final video. Keep the interface approachable and focused on storytelling.
+
+**Storyboard ကို ရှုပ်ထွေးသော Professional Nonlinear Video Editor တစ်ခုအဖြစ် မပြောင်းလဲစေရ။** Clip များကို အသေးစိတ်ဖြတ်တောက်ခြင်း၊ Trim လုပ်ခြင်း၊ Frame တစ်ခုချင်းစီ ပြင်ဆင်ခြင်း သို့မဟုတ် အချိန်အသေးစိတ်ထိန်းချုပ်ရသော ရှုပ်ထွေးသည့် Timeline များသည် ရည်ရွယ်ထားသော အတွေ့အကြုံတွင် မလိုအပ်ပါ။ Scene ထည့်ခြင်း၊ Media ဖန်တီး/အစားထိုးခြင်း၊ Scene အစီအစဉ်ပြောင်းခြင်း၊ Sequence ကို Preview ကြည့်ခြင်းနှင့် Final Video ထုတ်လုပ်ခြင်းတို့ကိုသာ ဦးစားပေးရမည်။ အသုံးပြုရလွယ်ကူပြီး Story ဖန်တီးမှုကို အဓိကထားသော Interface ဖြစ်ရမည်။
+
+### 13.3 Relationship between VYRAL, Scene, and final video
+### ၁၃.၃ VYRAL၊ Scene နှင့် Final Video တို့၏ ဆက်နွယ်မှု
+
+- **VYRAL:** Reusable source collection containing prompts/instructions and optional assets.
+- **Generated media:** Image, video, voice/audio, or other output created from a VYRAL, direct prompt, or another permitted source.
+- **Storyboard Scene:** An independent story-production unit that uses or references one or more media items.
+- **Final Video:** The assembled result produced from the ordered Scenes in a Storyboard.
+
+- **VYRAL:** Prompt/Instruction နှင့် Optional Asset များပါဝင်သော ပြန်လည်အသုံးပြုနိုင်သည့် မူလ Source Collection။
+- **Generated Media:** VYRAL၊ Direct Prompt သို့မဟုတ် ခွင့်ပြုထားသော အခြား Source များမှ ဖန်တီးထားသော Image၊ Video၊ Voice/Audio သို့မဟုတ် အခြား Output။
+- **Storyboard Scene:** Media တစ်ခု သို့မဟုတ် အများအပြားကို အသုံးပြု/ရည်ညွှန်းထားသော သီးခြား Story Production Unit။
+- **Final Video:** Storyboard အတွင်း အစီအစဉ်ချထားသော Scene များကို ပေါင်းစပ်ထုတ်လုပ်ထားသည့် နောက်ဆုံး Video။
+
+This separation keeps VYRAL reusable beyond a single video, while allowing the Storyboard to accept creative material from VYRAL-based generation, independent generation, and existing media. This is a future product direction, not a statement that the current application already implements it.
+
+ဤခွဲခြားမှုကြောင့် VYRAL ကို Video တစ်ခုတည်းအတွက်သာ မဟုတ်ဘဲ အကြိမ်ကြိမ် ပြန်လည်အသုံးပြုနိုင်မည်ဖြစ်ပြီး Storyboard သည် VYRAL မှ ဖန်တီးထားသော Media၊ သီးခြား Generate လုပ်ထားသော Media နှင့် ရှိပြီးသား Media များအားလုံးကို လက်ခံနိုင်မည်ဖြစ်သည်။ ဤအချက်များသည် အနာဂတ် Product Direction သာဖြစ်ပြီး လက်ရှိ Application တွင် အကောင်အထည်ဖော်ပြီးသားဟု မဆိုလိုပါ။
+
+---
+
+## 14. Change log
+## ၁၄။ ပြင်ဆင်မှုမှတ်တမ်း
+
+- **2026-11-03 — Storyboard and media-source model update:** Added the distinction between reusable VYRAL source collections, generated media outputs, independent Storyboard Scenes, and final assembled videos. Documented the three Scene source routes (VYRAL combinations, direct prompts, and existing media) and the deliberately simple Storyboard workflow. This remains future-version design, not current implementation authorization.\n\n- **2026-11-03 — Storyboard နှင့် Media Source Model Update:** ပြန်လည်အသုံးပြုနိုင်သော VYRAL Source Collection၊ Generated Media Output၊ သီးခြား Storyboard Scene နှင့် ပေါင်းစပ်ထုတ်လုပ်သည့် Final Video တို့ကို ခွဲခြားသတ်မှတ်ထားသည်။ Scene ဖန်တီးနိုင်သည့် Source သုံးမျိုး (VYRAL ပေါင်းစပ်မှု၊ Direct Prompt၊ ရှိပြီးသား Media) နှင့် ရိုးရှင်းသော Storyboard လုပ်ငန်းစဉ်ကို မှတ်တမ်းတင်ထားသည်။ ဤအရာသည် အနာဂတ် Version အတွက် Design သာဖြစ်ပြီး လက်ရှိ Implementation ပြောင်းလဲရန် ခွင့်ပြုချက် မဟုတ်ပါ။\n\n- **2026-11-03 — VYRAL and prompt foundation update:** Defined VYRAL as a flexible, potentially multi-asset digital creation collection; made a creation prompt/instruction record mandatory while keeping media optional; removed mandatory reference-view, completeness, and quality gates; added prompt provenance/revision history and a Chat-First creation flow. This remains future-version design, not current implementation authorization.
 
 - **2026-11-03 — VYRAL နှင့် Prompt အခြေခံမူ Update:** VYRAL ကို Asset တစ်ခု သို့မဟုတ် အများအပြားပါဝင်နိုင်သော လွတ်လပ်သည့် Digital Creation Collection အဖြစ် သတ်မှတ်ထားသည်။ Creation Prompt/Instruction မှတ်တမ်းကို မဖြစ်မနေလိုအပ်စေပြီး Media ကို Optional ထားသည်။ Reference မြင်ကွင်း၊ ပြည့်စုံမှုနှင့် အရည်အသွေးဆိုင်ရာ မဖြစ်မနေ Gate များကို ဖယ်ရှားထားသည်။ Prompt မူလရင်းမြစ်/Revision History နှင့် Chat-First ဖန်တီးမှုလုပ်ငန်းစဉ်ကို ထည့်သွင်းထားသည်။ ဤအရာသည် အနာဂတ် Version အတွက် Design သာဖြစ်ပြီး လက်ရှိ Implementation ပြောင်းလဲရန် ခွင့်ပြုချက် မဟုတ်ပါ။
 
