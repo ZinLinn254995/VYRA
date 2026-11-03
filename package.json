@@ -15,7 +15,8 @@
     "test:usage-ledger": "node --import tsx --test tests/usage-ledger-contract.spec.ts",
     "test:consistency": "node --import tsx --test tests/consistency-engine.spec.ts",
     "test:audio-export": "node --import tsx --test tests/audio-export-validation.spec.ts tests/audio-export-runtime.spec.ts",
-    "test:credit-transfers": "node --import tsx --test tests/credit-transfers-api.spec.ts"
+    "test:credit-transfers": "node --import tsx --test tests/credit-transfers-api.spec.ts",
+    "test:usage-ledger-recorder": "node --import tsx --test tests/usage-ledger-recorder.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
