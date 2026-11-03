@@ -36,6 +36,8 @@ The migrations create customer profiles/projects, the append-only usage and cred
   - `public_usernames.test.sql`
   - `credit_wallet.test.sql`
   - `credit_transfers.test.sql`
+- `credit_wallet.test.sql` now also exercises the full reserve → partial commit → release → refund sequence, an idempotent reserve retry, insufficient-balance rejection, and over-commit rejection (13 pgTAP assertions total).
+- The updated wallet lifecycle test passed directly against `VYRA Development`; its transaction rolled back and the two synthetic test users were confirmed absent afterward.
 - GitHub CI checks for PR #94 passed: database, verify, and browser UI.
 - Security Advisor no longer reports public execution of internal trigger helpers.
 - Performance Advisor no longer reports unindexed composite ownership foreign keys.

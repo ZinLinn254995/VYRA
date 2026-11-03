@@ -30,6 +30,8 @@ When enabled, the route:
 
 This increment records usage only. It does **not** reserve or charge customer credits, and it does not yet cover Gemini, Image, Audio, or Video generation routes. Keep the feature flag disabled until authenticated Development E2E testing is complete and the other generation capabilities have their own verified recording paths.
 
+The Development schema already includes the service-role-only `apply_credit_ledger_entry()` RPC for `grant`, `reserve`, `commit`, `release`, `refund`, and audited `adjustment` entries. A server-only TypeScript wrapper now exists at `src/server/creditLedger.ts`, with typed validation and unit coverage. It is not mounted as a public API route and no provider-generation route calls it. This preserves the explicit boundary: BYOK requests are not charged VYRA credits, and VYRA-managed credit charging remains disabled until pricing, actual-cost reconciliation, customer consent, and refund rules are approved. See `docs/CREDIT_LEDGER_LIFECYCLE.md`.
+
 ## Required request lifecycle
 
 1. Authenticate the customer server-side. Derive `user_id` from a verified Supabase access token; never accept a user ID supplied by the browser as authority.
