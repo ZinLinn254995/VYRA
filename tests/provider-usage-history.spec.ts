@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Provider account usage and cost lookups require a signed-in VYRA session.
+test.use({ storageState: './tests/e2e-auth-state.json' });
+
 test('Provider Usage History opens on mobile and explains reported-cost limitations', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
