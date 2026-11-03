@@ -129,6 +129,7 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
             <span className="text-slate-500">{activeProject.scenes.length} scenes</span>
           </div>
         </div>
+        {orderedScenes.length > 0 && <button onClick={onCreateScene} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>}
       </div>
       <div className="space-y-3">
         {orderedScenes.map((scene, index) => {
