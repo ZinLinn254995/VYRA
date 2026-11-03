@@ -5,7 +5,7 @@
  * Blueprint-aligned application shell.
  * This file changes presentation/navigation only; existing service and data layers remain intact.
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './context/StudioContext';
 import { AuthProvider } from './context/AuthContext';
 import { ProjectWorkspaceView } from './components/views/ProjectWorkspaceView';
@@ -17,7 +17,7 @@ import { SettingsView } from './components/views/SettingsView';
 import { Toast } from './components/common/Toast';
 import { BrandLogo } from './components/common/BrandLogo';
 import {
-  ArrowLeft, ArrowRight, BookOpen, Clapperboard, Image, Layers3,
+  ArrowRight, BookOpen, Clapperboard, Image, Layers3,
   MessageCircle, Plus, Settings, ShieldCheck, Sparkles, Film,
 } from 'lucide-react';
 
@@ -113,6 +113,20 @@ const StudioContent: React.FC = () => {
   const [mode, setMode] = useState<AppMode>('workspace');
   const [page, setPage] = useState<WorkspacePage>('home');
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const routeMap: Partial<Record<string, WorkspacePage>> = {
+      dashboard: 'home',
+      projects: 'storyboards',
+      workspace: 'storyboard',
+      create: 'create',
+      consistency: 'vyrals',
+      media: 'media',
+      settings: 'settings',
+    };
+    const nextPage = routeMap[currentSection];
+    if (nextPage) setPage(nextPage);
+  }, [currentSection]);
 
   const navigate = (next: WorkspacePage) => {
     setPage(next);
