@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Media generation tests use an isolated, non-production session; other browser suites remain signed out.
+test.use({ storageState: './tests/e2e-auth-state.json' });
+
 async function openStoryboardWithMediaModels(page: import('@playwright/test').Page) {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.addInitScript(() => {
