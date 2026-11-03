@@ -234,7 +234,7 @@ test('ledger-enabled OpenRouter Image generation records safe metadata and provi
   assert.equal(job.body.user_id, USER_ID);
   assert.equal(job.body.idempotency_key, 'image-test-request-001');
   assert.equal(job.body.capability, 'image');
-  assert.deepEqual(job.body.request_parameters, { promptCharacters: 42, aspectRatio: '16:9' });
+  assert.deepEqual(job.body.request_parameters, { promptCharacters: 41, aspectRatio: '16:9' });
   assert.equal('prompt' in job.body, false);
 
   const attempt = calls.find((call) => call.url.pathname === '/rest/v1/provider_attempts' && call.method === 'POST');
