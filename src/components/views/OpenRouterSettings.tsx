@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { saveGeneratedImage } from '../../services/mediaLibraryStorage';
+import { getCurrentAccessToken } from '../../context/AuthContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 
@@ -119,7 +120,9 @@ export const OpenRouterSettings: React.FC = () => {
   };
 
   const request = async (path: string, key: string, method: 'GET' | 'POST' = 'GET') => {
-    const response = await fetch(path, { method, headers: { 'x-openrouter-api-key': key } });
+    const accessToken = await getCurrentAccessToken();
+    if (!accessToken) throw new Error('Sign in to VYRA before connecting OpenRouter or loading models.');
+    const response = await fetch(path, { method, headers: { 'x-openrouter-api-key': key, Authorization: 'Bearer ' + accessToken } });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'OpenRouter request failed.');
     return data;
@@ -224,9 +227,11 @@ export const OpenRouterSettings: React.FC = () => {
         return;
       }
       setMessage('Generating image… this can take up to two minutes.');
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in to VYRA before generating an image.');
       const response = await fetch('/api/providers/openrouter/images/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': key },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': key, Authorization: 'Bearer ' + accessToken },
         body: JSON.stringify({ model, prompt }),
       });
       const data = await response.json().catch(() => ({})) as { error?: string; imageDataUrl?: string; costUsd?: number | null; model?: string; generationId?: string | null };
