@@ -2,9 +2,9 @@
 
 ## Status
 
-This document defines the safe integration boundary for the usage and credit ledger foundation. It does not enable credit charging, apply migrations, or change generation behavior.
+This document defines the safe integration boundary for the usage and credit ledger foundation. It does not enable credit charging or change generation behavior.
 
-The schema migration `20261102000100_usage_credit_ledger.sql` is not applied to the production Supabase project. No service-role key is exposed to the browser.
+**Current status (2026-11-03):** the full eight-migration chain, including the usage ledger, is applied to the separate `VYRA Development` project. All five database pgTAP suites pass there and GitHub CI passes. The production Supabase project has not received these migrations. The generation-to-ledger server lifecycle described below remains a contract, not a completed provider-to-database implementation. No service-role key is exposed to the browser.
 
 ## Current provider behavior
 
@@ -68,3 +68,12 @@ A missing cost is represented as unknown/null. Estimates must never be copied in
 7. Enable credit billing only after the credit policy and customer-facing disclosures are approved.
 
 Until these gates are complete, the current local Provider Usage History remains informational and no credits are charged.
+
+
+## Environment verification
+
+- Development database schema and migration history are aligned with the repository.
+- The five database test suites have been run against development and passed.
+- Authenticated HTTP end-to-end tests with two dedicated development accounts are still required.
+- Production migrations, production secret configuration, and customer-facing credit charging remain disabled/gated.
+- The current Supabase organization is on the Free plan; leaked-password protection is a Pro-and-above Auth feature and is not available on this plan.
