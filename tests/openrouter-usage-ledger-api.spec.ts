@@ -11,7 +11,7 @@ const SERVICE_KEY = 'server-only-test-service-role-key';
 const OPENROUTER_KEY = 'or-test-key-not-a-real-secret';
 
 async function withApi(
-  handler: (baseUrl: string) => Promise<void>,
+  handler: (baseUrl: string, clientFetch: typeof fetch) => Promise<void>,
   fetcher: typeof fetch,
 ): Promise<void> {
   const originalFetch = globalThis.fetch;
@@ -36,7 +36,7 @@ async function withApi(
   if (!address || typeof address === 'string') throw new Error('Test server did not start.');
 
   try {
-    await handler('http://127.0.0.1:' + address.port);
+    await handler('http://127.0.0.1:' + address.port, originalFetch);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     globalThis.fetch = originalFetch;
@@ -47,8 +47,8 @@ async function withApi(
   }
 }
 
-function request(baseUrl: string, headers: Record<string, string> = {}) {
-  return fetch(baseUrl + '/providers/openrouter/chat', {
+function request(baseUrl: string, clientFetch: typeof fetch, headers: Record<string, string> = {}) {
+  return clientFetch(baseUrl + '/providers/openrouter/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -70,8 +70,8 @@ test('ledger-enabled OpenRouter chat requires a verified Supabase session before
     return Response.json({ id: USER_ID });
   };
 
-  await withApi(async (baseUrl) => {
-    const response = await request(baseUrl);
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await request(baseUrl, clientFetch);
     assert.equal(response.status, 401);
     assert.equal(providerCalls, 0);
   }, fetcher);
@@ -107,8 +107,8 @@ test('ledger-enabled OpenRouter chat records job, provider usage and actual cost
     throw new Error('Unexpected test endpoint: ' + method + ' ' + url.pathname);
   };
 
-  await withApi(async (baseUrl) => {
-    const response = await request(baseUrl, { Authorization: 'Bearer verified-development-session' });
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await request(baseUrl, clientFetch, { Authorization: 'Bearer verified-development-session' });
     assert.equal(response.status, 200);
     const payload = await response.json() as { text: string; generationId: string; usage: { costUsd: number } };
     assert.match(payload.text, /Solar energy/);
@@ -166,8 +166,8 @@ test('ledger-enabled mode blocks untracked image generation instead of bypassing
     return Response.json({});
   };
 
-  await withApi(async (baseUrl) => {
-    const response = await fetch(baseUrl + '/providers/openrouter/images/generate', {
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/providers/openrouter/images/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': OPENROUTER_KEY },
       body: JSON.stringify({ model: 'image-model', prompt: 'A sunrise over the sea' }),
@@ -187,8 +187,8 @@ test('ledger-enabled mode blocks Gemini generation until its usage recorder exis
     return Response.json({});
   };
 
-  await withApi(async (baseUrl) => {
-    const response = await fetch(baseUrl + '/ai/chat', {
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a script.' }] }),
