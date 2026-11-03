@@ -8,6 +8,7 @@ import heroCyberCity from '../../assets/images/hero_cyber_city_1792925206979.jpg
 import sceneQuantumChip from '../../assets/images/scene_quantum_chip_1792925206672.jpg';
 import sceneAvatarPresenter from '../../assets/images/scene_avatar_presenter_1792925207281.jpg';
 import { useStudio } from '../../context/StudioContext';
+import { getCurrentAccessToken } from '../../context/AuthContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import {
   AspectRatio,
@@ -136,9 +137,16 @@ export const CreateVideoView: React.FC = () => {
         setOutlineError('Generation cancelled. No AI request was sent and no provider generation charge was initiated.');
         return;
       }
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before generating the storyboard.');
       const response = await fetch('/api/providers/openrouter/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-openrouter-api-key': apiKey,
+          Authorization: 'Bearer ' + accessToken,
+          'Idempotency-Key': 'vyra-storyboard-' + crypto.randomUUID(),
+        },
         body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
       });
       const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
