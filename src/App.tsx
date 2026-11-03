@@ -24,7 +24,7 @@ import {
 type AppMode = 'workspace' | 'chat';
 type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'media' | 'settings' | 'create';
 
-const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void }> = ({ onNavigate }) => {
+const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void; onCreateStoryboard: () => void }> = ({ onNavigate, onCreateStoryboard }) => {
   const { projects, activeProject, setActiveProjectId } = useStudio();
   const recent = [...projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4);
   return (
@@ -90,7 +90,7 @@ const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void }> = (
             <Film className="mx-auto h-8 w-8 text-slate-600" />
             <h3 className="mt-4 text-sm font-semibold text-white">No Storyboards yet</h3>
             <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-400">Start with an idea. VYRA will help shape the creative plan before building your first Storyboard.</p>
-            <button onClick={() => onNavigate('create')} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Storyboard</button>
+            <button onClick={onCreateStoryboard} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Storyboard</button>
           </div>
         )}
       </section>
@@ -267,9 +267,9 @@ const StudioContent: React.FC = () => {
             </div>
           </nav>
           <main className="min-h-[calc(100dvh-7.5rem)]">
-            {page === 'home' && <WorkspaceHome onNavigate={navigate} />}
+            {page === 'home' && <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />}
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
-            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} />)}
+            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <ProjectWorkspaceView initialSceneId={selectedSceneId} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
