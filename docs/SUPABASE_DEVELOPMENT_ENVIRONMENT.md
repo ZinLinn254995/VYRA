@@ -100,7 +100,7 @@ This is not yet a complete generation-to-ledger implementation:
 
 Record test results and the migration version. Use only the dedicated development test accounts.
 
-## 6. Production state and release gates
+## 7. Production state and release gates
 
 The production project is still separate and has not received the eight development migrations. Its current public schema contains only the existing `profiles` and `projects` tables. Its migration history is not yet aligned with the repository, so do not run `db push` against production.
 
