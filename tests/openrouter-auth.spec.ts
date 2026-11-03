@@ -19,7 +19,7 @@ test('OpenRouter BYOK generation rejects requests without a verified Supabase se
       body: JSON.stringify({ model: 'openai/test', messages: [{ role: 'user', content: 'Hello' }] }),
     });
     assert.equal(response.status, 401);
-    assert.deepEqual(await response.json(), { error: 'Sign in to use OpenRouter BYOK generation.' });
+    assert.deepEqual(await response.json(), { error: 'Sign in to use VYRA AI features.' });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
@@ -69,9 +69,14 @@ async function withServer(run: (baseUrl: string) => Promise<void>) {
 }
 
 
-test('OpenRouter image, speech, and video endpoints reject unauthenticated requests before contacting the provider', async () => {
+test('VYRA AI and OpenRouter account, catalog, and generation endpoints reject unauthenticated requests', async () => {
   await withServer(async (baseUrl) => {
     const requests: Array<{ path: string; method: string; body?: unknown }> = [
+      { path: '/ai/chat', method: 'POST', body: { messages: [{ role: 'user', content: 'Hello' }] } },
+      { path: '/providers/openrouter/test', method: 'POST' },
+      { path: '/providers/openrouter/models?capability=text', method: 'GET' },
+      { path: '/providers/openrouter/usage/key', method: 'GET' },
+      { path: '/providers/openrouter/generation/gen-test-123', method: 'GET' },
       { path: '/providers/openrouter/images/generate', method: 'POST', body: { model: 'test/image', prompt: 'A safe test image' } },
       { path: '/providers/openrouter/audio/speech', method: 'POST', body: { model: 'test/audio', input: 'Hello', voice: 'alloy' } },
       { path: '/providers/openrouter/videos/generate', method: 'POST', body: { model: 'test/video', prompt: 'A safe test video' } },
@@ -88,7 +93,54 @@ test('OpenRouter image, speech, and video endpoints reject unauthenticated reque
         ...(item.body ? { body: JSON.stringify(item.body) } : {}),
       });
       assert.equal(response.status, 401, item.method + ' ' + item.path + ' must require a verified session');
-      assert.deepEqual(await response.json(), { error: 'Sign in to use OpenRouter media generation.' });
+      assert.deepEqual(await response.json(), { error: 'Sign in to use VYRA AI features.' });
     }
   });
+});
+
+test('Gemini health ping remains available without a user session and does not invoke generation', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ping: true }),
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { status?: string; geminiConfigured?: boolean };
+    assert.ok(payload.status === 'connected' || payload.status === 'preview_mode' || payload.status === 'error');
+    assert.equal(typeof payload.geminiConfigured, 'boolean');
+  });
+});
+
+test('authenticated generation lookup rejects malformed IDs before contacting OpenRouter', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalAnon = process.env.SUPABASE_ANON_KEY;
+  let providerCalls = 0;
+  process.env.SUPABASE_URL = 'https://auth-test.supabase.co';
+  process.env.SUPABASE_ANON_KEY = 'anon-test-only';
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).startsWith('https://auth-test.supabase.co/auth/v1/user')) {
+      return Response.json({ id: '00000000-0000-4000-8000-000000000001' });
+    }
+    if (String(input).startsWith('https://openrouter.ai/')) providerCalls += 1;
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await originalFetch(baseUrl + '/providers/openrouter/generation/not%20a%20valid%20id', {
+        headers: {
+          Authorization: 'Bearer valid-shaped-session-token',
+          'x-openrouter-api-key': 'or-test-key-not-a-real-secret',
+        },
+      });
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: 'Invalid OpenRouter generation ID.' });
+      assert.equal(providerCalls, 0);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = originalUrl;
+    if (originalAnon === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = originalAnon;
+  }
 });

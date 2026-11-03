@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('OpenRouter generation lookup rejects missing keys and malformed IDs without contacting the provider', async ({ request, baseURL }) => {
+test('OpenRouter generation lookup rejects missing keys and unauthenticated requests without contacting the provider', async ({ request, baseURL }) => {
   const missingKey = await request.get(new URL('/api/providers/openrouter/generation/gen-test-123', baseURL).toString());
   expect(missingKey.status()).toBe(400);
   await expect(missingKey.json()).resolves.toMatchObject({
@@ -10,9 +10,9 @@ test('OpenRouter generation lookup rejects missing keys and malformed IDs withou
   const malformedId = await request.get(new URL('/api/providers/openrouter/generation/not%20a%20valid%20id', baseURL).toString(), {
     headers: { 'x-openrouter-api-key': 'or-test-key-not-a-real-secret' },
   });
-  expect(malformedId.status()).toBe(400);
+  expect(malformedId.status()).toBe(401);
   await expect(malformedId.json()).resolves.toMatchObject({
-    error: 'Invalid OpenRouter generation ID.',
+    error: 'Sign in to use VYRA AI features.',
   });
 });
 

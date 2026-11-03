@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getCurrentAccessToken } from '../../context/AuthContext';
 import { Activity, AlertCircle, AudioLines, Clock3, Image as ImageIcon, Loader2, RefreshCw, Search, Video } from 'lucide-react';
 import {
   getSavedAudios,
@@ -159,8 +160,10 @@ export const ProviderUsageView: React.FC = () => {
         setKeyUsageLoading(true);
         setKeyUsageError('');
         try {
+          const accessToken = await getCurrentAccessToken();
+          if (!accessToken) throw new Error('Sign in to VYRA to refresh live OpenRouter usage.');
           const response = await fetch('/api/providers/openrouter/usage/key', {
-            headers: { 'x-openrouter-api-key': openRouterKey },
+            headers: { 'x-openrouter-api-key': openRouterKey, Authorization: 'Bearer ' + accessToken },
           });
           const data = await response.json().catch(() => ({})) as OpenRouterKeyUsage & { error?: string };
           if (!response.ok) throw new Error(data.error || 'Could not refresh OpenRouter key usage.');
@@ -208,6 +211,11 @@ export const ProviderUsageView: React.FC = () => {
       setCostLookupMessage('No saved media or video-job records with missing costs and a Generation ID were found.');
       return;
     }
+    const accessToken = await getCurrentAccessToken();
+    if (!accessToken) {
+      setCostLookupMessage('Sign in to VYRA before looking up provider generation costs.');
+      return;
+    }
     setCostLookupLoading(true);
     setCostLookupMessage('');
     let updated = 0;
@@ -219,7 +227,7 @@ export const ProviderUsageView: React.FC = () => {
         // error for one record must not prevent the remaining records from syncing.
         try {
           const response = await fetch('/api/providers/openrouter/generation/' + encodeURIComponent(entry.generationId!), {
-            headers: { 'x-openrouter-api-key': openRouterKey },
+            headers: { 'x-openrouter-api-key': openRouterKey, Authorization: 'Bearer ' + accessToken },
           });
           const data = await response.json().catch(() => ({})) as { costUsd?: unknown; error?: string };
           if (response.ok && typeof data.costUsd === 'number' && Number.isFinite(data.costUsd) && data.costUsd >= 0) {

@@ -187,10 +187,23 @@ class ModularAIService implements AIServiceProvider {
 
     // Step 1: Gemini server proxy (used when no OpenRouter Text model is configured).
     try {
+      if (!request.accessToken) {
+        return {
+          content: 'Sign in to VYRA before using the server-side Gemini assistant.',
+          status: 'error',
+          errorMessage: 'Sign in to VYRA before using the server-side Gemini assistant.',
+          providerName: 'Google Gemini',
+          modelName: this.model,
+        };
+      }
       const response = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + request.accessToken,
+        },
+        // Keep the bearer token and idempotency key out of the JSON request body.
+        body: JSON.stringify({ messages: request.messages, context: request.context }),
       });
 
       if (response.ok) {

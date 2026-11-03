@@ -180,9 +180,10 @@ test('ledger-enabled mode blocks untracked image generation instead of bypassing
   }, fetcher);
 });
 
-test('ledger-enabled mode blocks Gemini generation until its usage recorder exists', async () => {
+test('ledger-enabled mode blocks authenticated Gemini generation until its usage recorder exists', async () => {
   let providerCalls = 0;
-  const fetcher: typeof fetch = async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input).includes('/auth/v1/user')) return Response.json({ id: USER_ID });
     providerCalls += 1;
     return Response.json({});
   };
@@ -190,7 +191,7 @@ test('ledger-enabled mode blocks Gemini generation until its usage recorder exis
   await withApi(async (baseUrl, clientFetch) => {
     const response = await clientFetch(baseUrl + '/ai/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid-test-session-token' },
       body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a script.' }] }),
     });
     assert.equal(response.status, 503);
