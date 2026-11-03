@@ -44,12 +44,17 @@ Authentication UI/session management, project import/sync, assets, generation-to
 
 ## Public username and recipient lookup
 
-The `20261103000200_public_usernames.sql` migration adds `profiles.username`, a unique lowercase handle. Authenticated users can update only their own profile row. `POST /api/credits/username` accepts `{ "username": "handle" }` (or `null` to clear it); `GET /api/credits/recipients?query=han` returns at most eight prefix matches. Search requires at least three valid characters and is limited to 20 requests per user per minute by a database-backed counter, so limits remain effective across serverless instances. Public results contain only `userId`, `username`, and optional `displayName`. Never expose email addresses or private profile columns in recipient lookup.
+The `20261103101236_public_usernames.sql` migration adds `profiles.username`, a unique lowercase handle. Authenticated users can update only their own profile row. `POST /api/credits/username` accepts `{ "username": "handle" }` (or `null` to clear it); `GET /api/credits/recipients?query=han` returns at most eight prefix matches. Search requires at least three valid characters and is limited to 20 requests per user per minute by a database-backed counter, so limits remain effective across serverless instances. Public results contain only `userId`, `username`, and optional `displayName`. Never expose email addresses or private profile columns in recipient lookup.
 
 ## Credit wallet snapshot
 
-The `20261103000400_credit_wallet_snapshot.sql` migration adds `get_credit_wallet()`. It requires an authenticated Supabase session, derives the account from `auth.uid()`, and returns available/reserved totals as exact integer strings plus at most 50 safe activity fields. Balances are derived from the complete append-only ledger; the recent activity list is only a display window. The function does not allow financial writes and does not expose ledger metadata.
+The `20261103101243_credit_wallet_snapshot.sql` migration adds `get_credit_wallet()`. It requires an authenticated Supabase session, derives the account from `auth.uid()`, and returns available/reserved totals as exact integer strings plus at most 50 safe activity fields. Balances are derived from the complete append-only ledger; the recent activity list is only a display window. The function does not allow financial writes and does not expose ledger metadata.
 
 ## Transfer velocity policy
 
-Migration `20261103000500_credit_transfer_velocity_limits.sql` enforces sender-level rolling limits in PostgreSQL: 10 new transfers/hour and 30 new transfers/24 hours by default. The trigger uses the same per-account advisory lock as the atomic transfer RPC, so parallel requests cannot race around the counters. Same-key idempotent retries do not create a new row or consume another slot. The private `credit_transfer_policy` singleton is not readable or writable by application roles; policy changes must be reviewed and applied as database migrations. The API maps the limit error to HTTP 429.
+Migration `20261103101251_credit_transfer_velocity_limits.sql` enforces sender-level rolling limits in PostgreSQL: 10 new transfers/hour and 30 new transfers/24 hours by default. The trigger uses the same per-account advisory lock as the atomic transfer RPC, so parallel requests cannot race around the counters. Same-key idempotent retries do not create a new row or consume another slot. The private `credit_transfer_policy` singleton is not readable or writable by application roles; policy changes must be reviewed and applied as database migrations. The API maps the limit error to HTTP 429.
+
+
+## Migration history alignment
+
+The checked-in migration filenames use the exact versions recorded in the `VYRA Development` database. Keep these versions unchanged once applied; add future migrations with `supabase migration new` and apply them to development before promoting them. The trigger-only helper functions are not callable as application RPCs; PostgreSQL invokes them through their attached triggers.

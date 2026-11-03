@@ -72,6 +72,9 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_auth_user();
 
+-- Trigger-only helper: never expose direct RPC execution to application roles.
+revoke all on function public.handle_new_auth_user() from public, anon, authenticated, service_role;
+
 alter table public.profiles enable row level security;
 alter table public.projects enable row level security;
 

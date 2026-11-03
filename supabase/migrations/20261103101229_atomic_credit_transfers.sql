@@ -145,6 +145,9 @@ begin
 end;
 $$;
 
+-- Constraint-trigger helper is not an application RPC.
+revoke all on function public.assert_credit_transfer_balanced() from public, anon, authenticated, service_role;
+
 drop trigger if exists credit_transfers_balanced_after_insert on public.credit_transfers;
 create constraint trigger credit_transfers_balanced_after_insert
 after insert on public.credit_transfers
