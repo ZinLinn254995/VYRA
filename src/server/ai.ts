@@ -118,7 +118,7 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
 
   // Every OpenRouter generation request is tied to a verified customer session.
-  const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!bearer) return res.status(401).json({ error: 'Sign in to use OpenRouter BYOK generation.' });
 
   const verified = await verifySupabaseAccessToken(bearer[1]);
