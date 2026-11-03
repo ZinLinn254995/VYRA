@@ -8,6 +8,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     browserName: 'chromium',
+    // Browser tests exercise authenticated generation flows with an isolated,
+    // non-production Supabase session. Provider endpoints are mocked per test.
+    storageState: './tests/e2e-auth-state.json',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
