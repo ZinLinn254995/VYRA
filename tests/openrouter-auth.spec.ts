@@ -72,6 +72,10 @@ async function withServer(run: (baseUrl: string) => Promise<void>) {
 test('OpenRouter image, speech, and video endpoints reject unauthenticated requests before contacting the provider', async () => {
   await withServer(async (baseUrl) => {
     const requests: Array<{ path: string; method: string; body?: unknown }> = [
+      { path: '/providers/openrouter/test', method: 'POST' },
+      { path: '/providers/openrouter/models?capability=text', method: 'GET' },
+      { path: '/providers/openrouter/usage/key', method: 'GET' },
+      { path: '/providers/openrouter/generation/gen-test-123', method: 'GET' },
       { path: '/providers/openrouter/images/generate', method: 'POST', body: { model: 'test/image', prompt: 'A safe test image' } },
       { path: '/providers/openrouter/audio/speech', method: 'POST', body: { model: 'test/audio', input: 'Hello', voice: 'alloy' } },
       { path: '/providers/openrouter/videos/generate', method: 'POST', body: { model: 'test/video', prompt: 'A safe test video' } },
