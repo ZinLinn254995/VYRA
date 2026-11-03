@@ -585,7 +585,7 @@ export const ProjectWorkspaceView: React.FC = () => {
 
           setClipStatus('Video generated. Downloading clip…');
           const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(job.jobId) + '/content', {
-            headers: { 'x-openrouter-api-key': apiKey },
+            headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
           });
           if (!contentResponse.ok) {
             const data = await contentResponse.json().catch(() => ({})) as { error?: string };
@@ -922,7 +922,7 @@ export const ProjectWorkspaceView: React.FC = () => {
         }
       }
       if (!completed) throw new Error('Video generation is taking longer than expected. Retry later; check your OpenRouter account before submitting another job.');
-      const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId) + '/content', { headers: { 'x-openrouter-api-key': apiKey } });
+      const contentResponse = await fetch('/api/providers/openrouter/videos/' + encodeURIComponent(submitted.jobId) + '/content', { headers: { 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken } });
       if (!contentResponse.ok) {
         const data = await contentResponse.json().catch(() => ({})) as { error?: string };
         throw new Error(data.error || 'The video was generated but could not be downloaded. Please retry the download.');
@@ -1125,7 +1125,7 @@ export const ProjectWorkspaceView: React.FC = () => {
       }
       const response = await fetch('/api/providers/openrouter/audio/speech', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey },
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken },
         body: JSON.stringify({ model, input: narration, voice: effectiveVoiceId, speed: effectiveSpeed }),
       });
       if (!response.ok) {
