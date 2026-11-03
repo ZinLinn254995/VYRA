@@ -63,7 +63,7 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   if (!apiKey) return res.status(400).json({ error: 'Enter and verify your OpenRouter API key in Settings.' });
 
   const authorization = req.header('authorization') ?? '';
-  const tokenMatch = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!tokenMatch) return res.status(401).json({ error: 'Sign in to use OpenRouter BYOK generation.' });
   const auth = await verifySupabaseAccessToken(tokenMatch[1]);
   if (!auth.ok) {
@@ -853,7 +853,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   }
 
   const authorization = req.header('authorization') ?? '';
-  const tokenMatch = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  const tokenMatch = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!tokenMatch) {
     return res.status(401).json({ error: 'Sign in to use server-managed Gemini AI.' });
   }
