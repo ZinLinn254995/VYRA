@@ -59,7 +59,7 @@ type StoredPendingTransfer = {
 };
 
 const PENDING_TRANSFER_STORAGE_KEY = 'vyra.pending-credit-transfers.v1';
-const PENDING_TRANSFER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const PENDING_TRANSFER_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const PENDING_TRANSFER_MAX_RECORDS = 10;
 
 function readPendingTransferRecords(): Record<string, StoredPendingTransfer> {
