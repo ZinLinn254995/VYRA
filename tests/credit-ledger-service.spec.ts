@@ -16,7 +16,7 @@ function entry(entryType: CreditLedgerEntryType, amount: string) {
     idempotency_key: 'test-' + entryType,
     entry_type: entryType,
     available_delta: entryType === 'reserve' ? (-n).toString()
-      : entryType === 'release' || entryType === 'grant' || entryType === 'refund' ? n.toString()
+      : entryType === 'release' || entryType === 'grant' || entryType === 'refund' || entryType === 'adjustment' ? n.toString()
         : '0',
     reserved_delta: entryType === 'reserve' ? n.toString()
       : entryType === 'commit' || entryType === 'release' ? (-n).toString()
@@ -73,6 +73,7 @@ test('reserve, commit, release and refund call the server-only RPC with exact in
     { entryType: 'commit', amount: '25', jobId: JOB_ID },
     { entryType: 'release', amount: '25', jobId: JOB_ID },
     { entryType: 'refund', amount: '25', jobId: null },
+    { entryType: 'adjustment', amount: '-5', jobId: null },
   ];
   const calls: Array<{ url: URL; headers: Headers; body: Record<string, unknown> }> = [];
 
@@ -111,9 +112,10 @@ test('reserve, commit, release and refund call the server-only RPC with exact in
     assert.equal(call.headers.get('apikey'), SERVICE_KEY);
     assert.equal(call.headers.get('authorization'), 'Bearer ' + SERVICE_KEY);
     assert.equal(call.body.p_user_id, USER_ID);
-    assert.equal(call.body.p_amount, '25');
+    assert.equal(typeof call.body.p_amount, 'string');
   }
-  assert.deepEqual(calls.map(call => call.body.p_entry_type), ['reserve', 'commit', 'release', 'refund']);
+  assert.deepEqual(calls.map(call => call.body.p_entry_type), ['reserve', 'commit', 'release', 'refund', 'adjustment']);
+  assert.deepEqual(calls.map(call => call.body.p_amount), ['25', '25', '25', '25', '-5']);
 });
 
 test('credit ledger service maps insufficient balance and idempotency conflicts without leaking provider details', async () => {
