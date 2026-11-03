@@ -158,3 +158,12 @@ For each future decision, record:
 - **Reason:** The Product Owner wants a simple customer experience supported by sophisticated internal systems.
 - **Scope:** Exact colors, layout, typography, navigation and responsive details remain open.
 - **Approval source:** Product Owner explicitly clarified the simplicity and behind-the-scenes sophistication principles and accepted the futuristic professional creative-studio direction.
+
+
+### BP-017 — Workspace first view: Project Creative Studio
+
+- **Status:** Approved
+- **Decision:** The first view shown when entering Workspace should be **Project Creative Studio**, with the current/active project as the main focus. It should provide quick access to Storyboard, Vyral, Media and Settings, and show the production journey as Plan → Storyboard → Generate → Review → Publish. Global AI Chat remains available throughout Workspace.
+- **Reason:** The Product Owner confirmed that the proposed Project Creative Studio first-view UI matches the desired experience and explicitly requested that this UI be used.
+- **Scope:** This approves the first-view concept and information hierarchy, not exact visual styling, spacing, responsive behavior, project switching, the no-active-project empty state, or the proposed five-area Workspace structure in BP-014.
+- **Approval source:** Product Owner explicitly said the proposed UI is exactly what they want and asked to record it.
