@@ -67,3 +67,28 @@ async function withServer(run: (baseUrl: string) => Promise<void>) {
   try { await run('http://127.0.0.1:' + address.port); }
   finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 }
+
+
+test('OpenRouter image, speech, and video endpoints reject unauthenticated requests before contacting the provider', async () => {
+  await withServer(async (baseUrl) => {
+    const requests: Array<{ path: string; method: string; body?: unknown }> = [
+      { path: '/providers/openrouter/images/generate', method: 'POST', body: { model: 'test/image', prompt: 'A safe test image' } },
+      { path: '/providers/openrouter/audio/speech', method: 'POST', body: { model: 'test/audio', input: 'Hello', voice: 'alloy' } },
+      { path: '/providers/openrouter/videos/generate', method: 'POST', body: { model: 'test/video', prompt: 'A safe test video' } },
+      { path: '/providers/openrouter/videos/job-test-123', method: 'GET' },
+      { path: '/providers/openrouter/videos/job-test-123/content', method: 'GET' },
+    ];
+    for (const item of requests) {
+      const response = await fetch(baseUrl + item.path, {
+        method: item.method,
+        headers: {
+          ...(item.body ? { 'Content-Type': 'application/json' } : {}),
+          'x-openrouter-api-key': 'or-test-key-not-a-real-secret',
+        },
+        ...(item.body ? { body: JSON.stringify(item.body) } : {}),
+      });
+      assert.equal(response.status, 401, item.method + ' ' + item.path + ' must require a verified session');
+      assert.deepEqual(await response.json(), { error: 'Sign in to use OpenRouter media generation.' });
+    }
+  });
+});
