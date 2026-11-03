@@ -28,3 +28,23 @@ jobs:
         run: |
           supabase db reset
           supabase test db
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install app dependencies
+        run: npm ci
+      - name: Discover local Supabase status options
+        run: supabase status --help
+      - name: Run authenticated local Supabase usage-ledger E2E
+        shell: bash
+        run: |
+          eval "$(supabase status -o env)"
+          : "${API_URL:?Supabase API_URL was not returned by supabase status}"
+          : "${ANON_KEY:?Supabase ANON_KEY was not returned by supabase status}"
+          : "${SERVICE_ROLE_KEY:?Supabase SERVICE_ROLE_KEY was not returned by supabase status}"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          export VYRA_USAGE_LEDGER_ENABLED=true
+          npm run test:usage-ledger-local-e2e
