@@ -52,10 +52,18 @@ Before authenticated API end-to-end tests:
 
 1. In the development Supabase Dashboard, confirm Email authentication is enabled.
 2. Set the development Site URL and allowed redirect URLs to the actual VYRA development URL.
-3. Confirm the development project URL, publishable/anon key, and service-role key are configured in the correct Vercel environment scopes.
-4. Confirm `SUPABASE_SERVICE_ROLE_KEY` exists only as a server-side encrypted/sensitive variable; never add a `VITE_` variant.
+3. Keep the Vercel environment mapping below aligned with the separate Supabase projects.
+4. Keep `SUPABASE_SERVICE_ROLE_KEY` absent until the server-side usage recorder is ready; when it is added, it must be server-only and encrypted, never prefixed with `VITE_`.
 5. Create two dedicated development test accounts. Do not use real customer accounts or production accounts.
 6. Run authenticated tests for wallet reads, username changes, recipient lookup, transfer history, and transfers between the two test accounts.
+
+### Vercel environment mapping verified on 2026-11-03
+
+- **Production target:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_URL`, and `SUPABASE_ANON_KEY` point to the separate `VYRA` Production project.
+- **Preview target:** the generic Preview variables and the `development` branch-specific Preview overrides point to `VYRA Development`.
+- **Development target:** the four Supabase URL/publishable-key variables point to `VYRA Development`.
+- The generic Preview variables previously pointed to Production. They were corrected to Development and read back successfully. This prevents ordinary PR Preview deployments from connecting to Production.
+- `SUPABASE_SERVICE_ROLE_KEY` and `VYRA_USAGE_LEDGER_ENABLED` are not configured in the Vercel project. This is intentional for now: the usage recorder remains disabled until its hosted Development end-to-end checks and secret handling are ready.
 
 Do not copy production callback URLs or production credentials into development.
 
@@ -120,7 +128,7 @@ The production project is still separate and has not received the eight developm
 Production remains **not approved** until all of the following are complete:
 
 - Authenticated wallet, username, recipient, and transfer API end-to-end tests pass in development.
-- Vercel production and preview environment variables are independently verified without exposing secret values.
+- Vercel Production variables are confirmed to point to Production, while generic Preview and Development variables are confirmed to point to VYRA Development. The server-only service-role key and usage-ledger feature flag remain intentionally absent.
 - Backup and restore/rollback options are confirmed for the actual production plan; a recoverable backup/export is created and verified.
 - The restore procedure is documented and tested in a separate non-production project where possible.
 - A production migration plan, monitoring plan, and explicit production approval exist.
