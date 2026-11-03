@@ -65,3 +65,10 @@ The checked-in migration filenames use the exact versions recorded in the `VYRA 
 As of 2026-11-03, the repository migration filenames match the migration versions recorded in `VYRA Development`. All five database pgTAP suites have passed against that development project. The production project has not received these migrations; production rollout remains gated on authenticated API end-to-end tests, verified environment secrets, and a tested backup/restore plan.
 
 The internal trigger helper functions are not application RPCs. Their execute privileges are revoked from application roles; PostgreSQL invokes them through their attached triggers.
+
+
+## OpenRouter Text usage recorder
+
+The server includes an opt-in first increment for OpenRouter Text chat. With `VYRA_USAGE_LEDGER_ENABLED=true`, an authenticated request with an idempotency key creates a generation job and provider attempt before provider submission, then records provider-reported usage/cost when available. Only safe counts and allowlisted usage fields are stored; prompts and BYOK keys are not written to the ledger.
+
+This is usage recording only. It does not reserve or charge credits, and Gemini/Image/Audio/Video paths are not yet integrated. Keep the flag disabled until authenticated Development E2E testing is complete. Never enable it in Production based solely on passing database tests.
