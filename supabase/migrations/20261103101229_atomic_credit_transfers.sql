@@ -143,7 +143,7 @@ begin
 
   return null;
 end;
-$;
+$$;
 
 -- Constraint-trigger helper is not an application RPC.
 revoke all on function public.assert_credit_transfer_balanced() from public, anon, authenticated, service_role;
