@@ -555,3 +555,20 @@ The Human-Controlled Area should be presented as a compact section within the Se
 The section should remain concise. It may explain that important decisions and controls remain under the customer's direct authority. Specific controls must not be invented; add them only after their scope and AI access rules have been discussed.
 
 **Status:** Compact placement inside Settings and removal of the standalone Workspace navigation entry are approved. Exact controls and permissions remain open.
+
+
+### 18.1 Manual Storyboard creation starts empty
+
+When the customer chooses **Create New Storyboard** from the Workspace or Storyboards library, VYRA creates a blank Storyboard immediately and opens its Storyboard page. It must not force the customer through the AI ideas/concept wizard first.
+
+The new Storyboard starts with editable default metadata:
+- Name: **Untitled Storyboard**
+- Description: empty until the customer adds one
+- Status: **Draft**
+- Scene list: empty
+
+The Storyboard page displays its name, description, and current status. With no Scenes, its primary action is **Create New Scene**. Once Scenes exist, show them as a vertically ordered sequence of visual preview cards, with controls to open and reorder them. Creating the first Scene opens its Scene Workspace with blank editable content; it must not silently populate invented narration or visual prompts.
+
+AI-assisted idea development remains available through AI Chat as a separate creation path. It is not a prerequisite for manual Storyboard creation.
+
+**Status:** Product Owner approved.
