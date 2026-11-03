@@ -265,6 +265,9 @@ export const CreditsWalletView: React.FC = () => {
         }
         throw new Error(payload.error ?? 'The transfer could not be completed.');
       }
+      if (!payload.transfer?.id) {
+        throw new Error('Transfer status is not confirmed. Check wallet history before retrying this same request.');
+      }
       setConfirmOpen(false);
       setPendingTransfer(null);
       setNotice('Credits sent successfully. Your wallet has been refreshed.');
