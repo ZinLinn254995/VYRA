@@ -111,3 +111,36 @@ test('Gemini health ping remains available without a user session and does not i
     assert.equal(typeof payload.geminiConfigured, 'boolean');
   });
 });
+
+test('authenticated generation lookup rejects malformed IDs before contacting OpenRouter', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalAnon = process.env.SUPABASE_ANON_KEY;
+  let providerCalls = 0;
+  process.env.SUPABASE_URL = 'https://auth-test.supabase.co';
+  process.env.SUPABASE_ANON_KEY = 'anon-test-only';
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).startsWith('https://auth-test.supabase.co/auth/v1/user')) {
+      return Response.json({ id: '00000000-0000-4000-8000-000000000001' });
+    }
+    if (String(input).startsWith('https://openrouter.ai/')) providerCalls += 1;
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await originalFetch(baseUrl + '/providers/openrouter/generation/not%20a%20valid%20id', {
+        headers: {
+          Authorization: 'Bearer valid-shaped-session-token',
+          'x-openrouter-api-key': 'or-test-key-not-a-real-secret',
+        },
+      });
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: 'Invalid OpenRouter generation ID.' });
+      assert.equal(providerCalls, 0);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = originalUrl;
+    if (originalAnon === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = originalAnon;
+  }
+});
