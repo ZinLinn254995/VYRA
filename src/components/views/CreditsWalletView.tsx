@@ -46,9 +46,76 @@ type PendingTransferRequest = {
   recipientUserId: string;
   amount: number;
   note: string | null;
+  fingerprint: string;
   idempotencyKey: string;
   attempted: boolean;
 };
+
+type StoredPendingTransfer = {
+  fingerprint: string;
+  idempotencyKey: string;
+  attempted: boolean;
+  createdAt: number;
+};
+
+const PENDING_TRANSFER_STORAGE_KEY = 'vyra.pending-credit-transfers.v1';
+const PENDING_TRANSFER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const PENDING_TRANSFER_MAX_RECORDS = 10;
+
+function readPendingTransferRecords(): Record<string, StoredPendingTransfer> {
+  try {
+    const raw = localStorage.getItem(PENDING_TRANSFER_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, StoredPendingTransfer>;
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(parsed)
+      .filter(([fingerprint, record]) =>
+        /^[a-f0-9]{64}$/.test(fingerprint)
+        && record
+        && record.fingerprint === fingerprint
+        && /^wallet-[a-f0-9-]{36}$/.test(record.idempotencyKey)
+        && typeof record.attempted === 'boolean'
+        && Number.isFinite(record.createdAt)
+        && now - record.createdAt >= 0
+        && now - record.createdAt <= PENDING_TRANSFER_MAX_AGE_MS
+      ));
+  } catch {
+    return {};
+  }
+}
+
+function writePendingTransferRecord(record: StoredPendingTransfer): void {
+  try {
+    const records = readPendingTransferRecords();
+    records[record.fingerprint] = record;
+    const recent = Object.entries(records)
+      .sort((a, b) => b[1].createdAt - a[1].createdAt)
+      .slice(0, PENDING_TRANSFER_MAX_RECORDS);
+    localStorage.setItem(PENDING_TRANSFER_STORAGE_KEY, JSON.stringify(Object.fromEntries(recent)));
+  } catch {
+    // In-memory idempotency still protects retries during the current page session.
+  }
+}
+
+function removePendingTransferRecord(fingerprint: string): void {
+  try {
+    const records = readPendingTransferRecords();
+    delete records[fingerprint];
+    localStorage.setItem(PENDING_TRANSFER_STORAGE_KEY, JSON.stringify(records));
+  } catch {
+    // Storage is best-effort; the server remains the source of truth.
+  }
+}
+
+async function fingerprintTransferRequest(request: {
+  recipientUserId: string;
+  amount: number;
+  note: string | null;
+}): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(request));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+}
 
 const cardClass = 'rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#171A35] light:bg-white';
 const fieldClass = 'w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#090B18] light:bg-slate-50 px-3 py-2.5 text-sm text-white light:text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-[#55F4FF] light:focus:border-indigo-500';
@@ -103,6 +170,7 @@ export const CreditsWalletView: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transferLoading, setTransferLoading] = useState(false);
   const [pendingTransfer, setPendingTransfer] = useState<PendingTransferRequest | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const apiHeaders = useMemo(() => ({
     Authorization: 'Bearer ' + accessToken,
@@ -196,7 +264,7 @@ export const CreditsWalletView: React.FC = () => {
     }
   }, [parsedAmount, wallet?.availableBalance]);
 
-  const reviewTransfer = (event: React.FormEvent) => {
+  const reviewTransfer = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedRecipient) {
       setError('Choose a recipient before continuing.');
@@ -215,21 +283,43 @@ export const CreditsWalletView: React.FC = () => {
       amount: parsedAmount,
       note: note.trim() || null,
     };
-    setPendingTransfer((current) => current
-      && current.recipientUserId === request.recipientUserId
-      && current.amount === request.amount
-      && current.note === request.note
-      ? current
-      : { ...request, idempotencyKey: 'wallet-' + crypto.randomUUID(), attempted: false });
-    setError(null);
-    setConfirmOpen(true);
+    setReviewLoading(true);
+    try {
+      const fingerprint = await fingerprintTransferRequest(request);
+      const current = pendingTransfer?.fingerprint === fingerprint ? pendingTransfer : null;
+      const stored = readPendingTransferRecords()[fingerprint];
+      const existingKey = current?.idempotencyKey ?? stored?.idempotencyKey;
+      const attempted = current?.attempted ?? stored?.attempted ?? false;
+      const next: PendingTransferRequest = {
+        ...request,
+        fingerprint,
+        idempotencyKey: existingKey ?? 'wallet-' + crypto.randomUUID(),
+        attempted,
+      };
+      setPendingTransfer(next);
+      writePendingTransferRecord({
+        fingerprint,
+        idempotencyKey: next.idempotencyKey,
+        attempted: next.attempted,
+        createdAt: stored?.createdAt ?? Date.now(),
+      });
+      setError(null);
+      setConfirmOpen(true);
+    } catch {
+      setError('Could not prepare a secure transfer request. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
   };
 
   const closeTransferReview = () => {
     setConfirmOpen(false);
-    // Once submitted, keep the same idempotency key across modal close/reopen
-    // so an uncertain timeout can never become a second transfer on retry.
-    setPendingTransfer((current) => current?.attempted ? current : null);
+    // An attempted request may have completed even if its response was lost.
+    // Keep its fingerprint/key in local storage until confirmed or expired.
+    if (pendingTransfer && !pendingTransfer.attempted) {
+      removePendingTransferRecord(pendingTransfer.fingerprint);
+      setPendingTransfer(null);
+    }
   };
 
   const sendTransfer = async () => {
@@ -244,6 +334,12 @@ export const CreditsWalletView: React.FC = () => {
       return;
     }
     setPendingTransfer({ ...request, attempted: true });
+    writePendingTransferRecord({
+      fingerprint: request.fingerprint,
+      idempotencyKey: request.idempotencyKey,
+      attempted: true,
+      createdAt: readPendingTransferRecords()[request.fingerprint]?.createdAt ?? Date.now(),
+    });
     setTransferLoading(true);
     setError(null);
     setNotice(null);
@@ -269,6 +365,7 @@ export const CreditsWalletView: React.FC = () => {
         throw new Error('Transfer status is not confirmed. Check wallet history before retrying this same request.');
       }
       setConfirmOpen(false);
+      removePendingTransferRecord(request.fingerprint);
       setPendingTransfer(null);
       setNotice('Credits sent successfully. Your wallet has been refreshed.');
       setAmount('');
@@ -412,7 +509,7 @@ export const CreditsWalletView: React.FC = () => {
                 <span className="text-xs font-medium text-slate-300 light:text-slate-700">Note (optional)</span>
                 <input value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} placeholder="Add a short note" className={fieldClass} />
               </label>
-              <button type="submit" disabled={!hasEnoughCredits || transferLoading} className={buttonClass + ' w-full'}>Review transfer</button>
+              <button type="submit" disabled={!hasEnoughCredits || transferLoading || reviewLoading} className={buttonClass + ' w-full'}>{reviewLoading ? 'Preparing secure request…' : 'Review transfer'}</button>
             </form>
           )}
           <p className="text-[10px] leading-relaxed text-slate-500">Transfers are final once confirmed. Always check the recipient username and amount carefully. If a request times out, retry the same details; VYRA reuses the original request ID to prevent duplicate transfers.</p>
