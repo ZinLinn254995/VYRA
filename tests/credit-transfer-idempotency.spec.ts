@@ -27,7 +27,7 @@ test('credit transfer retry reuses the original idempotency key after an uncerta
     });
   });
 
-  await page.route('**/api/credits/recipients?query=fri', async route => {
+  await page.route('**/api/credits/recipients**', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
