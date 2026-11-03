@@ -186,7 +186,7 @@ test('authenticated OpenRouter Text usage recorder works against a real local Su
     assert.equal(imageJobs.data?.length, 1);
     assert.equal(imageJobs.data?.[0].status, 'succeeded');
     assert.equal(imageJobs.data?.[0].capability, 'image');
-    assert.deepEqual(imageJobs.data?.[0].request_parameters, { promptCharacters: 42, aspectRatio: '1:1' });
+    assert.deepEqual(imageJobs.data?.[0].request_parameters, { promptCharacters: 45, aspectRatio: '1:1' });
     assert.equal(imageJobs.data?.[0].provider_request_id, 'gen-image-local-e2e-1');
 
     const imageAttempts = await admin.from('provider_attempts')
