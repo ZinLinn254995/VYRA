@@ -17,6 +17,19 @@ This document defines the safe integration boundary for the usage and credit led
 
 A missing cost is represented as unknown/null. Estimates must never be copied into `provider_cost_records.actual_cost_usd`.
 
+## First server integration increment
+
+The OpenRouter Text chat route now has an opt-in usage-ledger integration behind `VYRA_USAGE_LEDGER_ENABLED=true`.
+
+When enabled, the route:
+- Requires a valid Supabase access token and a request `Idempotency-Key`.
+- Creates one `generation_jobs` row and one `provider_attempts` row before submitting to OpenRouter.
+- Stores only safe request metadata (message count and character count), never the prompt transcript or BYOK key.
+- Records actual provider-reported cost through the service-role-only RPC when the provider returns a finite, non-negative cost. Unknown cost remains absent.
+- Marks failed or uncertain jobs distinctly. A repeated idempotency key is rejected before another provider request can be sent.
+
+This increment records usage only. It does **not** reserve or charge customer credits, and it does not yet cover Gemini, Image, Audio, or Video generation routes. Keep the feature flag disabled until authenticated Development E2E testing is complete and the other generation capabilities have their own verified recording paths.
+
 ## Required request lifecycle
 
 1. Authenticate the customer server-side. Derive `user_id` from a verified Supabase access token; never accept a user ID supplied by the browser as authority.

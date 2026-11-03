@@ -59,9 +59,14 @@ export function normalizeProviderUsage(input: unknown): NormalizedProviderUsage 
   };
 }
 
-/** Feature remains off unless explicitly enabled AND server-only credentials exist. */
+/** True when an operator explicitly requested the usage ledger, even if its credentials are incomplete. */
+export function isUsageLedgerRequested(env: Record<string, string | undefined> = process.env): boolean {
+  return env.VYRA_USAGE_LEDGER_ENABLED === 'true';
+}
+
+/** The recorder is usable only when explicitly requested and all server-only credentials exist. */
 export function isUsageLedgerServerEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  return env.VYRA_USAGE_LEDGER_ENABLED === 'true'
+  return isUsageLedgerRequested(env)
     && Boolean(env.SUPABASE_URL?.trim())
     && Boolean(env.SUPABASE_ANON_KEY?.trim())
     && Boolean(env.SUPABASE_SERVICE_ROLE_KEY?.trim());

@@ -4,6 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 import {
   NavSection,
   Project,
@@ -108,7 +109,7 @@ interface StudioContextType {
   selectConversation: (id: string) => void;
   renameConversation: (id: string, newTitle: string) => void;
   deleteConversation: (id: string) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, requestId?: string) => Promise<void>;
   isSendingMessage: boolean;
   chatError: string | null;
   retryLastMessage: () => Promise<void>;
@@ -137,6 +138,7 @@ const E2E_SEED_PROJECTS = import.meta.env.VITE_E2E_SEED_PROJECTS === 'true';
 const StudioContext = createContext<StudioContextType | undefined>(undefined);
 
 export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { session: authSession, serverVerified } = useAuth();
   // Theme state persisted in localStorage
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
@@ -648,7 +650,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Conversation deleted', 'info');
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, requestId?: string) => {
     if (!content.trim() || isSendingMessage) return;
 
     let targetConvId = activeConversationId;
@@ -763,9 +765,12 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           finalContent = 'Generation cancelled. No AI generation request was sent. You can continue using local project tools or Preview Mode.';
           isPreviewNotice = true;
         } else {
+          const idempotencyKey = 'chat-' + (requestId || userMsg.id);
           const response = await aiService.generateResponse({
             messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
             conversationId: targetConvId || undefined,
+            ...(serverVerified && authSession?.access_token ? { accessToken: authSession.access_token } : {}),
+            idempotencyKey,
           });
           if (response.status === 'error') {
             throw new Error(response.errorMessage || response.content || 'The AI request failed.');
@@ -879,7 +884,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!activeConversation || activeConversation.messages.length === 0) return;
     const lastUserMsg = [...activeConversation.messages].reverse().find((m) => m.role === 'user');
     if (lastUserMsg) {
-      await sendMessage(lastUserMsg.content);
+      await sendMessage(lastUserMsg.content, lastUserMsg.id);
     }
   };
 
