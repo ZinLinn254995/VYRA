@@ -117,6 +117,24 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
   const totalChars = messages.reduce((sum, item) => sum + item.content.length, 0);
   if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
 
+  // Every OpenRouter generation request is tied to a verified customer session.
+  const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!bearer) return res.status(401).json({ error: 'Sign in to use OpenRouter BYOK generation.' });
+
+  const verified = await verifySupabaseAccessToken(bearer[1]);
+  if (!verified.ok) {
+    if (verified.reason === 'not_configured' || verified.reason === 'provider_unavailable') {
+      return res.status(503).json({ error: 'VYRA authentication is temporarily unavailable.' });
+    }
+    return res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+
+  const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
+  if (!isValidIdempotencyKey(idempotencyKey)) {
+    return res.status(400).json({ error: 'A valid generation request ID is required.' });
+  }
+
   // Opt-in first increment: authenticated OpenRouter Text usage only.
   // This records provider usage; it does not reserve or charge VYRA credits.
   let ledgerContext: { userId: string; job: OpenRouterTextJob } | null = null;
@@ -126,21 +144,6 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
         error: 'Usage tracking is enabled but its server-side Supabase configuration is incomplete. No provider request was sent.',
         code: 'USAGE_LEDGER_NOT_CONFIGURED',
       });
-    }
-    const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
-    if (!bearer) return res.status(401).json({ error: 'Sign in to VYRA before recording generation usage.' });
-
-    const verified = await verifySupabaseAccessToken(bearer[1]);
-    if (!verified.ok) {
-      return res.status(verified.reason === 'provider_unavailable' || verified.reason === 'not_configured' ? 503 : 401)
-        .json({ error: verified.reason === 'provider_unavailable'
-          ? 'Authentication service is temporarily unavailable.'
-          : 'Your VYRA session is invalid or expired.' });
-    }
-
-    const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
-    if (!isValidIdempotencyKey(idempotencyKey)) {
-      return res.status(400).json({ error: 'A valid generation request ID is required.' });
     }
 
     const started = await beginOpenRouterTextJob({
