@@ -137,7 +137,7 @@ test('full video export records a mixed audio stream with voiceover, music, and 
     exportButton.click(),
   ]);
 
-  expect(download.suggestedFilename()).toMatch(/\\.(mp4|webm)$/i);
+  expect(download.suggestedFilename()).toMatch(/\.(mp4|webm)$/i);
   const outputPath = await download.path();
   expect(outputPath).toBeTruthy();
   const outputStats = await stat(outputPath!);
