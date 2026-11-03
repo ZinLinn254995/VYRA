@@ -9,6 +9,7 @@
  */
 
 import { ChatMessage, ChatSuggestedAction, AIServiceStatus, ContentCategory } from '../types';
+import { getCurrentAccessToken } from '../context/AuthContext';
 
 export interface AIServiceRequest {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
@@ -181,9 +182,14 @@ class ModularAIService implements AIServiceProvider {
 
     // Step 1: Gemini server proxy (used when no OpenRouter Text model is configured).
     try {
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) {
+        const message = 'Sign in and verify your account before using server-managed Gemini AI.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
+      }
       const response = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
         body: JSON.stringify(request),
       });
 

@@ -132,3 +132,15 @@ export function useAuth(): AuthContextValue {
   if (!value) throw new Error('useAuth must be used within AuthProvider.');
   return value;
 }
+
+/** Read the current Supabase access token for authenticated same-origin API calls. */
+export async function getCurrentAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) return null;
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}

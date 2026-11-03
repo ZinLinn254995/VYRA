@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { GoogleGenAI } from '@google/genai';
+import { verifySupabaseAccessToken } from './supabaseAuth.js';
 
 const router = express.Router();
 const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
@@ -791,6 +792,21 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   if (body?.ping === true) {
     return res.status(200).json(getGeminiStatus());
   }
+
+  const authorization = req.header('authorization') ?? '';
+  const tokenMatch = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  if (!tokenMatch) {
+    return res.status(401).json({ error: 'Sign in to use server-managed Gemini AI.' });
+  }
+
+  const auth = await verifySupabaseAccessToken(tokenMatch[1]);
+  if (!auth.ok) {
+    if (auth.reason === 'not_configured' || auth.reason === 'provider_unavailable') {
+      return res.status(503).json({ error: 'VYRA authentication is temporarily unavailable.' });
+    }
+    return res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
