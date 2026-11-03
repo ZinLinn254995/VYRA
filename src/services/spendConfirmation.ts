@@ -1,3 +1,5 @@
+import { getCurrentAccessToken } from '../context/AuthContext';
+
 export type SpendCapability = 'text' | 'image' | 'audio' | 'video';
 
 export interface SpendConfirmationOptions {
@@ -18,12 +20,15 @@ export async function confirmSpendBeforeGeneration(options: SpendConfirmationOpt
   let estimateReason = 'No verified estimate was returned. The provider may still charge your account.';
 
   if (options.apiKey && options.model) {
+    const accessToken = await getCurrentAccessToken();
+    if (!accessToken) throw new Error('Sign in to VYRA before requesting a live pricing estimate or generating media.');
     try {
       const response = await fetch('/api/providers/openrouter/estimate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-openrouter-api-key': options.apiKey,
+          Authorization: 'Bearer ' + accessToken,
         },
         body: JSON.stringify({
           capability: options.capability,
