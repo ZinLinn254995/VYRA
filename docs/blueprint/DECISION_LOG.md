@@ -59,3 +59,44 @@ For each future decision, record:
 - Affected pages / features / workflows:
 - Approval source and date:
 - Follow-up actions:
+
+
+### BP-005 — Vyral is an AI Creative Asset Package
+
+- **Status:** Approved
+- **Decision:** The product term **Vyral** means **AI Creative Asset Package**. Individual items inside it are called **Assets**. A Vyral may contain one Asset or many Assets, across flexible creative categories.
+- **Reason:** The Product Owner wants a reusable package that can hold the materials needed to maintain creative consistency, without imposing an artificial fixed content limit.
+- **Scope:** Asset catalogue, package organization and first-release support matrix remain to be designed.
+- **Approval source:** Product Owner explicitly approved the Vyral and Assets terminology and confirmed the flexible package concept.
+
+### BP-006 — Each Vyral has a dedicated AI Chat Workspace
+
+- **Status:** Approved
+- **Decision:** Each Vyral should have its own dedicated AI Chat Workspace. Users instruct the AI through that workspace, and the AI should work with the selected Vyral's Assets, consistency rules and permissions.
+- **Reason:** The Product Owner wants Vyral use and transformation to happen through a dedicated conversational interface.
+- **Scope:** Exact tools, UI, model access, credit disclosure and permissions remain open.
+- **Approval source:** Product Owner explicitly stated that a separate AI Chat Box is needed for using each Vyral.
+
+### BP-007 — Vyral reuse and derivative Versions
+
+- **Status:** Approved
+- **Decision:** Authorized users may reuse an original Vyral and create modified copies, Clones or derivative Versions, including major transformations, when the relevant permissions allow it. Resale is permitted only when authorized.
+- **Reason:** Buyers should be able to build on existing creative work and save the time and cost of creating consistency from scratch.
+- **Scope:** Detailed license choices, inheritance rules, attribution, resale and revenue sharing remain open.
+- **Approval source:** Product Owner explicitly described buyer modification, cloning, versioning and resale subject to the original Vyral's permission and separate rules.
+
+### BP-008 — Preserve Vyral lineage back to the original Root
+
+- **Status:** Approved
+- **Decision:** Vyral Versions form a traceable lineage tree. Every derivative should retain a path through its parent Versions back to the original Vyral Root; intermediate branches and the original source must remain traceable.
+- **Reason:** Vyral should evolve through users' contributions without losing its original source and branch history.
+- **Scope:** Exact lineage visualization, permissions to inspect ancestry, attribution and implementation remain open.
+- **Approval source:** Product Owner explicitly compared the original Vyral to a root and described derivative growth as branches that must remain traceable back to the original branches, trunk and root.
+
+### BP-009 — Credit-based AI and Vyral economy
+
+- **Status:** Approved
+- **Decision:** VYRA's intended economy uses credits for AI usage and for marketplace transactions involving Vyrals and eligible derivative Versions. Users may share or trade credits under rules to be defined. The Product Owner's goal is to generate revenue through this ecosystem.
+- **Reason:** Credit-based usage and trading create the intended commercial model, while reusable Vyrals provide buyers with value by reducing the time and expense of building consistent assets themselves.
+- **Scope:** Pricing, bundles, platform fees, creator payouts, transfers, refunds, resale revenue sharing and compliance remain open.
+- **Approval source:** Product Owner explicitly stated that Vyral transactions and usage will use credits and that this is the intended revenue model.
