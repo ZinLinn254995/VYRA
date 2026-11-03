@@ -157,6 +157,8 @@ select throws_ok(
 
 -- Age the fixture transfer beyond the rolling hourly window while
 -- keeping it inside the daily window, so the daily guard is isolated.
+-- Flush deferred FK/constraint trigger events before changing table triggers.
+set constraints all immediate;
 -- Trigger management requires table ownership; use the migration owner role.
 set local role postgres;
 alter table public.credit_transfers disable trigger credit_transfers_immutable;
