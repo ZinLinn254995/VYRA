@@ -2161,10 +2161,10 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ init
         </div>
       </section>
 
-      {/* 2. Main Studio Grid: Left Media Preview + Right Scene Inspector */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start min-w-0">
-        {/* LEFT COLUMN: Media Preview & Playback Monitor (5 cols on large) */}
-        <div className="xl:col-span-5 min-w-0 space-y-4">
+      {/* 2. Full-width Preview followed by its settings and Scene Editor */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 items-start min-w-0">
+        {/* Full-width Media Preview & Playback Monitor */}
+        <div className="w-full min-w-0 space-y-4">
           <div className="p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-semibold text-white light:text-slate-900 flex items-center gap-1.5">
@@ -2172,37 +2172,16 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ init
                 <span>Scene Preview Monitor</span>
               </span>
 
-              {/* Aspect Ratio Switcher */}
-              <div className="flex items-center gap-1 p-0.5 bg-[#090B18] light:bg-slate-100 rounded-md">
-                {[
-                  { id: '9:16', icon: <Smartphone className="w-3 h-3" /> },
-                  { id: '16:9', icon: <Monitor className="w-3 h-3" /> },
-                  { id: '1:1', icon: <Square className="w-3 h-3" /> },
-                ].map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => setPreviewAspectRatio(r.id as AspectRatio)}
-                    title={`Preview as ${r.id}`}
-                    className={`p-1 rounded text-xs transition-colors ${
-                      previewAspectRatio === r.id
-                        ? 'bg-[#1E2345] light:bg-white text-[#55F4FF] light:text-[#6366F1]'
-                        : 'text-slate-500 hover:text-white'
-                    }`}
-                  >
-                    {r.icon}
-                  </button>
-                ))}
-              </div>
-            </div>
+             </div>
 
             {/* Video Viewport Stage */}
             <div
-              className={`mx-auto relative bg-[#090B18] rounded-lg overflow-hidden border border-[#2B3058] flex items-center justify-center transition-all ${
+              className={`w-full relative bg-[#090B18] rounded-lg overflow-hidden border border-[#2B3058] flex items-center justify-center transition-all ${
                 previewAspectRatio === '9:16'
-                  ? 'w-[240px] aspect-[9/16]'
+                  ? 'aspect-[9/16]'
                   : previewAspectRatio === '1:1'
-                  ? 'w-full aspect-square max-w-[340px]'
-                  : 'w-full aspect-video'
+                  ? 'aspect-square'
+                  : 'aspect-video'
               }`}
             >
               {currentScene?.mediaUrl ? (
@@ -2258,6 +2237,36 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ init
               </button>
             </div>
 
+            {/* Preview Settings */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#2B3058] light:border-slate-200 bg-[#090B18]/60 light:bg-slate-50 p-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-white light:text-slate-900">Preview settings</p>
+                <p className="text-[10px] text-slate-500">Choose the canvas shape. The preview always uses the full available width.</p>
+              </div>
+              <div className="flex items-center gap-1 p-0.5 bg-[#090B18] light:bg-white rounded-md border border-[#2B3058] light:border-slate-200">
+                {[
+                  { id: '9:16', icon: <Smartphone className="w-3 h-3" /> },
+                  { id: '16:9', icon: <Monitor className="w-3 h-3" /> },
+                  { id: '1:1', icon: <Square className="w-3 h-3" /> },
+                ].map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setPreviewAspectRatio(r.id as AspectRatio)}
+                    title={`Preview as ${r.id}`}
+                    aria-pressed={previewAspectRatio === r.id}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors ${
+                      previewAspectRatio === r.id
+                        ? 'bg-[#1E2345] light:bg-slate-100 text-[#55F4FF] light:text-[#6366F1]'
+                        : 'text-slate-500 hover:text-white'
+                    }`}
+                  >
+                    {r.icon}
+                    <span>{r.id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Playback Controls & Scrubber */}
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between text-xs text-slate-400">
@@ -2306,8 +2315,8 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ init
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Scene Sequencer Timeline & Script Editor (7 cols) */}
-        <div className="xl:col-span-7 min-w-0 space-y-4">
+        {/* Scene settings and editor remain directly below the full-width preview */}
+        <div className="w-full min-w-0 space-y-4">
           {/* Active Scene Editor Panel */}
           {currentScene ? (
             <div className="p-5 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 space-y-4">
