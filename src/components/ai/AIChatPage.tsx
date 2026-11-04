@@ -130,14 +130,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           style={{
             width: actionsOpen ? 208 : 40,
             height: actionsOpen ? 304 : 40,
-            borderRadius: actionsOpen ? 16 : 9999,
+            borderRadius: actionsOpen ? '16px' : '50%',
             transition: 'width 300ms cubic-bezier(0.22, 1, 0.36, 1), height 300ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 300ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
           <Button
             size="sm"
             variant="ghost"
-            className="absolute right-0 top-0 z-10 size-10 rounded-full bg-white px-0 text-slate-800 hover:bg-slate-100"
+            className={`absolute right-0 top-0 z-10 size-10 rounded-full px-0 text-slate-800 ${actionsOpen ? 'bg-transparent hover:bg-transparent' : 'bg-white hover:bg-slate-100'}`}
             aria-label={actionsOpen ? 'Close chat menu' : 'Open chat menu'}
             title="Chat menu"
             onClick={() => setActionsOpen((open) => !open)}
