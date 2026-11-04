@@ -52,24 +52,16 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
 
         const areaBounds = scrollArea.getBoundingClientRect();
         const fieldBounds = active.getBoundingClientRect();
-        const safeTop = areaBounds.top + 12;
-        const safeBottom = areaBounds.bottom - 12;
-        const fields = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([type="hidden"]), textarea'));
-        const isLastField = fields[fields.length - 1] === active;
-        const submitButton = dialog.querySelector<HTMLElement>('form button[type="submit"]');
-        const submitBounds = submitButton?.getBoundingClientRect();
-        // On the final field, keep the primary action visible as well, so the
-        // user can submit without manually dragging the dialog.
-        const requiredBottom = isLastField && submitBounds
-          ? Math.max(fieldBounds.bottom, submitBounds.bottom)
-          : fieldBounds.bottom;
+        const areaMidpoint = areaBounds.top + areaBounds.height / 2;
+        const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
 
-        if (requiredBottom > safeBottom) {
-          const nextTop = scrollArea.scrollTop + requiredBottom - safeBottom;
-          scrollArea.scrollTo({ top: Math.min(scrollArea.scrollHeight - scrollArea.clientHeight, nextTop), behavior: 'auto' });
-        } else if (fieldBounds.top < safeTop) {
-          scrollArea.scrollTo({ top: Math.max(0, scrollArea.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
-        }
+        // Use the focused input's half of the visible dialog as the scroll
+        // direction rule: upper half returns to the top, lower half to bottom.
+        const targetScrollTop = fieldMidpoint < areaMidpoint
+          ? 0
+          : scrollArea.scrollHeight - scrollArea.clientHeight;
+
+        scrollArea.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
       }));
     };
     syncViewport();
