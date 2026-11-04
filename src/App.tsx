@@ -114,7 +114,7 @@ const StoryboardLibrary: React.FC<{ onOpen: (id: string) => void; onCreate: () =
   );
 };
 
-const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreateScene: () => void }> = ({ onOpenScene, onCreateScene }) => {
+const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreateScene: () => void; onPreview: () => void }> = ({ onOpenScene, onCreateScene, onPreview }) => {
   const { activeProject, updateProject, reorderScenes } = useStudio();
   if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
   const orderedScenes = [...activeProject.scenes].sort((a, b) => a.order - b.order);
@@ -130,7 +130,7 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
             <span className="text-slate-500">{activeProject.scenes.length} scenes</span>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">\n          <button onClick={() => setShowStoryboardPreview(true)} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/60 hover:text-white"><PlayCircle className="h-4 w-4" /> Preview</button>\n          {orderedScenes.length > 0 && <button onClick={onCreateScene} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>}\n        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">\n          <button onClick={onPreview} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/60 hover:text-white"><PlayCircle className="h-4 w-4" /> Preview</button>\n          {orderedScenes.length > 0 && <button onClick={onCreateScene} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>}\n        </div>
       </div>
       <div className="space-y-3">
         {orderedScenes.map((scene, index) => {
@@ -346,7 +346,7 @@ const StudioContent: React.FC = () => {
           <main className="min-h-[calc(100dvh-7.5rem)]">
             {page === 'home' && <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />}
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
-            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
+            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} onPreview={() => setShowStoryboardPreview(true)} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <ProjectWorkspaceView initialSceneId={selectedSceneId} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
