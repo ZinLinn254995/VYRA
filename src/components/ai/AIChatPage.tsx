@@ -123,7 +123,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   return (
-    <main className="relative mx-auto h-full w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:px-6">
+    <main className="relative mx-auto min-h-[calc(100dvh-7rem)] w-full max-w-[var(--vyra-content-width)] px-3 sm:min-h-[calc(100dvh-4rem)] sm:px-6">
       <header className="absolute inset-x-0 top-0 z-40 mx-auto flex h-14 w-full max-w-[var(--vyra-content-width)] items-center justify-end gap-2 bg-[var(--vyra-bg-canvas)]/95 px-3 backdrop-blur sm:px-6">
         <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
           <History size={23} />
@@ -156,7 +156,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         </div>
       </header>
 
-      <section className="flex h-full min-h-0 flex-col overflow-hidden pb-28 pt-14 sm:pb-32">
+      <section className="flex min-h-[calc(100dvh-16rem)] flex-col pt-14 sm:min-h-[calc(100dvh-12rem)]">
         {!hasMessages ? (
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8 text-center">
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
@@ -168,7 +168,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             </p>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto overscroll-contain py-5">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 py-5">
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
@@ -184,7 +184,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         )}
       </section>
 
-      <div className="absolute inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[var(--vyra-content-width)] bg-[var(--vyra-bg-canvas)]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6">
+      <div className="mx-auto mt-auto w-full max-w-[var(--vyra-content-width)] bg-[var(--vyra-bg-canvas)]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
