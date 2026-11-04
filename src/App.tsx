@@ -118,8 +118,7 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
   const { activeProject, updateProject, reorderScenes } = useStudio();
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
-  const orderedScenes = [...activeProject.scenes].sort((a, b) => a.order - b.order);
+  const orderedScenes = [...(activeProject?.scenes ?? [])].sort((a, b) => a.order - b.order);
   const safeIndex = Math.min(previewIndex, Math.max(0, orderedScenes.length - 1));
   const previewScene = orderedScenes[safeIndex];
   useEffect(() => {
@@ -127,7 +126,8 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
     const timeout = window.setTimeout(() => setPreviewIndex((current) => current >= orderedScenes.length - 1 ? 0 : current + 1), Math.max(1, previewScene.duration || 8) * 1000);
     return () => window.clearTimeout(timeout);
   }, [isPlaying, safeIndex, previewScene?.id, previewScene?.duration, orderedScenes.length]);
-  useEffect(() => { setPreviewIndex(0); setIsPlaying(false); }, [activeProject.id]);
+  useEffect(() => { setPreviewIndex(0); setIsPlaying(false); }, [activeProject?.id]);
+  if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
   const previewRatio = activeProject.aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[420px]' : activeProject.aspectRatio === '1:1' ? 'aspect-square max-h-[420px]' : 'aspect-video';
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
