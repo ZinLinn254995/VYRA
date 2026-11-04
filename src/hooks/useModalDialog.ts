@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 type ViewportState = { top: number; height: number };
 
 export function useModalDialog(
   open: boolean,
-  dialogRef: React.RefObject<HTMLElement | null>,
-  scrollAreaRef: React.RefObject<HTMLElement | null>,
+  dialogRef: RefObject<HTMLElement | null>,
+  scrollAreaRef: RefObject<HTMLElement | null>,
 ): ViewportState {
   const [viewport, setViewport] = useState<ViewportState>(() => ({
     top: 0,
@@ -31,7 +31,6 @@ export function useModalDialog(
       width: body.style.width,
       overflow: body.style.overflow,
       overscrollBehavior: body.style.overscrollBehavior,
-      touchAction: body.style.touchAction,
     };
 
     html.style.overflow = 'hidden';
@@ -43,7 +42,6 @@ export function useModalDialog(
     body.style.width = '100%';
     body.style.overflow = 'hidden';
     body.style.overscrollBehavior = 'none';
-    body.style.touchAction = 'none';
 
     const preventBackgroundGesture = (event: Event) => {
       const target = event.target;
@@ -67,7 +65,6 @@ export function useModalDialog(
       body.style.width = bodyStyles.width;
       body.style.overflow = bodyStyles.overflow;
       body.style.overscrollBehavior = bodyStyles.overscrollBehavior;
-      body.style.touchAction = bodyStyles.touchAction;
       window.scrollTo(0, scrollY);
     };
   }, [open, scrollAreaRef]);
