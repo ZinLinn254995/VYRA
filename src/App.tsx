@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './context/StudioContext';
 import { AuthProvider } from './context/AuthContext';
 import { SceneTimelineEditorView } from './components/views/SceneTimelineEditorView';
+import { MarketplaceView } from './components/views/MarketplaceView';
 import { CreateVideoView } from './components/views/CreateVideoView';
 import { AIIdeasChatView } from './components/views/AIIdeasChatView';
 import { MediaLibraryView } from './components/views/MediaLibraryView';
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
-type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'media' | 'settings' | 'create';
+type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'marketplace' | 'media' | 'settings' | 'create';
 
 const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void; onCreateStoryboard: () => void }> = ({ onNavigate, onCreateStoryboard }) => {
   const { projects, activeProject, setActiveProjectId } = useStudio();
@@ -224,7 +225,7 @@ const StudioContent: React.FC = () => {
 
   const navigate = (next: WorkspacePage) => {
     setPage(next);
-    const sectionMap: Partial<Record<WorkspacePage, string>> = { home: 'dashboard', storyboards: 'projects', storyboard: 'workspace', vyrals: 'consistency', media: 'media', settings: 'settings', create: 'create' };
+    const sectionMap: Partial<Record<WorkspacePage, string>> = { home: 'dashboard', storyboards: 'projects', storyboard: 'workspace', vyrals: 'consistency', marketplace: 'marketplace', media: 'media', settings: 'settings', create: 'create' };
     const section = sectionMap[next];
     if (section) setCurrentSection(section as any);
   };
@@ -274,7 +275,7 @@ const StudioContent: React.FC = () => {
     touchStart.current = null;
   };
 
-  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
+  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'marketplace' ? 'Marketplace' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
 
   return (
     <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100">
@@ -296,7 +297,7 @@ const StudioContent: React.FC = () => {
           <nav className="border-b border-slate-800/70 bg-[#0B1020]">
             <div className="mx-auto flex max-w-[1440px] items-center gap-2 overflow-x-auto px-4 py-3 sm:px-7">
               {([
-                ['home', 'Workspace'], ['storyboards', 'Storyboards'], ['vyrals', 'Vyrals'], ['media', 'Media Library'], ['settings', 'Settings'],
+                ['home', 'Workspace'], ['storyboards', 'Storyboards'], ['vyrals', 'Vyrals'], ['marketplace', 'Marketplace'], ['media', 'Media Library'], ['settings', 'Settings'],
               ] as [WorkspacePage, string][]).map(([id, label]) => <button key={id} onClick={() => navigate(id)} className={`shrink-0 rounded-xl px-4 py-2 text-xs font-semibold transition ${page === id ? 'bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/30' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}>{label}</button>)}
             </div>
           </nav>
@@ -306,6 +307,7 @@ const StudioContent: React.FC = () => {
             {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} onBack={() => setPage('storyboard')} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
+            {page === 'marketplace' && <MarketplaceView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
             {page === 'create' && <CreateVideoView />}
