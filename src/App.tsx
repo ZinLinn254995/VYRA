@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StudioProvider, useStudio } from './context/StudioContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/navigation/Sidebar';
 import { TopHeader } from './components/navigation/TopHeader';
 import { DashboardView } from './components/views/DashboardView';
@@ -23,6 +23,32 @@ import { VideoJobRecoveryView } from './components/views/VideoJobRecoveryView';
 import { ProviderUsageView } from './components/views/ProviderUsageView';
 import { CreditsWalletView } from './components/views/CreditsWalletView';
 import { Toast } from './components/common/Toast';
+import {
+  AuthLoadingScreen,
+  AuthPage,
+  OnboardingPage,
+  PublicLandingPage,
+} from './components/auth/AuthPages';
+
+type PublicRoute = 'workspace' | 'welcome' | 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'onboarding';
+
+function readRoute(): PublicRoute {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('auth') === 'reset') return 'reset-password';
+  const route = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (['welcome', 'login', 'signup', 'forgot-password', 'onboarding'].includes(route)) return route as PublicRoute;
+  return 'workspace';
+}
+
+export function navigateVYRA(route: PublicRoute) {
+  const url = route === 'workspace'
+    ? window.location.pathname
+    : route === 'reset-password'
+      ? `${window.location.pathname}?auth=reset`
+      : `${window.location.pathname}#/${route}`;
+  window.history.pushState({}, '', url);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
 
 const StudioContent: React.FC = () => {
   const { currentSection } = useStudio();
@@ -31,69 +57,71 @@ const StudioContent: React.FC = () => {
 
   const renderActiveView = () => {
     switch (currentSection) {
-      case 'dashboard':
-        return <DashboardView />;
-      case 'projects':
-        return <ProjectsView />;
-      case 'create':
-        return <CreateVideoView />;
-      case 'ideas':
-        return <AIIdeasChatView />;
-      case 'workspace':
-        return <ProjectWorkspaceView />;
-      case 'media':
-        return <MediaLibraryView />;
-      case 'consistency':
-        return <ConsistencyLibraryView />;
-      case 'review':
-        return <ReviewQueueView />;
-      case 'publishing':
-        return <PublishingView />;
-      case 'analytics':
-        return <AnalyticsView />;
-      case 'jobs':
-        return <VideoJobRecoveryView />;
-      case 'usage':
-        return <ProviderUsageView />;
-      case 'credits':
-        return <CreditsWalletView />;
-      case 'settings':
-        return <SettingsView />;
-      default:
-        return <DashboardView />;
+      case 'dashboard': return <DashboardView />;
+      case 'projects': return <ProjectsView />;
+      case 'create': return <CreateVideoView />;
+      case 'ideas': return <AIIdeasChatView />;
+      case 'workspace': return <ProjectWorkspaceView />;
+      case 'media': return <MediaLibraryView />;
+      case 'consistency': return <ConsistencyLibraryView />;
+      case 'review': return <ReviewQueueView />;
+      case 'publishing': return <PublishingView />;
+      case 'analytics': return <AnalyticsView />;
+      case 'jobs': return <VideoJobRecoveryView />;
+      case 'usage': return <ProviderUsageView />;
+      case 'credits': return <CreditsWalletView />;
+      case 'settings': return <SettingsView />;
+      default: return <DashboardView />;
     }
   };
 
   return (
     <div className="min-h-screen bg-[#090B18] light:bg-[#F8FAFC] text-slate-100 light:text-slate-900 transition-colors">
-      {/* Sidebar Navigation */}
       <Sidebar
         mobileOpen={mobileNavOpen}
         setMobileOpen={setMobileNavOpen}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
       />
-
-      {/* Main Content Area (padded for desktop sidebar) */}
-      <div className={`${sidebarCollapsed ? "md:pl-[72px]" : "md:pl-[260px]"} flex flex-col min-h-screen transition-all duration-200`}>
+      <div className={`${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-[260px]'} flex flex-col min-h-screen transition-all duration-200`}>
         <TopHeader onOpenMobileMenu={() => setMobileNavOpen(true)} />
-
         <main className={`flex-1 min-h-0 ${currentSection === 'ideas' ? 'h-[calc(100dvh-4rem)] min-h-[32rem] overflow-hidden p-2 sm:p-4 lg:p-6' : 'overflow-y-auto p-4 sm:p-6 lg:p-8'}`}>
           {renderActiveView()}
         </main>
-
-        {/* Global Toast */}
         <Toast />
       </div>
     </div>
   );
 };
 
+const AppRouter: React.FC = () => {
+  const { loading } = useAuth();
+  const [route, setRoute] = useState<PublicRoute>(readRoute);
+
+  useEffect(() => {
+    const syncRoute = () => setRoute(readRoute());
+    window.addEventListener('popstate', syncRoute);
+    window.addEventListener('hashchange', syncRoute);
+    return () => {
+      window.removeEventListener('popstate', syncRoute);
+      window.removeEventListener('hashchange', syncRoute);
+    };
+  }, []);
+
+  if (loading) return <AuthLoadingScreen />;
+  if (route === 'welcome') return <PublicLandingPage />;
+  if (route === 'onboarding') return <OnboardingPage />;
+  if (route === 'login' || route === 'signup' || route === 'forgot-password' || route === 'reset-password') {
+    return <AuthPage mode={route} />;
+  }
+  return <StudioContent />;
+};
+
 export default function App() {
   return (
     <AuthProvider>
       <StudioProvider>
-        <StudioContent />
+        <AppRouter />
       </StudioProvider>
     </AuthProvider>
   );

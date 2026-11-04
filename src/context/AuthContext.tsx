@@ -10,6 +10,8 @@ type AuthContextValue = {
   verificationError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -71,7 +73,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession) {
-        // Defer network verification to avoid doing asynchronous work inside the auth callback.
         queueMicrotask(() => { void checkServer(nextSession); });
       } else {
         setServerVerified(false);
@@ -103,6 +104,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return { needsEmailConfirmation: !data.session };
   }, [checkServer]);
 
+  const resetPassword = useCallback(async (email: string) => {
+    if (!supabase) throw new Error('Supabase is not configured. Add the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/?auth=reset`,
+    });
+    if (error) throw error;
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    if (!supabase) throw new Error('Supabase is not configured. Add the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  }, []);
+
   const signOut = useCallback(async () => {
     if (!supabase) return;
     const { error } = await supabase.auth.signOut();
@@ -121,8 +136,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     verificationError,
     signIn,
     signUp,
+    resetPassword,
+    updatePassword,
     signOut,
-  }), [loading, session, serverVerified, verificationError, signIn, signUp, signOut]);
+  }), [loading, session, serverVerified, verificationError, signIn, signUp, resetPassword, updatePassword, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
@@ -132,7 +149,6 @@ export function useAuth(): AuthContextValue {
   if (!value) throw new Error('useAuth must be used within AuthProvider.');
   return value;
 }
-
 
 /** Read the current Supabase access token for authenticated same-origin API calls. */
 export async function getCurrentAccessToken(): Promise<string | null> {
