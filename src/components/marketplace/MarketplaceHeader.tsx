@@ -1,25 +1,37 @@
 import React from 'react';
-import { Coins, LockKeyhole, UserRound } from 'lucide-react';
+import { Bot, Coins, LockKeyhole, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
   userEmail: string | null;
   creditBalance: string | null;
   creditLoading: boolean;
+  activeSection: 'marketplace' | 'workspace' | 'ai-chat';
   onWorkspaceRequest: () => void;
+  onAIChatRequest: () => void;
   onAuthRequest: (mode: 'login' | 'signup') => void;
   onProfileClick: () => void;
 };
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
-  userEmail, creditBalance, creditLoading, onWorkspaceRequest, onAuthRequest, onProfileClick,
+  userEmail, creditBalance, creditLoading, activeSection,
+  onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
   const signedIn = Boolean(userEmail);
   const formattedBalance = creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
+  const navClass = (section: HeaderProps['activeSection']) =>
+    `flex h-full items-center gap-1.5 border-b-2 px-2 text-xs transition sm:px-3 sm:text-sm ${activeSection === section
+      ? 'border-[var(--vyra-accent-primary)] font-semibold text-[var(--vyra-text-primary)]'
+      : 'border-transparent font-medium text-[var(--vyra-text-secondary)] hover:text-[var(--vyra-text-primary)]'}`;
+
+  const mobileNavClass = (section: HeaderProps['activeSection']) =>
+    `flex min-h-10 items-center gap-1.5 border-b-2 px-2 text-xs transition ${activeSection === section
+      ? 'border-[var(--vyra-accent-primary)] font-semibold text-[var(--vyra-text-primary)]'
+      : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
+
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/90 backdrop-blur-xl">
-      {/* Desktop header: preserve the approved single-row layout. */}
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <a href="#marketplace" aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-sm font-black text-slate-950">V</span>
@@ -27,11 +39,12 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
         </a>
 
         <nav aria-label="Main navigation" className="flex h-full items-center gap-0.5 sm:gap-1">
-          <a href="#marketplace" aria-current="page" className="flex h-full items-center border-b-2 border-[var(--vyra-accent-primary)] px-2 text-xs font-semibold text-[var(--vyra-text-primary)] sm:px-3 sm:text-sm">
-            Marketplace
-          </a>
-          <button type="button" onClick={onWorkspaceRequest} className="flex h-full items-center gap-1 border-b-2 border-transparent px-2 text-xs font-medium text-[var(--vyra-text-secondary)] transition hover:text-[var(--vyra-text-primary)] sm:gap-1.5 sm:px-3 sm:text-sm">
+          <a href="#marketplace" aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={navClass('marketplace')}>Marketplace</a>
+          <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={navClass('workspace')}>
             Workspace {!signedIn && <LockKeyhole size={12} className="opacity-60" />}
+          </button>
+          <button type="button" onClick={onAIChatRequest} aria-current={activeSection === 'ai-chat' ? 'page' : undefined} className={navClass('ai-chat')}>
+            <Bot size={15} /> AI Chat
           </button>
         </nav>
 
@@ -56,7 +69,6 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Mobile header: split into two compact rows to prevent crowding/overflow. */}
       <div className="mx-auto max-w-[var(--vyra-content-width)] px-3 sm:hidden">
         <div className="flex h-14 items-center justify-between gap-2">
           <a href="#marketplace" aria-label="VYRA Marketplace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
@@ -79,23 +91,21 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
             ) : (
               <>
                 <Button size="sm" variant="ghost" className="min-h-8 px-2" onClick={() => onAuthRequest('login')}>Sign In</Button>
-                <Button size="sm" className="min-h-8 px-2.5" onClick={() => onAuthRequest('signup')}>Create Account</Button>
+                <Button size="sm" className="min-h-8 px-2.5" onClick={() => onAuthRequest('signup')}>Join</Button>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex min-h-11 items-center justify-between gap-2 border-t border-[var(--vyra-border-subtle)]">
-          <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-1">
-            <a href="#marketplace" aria-current="page" className="flex min-h-10 items-center border-b-2 border-[var(--vyra-accent-primary)] px-2 text-xs font-semibold text-[var(--vyra-text-primary)]">
-              Marketplace
-            </a>
-            <button type="button" onClick={onWorkspaceRequest} className="flex min-h-10 items-center gap-1 border-b-2 border-transparent px-2 text-xs font-medium text-[var(--vyra-text-secondary)]">
-              Workspace {!signedIn && <LockKeyhole size={11} className="opacity-60" />}
-            </button>
-          </nav>
-
-        </div>
+        <nav aria-label="Main navigation" className="flex min-h-11 items-center gap-1 border-t border-[var(--vyra-border-subtle)]">
+          <a href="#marketplace" aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={mobileNavClass('marketplace')}>Marketplace</a>
+          <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={mobileNavClass('workspace')}>
+            Workspace {!signedIn && <LockKeyhole size={11} className="opacity-60" />}
+          </button>
+          <button type="button" onClick={onAIChatRequest} aria-current={activeSection === 'ai-chat' ? 'page' : undefined} className={mobileNavClass('ai-chat')}>
+            <Bot size={14} /> AI Chat
+          </button>
+        </nav>
       </div>
     </header>
   );
