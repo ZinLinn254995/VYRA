@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./design-system/tokens.css";
 
 /* Light-mode variant: components opt into light styles with `light:` utilities.
    The .light class is toggled on <html> by StudioContext. Without this declaration,

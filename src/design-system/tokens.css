@@ -1,0 +1,62 @@
+/* VYRA semantic design tokens.
+   These aliases intentionally map to the existing production palette first.
+   New UI should consume semantic tokens instead of hard-coded visual values. */
+:root {
+  --vyra-bg-canvas: var(--color-bg-base);
+  --vyra-bg-surface: var(--color-surface-1);
+  --vyra-bg-subtle: var(--color-surface-2);
+  --vyra-bg-hover: var(--color-surface-hover);
+  --vyra-border: var(--color-border);
+  --vyra-border-subtle: var(--color-border-subtle);
+  --vyra-text-primary: var(--color-text-primary);
+  --vyra-text-secondary: var(--color-text-secondary);
+  --vyra-text-muted: var(--color-text-muted);
+  --vyra-accent-primary: var(--color-accent-cyan);
+  --vyra-accent-secondary: var(--color-accent-violet);
+  --vyra-accent-tertiary: var(--color-accent-magenta);
+
+  --vyra-success: #10b981;
+  --vyra-warning: #f59e0b;
+  --vyra-danger: #ef4444;
+  --vyra-info: #38bdf8;
+
+  --vyra-font-body: var(--font-sans);
+  --vyra-font-mono: var(--font-mono);
+
+  --vyra-space-1: 0.25rem;
+  --vyra-space-2: 0.5rem;
+  --vyra-space-3: 0.75rem;
+  --vyra-space-4: 1rem;
+  --vyra-space-5: 1.25rem;
+  --vyra-space-6: 1.5rem;
+  --vyra-space-8: 2rem;
+  --vyra-space-10: 2.5rem;
+  --vyra-space-12: 3rem;
+
+  --vyra-radius-sm: 0.375rem;
+  --vyra-radius-md: 0.625rem;
+  --vyra-radius-lg: 0.875rem;
+  --vyra-radius-xl: 1.125rem;
+  --vyra-radius-pill: 9999px;
+
+  --vyra-shadow-card: 0 8px 24px rgb(0 0 0 / 0.12);
+  --vyra-shadow-overlay: 0 20px 60px rgb(0 0 0 / 0.28);
+
+  --vyra-duration-fast: 120ms;
+  --vyra-duration-normal: 200ms;
+  --vyra-duration-slow: 300ms;
+
+  --vyra-content-width: 80rem;
+  --vyra-header-height: 4rem;
+  --vyra-sidebar-width: 16.25rem;
+  --vyra-sidebar-collapsed-width: 4.5rem;
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+:focus-visible {
+  outline: 2px solid var(--vyra-accent-primary);
+  outline-offset: 2px;
+}
