@@ -49,6 +49,26 @@
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
   }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--color-accent-cyan);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent-cyan) 28%, transparent);
+  }
 }
 
 /* Custom scrollbars */

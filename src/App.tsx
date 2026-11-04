@@ -281,14 +281,14 @@ const StudioContent: React.FC = () => {
   const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'vyral-project' ? 'Vyral Project' : page === 'marketplace' ? 'Marketplace' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
 
   return (
-    <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100">
-      <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-[#080B16]/95 backdrop-blur-xl">
+    <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100 transition-colors light:bg-slate-50 light:text-slate-950">
+      <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-[#080B16]/95 backdrop-blur-xl light:border-slate-200 light:bg-white/90">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-7">
-          <button onClick={() => { setMode('workspace'); navigate('home'); }} aria-label="VYRA Workspace" className="flex min-w-0 items-center gap-3"><BrandLogo size="sm" showWordmark /><span className="hidden border-l border-slate-700 pl-3 text-xs text-slate-400 sm:inline">Creative Studio</span></button>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setMode('workspace')} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold ${mode === 'workspace' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900'}`}><Clapperboard className="h-4 w-4" /><span className="hidden sm:inline">Workspace</span></button>
-            <button onClick={() => setMode('chat')} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold ${mode === 'chat' ? 'bg-cyan-300 text-slate-950' : 'text-slate-400 hover:bg-slate-900'}`}><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">AI Chat</span></button>
-            <button onClick={toggleTheme} aria-label="Toggle theme" className="rounded-xl p-2 text-slate-400 hover:bg-slate-900">{theme === 'dark' ? <Sparkles className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}</button>
+          <button onClick={() => { setMode('workspace'); navigate('home'); }} aria-label="VYRA Workspace" className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2"><BrandLogo size="sm" showWordmark /><span className="hidden border-l border-slate-700 pl-3 text-xs text-slate-400 light:border-slate-200 light:text-slate-500 sm:inline">Creative Studio</span></button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button onClick={() => setMode('workspace')} aria-pressed={mode === 'workspace'} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${mode === 'workspace' ? 'bg-slate-800 text-white light:bg-slate-100 light:text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}><Clapperboard className="h-4 w-4" /><span className="hidden sm:inline">Workspace</span></button>
+            <button onClick={() => setMode('chat')} aria-pressed={mode === 'chat'} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${mode === 'chat' ? 'bg-cyan-300 text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">AI Chat</span></button>
+            <button onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2">{theme === 'dark' ? <Sparkles className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}</button>
           </div>
         </div>
       </header>
@@ -297,11 +297,11 @@ const StudioContent: React.FC = () => {
         <main className="mx-auto h-[calc(100dvh-4rem)] max-w-[1440px] overflow-hidden p-2 sm:p-4"><AIIdeasChatView /></main>
       ) : (
         <>
-          <nav className="border-b border-slate-800/70 bg-[#0B1020]">
+          <nav aria-label="Workspace sections" className="border-b border-slate-800/70 bg-[#0B1020] light:border-slate-200 light:bg-white">
             <div className="mx-auto flex max-w-[1440px] items-center gap-2 overflow-x-auto px-4 py-3 sm:px-7">
               {([
                 ['home', 'Workspace'], ['storyboards', 'Storyboards'], ['vyrals', 'Vyrals'], ['marketplace', 'Marketplace'], ['media', 'Media Library'], ['settings', 'Settings'],
-              ] as [WorkspacePage, string][]).map(([id, label]) => <button key={id} onClick={() => navigate(id)} className={`shrink-0 rounded-xl px-4 py-2 text-xs font-semibold transition ${page === id ? 'bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/30' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}>{label}</button>)}
+              ] as [WorkspacePage, string][]).map(([id, label]) => <button key={id} onClick={() => navigate(id)} aria-current={page === id ? 'page' : undefined} className={`shrink-0 rounded-xl px-4 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${page === id ? 'bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/30 light:bg-indigo-50 light:text-indigo-700 light:ring-indigo-200' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}>{label}</button>)}
             </div>
           </nav>
           <main className="min-h-[calc(100dvh-7.5rem)]">

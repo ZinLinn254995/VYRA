@@ -43,7 +43,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
           aria-hidden="true"
         >
           {/* Subtle dark backdrop hexagon / shield contour */}
-          <rect width="48" height="48" rx="12" className="fill-[#090B18] dark:fill-[#171A35]" />
+          <rect width="48" height="48" rx="12" className="fill-white light:fill-white dark:fill-[#171A35]" />
 
           {/* Left Wing - Deep Violet to Cyan Gradient */}
           <path
@@ -89,7 +89,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 items-center gap-1.5">
             <span
-              className={`${textSizes} min-w-0 truncate font-black tracking-widest text-slate-900 dark:text-white transition-colors`}
+              className={`${textSizes} min-w-0 truncate font-black tracking-widest text-white light:text-slate-950 transition-colors`}
             >
               {BRAND_CONFIG.name}
             </span>
@@ -97,7 +97,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
               Studio
             </span>
           </div>
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 -mt-0.5 tracking-tight truncate max-w-[170px]">
+          <span className="text-[11px] font-medium text-slate-400 light:text-slate-500 -mt-0.5 tracking-tight truncate max-w-[170px]">
             {BRAND_CONFIG.tagline}
           </span>
         </div>
