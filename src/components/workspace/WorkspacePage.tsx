@@ -5,7 +5,7 @@ import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string };
-type Props = { storageKey: string; seedDemoStoryboards?: boolean };
+type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -58,7 +58,7 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-none focus-visible:outline-none focus:ring-0 placeholder:text-[var(--vyra-text-muted)]';
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -76,6 +76,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     event.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
+    if (!isAuthenticated) {
+      onLoginRequired();
+      return;
+    }
     const now = new Date().toISOString();
     const next: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
