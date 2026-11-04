@@ -23,6 +23,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const dialogRef = useRef<HTMLElement>(null);
+  const dialogBodyRef = useRef<HTMLDivElement>(null);
   const [visualViewport, setVisualViewport] = useState(() => ({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 }));
 
   React.useEffect(() => {
@@ -45,13 +46,14 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
       // software keyboard opens or changes size.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
         const dialog = dialogRef.current;
+        const scrollArea = dialogBodyRef.current;
         const active = dialog?.querySelector<HTMLElement>('input:focus, textarea:focus');
-        if (!dialog || !active) return;
+        if (!dialog || !scrollArea || !active) return;
 
-        const dialogBounds = dialog.getBoundingClientRect();
+        const areaBounds = scrollArea.getBoundingClientRect();
         const fieldBounds = active.getBoundingClientRect();
-        const safeTop = dialogBounds.top + 16;
-        const safeBottom = dialogBounds.bottom - 16;
+        const safeTop = areaBounds.top + 12;
+        const safeBottom = areaBounds.bottom - 12;
         const fields = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([type="hidden"]), textarea'));
         const isLastField = fields[fields.length - 1] === active;
         const submitButton = dialog.querySelector<HTMLElement>('form button[type="submit"]');
@@ -63,9 +65,10 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
           : fieldBounds.bottom;
 
         if (requiredBottom > safeBottom) {
-          dialog.scrollTo({ top: dialog.scrollTop + requiredBottom - safeBottom, behavior: 'auto' });
+          const nextTop = scrollArea.scrollTop + requiredBottom - safeBottom;
+          scrollArea.scrollTo({ top: Math.min(scrollArea.scrollHeight - scrollArea.clientHeight, nextTop), behavior: 'auto' });
         } else if (fieldBounds.top < safeTop) {
-          dialog.scrollTo({ top: Math.max(0, dialog.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
+          scrollArea.scrollTo({ top: Math.max(0, scrollArea.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
         }
       }));
     };
@@ -127,7 +130,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
 
   return (
     <div className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 24) }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="flex w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ height: Math.min(760, Math.max(220, visualViewport.height - 24)) }}>
         <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-5 py-4">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-xs font-black text-slate-950">V</span>
@@ -136,7 +139,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40"><X size={18} /></button>
         </div>
 
-        <div className="p-6 sm:p-7">
+        <div ref={dialogBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 sm:p-7">
           <div className="mb-6">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">Your creative space</p>
             <h2 id="auth-dialog-title" className="text-2xl font-bold tracking-tight">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
