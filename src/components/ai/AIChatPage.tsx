@@ -124,19 +124,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
   return (
     <main className="relative mx-auto h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
-      <header className="absolute right-3 top-3 z-50 flex h-12 items-center justify-end gap-1 rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/90 px-1.5 shadow-xl shadow-black/15 backdrop-blur-xl sm:right-6 sm:top-4">
-        <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
-          <History size={23} />
-        </Button>
-        <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="New chat" title="New chat" onClick={startNewChat}>
-          <Plus size={24} />
-        </Button>
+      <header className="absolute right-3 top-3 z-50 flex h-10 items-center justify-end sm:right-6 sm:top-4">
         <div className="relative">
-          <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Chat actions" title="Chat actions" onClick={() => setActionsOpen((open) => !open)}>
-            <MoreHorizontal size={24} />
+          <Button size="sm" variant="ghost" className="size-10 px-0" aria-label="Chat menu" title="Chat menu" onClick={() => setActionsOpen((open) => !open)}>
+            <MoreHorizontal size={23} />
           </Button>
           {actionsOpen && (
-            <div className="absolute right-0 top-10 z-30 w-48 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-1.5 shadow-xl">
+            <div className="absolute right-0 top-11 z-30 w-48 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-1">
+              <button type="button" onClick={() => { setHistoryOpen(true); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">
+                <History size={14} /> Recent chats
+              </button>
+              <button type="button" onClick={startNewChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">
+                <Plus size={14} /> New chat
+              </button>
+              <div className="my-1 border-t border-[var(--vyra-border-subtle)]" />
               <button type="button" disabled={!hasMessages} onClick={shareCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40">
                 <Share2 size={14} /> Share chat
               </button>
@@ -184,11 +185,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         )}
       </section>
 
-      <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto w-auto max-w-[var(--vyra-content-width)] rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl sm:inset-x-6 sm:bottom-4">
+      <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto w-auto max-w-[var(--vyra-content-width)] p-0 sm:inset-x-6 sm:bottom-4">
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
-        <form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2 shadow-lg shadow-black/10 focus-within:border-[var(--vyra-accent-primary)]/60">
+        <form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2 focus-within:border-[var(--vyra-accent-primary)]/60">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
