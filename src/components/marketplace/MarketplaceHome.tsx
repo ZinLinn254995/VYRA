@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowUpRight, AudioLines, Box, Clapperboard, Layers3, Search, Sparkles, Users, WandSparkles } from 'lucide-react';
+import { ArrowUpRight, AudioLines, Box, Clapperboard, Layers3, Search, Sparkles, Store, Users, WandSparkles } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 
@@ -47,7 +47,7 @@ export const MarketplaceHome: React.FC<MarketplaceProps> = ({ onLoginRequired })
       <section className="mb-8 flex flex-col gap-5 md:mb-10 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
           <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">
-            <Sparkles size={14} /> VYRA CREATIVE MARKET
+            <Store size={14} /> VYRA CREATIVE MARKET
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-4xl">Marketplace</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--vyra-text-secondary)] sm:text-base">
