@@ -14,6 +14,7 @@ import { CreateVideoView } from './components/views/CreateVideoView';
 import { AIIdeasChatView } from './components/views/AIIdeasChatView';
 import { MediaLibraryView } from './components/views/MediaLibraryView';
 import { VyralLibraryView } from './components/views/VyralLibraryView';
+import { VyralProjectWorkspaceView } from './components/views/VyralProjectWorkspaceView';
 import { SettingsView } from './components/views/SettingsView';
 import { Toast } from './components/common/Toast';
 import type { Project, AspectRatio } from './types';
@@ -24,7 +25,7 @@ import {
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
-type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'marketplace' | 'media' | 'settings' | 'create';
+type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'vyral-project' | 'marketplace' | 'media' | 'settings' | 'create';
 
 const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void; onCreateStoryboard: () => void }> = ({ onNavigate, onCreateStoryboard }) => {
   const { projects, activeProject, setActiveProjectId } = useStudio();
@@ -276,7 +277,7 @@ const StudioContent: React.FC = () => {
     touchStart.current = null;
   };
 
-  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'marketplace' ? 'Marketplace' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
+  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'vyral-project' ? 'Vyral Project' : page === 'marketplace' ? 'Marketplace' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
 
   return (
     <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100">
@@ -307,7 +308,8 @@ const StudioContent: React.FC = () => {
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
             {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} onBack={() => setPage('storyboard')} />}
-            {page === 'vyrals' && <VyralLibraryView />}
+            {page === 'vyrals' && <VyralLibraryView onOpenWorkspace={() => setPage('vyral-project')} />}
+            {page === 'vyral-project' && <VyralProjectWorkspaceView onBack={() => setPage('vyrals')} />}
             {page === 'marketplace' && <MarketplaceView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
