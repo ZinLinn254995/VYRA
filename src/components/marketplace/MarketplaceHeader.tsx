@@ -7,6 +7,7 @@ type HeaderProps = {
   creditBalance: string | null;
   creditLoading: boolean;
   activeSection: 'marketplace' | 'workspace' | 'ai-chat';
+  onMarketplaceRequest: () => void;
   onWorkspaceRequest: () => void;
   onAIChatRequest: () => void;
   onAuthRequest: (mode: 'login' | 'signup') => void;
@@ -15,7 +16,7 @@ type HeaderProps = {
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
   userEmail, creditBalance, creditLoading, activeSection,
-  onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
+  onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
   const signedIn = Boolean(userEmail);
   const formattedBalance = creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
@@ -33,13 +34,13 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/90 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
-        <a href="#marketplace" aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
+        <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-sm font-black text-slate-950">V</span>
           <span className="text-lg font-extrabold tracking-[0.16em] text-[var(--vyra-text-primary)]">VYRA</span>
-        </a>
+        </button>
 
         <nav aria-label="Main navigation" className="flex h-full items-center gap-0.5 sm:gap-1">
-          <a href="#marketplace" aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={navClass('marketplace')}>Marketplace</a>
+          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={navClass('marketplace')}>Marketplace</button>
           <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={navClass('workspace')}>
             Workspace {!signedIn && <LockKeyhole size={12} className="opacity-60" />}
           </button>
@@ -71,10 +72,10 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
 
       <div className="mx-auto max-w-[var(--vyra-content-width)] px-3 sm:hidden">
         <div className="flex h-14 items-center justify-between gap-2">
-          <a href="#marketplace" aria-label="VYRA Marketplace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
+          <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
             <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-sm font-black text-slate-950">V</span>
             <span className="text-base font-extrabold tracking-[0.13em] text-[var(--vyra-text-primary)]">VYRA</span>
-          </a>
+          </button>
 
           <div className="relative flex shrink-0 items-center gap-2">
             {signedIn ? (
@@ -98,7 +99,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
         </div>
 
         <nav aria-label="Main navigation" className="flex min-h-11 items-center gap-1 border-t border-[var(--vyra-border-subtle)]">
-          <a href="#marketplace" aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={mobileNavClass('marketplace')}>Marketplace</a>
+          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={mobileNavClass('marketplace')}>Marketplace</button>
           <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={mobileNavClass('workspace')}>
             Workspace {!signedIn && <LockKeyhole size={11} className="opacity-60" />}
           </button>
