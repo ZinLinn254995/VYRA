@@ -71,10 +71,31 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const syncViewport = () => setVisualViewport({ top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight });
     const keepFocusedFieldVisible = () => {
       syncViewport();
-      window.requestAnimationFrame(() => {
-        const active = dialogRef.current?.querySelector<HTMLElement>('input:focus, textarea:focus');
-        active?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-      });
+      // Measure after the keyboard has resized the visual viewport and the
+      // dialog has received its new height.
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        const dialog = dialogRef.current;
+        const active = dialog?.querySelector<HTMLElement>('input:focus, textarea:focus');
+        if (!dialog || !active) return;
+
+        const dialogBounds = dialog.getBoundingClientRect();
+        const fieldBounds = active.getBoundingClientRect();
+        const safeTop = dialogBounds.top + 16;
+        const safeBottom = dialogBounds.bottom - 16;
+        const fields = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([type="hidden"]), textarea'));
+        const isLastField = fields[fields.length - 1] === active;
+        const submitButton = dialog.querySelector<HTMLElement>('form button[type="submit"]');
+        const submitBounds = submitButton?.getBoundingClientRect();
+        const requiredBottom = isLastField && submitBounds
+          ? Math.max(fieldBounds.bottom, submitBounds.bottom)
+          : fieldBounds.bottom;
+
+        if (requiredBottom > safeBottom) {
+          dialog.scrollTo({ top: dialog.scrollTop + requiredBottom - safeBottom, behavior: 'auto' });
+        } else if (fieldBounds.top < safeTop) {
+          dialog.scrollTo({ top: Math.max(0, dialog.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
+        }
+      }));
     };
     syncViewport();
     viewport?.addEventListener('resize', keepFocusedFieldVisible);
