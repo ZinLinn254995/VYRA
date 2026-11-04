@@ -32,7 +32,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/90 backdrop-blur-xl">
+    <header className="relative z-50 w-full shrink-0 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-sm font-black text-slate-950">V</span>
