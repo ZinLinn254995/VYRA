@@ -85,8 +85,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
       <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(120, visualViewport.height - 16) }}>
         <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
           <div className="mb-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">Your creative space</p>
+            <div className="mb-2 flex justify-end">
               <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="shrink-0 rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40"><X size={18} /></button>
             </div>
             <h2 id="auth-dialog-title" className="text-2xl font-bold tracking-tight">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
