@@ -42,7 +42,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const nextHeight = Math.min(textarea.scrollHeight, 144);
     textarea.style.height = `${nextHeight}px`;
     setIsMultiline(nextHeight > 48);
-  }, [draft]);
+  }, [draft, isMultiline]);
 
   const hasMessages = messages.length > 0;
   const currentTitle = useMemo(() => {
