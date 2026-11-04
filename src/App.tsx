@@ -207,6 +207,7 @@ const StudioContent: React.FC = () => {
   const [mode, setMode] = useState<AppMode>('workspace');
   const [page, setPage] = useState<WorkspacePage>('home');
   const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
+  const [activeVyralName, setActiveVyralName] = useState('Vyral Workspace');
   const [showCreateStoryboard, setShowCreateStoryboard] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -308,8 +309,8 @@ const StudioContent: React.FC = () => {
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
             {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} onBack={() => setPage('storyboard')} />}
-            {page === 'vyrals' && <VyralLibraryView onOpenWorkspace={() => setPage('vyral-project')} />}
-            {page === 'vyral-project' && <VyralProjectWorkspaceView onBack={() => setPage('vyrals')} />}
+            {page === 'vyrals' && <VyralLibraryView onOpenWorkspace={(name) => { setActiveVyralName(name); setPage('vyral-project'); }} />}
+            {page === 'vyral-project' && <VyralProjectWorkspaceView vyralName={activeVyralName} onBack={() => setPage('vyrals')} />}
             {page === 'marketplace' && <MarketplaceView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
