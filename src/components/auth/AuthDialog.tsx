@@ -75,9 +75,16 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
 
       const areaBounds = scrollArea.getBoundingClientRect();
       const fieldBounds = active.getBoundingClientRect();
-      focusedFieldIsInLowerHalf =
-        fieldBounds.top + fieldBounds.height / 2 >= areaBounds.top + areaBounds.height / 2;
+      const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
+      const areaMidpoint = areaBounds.top + areaBounds.height / 2;
+      const boundaryTolerance = areaBounds.height * 0.04;
 
+      if (Math.abs(fieldMidpoint - areaMidpoint) <= boundaryTolerance) {
+        focusedFieldIsInLowerHalf = null;
+        return;
+      }
+
+      focusedFieldIsInLowerHalf = fieldMidpoint > areaMidpoint;
       scheduleFocusedFieldScroll();
     };
 
