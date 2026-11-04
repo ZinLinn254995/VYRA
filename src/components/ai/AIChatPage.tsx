@@ -123,17 +123,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-7.5rem)] w-full max-w-[var(--vyra-content-width)] flex-col px-3 pb-4 pt-3 sm:min-h-[calc(100vh-4rem)] sm:px-6 sm:pt-4">
-      <header className="flex h-10 shrink-0 items-center justify-end gap-1">
-        <Button size="sm" variant="ghost" className="size-9 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
-          <History size={18} />
+    <main className="mx-auto flex h-[calc(100dvh-7.5rem)] w-full max-w-[var(--vyra-content-width)] flex-col overflow-hidden px-3 pb-3 pt-3 sm:h-[calc(100dvh-4rem)] sm:px-6 sm:pt-4">
+      <header className="flex h-14 shrink-0 items-center justify-end gap-2">
+        <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
+          <History size={23} />
         </Button>
-        <Button size="sm" variant="ghost" className="size-9 px-0" aria-label="New chat" title="New chat" onClick={startNewChat}>
-          <Plus size={19} />
+        <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="New chat" title="New chat" onClick={startNewChat}>
+          <Plus size={24} />
         </Button>
         <div className="relative">
-          <Button size="sm" variant="ghost" className="size-9 px-0" aria-label="Chat actions" title="Chat actions" onClick={() => setActionsOpen((open) => !open)}>
-            <MoreHorizontal size={19} />
+          <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Chat actions" title="Chat actions" onClick={() => setActionsOpen((open) => !open)}>
+            <MoreHorizontal size={24} />
           </Button>
           {actionsOpen && (
             <div className="absolute right-0 top-10 z-30 w-48 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-1.5 shadow-xl">
@@ -156,7 +156,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         </div>
       </header>
 
-      <section className="flex min-h-0 flex-1 flex-col">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasMessages ? (
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8 text-center">
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
@@ -168,7 +168,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             </p>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto py-5">
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto overscroll-contain py-5">
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
@@ -184,7 +184,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         )}
       </section>
 
-      <div className="mx-auto w-full max-w-3xl pt-3">
+      <div className="mx-auto w-full max-w-3xl shrink-0 pt-3">
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
