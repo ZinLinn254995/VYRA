@@ -141,7 +141,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     <main className="relative mx-auto h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
       <header className="fixed right-3 top-[calc(var(--vyra-visual-viewport-top,0px)+112px)] z-[60] flex items-start justify-end sm:right-6 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+76px)]">
         <div
-          className="relative overflow-hidden border border-[var(--vyra-border)] bg-white text-slate-800"
+          className="relative overflow-hidden border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-primary)]"
           style={{
             width: actionsOpen ? 208 : 40,
             height: actionsOpen ? 304 : 40,
@@ -152,7 +152,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           <Button
             size="sm"
             variant="ghost"
-            className={`absolute right-0 top-0 z-10 size-10 rounded-full px-0 text-slate-800 ${actionsOpen ? 'bg-transparent hover:bg-transparent' : 'bg-white hover:bg-slate-100'}`}
+            className={`absolute right-0 top-0 z-10 size-10 rounded-full px-0 text-[var(--vyra-text-primary)] ${actionsOpen ? 'bg-transparent hover:bg-[var(--vyra-bg-hover)]' : 'bg-[var(--vyra-bg-surface)] hover:bg-[var(--vyra-bg-hover)]'}`}
             aria-label={actionsOpen ? 'Close chat menu' : 'Open chat menu'}
             title="Chat menu"
             onClick={() => setActionsOpen((open) => !open)}
@@ -161,27 +161,27 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           </Button>
           <div
             aria-hidden={!actionsOpen}
-            className={`absolute inset-x-0 bottom-0 top-10 p-1.5 pt-1 text-slate-800 transition-opacity duration-200 ${actionsOpen ? 'opacity-100 delay-100' : 'pointer-events-none opacity-0'}`}
+            className={`absolute inset-x-0 bottom-0 top-10 p-1.5 pt-1 text-[var(--vyra-text-primary)] transition-opacity duration-200 ${actionsOpen ? 'opacity-100 delay-100' : 'pointer-events-none opacity-0'}`}
           >
-            <button type="button" tabIndex={actionsOpen ? 0 : -1} onClick={() => { setHistoryOpen(true); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-slate-800 hover:bg-slate-100">
+            <button type="button" tabIndex={actionsOpen ? 0 : -1} onClick={() => { setHistoryOpen(true); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition-colors hover:bg-[var(--vyra-bg-hover)]">
               <History size={14} /> Recent chats
             </button>
-            <button type="button" tabIndex={actionsOpen ? 0 : -1} onClick={startNewChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-slate-800 hover:bg-slate-100">
+            <button type="button" tabIndex={actionsOpen ? 0 : -1} onClick={startNewChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition-colors hover:bg-[var(--vyra-bg-hover)]">
               <Plus size={14} /> New chat
             </button>
-            <div className="my-1 border-t border-slate-200" />
-            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={shareCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+            <div className="my-1 border-t border-[var(--vyra-border-subtle)]" />
+            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={shareCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40">
               <Share2 size={14} /> Share chat
             </button>
-            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={archiveCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={archiveCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40">
               <Archive size={14} /> Archive chat
             </button>
-            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={toggleLock} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={toggleLock} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40">
               {isLocked ? <Unlock size={14} /> : <Lock size={14} />}
               {isLocked ? 'Unlock chat' : 'Lock chat'}
             </button>
-            <div className="my-1 border-t border-slate-200" />
-            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={deleteCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40">
+            <div className="my-1 border-t border-[var(--vyra-border-subtle)]" />
+            <button type="button" tabIndex={actionsOpen ? 0 : -1} disabled={!hasMessages} onClick={deleteCurrentChat} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-danger)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40">
               <Trash2 size={14} /> Delete chat
             </button>
           </div>
