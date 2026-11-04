@@ -114,119 +114,74 @@ const StoryboardLibrary: React.FC<{ onOpen: (id: string) => void; onCreate: () =
   );
 };
 
-const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreateScene: () => void; onPreview: () => void }> = ({ onOpenScene, onCreateScene, onPreview }) => {
+const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreateScene: () => void }> = ({ onOpenScene, onCreateScene }) => {
   const { activeProject, updateProject, reorderScenes } = useStudio();
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
   const orderedScenes = [...activeProject.scenes].sort((a, b) => a.order - b.order);
+  const safeIndex = Math.min(previewIndex, Math.max(0, orderedScenes.length - 1));
+  const previewScene = orderedScenes[safeIndex];
+  useEffect(() => {
+    if (!isPlaying || !previewScene || orderedScenes.length < 2) return;
+    const timeout = window.setTimeout(() => setPreviewIndex((current) => current >= orderedScenes.length - 1 ? 0 : current + 1), Math.max(1, previewScene.duration || 8) * 1000);
+    return () => window.clearTimeout(timeout);
+  }, [isPlaying, safeIndex, previewScene?.id, previewScene?.duration, orderedScenes.length]);
+  useEffect(() => { setPreviewIndex(0); setIsPlaying(false); }, [activeProject.id]);
+  const previewRatio = activeProject.aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[420px]' : activeProject.aspectRatio === '1:1' ? 'aspect-square max-h-[420px]' : 'aspect-video';
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 flex-1">
+      <section className="space-y-4">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Storyboard details</p>
           <input aria-label="Storyboard name" value={activeProject.title} onChange={(event) => updateProject(activeProject.id, { title: event.target.value })} className="mt-2 w-full max-w-2xl bg-transparent text-2xl font-semibold text-white outline-none placeholder:text-slate-600 sm:text-3xl" />
           <textarea aria-label="Storyboard description" value={activeProject.topic} onChange={(event) => updateProject(activeProject.id, { topic: event.target.value })} placeholder="Add a description..." rows={2} className="mt-2 w-full max-w-2xl resize-y rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-300">Status · {activeProject.status.replaceAll('_', ' ')}</span>
-            <label className="inline-flex items-center gap-2 text-slate-400">Aspect ratio
-              <select aria-label="Storyboard aspect ratio" value={activeProject.aspectRatio} onChange={(event) => updateProject(activeProject.id, { aspectRatio: event.target.value as AspectRatio })} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 outline-none focus:border-cyan-400">
-                <option value="9:16">9:16 Portrait</option><option value="16:9">16:9 Landscape</option><option value="1:1">1:1 Square</option>
-              </select>
-            </label>
-            <span className="text-slate-500">{activeProject.scenes.length} scenes</span>
-          </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">\n          <button onClick={onPreview} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/60 hover:text-white"><PlayCircle className="h-4 w-4" /> Preview</button>\n          {orderedScenes.length > 0 && <button onClick={onCreateScene} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>}\n        </div>
-      </div>
-      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2.5 text-xs">
+          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-300">{activeProject.status.replaceAll('_', ' ')}</span>
+          <label className="inline-flex items-center gap-2 text-slate-400">Aspect ratio
+            <select aria-label="Storyboard aspect ratio" value={activeProject.aspectRatio} onChange={(event) => updateProject(activeProject.id, { aspectRatio: event.target.value as AspectRatio })} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+              <option value="9:16">9:16 Portrait</option><option value="16:9">16:9 Landscape</option><option value="1:1">1:1 Square</option>
+            </select>
+          </label>
+          <span className="text-slate-500">{orderedScenes.length} scenes · {orderedScenes.reduce((sum, scene) => sum + (scene.duration || 0), 0)}s total</span>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Storyboard Preview</h2><p className="mt-0.5 text-xs text-slate-500">Sequence overview · {activeProject.aspectRatio}</p></div><span className="text-xs text-slate-500">{orderedScenes.length ? `Scene ${safeIndex + 1} of ${orderedScenes.length}` : 'Waiting for scenes'}</span></div>
+          {previewScene ? <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className={`relative mx-auto flex w-full max-w-[220px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black sm:mx-0 ${previewRatio}`}>
+              {previewScene.mediaUrl ? <img src={previewScene.mediaUrl} alt={`Scene ${safeIndex + 1} preview`} className="h-full w-full object-contain" /> : <div className="p-5 text-center"><Film className="mx-auto h-8 w-8 text-slate-600" /><p className="mt-2 text-xs text-slate-400">Scene preview will appear here</p></div>}
+              <span className="absolute bottom-2 left-2 rounded-md bg-black/70 px-2 py-1 text-[10px] text-white">{previewScene.duration || 8}s</span>
+            </div>
+            <div className="min-w-0 flex-1"><p className="text-sm leading-6 text-slate-300">{previewScene.narration || previewScene.visualPrompt || 'Add scene details to see them here.'}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button onClick={() => { setIsPlaying(false); setPreviewIndex((i) => Math.max(0, i - 1)); }} disabled={safeIndex === 0} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-30">Previous</button>
+                <button onClick={() => setIsPlaying((v) => !v)} disabled={orderedScenes.length < 2} className="rounded-lg bg-cyan-300 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">{isPlaying ? 'Pause' : 'Play sequence'}</button>
+                <button onClick={() => { setIsPlaying(false); setPreviewIndex((i) => Math.min(orderedScenes.length - 1, i + 1)); }} disabled={safeIndex >= orderedScenes.length - 1} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-30">Next</button>
+              </div><p className="mt-3 text-[11px] text-slate-500">This is a storyboard preview, not the final rendered video.</p>
+            </div>
+          </div> : <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 text-center"><p className="text-xs text-slate-500">Your combined scene preview will appear here as you add scenes.</p></div>}
+        </div>
+      </section>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Scenes</h2><p className="mt-1 text-xs text-slate-500">Scenes are arranged in the order they will appear.</p></div><button onClick={onCreateScene} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button></div>
         {orderedScenes.map((scene, index) => {
           const isVideo = Boolean(scene.generatedVideoId);
           const isImage = Boolean(scene.generatedImageId || scene.mediaUrl);
-          return (
-            <div key={scene.id} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:gap-5 sm:p-4">
-              <div className="flex shrink-0 flex-col gap-1">
-                <button aria-label={`Move item ${index + 1} up`} disabled={index === 0} onClick={() => reorderScenes(activeProject.id, index, index - 1)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-20"><ChevronUp className="h-4 w-4" /></button>
-                <span className="text-center text-xs font-semibold tabular-nums text-slate-500">{index + 1}</span>
-                <button aria-label={`Move item ${index + 1} down`} disabled={index === orderedScenes.length - 1} onClick={() => reorderScenes(activeProject.id, index, index + 1)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-20"><ChevronDown className="h-4 w-4" /></button>
-              </div>
-              <button onClick={() => onOpenScene(scene.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-5">
-                <div className="relative flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-800 sm:h-24 sm:w-40">
-                  {scene.mediaUrl ? <img src={scene.mediaUrl} alt="" className="h-full w-full object-cover" /> : <FileText className="h-7 w-7 text-slate-500" />}
-                  <span className="absolute bottom-1 left-1 rounded-md bg-slate-950/80 px-2 py-1 text-[9px] font-semibold uppercase text-slate-200">{isVideo ? 'Video' : isImage ? 'Image' : 'Idea'}</span>
-                  {isVideo && <PlayCircle className="absolute right-2 top-2 h-5 w-5 text-white drop-shadow" />}
-                </div>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-white">Scene {index + 1}</span>
-                  <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-400">{scene.narration || scene.visualPrompt || 'Creative idea — open to add details.'}</span>
-                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-300">Open Scene Workspace <ArrowRight className="h-3 w-3" /></span>
-                </span>
-              </button>
-            </div>
-          );
+          return <div key={scene.id} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:gap-5 sm:p-4">
+            <div className="flex shrink-0 flex-col gap-1"><button aria-label={`Move scene ${index + 1} up`} disabled={index === 0} onClick={() => reorderScenes(activeProject.id, index, index - 1)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-20"><ChevronUp className="h-4 w-4" /></button><span className="text-center text-xs font-semibold tabular-nums text-slate-500">{index + 1}</span><button aria-label={`Move scene ${index + 1} down`} disabled={index === orderedScenes.length - 1} onClick={() => reorderScenes(activeProject.id, index, index + 1)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-20"><ChevronDown className="h-4 w-4" /></button></div>
+            <button onClick={() => { setIsPlaying(false); setPreviewIndex(index); onOpenScene(scene.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-5">
+              <div className="relative flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-800 sm:h-24 sm:w-40">{scene.mediaUrl ? <img src={scene.mediaUrl} alt="" className="h-full w-full object-cover" /> : <FileText className="h-7 w-7 text-slate-500" />}<span className="absolute bottom-1 left-1 rounded-md bg-slate-950/80 px-2 py-1 text-[9px] font-semibold uppercase text-slate-200">{isVideo ? 'Video' : isImage ? 'Image' : 'Idea'}</span>{isVideo && <PlayCircle className="absolute right-2 top-2 h-5 w-5 text-white drop-shadow" />}</div>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-white">Scene {index + 1}</span><span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-400">{scene.narration || scene.visualPrompt || 'Creative idea — open to add details.'}</span><span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-300">Open Scene Workspace <ArrowRight className="h-3 w-3" /></span></span>
+            </button>
+          </div>;
         })}
-        {!orderedScenes.length && (
-          <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 px-6 py-14 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300/10 text-cyan-300"><Plus className="h-6 w-6" /></div>
-            <h2 className="mt-4 text-base font-semibold text-white">No scenes yet</h2>
-            <p className="mt-1 text-sm text-slate-400">Start building this Storyboard by adding your first Scene.</p>
-            <button onClick={onCreateScene} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Scene</button>
-          </div>
-        )}
-      </div>
+        {!orderedScenes.length && <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 px-6 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300/10 text-cyan-300"><Plus className="h-6 w-6" /></div><h3 className="mt-4 text-sm font-semibold text-white">No scenes yet</h3><p className="mt-1 text-xs text-slate-400">Create your first scene to start building the video.</p><button onClick={onCreateScene} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Scene</button></div>}
+      </section>
     </div>
   );
 };
 
-
-const StoryboardPreview: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
-  const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
-  const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const scene = scenes[index];
-  useEffect(() => {
-    if (!playing || !scene || scenes.length < 2) return;
-    const timeout = window.setTimeout(() => {
-      setIndex((current) => current >= scenes.length - 1 ? 0 : current + 1);
-    }, Math.max(1, scene.duration || 8) * 1000);
-    return () => window.clearTimeout(timeout);
-  }, [playing, index, scene?.id, scene?.duration, scenes.length]);
-  useEffect(() => { setIndex(0); setPlaying(false); }, [project.id]);
-  const ratioClass = project.aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[62vh]' : project.aspectRatio === '1:1' ? 'aspect-square max-h-[62vh]' : 'aspect-video';
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label="Storyboard Preview">
-      <div className="flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 sm:px-6">
-          <div className="min-w-0"><h2 className="truncate text-sm font-semibold text-white">Storyboard Preview</h2><p className="mt-0.5 text-xs text-slate-400">{project.title} · {scenes.length} scenes · {project.aspectRatio}</p></div>
-          <button onClick={onClose} aria-label="Close preview" className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-4 w-4" /></button>
-        </div>
-        {scenes.length ? (
-          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 sm:grid-cols-[minmax(0,1fr)_16rem] sm:p-6">
-            <div className="flex min-h-0 flex-col items-center justify-center gap-3">
-              <div className={`relative flex w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl bg-black ${ratioClass}`}>
-                {scene?.mediaUrl ? <img src={scene.mediaUrl} alt={`Scene ${index + 1} preview`} className="h-full w-full object-contain" /> : <div className="p-6 text-center"><Film className="mx-auto h-10 w-10 text-slate-600" /><p className="mt-3 text-xs text-slate-400">No visual preview for this scene yet</p></div>}
-                <span className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-white">Scene {index + 1} / {scenes.length}</span>
-              </div>
-              <div className="flex w-full max-w-xl items-center justify-between gap-3">
-                <span className="text-xs text-slate-400">{scene?.duration || 8}s</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => { setPlaying(false); setIndex((current) => Math.max(0, current - 1)); }} disabled={index === 0} aria-label="Previous scene" className="rounded-xl border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 disabled:opacity-30"><SkipBack className="h-4 w-4" /></button>
-                  <button onClick={() => setPlaying((value) => !value)} aria-label={playing ? 'Pause preview' : 'Play preview'} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-200">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{playing ? 'Pause' : 'Play sequence'}</button>
-                  <button onClick={() => { setPlaying(false); setIndex((current) => Math.min(scenes.length - 1, current + 1)); }} disabled={index === scenes.length - 1} aria-label="Next scene" className="rounded-xl border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 disabled:opacity-30"><SkipForward className="h-4 w-4" /></button>
-                </div>
-                <span className="text-xs text-slate-500">{scenes.reduce((sum, item) => sum + (item.duration || 0), 0)}s total</span>
-              </div>
-              <p className="w-full max-w-xl text-sm leading-6 text-slate-300">{scene?.narration || scene?.visualPrompt || 'Scene details have not been added yet.'}</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-400">Scene sequence</p>
-              {scenes.map((item, itemIndex) => <button key={item.id} onClick={() => { setPlaying(false); setIndex(itemIndex); }} className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left ${itemIndex === index ? 'border-cyan-300/60 bg-cyan-300/10' : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'}`}><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs text-slate-300">{itemIndex + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white">Scene {itemIndex + 1}</span><span className="mt-0.5 block truncate text-[11px] text-slate-500">{item.duration || 8}s · {item.narration || item.visualPrompt || 'Not yet described'}</span></span></button>)}
-            </div>
-          </div>
-        ) : <div className="p-12 text-center"><Film className="mx-auto h-10 w-10 text-slate-600" /><h3 className="mt-4 text-sm font-semibold text-white">Nothing to preview yet</h3><p className="mt-1 text-xs text-slate-400">Add scenes to see them together in sequence.</p></div>}
-        <div className="flex justify-end border-t border-slate-800 px-4 py-3"><button onClick={onClose} className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800">Close</button></div>
-      </div>
-    </div>
-  );
-};
 
 const CreateStoryboardDialog: React.FC<{ onClose: () => void; onCreate: (title: string, description: string, aspectRatio: AspectRatio) => void }> = ({ onClose, onCreate }) => {
   const [title, setTitle] = useState('Untitled Storyboard');
@@ -252,7 +207,6 @@ const StudioContent: React.FC = () => {
   const [page, setPage] = useState<WorkspacePage>('home');
   const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
   const [showCreateStoryboard, setShowCreateStoryboard] = useState(false);
-  const [showStoryboardPreview, setShowStoryboardPreview] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -295,7 +249,6 @@ const StudioContent: React.FC = () => {
     });
     setShowCreateStoryboard(false);
     setSelectedSceneId(undefined);
-    setShowStoryboardPreview(false);
     setPage('storyboard');
     setCurrentSection('workspace');
     return projectId;
@@ -351,7 +304,7 @@ const StudioContent: React.FC = () => {
           <main className="min-h-[calc(100dvh-7.5rem)]">
             {page === 'home' && <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />}
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
-            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} onPreview={() => setShowStoryboardPreview(true)} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
+            {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <ProjectWorkspaceView initialSceneId={selectedSceneId} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
