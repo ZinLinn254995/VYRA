@@ -104,7 +104,7 @@ const StoryboardLibrary: React.FC<{ onOpen: (id: string) => void; onCreate: () =
   const { projects } = useStudio();
   const storyboards = [...projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
-    <div className="w-full min-w-0 space-y-6 px-3 py-6 sm:px-5 lg:px-6 sm:py-9">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Your creative work</p><h1 className="mt-2 text-3xl font-semibold text-white">Storyboards</h1><p className="mt-2 text-sm text-slate-400">Each Storyboard contains the ordered creative items for one video.</p></div>
         <button onClick={onCreate} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Storyboard</button>
@@ -128,7 +128,6 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
   }, [isPlaying, safeIndex, previewScene?.id, previewScene?.duration, orderedScenes.length]);
   useEffect(() => { setPreviewIndex(0); setIsPlaying(false); }, [activeProject?.id]);
   if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
-  const previewRatio = activeProject.aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[420px]' : activeProject.aspectRatio === '1:1' ? 'aspect-square max-h-[420px]' : 'aspect-video';
   return (
     <div className="w-full min-w-0 space-y-6 px-3 py-6 sm:px-5 lg:px-6 sm:py-9">
       <section className="space-y-4">
