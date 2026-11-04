@@ -30,7 +30,7 @@ const folders = [
 const kindIcon = (kind: AssetKind) => kind === 'Video' ? Video : kind === 'Audio' ? AudioLines : kind === 'Document' ? FileText : ImageIcon;
 const formatSize = (size?: number) => size == null ? 'Not available' : size < 1024*1024 ? `${(size/1024).toFixed(1)} KB` : `${(size/1024/1024).toFixed(2)} MB`;
 
-export const VyralProjectWorkspaceView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+export const VyralProjectWorkspaceView: React.FC<{ onBack: () => void; vyralName?: string }> = ({ onBack, vyralName = 'Vyral Workspace' }) => {
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [activeFolder, setActiveFolder] = useState('All Assets');
   const [customFolders, setCustomFolders] = useState<string[]>([]);
@@ -96,7 +96,7 @@ export const VyralProjectWorkspaceView: React.FC<{ onBack: () => void }> = ({ on
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
         <button onClick={onBack} aria-label="Back to Vyrals" className="rounded-xl border border-slate-700 bg-slate-900 p-2 text-slate-300 hover:border-cyan-400/50"><ArrowLeft className="h-4 w-4"/></button>
-        <div className="min-w-0"><h1 className="mt-1 truncate text-xl font-semibold sm:text-2xl">Milo Adventure Universe</h1><p className="mt-1 text-xs text-slate-400">Creative Project · {assets.length} files · Version 1.0</p></div>
+        <div className="min-w-0"><h1 className="mt-1 truncate text-xl font-semibold sm:text-2xl">{vyralName}</h1><p className="mt-1 text-xs text-slate-400">Creative Project · {assets.length} files · Version 1.0</p></div>
       </div>
       <div className="flex items-center gap-2"><span className="hidden rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] text-emerald-200 sm:inline-flex"><CheckCircle2 className="mr-1.5 h-3.5 w-3.5"/> File Manager</span><button className="rounded-xl border border-slate-700 p-2 text-slate-300 hover:bg-slate-800" aria-label="More project options"><MoreHorizontal className="h-4 w-4"/></button></div>
     </div>
@@ -111,7 +111,7 @@ export const VyralProjectWorkspaceView: React.FC<{ onBack: () => void }> = ({ on
 
       <section className="min-w-0 space-y-4">
         <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0d1426] p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-          <div><h2 className="text-base font-semibold text-white">{activeFolder}</h2><p className="mt-1 text-[11px] text-slate-500">{visibleAssets.length} files · Single tap to open · Long press to select</p></div>
+          <div>{activeFolder!=='All Assets'&&<button onClick={()=>setActiveFolder('All Assets')} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200"><ArrowLeft className="h-3 w-3"/> All Files</button>}<h2 className="text-base font-semibold text-white">{activeFolder}</h2><p className="mt-1 text-[11px] text-slate-500">{visibleAssets.length} files · Single tap to open · Long press to select</p></div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="relative min-w-0 flex-1 sm:w-44 sm:flex-none"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search files..." className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-xs text-white outline-none focus:border-cyan-400/60"/></label>
             <div className="flex rounded-lg border border-slate-700 bg-slate-950 p-1"><button onClick={()=>setView('grid')} aria-label="Gallery view" className={`rounded-md p-1.5 ${view==='grid'?'bg-slate-700 text-cyan-200':'text-slate-500'}`}><Grid2X2 className="h-4 w-4"/></button><button onClick={()=>setView('list')} aria-label="List view" className={`rounded-md p-1.5 ${view==='list'?'bg-slate-700 text-cyan-200':'text-slate-500'}`}><List className="h-4 w-4"/></button></div>
