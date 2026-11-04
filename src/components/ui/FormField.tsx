@@ -14,12 +14,12 @@ export const FormField: React.FC<FormFieldProps> = ({
   label, htmlFor, hint, error, required, children, className = ''
 }) => (
   <div className={`min-w-0 space-y-1.5 ${className}`}>
-    <label htmlFor={htmlFor} className="block text-xs font-semibold text-slate-300 light:text-slate-700">
-      {label}{required && <span className="ml-1 text-red-400" aria-hidden="true">*</span>}
+    <label htmlFor={htmlFor} className="block text-xs font-semibold text-[var(--vyra-text-primary)]">
+      {label}{required && <span className="ml-1 text-[var(--vyra-danger)]" aria-hidden="true">*</span>}
     </label>
     {children}
     {error
-      ? <p className="text-xs text-red-400" role="alert">{error}</p>
-      : hint ? <p className="text-xs leading-5 text-slate-500">{hint}</p> : null}
+      ? <p className="text-xs text-[var(--vyra-danger)]" role="alert">{error}</p>
+      : hint ? <p className="text-xs leading-5 text-[var(--vyra-text-muted)]">{hint}</p> : null}
   </div>
 );

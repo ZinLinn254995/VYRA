@@ -12,10 +12,10 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 border border-transparent',
-  secondary: 'bg-[#171A35] text-slate-100 border border-[#2B3058] hover:bg-[#262B54] light:bg-white light:text-slate-900 light:border-slate-300 light:hover:bg-slate-50',
-  ghost: 'bg-transparent text-slate-300 border border-transparent hover:bg-[#171A35] light:text-slate-700 light:hover:bg-slate-100',
-  danger: 'bg-red-600 text-white border border-transparent hover:bg-red-500',
+  primary: 'bg-[var(--vyra-accent-primary)] text-[var(--vyra-bg-canvas)] hover:opacity-90 border border-transparent',
+  secondary: 'bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-primary)] border border-[var(--vyra-border)] hover:bg-[var(--vyra-bg-hover)]',
+  ghost: 'bg-transparent text-[var(--vyra-text-secondary)] border border-transparent hover:bg-[var(--vyra-bg-subtle)] hover:text-[var(--vyra-text-primary)]',
+  danger: 'bg-[var(--vyra-danger)] text-white border border-transparent hover:opacity-90',
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -30,7 +30,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex items-center justify-center rounded-lg font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#55F4FF] disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--vyra-accent-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {loading ? <span className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" /> : startIcon}
