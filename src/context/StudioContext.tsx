@@ -40,7 +40,8 @@ import { ToolExecutionRecord } from '../types';
 interface StudioContextType {
   // Theme
   theme: 'dark' | 'light';
-  toggleTheme: () => void;
+  themeMode: 'system' | 'light' | 'dark';
+  setThemeMode: (mode: 'system' | 'light' | 'dark') => void;
 
   // Navigation
   currentSection: NavSection;
@@ -139,31 +140,41 @@ const StudioContext = createContext<StudioContextType | undefined>(undefined);
 
 export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session: authSession, serverVerified } = useAuth();
-  // Theme state persisted in localStorage
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+  // Theme preference is persisted; System follows the device appearance setting.
+  const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('vyra_theme');
-      if (stored === 'light' || stored === 'dark') return stored;
-      return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
     }
-    return 'dark';
+    return 'system';
+  });
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const stored = localStorage.getItem('vyra_theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-    }
-    localStorage.setItem('vyra_theme', theme);
-  }, [theme]);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const applyTheme = () => {
+      const resolvedTheme = themeMode === 'system'
+        ? (mediaQuery.matches ? 'light' : 'dark')
+        : themeMode;
+      setTheme(resolvedTheme);
+      root.classList.toggle('dark', resolvedTheme === 'dark');
+      root.classList.toggle('light', resolvedTheme === 'light');
+    };
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
+    applyTheme();
+    localStorage.setItem('vyra_theme', themeMode);
+
+    if (themeMode === 'system') {
+      mediaQuery.addEventListener('change', applyTheme);
+      return () => mediaQuery.removeEventListener('change', applyTheme);
+    }
+  }, [themeMode]);
 
   // Navigation
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
@@ -955,7 +966,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <StudioContext.Provider
       value={{
         theme,
-        toggleTheme,
+        themeMode,
+        setThemeMode,
         currentSection,
         setCurrentSection,
         activeProjectId,
