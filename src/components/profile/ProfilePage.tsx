@@ -15,6 +15,7 @@ type ProfilePageProps = {
   resolvedTheme: 'light' | 'dark';
   onThemeModeChange: (mode: 'system' | 'light' | 'dark') => void;
   onBack: () => void;
+  backLabel: string;
   onSignOut: () => void;
 };
 
@@ -83,7 +84,7 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, onSignOut,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>('home');
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
@@ -93,7 +94,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   return (
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
       <button type="button" onClick={activePage === 'home' ? onBack : goHome} className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:text-[var(--vyra-text-primary)]">
-        <ArrowLeft size={16} /> {activePage === 'home' ? 'Back to Marketplace' : 'Back to Profile'}
+        <ArrowLeft size={16} /> {activePage === 'home' ? backLabel : 'Back to Profile'}
       </button>
 
       {activePage === 'home' ? (
