@@ -80,11 +80,18 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
             <span className="text-base font-extrabold tracking-[0.13em] text-[var(--vyra-text-primary)]">VYRA</span>
           </a>
 
-          <div className="relative flex shrink-0 items-center gap-1.5">
+          <div className="relative flex shrink-0 items-center gap-2">
             {signedIn ? (
-              <button type="button" onClick={() => setAccountOpen((open) => !open)} aria-expanded={accountOpen} aria-label="Open account menu" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
-                <UserRound size={17} />
-              </button>
+              <>
+                <span aria-label="Available credit balance" className="flex items-center gap-1 whitespace-nowrap rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2.5 py-1.5 text-[11px] font-semibold tabular-nums text-[var(--vyra-text-primary)]">
+                  <Coins size={13} className="text-amber-400" />
+                  {creditLoading ? '…' : formattedBalance}
+                  <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
+                </span>
+                <button type="button" onClick={() => setAccountOpen((open) => !open)} aria-expanded={accountOpen} aria-label="Open account menu" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
+                  <UserRound size={17} />
+                </button>
+              </>
             ) : (
               <>
                 <Button size="sm" variant="ghost" className="min-h-8 px-2" onClick={() => onAuthRequest('login')}>Sign In</Button>
@@ -105,13 +112,6 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
             </button>
           </nav>
 
-          {signedIn && (
-            <span aria-label="Available credit balance" className="flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-[var(--vyra-text-secondary)]">
-              <Coins size={13} className="text-amber-400" />
-              {creditLoading ? '…' : formattedBalance}
-              <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
-            </span>
-          )}
         </div>
       </div>
     </header>
