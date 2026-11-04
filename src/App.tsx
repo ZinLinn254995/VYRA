@@ -304,7 +304,7 @@ const StudioContent: React.FC = () => {
             {page === 'home' && <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />}
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
             {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
-            {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} />}
+            {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} onBack={() => setPage('storyboard')} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
