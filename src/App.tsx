@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
+import { AIChatPage } from './components/ai/AIChatPage';
 import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
@@ -9,10 +10,13 @@ type WalletResponse = {
   availableBalance?: string;
 };
 
+type MainSection = 'marketplace' | 'ai-chat';
+
 function MarketplaceApp() {
   const { user, session, signOut } = useAuth();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
@@ -64,7 +68,9 @@ function MarketplaceApp() {
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
         creditLoading={creditLoading}
+        activeSection={profileOpen ? 'marketplace' : activeSection}
         onWorkspaceRequest={() => { if (!user) requestAuth('login'); }}
+        onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
         onProfileClick={() => setProfileOpen(true)}
       />
@@ -76,6 +82,8 @@ function MarketplaceApp() {
           onBack={() => setProfileOpen(false)}
           onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
         />
+      ) : activeSection === 'ai-chat' ? (
+        <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
       ) : (
         <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
       )}
