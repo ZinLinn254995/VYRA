@@ -126,10 +126,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(120, visualViewport.height - 16) }}>
             <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
               <div className="mb-4">
-                <div className="mb-2 flex justify-end">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <h2 id="create-storyboard-title" className="min-w-0 text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
                   <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="shrink-0 rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
                 </div>
-                <h2 id="create-storyboard-title" className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Give your new storyboard a name and a short description.</p>
               </div>
 
