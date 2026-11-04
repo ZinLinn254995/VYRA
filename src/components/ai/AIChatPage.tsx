@@ -126,11 +126,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     <main className="relative mx-auto h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
       <header className="absolute right-3 top-3 z-50 flex h-10 items-center justify-end sm:right-6 sm:top-4">
         <div className="relative">
-          <Button size="sm" variant="ghost" className="size-10 px-0" aria-label="Chat menu" title="Chat menu" onClick={() => setActionsOpen((open) => !open)}>
+          <Button size="sm" variant="ghost" className="size-10 rounded-full border border-[var(--vyra-border)] bg-white px-0 text-slate-800 hover:bg-slate-100" aria-label="Chat menu" title="Chat menu" onClick={() => setActionsOpen((open) => !open)}>
             <MoreHorizontal size={23} />
           </Button>
           {actionsOpen && (
-            <div className="absolute right-0 top-11 z-30 w-48 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-1">
+            <div className="absolute right-0 top-11 z-30 w-52 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-[var(--vyra-border)] bg-white p-1.5 text-slate-800 duration-150">
               <button type="button" onClick={() => { setHistoryOpen(true); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">
                 <History size={14} /> Recent chats
               </button>
