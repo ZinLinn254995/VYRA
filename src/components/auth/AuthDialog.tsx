@@ -42,8 +42,18 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
     const keepFocusedFieldVisible = () => {
       syncViewport();
       window.requestAnimationFrame(() => {
-        const active = dialogRef.current?.querySelector<HTMLElement>('input:focus, textarea:focus');
-        active?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        const dialog = dialogRef.current;
+        const active = dialog?.querySelector<HTMLElement>('input:focus, textarea:focus');
+        if (!dialog || !active) return;
+        const dialogBounds = dialog.getBoundingClientRect();
+        const fieldBounds = active.getBoundingClientRect();
+        const safeTop = dialogBounds.top + 20;
+        const safeBottom = dialogBounds.bottom - 20;
+        if (fieldBounds.bottom > safeBottom) {
+          dialog.scrollTo({ top: dialog.scrollTop + fieldBounds.bottom - safeBottom, behavior: 'auto' });
+        } else if (fieldBounds.top < safeTop) {
+          dialog.scrollTo({ top: Math.max(0, dialog.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
+        }
       });
     };
     syncViewport();
