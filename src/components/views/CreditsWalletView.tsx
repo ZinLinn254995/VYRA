@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useModalDialog } from '../../hooks/useModalDialog';
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -172,6 +173,8 @@ export const CreditsWalletView: React.FC = () => {
   const [transferLoading, setTransferLoading] = useState(false);
   const [pendingTransfer, setPendingTransfer] = useState<PendingTransferRequest | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const transferDialogRef = useRef<HTMLElement>(null);
+  const transferViewport = useModalDialog(confirmOpen && Boolean(selectedRecipient), transferDialogRef, transferDialogRef);
 
   const apiHeaders = useMemo(() => ({
     Authorization: 'Bearer ' + accessToken,
@@ -553,8 +556,8 @@ export const CreditsWalletView: React.FC = () => {
       </div>
 
       {confirmOpen && selectedRecipient && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) closeTransferReview(); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="transfer-confirm-title" className={cardClass + ' w-full max-w-md space-y-5 p-5 sm:p-6 shadow-2xl'}>
+        <div className="fixed inset-x-0 z-[80] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 sm:p-4" style={{ top: transferViewport.top, height: transferViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) closeTransferReview(); }}>
+          <section ref={transferDialogRef} role="dialog" aria-modal="true" aria-labelledby="transfer-confirm-title" className={cardClass + ' min-h-0 w-full max-w-md overflow-y-auto touch-pan-y overscroll-contain space-y-5 p-5 sm:p-6 shadow-2xl'} style={{ maxHeight: Math.max(220, transferViewport.height - 16) }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[10px] font-bold tracking-widest text-[#55F4FF]">FINAL CONFIRMATION</div>
