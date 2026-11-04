@@ -16,6 +16,13 @@ import { MediaLibraryView } from './components/views/MediaLibraryView';
 import { VyralLibraryView } from './components/views/VyralLibraryView';
 import { VyralProjectWorkspaceView } from './components/views/VyralProjectWorkspaceView';
 import { SettingsView } from './components/views/SettingsView';
+import { ReviewQueueView } from './components/views/ReviewQueueView';
+import { PublishingView } from './components/views/PublishingView';
+import { AnalyticsView } from './components/views/AnalyticsView';
+import { VideoJobRecoveryView } from './components/views/VideoJobRecoveryView';
+import { ProviderUsageView } from './components/views/ProviderUsageView';
+import { CreditsWalletView } from './components/views/CreditsWalletView';
+import { AuthPanel } from './components/navigation/AuthPanel';
 import { Toast } from './components/common/Toast';
 import type { Project, AspectRatio } from './types';
 import { BrandLogo } from './components/common/BrandLogo';
@@ -25,7 +32,7 @@ import {
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
-type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'vyral-project' | 'marketplace' | 'media' | 'settings' | 'create';
+type WorkspacePage = 'home' | 'storyboards' | 'storyboard' | 'scene' | 'vyrals' | 'vyral-project' | 'marketplace' | 'media' | 'settings' | 'create' | 'review' | 'publishing' | 'analytics' | 'jobs' | 'usage' | 'credits';
 
 const WorkspaceHome: React.FC<{ onNavigate: (page: WorkspacePage) => void; onCreateStoryboard: () => void }> = ({ onNavigate, onCreateStoryboard }) => {
   const { projects, activeProject, setActiveProjectId } = useStudio();
@@ -209,6 +216,8 @@ const StudioContent: React.FC = () => {
   const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
   const [activeVyralName, setActiveVyralName] = useState('Vyral Workspace');
   const [showCreateStoryboard, setShowCreateStoryboard] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -220,6 +229,12 @@ const StudioContent: React.FC = () => {
       consistency: 'vyrals',
       marketplace: 'marketplace',
       media: 'media',
+      review: 'review',
+      publishing: 'publishing',
+      analytics: 'analytics',
+      jobs: 'jobs',
+      usage: 'usage',
+      credits: 'credits',
       settings: 'settings',
     };
     const nextPage = routeMap[currentSection];
@@ -228,7 +243,8 @@ const StudioContent: React.FC = () => {
 
   const navigate = (next: WorkspacePage) => {
     setPage(next);
-    const sectionMap: Partial<Record<WorkspacePage, string>> = { home: 'dashboard', storyboards: 'projects', storyboard: 'workspace', vyrals: 'consistency', marketplace: 'marketplace', media: 'media', settings: 'settings', create: 'create' };
+    setShowTools(false);
+    const sectionMap: Partial<Record<WorkspacePage, string>> = { home: 'dashboard', storyboards: 'projects', storyboard: 'workspace', vyrals: 'consistency', marketplace: 'marketplace', media: 'media', review: 'review', publishing: 'publishing', analytics: 'analytics', jobs: 'jobs', usage: 'usage', credits: 'credits', settings: 'settings', create: 'create' };
     const section = sectionMap[next];
     if (section) setCurrentSection(section as any);
   };
@@ -278,7 +294,7 @@ const StudioContent: React.FC = () => {
     touchStart.current = null;
   };
 
-  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'vyral-project' ? 'Vyral Project' : page === 'marketplace' ? 'Marketplace' : page === 'media' ? 'Media Library' : page === 'settings' ? 'Settings' : 'Create Storyboard';
+  const title = page === 'home' ? 'Workspace' : page === 'storyboards' ? 'Storyboards' : page === 'storyboard' ? 'Storyboard' : page === 'scene' ? 'Scene Workspace' : page === 'vyrals' ? 'Vyrals' : page === 'vyral-project' ? 'Vyral Project' : page === 'marketplace' ? 'Marketplace' : page === 'media' ? 'Media Library' : page === 'review' ? 'Review Queue' : page === 'publishing' ? 'Publishing' : page === 'analytics' ? 'Analytics' : page === 'jobs' ? 'Video Jobs' : page === 'usage' ? 'Provider Usage' : page === 'credits' ? 'Credits & Wallet' : page === 'settings' ? 'Settings' : 'Create Storyboard';
 
   return (
     <div onTouchStart={startTouch} onTouchEnd={endTouch} className="min-h-screen bg-[#080B16] text-slate-100 transition-colors light:bg-slate-50 light:text-slate-950">
@@ -286,8 +302,16 @@ const StudioContent: React.FC = () => {
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-7">
           <button onClick={() => { setMode('workspace'); navigate('home'); }} aria-label="VYRA Workspace" className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2"><BrandLogo size="sm" showWordmark /><span className="hidden border-l border-slate-700 pl-3 text-xs text-slate-400 light:border-slate-200 light:text-slate-500 sm:inline">Creative Studio</span></button>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button onClick={() => setMode('workspace')} aria-pressed={mode === 'workspace'} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${mode === 'workspace' ? 'bg-slate-800 text-white light:bg-slate-100 light:text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}><Clapperboard className="h-4 w-4" /><span className="hidden sm:inline">Workspace</span></button>
-            <button onClick={() => setMode('chat')} aria-pressed={mode === 'chat'} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${mode === 'chat' ? 'bg-cyan-300 text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">AI Chat</span></button>
+            <button onClick={() => { setMode('workspace'); navigate('create'); }} className="hidden items-center gap-2 rounded-xl bg-cyan-300 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 sm:inline-flex"><Plus className="h-4 w-4" /><span>Create</span></button>
+            <button onClick={() => setMode('workspace')} aria-pressed={mode === 'workspace'} aria-label="Open workspace" className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${mode === 'workspace' ? 'bg-slate-800 text-white light:bg-slate-100 light:text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}><Clapperboard className="h-4 w-4" /><span className="hidden sm:inline">Workspace</span></button>
+            <button onClick={() => setMode('chat')} aria-pressed={mode === 'chat'} aria-label="Open AI Chat" className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2 ${mode === 'chat' ? 'bg-cyan-300 text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950'}`}><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">AI Chat</span></button>
+            <div className="relative">
+              <button onClick={() => setShowTools((open) => !open)} aria-expanded={showTools} aria-haspopup="menu" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 transition hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2"><span className="hidden sm:inline">Tools</span><ChevronDown className="h-4 w-4" /></button>
+              {showTools && <div role="menu" className="absolute right-0 top-12 z-40 grid w-56 gap-1 rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl light:border-slate-200 light:bg-white">
+                {([['review', 'Review Queue'], ['publishing', 'Publishing'], ['analytics', 'Analytics'], ['jobs', 'Video Jobs'], ['usage', 'Provider Usage'], ['credits', 'Credits & Wallet']] as [WorkspacePage, string][]).map(([id, label]) => <button key={id} role="menuitem" onClick={() => navigate(id)} className="rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950">{label}</button>)}
+              </div>}
+            </div>
+            <button onClick={() => { setShowTools(false); setShowAccount(true); }} aria-label="Open account" className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2"><Settings className="h-4 w-4" /></button>
             <button onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-900 hover:text-white light:text-slate-600 light:hover:bg-slate-100 light:hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-cyan-300 focus-visible:outline-offset-2">{theme === 'dark' ? <Sparkles className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}</button>
           </div>
         </div>
@@ -313,12 +337,19 @@ const StudioContent: React.FC = () => {
             {page === 'vyral-project' && <VyralProjectWorkspaceView vyralName={activeVyralName} onBack={() => setPage('vyrals')} />}
             {page === 'marketplace' && <MarketplaceView />}
             {page === 'media' && <MediaLibraryView />}
+            {page === 'review' && <ReviewQueueView />}
+            {page === 'publishing' && <PublishingView />}
+            {page === 'analytics' && <AnalyticsView />}
+            {page === 'jobs' && <VideoJobRecoveryView />}
+            {page === 'usage' && <ProviderUsageView />}
+            {page === 'credits' && <CreditsWalletView />}
             {page === 'settings' && <SettingsView />}
             {page === 'create' && <CreateVideoView />}
           </main>
         </>
       )}
       {showCreateStoryboard && <CreateStoryboardDialog onClose={() => setShowCreateStoryboard(false)} onCreate={handleCreateStoryboard} />}
+      {showAccount && <AuthPanel onClose={() => setShowAccount(false)} />}
       <Toast />
       <div className="fixed bottom-4 right-4 z-20 hidden items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3 py-2 text-[10px] text-slate-400 shadow-xl sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Swipe to switch modes</div>
     </div>
