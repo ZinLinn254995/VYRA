@@ -104,7 +104,7 @@ const StoryboardLibrary: React.FC<{ onOpen: (id: string) => void; onCreate: () =
   const { projects } = useStudio();
   const storyboards = [...projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
+    <div className="w-full min-w-0 space-y-6 px-3 py-6 sm:px-5 lg:px-6 sm:py-9">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Your creative work</p><h1 className="mt-2 text-3xl font-semibold text-white">Storyboards</h1><p className="mt-2 text-sm text-slate-400">Each Storyboard contains the ordered creative items for one video.</p></div>
         <button onClick={onCreate} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Create New Storyboard</button>
@@ -130,26 +130,17 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
   if (!activeProject) return <div className="p-8 text-center text-sm text-slate-400">Choose a Storyboard to see its sequence.</div>;
   const previewRatio = activeProject.aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[420px]' : activeProject.aspectRatio === '1:1' ? 'aspect-square max-h-[420px]' : 'aspect-video';
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-7 sm:py-9">
+    <div className="w-full min-w-0 space-y-6 px-3 py-6 sm:px-5 lg:px-6 sm:py-9">
       <section className="space-y-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Storyboard details</p>
-          <input aria-label="Storyboard name" value={activeProject.title} onChange={(event) => updateProject(activeProject.id, { title: event.target.value })} className="mt-2 w-full max-w-2xl bg-transparent text-2xl font-semibold text-white outline-none placeholder:text-slate-600 sm:text-3xl" />
-          <textarea aria-label="Storyboard description" value={activeProject.topic} onChange={(event) => updateProject(activeProject.id, { topic: event.target.value })} placeholder="Add a description..." rows={2} className="mt-2 w-full max-w-2xl resize-y rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
-        </div>
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2.5 text-xs">
-          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-300">{activeProject.status.replaceAll('_', ' ')}</span>
-          <label className="inline-flex items-center gap-2 text-slate-400">Aspect ratio
-            <select aria-label="Storyboard aspect ratio" value={activeProject.aspectRatio} onChange={(event) => updateProject(activeProject.id, { aspectRatio: event.target.value as AspectRatio })} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
-              <option value="9:16">9:16 Portrait</option><option value="16:9">16:9 Landscape</option><option value="1:1">1:1 Square</option>
-            </select>
-          </label>
-          <span className="text-slate-500">{orderedScenes.length} scenes · {orderedScenes.reduce((sum, scene) => sum + (scene.duration || 0), 0)}s total</span>
+          <input aria-label="Storyboard name" value={activeProject.title} onChange={(event) => updateProject(activeProject.id, { title: event.target.value })} className="mt-2 w-full bg-transparent text-2xl font-semibold text-white outline-none placeholder:text-slate-600 sm:text-3xl" />
+          <textarea aria-label="Storyboard description" value={activeProject.topic} onChange={(event) => updateProject(activeProject.id, { topic: event.target.value })} placeholder="Add a description..." rows={2} className="mt-2 w-full resize-y rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 sm:p-4">
           <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Storyboard Preview</h2><p className="mt-0.5 text-xs text-slate-500">Sequence overview · {activeProject.aspectRatio}</p></div><span className="text-xs text-slate-500">{orderedScenes.length ? `Scene ${safeIndex + 1} of ${orderedScenes.length}` : 'Waiting for scenes'}</span></div>
-          {previewScene ? <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className={`relative mx-auto flex w-full max-w-[220px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black sm:mx-0 ${previewRatio}`}>
+          {previewScene ? <div className="flex w-full min-w-0 flex-col gap-4">
+            <div className="relative flex h-[min(70vw,680px)] min-h-[320px] w-full min-w-0 items-center justify-center overflow-hidden rounded-xl bg-black">
               {previewScene.mediaUrl ? <img src={previewScene.mediaUrl} alt={`Scene ${safeIndex + 1} preview`} className="h-full w-full object-contain" /> : <div className="p-5 text-center"><Film className="mx-auto h-8 w-8 text-slate-600" /><p className="mt-2 text-xs text-slate-400">Scene preview will appear here</p></div>}
               <span className="absolute bottom-2 left-2 rounded-md bg-black/70 px-2 py-1 text-[10px] text-white">{previewScene.duration || 8}s</span>
             </div>
@@ -160,7 +151,16 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
                 <button onClick={() => { setIsPlaying(false); setPreviewIndex((i) => Math.min(orderedScenes.length - 1, i + 1)); }} disabled={safeIndex >= orderedScenes.length - 1} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-30">Next</button>
               </div><p className="mt-3 text-[11px] text-slate-500">This is a storyboard preview, not the final rendered video.</p>
             </div>
-          </div> : <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 text-center"><p className="text-xs text-slate-500">Your combined scene preview will appear here as you add scenes.</p></div>}
+          </div> : <div className="flex min-h-[320px] w-full items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 text-center"><p className="text-xs text-slate-500">Your combined scene preview will appear here as you add scenes.</p></div>}
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3 text-xs">
+          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-300">{activeProject.status.replaceAll('_', ' ')}</span>
+          <label className="inline-flex items-center gap-2 text-slate-400">Aspect ratio
+            <select aria-label="Storyboard aspect ratio" value={activeProject.aspectRatio} onChange={(event) => updateProject(activeProject.id, { aspectRatio: event.target.value as AspectRatio })} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+              <option value="9:16">9:16 Portrait</option><option value="16:9">16:9 Landscape</option><option value="1:1">1:1 Square</option>
+            </select>
+          </label>
+          <span className="text-slate-500">{orderedScenes.length} scenes · {orderedScenes.reduce((sum, scene) => sum + (scene.duration || 0), 0)}s total</span>
         </div>
       </section>
       <section className="space-y-3">
