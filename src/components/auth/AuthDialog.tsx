@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail, UserRound, X } from 'lucide-react';
+import { Eye, EyeOff, LockKeyhole, Mail, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { FormField } from '../ui/FormField';
 import { useAuth } from '../../context/AuthContext';
@@ -119,7 +119,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
               </FormField>
             )}
 
-            <Button type="submit" block loading={busy} className="mt-2 w-full">
+            <Button type="submit" loading={busy} className="mt-2 w-full">
               {mode === 'login' ? 'Sign In' : 'Create Account'}
             </Button>
           </form>
