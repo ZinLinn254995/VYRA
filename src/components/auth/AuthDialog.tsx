@@ -85,10 +85,10 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
       <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(120, visualViewport.height - 16) }}>
         <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
           <div className="mb-4">
-            <div className="mb-2 flex justify-end">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <h2 id="auth-dialog-title" className="min-w-0 text-2xl font-bold tracking-tight">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
               <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="shrink-0 rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40"><X size={18} /></button>
             </div>
-            <h2 id="auth-dialog-title" className="text-2xl font-bold tracking-tight">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">{mode === 'login' ? 'Sign in to access your account, credits and Workspace.' : 'Create a VYRA account to save your work and start creating.'}</p>
           </div>
 
