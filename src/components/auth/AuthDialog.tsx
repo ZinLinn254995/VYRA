@@ -39,58 +39,55 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
   useEffect(() => {
     if (!open) return;
     const viewport = window.visualViewport;
-    let focusedFieldIsInLowerHalf: boolean | null = null;
+    let focusedInput: HTMLElement | null = null;
+    let settleTimer: number | undefined;
 
     const syncViewport = () => {
       const next = { top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight };
       setVisualViewport((current) => current.top === next.top && current.height === next.height ? current : next);
     };
 
-    // Keep the half selected at the moment of focus. Re-measuring during the
-    // keyboard's resize animation can move a field across the midpoint and
-    // repeatedly reverse the scroll direction, causing a visible blink.
     const applyFocusedFieldScroll = () => {
       const scrollArea = dialogBodyRef.current;
-      if (!scrollArea || focusedFieldIsInLowerHalf === null) return;
+      const active = focusedInput;
+      if (!scrollArea || !active || !active.isConnected) return;
 
-      const targetScrollTop = focusedFieldIsInLowerHalf
-        ? scrollArea.scrollHeight - scrollArea.clientHeight
-        : 0;
-      const safeTarget = Math.max(0, targetScrollTop);
+      // Measure only after the keyboard/viewport has settled. The current
+      // scroll position is intentionally included so the same input can be
+      // in the upper half at the bottom position, and vice versa.
+      const areaBounds = scrollArea.getBoundingClientRect();
+      const fieldBounds = active.getBoundingClientRect();
+      const areaMidpoint = areaBounds.top + areaBounds.height / 2;
+      const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
+      const targetScrollTop = fieldMidpoint < areaMidpoint
+        ? 0
+        : Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight);
 
-      // Avoid restarting an already-completed scroll on every viewport event.
-      if (Math.abs(scrollArea.scrollTop - safeTarget) > 2) {
-        scrollArea.scrollTo({ top: safeTarget, behavior: 'auto' });
-      }
+      // Assign once, without smooth-scroll animation. Repeated animated
+      // scrollTo calls during keyboard resizing caused the visible blinking.
+      scrollArea.style.scrollBehavior = 'auto';
+      scrollArea.scrollTop = targetScrollTop;
     };
 
     const scheduleFocusedFieldScroll = () => {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(applyFocusedFieldScroll));
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+      // visualViewport can emit several resize events while Android's
+      // keyboard animates. Wait for a quiet interval, then classify once.
+      settleTimer = window.setTimeout(() => {
+        window.requestAnimationFrame(applyFocusedFieldScroll);
+      }, 120);
     };
 
     const handleFocusIn = (event: FocusEvent) => {
-      const scrollArea = dialogBodyRef.current;
       const active = event.target instanceof HTMLElement ? event.target : null;
-      if (!scrollArea || !active || !active.matches('input, textarea')) return;
-
-      const areaBounds = scrollArea.getBoundingClientRect();
-      const fieldBounds = active.getBoundingClientRect();
-      const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
-      const areaMidpoint = areaBounds.top + areaBounds.height / 2;
-      const boundaryTolerance = areaBounds.height * 0.04;
-
-      if (Math.abs(fieldMidpoint - areaMidpoint) <= boundaryTolerance) {
-        focusedFieldIsInLowerHalf = null;
-        return;
-      }
-
-      focusedFieldIsInLowerHalf = fieldMidpoint > areaMidpoint;
+      if (!active || !active.matches('input, textarea')) return;
+      focusedInput = active;
       scheduleFocusedFieldScroll();
     };
 
     const handleViewportResize = () => {
       syncViewport();
-      scheduleFocusedFieldScroll();
+      if (focusedInput) scheduleFocusedFieldScroll();
     };
 
     syncViewport();
@@ -99,6 +96,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
     window.addEventListener('resize', handleViewportResize);
     dialogRef.current?.addEventListener('focusin', handleFocusIn);
     return () => {
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
       viewport?.removeEventListener('resize', handleViewportResize);
       viewport?.removeEventListener('scroll', syncViewport);
       window.removeEventListener('resize', handleViewportResize);
