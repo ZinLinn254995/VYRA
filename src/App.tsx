@@ -141,7 +141,7 @@ function MarketplaceApp() {
         ) : activeSection === 'ai-chat' ? (
           <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
         ) : activeSection === 'workspace' ? (
-          <WorkspacePage key={workspaceStorageKey} storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
+          <WorkspacePage storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
         ) : (
           <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
         )}
