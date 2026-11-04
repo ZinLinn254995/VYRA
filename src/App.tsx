@@ -19,7 +19,7 @@ import type { Project, AspectRatio } from './types';
 import { BrandLogo } from './components/common/BrandLogo';
 import {
   ArrowRight, BookOpen, Clapperboard, Image, Layers3, ChevronUp, ChevronDown, FileText, PlayCircle,
-  MessageCircle, Plus, Settings, Sparkles, Film, X, Play, Pause, SkipBack, SkipForward,
+  MessageCircle, Plus, Settings, Sparkles, Film,
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
@@ -313,7 +313,7 @@ const StudioContent: React.FC = () => {
           </main>
         </>
       )}
-      {showCreateStoryboard && <CreateStoryboardDialog onClose={() => setShowCreateStoryboard(false)} onCreate={handleCreateStoryboard} />}\n      {showStoryboardPreview && activeProject && <StoryboardPreview project={activeProject} onClose={() => setShowStoryboardPreview(false)} />}\n      <Toast />
+      {showCreateStoryboard && <CreateStoryboardDialog onClose={() => setShowCreateStoryboard(false)} onCreate={handleCreateStoryboard} />}\n      <Toast />
       <div className="fixed bottom-4 right-4 z-20 hidden items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3 py-2 text-[10px] text-slate-400 shadow-xl sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Swipe to switch modes</div>
     </div>
   );
