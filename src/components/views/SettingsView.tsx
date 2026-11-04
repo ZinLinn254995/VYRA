@@ -8,7 +8,6 @@ import { useStudio } from '../../context/StudioContext';
 import {
   Bell,
   CheckCircle2,
-  ChevronRight,
   CircleDashed,
   CreditCard,
   HelpCircle,
