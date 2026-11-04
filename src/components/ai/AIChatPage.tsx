@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowUp, Bot, Check, ChevronDown, Clock3, Copy, FileText, History,
+  ArrowUp, Bot, Clock3, Copy, FileText, History,
   ImagePlus, MessageSquare, MoreHorizontal, Plus, Sparkles, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
