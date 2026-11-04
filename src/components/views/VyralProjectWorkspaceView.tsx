@@ -103,11 +103,7 @@ export const VyralProjectWorkspaceView: React.FC<{ onBack: () => void; vyralName
     {notice && <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-xs text-cyan-100"><span>{notice}</span><button onClick={()=>setNotice('')} aria-label="Dismiss"><X className="h-4 w-4"/></button></div>}
 
     <div className="min-w-0">
-      <aside className="rounded-2xl border border-slate-800 bg-[#0d1426] p-3">
-        <div className="mb-3 flex items-center justify-between px-2"><span className="text-xs font-semibold text-slate-200">Folders</span><button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800" title="Add folder"><FolderPlus className="h-4 w-4"/></button></div>
-        <div className="space-y-1">{folders.map(({name,icon:Icon})=><button key={name} onClick={()=>{setActiveFolder(name);setSelected([]);setSelectMode(false);}} className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2.5 text-left text-xs transition ${activeFolder===name?'bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/20':'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'}`}><Icon className="h-4 w-4 shrink-0"/><span className="min-w-0 flex-1 truncate">{name}</span><span className="text-[10px] text-slate-500">{name==='All Assets'?assets.length:assets.filter(a=>a.folder===name).length}</span></button>)}</div>
-        
-      </aside>
+
 
       <section className="min-w-0 space-y-4">
         <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0d1426] p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
