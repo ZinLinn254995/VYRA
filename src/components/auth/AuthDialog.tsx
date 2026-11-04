@@ -41,20 +41,33 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
     const syncViewport = () => setVisualViewport({ top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight });
     const keepFocusedFieldVisible = () => {
       syncViewport();
-      window.requestAnimationFrame(() => {
+      // Wait for the visual viewport and dialog dimensions to settle after the
+      // software keyboard opens or changes size.
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
         const dialog = dialogRef.current;
         const active = dialog?.querySelector<HTMLElement>('input:focus, textarea:focus');
         if (!dialog || !active) return;
+
         const dialogBounds = dialog.getBoundingClientRect();
         const fieldBounds = active.getBoundingClientRect();
-        const safeTop = dialogBounds.top + 20;
-        const safeBottom = dialogBounds.bottom - 20;
-        if (fieldBounds.bottom > safeBottom) {
-          dialog.scrollTo({ top: dialog.scrollTop + fieldBounds.bottom - safeBottom, behavior: 'auto' });
+        const safeTop = dialogBounds.top + 16;
+        const safeBottom = dialogBounds.bottom - 16;
+        const fields = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([type="hidden"]), textarea'));
+        const isLastField = fields[fields.length - 1] === active;
+        const submitButton = dialog.querySelector<HTMLElement>('form button[type="submit"]');
+        const submitBounds = submitButton?.getBoundingClientRect();
+        // On the final field, keep the primary action visible as well, so the
+        // user can submit without manually dragging the dialog.
+        const requiredBottom = isLastField && submitBounds
+          ? Math.max(fieldBounds.bottom, submitBounds.bottom)
+          : fieldBounds.bottom;
+
+        if (requiredBottom > safeBottom) {
+          dialog.scrollTo({ top: dialog.scrollTop + requiredBottom - safeBottom, behavior: 'auto' });
         } else if (fieldBounds.top < safeTop) {
           dialog.scrollTo({ top: Math.max(0, dialog.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
         }
-      });
+      }));
     };
     syncViewport();
     viewport?.addEventListener('resize', keepFocusedFieldVisible);
