@@ -11,7 +11,7 @@ type AuthDialogProps = {
   onClose: () => void;
 };
 
-const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
+const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
 export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'login', onClose }) => {
   const { configured, signIn, signUp } = useAuth();
