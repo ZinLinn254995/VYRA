@@ -69,7 +69,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey }) => {
           <div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><Clapperboard size={25} /></div>
           <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No storyboards yet</h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
-          <Button onClick={() => setCreateOpen(true)} className="mt-5" startIcon={<Plus size={16} />}>Create Storyboard</Button>
         </section>
       )}
 
