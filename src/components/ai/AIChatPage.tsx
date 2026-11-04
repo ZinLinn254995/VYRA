@@ -123,8 +123,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   return (
-    <main className="mx-auto flex h-[calc(100dvh-7.5rem)] w-full max-w-[var(--vyra-content-width)] flex-col overflow-hidden px-3 pb-3 pt-3 sm:h-[calc(100dvh-4rem)] sm:px-6 sm:pt-4">
-      <header className="flex h-14 shrink-0 items-center justify-end gap-2">
+    <main className="relative mx-auto h-[calc(100dvh-7.5rem)] w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(100dvh-4rem)] sm:px-6">
+      <header className="fixed inset-x-0 top-[7.5rem] z-40 mx-auto flex h-14 w-full max-w-[var(--vyra-content-width)] items-center justify-end gap-2 bg-[var(--vyra-bg-base)]/95 px-3 backdrop-blur sm:top-16 sm:px-6">
         <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
           <History size={23} />
         </Button>
@@ -156,7 +156,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         </div>
       </header>
 
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden pb-28 pt-14 sm:pb-32">
         {!hasMessages ? (
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8 text-center">
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
@@ -184,7 +184,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         )}
       </section>
 
-      <div className="mx-auto w-full max-w-3xl shrink-0 pt-3">
+      <div className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[var(--vyra-content-width)] bg-[var(--vyra-bg-base)]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6">
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
