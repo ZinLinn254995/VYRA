@@ -82,22 +82,16 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
         const areaBounds = scrollArea.getBoundingClientRect();
         const fieldBounds = active.getBoundingClientRect();
-        const safeTop = areaBounds.top + 12;
-        const safeBottom = areaBounds.bottom - 12;
-        const fields = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([type="hidden"]), textarea'));
-        const isLastField = fields[fields.length - 1] === active;
-        const submitButton = dialog.querySelector<HTMLElement>('form button[type="submit"]');
-        const submitBounds = submitButton?.getBoundingClientRect();
-        const requiredBottom = isLastField && submitBounds
-          ? Math.max(fieldBounds.bottom, submitBounds.bottom)
-          : fieldBounds.bottom;
+        const areaMidpoint = areaBounds.top + areaBounds.height / 2;
+        const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
 
-        if (requiredBottom > safeBottom) {
-          const nextTop = scrollArea.scrollTop + requiredBottom - safeBottom;
-          scrollArea.scrollTo({ top: Math.min(scrollArea.scrollHeight - scrollArea.clientHeight, nextTop), behavior: 'auto' });
-        } else if (fieldBounds.top < safeTop) {
-          scrollArea.scrollTo({ top: Math.max(0, scrollArea.scrollTop - (safeTop - fieldBounds.top)), behavior: 'auto' });
-        }
+        // Upper-half inputs return the dialog body to its top; lower-half
+        // inputs move it to the bottom so the final controls are reachable.
+        const targetScrollTop = fieldMidpoint < areaMidpoint
+          ? 0
+          : scrollArea.scrollHeight - scrollArea.clientHeight;
+
+        scrollArea.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
       }));
     };
     syncViewport();
