@@ -5,12 +5,13 @@ import { AIChatPage } from './components/ai/AIChatPage';
 import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
+import { WorkspacePage } from './components/workspace/WorkspacePage';
 
 type WalletResponse = {
   availableBalance?: string;
 };
 
-type MainSection = 'marketplace' | 'ai-chat';
+type MainSection = 'marketplace' | 'workspace' | 'ai-chat';
 
 function MarketplaceApp() {
   const { user, session, signOut } = useAuth();
@@ -89,6 +90,8 @@ function MarketplaceApp() {
     }
   };
 
+  const workspaceStorageKey = 'vyra_storyboards_v1:' + (user?.id ?? user?.email ?? 'local');
+
   return (
     <div className="flex min-h-screen flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
       <MarketplaceHeader
@@ -97,29 +100,34 @@ function MarketplaceApp() {
         creditLoading={creditLoading}
         activeSection={profileOpen ? 'marketplace' : activeSection}
         onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
-        onWorkspaceRequest={() => { if (!user) requestAuth('login'); }}
+        onWorkspaceRequest={() => {
+          if (!user) requestAuth('login');
+          else { setProfileOpen(false); setActiveSection('workspace'); }
+        }}
         onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
         onProfileClick={() => setProfileOpen(true)}
       />
       <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
       <div className="min-h-0 flex-1">
-      {profileOpen && user ? (
-        <ProfilePage
-          userEmail={user.email ?? ''}
-          creditBalance={creditBalance}
-          creditLoading={creditLoading}
-          themeMode={themeMode}
-          resolvedTheme={resolvedTheme}
-          onThemeModeChange={setThemeMode}
-          onBack={() => setProfileOpen(false)}
-          onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
-        />
-      ) : activeSection === 'ai-chat' ? (
-        <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
-      ) : (
-        <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
-      )}
+        {profileOpen && user ? (
+          <ProfilePage
+            userEmail={user.email ?? ''}
+            creditBalance={creditBalance}
+            creditLoading={creditLoading}
+            themeMode={themeMode}
+            resolvedTheme={resolvedTheme}
+            onThemeModeChange={setThemeMode}
+            onBack={() => setProfileOpen(false)}
+            onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
+          />
+        ) : activeSection === 'ai-chat' ? (
+          <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
+        ) : activeSection === 'workspace' && user ? (
+          <WorkspacePage storageKey={workspaceStorageKey} />
+        ) : (
+          <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
+        )}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
