@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './context/StudioContext';
 import { AuthProvider } from './context/AuthContext';
-import { ProjectWorkspaceView } from './components/views/ProjectWorkspaceView';
+import { SceneTimelineEditorView } from './components/views/SceneTimelineEditorView';
 import { CreateVideoView } from './components/views/CreateVideoView';
 import { AIIdeasChatView } from './components/views/AIIdeasChatView';
 import { MediaLibraryView } from './components/views/MediaLibraryView';
@@ -304,7 +304,7 @@ const StudioContent: React.FC = () => {
             {page === 'home' && <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />}
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
             {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
-            {page === 'scene' && <ProjectWorkspaceView initialSceneId={selectedSceneId} />}
+            {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} />}
             {page === 'vyrals' && <ConsistencyLibraryView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
