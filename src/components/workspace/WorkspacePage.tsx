@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Clapperboard, Film, Plus, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -62,6 +62,32 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
+  const dialogRef = useRef<HTMLElement>(null);
+  const [visualViewport, setVisualViewport] = useState(() => ({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 }));
+
+  useEffect(() => {
+    if (!createOpen) return;
+    const viewport = window.visualViewport;
+    const syncViewport = () => setVisualViewport({ top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight });
+    const keepFocusedFieldVisible = () => {
+      syncViewport();
+      window.requestAnimationFrame(() => {
+        const active = dialogRef.current?.querySelector<HTMLElement>('input:focus, textarea:focus');
+        active?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      });
+    };
+    syncViewport();
+    viewport?.addEventListener('resize', keepFocusedFieldVisible);
+    viewport?.addEventListener('scroll', syncViewport);
+    window.addEventListener('resize', keepFocusedFieldVisible);
+    dialogRef.current?.addEventListener('focusin', keepFocusedFieldVisible);
+    return () => {
+      viewport?.removeEventListener('resize', keepFocusedFieldVisible);
+      viewport?.removeEventListener('scroll', syncViewport);
+      window.removeEventListener('resize', keepFocusedFieldVisible);
+      dialogRef.current?.removeEventListener('focusin', keepFocusedFieldVisible);
+    };
+  }, [createOpen]);
 
   useEffect(() => { setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards)); }, [storageKey, seedDemoStoryboards]);
   useEffect(() => {
@@ -114,8 +140,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       )}
 
       {createOpen && (
-        <div role="presentation" className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]">
+        <div role="presentation" className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 24) }}>
             <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-5 py-4">
               <div className="flex items-center gap-2">
                 <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-xs font-black text-slate-950">V</span>
