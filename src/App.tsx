@@ -117,8 +117,8 @@ function MarketplaceApp() {
         activeSection={profileOpen ? profileReturnSection : activeSection}
         onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
         onWorkspaceRequest={() => {
-          if (!user) requestAuth('login');
-          else { setProfileOpen(false); setActiveSection('workspace'); }
+          setProfileOpen(false);
+          setActiveSection('workspace');
         }}
         onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
@@ -140,8 +140,8 @@ function MarketplaceApp() {
           />
         ) : activeSection === 'ai-chat' ? (
           <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
-        ) : activeSection === 'workspace' && user ? (
-          <WorkspacePage key={workspaceStorageKey} storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} />
+        ) : activeSection === 'workspace' ? (
+          <WorkspacePage key={workspaceStorageKey} storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
         ) : (
           <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
         )}
