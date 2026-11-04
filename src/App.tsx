@@ -63,7 +63,7 @@ function MarketplaceApp() {
   };
 
   return (
-    <div className="dark flex h-[100dvh] flex-col overflow-hidden bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
+    <div className="dark flex min-h-screen flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
       <MarketplaceHeader
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
@@ -75,7 +75,7 @@ function MarketplaceApp() {
         onAuthRequest={requestAuth}
         onProfileClick={() => setProfileOpen(true)}
       />
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1">
       {profileOpen && user ? (
         <ProfilePage
           userEmail={user.email ?? ''}
