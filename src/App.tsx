@@ -13,7 +13,7 @@ import { MarketplaceView } from './components/views/MarketplaceView';
 import { CreateVideoView } from './components/views/CreateVideoView';
 import { AIIdeasChatView } from './components/views/AIIdeasChatView';
 import { MediaLibraryView } from './components/views/MediaLibraryView';
-import { ConsistencyLibraryView } from './components/views/ConsistencyLibraryView';
+import { VyralLibraryView } from './components/views/VyralLibraryView';
 import { SettingsView } from './components/views/SettingsView';
 import { Toast } from './components/common/Toast';
 import type { Project, AspectRatio } from './types';
@@ -307,7 +307,7 @@ const StudioContent: React.FC = () => {
             {page === 'storyboards' && <StoryboardLibrary onOpen={openStoryboard} onCreate={createNewStoryboard} />}
             {page === 'storyboard' && (activeProject ? <StoryboardSequence onOpenScene={(id) => { setSelectedSceneId(id); setPage('scene'); }} onCreateScene={createScene} /> : <WorkspaceHome onNavigate={navigate} onCreateStoryboard={createNewStoryboard} />)}
             {page === 'scene' && <SceneTimelineEditorView initialSceneId={selectedSceneId} onBack={() => setPage('storyboard')} />}
-            {page === 'vyrals' && <ConsistencyLibraryView />}
+            {page === 'vyrals' && <VyralLibraryView />}
             {page === 'marketplace' && <MarketplaceView />}
             {page === 'media' && <MediaLibraryView />}
             {page === 'settings' && <SettingsView />}
