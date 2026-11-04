@@ -39,41 +39,63 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
   useEffect(() => {
     if (!open) return;
     const viewport = window.visualViewport;
-    const syncViewport = () => setVisualViewport({ top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight });
-    const keepFocusedFieldVisible = () => {
-      syncViewport();
-      // Wait for the visual viewport and dialog dimensions to settle after the
-      // software keyboard opens or changes size.
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        const dialog = dialogRef.current;
-        const scrollArea = dialogBodyRef.current;
-        const active = dialog?.querySelector<HTMLElement>('input:focus, textarea:focus');
-        if (!dialog || !scrollArea || !active) return;
+    let focusedFieldIsInLowerHalf: boolean | null = null;
 
-        const areaBounds = scrollArea.getBoundingClientRect();
-        const fieldBounds = active.getBoundingClientRect();
-        const areaMidpoint = areaBounds.top + areaBounds.height / 2;
-        const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
-
-        // Use the focused input's half of the visible dialog as the scroll
-        // direction rule: upper half returns to the top, lower half to bottom.
-        const targetScrollTop = fieldMidpoint < areaMidpoint
-          ? 0
-          : scrollArea.scrollHeight - scrollArea.clientHeight;
-
-        scrollArea.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
-      }));
+    const syncViewport = () => {
+      const next = { top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight };
+      setVisualViewport((current) => current.top === next.top && current.height === next.height ? current : next);
     };
+
+    // Keep the half selected at the moment of focus. Re-measuring during the
+    // keyboard's resize animation can move a field across the midpoint and
+    // repeatedly reverse the scroll direction, causing a visible blink.
+    const applyFocusedFieldScroll = () => {
+      const scrollArea = dialogBodyRef.current;
+      if (!scrollArea || focusedFieldIsInLowerHalf === null) return;
+
+      const targetScrollTop = focusedFieldIsInLowerHalf
+        ? scrollArea.scrollHeight - scrollArea.clientHeight
+        : 0;
+      const safeTarget = Math.max(0, targetScrollTop);
+
+      // Avoid restarting an already-completed scroll on every viewport event.
+      if (Math.abs(scrollArea.scrollTop - safeTarget) > 2) {
+        scrollArea.scrollTo({ top: safeTarget, behavior: 'auto' });
+      }
+    };
+
+    const scheduleFocusedFieldScroll = () => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(applyFocusedFieldScroll));
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const scrollArea = dialogBodyRef.current;
+      const active = event.target instanceof HTMLElement ? event.target : null;
+      if (!scrollArea || !active || !active.matches('input, textarea')) return;
+
+      const areaBounds = scrollArea.getBoundingClientRect();
+      const fieldBounds = active.getBoundingClientRect();
+      focusedFieldIsInLowerHalf =
+        fieldBounds.top + fieldBounds.height / 2 >= areaBounds.top + areaBounds.height / 2;
+
+      scheduleFocusedFieldScroll();
+    };
+
+    const handleViewportResize = () => {
+      syncViewport();
+      scheduleFocusedFieldScroll();
+    };
+
     syncViewport();
-    viewport?.addEventListener('resize', keepFocusedFieldVisible);
+    viewport?.addEventListener('resize', handleViewportResize);
     viewport?.addEventListener('scroll', syncViewport);
-    window.addEventListener('resize', keepFocusedFieldVisible);
-    dialogRef.current?.addEventListener('focusin', keepFocusedFieldVisible);
+    window.addEventListener('resize', handleViewportResize);
+    dialogRef.current?.addEventListener('focusin', handleFocusIn);
     return () => {
-      viewport?.removeEventListener('resize', keepFocusedFieldVisible);
+      viewport?.removeEventListener('resize', handleViewportResize);
       viewport?.removeEventListener('scroll', syncViewport);
-      window.removeEventListener('resize', keepFocusedFieldVisible);
-      dialogRef.current?.removeEventListener('focusin', keepFocusedFieldVisible);
+      window.removeEventListener('resize', handleViewportResize);
+      dialogRef.current?.removeEventListener('focusin', handleFocusIn);
     };
   }, [open, mode]);
 
