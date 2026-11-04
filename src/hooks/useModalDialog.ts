@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 
 type ViewportState = { top: number; height: number };
 
@@ -11,7 +11,6 @@ export function useModalDialog(
     top: 0,
     height: typeof window === 'undefined' ? 800 : window.innerHeight,
   }));
-  const focusedTarget = useRef<'top' | 'bottom' | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -70,14 +69,11 @@ export function useModalDialog(
   }, [open, scrollAreaRef]);
 
   useEffect(() => {
-    if (!open) {
-      focusedTarget.current = null;
-      return;
-    }
+    if (!open) return;
 
+    // Let the browser perform its native, minimal focus scrolling. Programmatic
+    // top/bottom jumps on every focus change caused visible blinking on mobile.
     const visualViewport = window.visualViewport;
-    let settleTimer: number | undefined;
-
     const syncViewport = () => {
       const next = {
         top: visualViewport?.offsetTop ?? 0,
@@ -88,60 +84,17 @@ export function useModalDialog(
       );
     };
 
-    const applyFocusedTarget = () => {
-      const scrollArea = scrollAreaRef.current;
-      const target = focusedTarget.current;
-      if (!scrollArea || !target) return;
-      const nextTop = target === 'top'
-        ? 0
-        : Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight);
-      if (Math.abs(scrollArea.scrollTop - nextTop) > 1) {
-        scrollArea.scrollTop = nextTop;
-      }
-    };
-
-    const scheduleScroll = () => {
-      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        window.requestAnimationFrame(applyFocusedTarget);
-      }, 160);
-    };
-
-    const handleFocusIn = (event: FocusEvent) => {
-      const field = event.target instanceof HTMLElement ? event.target : null;
-      const scrollArea = scrollAreaRef.current;
-      if (!field || !scrollArea || !field.matches('input, textarea, select')) return;
-
-      // Convert the field's current screen position back into its stable
-      // content position. This prevents classification flipping when the
-      // user focuses another field after the dialog has already scrolled.
-      const areaBounds = scrollArea.getBoundingClientRect();
-      const fieldBounds = field.getBoundingClientRect();
-      const contentMidpoint =
-        fieldBounds.top - areaBounds.top + scrollArea.scrollTop + fieldBounds.height / 2;
-      focusedTarget.current = contentMidpoint < scrollArea.clientHeight / 2 ? 'top' : 'bottom';
-      scheduleScroll();
-    };
-
-    const handleViewportResize = () => {
-      syncViewport();
-      if (focusedTarget.current) scheduleScroll();
-    };
-
     syncViewport();
-    visualViewport?.addEventListener('resize', handleViewportResize);
+    visualViewport?.addEventListener('resize', syncViewport);
     visualViewport?.addEventListener('scroll', syncViewport);
-    window.addEventListener('resize', handleViewportResize);
-    dialogRef.current?.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('resize', syncViewport);
 
     return () => {
-      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
-      visualViewport?.removeEventListener('resize', handleViewportResize);
+      visualViewport?.removeEventListener('resize', syncViewport);
       visualViewport?.removeEventListener('scroll', syncViewport);
-      window.removeEventListener('resize', handleViewportResize);
-      dialogRef.current?.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('resize', syncViewport);
     };
-  }, [open, dialogRef, scrollAreaRef]);
+  }, [open]);
 
   return viewport;
 }
