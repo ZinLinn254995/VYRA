@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp, Archive, Clock3, Copy, History, Lock, MessageSquare,
-  MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
+  MoreHorizontal, Plus, Share2, Trash2, Unlock, Upload, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -30,6 +30,19 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [actionsOpen, setActionsOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
+  const [isMultiline, setIsMultiline] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(textarea.scrollHeight, 144);
+    textarea.style.height = `${nextHeight}px`;
+    setIsMultiline(nextHeight > 48);
+  }, [draft]);
 
   const hasMessages = messages.length > 0;
   const currentTitle = useMemo(() => {
@@ -205,21 +218,42 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
-        <form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2 focus-within:border-[var(--vyra-accent-primary)]/60">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); } }}
-            rows={2}
-            disabled={isLocked}
-            placeholder={isLocked ? 'Chat locked' : 'Message VYRA AI…'}
-            aria-label="Message VYRA AI"
-            className="max-h-36 min-h-14 w-full resize-y bg-transparent px-2 py-2 text-sm text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-muted)] disabled:opacity-50"
+        <form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
+          {selectedFile && (
+            <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
+              <span className="min-w-0 flex-1 truncate">{selectedFile.name}</span>
+              <button type="button" onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx"
+            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
           />
-          <div className="flex items-center justify-end px-1 pb-1">
-            <Button type="submit" size="sm" className="size-9 px-0" disabled={!draft.trim() || isLocked} aria-label="Send message">
-              <ArrowUp size={17} />
-            </Button>
+          <div className={isMultiline ? 'flex flex-col gap-1' : 'flex items-end gap-1'}>
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); } }}
+              rows={1}
+              disabled={isLocked}
+              placeholder={isLocked ? 'Chat locked' : 'Message VYRA AI…'}
+              aria-label="Message VYRA AI"
+              className="max-h-36 min-h-10 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:outline-none focus:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            />
+            <div className="flex shrink-0 items-center justify-between gap-1 px-1 pb-0.5">
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLocked} aria-label="Upload file" title="Upload file" className="grid size-9 place-items-center rounded-full text-[var(--vyra-text-muted)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] active:bg-transparent disabled:opacity-40">
+                <Upload size={18} />
+              </button>
+              <Button type="submit" size="sm" className="size-9 rounded-full px-0" disabled={!draft.trim() || isLocked} aria-label="Send message">
+                <ArrowUp size={17} />
+              </Button>
+            </div>
           </div>
         </form>
       </div>
