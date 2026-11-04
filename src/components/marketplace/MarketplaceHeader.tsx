@@ -8,12 +8,11 @@ type HeaderProps = {
   creditLoading: boolean;
   onWorkspaceRequest: () => void;
   onAuthRequest: (mode: 'login' | 'signup') => void;
-  onSignOut: () => void;
   onProfileClick: () => void;
 };
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
-  userEmail, creditBalance, creditLoading, onWorkspaceRequest, onAuthRequest, onSignOut, onProfileClick,
+  userEmail, creditBalance, creditLoading, onWorkspaceRequest, onAuthRequest, onProfileClick,
 }) => {
   const signedIn = Boolean(userEmail);
   const formattedBalance = creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
@@ -74,7 +73,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
                   {creditLoading ? '…' : formattedBalance}
                   <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
                 </span>
-                <button type="button" onClick={() => setAccountOpen((open) => !open)} aria-expanded={accountOpen} aria-label="Open account menu" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
+                <button type="button" onClick={onProfileClick} aria-label="Open user profile" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
                   <UserRound size={17} />
                 </button>
               </>
