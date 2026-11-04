@@ -20,6 +20,33 @@ function MarketplaceApp() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
+  const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>(() => {
+    const stored = localStorage.getItem('vyra_display_theme');
+    return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+  });
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
+    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const applyTheme = () => {
+      const nextTheme = themeMode === 'system'
+        ? (mediaQuery.matches ? 'light' : 'dark')
+        : themeMode;
+      setResolvedTheme(nextTheme);
+      document.documentElement.classList.toggle('light', nextTheme === 'light');
+      document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    };
+
+    applyTheme();
+    localStorage.setItem('vyra_display_theme', themeMode);
+
+    if (themeMode === 'system') {
+      mediaQuery.addEventListener('change', applyTheme);
+      return () => mediaQuery.removeEventListener('change', applyTheme);
+    }
+  }, [themeMode]);
 
   useEffect(() => {
     let active = true;
@@ -63,7 +90,7 @@ function MarketplaceApp() {
   };
 
   return (
-    <div className="dark flex min-h-screen flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
+    <div className="flex min-h-screen flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
       <MarketplaceHeader
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
@@ -82,6 +109,9 @@ function MarketplaceApp() {
           userEmail={user.email ?? ''}
           creditBalance={creditBalance}
           creditLoading={creditLoading}
+          themeMode={themeMode}
+          resolvedTheme={resolvedTheme}
+          onThemeModeChange={setThemeMode}
           onBack={() => setProfileOpen(false)}
           onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
         />
