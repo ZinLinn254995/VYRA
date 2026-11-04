@@ -15,10 +15,11 @@ import { MediaLibraryView } from './components/views/MediaLibraryView';
 import { ConsistencyLibraryView } from './components/views/ConsistencyLibraryView';
 import { SettingsView } from './components/views/SettingsView';
 import { Toast } from './components/common/Toast';
+import type { Project, AspectRatio } from './types';
 import { BrandLogo } from './components/common/BrandLogo';
 import {
   ArrowRight, BookOpen, Clapperboard, Image, Layers3, ChevronUp, ChevronDown, FileText, PlayCircle,
-  MessageCircle, Plus, Settings, Sparkles, Film,
+  MessageCircle, Plus, Settings, Sparkles, Film, X, Play, Pause, SkipBack, SkipForward,
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
@@ -129,7 +130,7 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
             <span className="text-slate-500">{activeProject.scenes.length} scenes</span>
           </div>
         </div>
-        {orderedScenes.length > 0 && <button onClick={onCreateScene} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>}
+        <div className="flex shrink-0 flex-wrap gap-2">\n          <button onClick={() => setShowStoryboardPreview(true)} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/60 hover:text-white"><PlayCircle className="h-4 w-4" /> Preview</button>\n          {orderedScenes.length > 0 && <button onClick={onCreateScene} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200"><Plus className="h-4 w-4" /> Add Scene</button>}\n        </div>
       </div>
       <div className="space-y-3">
         {orderedScenes.map((scene, index) => {
@@ -170,11 +171,83 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
   );
 };
 
+
+const StoryboardPreview: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
+  const scenes = [...project.scenes].sort((a, b) => a.order - b.order);
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const scene = scenes[index];
+  useEffect(() => {
+    if (!playing || !scene || scenes.length < 2) return;
+    const timeout = window.setTimeout(() => {
+      setIndex((current) => current >= scenes.length - 1 ? 0 : current + 1);
+    }, Math.max(1, scene.duration || 8) * 1000);
+    return () => window.clearTimeout(timeout);
+  }, [playing, index, scene?.id, scene?.duration, scenes.length]);
+  useEffect(() => { setIndex(0); setPlaying(false); }, [project.id]);
+  const ratioClass = project.aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[62vh]' : project.aspectRatio === '1:1' ? 'aspect-square max-h-[62vh]' : 'aspect-video';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label="Storyboard Preview">
+      <div className="flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 sm:px-6">
+          <div className="min-w-0"><h2 className="truncate text-sm font-semibold text-white">Storyboard Preview</h2><p className="mt-0.5 text-xs text-slate-400">{project.title} · {scenes.length} scenes · {project.aspectRatio}</p></div>
+          <button onClick={onClose} aria-label="Close preview" className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-4 w-4" /></button>
+        </div>
+        {scenes.length ? (
+          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 sm:grid-cols-[minmax(0,1fr)_16rem] sm:p-6">
+            <div className="flex min-h-0 flex-col items-center justify-center gap-3">
+              <div className={`relative flex w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl bg-black ${ratioClass}`}>
+                {scene?.mediaUrl ? <img src={scene.mediaUrl} alt={`Scene ${index + 1} preview`} className="h-full w-full object-contain" /> : <div className="p-6 text-center"><Film className="mx-auto h-10 w-10 text-slate-600" /><p className="mt-3 text-xs text-slate-400">No visual preview for this scene yet</p></div>}
+                <span className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-white">Scene {index + 1} / {scenes.length}</span>
+              </div>
+              <div className="flex w-full max-w-xl items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">{scene?.duration || 8}s</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setPlaying(false); setIndex((current) => Math.max(0, current - 1)); }} disabled={index === 0} aria-label="Previous scene" className="rounded-xl border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 disabled:opacity-30"><SkipBack className="h-4 w-4" /></button>
+                  <button onClick={() => setPlaying((value) => !value)} aria-label={playing ? 'Pause preview' : 'Play preview'} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-200">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{playing ? 'Pause' : 'Play sequence'}</button>
+                  <button onClick={() => { setPlaying(false); setIndex((current) => Math.min(scenes.length - 1, current + 1)); }} disabled={index === scenes.length - 1} aria-label="Next scene" className="rounded-xl border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 disabled:opacity-30"><SkipForward className="h-4 w-4" /></button>
+                </div>
+                <span className="text-xs text-slate-500">{scenes.reduce((sum, item) => sum + (item.duration || 0), 0)}s total</span>
+              </div>
+              <p className="w-full max-w-xl text-sm leading-6 text-slate-300">{scene?.narration || scene?.visualPrompt || 'Scene details have not been added yet.'}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-400">Scene sequence</p>
+              {scenes.map((item, itemIndex) => <button key={item.id} onClick={() => { setPlaying(false); setIndex(itemIndex); }} className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left ${itemIndex === index ? 'border-cyan-300/60 bg-cyan-300/10' : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'}`}><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs text-slate-300">{itemIndex + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white">Scene {itemIndex + 1}</span><span className="mt-0.5 block truncate text-[11px] text-slate-500">{item.duration || 8}s · {item.narration || item.visualPrompt || 'Not yet described'}</span></span></button>)}
+            </div>
+          </div>
+        ) : <div className="p-12 text-center"><Film className="mx-auto h-10 w-10 text-slate-600" /><h3 className="mt-4 text-sm font-semibold text-white">Nothing to preview yet</h3><p className="mt-1 text-xs text-slate-400">Add scenes to see them together in sequence.</p></div>}
+        <div className="flex justify-end border-t border-slate-800 px-4 py-3"><button onClick={onClose} className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800">Close</button></div>
+      </div>
+    </div>
+  );
+};
+
+const CreateStoryboardDialog: React.FC<{ onClose: () => void; onCreate: (title: string, description: string, aspectRatio: AspectRatio) => void }> = ({ onClose, onCreate }) => {
+  const [title, setTitle] = useState('Untitled Storyboard');
+  const [description, setDescription] = useState('');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('9:16');
+  const valid = title.trim().length > 0;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title">
+      <form onSubmit={(event) => { event.preventDefault(); if (valid) onCreate(title.trim(), description.trim(), aspectRatio); }} className="w-full max-w-lg space-y-5 rounded-3xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-7">
+        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">New creative project</p><h2 id="create-storyboard-title" className="mt-2 text-xl font-semibold text-white">Create New Storyboard</h2><p className="mt-1 text-xs text-slate-400">Just the essentials. You can change these details later.</p></div><button type="button" onClick={onClose} aria-label="Close" className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-4 w-4" /></button></div>
+        <label className="block space-y-2"><span className="text-xs font-semibold text-slate-300">Name <span className="text-rose-400">*</span></span><input autoFocus required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" placeholder="Name your Storyboard" /></label>
+        <label className="block space-y-2"><span className="text-xs font-semibold text-slate-300">Description <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={3} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" placeholder="What is this video about?" /></label>
+        <fieldset className="space-y-2"><legend className="text-xs font-semibold text-slate-300">Aspect ratio</legend><div className="grid grid-cols-3 gap-2">{([['9:16','Portrait','TikTok · Shorts'],['16:9','Landscape','YouTube'],['1:1','Square','Social feed']] as const).map(([value,label,detail]) => <button key={value} type="button" onClick={() => setAspectRatio(value)} className={`rounded-xl border p-3 text-left transition ${aspectRatio === value ? 'border-cyan-300 bg-cyan-300/10 text-white' : 'border-slate-700 bg-slate-950/60 text-slate-400 hover:border-slate-500'}`}><span className="block text-sm font-semibold">{value}</span><span className="mt-1 block text-xs">{label}</span><span className="mt-1 block text-[10px] text-slate-500">{detail}</span></button>)}</div></fieldset>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-4"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-800">Cancel</button><button type="submit" disabled={!valid} className="rounded-xl bg-cyan-300 px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">Create Storyboard</button></div>
+      </form>
+    </div>
+  );
+};
+
 const StudioContent: React.FC = () => {
   const { theme, toggleTheme, currentSection, setCurrentSection, projects, setActiveProjectId, navigateToProjectWorkspace, createProject, addScene, activeProject } = useStudio();
   const [mode, setMode] = useState<AppMode>('workspace');
   const [page, setPage] = useState<WorkspacePage>('home');
   const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
+  const [showCreateStoryboard, setShowCreateStoryboard] = useState(false);
+  const [showStoryboardPreview, setShowStoryboardPreview] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -197,13 +270,14 @@ const StudioContent: React.FC = () => {
     const section = sectionMap[next];
     if (section) setCurrentSection(section as any);
   };
-  const createNewStoryboard = () => {
+  const createNewStoryboard = () => setShowCreateStoryboard(true);
+  const handleCreateStoryboard = (title: string, description: string, aspectRatio: AspectRatio) => {
     const projectId = createProject({
-      title: 'Untitled Storyboard',
-      topic: '',
+      title,
+      topic: description,
       category: 'Tech & AI',
-      format: 'short_form',
-      aspectRatio: '9:16',
+      format: aspectRatio === '16:9' ? 'long_form' : 'short_form',
+      aspectRatio,
       visualStyle: 'hyper_realistic',
       narrationStyle: 'conversational',
       subtitleStyle: 'minimal_lower',
@@ -214,9 +288,11 @@ const StudioContent: React.FC = () => {
       selectedPlatformsForPublishing: [],
       scenes: [],
     });
+    setShowCreateStoryboard(false);
     setSelectedSceneId(undefined);
+    setShowStoryboardPreview(false);
     setPage('storyboard');
-    setCurrentSection('workspace' as any);
+    setCurrentSection('workspace');
     return projectId;
   };
   const openStoryboard = (id: string) => { setActiveProjectId(id); navigateToProjectWorkspace(id); setPage('storyboard'); };
@@ -279,7 +355,7 @@ const StudioContent: React.FC = () => {
           </main>
         </>
       )}
-      <Toast />
+      {showCreateStoryboard && <CreateStoryboardDialog onClose={() => setShowCreateStoryboard(false)} onCreate={handleCreateStoryboard} />}\n      {showStoryboardPreview && activeProject && <StoryboardPreview project={activeProject} onClose={() => setShowStoryboardPreview(false)} />}\n      <Toast />
       <div className="fixed bottom-4 right-4 z-20 hidden items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3 py-2 text-[10px] text-slate-400 shadow-xl sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Swipe to switch modes</div>
     </div>
   );
