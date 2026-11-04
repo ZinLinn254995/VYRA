@@ -81,7 +81,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <div className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 16) }}>
         <div className="flex shrink-0 justify-end px-3 pt-3">
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40"><X size={18} /></button>
