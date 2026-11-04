@@ -114,7 +114,7 @@ function MarketplaceApp() {
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
         creditLoading={creditLoading}
-        activeSection={profileOpen ? 'marketplace' : activeSection}
+        activeSection={profileOpen ? profileReturnSection : activeSection}
         onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
         onWorkspaceRequest={() => {
           if (!user) requestAuth('login');
