@@ -68,6 +68,14 @@
   background: rgba(148, 163, 184, 0.4);
 }
 
+/* Keep the text insertion caret visible and consistent in every theme/browser. */
+input,
+textarea,
+[contenteditable="true"] {
+  caret-color: var(--vyra-text-primary);
+  cursor: text;
+}
+
 /* Keep the web app viewport fixed; only designated content panes may scroll. */
 html, body, #root {
   width: 100%;
