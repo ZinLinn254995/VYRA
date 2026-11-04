@@ -165,7 +165,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
       {createOpen && (
         <div role="presentation" className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ height: Math.min(760, Math.max(220, visualViewport.height - 24)) }}>
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 24) }}>
             <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-5 py-4">
               <div className="flex items-center gap-2">
                 <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-xs font-black text-slate-950">V</span>
