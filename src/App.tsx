@@ -66,7 +66,6 @@ function MarketplaceApp() {
         creditLoading={creditLoading}
         onWorkspaceRequest={() => { if (!user) requestAuth('login'); }}
         onAuthRequest={requestAuth}
-        onSignOut={() => { void handleSignOut(); }}
         onProfileClick={() => setProfileOpen(true)}
       />
       {profileOpen && user ? (
