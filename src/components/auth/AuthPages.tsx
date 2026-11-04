@@ -6,7 +6,7 @@ import {
 import { BrandLogo } from '../common/BrandLogo';
 import { Button } from '../ui';
 import { useAuth } from '../../context/AuthContext';
-import { navigateVYRA } from '../../App';
+import { navigateVYRA } from '../../utils/navigation';
 
 type AuthMode = 'login' | 'signup' | 'forgot-password' | 'reset-password';
 
@@ -88,7 +88,7 @@ export const PublicLandingPage: React.FC = () => (
               <Film className="text-[var(--vyra-accent-primary)]" size={22} />
             </div>
             <div className="mt-4 grid grid-cols-4 gap-2">
-              {['01','02','03','04'].map((item,index) => <div key={item} className="flex aspect-video items-end rounded-lg border border-[var(--vyra-border)] bg-gradient-to-br from-[var(--vyra-accent-secondary)]/30 to-[var(--vyra-accent-primary)]/10 p-2 text-[10px] text-[var(--vyra-text-secondary)]">SCENE {item}</div>)}
+              {['01','02','03','04'].map((item) => <div key={item} className="flex aspect-video items-end rounded-lg border border-[var(--vyra-border)] bg-gradient-to-br from-[var(--vyra-accent-secondary)]/30 to-[var(--vyra-accent-primary)]/10 p-2 text-[10px] text-[var(--vyra-text-secondary)]">SCENE {item}</div>)}
             </div>
           </div>
           <p className="mt-4 text-[11px] text-[var(--vyra-text-muted)]">Illustrative preview · Sample workspace data</p>
@@ -208,7 +208,7 @@ export const AuthPage: React.FC<{ mode: AuthMode }> = ({ mode }) => {
                 <input id="auth-confirm-password" className={inputClass} type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} placeholder="Enter your password again" />
               </div>
             ) : null}
-            <Button type="submit" block className="w-full" loading={busy} disabled={!configured}>
+            <Button type="submit" className="w-full" loading={busy} disabled={!configured}>
               {isLogin ? 'Sign in' : isSignup ? 'Create account' : isForgot ? 'Send recovery link' : 'Update password'}
             </Button>
           </form>

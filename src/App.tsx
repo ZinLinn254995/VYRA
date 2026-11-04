@@ -23,6 +23,7 @@ import { VideoJobRecoveryView } from './components/views/VideoJobRecoveryView';
 import { ProviderUsageView } from './components/views/ProviderUsageView';
 import { CreditsWalletView } from './components/views/CreditsWalletView';
 import { Toast } from './components/common/Toast';
+import { navigateVYRA, type PublicRoute } from './utils/navigation';
 import {
   AuthLoadingScreen,
   AuthPage,
@@ -30,24 +31,12 @@ import {
   PublicLandingPage,
 } from './components/auth/AuthPages';
 
-type PublicRoute = 'workspace' | 'welcome' | 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'onboarding';
-
 function readRoute(): PublicRoute {
   const params = new URLSearchParams(window.location.search);
   if (params.get('auth') === 'reset') return 'reset-password';
   const route = window.location.hash.replace(/^#\/?/, '').split('/')[0];
   if (['welcome', 'login', 'signup', 'forgot-password', 'onboarding'].includes(route)) return route as PublicRoute;
   return 'workspace';
-}
-
-export function navigateVYRA(route: PublicRoute) {
-  const url = route === 'workspace'
-    ? window.location.pathname
-    : route === 'reset-password'
-      ? `${window.location.pathname}?auth=reset`
-      : `${window.location.pathname}#/${route}`;
-  window.history.pushState({}, '', url);
-  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 const StudioContent: React.FC = () => {
