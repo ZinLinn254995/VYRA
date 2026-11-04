@@ -23,6 +23,8 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
     if (!viewport) return;
     const syncVisualViewport = () => {
       document.documentElement.style.setProperty('--vyra-visual-viewport-top', `${viewport.offsetTop}px`);
+      document.documentElement.style.setProperty('--vyra-visual-viewport-height', `${viewport.height}px`);
+      document.documentElement.style.setProperty('--vyra-visual-viewport-bottom-gap', `${Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height)}px`);
     };
     syncVisualViewport();
     viewport.addEventListener('resize', syncVisualViewport);
@@ -33,6 +35,8 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       viewport.removeEventListener('scroll', syncVisualViewport);
       window.removeEventListener('scroll', syncVisualViewport);
       document.documentElement.style.removeProperty('--vyra-visual-viewport-top');
+      document.documentElement.style.removeProperty('--vyra-visual-viewport-height');
+      document.documentElement.style.removeProperty('--vyra-visual-viewport-bottom-gap');
     };
   }, []);
 
