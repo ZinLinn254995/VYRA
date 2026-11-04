@@ -490,3 +490,21 @@ test('Cancelling the billable video confirmation sends no provider request', asy
   await expect(page.getByRole('status').filter({ hasText: 'Generation cancelled. No video request was sent.' })).toBeVisible();
   expect(generationRequests).toBe(0);
 });
+
+
+test('Create New Storyboard dialog opens without a runtime crash', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+
+  const createButton = page.getByRole('button', { name: 'Create New Storyboard' });
+  await expect(createButton).toBeVisible();
+  await createButton.click();
+
+  await expect(page.getByRole('dialog', { name: 'Create New Storyboard' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: /Name/ })).toBeVisible();
+  expect(pageErrors, 'Opening the Storyboard dialog must not cause a React runtime error').toEqual([]);
+});
+
