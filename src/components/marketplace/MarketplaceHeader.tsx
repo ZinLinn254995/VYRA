@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Bot, Clapperboard, Coins, Sparkles, UserRound } from 'lucide-react';
+import { Bot, Clapperboard, Coins, Store, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
@@ -62,7 +62,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
         </button>
 
         <nav aria-label="Main navigation" className="flex h-full items-center gap-0.5 sm:gap-1">
-          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={navClass('marketplace')}><Sparkles size={15} /> Marketplace</button>
+          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={navClass('marketplace')}><Store size={15} /> Marketplace</button>
           <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={navClass('workspace')}>
             <Clapperboard size={15} /> Workspace
           </button>
@@ -121,7 +121,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
         </div>
 
         <nav aria-label="Main navigation" className="flex min-h-11 items-center gap-1 border-t border-[var(--vyra-border-subtle)]">
-          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={mobileNavClass('marketplace')}><Sparkles size={14} /> Marketplace</button>
+          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={mobileNavClass('marketplace')}><Store size={14} /> Marketplace</button>
           <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={mobileNavClass('workspace')}>
             <Clapperboard size={14} /> Workspace
           </button>
