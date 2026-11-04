@@ -63,17 +63,19 @@ function MarketplaceApp() {
   };
 
   return (
-    <div className="dark min-h-screen bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
+    <div className="dark flex h-[100dvh] flex-col overflow-hidden bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
       <MarketplaceHeader
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
         creditLoading={creditLoading}
         activeSection={profileOpen ? 'marketplace' : activeSection}
+        onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
         onWorkspaceRequest={() => { if (!user) requestAuth('login'); }}
         onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
         onProfileClick={() => setProfileOpen(true)}
       />
+      <div className="min-h-0 flex-1 overflow-hidden">
       {profileOpen && user ? (
         <ProfilePage
           userEmail={user.email ?? ''}
@@ -87,6 +89,7 @@ function MarketplaceApp() {
       ) : (
         <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
       )}
+      </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
   );
