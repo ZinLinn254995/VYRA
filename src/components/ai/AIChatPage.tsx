@@ -123,8 +123,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   return (
-    <main className="relative mx-auto h-[calc(100dvh-7.5rem)] w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(100dvh-4rem)] sm:px-6">
-      <header className="fixed inset-x-0 top-[7.5rem] z-40 mx-auto flex h-14 w-full max-w-[var(--vyra-content-width)] items-center justify-end gap-2 bg-[var(--vyra-bg-base)]/95 px-3 backdrop-blur sm:top-16 sm:px-6">
+    <main className="relative mx-auto h-full w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:px-6">
+      <header className="absolute inset-x-0 top-0 z-40 mx-auto flex h-14 w-full max-w-[var(--vyra-content-width)] items-center justify-end gap-2 bg-[var(--vyra-bg-canvas)]/95 px-3 backdrop-blur sm:px-6">
         <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
           <History size={23} />
         </Button>
@@ -184,7 +184,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         )}
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[var(--vyra-content-width)] bg-[var(--vyra-bg-base)]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6">
+      <div className="absolute inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[var(--vyra-content-width)] bg-[var(--vyra-bg-canvas)]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6">
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
