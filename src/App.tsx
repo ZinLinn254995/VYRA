@@ -127,6 +127,11 @@ const StoryboardSequence: React.FC<{ onOpenScene: (id: string) => void; onCreate
           <textarea aria-label="Storyboard description" value={activeProject.topic} onChange={(event) => updateProject(activeProject.id, { topic: event.target.value })} placeholder="Add a description..." rows={2} className="mt-2 w-full max-w-2xl resize-y rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-300">Status · {activeProject.status.replaceAll('_', ' ')}</span>
+            <label className="inline-flex items-center gap-2 text-slate-400">Aspect ratio
+              <select aria-label="Storyboard aspect ratio" value={activeProject.aspectRatio} onChange={(event) => updateProject(activeProject.id, { aspectRatio: event.target.value as AspectRatio })} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                <option value="9:16">9:16 Portrait</option><option value="16:9">16:9 Landscape</option><option value="1:1">1:1 Square</option>
+              </select>
+            </label>
             <span className="text-slate-500">{activeProject.scenes.length} scenes</span>
           </div>
         </div>
