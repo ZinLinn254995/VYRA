@@ -194,9 +194,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
               <MessageSquare size={24} />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">မင်္ဂလာပါ။ ဘာဖန်တီးကြမလဲ?</h1>
+            <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Hello! What would you like to create today?</h1>
             <p className="mt-2 max-w-md text-xs leading-5 text-[var(--vyra-text-secondary)] sm:text-sm">
-              စိတ်ကူးတွေ ဆွေးနွေးနိုင်တယ်၊ Script ရေးနိုင်တယ်၊ Project တွေ စီစဉ်နိုင်တယ်။ VYRA နဲ့ပတ်သက်တာဖြစ်ဖြစ် အခြားအကြောင်းအရာဖြစ်ဖြစ် လွတ်လပ်စွာ မေးမြန်းနိုင်ပါတယ်။
+              Explore ideas, write scripts, plan projects, or ask me anything — about VYRA or beyond.
             </p>
           </div>
         ) : (
