@@ -21,7 +21,9 @@ type ProfilePageProps = {
 type PageKey =
   | 'home' | 'public-profile' | 'my-vyrals' | 'saved' | 'purchased'
   | 'collections' | 'following' | 'creator-dashboard' | 'notifications'
-  | 'settings' | 'help';
+  | 'settings' | 'setting-account' | 'setting-security' | 'setting-appearance'
+  | 'setting-notifications' | 'setting-billing' | 'setting-ai' | 'setting-legal'
+  | 'setting-about' | 'help';
 
 type NavItem = { key: PageKey; label: string; detail: string; icon: LucideIcon };
 
@@ -57,19 +59,27 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
   following: { title: 'Following', description: 'Keep up with creators whose work you enjoy.', icon: Users, note: 'Creators you follow will appear here. Your following list can be made private in Settings.' },
   'creator-dashboard': { title: 'Creator Dashboard', description: 'Understand how your published Vyrals are performing.', icon: ChartNoAxesCombined, note: 'Creator analytics for views, uses, sales and earnings will appear here.' },
   notifications: { title: 'Notifications', description: 'Stay informed about activity on your VYRA account.', icon: Bell, note: 'Follow alerts, purchases, Vyral updates and system notifications will appear here.' },
-  settings: { title: 'Settings', description: 'Control your account and VYRA experience.', icon: Settings2, note: 'Settings categories are organized below. Individual controls will be enabled as each account feature is connected.' },
+  settings: { title: 'Settings', description: 'Control your account and VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
+  'setting-account': { title: 'Account & Profile', description: 'Manage your email, personal details and public profile.', icon: UserRound, note: 'Account and profile controls are coming soon.' },
+  'setting-security': { title: 'Security & Privacy', description: 'Manage password, active sessions and privacy controls.', icon: ShieldCheck, note: 'Security and privacy controls are coming soon.' },
+  'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Language preferences are coming soon.' },
+  'setting-notifications': { title: 'Notifications', description: 'Choose which alerts and updates you receive.', icon: Bell, note: 'Notification preferences are coming soon.' },
+  'setting-billing': { title: 'Plans & Billing', description: 'Manage your subscription, credits, payments and invoices.', icon: CreditCard, note: 'Plans and billing controls are coming soon.' },
+  'setting-ai': { title: 'AI Providers & API Keys', description: 'Manage connected AI providers and API keys.', icon: KeyRound, note: 'AI provider and API key management is coming soon.' },
+  'setting-legal': { title: 'Terms & Legal', description: 'Review VYRA terms of service and privacy information.', icon: LockKeyhole, note: 'Legal documents are coming soon.' },
+  'setting-about': { title: 'About VYRA', description: 'Platform information, version and product details.', icon: Monitor, note: 'VYRA platform information is coming soon.' },
   help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
 };
 
-const settingsItems = [
-  { label: 'Account & Profile', detail: 'Email, personal details and public profile', icon: UserRound },
-  { label: 'Security & Privacy', detail: 'Password, sessions and visibility controls', icon: ShieldCheck },
-  { label: 'Language & Appearance', detail: 'Language, theme and display preferences', icon: Globe2 },
-  { label: 'Notifications', detail: 'Choose which alerts you receive', icon: Bell },
-  { label: 'Plans & Billing', detail: 'Subscription, credits, payments and invoices', icon: CreditCard },
-  { label: 'AI Providers & API Keys', detail: 'Manage connected AI services and keys', icon: KeyRound },
-  { label: 'Terms & Legal', detail: 'Terms of service and privacy policy', icon: LockKeyhole },
-  { label: 'About VYRA', detail: 'Platform information and version', icon: Monitor },
+const settingsItems: { key: PageKey; label: string; detail: string; icon: LucideIcon }[] = [
+  { key: 'setting-account', label: 'Account & Profile', detail: 'Email, personal details and public profile', icon: UserRound },
+  { key: 'setting-security', label: 'Security & Privacy', detail: 'Password, sessions and visibility controls', icon: ShieldCheck },
+  { key: 'setting-appearance', label: 'Language & Appearance', detail: 'Language, theme and display preferences', icon: Globe2 },
+  { key: 'setting-notifications', label: 'Notifications', detail: 'Choose which alerts you receive', icon: Bell },
+  { key: 'setting-billing', label: 'Plans & Billing', detail: 'Subscription, credits, payments and invoices', icon: CreditCard },
+  { key: 'setting-ai', label: 'AI Providers & API Keys', detail: 'Manage connected AI services and keys', icon: KeyRound },
+  { key: 'setting-legal', label: 'Terms & Legal', detail: 'Terms of service and privacy policy', icon: LockKeyhole },
+  { key: 'setting-about', label: 'About VYRA', detail: 'Platform information and version', icon: Monitor },
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
@@ -153,44 +163,51 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           <div className="p-5 sm:p-6">
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
-                {settingsItems.map(({ label, detail, icon: Icon }) => (
-                  <div key={label} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-secondary)]"><Icon size={17} /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium text-[var(--vyra-text-primary)]">{label}</span>
-                        <span className="mt-0.5 block text-xs text-[var(--vyra-text-muted)]">{detail}</span>
-                      </span>
-                    </div>
-                    {label === 'Language & Appearance' ? (
-                      <div className="flex flex-col gap-2 sm:items-end">
-                        <div className="text-xs font-medium text-[var(--vyra-text-secondary)]">
-                          {themeMode === 'system' ? `System theme · currently ${resolvedTheme}` : `${themeMode === 'light' ? 'Light' : 'Dark'} theme`}
-                        </div>
-                        <div role="group" aria-label="Display theme" className="grid w-full grid-cols-3 gap-1 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1 sm:w-auto">
-                          {([
-                            { value: 'light', label: 'Light', Icon: Sun },
-                            { value: 'dark', label: 'Dark', Icon: Moon },
-                            { value: 'system', label: 'System', Icon: Monitor },
-                          ] as const).map(({ value, label: modeLabel, Icon: ModeIcon }) => (
-                            <button
-                              key={value}
-                              type="button"
-                              aria-pressed={themeMode === value}
-                              onClick={() => onThemeModeChange(value)}
-                              className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${themeMode === value ? 'bg-[var(--vyra-accent-primary)] text-slate-950' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}
-                            >
-                              <ModeIcon size={14} />
-                              {modeLabel}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="w-fit rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-muted)]">Coming soon</span>
-                    )}
-                  </div>
+                {settingsItems.map(({ key, label, detail, icon: Icon }) => (
+                  <button key={key} type="button" onClick={() => setActivePage(key)} className="group flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--vyra-bg-hover)] first:pt-0 last:pb-0">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-secondary)] group-hover:text-[var(--vyra-accent-primary)]"><Icon size={17} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-[var(--vyra-text-primary)]">{label}</span>
+                      <span className="mt-0.5 block text-xs text-[var(--vyra-text-muted)]">{detail}</span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+                  </button>
                 ))}
+              </div>
+            ) : activePage === 'setting-appearance' ? (
+              <div className="max-w-xl">
+                <div className="mb-5">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Display theme</h2>
+                  <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Choose how VYRA looks on this device.</p>
+                </div>
+                <div className="mb-3 text-xs font-medium text-[var(--vyra-text-secondary)]">
+                  {themeMode === 'system' ? `System theme · currently ${resolvedTheme}` : `${themeMode === 'light' ? 'Light' : 'Dark'} theme selected`}
+                </div>
+                <div role="group" aria-label="Display theme" className="grid grid-cols-3 gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1.5">
+                  {([
+                    { value: 'light', label: 'Light', Icon: Sun },
+                    { value: 'dark', label: 'Dark', Icon: Moon },
+                    { value: 'system', label: 'System', Icon: Monitor },
+                  ] as const).map(({ value, label, Icon }) => (
+                    <button key={value} type="button" aria-pressed={themeMode === value} onClick={() => onThemeModeChange(value)} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold transition-colors ${themeMode === value ? 'bg-[var(--vyra-accent-primary)] text-slate-950' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>
+                      <Icon size={15} />{label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-6 border-t border-[var(--vyra-border-subtle)] pt-5">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Language</h2>
+                  <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Interface language preferences.</p>
+                  <div className="mt-3 rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-5 text-center">
+                    <span className="text-xs font-medium text-[var(--vyra-text-muted)]">Coming soon</span>
+                    <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Language selection will be available here.</p>
+                  </div>
+                </div>
+              </div>
+            ) : activePage.startsWith('setting-') ? (
+              <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
+                <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
+                <p className="mx-auto max-w-md text-sm text-[var(--vyra-text-secondary)]">{pageInfo[activePage].note}</p>
+                <span className="mt-3 inline-flex rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-muted)]">Coming soon</span>
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
