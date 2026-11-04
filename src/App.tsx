@@ -84,7 +84,7 @@ const StudioContent: React.FC = () => {
 };
 
 const AppRouter: React.FC = () => {
-  const { loading } = useAuth();
+  const { loading, configured, user } = useAuth();
   const [route, setRoute] = useState<PublicRoute>(readRoute);
 
   useEffect(() => {
@@ -98,7 +98,7 @@ const AppRouter: React.FC = () => {
   }, []);
 
   if (loading) return <AuthLoadingScreen />;
-  if (route === 'welcome') return <PublicLandingPage />;
+  if (route === 'welcome' || (route === 'workspace' && configured && !user)) return <PublicLandingPage />;
   if (route === 'onboarding') return <OnboardingPage />;
   if (route === 'login' || route === 'signup' || route === 'forgot-password' || route === 'reset-password') {
     return <AuthPage mode={route} />;
