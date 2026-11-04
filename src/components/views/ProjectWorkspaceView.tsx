@@ -1824,7 +1824,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ init
   }
 
   return (
-    <div className="w-full min-w-0 space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="w-full min-w-0 space-y-6 px-3 sm:px-5 lg:px-6 pb-16">
       {/* 1. Header Toolbar */}
       <div role="group" aria-label="Storyboard project toolbar" className="flex flex-col gap-3 p-4 rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-0">
