@@ -75,6 +75,7 @@ function MarketplaceApp() {
         onAuthRequest={requestAuth}
         onProfileClick={() => setProfileOpen(true)}
       />
+      <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
       <div className="min-h-0 flex-1">
       {profileOpen && user ? (
         <ProfilePage
