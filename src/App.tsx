@@ -105,6 +105,7 @@ function MarketplaceApp() {
   }, []);
 
   const workspaceStorageKey = 'vyra_storyboards_v1:' + (user?.id ?? user?.email ?? 'local');
+  const seedDemoStoryboards = user?.email?.trim().toLowerCase() === 'zla264995@gmail.com';
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
@@ -138,7 +139,7 @@ function MarketplaceApp() {
         ) : activeSection === 'ai-chat' ? (
           <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
         ) : activeSection === 'workspace' && user ? (
-          <WorkspacePage key={workspaceStorageKey} storageKey={workspaceStorageKey} />
+          <WorkspacePage key={workspaceStorageKey} storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} />
         ) : (
           <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
         )}
