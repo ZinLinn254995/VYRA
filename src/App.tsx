@@ -18,6 +18,7 @@ function MarketplaceApp() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
+  const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
@@ -121,7 +122,7 @@ function MarketplaceApp() {
         }}
         onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
-        onProfileClick={() => setProfileOpen(true)}
+        onProfileClick={() => { setProfileReturnSection(activeSection); setProfileOpen(true); }}
       />
       <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
       <div className="min-h-0 flex-1">
@@ -133,7 +134,8 @@ function MarketplaceApp() {
             themeMode={themeMode}
             resolvedTheme={resolvedTheme}
             onThemeModeChange={setThemeMode}
-            onBack={() => setProfileOpen(false)}
+            onBack={() => { setProfileOpen(false); setActiveSection(profileReturnSection); }}
+            backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
             onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
           />
         ) : activeSection === 'ai-chat' ? (
