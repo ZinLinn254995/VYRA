@@ -48,7 +48,7 @@
     color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    min-height: 0;
+    min-height: 100vh;
   }
 }
 
@@ -71,13 +71,5 @@
 /* Keep the web app viewport fixed; only designated content panes may scroll. */
 html, body, #root {
   width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
-#root {
-  position: fixed;
-  inset: 0;
+  min-height: 100%;
 }
