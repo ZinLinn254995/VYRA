@@ -68,7 +68,7 @@ export const VyralProjectWorkspaceView: React.FC<{ onBack: () => void }> = ({ on
     if (!files?.length) return;
     const additions: Asset[] = Array.from(files).map((file, index) => {
       const kind: AssetKind = file.type.startsWith('video/') ? 'Video' : file.type.startsWith('audio/') ? 'Audio' : file.type.startsWith('image/') ? 'Image' : 'Document';
-      return { id: 'upload-' + Date.now() + '-' + index, name: file.name, kind, image: kind === 'Image' ? URL.createObjectURL(file) : 'https://images.unsplash.com/photo-1455390582262-044c?auto=format&w=900&q=85', folder: activeFolder === 'All Assets' ? 'Characters' : activeFolder, updated: 'Just now', source: 'Device upload' };
+      return { id: 'upload-' + Date.now() + '-' + index, name: file.name, kind, image: kind === 'Image' ? URL.createObjectURL(file) : 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=900&q=85', folder: activeFolder === 'All Assets' ? 'Characters' : activeFolder, updated: 'Just now', source: 'Device upload' };
     });
     setAssets(current => [...additions, ...current]);
     setSelected(additions.map(a => a.id));
