@@ -56,7 +56,7 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ onClose }) => {
     <div className="fixed inset-x-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/70 p-2 sm:p-4" style={{ top: viewport.top, height: viewport.height }} onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-panel-title" className="w-full max-w-md min-h-0 overflow-y-auto touch-pan-y overscroll-contain rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#11152B] light:bg-white p-5 sm:p-6 shadow-2xl" style={{ maxHeight: Math.max(220, viewport.height - 16) }}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-panel-title" className="w-full max-w-md min-h-0 overflow-y-auto touch-pan-y overscroll-contain rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#11152B] light:bg-white p-5 sm:p-6 shadow-2xl" style={{ maxHeight: Math.max(120, viewport.height - 16) }}>
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h2 id="account-panel-title" className="mt-1 text-xl font-bold text-white light:text-slate-900">
