@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useModalDialog } from '../../hooks/useModalDialog';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -12,6 +13,8 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ onClose }) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLElement>(null);
+  const viewport = useModalDialog(true, dialogRef, dialogRef);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -50,13 +53,12 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ onClose }) => {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center overflow-y-auto overscroll-contain bg-black/70 px-3 py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6" onMouseDown={(event) => {
+    <div className="fixed inset-x-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/70 p-2 sm:p-4" style={{ top: viewport.top, height: viewport.height }} onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="account-panel-title" className="my-auto w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#11152B] light:bg-white p-5 sm:p-6 shadow-2xl">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-panel-title" className="w-full max-w-md min-h-0 overflow-y-auto touch-pan-y overscroll-contain rounded-2xl border border-[#2B3058] light:border-slate-200 bg-[#11152B] light:bg-white p-5 sm:p-6 shadow-2xl" style={{ maxHeight: Math.max(220, viewport.height - 16) }}>
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#55F4FF] light:text-sky-600">VYRA ACCOUNT</p>
             <h2 id="account-panel-title" className="mt-1 text-xl font-bold text-white light:text-slate-900">
               {user ? 'Your account' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
             </h2>
