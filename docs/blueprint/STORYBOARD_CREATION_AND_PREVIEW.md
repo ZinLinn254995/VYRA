@@ -14,7 +14,7 @@ A newly created Storyboard is saved immediately as a Draft with an empty Scene l
 
 ## Storyboard-level Preview
 
-The Storyboard page shows the preview inline, directly below the Name and Description fields and the relevant Storyboard settings. There is no separate Preview button, dialog, or page. The Scenes list appears immediately below this inline preview. The inline preview:
+The Storyboard page shows the preview inline, directly below the Name and Description fields. The preview container must take the full available left-to-right content width on both desktop and mobile; it must not sit in a narrow side column or use a fixed narrow width. Keep the selected canvas aspect ratio (9:16, 16:9, or 1:1), but scale that canvas to the full available width. Place its related settings (including aspect-ratio selection and relevant sequence details) directly below the preview, never beside it. Scene editing/settings follow in the same vertical flow, with the Scenes list below. There is no separate Preview button, dialog, or page. The inline preview:
 
 - Presents the Scenes in their current order.
 - Plays through the available scene visual previews using each Scene's duration as the default display time.
@@ -30,6 +30,6 @@ This is a Storyboard/animatic preview for reviewing the planned sequence. It mus
 - Keep the creation form short and approachable on mobile and desktop.
 - Allow the customer to edit the Storyboard name, description, and aspect ratio later.
 - A blank Storyboard is valid; it does not need AI-generated content or Scenes to exist.
-- Place the inline preview directly above the vertically ordered Scene list; do not make users open a separate preview surface.
+- Use a full-width preview on desktop and mobile, with preview settings directly beneath it and the vertically ordered Scenes list further below; do not make users open a separate preview surface.
 - Keep Scene creation, ordering, and preview visible without introducing a complex nonlinear video editor.
 - Preserve existing generation, media storage, audio/video export, publishing, billing, and other backend capabilities.
