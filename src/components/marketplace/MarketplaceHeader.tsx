@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Coins, LockKeyhole, LogOut, UserRound } from 'lucide-react';
+import React from 'react';
+import { Coins, LockKeyhole, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
@@ -9,27 +9,14 @@ type HeaderProps = {
   onWorkspaceRequest: () => void;
   onAuthRequest: (mode: 'login' | 'signup') => void;
   onSignOut: () => void;
+  onProfileClick: () => void;
 };
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
-  userEmail, creditBalance, creditLoading, onWorkspaceRequest, onAuthRequest, onSignOut,
+  userEmail, creditBalance, creditLoading, onWorkspaceRequest, onAuthRequest, onSignOut, onProfileClick,
 }) => {
-  const [accountOpen, setAccountOpen] = useState(false);
   const signedIn = Boolean(userEmail);
   const formattedBalance = creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
-
-  const accountMenu = (
-    <div className="absolute right-0 top-12 z-50 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 shadow-[var(--vyra-shadow-overlay)]">
-      <p className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{userEmail}</p>
-      <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] px-3 py-2.5">
-        <span className="flex items-center gap-2 text-xs text-[var(--vyra-text-secondary)]"><Coins size={14} className="shrink-0 text-amber-400" /> Available credits</span>
-        <span className="shrink-0 text-sm font-bold tabular-nums text-[var(--vyra-text-primary)]">{creditLoading ? '…' : formattedBalance}</span>
-      </div>
-      <Button className="mt-3 w-full" size="sm" variant="secondary" startIcon={<LogOut size={14} />} onClick={() => { setAccountOpen(false); onSignOut(); }}>
-        Sign Out
-      </Button>
-    </div>
-  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/90 backdrop-blur-xl">
@@ -57,7 +44,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
                 <span>{creditLoading ? '…' : formattedBalance}</span>
                 <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
               </div>
-              <button type="button" onClick={() => setAccountOpen((open) => !open)} aria-expanded={accountOpen} aria-label="Open account menu" className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] py-1.5 pl-1.5 pr-2.5 transition hover:bg-[var(--vyra-bg-hover)]">
+              <button type="button" onClick={onProfileClick} aria-label="Open user profile" className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] py-1.5 pl-1.5 pr-2.5 transition hover:bg-[var(--vyra-bg-hover)]">
                 <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><UserRound size={15} /></span>
                 <span className="hidden max-w-32 truncate text-xs font-semibold text-[var(--vyra-text-primary)] md:block">{userEmail}</span>
               </button>
@@ -68,7 +55,6 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
               <Button size="sm" onClick={() => onAuthRequest('signup')}>Create Account</Button>
             </>
           )}
-          {signedIn && accountOpen && accountMenu}
         </div>
       </div>
 
@@ -98,7 +84,6 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
                 <Button size="sm" className="min-h-8 px-2.5" onClick={() => onAuthRequest('signup')}>Create Account</Button>
               </>
             )}
-            {signedIn && accountOpen && accountMenu}
           </div>
         </div>
 
