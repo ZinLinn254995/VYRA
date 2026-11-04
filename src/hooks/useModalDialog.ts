@@ -44,6 +44,17 @@ export function useModalDialog(
 
     const preventBackgroundGesture = (event: Event) => {
       const target = event.target;
+      const targetElement = target instanceof Element
+        ? target
+        : target instanceof Node
+          ? target.parentElement
+          : null;
+      const targetModal = targetElement?.closest('[role="dialog"][aria-modal="true"]');
+
+      // A nested dialog rendered later in the DOM owns its own scroll area.
+      // Do not let the underlying dialog cancel gestures inside that top dialog.
+      if (targetModal && targetModal !== dialogRef.current) return;
+
       const scrollArea = scrollAreaRef.current;
       if (!(target instanceof Node) || !scrollArea?.contains(target)) {
         event.preventDefault();
