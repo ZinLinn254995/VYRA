@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Clapperboard, Film, Plus, X } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string };
@@ -64,48 +65,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [topic, setTopic] = useState('');
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
-  const [visualViewport, setVisualViewport] = useState(() => ({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 }));
-
-  useEffect(() => {
-    if (!createOpen) return;
-    const viewport = window.visualViewport;
-    const syncViewport = () => setVisualViewport({ top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight });
-    const keepFocusedFieldVisible = () => {
-      syncViewport();
-      // Measure after the keyboard has resized the visual viewport and the
-      // dialog has received its new height.
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        const dialog = dialogRef.current;
-        const scrollArea = dialogBodyRef.current;
-        const active = dialog?.querySelector<HTMLElement>('input:focus, textarea:focus');
-        if (!dialog || !scrollArea || !active) return;
-
-        const areaBounds = scrollArea.getBoundingClientRect();
-        const fieldBounds = active.getBoundingClientRect();
-        const areaMidpoint = areaBounds.top + areaBounds.height / 2;
-        const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
-
-        // Upper-half inputs return the dialog body to its top; lower-half
-        // inputs move it to the bottom so the final controls are reachable.
-        const targetScrollTop = fieldMidpoint < areaMidpoint
-          ? 0
-          : scrollArea.scrollHeight - scrollArea.clientHeight;
-
-        scrollArea.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
-      }));
-    };
-    syncViewport();
-    viewport?.addEventListener('resize', keepFocusedFieldVisible);
-    viewport?.addEventListener('scroll', syncViewport);
-    window.addEventListener('resize', keepFocusedFieldVisible);
-    dialogRef.current?.addEventListener('focusin', keepFocusedFieldVisible);
-    return () => {
-      viewport?.removeEventListener('resize', keepFocusedFieldVisible);
-      viewport?.removeEventListener('scroll', syncViewport);
-      window.removeEventListener('resize', keepFocusedFieldVisible);
-      dialogRef.current?.removeEventListener('focusin', keepFocusedFieldVisible);
-    };
-  }, [createOpen]);
+  const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
 
   useEffect(() => { setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards)); }, [storageKey, seedDemoStoryboards]);
   useEffect(() => {
@@ -158,24 +118,20 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       )}
 
       {createOpen && (
-        <div role="presentation" className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 24) }}>
-            <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-5 py-4">
-              <div className="flex items-center gap-2">
-                <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-xs font-black text-slate-950">V</span>
-                <span className="text-sm font-extrabold tracking-[0.16em] text-[var(--vyra-text-primary)]">VYRA</span>
-              </div>
+        <div role="presentation" className="fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 16) }}>
+            <div className="flex shrink-0 justify-end px-3 pt-3">
               <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
             </div>
 
-            <div ref={dialogBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 sm:p-7">
-              <div className="mb-6">
+            <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
+              <div className="mb-4">
                 <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">CREATIVE WORKSPACE</p>
                 <h2 id="create-storyboard-title" className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Give your new storyboard a name and a short description.</p>
               </div>
 
-              <form onSubmit={createStoryboard} className="space-y-5">
+              <form onSubmit={createStoryboard} className="space-y-4">
                 <div className="min-w-0 space-y-2.5">
                   <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="ml-1 text-[var(--vyra-danger)]" aria-hidden="true">*</span></label>
                   <input id="vyra-storyboard-name" type="text" required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. The Last City" className={inputClass} />
