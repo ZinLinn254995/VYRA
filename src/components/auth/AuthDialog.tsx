@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useModalDialog } from '../../hooks/useModalDialog';
 import { Eye, EyeOff, LockKeyhole, Mail, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { FormField } from '../ui/FormField';
@@ -24,7 +25,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
   const [success, setSuccess] = useState('');
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
-  const [visualViewport, setVisualViewport] = useState(() => ({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 }));
+  const visualViewport = useModalDialog(open, dialogRef, dialogBodyRef);
 
   React.useEffect(() => {
     if (open) {
@@ -35,74 +36,6 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
       setConfirmPassword('');
     }
   }, [open, initialMode]);
-
-  useEffect(() => {
-    if (!open) return;
-    const viewport = window.visualViewport;
-    let focusedInput: HTMLElement | null = null;
-    let settleTimer: number | undefined;
-
-    const syncViewport = () => {
-      const next = { top: viewport?.offsetTop ?? 0, height: viewport?.height ?? window.innerHeight };
-      setVisualViewport((current) => current.top === next.top && current.height === next.height ? current : next);
-    };
-
-    const applyFocusedFieldScroll = () => {
-      const scrollArea = dialogBodyRef.current;
-      const active = focusedInput;
-      if (!scrollArea || !active || !active.isConnected) return;
-
-      // Measure only after the keyboard/viewport has settled. The current
-      // scroll position is intentionally included so the same input can be
-      // in the upper half at the bottom position, and vice versa.
-      const areaBounds = scrollArea.getBoundingClientRect();
-      const fieldBounds = active.getBoundingClientRect();
-      const areaMidpoint = areaBounds.top + areaBounds.height / 2;
-      const fieldMidpoint = fieldBounds.top + fieldBounds.height / 2;
-      const targetScrollTop = fieldMidpoint < areaMidpoint
-        ? 0
-        : Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight);
-
-      // Assign once, without smooth-scroll animation. Repeated animated
-      // scrollTo calls during keyboard resizing caused the visible blinking.
-      scrollArea.style.scrollBehavior = 'auto';
-      scrollArea.scrollTop = targetScrollTop;
-    };
-
-    const scheduleFocusedFieldScroll = () => {
-      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
-      // visualViewport can emit several resize events while Android's
-      // keyboard animates. Wait for a quiet interval, then classify once.
-      settleTimer = window.setTimeout(() => {
-        window.requestAnimationFrame(applyFocusedFieldScroll);
-      }, 120);
-    };
-
-    const handleFocusIn = (event: FocusEvent) => {
-      const active = event.target instanceof HTMLElement ? event.target : null;
-      if (!active || !active.matches('input, textarea')) return;
-      focusedInput = active;
-      scheduleFocusedFieldScroll();
-    };
-
-    const handleViewportResize = () => {
-      syncViewport();
-      if (focusedInput) scheduleFocusedFieldScroll();
-    };
-
-    syncViewport();
-    viewport?.addEventListener('resize', handleViewportResize);
-    viewport?.addEventListener('scroll', syncViewport);
-    window.addEventListener('resize', handleViewportResize);
-    dialogRef.current?.addEventListener('focusin', handleFocusIn);
-    return () => {
-      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
-      viewport?.removeEventListener('resize', handleViewportResize);
-      viewport?.removeEventListener('scroll', syncViewport);
-      window.removeEventListener('resize', handleViewportResize);
-      dialogRef.current?.removeEventListener('focusin', handleFocusIn);
-    };
-  }, [open, mode]);
 
   if (!open) return null;
 
@@ -148,18 +81,14 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
   };
 
   return (
-    <div className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-3 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="flex w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 24) }}>
-        <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-xs font-black text-slate-950">V</span>
-            <span className="text-sm font-extrabold tracking-[0.16em]">VYRA</span>
-          </div>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" ref={dialogRef} className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(220, visualViewport.height - 16) }}>
+        <div className="flex shrink-0 justify-end px-3 pt-3">
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40"><X size={18} /></button>
         </div>
 
-        <div ref={dialogBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 sm:p-7">
-          <div className="mb-6">
+        <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
+          <div className="mb-4">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">Your creative space</p>
             <h2 id="auth-dialog-title" className="text-2xl font-bold tracking-tight">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">{mode === 'login' ? 'Sign in to access your account, credits and Workspace.' : 'Create a VYRA account to save your work and start creating.'}</p>
@@ -168,7 +97,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, initialMode = 'log
           {success && <p className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs leading-5 text-emerald-300" role="status">{success}</p>}
           {error && <p className="mb-4 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/10 px-3 py-2.5 text-xs leading-5 text-[var(--vyra-danger)]" role="alert">{error}</p>}
 
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-3.5">
             <FormField label="Email address" htmlFor="vyra-auth-email" required>
               <div className="relative">
                 <Mail size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" />
