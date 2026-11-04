@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string };
-type Props = { storageKey: string };
+type Props = { storageKey: string; seedDemoStoryboards?: boolean };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -16,13 +16,54 @@ const readStoryboards = (key: string): Storyboard[] => {
   } catch { return []; }
 };
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey }) => {
-  const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
+const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Storyboard[] => {
+  const existing = readStoryboards(key);
+  if (existing.length || !seedDemoStoryboards) return existing;
+
+  const markerKey = key + ':demo-storyboards-seeded';
+  try {
+    if (localStorage.getItem(markerKey) === '1') return existing;
+    const now = new Date().toISOString();
+    const samples: Storyboard[] = [
+      {
+        id: 'demo-myanmar-folktale',
+        title: 'Myanmar Folktale — The Golden Peacock',
+        topic: 'A cinematic retelling of a Myanmar folktale, with a clear beginning, a magical journey and a meaningful ending.',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'demo-product-promotion',
+        title: 'Product Promotion — Smart Bottle',
+        topic: 'A short product video introducing the key features, everyday benefits and a memorable call to action.',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'demo-science-explainer',
+        title: 'Science Explainer — Black Holes',
+        topic: 'An easy-to-follow visual explanation of black holes, gravity and how light behaves near the event horizon.',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    localStorage.setItem(markerKey, '1');
+    localStorage.setItem(key, JSON.stringify(samples));
+    return samples;
+  } catch {
+    return existing;
+  }
+};
+
+const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-none focus-visible:outline-none focus:ring-0 placeholder:text-[var(--vyra-text-muted)]';
+
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false }) => {
+  const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
 
-  useEffect(() => { setStoryboards(readStoryboards(storageKey)); }, [storageKey]);
+  useEffect(() => { setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards)); }, [storageKey, seedDemoStoryboards]);
   useEffect(() => {
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
   }, [storageKey, storyboards]);
@@ -73,17 +114,40 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey }) => {
       )}
 
       {createOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="w-full max-w-md rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-2xl">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div><h2 id="create-storyboard-title" className="text-lg font-semibold text-[var(--vyra-text-primary)]">Create Storyboard</h2><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Give your new storyboard a name.</p></div>
-              <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><X size={17} /></button>
+        <div role="presentation" className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]">
+            <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-xs font-black text-slate-950">V</span>
+                <span className="text-sm font-extrabold tracking-[0.16em] text-[var(--vyra-text-primary)]">VYRA</span>
+              </div>
+              <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
             </div>
-            <form onSubmit={createStoryboard} className="space-y-4">
-              <label className="block space-y-1.5"><span className="text-xs font-medium text-[var(--vyra-text-primary)]">Storyboard name</span><input autoFocus required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. The Last City" className="min-h-11 w-full rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-muted)] focus:border-[var(--vyra-accent-primary)]" /></label>
-              <label className="block space-y-1.5"><span className="text-xs font-medium text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></span><textarea rows={3} maxLength={500} value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="What is this story about?" className="w-full resize-y rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 py-2.5 text-sm text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-muted)] focus:border-[var(--vyra-accent-primary)]" /></label>
-              <div className="flex justify-end gap-2 pt-1"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={!title.trim()}>Create Storyboard</Button></div>
-            </form>
+
+            <div className="p-6 sm:p-7">
+              <div className="mb-6">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">CREATIVE WORKSPACE</p>
+                <h2 id="create-storyboard-title" className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Give your new storyboard a name and a short description.</p>
+              </div>
+
+              <form onSubmit={createStoryboard} className="space-y-5">
+                <div className="min-w-0 space-y-2.5">
+                  <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="ml-1 text-[var(--vyra-danger)]" aria-hidden="true">*</span></label>
+                  <input id="vyra-storyboard-name" type="text" required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. The Last City" className={inputClass} />
+                </div>
+
+                <div className="min-w-0 space-y-2.5">
+                  <label htmlFor="vyra-storyboard-description" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label>
+                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="What is this story about?" className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                  <Button type="submit" disabled={!title.trim()}>Create Storyboard</Button>
+                </div>
+              </form>
+            </div>
           </section>
         </div>
       )}
