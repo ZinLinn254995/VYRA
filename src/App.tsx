@@ -216,6 +216,7 @@ const StudioContent: React.FC = () => {
       workspace: 'storyboard',
       create: 'create',
       consistency: 'vyrals',
+      marketplace: 'marketplace',
       media: 'media',
       settings: 'settings',
     };
