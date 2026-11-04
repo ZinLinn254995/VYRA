@@ -14,11 +14,11 @@ A newly created Storyboard is saved immediately as a Draft with an empty Scene l
 
 ## Storyboard-level Preview
 
-The Storyboard page provides a clearly visible **Preview** action. It opens a simple sequence preview that:
+The Storyboard page shows the preview inline, directly below the Name and Description fields and the relevant Storyboard settings. There is no separate Preview button, dialog, or page. The Scenes list appears immediately below this inline preview. The inline preview:
 
 - Presents the Scenes in their current order.
 - Plays through the available scene visual previews using each Scene's duration as the default display time.
-- Supports Play/Pause, Previous/Next, and direct selection of a Scene.
+- Supports Play/Pause and Previous/Next scene controls inline.
 - Shows the current Scene number, duration, narration/description, and total Storyboard duration.
 - Uses the Storyboard's aspect ratio for the preview canvas.
 - Updates automatically when Scene order, duration, or available preview media changes.
@@ -30,5 +30,6 @@ This is a Storyboard/animatic preview for reviewing the planned sequence. It mus
 - Keep the creation form short and approachable on mobile and desktop.
 - Allow the customer to edit the Storyboard name, description, and aspect ratio later.
 - A blank Storyboard is valid; it does not need AI-generated content or Scenes to exist.
+- Place the inline preview directly above the vertically ordered Scene list; do not make users open a separate preview surface.
 - Keep Scene creation, ordering, and preview visible without introducing a complex nonlinear video editor.
 - Preserve existing generation, media storage, audio/video export, publishing, billing, and other backend capabilities.
