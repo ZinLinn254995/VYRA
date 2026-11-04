@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Eye, EyeOff, LockKeyhole, Mail, X } from 'lucide-react';
 import { Button } from '../ui/Button';
