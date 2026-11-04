@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AIChatPage } from './components/ai/AIChatPage';
@@ -89,6 +89,20 @@ function MarketplaceApp() {
       // Keep the current account visible if the remote sign-out could not be confirmed.
     }
   };
+
+  useLayoutEffect(() => {
+    // Start each top-level page at its own top edge instead of inheriting
+    // the previous page's document scroll position.
+    window.scrollTo(0, 0);
+  }, [activeSection, profileOpen]);
+
+  useEffect(() => {
+    // This is a single-page app; let page navigation manage scroll explicitly.
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    window.scrollTo(0, 0);
+    return () => { window.history.scrollRestoration = previousRestoration; };
+  }, []);
 
   const workspaceStorageKey = 'vyra_storyboards_v1:' + (user?.id ?? user?.email ?? 'local');
 
