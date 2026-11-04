@@ -191,3 +191,57 @@ The creator/owner-defined VYRA license rules are platform rules for activities a
 - How downstream license options inherit and disclose source-material restrictions.
 - Exact platform fee, minimum/maximum prices, refund rules, and review requirements.
 - Whether seller earnings remain spendable Credits only or cash-out is introduced later.
+
+## Root and derivative branch versioning
+
+VYRA supports ongoing version evolution for both the original creator and derivative creators. Version history belongs to the specific Root or Branch identity; creating a new version does not create a new branch.
+
+### Original Root versions
+
+- The original creator remains the owner/creator of the Root Vyral.
+- The original creator may publish successive versions of that same Root (for example, V1.0, V2.0, V3.0).
+- These releases are recorded in the Root's own version history. They are not derivative branches.
+- The creator may choose to provide a new Root version to previous buyers for free or offer it as a paid upgrade at a price they set.
+- A new Root version does not automatically replace the exact version already acquired by an existing buyer. Access to the newer version follows the creator's update offer and the buyer's choice.
+
+### Derivative Branch versions
+
+- A buyer with the appropriate Modification permission may create a derivative Branch from the exact Root version they acquired.
+- The Branch creator may continue developing that same Branch and publish successive Branch versions (for example, B-V1, B-V2, B-V3).
+- A Branch creator with Modification + Resale permission may offer those successive Branch versions for sale in the VYRA Marketplace.
+- A Branch creator without resale permission may still develop versions for their own permitted use, but may not list those versions for Marketplace resale.
+- Each Branch maintains its own assets, rules, creator identity, version history, and lineage to its direct parent and original Root.
+- A Branch's version releases do not create new Root versions and do not modify the original Root or other Branches.
+
+### Root updates and existing Branches
+
+- A Branch remains based on the exact Root version from which it was created unless its Branch creator deliberately chooses to adopt or merge changes from a later Root version.
+- New Root versions must not silently overwrite or automatically modify existing Branch content.
+- Any future upstream-update/rebase/merge workflow must be explicit and preserve the Branch creator's own additions and modifications. Conflict handling and compatibility behavior remain implementation decisions for later design.
+
+### Keep version rights separate from license rights
+
+- Version access and license permissions are separate entitlements.
+- Receiving a newer version, whether free or paid, does not by itself upgrade Basic to Modification or Modification + Resale.
+- The buyer's purchase-time license snapshot remains authoritative unless the buyer separately accepts and acquires a new license/upgrade that explicitly changes their rights.
+- Every Root or Branch version offered for purchase/update must clearly identify its version, creator, price (if any), included changes, and applicable license offer.
+
+### Example lineage
+
+```text
+Original Creator A — Root VYR-001
+  ├── Root V1.0
+  ├── Root V2.0
+  └── Root V3.0
+
+Customer B — Branch B (created from Root V1.0)
+  ├── B-V1
+  ├── B-V2
+  └── B-V3  [may be resold only with resale permission]
+
+Customer C — Branch C (created from Root V2.0)
+  ├── C-V1
+  └── C-V2
+```
+
+The Root and each Branch have independent version histories. The lineage records which exact Root version each Branch originated from.
