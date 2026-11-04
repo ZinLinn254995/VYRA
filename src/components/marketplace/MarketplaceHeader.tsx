@@ -43,9 +43,8 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
                 <span>{creditLoading ? '…' : formattedBalance}</span>
                 <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
               </div>
-              <button type="button" onClick={onProfileClick} aria-label="Open user profile" className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] py-1.5 pl-1.5 pr-2.5 transition hover:bg-[var(--vyra-bg-hover)]">
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><UserRound size={15} /></span>
-                <span className="hidden max-w-32 truncate text-xs font-semibold text-[var(--vyra-text-primary)] md:block">{userEmail}</span>
+              <button type="button" onClick={onProfileClick} aria-label="Open user profile" title="Profile" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
+                <UserRound size={17} />
               </button>
             </>
           ) : (
