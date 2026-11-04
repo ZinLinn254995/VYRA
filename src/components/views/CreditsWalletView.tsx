@@ -557,7 +557,7 @@ export const CreditsWalletView: React.FC = () => {
 
       {confirmOpen && selectedRecipient && (
         <div className="fixed inset-x-0 z-[80] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 sm:p-4" style={{ top: transferViewport.top, height: transferViewport.height }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !transferLoading) closeTransferReview(); }}>
-          <section ref={transferDialogRef} role="dialog" aria-modal="true" aria-labelledby="transfer-confirm-title" className={cardClass + ' min-h-0 w-full max-w-md overflow-y-auto touch-pan-y overscroll-contain space-y-5 p-5 sm:p-6 shadow-2xl'} style={{ maxHeight: Math.max(220, transferViewport.height - 16) }}>
+          <section ref={transferDialogRef} role="dialog" aria-modal="true" aria-labelledby="transfer-confirm-title" className={cardClass + ' min-h-0 w-full max-w-md overflow-y-auto touch-pan-y overscroll-contain space-y-5 p-5 sm:p-6 shadow-2xl'} style={{ maxHeight: Math.max(120, transferViewport.height - 16) }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[10px] font-bold tracking-widest text-[#55F4FF]">FINAL CONFIRMATION</div>
