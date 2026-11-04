@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowLeft, Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp,
   CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
-  LogOut, Monitor, Package, Settings2, ShieldCheck, ShoppingBag, UserRound,
+  LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
   Users, Wallet, WandSparkles, type LucideIcon,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -11,6 +11,9 @@ type ProfilePageProps = {
   userEmail: string;
   creditBalance: string | null;
   creditLoading: boolean;
+  themeMode: 'system' | 'light' | 'dark';
+  resolvedTheme: 'light' | 'dark';
+  onThemeModeChange: (mode: 'system' | 'light' | 'dark') => void;
   onBack: () => void;
   onSignOut: () => void;
 };
@@ -70,7 +73,7 @@ const settingsItems = [
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, onBack, onSignOut,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, onSignOut,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>('home');
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
@@ -151,13 +154,41 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ label, detail, icon: Icon }) => (
-                  <div key={label} className="flex items-center gap-3 py-3.5 first:pt-0 last:pb-0">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-secondary)]"><Icon size={17} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-[var(--vyra-text-primary)]">{label}</span>
-                      <span className="mt-0.5 block text-xs text-[var(--vyra-text-muted)]">{detail}</span>
-                    </span>
-                    <span className="rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-muted)]">Coming soon</span>
+                  <div key={label} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-secondary)]"><Icon size={17} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-[var(--vyra-text-primary)]">{label}</span>
+                        <span className="mt-0.5 block text-xs text-[var(--vyra-text-muted)]">{detail}</span>
+                      </span>
+                    </div>
+                    {label === 'Language & Appearance' ? (
+                      <div className="flex flex-col gap-2 sm:items-end">
+                        <div className="text-xs font-medium text-[var(--vyra-text-secondary)]">
+                          {themeMode === 'system' ? `System theme · currently ${resolvedTheme}` : `${themeMode === 'light' ? 'Light' : 'Dark'} theme`}
+                        </div>
+                        <div role="group" aria-label="Display theme" className="grid w-full grid-cols-3 gap-1 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1 sm:w-auto">
+                          {([
+                            { value: 'light', label: 'Light', Icon: Sun },
+                            { value: 'dark', label: 'Dark', Icon: Moon },
+                            { value: 'system', label: 'System', Icon: Monitor },
+                          ] as const).map(({ value, label: modeLabel, Icon: ModeIcon }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              aria-pressed={themeMode === value}
+                              onClick={() => onThemeModeChange(value)}
+                              className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${themeMode === value ? 'bg-[var(--vyra-accent-primary)] text-slate-950' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}
+                            >
+                              <ModeIcon size={14} />
+                              {modeLabel}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="w-fit rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-muted)]">Coming soon</span>
+                    )}
                   </div>
                 ))}
               </div>
