@@ -126,7 +126,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     <main className="relative mx-auto h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
       <header className="fixed right-3 top-[calc(var(--vyra-visual-viewport-top,0px)+112px)] z-[60] flex items-start justify-end sm:right-6 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+76px)]">
         <div
-          className={`relative overflow-hidden border border-[var(--vyra-border)] bg-white text-slate-800 transition-[width,height,border-radius] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${actionsOpen ? 'h-[304px] w-52 rounded-2xl' : 'h-10 w-10 rounded-full'}`}
+          className="relative overflow-hidden border border-[var(--vyra-border)] bg-white text-slate-800"
+          style={{
+            width: actionsOpen ? 208 : 40,
+            height: actionsOpen ? 304 : 40,
+            borderRadius: actionsOpen ? 16 : 9999,
+            transition: 'width 300ms cubic-bezier(0.22, 1, 0.36, 1), height 300ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 300ms cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
         >
           <Button
             size="sm"
