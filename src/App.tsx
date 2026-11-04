@@ -19,7 +19,7 @@ import type { Project, AspectRatio } from './types';
 import { BrandLogo } from './components/common/BrandLogo';
 import {
   ArrowRight, BookOpen, Clapperboard, Image, Layers3, ChevronUp, ChevronDown, FileText, PlayCircle,
-  MessageCircle, Plus, Settings, Sparkles, Film,
+  MessageCircle, Plus, Settings, Sparkles, Film, X,
 } from 'lucide-react';
 
 type AppMode = 'workspace' | 'chat';
