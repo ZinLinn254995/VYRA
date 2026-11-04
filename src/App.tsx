@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
+import { ProfilePage } from './components/profile/ProfilePage';
 
 type WalletResponse = {
   availableBalance?: string;
@@ -11,6 +12,7 @@ type WalletResponse = {
 function MarketplaceApp() {
   const { user, session, signOut } = useAuth();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
@@ -65,8 +67,19 @@ function MarketplaceApp() {
         onWorkspaceRequest={() => { if (!user) requestAuth('login'); }}
         onAuthRequest={requestAuth}
         onSignOut={() => { void handleSignOut(); }}
+        onProfileClick={() => setProfileOpen(true)}
       />
-      <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
+      {profileOpen && user ? (
+        <ProfilePage
+          userEmail={user.email ?? ''}
+          creditBalance={creditBalance}
+          creditLoading={creditLoading}
+          onBack={() => setProfileOpen(false)}
+          onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
+        />
+      ) : (
+        <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
+      )}
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
   );
