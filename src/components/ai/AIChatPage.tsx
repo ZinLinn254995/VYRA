@@ -123,8 +123,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   return (
-    <main className="mx-auto flex h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] flex-col overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
-      <header className="relative z-40 mx-auto flex h-14 w-full max-w-[var(--vyra-content-width)] shrink-0 items-center justify-end gap-2 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)]/95 px-3 backdrop-blur sm:px-6">
+    <main className="relative mx-auto h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
+      <header className="absolute right-3 top-3 z-50 flex h-12 items-center justify-end gap-1 rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/90 px-1.5 shadow-xl shadow-black/15 backdrop-blur-xl sm:right-6 sm:top-4">
         <Button size="sm" variant="ghost" className="size-11 px-0" aria-label="Recent chats" title="Recent chats" onClick={() => setHistoryOpen(true)}>
           <History size={23} />
         </Button>
@@ -156,9 +156,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         </div>
       </header>
 
-      <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth">
+      <section className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth [scrollbar-gutter:stable]">
         {!hasMessages ? (
-          <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8 text-center">
+          <div className="flex min-h-full flex-col items-center justify-center px-4 pb-32 pt-20 text-center">
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
               <MessageSquare size={24} />
             </div>
@@ -168,7 +168,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             </p>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-5">
+          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-1 pb-36 pt-20">
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
@@ -184,7 +184,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         )}
       </section>
 
-      <div className="relative z-40 mx-auto w-full max-w-[var(--vyra-content-width)] shrink-0 border-t border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)]/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:px-6">
+      <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto w-auto max-w-[var(--vyra-content-width)] rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl sm:inset-x-6 sm:bottom-4">
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
