@@ -138,7 +138,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   return (
-    <main className="relative mx-auto h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-109px)] min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:h-[calc(var(--vyra-visual-viewport-top,0px)+var(--vyra-visual-viewport-height,100dvh)-64px)] sm:px-6">
+    <main className="fixed inset-x-0 top-[calc(var(--vyra-visual-viewport-top,0px)+109px)] bottom-[var(--vyra-visual-viewport-bottom-gap,0px)] mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+64px)] sm:px-6">
       <header className="fixed right-3 top-[calc(var(--vyra-visual-viewport-top,0px)+112px)] z-[60] flex items-start justify-end sm:right-6 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+76px)]">
         <div
           className="relative overflow-hidden border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-primary)]"
