@@ -1205,6 +1205,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     <p className={'text-[10px] font-semibold '+primary}>Creator resolution history</p>
                     {group.resolutionRecords.map((resolution) => <div key={resolution.id} className="mt-2">
                       <p className={'text-[10px] '+subtle}>{resolution.payload.resolution_type === 'prefer_one' ? 'Preferred value: ' + String(resolution.payload.preferred_promotion_record_id).slice(0,8) : 'Both values retained as context-dependent'} · {dateLabel(resolution.created_at)}</p>
+                      {typeof resolution.payload.creator_context_label === 'string' && resolution.payload.creator_context_label && <p className={'mt-1 text-[9px] '+primary}>Creator-defined context: {resolution.payload.creator_context_label}</p>}
                       {typeof resolution.payload.creator_note === 'string' && resolution.payload.creator_note && <p className={'mt-1 text-[9px] '+muted}>{resolution.payload.creator_note}</p>}
                     </div>)}
                   </div>}
