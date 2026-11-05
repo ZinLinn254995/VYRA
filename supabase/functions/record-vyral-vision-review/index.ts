@@ -42,6 +42,7 @@ Deno.serve(async (request: Request) => {
   if (prior?.length) return json({ error: 'This observation already has a creator review. Reviews are immutable; create a new observation to submit a new claim.', status: 'review_exists' }, 409);
 
   const payload = {
+    review_source: 'server_creator_review',
     vision_observation_review_id: observation.id,
     reviewed_observation: {
       asset_id: observation.asset_id,
