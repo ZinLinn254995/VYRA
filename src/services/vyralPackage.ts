@@ -212,7 +212,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   const manifest = value as Partial<VyralPackageManifest>;
   if (manifest.format !== VYRAL_PACKAGE_FORMAT) throw new Error('This file is not a supported VYRAL package.');
   if (manifest.formatVersion !== VYRAL_PACKAGE_VERSION) throw new Error('Unsupported VYRAL package version: ' + String(manifest.formatVersion));
-  if (typeof manifest.packageId !== 'string' || !manifest.packageId || typeof manifest.exportedAt !== 'string') throw new Error('VYRAL package identity metadata is missing.');
+  if (typeof manifest.packageId !== 'string' || !manifest.packageId.trim() || manifest.packageId.length > 128 || typeof manifest.exportedAt !== 'string' || !Number.isFinite(Date.parse(manifest.exportedAt))) throw new Error('VYRAL package identity metadata is missing or invalid.');
   if (!manifest.vyral || typeof manifest.vyral !== 'object' || typeof manifest.vyral.name !== 'string' || !manifest.vyral.name.trim()) throw new Error('VYRAL collection metadata is invalid.');
   for (const key of ['folders','assets','versions','dnaRecords','fingerprints','visionObservations','lineage','reconstructionTests'] as const) {
     if (!Array.isArray(manifest[key])) throw new Error('VYRAL manifest section is missing or invalid: ' + key);
@@ -221,6 +221,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   const folders = manifest.folders ?? [];
   const assets = manifest.assets ?? [];
   const versions = manifest.versions ?? [];
+  if (folders.length > MAX_ENTRIES || assets.length > MAX_ENTRIES || versions.length > MAX_ENTRIES) throw new Error('VYRAL package contains too many folders, assets or versions.');
   const folderIds = new Set<string>();
   const assetIds = new Set<string>();
   const versionIds = new Set<string>();
