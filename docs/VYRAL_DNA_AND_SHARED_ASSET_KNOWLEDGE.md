@@ -566,3 +566,11 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - Rollback evidence is scoped to a unique import-run ID so a failed retry cannot delete records from an earlier successful import of the same package.
 - After a failed restore, the workspace reloads from the database so any cleanup failure is visible instead of leaving stale client state.
 
+### Server-side cryptographic verification
+- The `verify-vyral-asset` Supabase Edge Function is deployed to the isolated VYRA Development project with JWT verification enabled.
+- The function authenticates the caller, checks asset and version ownership through user-scoped queries, and downloads the protected original from private Storage for server-side SHA-256 calculation.
+- It compares the actual bytes against both the asset-version hash and, for the current version, the asset-level hash and size. A disagreement is recorded as a mismatch; it is never silently repaired.
+- If no prior hash exists, the function can establish a server-calculated baseline after size checks pass.
+- The resulting cryptographic fingerprint records server verification metadata and the verification timestamp. This verifies file integrity, not creator ownership or copyright.
+- The client-facing Verify action calls this Edge Function. The function remains JWT-protected; no service-role key is exposed to the browser.
+
