@@ -14,6 +14,10 @@ type HeaderProps = {
   onProfileClick: () => void;
 };
 
+const BrandMark = ({ className = '' }: { className?: string }) => (
+  <img src="/vyra-icon.svg" alt="" aria-hidden="true" className={className} />
+);
+
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
   userEmail, creditBalance, creditLoading, activeSection,
   onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
@@ -57,7 +61,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
     <header className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-sm font-black text-slate-950">V</span>
+          <BrandMark className="size-9 rounded-xl" />
           <span className="text-lg font-extrabold tracking-[0.16em] text-[var(--vyra-text-primary)]">VYRA</span>
         </button>
 
@@ -95,7 +99,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       <div className="mx-auto max-w-[var(--vyra-content-width)] px-3 sm:hidden">
         <div className="flex h-14 items-center justify-between gap-2">
           <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
-            <span className="grid size-8 place-items-center rounded-lg bg-[var(--vyra-accent-primary)] text-sm font-black text-slate-950">V</span>
+            <BrandMark className="size-8 rounded-[10px]" />
             <span className="text-base font-extrabold tracking-[0.13em] text-[var(--vyra-text-primary)]">VYRA</span>
           </button>
 
