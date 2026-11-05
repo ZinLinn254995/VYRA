@@ -87,7 +87,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
-  const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);\n  const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
+  const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
+  const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
   const [packageStatus, setPackageStatus] = useState('');
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
