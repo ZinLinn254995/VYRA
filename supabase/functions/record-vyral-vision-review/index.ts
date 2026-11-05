@@ -77,6 +77,6 @@ Deno.serve(async (request: Request) => {
     })
     .select('id')
     .single();
-  if (insertError || !review) return json({ error: 'Could not save creator review.' }, 500);
+  if (insertError?.code === '23505') return json({ error: 'This observation already has a creator review. Reviews are immutable.', status: 'review_exists' }, 409);\n  if (insertError || !review) return json({ error: 'Could not save creator review.' }, 500);
   return json({ status: 'review_recorded', reviewId: review.id, observationId: observation.id, decision: body.decision }, 201);
 });
