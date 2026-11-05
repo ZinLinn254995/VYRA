@@ -193,7 +193,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const { data: fileBlob, error: downloadError } = await supabase.storage.from('vyral-assets').download(version.storage_path);
           if (downloadError || !fileBlob) throw new Error('Could not package ' + asset.name + ' version ' + version.version_number + ': ' + (downloadError?.message ?? 'media file missing'));
           totalMediaBytes += fileBlob.size;
-          if (totalMediaBytes > 500 * 1024 * 1024) throw new Error('This Vyral is larger than the 500 MB export limit. Export smaller Vyrals separately.');
+          if (totalMediaBytes > 200 * 1024 * 1024) throw new Error('This Vyral is larger than the 200 MB export limit. Export smaller Vyrals separately.');
           const bytes = new Uint8Array(await fileBlob.arrayBuffer());
           const digestBuffer = new ArrayBuffer(bytes.byteLength);
           new Uint8Array(digestBuffer).set(bytes);
@@ -243,7 +243,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'This archive contains the Vyral manifest, identity records and original asset-version media.',
           'SHA-256 values were recalculated from the downloaded media during export.',
           'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
-          'ZIP entries use the standard Store method (no compression) for broad compatibility.',
+          'ZIP entries use the standard Store method (no compression) for broad compatibility.\nThe initial browser export limit is 200 MB of source media.',
         ].join('\n'),
       });
       packageEntries.push({ path: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
@@ -268,7 +268,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !supabase || packageBusy) return;
-    if (file.size > 512 * 1024 * 1024) { setError('VYRAL package exceeds the 512 MB import limit.'); return; }
+    if (file.size > 256 * 1024 * 1024) { setError('VYRAL package exceeds the 256 MB import limit.'); return; }
 
     setPackageBusy(true);
     setPackageStatus('Reading package…');
@@ -448,7 +448,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
 
       const dnaRows: Record<string, unknown>[] = [];
-      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>) => {
+      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>, reconstructionData: Record<string, unknown> = {}) => {
         dnaRows.push({
           vyral_id: vyral.id,
           user_id: userId,
@@ -459,7 +459,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           source_kind: allowedDnaSources.includes(sourceKind) ? sourceKind : 'system',
           verification_status: 'unverified',
           payload,
-          reconstruction_data: {},
+          reconstruction_data: reconstructionData,
         });
       };
 
@@ -476,7 +476,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             claimed_verification_status: sourceRecord.verification_status ?? null,
             trust: 'unverified_imported_evidence',
           },
-        });
+          objectValue(sourceRecord.reconstruction_data),
+        );
       }
 
       for (const sourceFingerprint of manifest.fingerprints) {
