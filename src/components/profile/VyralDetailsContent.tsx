@@ -23,7 +23,7 @@ type DnaRow = {
   verification_status: string; payload: Record<string, unknown>; created_at: string;
 };
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
-type ObservationRow = { id: string; asset_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; created_at: string };
+type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
@@ -63,6 +63,23 @@ const typeIcon = (type: string) => {
   return FileIcon;
 };
 const dateLabel = (value: string) => new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+const stableJson = (value: unknown): string => {
+  if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + stableJson(record[key])).join(',') + '}';
+  }
+  return JSON.stringify(value) ?? 'undefined';
+};
+const flattenObservation = (value: unknown, prefix = ''): Record<string, string> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return prefix ? { [prefix]: stableJson(value) } : {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (!entries.length) return prefix ? { [prefix]: '{}' } : {};
+  return entries.reduce<Record<string, string>>((result, [key, child]) => ({
+    ...result,
+    ...flattenObservation(child, prefix ? prefix + '.' + key : key),
+  }), {});
+};
 
 export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated }) => {
   const [tab, setTab] = useState<Tab>('overview');
@@ -168,6 +185,24 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   }, [folders, activeFolderId]);
   const totalBytes = assets.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0);
   const selectedDnaRecords = dnaRecords.filter((item) => !dnaAssetId || item.asset_id === dnaAssetId || (dnaAssetId === 'vyral' && item.scope === 'vyral'));
+  const visionComparisonGroups = useMemo(() => {
+    const groups = new Map<string, ObservationRow[]>();
+    observations.forEach((item) => {
+      if (!item.asset_version_id) return;
+      const key = item.asset_id + ':' + item.asset_version_id + ':' + item.task_kind;
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    });
+    return Array.from(groups.entries()).map(([key, items]) => {
+      const models = new Set(items.map((item) => item.model_provider + ' · ' + item.model_id));
+      const flattened = items.map((item) => ({ item, values: flattenObservation(item.observation) }));
+      const paths = Array.from(new Set(flattened.flatMap((entry) => Object.keys(entry.values)))).sort();
+      const comparisons = paths.map((path) => {
+        const values = flattened.map((entry) => entry.values[path] ?? '[missing]');
+        return { path, same: values.every((value) => value === values[0]), values };
+      });
+      return { key, items, modelCount: models.size, comparisons };
+    }).sort((a, b) => b.items[0].created_at.localeCompare(a.items[0].created_at));
+  }, [observations]);
 
   const exportVyralPackage = async () => {
     if (!supabase || packageBusy) return;
@@ -1005,6 +1040,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <label className={'block space-y-1 text-[10px] '+muted}><span>Structured observation (JSON)</span><textarea required rows={6} maxLength={65536} value={visionJson} onChange={(event)=>setVisionJson(event.target.value)} className={field+' min-h-32 py-2.5 font-mono text-[11px]'} /></label>
               <div className="flex flex-wrap items-center justify-between gap-2"><p className={'max-w-xl text-[10px] leading-4 '+muted}>The server rechecks the private source file's SHA-256 and size. Provider/model labels are recorded as user-supplied claims, not verified credentials.</p><button type="submit" disabled={savingVision||!visionAssetId||!visionVersionId||!visionProvider.trim()||!visionModel.trim()} className={primaryButton}><Plus size={13}/>{savingVision?'Recording…':'Record observation'}</button></div>
             </form>
+
+            {visionComparisonGroups.length > 0 && <section className="mt-4 rounded-lg border border-[var(--vyra-border)] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className={'text-xs font-semibold '+primary}>Multi-model comparison</h4><p className={'mt-1 text-[10px] '+muted}>Only observations from the exact same asset version and task are grouped. This is deterministic JSON field comparison, not semantic AI judgement.</p></div><span className={'text-[10px] '+muted}>{visionComparisonGroups.length} version/task groups</span></div>
+              <div className="mt-3 space-y-3">{visionComparisonGroups.slice(0,8).map((group) => {
+                const first = group.items[0];
+                const version = versions.find((item) => item.id === first.asset_version_id);
+                const asset = assets.find((item) => item.id === first.asset_id);
+                const sameCount = group.comparisons.filter((item) => item.same).length;
+                const differentCount = group.comparisons.length - sameCount;
+                return <article key={group.key} className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className={'text-xs font-semibold '+primary}>{asset?.name ?? 'Asset'} · {first.task_kind.replaceAll('_',' ')}</p><p className={'mt-1 text-[10px] '+muted}>Version {version?.version_number ?? 'unknown'} · {group.items.length} observations · {group.modelCount} model labels</p><p className={'mt-1 break-all font-mono text-[9px] '+muted}>SHA-256: {first.source_sha256 || 'not recorded'}</p></div><div className="flex gap-2 text-[9px]"><span className="rounded bg-[var(--vyra-bg-canvas)] px-2 py-1 text-emerald-500">{sameCount} same</span><span className="rounded bg-[var(--vyra-bg-canvas)] px-2 py-1 text-amber-500">{differentCount} different</span></div></div>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">{group.items.map((entry) => <div key={entry.id} className="min-w-0 rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2"><p className={'text-[10px] font-semibold '+primary}>{entry.model_provider} · {entry.model_id}</p><pre className={'mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words text-[9px] leading-4 '+subtle}>{JSON.stringify(entry.observation, null, 2)}</pre></div>)}</div>
+                  {group.comparisons.length > 0 && <div className="mt-3 space-y-1"><p className={'text-[10px] font-semibold '+primary}>Exact field comparison</p>{group.comparisons.slice(0,20).map((comparison) => <div key={comparison.path} className="flex flex-wrap items-start gap-2 border-t border-[var(--vyra-border-subtle)] py-1.5"><span className={'min-w-0 flex-1 break-all text-[10px] '+subtle}>{comparison.path}</span><span className={'text-[9px] font-semibold '+(comparison.same?'text-emerald-500':'text-amber-500')}>{comparison.same?'Exact value match':'Different / missing value'}</span></div>)}</div>}
+                  <p className={'mt-2 text-[9px] '+muted}>A matching JSON value is not proof that the models agree semantically. Missing fields are counted as differences. Creator review remains separate.</p>
+                </article>;
+              })}</div>
+            </section>}
             {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.source_kind === 'creator' && ['creator_confirmed', 'disputed'].includes(record.verification_status) && record.payload?.review_source === 'server_creator_review' && record.payload?.vision_observation_review_id === item.id); return review ? <p className={'mt-2 text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
           </section>
           <section className={surface+' p-4'}>
