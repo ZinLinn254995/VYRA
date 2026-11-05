@@ -57,19 +57,43 @@
   top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
   transition: top 180ms ease-out, right 180ms ease-out;
 }
-/* Keep one real button: its right edge stays anchored while its left edge moves inward. */
+/* Keep one real button: fixed icon/text spacing, right edge anchored during collapse. */
 .profile-create-button {
-  width: var(--profile-create-button-width, 142px);
+  box-sizing: border-box;
+  width: var(--profile-create-button-width, 148px);
   min-width: 0;
+  height: 32px;
+  min-height: 32px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+  gap: 6px !important;
   justify-content: flex-start !important;
   overflow: hidden;
   white-space: nowrap;
-  transition: width 180ms ease-out, opacity 140ms ease-out !important;
+  transition: width 180ms ease-out !important;
 }
-.profile-create-label { flex: 0 0 auto; }
+.profile-create-button > svg {
+  display: block;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px;
+  flex: 0 0 14px !important;
+  stroke-width: 2;
+}
+.profile-create-copy {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.profile-create-label { display: inline-block; flex: 0 0 auto; }
 .profile-create-extra {
   display: inline-block;
-  max-width: var(--profile-create-extra-width, 88px);
+  flex: 0 0 auto;
+  width: auto;
+  max-width: var(--profile-create-extra-width, 100px);
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
