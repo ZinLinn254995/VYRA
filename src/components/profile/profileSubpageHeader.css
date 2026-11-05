@@ -4,7 +4,7 @@
   --profile-header-expanded: 148px;
   --profile-header-collapse-distance: 44px;
   position: relative; z-index: 3;
-  flex: 0 0 var(--profile-header-height, 156px);
+  flex: 0 0 var(--profile-header-height, var(--profile-header-expanded));
   height: var(--profile-header-height, 156px);
   min-height: var(--profile-header-height, 156px);
   box-sizing: border-box; overflow: hidden; overflow-anchor: none; isolation: isolate;
