@@ -132,7 +132,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             ))}
           </div>
 
-          <div className="mt-6 flex justify-end">
+          <div className="mt-6 flex justify-start">
             <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
           </div>
         </>
