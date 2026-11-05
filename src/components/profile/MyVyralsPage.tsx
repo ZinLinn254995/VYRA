@@ -41,6 +41,13 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
     header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
     header.style.setProperty('--profile-full-action-events', headerProgress < 0.5 ? 'auto' : 'none');
     header.style.setProperty('--profile-compact-action-events', headerProgress >= 0.5 ? 'auto' : 'none');
+    const fullAction = header.querySelector<HTMLElement>('.profile-collapse-action-full');
+    const compactAction = header.querySelector<HTMLElement>('.profile-collapse-action-compact');
+    const compactMode = headerProgress >= 0.5;
+    fullAction?.toggleAttribute('inert', compactMode);
+    fullAction?.setAttribute('aria-hidden', String(compactMode));
+    compactAction?.toggleAttribute('inert', !compactMode);
+    compactAction?.setAttribute('aria-hidden', String(!compactMode));
   }
 };
 
