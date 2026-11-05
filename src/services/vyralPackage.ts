@@ -179,6 +179,10 @@ export const readVyralZip = async (source: Blob | ArrayBuffer | Uint8Array) => {
     if (localOffset + 30 > centralOffset || view.getUint32(localOffset, true) !== localHeaderSignature) throw new Error('Invalid local ZIP entry header.');
     const localFlags = view.getUint16(localOffset + 6, true);
     const localMethod = view.getUint16(localOffset + 8, true);
+    const localChecksum = view.getUint32(localOffset + 14, true);
+    const localCompressedSize = view.getUint32(localOffset + 18, true);
+    const localUncompressedSize = view.getUint32(localOffset + 22, true);
+    if (localChecksum !== checksum || localCompressedSize !== compressedSize || localUncompressedSize !== uncompressedSize) throw new Error('ZIP local and central size/integrity records do not match.');
     const localNameLength = view.getUint16(localOffset + 26, true);
     const localExtraLength = view.getUint16(localOffset + 28, true);
     const localName = decoder.decode(bytes.subarray(localOffset + 30, localOffset + 30 + localNameLength));
@@ -200,16 +204,62 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   const manifest = value as Partial<VyralPackageManifest>;
   if (manifest.format !== VYRAL_PACKAGE_FORMAT) throw new Error('This file is not a supported VYRAL package.');
   if (manifest.formatVersion !== VYRAL_PACKAGE_VERSION) throw new Error('Unsupported VYRAL package version: ' + String(manifest.formatVersion));
-  if (typeof manifest.packageId !== 'string' || typeof manifest.exportedAt !== 'string') throw new Error('VYRAL package identity metadata is missing.');
-  if (!manifest.vyral || typeof manifest.vyral !== 'object' || typeof manifest.vyral.name !== 'string') throw new Error('VYRAL collection metadata is invalid.');
+  if (typeof manifest.packageId !== 'string' || !manifest.packageId || typeof manifest.exportedAt !== 'string') throw new Error('VYRAL package identity metadata is missing.');
+  if (!manifest.vyral || typeof manifest.vyral !== 'object' || typeof manifest.vyral.name !== 'string' || !manifest.vyral.name.trim()) throw new Error('VYRAL collection metadata is invalid.');
   for (const key of ['folders','assets','versions','dnaRecords','fingerprints','visionObservations','lineage','reconstructionTests'] as const) {
     if (!Array.isArray(manifest[key])) throw new Error('VYRAL manifest section is missing or invalid: ' + key);
   }
+
+  const folders = manifest.folders ?? [];
+  const assets = manifest.assets ?? [];
+  const versions = manifest.versions ?? [];
+  const folderIds = new Set<string>();
+  const assetIds = new Set<string>();
+  const versionIds = new Set<string>();
+  const folderParents = new Map<string, string | null>();
+  for (const folder of folders) {
+    if (typeof folder.id !== 'string' || !folder.id || typeof folder.name !== 'string' || !folder.name.trim()) throw new Error('A VYRAL folder is missing its ID or name.');
+    if (folderIds.has(folder.id)) throw new Error('Duplicate VYRAL folder identity.');
+    folderIds.add(folder.id);
+    folderParents.set(folder.id, typeof folder.parent_id === 'string' ? folder.parent_id : null);
+  }
+  for (const [id, parentId] of folderParents) {
+    if (parentId && !folderIds.has(parentId)) throw new Error('A VYRAL folder references a missing parent.');
+    const visited = new Set<string>([id]);
+    let current = parentId;
+    while (current) {
+      if (visited.has(current)) throw new Error('The VYRAL folder hierarchy contains a circular reference.');
+      visited.add(current);
+      current = folderParents.get(current) ?? null;
+    }
+  }
+
+  for (const asset of assets) {
+    if (typeof asset.id !== 'string' || !asset.id || typeof asset.name !== 'string' || !asset.name.trim()) throw new Error('A VYRAL asset is missing its ID or name.');
+    if (assetIds.has(asset.id)) throw new Error('Duplicate VYRAL asset identity.');
+    assetIds.add(asset.id);
+    if (typeof asset.folder_id === 'string' && !folderIds.has(asset.folder_id)) throw new Error('A VYRAL asset references a missing folder.');
+  }
+
   const packagePaths = new Set<string>();
-  for (const version of manifest.versions ?? []) {
+  const versionsByAsset = new Map<string, Set<number>>();
+  for (const version of versions) {
+    if (typeof version.id !== 'string' || !version.id || versionIds.has(version.id)) throw new Error('A VYRAL asset version has a missing or duplicate ID.');
+    versionIds.add(version.id);
+    if (typeof version.asset_id !== 'string' || !assetIds.has(version.asset_id)) throw new Error('A VYRAL version references a missing asset.');
+    const versionNumber = Number(version.version_number);
+    if (!Number.isInteger(versionNumber) || versionNumber < 1) throw new Error('A VYRAL asset version number is invalid.');
+    const assetVersionNumbers = versionsByAsset.get(version.asset_id) ?? new Set<number>();
+    if (assetVersionNumbers.has(versionNumber)) throw new Error('Duplicate version number for a VYRAL asset.');
+    assetVersionNumbers.add(versionNumber);
+    versionsByAsset.set(version.asset_id, assetVersionNumbers);
     if (typeof version.package_path !== 'string' || !safePath(version.package_path) || !version.package_path.startsWith('assets/')) throw new Error('Invalid asset package path.');
     if (packagePaths.has(version.package_path)) throw new Error('Duplicate asset package path.');
     packagePaths.add(version.package_path);
+    if (typeof version.sha256 === 'string' && !/^[a-f0-9]{64}$/i.test(version.sha256)) throw new Error('An asset version contains an invalid SHA-256 value.');
+  }
+  for (const assetId of assetIds) {
+    if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
   }
   return manifest as VyralPackageManifest;
 };
