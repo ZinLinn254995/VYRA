@@ -463,3 +463,49 @@ The same generative model must not be the sole judge of its own reconstruction. 
 - **2026-11-06 — Native `.vyral` package architecture:** ZIP-compatible Hybrid Package၊ JSON/Binary/Vector/Hash Data တို့၏ တာဝန်၊ Package နှင့် Asset အဆင့် Integrity၊ Open Specification နှင့် Creator အတွက် ရိုးရှင်းသော File Manager Workflow ကို မှတ်တမ်းတင်ထားသည်။
 - **2026-11-06 — DNA Reconstruction Completion Principle:** DNA ပြည့်စုံမှုကို DNA-only Reconstruction Test ဖြင့်သာ ဆုံးဖြတ်ရန်၊ Exactness အဓိပ္ပာယ်၊ Independent Verification၊ Reconstruction Status များနှင့် မူရင်းဖျက်ပြီးနောက် Exact Recovery ပြောနိုင်ရန် Lossless Information လုံလောက်စွာ ထိန်းသိမ်းထားရမည့် စည်းမျဉ်းကို မှတ်တမ်းတင်ထားသည်။
 - **2026-11-06 — VYRAL Product Direction:** AI အသုံးပြုမှုတိုင်းကို Knowledge တည်ဆောက်သည့် ဖြစ်စဉ်တစ်ခုအဖြစ် သတ်မှတ်ခြင်းနှင့် Asset-level DNA/Fingerprint၊ VYRAL-level Master DNA/Master Fingerprint နှစ်မျိုးစလုံး လိုအပ်ကြောင်း မှတ်တမ်းတင်ထားသည်။
+
+---
+
+## Implementation Baseline — 2026-11-06
+
+The first VYRAL Details Workspace foundation is now implemented on `rebuild/marketplace-workspace-foundation` and applied to the isolated **VYRA Development** Supabase project only.
+
+### Implemented data foundation
+- Creator-owned Vyral collections and nested folders.
+- Asset metadata separated from binary media.
+- Private `vyral-assets` Storage bucket with owner-folder RLS policies and a 100 MB per-file upload limit.
+- Immutable asset version records.
+- Append-only DNA records with creator-authored knowledge and provenance fields.
+- Fingerprint registry for cryptographic, perceptual, semantic and structural types.
+- AI Vision observation evidence records.
+- Parent/derived asset lineage.
+- DNA-only reconstruction test registry with byte-exact, decoded-exact and perceptual comparison modes.
+- Composite ownership constraints, RLS policies and foreign-key indexes.
+
+### Implemented workspace behavior
+- Cloud-backed Vyral library with one-time migration from the previous browser-local Vyral list.
+- Create/delete Vyral, create nested folders, upload and preview assets, rename/delete assets.
+- SHA-256 calculated in the browser on original upload and stored as **unverified client evidence**.
+- Initial asset DNA and asset-version records created during upload.
+- Creator-authored Vyral-level and asset-level DNA notes.
+- Fingerprint, Vision evidence, lineage, reconstruction and license-policy views.
+- Creator license preferences stored as Vyral metadata.
+
+### Verification and trust boundaries
+- Browser clients cannot promote Vyral or asset DNA to a verified completion state.
+- Browser clients cannot self-assert independent verification.
+- Vision observations and reconstruction test results are read-only to browser clients; trusted server-side analysis/verification services must write them.
+- Browser clients may register SHA-256 only; perceptual, semantic and structural fingerprints are reserved for trusted analysis services.
+- Similarity is not exact identity. DNA completion remains unearned until an isolated DNA-only reconstruction is independently compared with the protected original.
+
+### Not yet implemented
+- Trusted server-side file hashing and fingerprint verification.
+- AI Vision execution, multi-model observation ingestion and conflict resolution.
+- Perceptual, semantic and structural fingerprint generation.
+- Native `.vyral` ZIP-compatible package import/export.
+- DNA-only reconstruction runner, isolated evaluation environment and independent verifier.
+- License enforcement in generation, sharing and publishing workflows.
+- Full runtime/browser validation of the new workspace.
+
+The existing Profile Subpage Header, Compact Style transition, Sticky Header behavior, and bottom-radius scroll logic remain protected and unchanged during this implementation.
+
