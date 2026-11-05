@@ -85,12 +85,13 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       update();
     };
     attachScrollContainer();
-    window.addEventListener('resize', schedule, { passive: true });
+    const onResize = () => { cardMeasured = false; schedule(); };
+    window.addEventListener('resize', onResize, { passive: true });
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { attachScrollContainer(); schedule(); }) : null;
     if (headerRef.current) observer?.observe(headerRef.current);
     return () => {
       scrollRef.current?.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
+      window.removeEventListener('resize', onResize);
       observer?.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
     };
