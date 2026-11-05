@@ -16,6 +16,9 @@ type MainSection = 'marketplace' | 'workspace' | 'ai-chat';
 
 function MarketplaceApp() {
   const { user, session, signOut } = useAuth();
+  const isGuestSession = Boolean(user?.is_anonymous);
+  const hasPermanentAccount = Boolean(user && !user.is_anonymous);
+  const profileLabel = isGuestSession ? 'Temporary Guest Session' : user?.email ?? null;
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
@@ -54,7 +57,7 @@ function MarketplaceApp() {
 
   useEffect(() => {
     let active = true;
-    if (!session?.access_token) {
+    if (!session?.access_token || isGuestSession) {
       setCreditBalance(null);
       setCreditLoading(false);
       return () => { active = false; };
@@ -77,7 +80,7 @@ function MarketplaceApp() {
       .finally(() => { if (active) setCreditLoading(false); });
 
     return () => { active = false; };
-  }, [session?.access_token]);
+  }, [session?.access_token, isGuestSession]);
 
   const requestAuth = (mode: 'login' | 'signup' = 'login') => {
     setAuthMode(mode);
@@ -113,7 +116,7 @@ function MarketplaceApp() {
   return (
     <div className={`flex ${profileOpen && user ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <MarketplaceHeader
-        userEmail={user?.email ?? null}
+        userEmail={profileLabel}
         creditBalance={creditBalance}
         creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
@@ -131,7 +134,7 @@ function MarketplaceApp() {
         <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
         {profileOpen && user ? (
           <ProfilePage
-            userEmail={user.email ?? ''}
+            userEmail={profileLabel ?? ''}
             creditBalance={creditBalance}
             creditLoading={creditLoading}
             themeMode={themeMode}
@@ -144,9 +147,9 @@ function MarketplaceApp() {
             initialPage={profileInitialPage}
           />
         ) : activeSection === 'ai-chat' ? (
-          <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
+          <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} />
         ) : activeSection === 'workspace' ? (
-          <WorkspacePage storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} onOpenLibraryPage={(page) => { setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }} />
+          <WorkspacePage storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} onOpenLibraryPage={(page) => { setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }} />
         ) : (
           <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
         )}
