@@ -139,8 +139,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : (
         <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
-            <button type="button" onClick={goHome} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
-              <ArrowLeft size={16} /> Back to Profile
+            <button type="button" onClick={() => setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home')} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+              <ArrowLeft size={16} /> {activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
             </button>
             {(() => {
               const info = pageInfo[activePage];
