@@ -934,6 +934,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || resolvingConflictKey) return;
     let preferredRecordId: string | undefined;
     let note = '';
+    let contextLabel = '';
     if (resolutionType === 'prefer_one') {
       const choices = group.records.map((record, index) => {
         const model = String(record.payload.model_provider_claim ?? 'Unknown model') + ' · ' + String(record.payload.model_id_claim ?? 'Unknown ID');
@@ -949,8 +950,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       preferredRecordId = group.records[selectedIndex].id;
       note = window.prompt('Optional reason for this preference (max 2,000 characters).') ?? '';
     } else {
-      const answer = window.prompt('Explain why these values should remain valid in different contexts. This preserves all competing values. (Required)');
-      if (answer === null || answer.trim().length < 3) return;
+      const label = window.prompt('Name the creator-defined contexts where these values apply (for example: front view; side view). Do not guess contexts. (Required, max 300 characters)');
+      if (label === null || !label.trim() || label.trim().length > 300) {
+        setError('Enter a context label of 1–300 characters.');
+        return;
+      }
+      contextLabel = label.trim();
+      const answer = window.prompt('Explain why these values should remain valid in those contexts. (Required, max 2,000 characters)');
+      if (answer === null || answer.trim().length < 3 || answer.trim().length > 2000) return;
       note = answer.trim();
     }
     const groupKey = JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]);
@@ -963,6 +970,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           resolutionType,
           recordIds: group.records.map((record) => record.id),
           preferredRecordId,
+          contextLabel,
           note,
         },
       });
