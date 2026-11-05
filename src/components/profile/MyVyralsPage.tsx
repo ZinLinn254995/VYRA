@@ -56,7 +56,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   };
 
   if (active) return (
-    <section className="overflow-clip rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+    <section className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
       <ProfileSubpageHeader
         onBack={() => { setActiveId(null); setQuery(''); setCategory('all'); }}
         backLabel="Back to My Vyrals"
