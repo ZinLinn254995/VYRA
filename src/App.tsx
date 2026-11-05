@@ -19,6 +19,7 @@ function MarketplaceApp() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
+  const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
@@ -122,7 +123,7 @@ function MarketplaceApp() {
         }}
         onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
-        onProfileClick={() => { setProfileReturnSection(activeSection); setProfileOpen(true); }}
+        onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
       <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
       <div className="min-h-0 flex-1">
@@ -134,14 +135,15 @@ function MarketplaceApp() {
             themeMode={themeMode}
             resolvedTheme={resolvedTheme}
             onThemeModeChange={setThemeMode}
-            onBack={() => { setProfileOpen(false); setActiveSection(profileReturnSection); }}
+            onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
             backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
-            onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
+            onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
+            initialPage={profileInitialPage}
           />
         ) : activeSection === 'ai-chat' ? (
           <AIChatPage isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
         ) : activeSection === 'workspace' ? (
-          <WorkspacePage storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} />
+          <WorkspacePage storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards} isAuthenticated={Boolean(user)} onLoginRequired={() => requestAuth('login')} onOpenLibraryPage={(page) => { setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }} />
         ) : (
           <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
         )}
