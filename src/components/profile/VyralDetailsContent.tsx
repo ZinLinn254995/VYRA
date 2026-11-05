@@ -201,7 +201,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         return { path, same: values.every((value) => value === values[0]), values };
       });
       return { key, items, modelCount: models.size, comparisons };
-    }).sort((a, b) => b.items[0].created_at.localeCompare(a.items[0].created_at));
+    }).filter((group) => group.modelCount > 1).sort((a, b) => b.items[0].created_at.localeCompare(a.items[0].created_at));
   }, [observations]);
 
   const exportVyralPackage = async () => {
