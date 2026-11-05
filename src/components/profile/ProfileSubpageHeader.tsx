@@ -16,7 +16,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
   onBack, backLabel, icon, title, description, action, search,
 }) => (
   <div className="profile-collapse-shell">
-    <div className="profile-collapse-header">
+    <div className={`profile-collapse-header${search ? ' profile-collapse-header--search' : ''}`}>
       <button type="button" onClick={onBack} aria-label={backLabel} title={backLabel} className="profile-collapse-back">
         <ArrowLeft size={16} /><span>{backLabel}</span>
       </button>
