@@ -9,6 +9,7 @@ type Props = {
   title: string;
   description: string;
   action?: React.ReactNode;
+  compactAction?: React.ReactNode;
 };
 
 export const ProfileSubpageHeader: React.FC<Props> = ({
