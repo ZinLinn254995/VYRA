@@ -640,3 +640,16 @@ A Vision observation is never promoted wholesale. The creator must first create 
 - A database unique index prevents the same observation field from being promoted more than once. A new observation creates a new review/promotion cycle.
 - Promotion does not set asset/Vyral DNA status to complete and does not make the field eligible for DNA-only reconstruction by itself.
 - This is creator-authorized knowledge adoption, not independent factual verification or proof of ownership.
+
+## Creator-approved DNA field conflict detection — 2026-11-06
+
+The Details workspace now derives a read-only conflict view from immutable field-promotion records.
+
+- A conflict group is scoped to the exact same asset ID, source asset-version ID, Vision task kind, and dotted field path.
+- Only creator-authored DNA records created by the guarded field-promotion endpoint are considered. Unreviewed observations, disputed observations, imported claims, and arbitrary creator notes are not mixed into this comparison.
+- Values are compared by deterministic canonical JSON representation. Different exact JSON values are reported as an **exact-value disagreement**; this is not a claim of semantic contradiction or factual error.
+- Different asset versions and different task kinds are deliberately kept separate. The same field can legitimately vary by version or by the question asked of Vision.
+- Each promoted record remains unchanged and retains its source observation, source version, SHA-256, model-label claims, creator note and review provenance.
+- The interface shows the competing values side by side and does not automatically select a winner, overwrite a value, merge records, or mark DNA complete.
+- This is conflict detection and evidence preservation, not yet a complete contextual-precedence decision workflow. A future explicit creator resolution must be an additional immutable record that references the exact competing promotion records and states its scope; it must never erase the underlying evidence.
+
