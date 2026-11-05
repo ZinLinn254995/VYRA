@@ -289,3 +289,177 @@ Perceptual သို့မဟုတ် Semantic Similarity တွေ့ရုံ
 
 - **2026-11-05 — VYRAL DNA နှင့် Shared Asset Knowledge System:** VYRAL အဆင့်နှင့် Asset အဆင့် DNA၊ Identity Fingerprint / Knowledge DNA / Evolution History၊ Generation အချိန် အလိုအလျောက်ဖန်တီးမည့် ကုန်ကျစရိတ်နည်းသော Knowledge၊ လိုအပ်မှသာ လုပ်မည့် Vision Analysis၊ လူအများကြား Knowledge ပြန်လည်မျှဝေသုံးစွဲခြင်းနှင့် Cache၊ အထောက်အထားအခြေပြု Community Knowledge တိုးတက်မှု၊ Source/Confidence မှတ်တမ်း၊ Creator Authority၊ Privacy၊ License နှင့် Lineage စည်းမျဉ်းများကို မှတ်တမ်းတင်ထားသည်။
 - **2026-11-05 — Fingerprint အမျိုးအစားများ:** Cryptographic (SHA-256), Perceptual နှင့် Semantic Fingerprint တို့၏ ရည်ရွယ်ချက်၊ ကွဲပြားချက်၊ ကန့်သတ်ချက်များနှင့် Similarity တွေ့ရုံဖြင့် Asset Identity များကို အလိုအလျောက် မပေါင်းစည်းရသည့် စည်းမျဉ်းကို ထည့်သွင်းထားသည်။
+
+
+## 14. Native `.vyral` file format — portable hybrid package
+
+A `.vyral` file is intended to be a portable Digital Identity Package for one complete VYRAL. It must contain both the VYRAL-level Master DNA and the independent records for every included asset. It is not merely a text document, a media folder, or a model-specific embedding file.
+
+### 14.1 Recommended container
+
+Use a ZIP-compatible package container with the `.vyral` extension as the initial implementation. This gives the format a practical, inspectable structure while allowing it to be treated as one file by ordinary file managers.
+
+The package should use a versioned, documented internal specification. The ZIP container is an implementation choice, not the definition of VYRAL identity itself. A future container implementation must preserve the same logical data model and compatibility rules.
+
+### 14.2 Recommended internal layout
+
+```text
+MyCharacter.vyral
+├── manifest.json
+├── dna/
+│   ├── vyral-dna.json
+│   ├── assets-dna.json
+│   ├── knowledge.json
+│   ├── relationships.json
+│   └── evolution-history.json
+├── fingerprints/
+│   ├── cryptographic.json
+│   ├── perceptual.json
+│   ├── semantic/
+│   └── structural.json
+├── assets/
+│   ├── original/
+│   ├── generated/
+│   └── versions/
+├── vision/
+│   ├── observations.json
+│   ├── analysis-records/
+│   └── evidence/
+└── security/
+    ├── signatures/
+    └── permissions.json
+```
+
+This is a proposed logical layout. Exact filenames and required/optional entries will be finalized in the formal format specification. A package may omit optional media payloads when the creator chooses a knowledge-only export, but it must clearly declare that those originals are not embedded and must never imply that exact recovery is possible without the missing information.
+
+### 14.3 Data representation
+
+Use a hybrid representation so each type of information is stored in a suitable form:
+
+- **JSON** for manifest data, identities, DNA records, structured observations, provenance, permissions, relationships, version history, and fingerprint metadata. JSON is human-readable and broadly supported.
+- **Original binary payloads** for images, video, audio, documents, 3D files, and other media. Preserve the original bytes when exact file recovery is required.
+- **Vector/binary data** for semantic embeddings and other high-dimensional model representations. Include model/provider, model version, dimensions, encoding, and compatibility metadata; never assume every AI model can interpret every embedding.
+- **Hash/signature data** for cryptographic integrity checks and package authenticity. Define exactly which payload bytes or canonicalized logical records each digest covers.
+
+Example only — a simplified asset DNA record:
+
+```json
+{
+  "asset_id": "VYR-ASSET-001",
+  "identity": {
+    "name": "Character_001",
+    "type": "character"
+  },
+  "visual_dna": {
+    "hair": {
+      "color": "blue",
+      "style": "long"
+    },
+    "clothing": {
+      "primary_color": "black"
+    }
+  },
+  "knowledge_status": "evolving"
+}
+```
+
+The actual schema must support typed values, provenance, confidence, uncertainty, verification status, source asset/version references, and extensible fields. The simplified example above is not the final schema.
+
+### 14.4 Package identity and integrity
+
+The package must distinguish:
+- The hash of the complete serialized `.vyral` file (which may change when ZIP metadata, ordering, or compression changes).
+- Per-file cryptographic hashes for exact embedded payload integrity.
+- A logical Master Fingerprint calculated from a documented canonical representation of the VYRAL identity and its included asset/version records.
+- The VYRAL Master DNA, which describes the collection and its relationships and is not itself a hash.
+
+A change to an asset or its version must update the relevant asset records and the logical package fingerprint. A package rebuild that only changes ZIP serialization must not silently create a new creator-defined VYRAL identity. Digital signatures should cover a well-defined canonical manifest and content-digest list so tampering can be detected.
+
+### 14.5 Interoperability
+
+The `.vyral` format should have an open, versioned specification so VYRA and other compatible AI platforms can parse the package without depending on one vendor's private embedding format or one specific AI model.
+
+A compatible platform should be able to:
+1. Read the manifest and identify the VYRAL and its version.
+2. Read asset identities, permissions, lineage, and Knowledge DNA.
+3. Verify available hashes and signatures.
+4. Retrieve the original media when included and authorized.
+5. Interpret model-independent structured observations.
+6. Use supported embeddings or create its own analysis representation when an embedding is incompatible.
+7. Preserve provenance and append new observations without erasing earlier records.
+
+### 14.6 Creator-facing simplicity
+
+Creators should interact with VYRAL as they would with an ordinary asset file manager: add files, create folders, name assets, organize them, and choose sharing/export permissions. DNA, fingerprint generation, analysis records, and package maintenance should happen behind the scenes wherever possible.
+
+The technical complexity belongs to the VYRAL format and VYRA services, not to the creator's everyday workflow.
+
+## 15. DNA completion principle — reconstruction is the acceptance test
+
+**A VYRAL DNA record must not be declared complete merely because it contains many descriptions, observations, embeddings, or fingerprint records. DNA completeness is determined by a reconstruction test.**
+
+The governing principle is:
+
+> DNA is not complete until an AI can reconstruct the original asset from the DNA alone, without being given the original asset as a visual/audio reference, and the reconstructed result meets the defined exact-equivalence requirement.
+
+### 15.1 DNA-only reconstruction test
+
+1. Preserve the original asset separately as a protected test reference. Do not pass it to the reconstruction model.
+2. Give the reconstruction system only the relevant DNA package and the documented decoder/reconstruction instructions.
+3. Generate the reconstructed asset without access to the original media payload or hidden reference.
+4. Compare the result with the protected original using the appropriate exact and modality-specific verification procedures.
+5. Record the model, version, settings, decoding steps, test conditions, output fingerprint, comparison results, and any failures.
+6. Repeat across independent runs and compatible reconstruction systems where the claimed portability requires it.
+7. Mark the DNA as complete only when the predeclared acceptance criteria are met. Otherwise retain an incomplete/evolving status and record what information is still missing.
+
+### 15.2 Exactness must be defined per asset type
+
+For a digital file, **byte-for-byte identity** is the strictest exact-recovery criterion: the reconstructed file has the same bytes and therefore the same cryptographic hash as the original.
+
+For media where the intended requirement is identical decoded content rather than identical file encoding, the specification may additionally define a decoded-content criterion, such as identical pixel/sample data, dimensions, frame sequence, timing, color interpretation, or other modality-specific properties. This criterion must be explicitly named and must not be mislabeled as byte-for-byte identity.
+
+Perceptual similarity, semantic similarity, or a high Vision score alone is not exact reconstruction and must never qualify as DNA completion under the exact-reconstruction target.
+
+### 15.3 Important feasibility boundary
+
+A DNA description or model embedding cannot guarantee recovery of information it never captured. If the original file is deleted and the package contains only lossy observations, prompts, embeddings, or approximate descriptions, exact recovery may be information-theoretically impossible.
+
+Therefore:
+- If exact recovery is required, the package must preserve enough lossless information to reproduce the original bytes or the explicitly defined exact decoded content.
+- If the creator exports a knowledge-only package without the original payload or a proven lossless reconstruction representation, label it as **reconstruction-capable to the tested level**, not exact-recovery complete.
+- Never claim exact reconstruction based only on a perceptual or semantic match.
+- The completion test must be performed with the original hidden from the reconstruction model; the original is used only by the independent verifier for comparison.
+
+### 15.4 Suggested status vocabulary
+
+- **Evolving** — knowledge is still being collected; no qualifying reconstruction test has passed.
+- **Reconstruction-tested** — one or more DNA-only tests have been run; results and limitations are recorded.
+- **High-fidelity** — the declared perceptual/structural thresholds have passed, but exact equivalence has not.
+- **Exact-reconstruction verified** — the declared exact-equivalence test has passed under documented conditions.
+- **Not recoverable from current DNA** — the required source information is missing; additional original data or lossless capture is needed.
+
+These labels describe evidence and test scope, not an absolute promise that every future AI model will reproduce the asset identically. A model-specific pass must name the model and test conditions. A portable claim requires successful tests across the specified compatible systems.
+
+### 15.5 No self-confirming evaluation
+
+The same generative model must not be the sole judge of its own reconstruction. Use deterministic hash checks where applicable and independent comparison/verification methods for the relevant media type. Keep the original reference protected and separate from the reconstruction input.
+
+## 16. VYRAL product principles added
+
+1. A creator's everyday workflow remains as simple as a normal file manager.
+2. Every asset has its own identity, DNA/Knowledge Record, fingerprints, and evolution history.
+3. The complete VYRAL has its own Master DNA, relationship map, and logical Master Fingerprint.
+4. AI use is also a knowledge-building event: when an AI inspects or uses an asset to generate a video or other output, it records relevant observations about both the source assets and generated assets, with provenance and evidence.
+5. Repeated AI Vision analysis should improve coverage and confidence, not blindly overwrite earlier knowledge or drift away from creator-confirmed identity.
+6. DNA completion is earned through DNA-only reconstruction tests, not by record volume or model confidence.
+7. Exact recovery after deleting the original is only claimed when sufficient lossless information is preserved in the package and the exact test passes.
+8. The `.vyral` format should remain portable and documented for compatible third-party AI systems.
+
+## Change log — additional decisions
+
+- **2026-11-06 — Native `.vyral` package architecture:** Recorded the ZIP-compatible hybrid container direction, proposed internal package layout, JSON/binary/vector/hash data roles, package-level and asset-level integrity, open specification, and simple creator-facing file-manager workflow.
+- **2026-11-06 — DNA Reconstruction Completion Principle:** Recorded DNA-only reconstruction as the acceptance test for DNA completion, exactness definitions, independent verification, reconstruction status labels, and the requirement to preserve sufficient lossless information before claiming exact recovery after original deletion.
+- **2026-11-06 — VYRAL product direction:** Recorded AI usage as a knowledge-building event and the requirement for both asset-level DNA/fingerprints and VYRAL-level Master DNA/Master Fingerprint.
+- **2026-11-06 — Native `.vyral` package architecture:** ZIP-compatible Hybrid Package၊ JSON/Binary/Vector/Hash Data တို့၏ တာဝန်၊ Package နှင့် Asset အဆင့် Integrity၊ Open Specification နှင့် Creator အတွက် ရိုးရှင်းသော File Manager Workflow ကို မှတ်တမ်းတင်ထားသည်။
+- **2026-11-06 — DNA Reconstruction Completion Principle:** DNA ပြည့်စုံမှုကို DNA-only Reconstruction Test ဖြင့်သာ ဆုံးဖြတ်ရန်၊ Exactness အဓိပ္ပာယ်၊ Independent Verification၊ Reconstruction Status များနှင့် မူရင်းဖျက်ပြီးနောက် Exact Recovery ပြောနိုင်ရန် Lossless Information လုံလောက်စွာ ထိန်းသိမ်းထားရမည့် စည်းမျဉ်းကို မှတ်တမ်းတင်ထားသည်။
+- **2026-11-06 — VYRAL Product Direction:** AI အသုံးပြုမှုတိုင်းကို Knowledge တည်ဆောက်သည့် ဖြစ်စဉ်တစ်ခုအဖြစ် သတ်မှတ်ခြင်းနှင့် Asset-level DNA/Fingerprint၊ VYRAL-level Master DNA/Master Fingerprint နှစ်မျိုးစလုံး လိုအပ်ကြောင်း မှတ်တမ်းတင်ထားသည်။
