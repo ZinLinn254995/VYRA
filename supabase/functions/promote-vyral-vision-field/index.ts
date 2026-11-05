@@ -5,6 +5,14 @@ const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 const isUuid = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value);
+const stableJson = (value: unknown): string => {
+  if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + stableJson(record[key])).join(',') + '}';
+  }
+  return JSON.stringify(value) ?? 'undefined';
+};
 const getPath = (value: unknown, path: string): { found: boolean; value?: unknown } => {
   let current: unknown = value;
   for (const segment of path.split('.')) {
@@ -39,7 +47,7 @@ Deno.serve(async (request: Request) => {
   if (observationError) return json({ error: 'Could not load Vision observation.' }, 500);
   if (!observation) return json({ error: 'Vision observation not found.' }, 404);
   const field = getPath(observation.observation, body.fieldPath);
-  if (!field.found || JSON.stringify(field.value) !== serialized) return json({ error: 'Accepted value must exactly match the selected observation field. Creator edits must be recorded as a separate creator statement.', status: 'value_mismatch' }, 409);
+  if (!field.found || stableJson(field.value) !== stableJson(body.acceptedValue)) return json({ error: 'Accepted value must exactly match the selected observation field. Creator edits must be recorded as a separate creator statement.', status: 'value_mismatch' }, 409);
 
   const { data: asset, error: assetError } = await context.supabase
     .from('vyral_assets').select('id,vyral_id,user_id').eq('id', observation.asset_id).eq('user_id', userId).maybeSingle();
