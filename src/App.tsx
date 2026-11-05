@@ -6,6 +6,7 @@ import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 type WalletResponse = {
   availableBalance?: string;
@@ -110,7 +111,7 @@ function MarketplaceApp() {
   const seedDemoStoryboards = user?.email?.trim().toLowerCase() === 'zla264995@gmail.com';
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
+    <div className="flex min-h-svh flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
       <MarketplaceHeader
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
@@ -127,6 +128,7 @@ function MarketplaceApp() {
       />
       <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
       <div className="min-h-0 flex-1">
+        <ErrorBoundary>
         {profileOpen && user ? (
           <ProfilePage
             userEmail={user.email ?? ''}
@@ -148,6 +150,7 @@ function MarketplaceApp() {
         ) : (
           <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
         )}
+        </ErrorBoundary>
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
