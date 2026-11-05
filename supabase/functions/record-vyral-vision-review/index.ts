@@ -36,7 +36,7 @@ Deno.serve(async (request: Request) => {
   const { data: prior, error: priorError } = await context.supabaseAdmin
     .from('vyral_dna_records').select('id,payload,created_at')
     .eq('asset_id', asset.id).eq('user_id', userId)
-    .contains('payload', { vision_observation_review_id: observation.id })
+    .contains('payload', { vision_observation_review_id: observation.id, review_source: 'server_creator_review' })
     .order('created_at', { ascending: false }).limit(1);
   if (priorError) return json({ error: 'Could not check previous creator review.' }, 500);
   if (prior?.length) return json({ error: 'This observation already has a creator review. Reviews are immutable; create a new observation to submit a new claim.', status: 'review_exists' }, 409);
