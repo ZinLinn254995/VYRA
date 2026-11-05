@@ -4,9 +4,8 @@
 /* Keep the complete Card header stationary at its original expanded size.
    Only the Card body scrolls; no compact/collapsing header state is used. */
 .profile-collapse-header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  position: relative;
+  z-index: 1;
   flex: 0 0 156px;
   height: 156px;
   min-height: 156px;
@@ -81,20 +80,18 @@
 }
 .profile-collapse-action { top: 56px; right: 24px; }
 
-/* Invisible scroll mechanism: no second border, background, or rounded mask. */
+/* The wrapper does not clip or scroll. The Card itself defines the visible edge,
+   while only its content region scrolls beneath the stationary header. */
 .profile-subpage-viewport {
+  display: flex;
   box-sizing: border-box;
   width: 100%;
-  height: auto;
+  height: 100%;
   max-height: none;
   min-height: 0;
   flex: 1 1 0%;
   min-width: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
+  overflow: visible;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -102,17 +99,23 @@
 .profile-subpage-card {
   display: flex;
   width: 100%;
+  height: 100%;
   min-width: 0;
-  min-height: 100%;
-  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: stretch;
-  overflow: visible;
+  overflow: hidden;
   overflow-anchor: none;
 }
 .profile-subpage-content {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 .profile-page-main:has(.profile-subpage-viewport) {
   display: flex;
@@ -126,7 +129,7 @@
 .profile-page-main:has(.profile-subpage-viewport) .profile-subpage-viewport {
   flex: 1 1 0%;
   min-height: 0;
-  height: auto;
+  height: 100%;
   max-height: none;
 }
 
