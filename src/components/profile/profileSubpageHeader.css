@@ -1,10 +1,9 @@
-/* Let the sticky header use the full profile section as its containing block.
-   The wrapper only groups the sentinel and header; it must not constrain sticky
-   positioning to the header's own height. */
+/* The profile card is the scroll viewport; its header remains fixed above the body. */
 .profile-collapse-shell { display: contents; }
-.profile-collapse-header { overflow-anchor: none; scroll-margin-top: var(--vyra-global-header-height, 64px); }
-.profile-collapse-sentinel { height: 1px; margin-bottom: -1px; pointer-events: none; }
 .profile-collapse-header {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
   height: var(--profile-height, 156px);
   min-height: 48px;
   overflow: hidden;
@@ -55,4 +54,24 @@
 .profile-collapse-header.is-compact .profile-collapse-action-compact { pointer-events: auto; }
 .profile-collapse-action-compact button { min-height: 34px; padding: 0 10px; font-size: 12px; }
 
-.profile-subpage-card { overflow-anchor: none; }
+/* Only this lower card region scrolls; the card shell and header never move. */
+.profile-subpage-card {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
+  min-height: 320px;
+  overflow: hidden;
+  overflow-anchor: none;
+}
+.profile-subpage-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+@media (min-width: 640px) {
+  .profile-subpage-card { height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem); }
+}
