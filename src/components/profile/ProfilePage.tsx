@@ -89,8 +89,18 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
   card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
   const header = card.querySelector<HTMLElement>('.profile-collapse-header');
   if (header) {
+    const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    header.style.setProperty('--profile-header-height', (156 - 84 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-height', (expandedHeight - 84 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
+    header.style.setProperty('--profile-back-label-width', (190 * (1 - headerProgress)) + 'px');
+    header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
   }
 };
 
