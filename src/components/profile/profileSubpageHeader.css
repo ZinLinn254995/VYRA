@@ -65,8 +65,8 @@
   top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
   transition: top 180ms ease-out, right 180ms ease-out, opacity 140ms ease-out;
 }
-.profile-collapse-action-full { opacity: calc(1 - var(--profile-header-progress, 0)); }
-.profile-collapse-action-compact { display: block; opacity: var(--profile-header-progress, 0); pointer-events: none; }
+.profile-collapse-action-full { opacity: calc(1 - var(--profile-header-progress, 0)); pointer-events: var(--profile-full-action-events, auto); }
+.profile-collapse-action-compact { display: block; opacity: var(--profile-header-progress, 0); pointer-events: var(--profile-compact-action-events, none); }
 
 /* The wrapper does not clip or scroll. The Card itself defines the visible edge,
    while only its content region scrolls beneath the stationary header. */
