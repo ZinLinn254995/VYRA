@@ -653,3 +653,18 @@ The Details workspace now derives a read-only conflict view from immutable field
 - The interface shows the competing values side by side and does not automatically select a winner, overwrite a value, merge records, or mark DNA complete.
 - This is conflict detection and evidence preservation, not yet a complete contextual-precedence decision workflow. A future explicit creator resolution must be an additional immutable record that references the exact competing promotion records and states its scope; it must never erase the underlying evidence.
 
+## Creator conflict resolution records — 2026-11-06
+
+The first explicit resolution workflow is now available for detected creator-approved Vision field disagreements.
+
+- The creator can record either **prefer one value** or **keep both as context-dependent**.
+- A preference is scoped only to the exact asset, source version, Vision task kind, and field represented by the selected promoted records. It is not a global truth claim and does not invalidate other values.
+- A contextual decision requires a creator explanation. It records that multiple values remain valid under different contexts; it does not invent or infer those contexts.
+- The server requires a signed-in creator, verifies ownership of every selected promoted DNA record, checks that all records belong to the same exact conflict scope, confirms at least two distinct canonical JSON values, verifies the source asset, and validates the original server-side creator-review provenance.
+- The server appends a new immutable creator DNA record containing the competing promotion IDs, observation IDs, exact values, chosen preference (if any), creator note, scope, and resolution time.
+- The original promotion records and Vision observations are never changed or deleted. Resolution records are idempotent per request ID.
+- Resolution records explicitly remain ineligible for DNA-only reconstruction and do not certify a complete asset, Vyral, ownership, or factual correctness.
+- The Details UI displays resolution history alongside the conflict and permits a later explicit creator decision to be appended as a new historical record.
+
+This is an auditable creator decision layer, not an automatic conflict solver or semantic truth adjudicator.
+
