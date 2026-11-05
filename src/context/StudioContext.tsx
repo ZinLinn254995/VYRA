@@ -441,14 +441,14 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const newScene: Scene = {
           id: `sc-${Date.now().toString(36)}`,
           order: newOrder,
-          narration: sceneData?.narration || 'Describe narration for this sequence...',
+          narration: sceneData?.narration ?? 'Describe narration for this sequence...',
           visualPrompt:
-            sceneData?.visualPrompt ||
+            sceneData?.visualPrompt ??
             'Futuristic cinematic sequence, pristine atmospheric lighting and holographic interface detail',
-          cameraMovement: sceneData?.cameraMovement || 'Slow dynamic push inward',
-          duration: sceneData?.duration || 8,
-          mediaUrl: sceneData?.mediaUrl || proj.coverImage || '/src/assets/images/hero_cyber_city_1792925206979.jpg',
-          status: sceneData?.status || 'ready',
+          cameraMovement: sceneData?.cameraMovement ?? 'Slow dynamic push inward',
+          duration: sceneData?.duration ?? 8,
+          mediaUrl: sceneData?.mediaUrl ?? proj.coverImage ?? '/src/assets/images/hero_cyber_city_1792925206979.jpg',
+          status: sceneData?.status ?? 'ready',
         };
         return {
           ...proj,

@@ -9,6 +9,7 @@ import { MediaAsset } from '../../types';
 import { deleteSavedImage, getSavedImages, SavedMediaImage, deleteSavedVideo, getSavedVideos, SavedMediaVideo, getSavedAudios, deleteSavedAudio, SavedMediaAudio } from '../../services/mediaLibraryStorage';
 import {
   Image,
+  Folder, FolderPlus, FileText, X,
   Upload,
   Plus,
   Trash2,
@@ -100,6 +101,28 @@ export const MediaLibraryView: React.FC = () => {
   const [newUrl, setNewUrl] = useState('');
   const [newType, setNewType] = useState<MediaAsset['type']>('image');
   const [newTag, setNewTag] = useState('');
+  type LibraryFile = { id:string; title:string; kind:'image'|'video'|'audio'|'brand_asset'; url:string; folder:string; details:string; source:'saved-image'|'saved-video'|'saved-audio'|'studio'; original:any };
+  const [activeFolder, setActiveFolder] = useState('All Files');
+  const [customFolders, setCustomFolders] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [previewFile, setPreviewFile] = useState<LibraryFile|null>(null);
+  const pressTimer = React.useRef<ReturnType<typeof setTimeout>|null>(null);
+  const longPressed = React.useRef(false);
+  const libraryFiles:LibraryFile[] = [
+    ...savedImages.map(x=>({id:x.id,title:x.title,kind:'image' as const,url:x.dataUrl,folder:'Images',details:x.model,source:'saved-image' as const,original:x})),
+    ...savedVideos.map(x=>({id:x.id,title:x.title,kind:'video' as const,url:savedVideoUrls[x.id]||'',folder:'Videos',details:x.model,source:'saved-video' as const,original:x})),
+    ...savedAudios.map(x=>({id:x.id,title:x.title,kind:'audio' as const,url:savedAudioUrls[x.id]||'',folder:'Audio',details:x.sourceType==='uploaded'?'Uploaded audio':x.model,source:'saved-audio' as const,original:x})),
+    ...mediaAssets.map(x=>({id:x.id,title:x.title,kind:x.type as LibraryFile['kind'],url:x.url,folder:x.type==='brand_asset'?'Brand Kit':x.type==='image'?'Images':x.type==='video'?'Videos':'Audio',details:(x.tags||[]).join(', '),source:'studio' as const,original:x})),
+  ];
+  const folderNames = ['Images','Videos','Audio','Brand Kit',...customFolders];
+  const visibleFiles = libraryFiles.filter(file => activeFolder==='All Files' || file.folder===activeFolder);
+  const beginFilePress = (id:string) => { longPressed.current=false; if(pressTimer.current) clearTimeout(pressTimer.current); pressTimer.current=setTimeout(()=>{longPressed.current=true;setSelectMode(true);setSelectedFiles(current=>current.includes(id)?current:[...current,id]);},480); };
+  const endFilePress = () => { if(pressTimer.current) clearTimeout(pressTimer.current); };
+  const openFile = (file:LibraryFile) => { if(longPressed.current){longPressed.current=false;return;} if(selectMode){setSelectedFiles(current=>current.includes(file.id)?current.filter(x=>x!==file.id):[...current,file.id]);return;} setPreviewFile(file); };
+  const createLibraryFolder = () => { const name=window.prompt('Folder name'); if(!name?.trim()) return; const clean=name.trim(); if(folderNames.some(x=>x.toLowerCase()===clean.toLowerCase())){showToast('A folder with that name already exists','warning');return;} setCustomFolders(current=>[...current,clean]); showToast('Folder created','success'); };
+  const createLibraryFile = () => { setShowUploadModal(true); };
+
 
   const filteredAssets = mediaAssets.filter((asset) => {
     if (activeTab === 'image') return asset.type === 'image';
@@ -185,252 +208,33 @@ export const MediaLibraryView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Header and Upload action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white light:text-slate-900">
-            Media Asset Library
-          </h1>
-          <p className="text-xs text-slate-400 light:text-slate-500 mt-0.5">
-            Organize generated scene backdrops, holographic avatars, audio tracks, and brand vector kits
-          </p>
+    <div className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-16 pt-5 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h1 className="text-xl font-bold text-white light:text-slate-900">Media Library</h1><p className="mt-1 text-xs text-slate-400">A simple place for all your images, videos, audio and creative files.</p></div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={createLibraryFolder} className="inline-flex items-center gap-2 rounded-lg border border-[#2B3058] px-3 py-2.5 text-xs font-semibold text-slate-200 hover:bg-[#171A35]"><FolderPlus className="h-4 w-4"/> New Folder</button>
+          <button onClick={createLibraryFile} className="inline-flex items-center gap-2 rounded-lg bg-[#55F4FF] px-3 py-2.5 text-xs font-bold text-[#090B18] hover:bg-[#55F4FF]/90"><Upload className="h-4 w-4"/> Add File</button>
         </div>
-
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-[#55F4FF] text-[#090B18] hover:bg-[#55F4FF]/90 transition-colors shadow-sm shrink-0"
-        >
-          <Upload className="w-4 h-4" />
-          <span>Upload / Register Asset</span>
-        </button>
       </div>
-
-      {/* Filter Tabs (Zero-pill discipline: segmented control buttons) */}
-      <div className="flex items-center gap-1 p-1 bg-[#171A35] light:bg-slate-100 rounded-lg max-w-md">
-        {[
-          { id: 'all', label: 'All Assets' },
-          { id: 'image', label: 'Visual Scenes' },
-          { id: 'video', label: 'B-Roll Video' },
-          { id: 'audio', label: 'Audio & Music' },
-          { id: 'brand_asset', label: 'Brand Kit' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
-              activeTab === tab.id
-                ? 'bg-[#090B18] light:bg-white text-[#55F4FF] light:text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#2B3058] bg-[#11142B] light:bg-white p-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button onClick={()=>{setActiveFolder('All Files');setSelectedFiles([]);setSelectMode(false);}} className={`rounded-lg px-3 py-2 text-xs font-semibold ${activeFolder==='All Files'?'bg-[#55F4FF]/15 text-[#55F4FF]':'text-slate-400 hover:bg-white/5'}`}>All Files</button>
+          {folderNames.map(name=><button key={name} onClick={()=>{setActiveFolder(name);setSelectedFiles([]);setSelectMode(false);}} className={`rounded-lg px-3 py-2 text-xs font-semibold ${activeFolder===name?'bg-[#55F4FF]/15 text-[#55F4FF]':'text-slate-400 hover:bg-white/5'}`}>{name}</button>)}
+        </div>
+        <div className="flex items-center gap-2"><span className="text-[11px] text-slate-500">{visibleFiles.length} files</span><button onClick={()=>{setSelectMode(v=>!v);setSelectedFiles([]);}} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectMode?'border-cyan-300 text-cyan-200':'border-[#2B3058] text-slate-300'}`}>{selectMode?'Exit Select':'Select'}</button></div>
       </div>
-
-      {/* Generated images saved in browser IndexedDB */}
-      {(activeTab === 'all' || activeTab === 'image') && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Images</h2>
-            <span className="text-[11px] text-slate-500">{savedImages.length} saved on this device</span>
-          </div>
-          {loadingSavedImages ? (
-            <p className="text-xs text-slate-500">Loading saved images…</p>
-          ) : savedImages.length === 0 ? (
-            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Images saved from Settings → OpenRouter Image Generator will appear here.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {savedImages.map((image) => (
-                <article key={image.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
-                  <div className="aspect-video bg-[#090B18]">
-                    <img src={image.dataUrl} alt={image.title} className="w-full h-full object-contain" loading="lazy" />
-                  </div>
-                  <div className="p-3 space-y-2">
-                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{image.title}</h3>
-                    <p className="text-[10px] text-slate-500 break-all">{image.model}</p>
-                    <p className="text-[10px] text-slate-500">{new Date(image.createdAt).toLocaleString()} · {image.costUsd === null ? 'Cost not reported' : '$' + image.costUsd.toFixed(4)}</p>
-                    {image.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {image.generationId}</p>}
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <a href={image.dataUrl} download={'vyra-' + image.id + '.png'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download</a>
-                      <button type="button" onClick={() => void handleDeleteSavedImage(image)} aria-label={'Delete ' + image.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+      {selectMode&&<div className="flex items-center justify-between rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100"><span>{selectedFiles.length} selected</span><button onClick={()=>setSelectedFiles([])} className="text-cyan-200 hover:underline">Clear selection</button></div>}
+      {loadingSavedImages||loadingSavedVideos||loadingSavedAudios?<p className="py-10 text-center text-xs text-slate-500">Loading media files…</p>:(
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {activeFolder==='All Files'&&folderNames.map(name=><button key={name} onClick={()=>setActiveFolder(name)} className="flex min-h-32 flex-col items-start justify-between rounded-xl border border-[#2B3058] bg-[#171A35] light:bg-white p-4 text-left transition hover:border-[#55F4FF]/50"><Folder className="h-8 w-8 text-[#55F4FF]"/><span className="w-full truncate text-xs font-semibold text-white light:text-slate-900">{name}</span><span className="text-[10px] text-slate-500">{libraryFiles.filter(file=>file.folder===name).length} items</span></button>)}
+          {visibleFiles.map(file=>{const selected=selectedFiles.includes(file.id);const Icon=file.kind==='video'?Film:file.kind==='audio'?Music:file.kind==='brand_asset'?Tag:Image;return <button key={file.source+file.id} onPointerDown={()=>beginFilePress(file.id)} onPointerUp={endFilePress} onPointerLeave={endFilePress} onPointerCancel={endFilePress} onContextMenu={e=>{e.preventDefault();setSelectMode(true);setSelectedFiles(v=>v.includes(file.id)?v:[...v,file.id]);}} onClick={()=>openFile(file)} className={`overflow-hidden rounded-xl border text-left transition ${selected?'border-cyan-300 bg-cyan-300/10':'border-[#2B3058] bg-[#171A35] light:bg-white hover:border-[#55F4FF]/50'}`}>
+            <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-[#090B18] light:bg-slate-100">{file.kind==='image'&&file.url?<img src={file.url} alt={file.title} className="h-full w-full object-contain"/>:file.kind==='video'&&file.url?<video src={file.url} preload="metadata" muted playsInline className="h-full w-full object-contain"/>:<Icon className="h-9 w-9 text-[#55F4FF]"/>}<span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-1 text-[9px] uppercase text-white">{file.kind.replace('_',' ')}</span>{selected&&<span className="absolute right-2 top-2 rounded-full bg-cyan-300 p-1 text-slate-950"><Check className="h-3 w-3"/></span>}</div>
+            <div className="p-3"><p className="truncate text-xs font-semibold text-white light:text-slate-900">{file.title}</p><p className="mt-1 truncate text-[10px] text-slate-500">{file.details||file.folder}</p></div>
+          </button>})}
+          {visibleFiles.length===0&&<div className="col-span-full rounded-xl border border-dashed border-[#2B3058] p-10 text-center text-xs text-slate-500">This folder is empty.</div>}
+        </div>
       )}
-
-      {/* Generated video clips saved in browser IndexedDB */}
-      {(activeTab === 'all' || activeTab === 'video') && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white light:text-slate-900">Generated Video Clips</h2>
-            <span className="text-[11px] text-slate-500">{savedVideos.length} saved on this device</span>
-          </div>
-          {loadingSavedVideos ? (
-            <p className="text-xs text-slate-500">Loading saved videos…</p>
-          ) : savedVideos.length === 0 ? (
-            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Clips generated in a project workspace will appear here and remain available on this device.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {savedVideos.map((video) => (
-                <article key={video.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
-                  <div className="aspect-video bg-[#090B18]">
-                    {savedVideoUrls[video.id] ? (
-                      <video src={savedVideoUrls[video.id]} controls playsInline preload="metadata" className="w-full h-full object-contain" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-500"><Film className="w-8 h-8" /></div>
-                    )}
-                  </div>
-                  <div className="p-3 space-y-2">
-                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{video.title}</h3>
-                    <p className="text-[10px] text-slate-500 break-all">{video.model}</p>
-                    <p className="text-[10px] text-slate-500">{new Date(video.createdAt).toLocaleString()} · {video.costUsd === null ? 'Cost not reported' : '$' + video.costUsd.toFixed(4)}</p>
-                    {video.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {video.generationId}</p>}
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      {savedVideoUrls[video.id] ? <a href={savedVideoUrls[video.id]} download={'vyra-' + video.id + '.' + (video.blob.type.includes('mp4') ? 'mp4' : video.blob.type.includes('webm') ? 'webm' : 'video')} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download clip</a> : <span className="text-[11px] text-slate-500">Preparing clip…</span>}
-                      <button type="button" onClick={() => void handleDeleteSavedVideo(video)} aria-label={'Delete ' + video.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Generated voiceovers saved in browser IndexedDB */}
-      {(activeTab === 'all' || activeTab === 'audio') && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white light:text-slate-900">Saved Audio Assets & Voiceovers</h2>
-            <span className="text-[11px] text-slate-500">{savedAudios.length} saved on this device</span>
-          </div>
-          {loadingSavedAudios ? (
-            <p className="text-xs text-slate-500">Loading saved voiceovers…</p>
-          ) : savedAudios.length === 0 ? (
-            <p className="text-xs text-slate-500 rounded-xl border border-dashed border-[#2B3058] light:border-slate-300 p-4">Uploaded music/SFX and generated voiceovers appear here and remain available on this device.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {savedAudios.map((audio) => (
-                <article key={audio.id} className="rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden">
-                  <div className="p-4 bg-[#090B18] light:bg-slate-50">
-                    {savedAudioUrls[audio.id] ? (
-                      <audio src={savedAudioUrls[audio.id]} controls preload="metadata" className="w-full" />
-                    ) : (
-                      <div className="h-10 flex items-center justify-center text-slate-500"><Music className="w-6 h-6" /></div>
-                    )}
-                  </div>
-                  <div className="p-3 space-y-2">
-                    <h3 className="text-xs font-bold text-white light:text-slate-900 break-words">{audio.title}</h3>
-                    <p className="text-[10px] text-slate-500 break-all">{audio.sourceType === 'uploaded' ? 'Local upload · ' + audio.voice : audio.model + ' · Voice: ' + audio.voice}</p>
-                    <p className="text-[10px] text-slate-500">{new Date(audio.createdAt).toLocaleString()}</p>
-                    {audio.generationId && <p className="text-[10px] text-slate-500 font-mono break-all">Generation ID: {audio.generationId}</p>}
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      {savedAudioUrls[audio.id] ? <a href={savedAudioUrls[audio.id]} download={'vyra-' + audio.id + '.mp3'} className="text-[11px] font-semibold text-[#55F4FF] light:text-indigo-600 hover:underline">Download audio</a> : <span className="text-[11px] text-slate-500">Preparing audio…</span>}
-                      <button type="button" onClick={() => void handleDeleteSavedAudio(audio)} aria-label={'Delete ' + audio.title} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Assets Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredAssets.map((asset) => (
-          <div
-            key={asset.id}
-            className="group rounded-xl bg-[#171A35] light:bg-white border border-[#2B3058] light:border-slate-200 overflow-hidden flex flex-col justify-between hover:border-[#55F4FF]/50 transition-all"
-          >
-            {/* Asset Visual Preview */}
-            <div className="relative aspect-video bg-[#090B18] overflow-hidden">
-              {asset.type === 'image' ? (
-                <img
-                  src={asset.url}
-                  alt={asset.title}
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              ) : asset.type === 'video' ? (
-                <video
-                  src={asset.url}
-                  aria-label={asset.title}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1E2345] to-[#090B18] text-[#55F4FF]">
-                  <Music className="w-8 h-8" />
-                </div>
-              )}
-
-              <div className="absolute top-2 left-2 text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur-xs uppercase">
-                {asset.type}
-              </div>
-
-              {asset.dimensions && (
-                <div className="absolute bottom-2 right-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/60 text-white backdrop-blur-xs">
-                  {asset.dimensions}
-                </div>
-              )}
-            </div>
-
-            {/* Asset Metadata */}
-            <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-white light:text-slate-900 line-clamp-1 group-hover:text-[#55F4FF] transition-colors">
-                  {asset.title}
-                </h3>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {asset.tags.map((tag, tagIndex) => (
-                    <span
-                      key={`${asset.id}-tag-${tagIndex}-${tag}`}
-                      className="text-[10px] text-slate-400 light:text-slate-600 flex items-center gap-1"
-                    >
-                      <Tag className="w-2.5 h-2.5 text-[#8D7CFF]" />
-                      <span>{tag}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-[#2B3058]/50 light:border-slate-100 flex items-center justify-between text-xs">
-                <button
-                  onClick={() => handleCopyPath(asset.url, asset.id)}
-                  title="Copy local asset URL"
-                  className="text-[11px] text-[#55F4FF] light:text-[#6366F1] hover:underline flex items-center gap-1"
-                >
-                  {copiedId === asset.id ? (
-                    <Check className="w-3 h-3 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                  <span>{copiedId === asset.id ? 'Copied' : 'Copy Path'}</span>
-                </button>
-
-                <button
-                  onClick={() => deleteMediaAsset(asset.id)}
-                  aria-label="Remove asset"
-                  className="p-1 text-slate-500 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
+      {previewFile&&<div role="presentation" onClick={()=>setPreviewFile(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"><div onClick={e=>e.stopPropagation()} className="w-full max-w-3xl overflow-hidden rounded-2xl border border-[#2B3058] bg-[#11142B] shadow-2xl"><div className="flex items-center justify-between border-b border-[#2B3058] p-4"><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-white">{previewFile.title}</h2><p className="mt-1 text-[10px] text-slate-500">{previewFile.kind.toUpperCase()} · {previewFile.folder}</p></div><button onClick={()=>setPreviewFile(null)} className="rounded-lg p-2 text-slate-400 hover:bg-white/5"><X className="h-4 w-4"/></button></div><div className="flex max-h-[65vh] min-h-48 items-center justify-center bg-black/30 p-4">{previewFile.kind==='image'&&previewFile.url?<img src={previewFile.url} alt={previewFile.title} className="max-h-[60vh] max-w-full object-contain"/>:previewFile.kind==='video'&&previewFile.url?<video src={previewFile.url} controls playsInline className="max-h-[60vh] max-w-full"/>:previewFile.kind==='audio'&&previewFile.url?<audio src={previewFile.url} controls className="w-full"/>:<div className="text-center text-slate-400"><FileText className="mx-auto h-10 w-10"/><p className="mt-2 text-xs">File preview is not available for this asset.</p></div>}</div><div className="border-t border-[#2B3058] p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">File Details</p><p className="mt-2 text-xs text-slate-300">{previewFile.details||'No additional details.'}</p><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-[10px] text-slate-500">Source: {previewFile.source==='studio'?'Studio asset':'Saved on this device'}</p><div className="flex items-center gap-3">{previewFile.url&&<a href={previewFile.url} download={previewFile.title} className="text-[11px] font-semibold text-cyan-300 hover:underline">Download</a>}<button onClick={async()=>{if(previewFile.source==='saved-image') await handleDeleteSavedImage(previewFile.original); else if(previewFile.source==='saved-video') await handleDeleteSavedVideo(previewFile.original); else if(previewFile.source==='saved-audio') await handleDeleteSavedAudio(previewFile.original); else deleteMediaAsset(previewFile.id); setPreviewFile(null);}} className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300"><Trash2 className="h-3 w-3"/> Delete</button></div></div></div></div></div>}
       {/* Upload/Add Modal */}
       {showUploadModal && (
         <div
