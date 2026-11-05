@@ -963,7 +963,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const tagsAnswer = window.prompt('Enter exact context tags separated by semicolons (1–12 tags, each 1–64 characters). Example: front view; daylight; close-up. These are creator-defined tags, not AI-inferred.');
       if (tagsAnswer === null) return;
       contextTags = tagsAnswer.split(';').map((tag) => tag.trim().toLowerCase()).filter(Boolean);
-      if (contextTags.length < 1 || contextTags.length > 12 || contextTags.some((tag) => tag.length > 64 || !/^[a-z0-9][a-z0-9 _-]*$/.test(tag)) || new Set(contextTags).size !== contextTags.length) {
+      if (contextTags.length < 1 || contextTags.length > 12 || contextTags.some((tag) => tag.length > 64 || !/^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u.test(tag)) || new Set(contextTags).size !== contextTags.length) {
         setError('Enter 1–12 unique context tags using letters, numbers, spaces, underscores or hyphens; each tag must be 1–64 characters.');
         return;
       }
