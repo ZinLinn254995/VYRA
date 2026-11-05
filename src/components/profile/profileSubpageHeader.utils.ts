@@ -1,8 +1,5 @@
-export const calculateCollapseProgress = (
-  sentinelTop: number,
-  stickyTop: number,
-  collapseDistance = 104,
-): number => {
-  if (collapseDistance <= 0) return 1;
-  return Math.max(0, Math.min(1, (stickyTop - sentinelTop) / collapseDistance));
+export const calculateCollapseProgress = (titleTop: number, stickyBottom: number): number => {
+  const start = stickyBottom + 36;
+  const end = stickyBottom - 12;
+  return Math.max(0, Math.min(1, (start - titleTop) / (start - end)));
 };
