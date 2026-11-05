@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ChevronRight, File, Folder, FolderPlus, Grid2X2, List, MoreHorizontal, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
+import { ChevronRight, File, Folder, FolderPlus, Grid2X2, List, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
