@@ -67,7 +67,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       update();
     };
     attachScrollContainer();
-    const onResize = () => { cardMeasured = false; schedule(); };
+    const onResize = () => schedule();
     window.addEventListener('resize', onResize, { passive: true });
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { attachScrollContainer(); schedule(); }) : null;
     if (headerRef.current) observer?.observe(headerRef.current);
