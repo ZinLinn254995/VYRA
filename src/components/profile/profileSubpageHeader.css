@@ -1,7 +1,7 @@
 /* The header remains pinned while its contents ease into a compact top row. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
-  --profile-header-expanded: 156px;
+  --profile-header-expanded: 204px;
   position: relative; z-index: 3;
   flex: 0 0 var(--profile-header-height, 156px);
   height: var(--profile-header-height, 156px);
@@ -128,13 +128,18 @@
 }
 
 
-/* Keep the primary Vyral search control immediately below the compact header. */
-.profile-subpage-search {
-  position: sticky; top: 0; z-index: 2; margin-top: -1.25rem;
-  padding-top: 1.25rem; padding-bottom: 0.75rem; background: var(--vyra-bg-surface);
+/* The search field is part of the card header and remains visible in compact mode. */
+.profile-collapse-search {
+  position: absolute;
+  z-index: 3;
+  left: 20px;
+  right: 20px;
+  bottom: 12px;
 }
+.profile-collapse-search > * { width: 100%; }
 @media (max-width: 639px) {
-  .profile-collapse-header { --profile-header-expanded: 150px; }
+  .profile-collapse-header { --profile-header-expanded: 198px; }
+  .profile-collapse-search { left: 12px; right: 12px; bottom: 10px; }
   .profile-collapse-back { left: 12px; width: 190px; }
   .profile-collapse-icon { left: calc(12px + var(--profile-header-shift-x, 0px)); }
   .profile-collapse-title {
