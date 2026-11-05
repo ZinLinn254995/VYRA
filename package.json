@@ -20,7 +20,8 @@
     "test:usage-ledger-recorder": "node --import tsx --test tests/usage-ledger-recorder.spec.ts tests/openrouter-usage-ledger-api.spec.ts",
     "test:pricing-auth": "node --import tsx --test tests/pricing-auth.spec.ts",
     "test:usage-ledger-local-e2e": "node --import tsx --test tests/openrouter-usage-ledger-local-e2e.spec.ts",
-    "test:profile-header": "node --import tsx --test tests/profile-subpage-header.spec.ts"
+    "test:profile-header": "node --import tsx --test tests/profile-subpage-header.spec.ts",
+    "test:vyral-package": "node --import tsx --test tests/vyral-package.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
