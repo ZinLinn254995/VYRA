@@ -84,3 +84,45 @@ test('requires every manifest media path to exist in the package', async () => {
   const files = await readVyralZip(archive);
   assert.throws(() => parseVyralManifest(files), /media is missing/);
 });
+
+test('rejects ZIP entries without the VYRAL UTF-8 flag and multi-disk metadata', async () => {
+  const archive = createVyralZip([{ path: 'file.txt', data: 'safe' }]);
+  const original = new Uint8Array(await archive.arrayBuffer());
+  const endOffset = original.length - 22;
+  const centralOffset = new DataView(original.buffer).getUint32(endOffset + 16, true);
+
+  const missingUtf8 = original.slice();
+  new DataView(missingUtf8.buffer).setUint16(centralOffset + 8, 0, true);
+  await assert.rejects(() => readVyralZip(missingUtf8), /UTF-8 names/);
+
+  const multiDisk = original.slice();
+  new DataView(multiDisk.buffer).setUint16(centralOffset + 34, 1, true);
+  await assert.rejects(() => readVyralZip(multiDisk), /Multi-disk and ZIP64/);
+});
+
+test('rejects invalid DNA, fingerprint, vision, lineage and reconstruction references', () => {
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    dnaRecords: [{ id: 'dna-1', scope: 'asset', asset_id: 'missing-asset' }],
+  }), /DNA record references a missing asset/);
+
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    fingerprints: [{ asset_id: 'asset-test', asset_version_id: 'missing-version' }],
+  }), /fingerprint references an invalid asset version/);
+
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    visionObservations: [{ asset_id: 'missing-asset' }],
+  }), /Vision observation references a missing asset/);
+
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    lineage: [{ parent_asset_id: 'asset-test', child_asset_id: 'missing-asset' }],
+  }), /lineage record references a missing asset/);
+
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    reconstructionTests: [{ asset_id: 'asset-test', dna_record_id: 'missing-dna' }],
+  }), /missing DNA record/);
+});
