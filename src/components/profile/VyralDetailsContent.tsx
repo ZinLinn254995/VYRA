@@ -324,7 +324,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             : 'SHA-256 values were recalculated from the downloaded media during export.',
           'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
           'ZIP entries use the standard Store method (no compression) for broad compatibility.'
-        ].join('\\n'),
+        ].join('\n'),
       });
       const manifestJson = JSON.stringify(manifest, null, 2);
       if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
