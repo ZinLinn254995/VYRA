@@ -234,7 +234,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async () => {
+  const exportVyralPackage = async (dnaOnly = false) => {
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
     setError('');
@@ -249,7 +249,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         return safe;
       };
 
-      for (const asset of assets) {
+      for (const asset of (dnaOnly ? [] : assets)) {
         const savedVersions = versions.filter((version) => version.asset_id === asset.id);
         const sourceVersions = savedVersions.length ? savedVersions : [{
           id: 'current-' + asset.id,
@@ -288,6 +288,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
 
       const manifest = {
+        exportMode: dnaOnly ? 'dna-only' : 'full',
         format: VYRAL_PACKAGE_FORMAT,
         formatVersion: VYRAL_PACKAGE_VERSION,
         packageId: crypto.randomUUID(),
@@ -315,11 +316,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'VYRAL PORTABLE PACKAGE',
           'Format: ' + VYRAL_PACKAGE_FORMAT,
           'Version: ' + VYRAL_PACKAGE_VERSION,
-          'This archive contains the Vyral manifest, identity records and original asset-version media.',
-          'SHA-256 values were recalculated from the downloaded media during export.',
+          dnaOnly
+            ? 'DNA-ONLY RECONSTRUCTION TEST EXPORT. Original asset binaries, previews and thumbnails are intentionally excluded.'
+            : 'This archive contains the Vyral manifest, identity records and original asset-version media.',
+          dnaOnly
+            ? 'Asset records are retained as metadata; no original media bytes are included.'
+            : 'SHA-256 values were recalculated from the downloaded media during export.',
           'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
-          'ZIP entries use the standard Store method (no compression) for broad compatibility.\nThe initial browser export limit is 200 MB of source media.',
-        ].join('\n'),
+          'ZIP entries use the standard Store method (no compression) for broad compatibility.'
+        ].join('\\n'),
       });
       const manifestJson = JSON.stringify(manifest, null, 2);
       if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
@@ -329,7 +334,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const anchor = document.createElement('a');
       const safeName = vyral.name.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'Vyral';
       anchor.href = url;
-      anchor.download = safeName + '.vyral';
+      anchor.download = safeName + (dnaOnly ? '-DNA-ONLY-TEST' : '') + '.vyral';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -1081,7 +1086,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><div className={'text-[10px] font-semibold uppercase tracking-[0.16em] ' + muted}>VYRAL WORKSPACE</div><p className={'mt-1 text-xs ' + subtle}>Your assets, identity records and evolving knowledge.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><label className={button+' cursor-pointer'}><Upload size={13}/>Import .vyral<input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>void importVyralPackage(event)} disabled={busy || packageBusy}/></label><button type="button" onClick={() => void exportVyralPackage()} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Working…':'Export .vyral'}</button><button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy}><Clock3 size={13}/> Refresh</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><label className={button+' cursor-pointer'}><Upload size={13}/>Import .vyral<input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>void importVyralPackage(event)} disabled={busy || packageBusy}/></label><button type="button" onClick={() => void exportVyralPackage(false)} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Working…':'Export .vyral'}</button><button type="button" onClick={() => void exportVyralPackage(true)} className={button} disabled={busy || packageBusy}><Dna size={13}/>{packageBusy?'Working…':'DNA-only Test'}</button><button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy}><Clock3 size={13}/> Refresh</button></div>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-[var(--vyra-border)] pb-1" aria-label="Vyral sections">
