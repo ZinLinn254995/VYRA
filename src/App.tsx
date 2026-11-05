@@ -128,7 +128,7 @@ function MarketplaceApp() {
       />
       <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
       <div className="min-h-0 flex-1">
-        <ErrorBoundary>
+        <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
         {profileOpen && user ? (
           <ProfilePage
             userEmail={user.email ?? ''}
