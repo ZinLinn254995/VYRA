@@ -668,3 +668,14 @@ The first explicit resolution workflow is now available for detected creator-app
 
 This is an auditable creator decision layer, not an automatic conflict solver or semantic truth adjudicator.
 
+
+
+## Creator-defined contextual labels — 2026-11-06
+
+The conflict-resolution workflow now records an explicit creator-supplied context label when the creator chooses to retain competing values as context-dependent.
+
+- The creator enters a short label describing the contexts in which the competing values apply (for example, “front view; side view”). This label is supplied by the creator; the system does not infer or generate context labels.
+- The creator must also provide an explanation. Both are stored on the immutable resolution record as `creator_context_label` and `creator_note`.
+- Context labels are limited to 300 characters. The server validates the field; a client-side prompt alone is not trusted.
+- A context label is descriptive scope metadata, not proof that either value is factually correct. It does not change the original observations or promoted values, select a winner, certify the asset, or enable DNA-only reconstruction.
+- Future decisions may append a new resolution record. Earlier creator decisions remain in the audit history.
