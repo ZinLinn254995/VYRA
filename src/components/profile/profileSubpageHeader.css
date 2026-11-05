@@ -1,4 +1,5 @@
-/* The profile card is the scroll viewport; its header remains fixed above the body. */
+/* The outer viewport scrolls the natural-height card. The card header sticks
+   to the viewport top while the card body and lower edge move upward. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
   position: sticky;
@@ -58,26 +59,32 @@
 /* The card surface is taller than the viewport when its data is long.
    The viewport scrolls the whole surface upward; the header stays pinned. */
 .profile-subpage-viewport {
+  box-sizing: border-box;
+  width: 100%;
   height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
   max-height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
   min-height: 240px;
+  min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
   border-radius: 1rem;
 }
 .profile-subpage-card {
   display: flex;
-  flex-direction: column;
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
   height: auto;
+  flex-direction: column;
+  align-items: stretch;
   overflow: visible;
   overflow-anchor: none;
 }
 .profile-subpage-content {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   min-height: 0;
 }
 @media (min-width: 640px) {
