@@ -22,7 +22,7 @@ type DnaRow = {
   id: string; asset_id: string | null; scope: string; dna_status: string; source_kind: string;
   verification_status: string; payload: Record<string, unknown>; created_at: string;
 };
-type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; created_at: string };
+type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; created_at: string };
@@ -69,6 +69,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
+  const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
   const [packageStatus, setPackageStatus] = useState('');
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
@@ -673,6 +674,41 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setBusy(false);
   };
 
+  const verifyAssetIntegrity = async (asset: AssetRow) => {
+    if (!supabase || verifyingAssetId) return;
+    const assetVersions = versions.filter((version) => version.asset_id === asset.id);
+    const currentVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
+      ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
+    if (!currentVersion) { setError('No stored asset version is available to verify.'); return; }
+
+    setVerifyingAssetId(asset.id);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('verify-vyral-asset', {
+        body: { assetId: asset.id, versionId: currentVersion.id },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json();
+            if (typeof payload?.error === 'string') detail = payload.error;
+            if (payload?.status === 'mismatch') detail = 'Integrity mismatch: stored media differs from its recorded SHA-256 or file size.';
+          } catch { /* Keep the SDK error message when the response is not JSON. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'verified') throw new Error('The verification service did not return a verified result.');
+      setPackageStatus('Server verified SHA-256 for ' + asset.name + ' · ' + String(data.sha256).slice(0, 16) + '…');
+      await loadWorkspace();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Server-side asset verification failed.');
+    } finally {
+      setVerifyingAssetId(null);
+    }
+  };
+
   const deleteAsset = async (asset: AssetRow) => {
     if (!supabase || !window.confirm('Delete "' + asset.name + '" and its stored versions, DNA records and fingerprints?')) return;
     setBusy(true); setError('');
@@ -751,7 +787,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>
           </div>
-          <div className="mt-3 flex items-center gap-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button></div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button></div>
         </div>
       </article>
     );
@@ -860,7 +896,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </section>
           <section className={surface+' p-4'}>
             <h3 className={'text-sm font-semibold '+primary}>Fingerprint registry</h3><p className={'mt-1 text-xs '+muted}>Fingerprints identify or compare assets. Browser-calculated SHA-256 is currently unverified; trusted server-side verification and perceptual/semantic/structural analysis will be added through the analysis services.</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">{['cryptographic','perceptual','semantic','structural'].map((kind)=>{const list=fingerprints.filter((item)=>item.fingerprint_kind===kind);return <div key={kind} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex items-center gap-2"><Fingerprint size={15} className="text-[var(--vyra-accent-primary)]"/><span className={'text-xs font-semibold capitalize '+primary}>{kind}</span><span className={'ml-auto text-[10px] '+muted}>{list.length} records</span></div>{list.length?list.slice(0,2).map((item)=><p key={item.id} className={'mt-2 break-all font-mono text-[10px] '+muted}>{item.algorithm}: {item.value}</p>):<p className={'mt-2 text-[10px] '+muted}>Not generated yet</p>}</div>})}</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">{['cryptographic','perceptual','semantic','structural'].map((kind)=>{const list=fingerprints.filter((item)=>item.fingerprint_kind===kind);return <div key={kind} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex items-center gap-2"><Fingerprint size={15} className="text-[var(--vyra-accent-primary)]"/><span className={'text-xs font-semibold capitalize '+primary}>{kind}</span><span className={'ml-auto text-[10px] '+muted}>{list.length} records</span></div>{list.length?list.slice(0,2).map((item)=><div key={item.id} className="mt-2"><p className={'break-all font-mono text-[10px] '+muted}>{item.algorithm}: {item.value}</p><p className={'mt-1 text-[9px] '+(item.metadata?.verification_status==='server_verified'?'text-emerald-500':muted)}>{item.metadata?.verification_status==='server_verified'?'Server verified · '+String(item.metadata.comparison_status ?? 'checked'):'Unverified evidence'}</p></div>):<p className={'mt-2 text-[10px] '+muted}>Not generated yet</p>}</div>})}</div>
           </section>
           <section className={surface+' p-4'}>
             <h3 className={'text-sm font-semibold '+primary}>AI Vision evidence</h3>
