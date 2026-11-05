@@ -590,3 +590,17 @@ The Development project now has a JWT-protected `record-vyral-vision-observation
 - Observation JSON is limited to 64 KB; source media verification is limited to 100 MB, matching the private asset-storage limit.
 
 This establishes a source-bound evidence intake path without pretending that a model's output is ground truth. Real provider execution, authenticated provider provenance, multi-model comparison, creator review/corroboration, and DNA-only reconstruction remain separate stages.
+
+
+## Creator review of Vision evidence
+
+The Development project also has a JWT-protected `record-vyral-vision-review` Edge Function. Each Vision observation offers two explicit creator actions: confirm this observation or dispute this observation.
+
+- A review is stored as a new, immutable asset-level DNA evidence record; the original AI observation is not overwritten.
+- The review record links to the exact observation ID and preserves its source asset/version/SHA-256 and the model labels that were submitted with it.
+- `creator_confirmed` means the creator confirms this specific observation only. It does not confirm the entire asset, all observations, the Master DNA, ownership, or exact reconstructability.
+- `disputed` preserves the creator's disagreement as evidence. It does not delete or rewrite the AI's original observation.
+- Each observation accepts one immutable creator review. A new model observation is required to create a new review cycle; this avoids silently replacing a prior decision.
+- A creator review is never eligible by itself to authorize DNA-only reconstruction.
+
+The next comparison layer can now group multiple observations by source version and task, expose model-to-model agreement/conflicts, and require creator review before accepted claims are promoted into reusable reconstruction knowledge.
