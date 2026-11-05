@@ -688,3 +688,19 @@ The conflict panel now displays a latest-decision summary only from creator-conf
 A resolution history entry is associated with a displayed conflict when its exact asset/version/task/field scope matches and every promotion ID named by that immutable resolution is still present in the displayed conflict group. This preserves visibility of earlier decisions when later evidence adds another competing promotion. The UI explicitly states that a decision applies only to the promotion records named in that history entry; newly added evidence does not inherit an earlier preference or contextual label automatically.
 
 The latest decision is a history/status indicator, not a global winner and not an instruction to rewrite DNA. All competing promotions and resolution records remain immutable. No contextual precedence is inferred, and no resolution increases reconstruction eligibility.
+
+## Contextual knowledge applicability boundary — 2026-11-06
+
+Creator-defined context labels are currently descriptive metadata only. The UI must not treat a label as a machine-readable condition, and no contextual label is automatically applied to later observations, assets, versions, tasks, or generated outputs.
+
+The next contextual-knowledge layer must preserve these gates before any AI retrieval or generation workflow can consume a context-dependent value:
+
+- **Explicit context input:** the context of the current task must come from a separately recorded, attributable input. It must not be guessed from the asset, prompt wording, model output, or a free-form label.
+- **Declared matching contract:** each context rule must identify its scope, required fields, comparison method, and version. Missing or ambiguous context means no match.
+- **No implicit semantic matching:** natural-language similarity, embedding proximity, or an AI model's interpretation cannot silently authorize a match. Any future semantic matcher must return a candidate with its own provenance and require an explicit acceptance policy.
+- **Exact scope first:** asset identity, source version, task kind, and field path remain hard boundaries. A contextual preference cannot cross those boundaries unless a new creator-authored rule explicitly declares and validates a broader scope.
+- **Evidence stays separate:** a match result is a derived decision record that references the original promotion and resolution records. It never edits or replaces either record and must preserve the context input and matcher/version used.
+- **Fail closed:** absent, conflicting, stale, or unverified context produces “no applicable context decision”; the system must retain the competing values rather than choose one.
+- **No truth or reconstruction claim:** contextual applicability is not factual verification, ownership proof, whole-asset certification, or DNA-only reconstruction eligibility.
+
+Until those gates are implemented and tested, the interface explicitly marks creator context labels as **descriptive only — not matched or applied**. This is intentional: a human-readable label is not yet a safe retrieval rule.
