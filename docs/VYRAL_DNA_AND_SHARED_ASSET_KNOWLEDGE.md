@@ -495,7 +495,7 @@ The first VYRAL Details Workspace foundation is now implemented on `rebuild/mark
 - Browser clients cannot promote Vyral or asset DNA to a verified completion state.
 - Browser clients cannot self-assert independent verification.
 - Vision observations and reconstruction test results are read-only to browser clients; trusted server-side analysis/verification services must write them.
-- Browser clients may register SHA-256 only; perceptual, semantic and structural fingerprints are reserved for trusted analysis services.
+- Browser clients may register only explicitly unverified SHA-256 evidence; a database trigger rejects client-supplied trusted verification metadata. Perceptual, semantic and structural fingerprints are reserved for trusted analysis services.
 - Similarity is not exact identity. DNA completion remains unearned until an isolated DNA-only reconstruction is independently compared with the protected original.
 
 ### Not yet implemented
@@ -546,6 +546,7 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - `server_verified` means the server calculated the fingerprint from private Storage bytes. The separate comparison status means `matched`, `mismatch`, or `baseline_created`; these meanings must not be conflated.
 - The Details workspace exposes a per-asset Verify action and distinguishes a successful match from an integrity mismatch.
 - The Edge Function uses the user's authenticated identity for ownership checks; privileged Storage/database access is only performed after those checks. The service/secret key is never sent to the browser.
+- A database trigger also prevents authenticated clients from setting `server_verified`, `matched` or other trusted fingerprint metadata, even if they bypass the frontend and call the Data API directly.
 
 ### Current implementation boundary
 - Export is available from the Vyral Details workspace.
