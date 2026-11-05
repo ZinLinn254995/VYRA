@@ -229,10 +229,63 @@ The intended result is a shared creative intelligence platform in which:
 
 အဆုံးသတ်ရည်မှန်းချက်မှာ VYRAL တိုင်းတွင် ကိုယ်ပိုင် DNA ရှိပြီး Asset တိုင်းတွင်လည်း ကိုယ်ပိုင် DNA Fingerprint နှင့် Knowledge Record ရှိသော Shared Creative Intelligence Platform ဖြစ်လာရန် ဖြစ်သည်။ Generate လုပ်သည့်အချိန်ကတည်းက အခြေခံ Knowledge ရှိမည်။ လိုအပ်သည့်အခါ Vision ဖြင့် အသေးစိတ်ဖြည့်မည်။ လူအများက အတည်ပြုထားသော Knowledge ကို မျှဝေသုံးစွဲမည်။ တစ်ချိန်တည်းတွင် Creator Authority၊ Privacy၊ License နှင့် Original Asset များကို ကာကွယ်ထားမည်။
 
+
+## 13. Fingerprint types — what each one identifies
+
+VYRAL should not treat “fingerprint” as one single technique. Use three complementary fingerprint types for different matching and verification tasks. These are identity/matching tools; they are not the asset's Knowledge DNA.
+
+### 13.1 Cryptographic Fingerprint (exact file identity and integrity)
+
+- Calculate a cryptographic hash such as SHA-256 from the exact original file bytes.
+- The same exact bytes produce the same hash; even a small byte-level change normally produces a different hash.
+- Use it to verify exact file integrity, detect exact duplicates, and confirm whether a stored file is byte-for-byte identical.
+- Do not use it to recognize a resized, recompressed, re-encoded, or edited copy as the same visual content.
+
+### 13.2 Perceptual Fingerprint (media similarity)
+
+- Calculate a perceptual signature from media features, such as a perceptual image hash; use suitable audio/video fingerprinting methods for those media types.
+- Use it to find likely visually or acoustically similar copies even when the file has been resized, recompressed, or converted to another format.
+- Treat a perceptual match as a similarity signal, not proof of ownership, exact identity, or copyright.
+- Keep thresholds and matching decisions appropriate to the media type and use case.
+
+### 13.3 Semantic Fingerprint (meaning and concept similarity)
+
+- Create an embedding/vector representation from the asset or its analyzed content using a suitable model.
+- Use it to retrieve assets with similar meaning or concepts, even when their pixels, audio waveform, composition, or wording are different.
+- Example: find other images that depict a similar kind of character or scene, or find a video that conveys a similar concept.
+- A semantic match is not a unique identifier and must never be treated as proof that two assets are the same asset.
+
+### 13.4 How the three work together
+
+| Type | Main question | Typical use |
+|---|---|---|
+| Cryptographic | “Are these exact file bytes identical?” | Integrity and exact duplicate detection |
+| Perceptual | “Does this media look or sound substantially similar?” | Similar-copy and transformed-media discovery |
+| Semantic | “Do these assets express similar content or meaning?” | AI search and concept-based retrieval |
+
+**Keep the core distinction clear:**
+- **Fingerprint = identification, integrity checking, and similarity matching.**
+- **Knowledge DNA = structured understanding of what the asset is and what is known about it.**
+- **Evolution History = the traceable record of how that knowledge changes over time.**
+
+The three fingerprint types may point to or help retrieve a Knowledge Record, but they do not replace it. A perceptual or semantic match must not automatically merge two assets or overwrite their separate identities. Preserve each asset's own ID, creator attribution, license, version, and lineage.
+
+Fingerprint ဆိုတာ နည်းပညာတစ်မျိုးတည်း မဟုတ်ဘဲ ရည်ရွယ်ချက်မတူတဲ့ အမျိုးအစား ၃ မျိုးကို ပေါင်းစပ်အသုံးပြုမည်။
+
+1. **Cryptographic Fingerprint (ဥပမာ SHA-256)** — File ရဲ့ မူရင်း Byte အတိအကျကို Hash လုပ်ပြီး တူညီတဲ့ File ဟုတ်/မဟုတ်၊ ပြောင်းလဲထားခြင်းရှိ/မရှိ စစ်ဆေးမည်။ File ကို အရွယ်အစားပြောင်းခြင်း၊ Format ပြောင်းခြင်း သို့မဟုတ် Re-encode လုပ်ခြင်းဖြင့် Hash ပြောင်းသွားနိုင်သည်။
+2. **Perceptual Fingerprint** — ပုံ သို့မဟုတ် အသံရဲ့ မြင်ရ/ကြားရသော လက္ခဏာများအပေါ် အခြေခံပြီး Resize၊ Compression သို့မဟုတ် Format ပြောင်းထားသော်လည်း ဆင်တူသော Media များကို ရှာဖွေမည်။ ဆင်တူမှုသည် Ownership သို့မဟုတ် မူရင်းတူညီမှုကို သက်သေပြခြင်း မဟုတ်ပါ။
+3. **Semantic Fingerprint** — Model မှ ဖန်တီးထားသော Embedding/Vector ကို အသုံးပြုပြီး Pixel သို့မဟုတ် Waveform မတူသော်လည်း အဓိပ္ပာယ်၊ အကြောင်းအရာ၊ Concept ဆင်တူသော Asset များကို ရှာဖွေမည်။ ၎င်းသည် Unique ID မဟုတ်သလို Asset နှစ်ခုတူညီကြောင်း သက်သေမပြနိုင်ပါ။
+
+အဓိကကွာခြားချက်မှာ **Fingerprint က ခွဲခြားသတ်မှတ်ခြင်း၊ Integrity စစ်ဆေးခြင်းနှင့် Similarity ရှာဖွေခြင်းအတွက် ဖြစ်ပြီး၊ DNA က Asset အကြောင်း AI နားလည်ထားသော Knowledge ဖြစ်သည်။ Evolution History က Knowledge ပြောင်းလဲတိုးတက်မှုကို မှတ်တမ်းတင်ခြင်း ဖြစ်သည်။**
+
+Perceptual သို့မဟုတ် Semantic Similarity တွေ့ရုံဖြင့် Asset နှစ်ခုကို တစ်ခုတည်းအဖြစ် အလိုအလျောက် ပေါင်းစည်းခြင်း မပြုရ။ Asset တစ်ခုချင်းစီ၏ ID၊ Creator၊ License၊ Version နှင့် Lineage ကို သီးခြားထိန်းသိမ်းရမည်။
+
 ---
 
 ## Change log
 
 - **2026-11-05 — VYRAL DNA & Shared Asset Knowledge System:** Recorded VYRAL-level and asset-level DNA, the three DNA components (Identity Fingerprint, Knowledge DNA, Evolution History), automatic low-cost Generation Knowledge, on-demand Vision Knowledge, shared reuse/caching across users, evidence-based community enrichment, source/confidence tracking, creator authority, privacy, licensing, and lineage requirements.
+- **2026-11-05 — Fingerprint types clarification:** Added Cryptographic (SHA-256), Perceptual, and Semantic Fingerprints, their distinct purposes and limitations, and the rule that similarity matches must not merge separate asset identities.
 
 - **2026-11-05 — VYRAL DNA နှင့် Shared Asset Knowledge System:** VYRAL အဆင့်နှင့် Asset အဆင့် DNA၊ Identity Fingerprint / Knowledge DNA / Evolution History၊ Generation အချိန် အလိုအလျောက်ဖန်တီးမည့် ကုန်ကျစရိတ်နည်းသော Knowledge၊ လိုအပ်မှသာ လုပ်မည့် Vision Analysis၊ လူအများကြား Knowledge ပြန်လည်မျှဝေသုံးစွဲခြင်းနှင့် Cache၊ အထောက်အထားအခြေပြု Community Knowledge တိုးတက်မှု၊ Source/Confidence မှတ်တမ်း၊ Creator Authority၊ Privacy၊ License နှင့် Lineage စည်းမျဉ်းများကို မှတ်တမ်းတင်ထားသည်။
+- **2026-11-05 — Fingerprint အမျိုးအစားများ:** Cryptographic (SHA-256), Perceptual နှင့် Semantic Fingerprint တို့၏ ရည်ရွယ်ချက်၊ ကွဲပြားချက်၊ ကန့်သတ်ချက်များနှင့် Similarity တွေ့ရုံဖြင့် Asset Identity များကို အလိုအလျောက် မပေါင်းစည်းရသည့် စည်းမျဉ်းကို ထည့်သွင်းထားသည်။
