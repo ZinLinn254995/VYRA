@@ -84,8 +84,14 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
   const card = content.closest<HTMLElement>('.profile-subpage-card');
   if (!card) return;
   const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
-  const progress = Math.max(0, Math.min(1, 1 - remaining / 120));
-  card.style.setProperty('--profile-card-bottom-radius', (16 * progress).toFixed(2) + 'px');
+  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
+  const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
+  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
+  const header = card.querySelector<HTMLElement>('.profile-collapse-header');
+  if (header) {
+    header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
+    header.style.setProperty('--profile-header-height', (156 - 84 * headerProgress) + 'px');
+  }
 };
 
 const settingsItems: { key: PageKey; label: string; detail: string; icon: LucideIcon }[] = [
