@@ -24,6 +24,22 @@ Every exposed table has Row Level Security (RLS). Policies derive ownership from
 
 Large generated images/audio/video remain outside Postgres. Do not put base64 data, Blob contents, API keys, or device-local IndexedDB references into `project_data`.
 
+## VYRAL identity workspace foundation
+
+The VYRAL workspace migrations add:
+- `vyrals` and `vyral_folders` for creator-owned collections and hierarchical organization.
+- `vyral_assets` and immutable `vyral_asset_versions` for file metadata and version lineage.
+- `vyral_dna_records` for append-only creator/generation/analysis knowledge records.
+- `vyral_fingerprints` for cryptographic, perceptual, semantic and structural fingerprints.
+- `vyral_vision_observations` for sourced AI analysis evidence.
+- `vyral_lineage` for parent/derivative asset relationships.
+- `vyral_reconstruction_tests` for DNA-only reconstruction test evidence.
+- A private `vyral-assets` Storage bucket with owner-folder RLS policies.
+
+Binary files stay in private object storage; Postgres holds metadata and structured records. Customer rows are isolated by RLS. DNA records, fingerprints, observations, lineage and reconstruction results are append-only from the customer client. Browser clients cannot mark DNA as independently verified or write Vision/reconstruction results; those require trusted server-side services. Client-generated SHA-256 values are initial integrity metadata, not independent proof until a trusted verifier checks them.
+
+The VYRAL schema and verification-guard migrations have been applied to the isolated `VYRA Development` project only. Production remains unchanged.
+
 ## Local validation
 
 Install the Supabase CLI, then run:
