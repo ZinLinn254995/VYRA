@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Clapperboard, Film, Plus, X } from 'lucide-react';
+import { Boxes, ChevronRight, Clapperboard, Film, Images, Plus, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string };
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void };
+type LibraryPage = 'my-vyrals' | 'my-media-library';
+type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -58,7 +59,7 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -120,6 +121,25 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
         </section>
       )}
+
+      <section className="mt-8">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Your Library</h2>
+          <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Your creative assets and uploaded media, all in one place.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Boxes size={19} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Vyrals</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative assets and Vyral collections</span></span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+          </button>
+          <button type="button" onClick={() => onOpenLibraryPage('my-media-library')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Images size={19} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Media Library</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your images, videos, audio and files</span></span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+          </button>
+        </div>
+      </section>
 
       {createOpen && (
         <div role="presentation" className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
