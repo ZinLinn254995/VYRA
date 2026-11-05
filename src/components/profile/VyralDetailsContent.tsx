@@ -26,7 +26,7 @@ type FingerprintRow = { id: string; asset_id: string; asset_version_id: string |
 type ObservationRow = { id: string; asset_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; created_at: string };
-type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; sha256: string | null; created_at: string };
+type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void };
 
@@ -195,7 +195,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           totalMediaBytes += fileBlob.size;
           if (totalMediaBytes > 500 * 1024 * 1024) throw new Error('This Vyral is larger than the 500 MB export limit. Export smaller Vyrals separately.');
           const bytes = new Uint8Array(await fileBlob.arrayBuffer());
-          const digest = await crypto.subtle.digest('SHA-256', bytes);
+          const digestBuffer = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(digestBuffer).set(bytes);
+          const digest = await crypto.subtle.digest('SHA-256', digestBuffer);
           const actualHash = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
           if (version.sha256 && version.sha256 !== actualHash) throw new Error('Integrity check failed for ' + asset.name + ' version ' + version.version_number + '. The stored file does not match its recorded SHA-256.');
           const packagePath = 'assets/' + asset.id + '/versions/' + version.version_number + '-' + version.id + '.bin';
@@ -404,7 +406,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const versionRows: Record<string, unknown>[] = [];
         const fingerprintRows: Record<string, unknown>[] = [];
         for (const item of preparedVersions) {
-          const { error: uploadError } = await supabase.storage.from('vyral-assets').upload(item.storagePath, new Blob([item.bytes], { type: stringValue(item.source.mime_type, mimeType) }), {
+          const { error: uploadError } = await supabase.storage.from('vyral-assets').upload(item.storagePath, new Blob([(() => { const buffer = new ArrayBuffer(item.bytes.byteLength); new Uint8Array(buffer).set(item.bytes); return buffer; })()], { type: stringValue(item.source.mime_type, mimeType) }), {
             contentType: stringValue(item.source.mime_type, mimeType), upsert: false, cacheControl: '3600',
           });
           if (uploadError) throw uploadError;
