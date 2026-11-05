@@ -15,7 +15,7 @@ const ORIGIN = {
   candidateAssetId: 'a40f067c-0ed1-4b93-814f-4f2f925ff320',
   candidateVersionId: 'b23dafc8-f5b8-447b-b06b-77553c590a08',
   candidateDnaId: '8856e567-0221-4011-b9c2-22c228faa449',
-  packageId: ORIGIN.packageId,
+  packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
   masterDnaRecordId: 'b1c8b6a3-205c-4472-991d-0b73aa9e3bff',
   ownerId: 'c9801424-1e4d-4604-99d3-791a8a389b48',
 };
