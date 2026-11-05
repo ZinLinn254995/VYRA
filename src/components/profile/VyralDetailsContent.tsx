@@ -442,10 +442,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             metadata: { computed_by: 'browser_web_crypto', verification_status: 'unverified', source: 'package_import' },
           });
         }
-        const { error: versionError } = await supabase.from('vyral_asset_versions').insert(versionRows);
-        if (versionError) throw versionError;
-        const { error: fingerprintError } = await supabase.from('vyral_fingerprints').insert(fingerprintRows);
-        if (fingerprintError) throw fingerprintError;
+        for (let index = 0; index < versionRows.length; index += 100) {
+          const { error: versionError } = await supabase.from('vyral_asset_versions').insert(versionRows.slice(index, index + 100));
+          if (versionError) throw versionError;
+        }
+        for (let index = 0; index < fingerprintRows.length; index += 100) {
+          const { error: fingerprintError } = await supabase.from('vyral_fingerprints').insert(fingerprintRows.slice(index, index + 100));
+          if (fingerprintError) throw fingerprintError;
+        }
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
         completedAssets += 1;
@@ -534,8 +538,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           metadata: { ...objectValue(item.metadata), imported_from_package: manifest.packageId },
         }] : [];
       });
-      if (lineageRows.length) {
-        const { error: lineageError } = await supabase.from('vyral_lineage').insert(lineageRows);
+      for (let index = 0; index < lineageRows.length; index += 100) {
+        const { error: lineageError } = await supabase.from('vyral_lineage').insert(lineageRows.slice(index, index + 100));
         if (lineageError) throw lineageError;
       }
 
@@ -549,12 +553,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           if (cleanupError) cleanupFailures.push('Stored media cleanup: ' + cleanupError.message);
         }
       }
-      if (createdAssetIds.length) {
-        const { error: cleanupError } = await supabase.from('vyral_assets').delete().in('id', createdAssetIds);
+      for (let index = 0; index < createdAssetIds.length; index += 100) {
+        const { error: cleanupError } = await supabase.from('vyral_assets').delete().in('id', createdAssetIds.slice(index, index + 100));
         if (cleanupError) cleanupFailures.push('Asset-record cleanup: ' + cleanupError.message);
       }
-      if (createdFolderIds.length) {
-        const { error: cleanupError } = await supabase.from('vyral_folders').delete().in('id', createdFolderIds);
+      for (let index = 0; index < createdFolderIds.length; index += 100) {
+        const { error: cleanupError } = await supabase.from('vyral_folders').delete().in('id', createdFolderIds.slice(index, index + 100));
         if (cleanupError) cleanupFailures.push('Folder cleanup: ' + cleanupError.message);
       }
       const primaryError = cause instanceof Error ? cause.message : 'VYRAL package import failed.';
