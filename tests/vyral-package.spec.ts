@@ -61,6 +61,16 @@ test('rejects ZIP payload corruption using CRC32', async () => {
   await assert.rejects(() => readVyralZip(bytes), /integrity check failed/);
 });
 
+test('accepts case-insensitive SHA-256 hex and validates package timestamps', () => {
+  const upperHash = 'A'.repeat(64);
+  assert.equal(validateVyralManifest({
+    ...manifest,
+    versions: [{ ...manifest.versions[0], sha256: upperHash }],
+  }).versions[0].sha256, upperHash);
+  assert.throws(() => validateVyralManifest({ ...manifest, exportedAt: 'not-a-date' }), /identity metadata is missing or invalid/);
+  assert.throws(() => validateVyralManifest({ ...manifest, packageId: 'x'.repeat(129) }), /identity metadata is missing or invalid/);
+});
+
 test('rejects missing asset versions and circular folder trees', () => {
   assert.throws(() => validateVyralManifest({ ...manifest, versions: [] }), /at least one binary version/);
   assert.throws(() => validateVyralManifest({
