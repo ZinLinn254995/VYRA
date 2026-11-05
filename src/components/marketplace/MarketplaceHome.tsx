@@ -46,11 +46,11 @@ export const MarketplaceHome: React.FC<MarketplaceProps> = ({ onLoginRequired })
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
       <section className="mb-8 flex flex-col gap-5 md:mb-10 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
-          <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">
+          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] sm:text-[11px] text-[var(--vyra-accent-primary)]">
             <Store size={14} /> VYRA CREATIVE MARKET
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-4xl">Marketplace</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--vyra-text-secondary)] sm:text-base">
+          <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Marketplace</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--vyra-text-secondary)]">
             Discover reusable creative assets to build consistent AI stories and videos.
           </p>
         </div>
