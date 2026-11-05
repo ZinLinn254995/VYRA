@@ -71,6 +71,20 @@ test('accepts case-insensitive SHA-256 hex and validates package timestamps', ()
   assert.throws(() => validateVyralManifest({ ...manifest, packageId: 'x'.repeat(129) }), /identity metadata is missing or invalid/);
 });
 
+test('accepts DNA-only test packages with asset metadata and no binary versions', () => {
+  const dnaOnlyManifest = {
+    ...manifest,
+    exportMode: 'dna-only' as const,
+    versions: [],
+    dnaRecords: [{ id: 'dna-master', scope: 'vyral' }],
+    fingerprints: [{ id: 'fingerprint-asset', asset_id: 'asset-test' }],
+  };
+  const validated = validateVyralManifest(dnaOnlyManifest);
+  assert.equal(validated.exportMode, 'dna-only');
+  assert.equal(validated.assets.length, 1);
+  assert.equal(validated.versions.length, 0);
+});
+
 test('rejects missing asset versions and circular folder trees', () => {
   assert.throws(() => validateVyralManifest({ ...manifest, versions: [] }), /at least one binary version/);
   assert.throws(() => validateVyralManifest({
