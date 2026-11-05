@@ -270,6 +270,41 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       }
     }
   }
+  const dnaIds = new Set<string>();
+  for (const record of manifest.dnaRecords ?? []) {
+    if (typeof record.id !== 'string' || !record.id || dnaIds.has(record.id)) throw new Error('A VYRAL DNA record has a missing or duplicate ID.');
+    dnaIds.add(record.id);
+    if (record.scope === 'asset' && (typeof record.asset_id !== 'string' || !assetIds.has(record.asset_id))) throw new Error('An asset DNA record references a missing asset.');
+    if (record.scope === 'vyral' && record.asset_id !== null && record.asset_id !== undefined) throw new Error('A VYRAL-level DNA record cannot reference an asset.');
+    if (record.scope !== 'asset' && record.scope !== 'vyral') throw new Error('A VYRAL DNA record has an invalid scope.');
+  }
+  for (const fingerprint of manifest.fingerprints ?? []) {
+    if (typeof fingerprint.asset_id !== 'string' || !assetIds.has(fingerprint.asset_id)) throw new Error('A fingerprint references a missing asset.');
+    if (typeof fingerprint.asset_version_id === 'string') {
+      const version = versionById.get(fingerprint.asset_version_id);
+      if (!version || version.asset_id !== fingerprint.asset_id) throw new Error('A fingerprint references an invalid asset version.');
+    }
+  }
+  for (const observation of manifest.visionObservations ?? []) {
+    if (typeof observation.asset_id !== 'string' || !assetIds.has(observation.asset_id)) throw new Error('An AI Vision observation references a missing asset.');
+    if (typeof observation.asset_version_id === 'string') {
+      const version = versionById.get(observation.asset_version_id);
+      if (!version || version.asset_id !== observation.asset_id) throw new Error('An AI Vision observation references an invalid asset version.');
+    }
+  }
+  for (const relation of manifest.lineage ?? []) {
+    if (typeof relation.parent_asset_id !== 'string' || !assetIds.has(relation.parent_asset_id) || typeof relation.child_asset_id !== 'string' || !assetIds.has(relation.child_asset_id)) {
+      throw new Error('An asset lineage record references a missing asset.');
+    }
+  }
+  for (const test of manifest.reconstructionTests ?? []) {
+    if (typeof test.asset_id !== 'string' || !assetIds.has(test.asset_id)) throw new Error('A reconstruction test references a missing asset.');
+    if (typeof test.dna_record_id === 'string' && !dnaIds.has(test.dna_record_id)) throw new Error('A reconstruction test references a missing DNA record.');
+    if (typeof test.asset_version_id === 'string') {
+      const version = versionById.get(test.asset_version_id);
+      if (!version || version.asset_id !== test.asset_id) throw new Error('A reconstruction test references an invalid asset version.');
+    }
+  }
   for (const assetId of assetIds) {
     if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
   }
