@@ -582,6 +582,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const { error: cleanupError } = await supabase.from('vyral_folders').delete().in('id', createdFolderIds.slice(index, index + 100));
         if (cleanupError) cleanupFailures.push('Folder cleanup: ' + cleanupError.message);
       }
+      await loadWorkspace();
       const primaryError = cause instanceof Error ? cause.message : 'VYRAL package import failed.';
       setError(primaryError + (cleanupFailures.length ? ' Cleanup needs attention: ' + cleanupFailures.join(' · ') : ' Newly created package records were rolled back.'));
       setPackageStatus('');
