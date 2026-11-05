@@ -206,7 +206,7 @@ Deno.serve(async (request: Request) => {
       report, tested_at: testedAt,
     }).select('id,test_status').single();
     if (insertError) return json({ error: 'Integrity failure was detected but its evidence record could not be saved.' }, 500);
-    return json({ status: 'inconclusive', testId: test.id, report }, 409);
+    return json({ status: 'inconclusive', testId: test.id, report });
   }
 
   let originalImage: Awaited<ReturnType<typeof decodeRgb>>;
