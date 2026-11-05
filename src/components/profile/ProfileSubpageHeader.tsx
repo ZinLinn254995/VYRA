@@ -20,29 +20,11 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
 
   useEffect(() => {
     let frame = 0;
-    let cardExtra = 0;
-    let cardMeasured = false;
     const update = () => {
       frame = 0;
       const header = headerRef.current;
       const scrollContainer = scrollRef.current;
-      const card = header?.parentElement as HTMLElement | null;
-      if (!header || !scrollContainer || !card) return;
-
-      // Measure overflow against the final, screen-fitted card height. Give
-      // long cards a little extra initial room, then remove that room as the
-      // card's own content scrolls so its bottom settles to the screen margin.
-      if (!cardMeasured) {
-        card.style.setProperty('--profile-card-extra', '0px');
-        card.style.setProperty('--profile-card-shrink', '0px');
-        const overflow = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
-        cardExtra = Math.min(160, overflow * 0.5);
-        card.style.setProperty('--profile-card-extra', `${cardExtra.toFixed(2)}px`);
-        cardMeasured = true;
-      }
-      const cardShrink = Math.min(cardExtra, Math.max(0, scrollContainer.scrollTop));
-      card.style.setProperty('--profile-card-shrink', `${cardShrink.toFixed(2)}px`);
-
+      if (!header || !scrollContainer) return;
       const progress = Math.max(0, Math.min(1, scrollContainer.scrollTop / 104));
       const mobile = window.matchMedia('(max-width: 639px)').matches;
       const mix = (from: number, to: number) => from + (to - from) * progress;
@@ -77,7 +59,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
     };
     const schedule = () => { if (!frame) frame = window.requestAnimationFrame(update); };
     const attachScrollContainer = () => {
-      const container = headerRef.current?.parentElement?.querySelector<HTMLElement>('.profile-subpage-scroll') ?? null;
+      const container = headerRef.current?.closest<HTMLElement>('.profile-subpage-viewport') ?? null;
       if (scrollRef.current === container) return;
       scrollRef.current?.removeEventListener('scroll', schedule);
       scrollRef.current = container;
