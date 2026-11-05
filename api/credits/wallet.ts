@@ -8,7 +8,7 @@ function asRecord(value: unknown): JsonRecord {
 }
 
 function integerString(value: unknown): string | null {
-  if (typeof value === 'string' && /^-?\\d+$/.test(value)) return value;
+  if (typeof value === 'string' && /^-?\d+$/.test(value)) return value;
   if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
   return null;
 }
@@ -21,7 +21,7 @@ export default async function handler(req: Request, res: Response) {
   }
 
   const authorization = req.headers.authorization ?? '';
-  const match = /^Bearer ([^\\s]+)$/i.exec(authorization);
+  const match = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!match) return res.status(401).json({ error: 'A Supabase access token is required.' });
 
   const auth = await verifySupabaseAccessToken(match[1]);
@@ -32,7 +32,7 @@ export default async function handler(req: Request, res: Response) {
     return res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
   }
 
-  const supabaseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+  const supabaseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
   const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
   if (!supabaseUrl || !anonKey) {
     return res.status(503).json({ error: 'Credit wallet is not configured.' });
