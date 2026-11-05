@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Bot, Clapperboard, Coins, Store, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -22,6 +22,23 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
   userEmail, creditBalance, creditLoading, activeSection,
   onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
+  const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+    const syncHeaderHeight = () => {
+      document.documentElement.style.setProperty('--vyra-global-header-height', `${Math.ceil(element.getBoundingClientRect().height)}px`);
+    };
+    syncHeaderHeight();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncHeaderHeight) : null;
+    observer?.observe(element);
+    return () => {
+      observer?.disconnect();
+      document.documentElement.style.removeProperty('--vyra-global-header-height');
+    };
+  }, []);
+
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
@@ -33,11 +50,9 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
     syncVisualViewport();
     viewport.addEventListener('resize', syncVisualViewport);
     viewport.addEventListener('scroll', syncVisualViewport);
-    window.addEventListener('scroll', syncVisualViewport, { passive: true });
     return () => {
       viewport.removeEventListener('resize', syncVisualViewport);
       viewport.removeEventListener('scroll', syncVisualViewport);
-      window.removeEventListener('scroll', syncVisualViewport);
       document.documentElement.style.removeProperty('--vyra-visual-viewport-top');
       document.documentElement.style.removeProperty('--vyra-visual-viewport-height');
       document.documentElement.style.removeProperty('--vyra-visual-viewport-bottom-gap');
@@ -58,7 +73,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
 
   return (
-    <header className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
+    <header ref={headerRef} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
