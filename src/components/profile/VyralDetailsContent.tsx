@@ -25,7 +25,7 @@ type DnaRow = {
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
-type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; created_at: string };
+type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void };
@@ -87,7 +87,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
-  const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
+  const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);\n  const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
   const [packageStatus, setPackageStatus] = useState('');
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
@@ -788,6 +788,62 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
+  const compareOriginReconstruction = async (asset: AssetRow) => {
+    if (!supabase || comparingReconstructionAssetId || verifyingAssetId || busy || packageBusy) return;
+    const candidateVersion = versions.find((version) =>
+      version.asset_id === asset.id &&
+      version.id === 'b23dafc8-f5b8-447b-b06b-77553c590a08' &&
+      version.storage_path === asset.storage_path
+    );
+    if (asset.id !== 'a40f067c-0ed1-4b93-814f-4f2f925ff320' || !candidateVersion) {
+      setError('The registered Gemini reconstruction candidate version is not available.');
+      return;
+    }
+
+    setComparingReconstructionAssetId(asset.id);
+    setError('');
+    setPackageStatus('Downloading both private images and comparing decoded pixels…');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('compare-origin-01-reconstruction', {
+        body: {
+          originalAssetId: '2c496cd5-84c4-44b1-b02a-fca4265cc592',
+          originalVersionId: 'b4376fd9-a577-464e-91b4-e33791559e7f',
+          candidateAssetId: asset.id,
+          candidateVersionId: candidateVersion.id,
+          dnaRecordId: '8856e567-0221-4011-b9c2-22c228faa449',
+        },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json();
+            if (typeof payload?.error === 'string') detail = payload.error;
+            if (payload?.status === 'inconclusive') detail = 'Comparison is inconclusive because stored file integrity did not match its recorded evidence.';
+          } catch { /* Keep the SDK error message. */ }
+        }
+        throw new Error(detail);
+      }
+      if (!['passed', 'failed', 'inconclusive'].includes(data?.status)) {
+        throw new Error('The reconstruction verifier did not return a recognized test result.');
+      }
+      const score = typeof data.similarityScore === 'number'
+        ? ' · RGB similarity ' + (data.similarityScore * 100).toFixed(2) + '%'
+        : '';
+      setPackageStatus(
+        (data.status === 'passed' ? 'Exact decoded-pixel match confirmed' :
+          data.status === 'failed' ? 'Reconstruction differs from the original' : 'Reconstruction comparison inconclusive') + score
+      );
+      await loadWorkspace();
+    } catch (cause) {
+      setPackageStatus('');
+      setError(cause instanceof Error ? cause.message : 'Independent reconstruction comparison failed.');
+    } finally {
+      setComparingReconstructionAssetId(null);
+    }
+  };
+
   const deleteAsset = async (asset: AssetRow) => {
     if (isProtectedVyral(vyral)) {
       setError('This Vyral is protected. Its original assets and stored versions cannot be deleted.');
@@ -1064,7 +1120,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button></div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{asset.id==='a40f067c-0ed1-4b93-814f-4f2f925ff320' && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this Gemini reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{asset.id==='a40f067c-0ed1-4b93-814f-4f2f925ff320' && reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0] && <p className={'mt-2 text-[10px] '+muted}>Latest test: {reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0].test_status}{reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0].similarity_score !== null ? ' · '+(Number(reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0].similarity_score)*100).toFixed(2)+'% RGB similarity' : ''}</p>}
         </div>
       </article>
     );
