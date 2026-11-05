@@ -28,7 +28,8 @@ type PageKey =
   | 'setting-notifications' | 'setting-billing' | 'setting-ai' | 'setting-legal'
   | 'setting-about' | 'help';
 
-type NavItem = { key: PageKey; label: string; detail: string; icon: LucideIcon };
+type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
+type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponent };
 
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
@@ -54,7 +55,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   ] },
 ];
 
-const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: LucideIcon; note: string }> = {
+const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
   'public-profile': { title: 'My Public Profile', description: 'Manage the creator profile other people can visit.', icon: UserRound, note: 'Your public creator page and profile editor will appear here.' },
   'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: VyralIdentityIcon, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
   'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded images, videos, audio and files.', icon: Images, note: 'Your uploaded images, videos, audio and documents will appear here.' },
