@@ -278,9 +278,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const createdFolderIds: string[] = [];
     const createdAssetIds: string[] = [];
     const uploadedPaths: string[] = [];
+    let importPackageId = '';
     try {
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
+      importPackageId = manifest.packageId;
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
       const assetCount = manifest.assets.length;
       const folderCount = manifest.folders.length;
@@ -555,6 +557,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.');
     } catch (cause) {
       const cleanupFailures: string[] = [];
+      if (importPackageId) {
+        const importedDna = await supabase.from('vyral_dna_records').delete().eq('vyral_id', vyral.id).eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '').contains('payload', { imported_provenance: { package_id: importPackageId } });
+        if (importedDna.error) cleanupFailures.push('Imported DNA evidence cleanup: ' + importedDna.error.message);
+        const collectionEvidence = await supabase.from('vyral_dna_records').delete().eq('vyral_id', vyral.id).eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '').contains('payload', { package_id: importPackageId, trust: 'unverified_imported_evidence' });
+        if (collectionEvidence.error) cleanupFailures.push('Imported collection evidence cleanup: ' + collectionEvidence.error.message);
+      }
       if (uploadedPaths.length) {
         for (let index = 0; index < uploadedPaths.length; index += 100) {
           const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(uploadedPaths.slice(index, index + 100));
