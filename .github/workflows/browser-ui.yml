@@ -5,6 +5,10 @@ on:
   push:
     branches: [main, 'rebuild/**']
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   browser-ui:
     runs-on: ubuntu-24.04
