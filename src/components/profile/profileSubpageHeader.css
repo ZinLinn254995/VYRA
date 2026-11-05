@@ -48,6 +48,9 @@
   transform: translateY(var(--description-shift, 0px)); white-space: nowrap; text-overflow: ellipsis;
 }
 .profile-collapse-action { top: var(--action-top, 56px); right: var(--action-right, 24px); transition: opacity 100ms linear; }
-.profile-collapse-action-expanded { opacity: calc(1 - var(--profile-collapse, 0)); pointer-events: calc(1 - var(--profile-collapse, 0)); }
-.profile-collapse-action-compact { opacity: var(--profile-collapse, 0); pointer-events: auto; }
+.profile-collapse-action-expanded { opacity: calc(1 - var(--profile-collapse, 0)); }
+.profile-collapse-action-compact { opacity: var(--profile-collapse, 0); pointer-events: none; }
+.profile-collapse-header:not(.is-compact) .profile-collapse-action-expanded { pointer-events: auto; }
+.profile-collapse-header.is-compact .profile-collapse-action-expanded { pointer-events: none; }
+.profile-collapse-header.is-compact .profile-collapse-action-compact { pointer-events: auto; }
 .profile-collapse-action-compact button { min-height: 34px; padding: 0 10px; font-size: 12px; }
