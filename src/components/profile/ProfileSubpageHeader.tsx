@@ -48,7 +48,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       set('--icon-glyph-size', mix(22, 18));
       set('--title-top', mix(56, 14));
       set('--title-left', mix(mobile ? 64 : 84, mobile ? 132 : 172));
-      set('--title-right', mix(mobile ? 12 : 24, mobile ? 110 : 142));
+      set('--title-right', mix(mobile ? 12 : 24, mobile ? 160 : 180));
       set('--title-font-size', mix(mobile ? 21 : 24, 14));
       set('--description-top', mix(96, 72));
       set('--description-left', mix(mobile ? 64 : 84, mobile ? 132 : 172));
