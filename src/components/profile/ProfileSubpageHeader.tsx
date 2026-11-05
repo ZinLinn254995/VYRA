@@ -74,7 +74,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
         style={{
           backgroundColor: 'color-mix(in srgb, var(--vyra-bg-surface) var(--collapse-bg, 0%), transparent)',
           borderColor: 'color-mix(in srgb, var(--vyra-border-subtle) var(--collapse-border, 0%), transparent)',
-          backdropFilter: 'blur(var(--collapse-blur, 0px)',
+          backdropFilter: 'blur(var(--collapse-blur, 0px))',
         }}
       >
         <div
