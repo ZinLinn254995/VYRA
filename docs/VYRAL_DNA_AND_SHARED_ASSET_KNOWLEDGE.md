@@ -530,14 +530,14 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - If a stored SHA-256 exists and does not match the downloaded media, export stops rather than producing a package with a known integrity mismatch.
 - ZIP entries include CRC-32 checks, UTF-8 filenames and standard local/central directory records.
 - Package paths reject absolute paths, traversal segments, Windows drive paths, backslashes, duplicate paths and malformed ZIP headers.
-- Initial limits: 5,000 archive entries, 500 MB total source media per export, 512 MB archive size and 32 MB manifest.
+- Initial limits: 5,000 archive entries, 200 MB total source media per browser export, 256 MB archive/import size and 32 MB manifest.
 - ZIP reader currently supports Store (method 0) only; compressed/deflated archives, encrypted archives and ZIP64 are explicitly rejected rather than guessed.
 - Package records are portable evidence, not automatic proof. Imported verification statuses must never be trusted without independent verification.
 
 ### Current implementation boundary
 - Export is available from the Vyral Details workspace.
 - Archive creation, CRC validation, manifest validation and binary round-trip tests are included.
-- Package import/restore is the next implementation stage. It must remap database IDs, restore folders and versions safely, recalculate hashes, and treat imported AI observations and reconstruction claims as untrusted evidence until trusted services re-verify them.
+- Package import/restore is implemented in the current workspace. It remaps database IDs, restores folder hierarchy and asset versions, recalculates hashes, and treats imported AI observations and reconstruction claims as untrusted evidence until trusted services re-verify them.
 
 ### Import / restore behavior
 - A creator can import a `.vyral` package into the currently open Vyral workspace. Import is additive: existing content is not overwritten.
@@ -549,4 +549,6 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - The package's original collection identity and license policy are preserved as imported Vyral-level evidence; they do not silently replace the destination Vyral's identity or permissions.
 - On an import failure, the client attempts to remove newly uploaded media and delete newly created asset/folder records. This is compensating cleanup, not a single database transaction; cleanup failure must be surfaced and audited.
 - Current browser memory limits: 200 MB source media per export and 256 MB maximum package import/archive size. Larger packages require a future server-streaming package service.
+- Rollback evidence is scoped to a unique import-run ID so a failed retry cannot delete records from an earlier successful import of the same package.
+- After a failed restore, the workspace reloads from the database so any cleanup failure is visible instead of leaving stale client state.
 
