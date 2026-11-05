@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ChevronRight, File, Folder, FolderPlus, Grid2X2, List, MoreHorizontal, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 
 type VyralFolder = { id: string; name: string; parentId: string | null; createdAt: string };
 type VyralRecord = { id: string; name: string; description: string; visibility: 'private' | 'public'; createdAt: string; updatedAt: string; folders: VyralFolder[] };
@@ -55,13 +56,14 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   };
 
   if (active) return (
-    <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-      <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
-        <button type="button" onClick={() => { setActiveId(null); setQuery(''); setCategory('all'); }} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]"><ArrowLeft size={16} /> Back to My Vyrals</button>
-        <div className="mb-3 grid size-11 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={22} /></div>
-        <h1 className="text-xl font-bold text-[var(--vyra-text-primary)] sm:text-2xl">{active.name}</h1>
-        <p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">{active.description || 'Your creative Vyral identity and asset library.'}</p>
-      </div>
+    <section className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+      <ProfileSubpageHeader
+        onBack={() => { setActiveId(null); setQuery(''); setCategory('all'); }}
+        backLabel="Back to My Vyrals"
+        icon={<VyralIdentityIcon size={22} />}
+        title={active.name}
+        description={active.description || 'Your creative Vyral identity and asset library.'}
+      />
       <div className="space-y-3 p-5 sm:p-6">
         <div className="flex justify-end"><Button size="sm" onClick={() => setFolderOpen(true)} startIcon={<FolderPlus size={14} />}>New Folder</Button></div>
       <div className="flex items-center gap-1.5">
@@ -96,18 +98,16 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   );
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-      <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
-        <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]"><ArrowLeft size={16} /> {backLabel}</button>
-        <div className="mb-3 grid size-11 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={22} /></div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-[var(--vyra-text-primary)] sm:text-2xl">My Vyrals</h1>
-            <p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">Your creative libraries, identity and knowledge.</p>
-          </div>
-          <Button onClick={() => setCreateOpen(true)} className="shrink-0 self-start sm:self-center" startIcon={<Plus size={16} />}>Create New Vyral</Button>
-        </div>
-      </div>
+    <section className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+      <ProfileSubpageHeader
+        onBack={onBack}
+        backLabel={backLabel}
+        icon={<VyralIdentityIcon size={22} />}
+        title="My Vyrals"
+        description="Your creative libraries, identity and knowledge."
+        action={<Button size="sm" onClick={() => setCreateOpen(true)} startIcon={<Plus size={14} />}>Create New Vyral</Button>}
+        compactAction={<Button size="sm" onClick={() => setCreateOpen(true)} aria-label="Create New Vyral" startIcon={<Plus size={14} />}>New</Button>}
+      />
       <div className="space-y-5 p-5 sm:p-6">
       <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>
       {visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => <article key={item.id} className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]"><button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38} /><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">VYRAL COLLECTION</span></button><div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A private creative asset library.'}</p></button><button type="button" onClick={() => deleteVyral(item.id)} aria-label={`Delete ${item.name}`} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15} /></button></div><div className="mt-3 flex items-center justify-between text-[10px] text-[var(--vyra-text-muted)]"><span>{item.folders.length} folders</span><span>Private · {new Date(item.updatedAt).toLocaleDateString()}</span></div><button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Vyral <ChevronRight size={14} /></button></div></article>)}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] px-6 py-10 text-center"><div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={28} /></div><h3 className="mt-4 text-base font-semibold text-[var(--vyra-text-primary)]">{query ? 'No matching Vyrals' : 'Create your first Vyral'}</h3><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">{query ? 'Try another search term.' : 'Give your creative assets a home with their own identity, folders and knowledge.'}</p></div>}
