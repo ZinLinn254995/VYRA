@@ -55,15 +55,27 @@
 }
 .profile-collapse-action {
   top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
-  transition: top 180ms ease-out, right 180ms ease-out, opacity 140ms ease-out;
+  transition: top 180ms ease-out, right 180ms ease-out;
 }
-.profile-collapse-action-full {
-  opacity: calc(1 - var(--profile-header-progress, 0));
-  pointer-events: var(--profile-full-action-events, auto);
+/* Keep one real button: its right edge stays anchored while its left edge moves inward. */
+.profile-create-button {
+  width: var(--profile-create-button-width, 142px);
+  min-width: 0;
+  justify-content: flex-start !important;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: width 180ms ease-out, opacity 140ms ease-out !important;
 }
-.profile-collapse-action-compact {
-  display: block; opacity: var(--profile-header-progress, 0);
-  pointer-events: var(--profile-compact-action-events, none);
+.profile-create-label { flex: 0 0 auto; }
+.profile-create-extra {
+  display: inline-block;
+  max-width: var(--profile-create-extra-width, 88px);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: var(--profile-create-extra-opacity, 1);
+  transform: translateX(var(--profile-create-extra-shift, 0px));
+  transition: max-width 180ms ease-out, opacity 140ms ease-out, transform 180ms ease-out;
 }
 /* The wrapper does not clip or scroll. The Card itself defines the visible edge,
    while only its content region scrolls beneath the stationary header. */
@@ -126,7 +138,6 @@
   height: 100%;
   max-height: none;
 }
-
 
 /* The search field is part of the card header and remains visible in compact mode. */
 .profile-collapse-search {
