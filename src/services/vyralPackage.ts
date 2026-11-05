@@ -46,7 +46,7 @@ export const crc32 = (bytes: Uint8Array) => {
 };
 
 const safePath = (path: string) => {
-  if (!path || path.length > 1024 || path.startsWith('/') || path.startsWith('\\\\') || path.includes('\\\\') || path.includes('\0')) return false;
+  if (!path || path.length > 1024 || path.startsWith('/') || /^[a-zA-Z]:/.test(path) || path.includes(String.fromCharCode(92)) || path.includes(String.fromCharCode(0))) return false;
   const parts = path.split('/');
   return parts.every((part) => part !== '..' && part !== '.' && part.length > 0);
 };
@@ -166,14 +166,18 @@ export const readVyralZip = async (source: Blob | ArrayBuffer | Uint8Array) => {
     const localOffset = view.getUint32(cursor + 42, true);
     const next = cursor + 46 + nameLength + extraLength + entryCommentLength;
     if (next > centralOffset + centralSize) throw new Error('Malformed ZIP entry metadata.');
-    if (flags & 1) throw new Error('Encrypted ZIP entries are not supported.');
+    if (flags & 0x0009) throw new Error('Encrypted ZIP entries and data descriptors are not supported.');
     if (method !== 0) throw new Error('This VYRAL package reader currently supports ZIP Store (no-compression) entries only.');
     if (compressedSize !== uncompressedSize) throw new Error('Invalid stored ZIP entry size.');
     const path = decoder.decode(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
     if (!safePath(path) || files.has(path)) throw new Error('Unsafe or duplicate ZIP entry path: ' + path);
     if (localOffset + 30 > centralOffset || view.getUint32(localOffset, true) !== localHeaderSignature) throw new Error('Invalid local ZIP entry header.');
+    const localFlags = view.getUint16(localOffset + 6, true);
+    const localMethod = view.getUint16(localOffset + 8, true);
     const localNameLength = view.getUint16(localOffset + 26, true);
     const localExtraLength = view.getUint16(localOffset + 28, true);
+    const localName = decoder.decode(bytes.subarray(localOffset + 30, localOffset + 30 + localNameLength));
+    if (localName !== path || localFlags !== flags || localMethod !== method) throw new Error('ZIP local and central entry headers do not match.');
     const dataStart = localOffset + 30 + localNameLength + localExtraLength;
     const dataEnd = dataStart + uncompressedSize;
     if (dataEnd > centralOffset) throw new Error('ZIP entry data is out of bounds.');
@@ -197,7 +201,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     if (!Array.isArray(manifest[key])) throw new Error('VYRAL manifest section is missing or invalid: ' + key);
   }
   const packagePaths = new Set<string>();
-  for (const version of manifest.versions) {
+  for (const version of manifest.versions ?? []) {
     if (typeof version.package_path !== 'string' || !safePath(version.package_path) || !version.package_path.startsWith('assets/')) throw new Error('Invalid asset package path.');
     if (packagePaths.has(version.package_path)) throw new Error('Duplicate asset package path.');
     packagePaths.add(version.package_path);
