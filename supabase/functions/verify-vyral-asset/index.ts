@@ -41,7 +41,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: asset, error: assetError } = await context.supabase
     .from('vyral_assets')
-    .select('id,vyral_id,user_id,name,storage_path,sha256')
+    .select('id,vyral_id,user_id,name,storage_path,sha256,size_bytes')
     .eq('id', body.assetId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -76,13 +76,19 @@ Deno.serve(async (request: Request) => {
   const actualSize = bytes.byteLength;
   const actualSha256 = await sha256Hex(bytes);
   const currentAssetVersion = asset.storage_path === version.storage_path;
-  const expectedSha256 = typeof version.sha256 === 'string'
-    ? version.sha256
-    : currentAssetVersion && typeof asset.sha256 === 'string' ? asset.sha256 : null;
-  const sizeMatches = actualSize === expectedSize;
-  const hashMatches = expectedSha256 === null || expectedSha256.toLowerCase() === actualSha256;
-  const comparisonStatus = !sizeMatches || !hashMatches ? 'mismatch' : expectedSha256 === null ? 'baseline_created' : 'matched';
+  const expectedHashes = [
+    ...(typeof version.sha256 === 'string' ? [version.sha256] : []),
+    ...(currentAssetVersion && typeof asset.sha256 === 'string' ? [asset.sha256] : []),
+  ];
+  const expectedSizes = [
+    expectedSize,
+    ...(currentAssetVersion && Number.isSafeInteger(Number(asset.size_bytes)) ? [Number(asset.size_bytes)] : []),
+  ];
+  const sizeMatches = expectedSizes.every((size) => actualSize === size);
+  const hashMatches = expectedHashes.every((hash) => hash.toLowerCase() === actualSha256);
+  const comparisonStatus = !sizeMatches || !hashMatches ? 'mismatch' : expectedHashes.length === 0 ? 'baseline_created' : 'matched';
   const verifiedAt = new Date().toISOString();
+  const expectedSha256 = expectedHashes.length ? expectedHashes[0] : null;
 
   const fingerprintMetadata = {
     verification_status: 'server_verified',
@@ -90,9 +96,9 @@ Deno.serve(async (request: Request) => {
     verified_by: FUNCTION_ID,
     verified_at: verifiedAt,
     source: 'private_storage_download',
-    expected_sha256: expectedSha256,
+    expected_sha256: expectedHashes,
     actual_size_bytes: actualSize,
-    expected_size_bytes: expectedSize,
+    expected_size_bytes: expectedSizes,
   };
 
   const { data: existingFingerprint, error: lookupError } = await context.supabaseAdmin
@@ -133,14 +139,16 @@ Deno.serve(async (request: Request) => {
     }, 409);
   }
 
-  if (!expectedSha256) {
-    const { error: versionUpdateError } = await context.supabaseAdmin
-      .from('vyral_asset_versions')
-      .update({ sha256: actualSha256 })
-      .eq('id', version.id)
-      .eq('user_id', userId);
-    if (versionUpdateError) return json({ error: 'Hash was verified but could not be saved to the asset version.' }, 500);
-    if (currentAssetVersion) {
+  if (typeof version.sha256 !== 'string' || (currentAssetVersion && typeof asset.sha256 !== 'string')) {
+    if (typeof version.sha256 !== 'string') {
+      const { error: versionUpdateError } = await context.supabaseAdmin
+        .from('vyral_asset_versions')
+        .update({ sha256: actualSha256 })
+        .eq('id', version.id)
+        .eq('user_id', userId);
+      if (versionUpdateError) return json({ error: 'Hash was verified but could not be saved to the asset version.' }, 500);
+    }
+    if (currentAssetVersion && typeof asset.sha256 !== 'string') {
       const { error: assetUpdateError } = await context.supabaseAdmin
         .from('vyral_assets')
         .update({ sha256: actualSha256 })
