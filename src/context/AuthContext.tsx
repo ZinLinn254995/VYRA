@@ -61,13 +61,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       return;
     }
     let active = true;
-    supabase.auth.getSession().then(async ({ data, error }) => {
+    const initializeSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
       if (!active) return;
-      const nextSession = error ? null : data.session;
+
+      let nextSession = error ? null : data.session;
+      if (!nextSession) {
+        // Temporary development mode: create a persisted anonymous identity so
+        // private VYRAL Storage and owner-scoped RLS work without a login form.
+        const guest = await supabase.auth.signInAnonymously({
+          options: { data: { display_name: 'Temporary Guest', session_kind: 'vyral_test_guest' } },
+        });
+        if (!active) return;
+        if (guest.error) {
+          setVerificationError(
+            'Temporary guest access is unavailable. Enable Anonymous Sign-Ins in the Supabase Auth settings.'
+          );
+        } else {
+          nextSession = guest.data.session;
+        }
+      }
+
       setSession(nextSession);
       setLoading(false);
       await checkServer(nextSession);
-    });
+    };
+    void initializeSession();
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession) {
