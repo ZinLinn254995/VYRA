@@ -271,7 +271,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !supabase || packageBusy) return;
-    if (file.size > 256 * 1024 * 1024) { setError('VYRAL package exceeds the 256 MB import limit.'); return; }
+    if (file.size > 512 * 1024 * 1024) { setError('VYRAL package exceeds the 512 MB import limit.'); return; }
 
     setPackageBusy(true);
     setPackageStatus('Reading package…');
@@ -306,7 +306,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const safeMimeType = (value: unknown, fallback: string) => {
         const candidate = stringValue(value, fallback).trim();
         const separator = candidate.indexOf('/');
-        return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') && !candidate.split('').some((character) => character.trim() === '')
+        return candidate.length <= 160 && /^[a-zA-Z0-9!#return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') && !candidate.split('').some((character) => character.trim() === '')^_.+-]+\/[a-zA-Z0-9!#return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') && !candidate.split('').some((character) => character.trim() === '')^_.+-]+$/.test(candidate)
           ? candidate
           : fallback;
       };
@@ -384,7 +384,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           new Uint8Array(importDigestBuffer).set(bytes);
           const digest = await crypto.subtle.digest('SHA-256', importDigestBuffer);
           const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-          if (typeof sourceVersion.sha256 === 'string' && sourceVersion.sha256 !== sha256) {
+          if (typeof sourceVersion.sha256 === 'string' && sourceVersion.sha256.toLowerCase() !== sha256) {
             throw new Error('Integrity verification failed for "' + stringValue(sourceAsset.name, oldAssetId) + '". The package media does not match its SHA-256 record.');
           }
           const versionNumber = Math.max(1, Math.floor(Number(sourceVersion.version_number) || 1));
