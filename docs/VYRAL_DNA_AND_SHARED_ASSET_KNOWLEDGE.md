@@ -509,3 +509,33 @@ The first VYRAL Details Workspace foundation is now implemented on `rebuild/mark
 
 The existing Profile Subpage Header, Compact Style transition, Sticky Header behavior, and bottom-radius scroll logic remain protected and unchanged during this implementation.
 
+---
+
+## Native VYRAL Package Engine — 2026-11-06
+
+The first portable package engine is implemented on `rebuild/marketplace-workspace-foundation`.
+
+### Package format
+- File extension: `.vyral`
+- Container: standard ZIP archive using the ZIP Store method (no compression) for the initial interoperable release.
+- MIME type: `application/vnd.vyra.vyral+zip`
+- Package manifest: `manifest.json`
+- Initial format version: `1`
+- Each media version is stored as a separate binary entry under `assets/<asset-id>/versions/<version>-<version-id>.bin`.
+- The manifest preserves collection metadata, folders, assets, asset versions, DNA records, fingerprints, AI Vision observations, lineage and reconstruction-test evidence.
+- Internal Supabase storage paths and user IDs are not exported as portable package metadata.
+
+### Integrity and archive safety
+- Export downloads each stored version and recalculates SHA-256 from the actual binary bytes.
+- If a stored SHA-256 exists and does not match the downloaded media, export stops rather than producing a package with a known integrity mismatch.
+- ZIP entries include CRC-32 checks, UTF-8 filenames and standard local/central directory records.
+- Package paths reject absolute paths, traversal segments, Windows drive paths, backslashes, duplicate paths and malformed ZIP headers.
+- Initial limits: 5,000 archive entries, 500 MB total source media per export, 512 MB archive size and 32 MB manifest.
+- ZIP reader currently supports Store (method 0) only; compressed/deflated archives, encrypted archives and ZIP64 are explicitly rejected rather than guessed.
+- Package records are portable evidence, not automatic proof. Imported verification statuses must never be trusted without independent verification.
+
+### Current implementation boundary
+- Export is available from the Vyral Details workspace.
+- Archive creation, CRC validation, manifest validation and binary round-trip tests are included.
+- Package import/restore is the next implementation stage. It must remap database IDs, restore folders and versions safely, recalculate hashes, and treat imported AI observations and reconstruction claims as untrusted evidence until trusted services re-verify them.
+
