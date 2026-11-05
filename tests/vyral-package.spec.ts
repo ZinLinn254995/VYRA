@@ -61,6 +61,24 @@ test('rejects ZIP payload corruption using CRC32', async () => {
   await assert.rejects(() => readVyralZip(bytes), /integrity check failed/);
 });
 
+test('rejects missing asset versions and circular folder trees', () => {
+  assert.throws(() => validateVyralManifest({ ...manifest, versions: [] }), /at least one binary version/);
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    folders: [
+      { id: 'folder-a', name: 'A', parent_id: 'folder-b' },
+      { id: 'folder-b', name: 'B', parent_id: 'folder-a' },
+    ],
+  }), /circular reference/);
+});
+
+test('rejects asset versions that reference an unknown asset', () => {
+  assert.throws(() => validateVyralManifest({
+    ...manifest,
+    versions: [{ ...manifest.versions[0], asset_id: 'missing-asset' }],
+  }), /missing asset/);
+});
+
 test('requires every manifest media path to exist in the package', async () => {
   const archive = createVyralZip([{ path: 'manifest.json', data: JSON.stringify(manifest) }]);
   const files = await readVyralZip(archive);
