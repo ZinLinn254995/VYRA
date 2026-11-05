@@ -26,7 +26,7 @@ const localHeaderSignature = 0x04034b50;
 const centralHeaderSignature = 0x02014b50;
 const endSignature = 0x06054b50;
 const MAX_ENTRIES = 5000;
-const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 32 * 1024 * 1024;
 
 const crcTable = (() => {
@@ -257,6 +257,15 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     if (packagePaths.has(version.package_path)) throw new Error('Duplicate asset package path.');
     packagePaths.add(version.package_path);
     if (typeof version.sha256 === 'string' && !/^[a-f0-9]{64}$/i.test(version.sha256)) throw new Error('An asset version contains an invalid SHA-256 value.');
+  }
+  const versionById = new Map(versions.map((version) => [String(version.id), version]));
+  for (const version of versions) {
+    if (typeof version.parent_version_id === 'string') {
+      const parent = versionById.get(version.parent_version_id);
+      if (!parent || parent.asset_id !== version.asset_id || Number(parent.version_number) >= Number(version.version_number)) {
+        throw new Error('An asset version references an invalid parent version.');
+      }
+    }
   }
   for (const assetId of assetIds) {
     if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
