@@ -8,6 +8,7 @@ type Props = {
   title: string;
   description: string;
   action?: React.ReactNode;
+  compactAction?: React.ReactNode;
 };
 
 export const ProfileSubpageHeader: React.FC<Props> = ({
@@ -24,8 +25,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
 
   return (
     <header
-      className={`sticky z-40 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)]/95 backdrop-blur-xl transition-shadow duration-200 ${compact ? 'shadow-md shadow-black/5' : ''}`}
-      style={{ top: 'calc(var(--vyra-visual-viewport-top, 0px) + 109px)' }}
+      className={`sticky top-[calc(var(--vyra-visual-viewport-top,0px)+109px)] sm:top-[calc(var(--vyra-visual-viewport-top,0px)+64px)] z-40 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)]/95 backdrop-blur-xl transition-shadow duration-200 ${compact ? 'shadow-md shadow-black/5' : ''}`}
     >
       <div className={`transition-all duration-200 sm:px-6 ${compact ? 'px-3 py-2 sm:py-2.5' : 'p-5 sm:py-6'}`}>
         {compact ? (
@@ -46,7 +46,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--vyra-text-primary)]">
               {title}
             </h1>
-            {action ? <div className="shrink-0">{action}</div> : null}
+            {compactAction || action ? <div className="shrink-0">{compactAction ?? action}</div> : null}
           </div>
         ) : (
           <>
