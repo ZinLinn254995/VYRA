@@ -1,4 +1,7 @@
-.profile-collapse-shell { position: relative; }
+/* Let the sticky header use the full profile section as its containing block.
+   The wrapper only groups the sentinel and header; it must not constrain sticky
+   positioning to the header's own height. */
+.profile-collapse-shell { display: contents; }
 .profile-collapse-sentinel { height: 1px; margin-bottom: -1px; pointer-events: none; }
 .profile-collapse-header {
   height: var(--profile-height, 156px);
