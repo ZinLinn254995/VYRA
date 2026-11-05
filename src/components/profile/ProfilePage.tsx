@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images,
+  Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images, Search,
   CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
   LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
   Users, Wallet, type LucideIcon,
@@ -91,7 +91,8 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
   if (header) {
     const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    header.style.setProperty('--profile-header-height', (expandedHeight - 84 * headerProgress) + 'px');
+    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
@@ -114,6 +115,8 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
   }
 };
 
+const searchableProfilePages = new Set<PageKey>(['my-media-library', 'saved', 'purchased', 'collections', 'following', 'notifications', 'settings', 'help']);
+
 const settingsItems: { key: PageKey; label: string; detail: string; icon: LucideIcon }[] = [
   { key: 'setting-account', label: 'Account & Profile', detail: 'Email, personal details and public profile', icon: UserRound },
   { key: 'setting-security', label: 'Security & Privacy', detail: 'Password, sessions and visibility controls', icon: ShieldCheck },
@@ -129,7 +132,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
-  React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
+  const [pageSearch, setPageSearch] = useState('');
+  React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
+  React.useEffect(() => { setPageSearch(''); }, [activePage]);
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [activePage]);
@@ -201,6 +206,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
+            search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />
           <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
             {activePage === 'settings' ? (
