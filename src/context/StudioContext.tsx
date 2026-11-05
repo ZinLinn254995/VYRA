@@ -42,6 +42,7 @@ interface StudioContextType {
   theme: 'dark' | 'light';
   themeMode: 'system' | 'light' | 'dark';
   setThemeMode: (mode: 'system' | 'light' | 'dark') => void;
+  toggleTheme: () => void;
 
   // Navigation
   currentSection: NavSection;
@@ -968,6 +969,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         theme,
         themeMode,
         setThemeMode,
+        toggleTheme: () => setThemeMode(theme === 'dark' ? 'light' : 'dark'),
         currentSection,
         setCurrentSection,
         activeProjectId,
