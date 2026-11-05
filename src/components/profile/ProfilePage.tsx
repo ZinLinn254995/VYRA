@@ -152,6 +152,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
           </div>
         </>
+      ) : activePage === 'my-vyrals' ? (
+        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} />
       ) : (
         <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
@@ -171,9 +173,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             })()}
           </div>
           <div className="p-5 sm:p-6">
-            {activePage === 'my-vyrals' ? (
-              <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} />
-            ) : activePage === 'settings' ? (
+            {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
                   <button key={key} type="button" onClick={() => setActivePage(key)} className="group flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--vyra-bg-hover)] first:pt-0 last:pb-0">
