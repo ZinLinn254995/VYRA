@@ -58,7 +58,7 @@
 .profile-subpage-card {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
+  height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem + var(--profile-card-extra, 0px) - var(--profile-card-shrink, 0px));
   min-height: 320px;
   overflow: hidden;
   overflow-anchor: none;
@@ -73,5 +73,5 @@
   scrollbar-gutter: stable;
 }
 @media (min-width: 640px) {
-  .profile-subpage-card { height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem); }
+  .profile-subpage-card { height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem + var(--profile-card-extra, 0px) - var(--profile-card-shrink, 0px)); }
 }
