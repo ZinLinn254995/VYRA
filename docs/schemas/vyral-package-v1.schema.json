@@ -1,0 +1,536 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VYRAL Portable Package Manifest v1",
+  "description": "Interoperable manifest for a ZIP-based .vyral package. Binary media is stored in separate ZIP entries referenced by versions[].package_path. Imported evidence is untrusted until independently verified.",
+  "type": "object",
+  "required": [
+    "format",
+    "formatVersion",
+    "packageId",
+    "exportedAt",
+    "vyral",
+    "folders",
+    "assets",
+    "versions",
+    "dnaRecords",
+    "fingerprints",
+    "visionObservations",
+    "lineage",
+    "reconstructionTests"
+  ],
+  "properties": {
+    "format": {
+      "const": "application/vnd.vyra.vyral+zip"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "packageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "vyral": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "unlisted",
+            "public"
+          ]
+        },
+        "dna_status": {
+          "enum": [
+            "evolving",
+            "reconstruction_tested",
+            "high_fidelity",
+            "exact_reconstruction_verified",
+            "not_recoverable"
+          ]
+        },
+        "license_policy": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "folders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "folder_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "original_filename": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "asset_type": {
+            "enum": [
+              "image",
+              "video",
+              "audio",
+              "document",
+              "model_3d",
+              "archive",
+              "other"
+            ]
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "license_override": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "asset_id",
+          "version_number",
+          "package_path"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "package_path": {
+            "type": "string",
+            "pattern": "^assets/[^\\\\\\\\]+$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source_kind": {
+            "enum": [
+              "original",
+              "generated",
+              "edited",
+              "restored",
+              "derived"
+            ]
+          },
+          "parent_version_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "dnaRecords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "scope"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "enum": [
+              "vyral",
+              "asset"
+            ]
+          },
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dna_status": {
+            "enum": [
+              "evolving",
+              "reconstruction_tested",
+              "high_fidelity",
+              "exact_reconstruction_verified",
+              "not_recoverable"
+            ]
+          },
+          "source_kind": {
+            "enum": [
+              "creator",
+              "generation",
+              "vision",
+              "audio_analysis",
+              "user_report",
+              "community",
+              "system",
+              "verification"
+            ]
+          },
+          "verification_status": {
+            "enum": [
+              "unverified",
+              "observed",
+              "corroborated",
+              "creator_confirmed",
+              "independently_verified",
+              "disputed"
+            ]
+          },
+          "payload": {
+            "type": "object"
+          },
+          "reconstruction_data": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "fingerprint_kind",
+          "algorithm",
+          "value"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_version_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fingerprint_kind": {
+            "enum": [
+              "cryptographic",
+              "perceptual",
+              "semantic",
+              "structural"
+            ]
+          },
+          "algorithm": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "model_provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "visionObservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "task_kind",
+          "model_provider",
+          "model_id",
+          "observation"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_version_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_kind": {
+            "enum": [
+              "identity",
+              "description",
+              "consistency",
+              "generation_context",
+              "reconstruction",
+              "safety",
+              "other"
+            ]
+          },
+          "model_provider": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "observation": {
+            "type": "object"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "verification_status": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "source_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "lineage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "parent_asset_id",
+          "child_asset_id",
+          "relation_kind"
+        ],
+        "properties": {
+          "parent_asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "child_asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation_kind": {
+            "enum": [
+              "generated_from",
+              "edited_from",
+              "derived_from",
+              "variant_of",
+              "restored_from",
+              "reference_for"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "reconstructionTests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "model_provider",
+          "model_id",
+          "comparison_mode",
+          "test_status"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_version_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dna_record_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_provider": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "comparison_mode": {
+            "enum": [
+              "byte_exact",
+              "decoded_exact",
+              "perceptual"
+            ]
+          },
+          "test_status": {
+            "enum": [
+              "queued",
+              "running",
+              "passed",
+              "failed",
+              "inconclusive"
+            ]
+          },
+          "exact_match": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "similarity_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "verifier": {
+            "type": "object"
+          },
+          "report": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
