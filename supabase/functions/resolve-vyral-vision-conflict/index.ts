@@ -33,6 +33,12 @@ Deno.serve(async (request: Request) => {
   const contextLabel = typeof body.contextLabel === 'string' ? body.contextLabel.trim() : '';
   if (contextLabel.length > 300) return json({ error: 'Context label must be 300 characters or fewer.' }, 400);
   if (body.resolutionType === 'keep_contextual' && !contextLabel) return json({ error: 'A creator-defined context label is required when retaining contextual values.' }, 400);
+  const rawContextTags = body.contextTags;
+  const contextTags = Array.isArray(rawContextTags) ? rawContextTags.map((tag) => typeof tag === 'string' ? tag.trim().toLowerCase() : '') : [];
+  if (body.resolutionType === 'keep_contextual' && (contextTags.length < 1 || contextTags.length > 12 || contextTags.some((tag) => !tag || tag.length > 64 || !/^[a-z0-9][a-z0-9 _-]*$/.test(tag)) || new Set(contextTags).size !== contextTags.length)) {
+    return json({ error: 'Provide 1–12 unique context tags using letters, numbers, spaces, underscores or hyphens; each tag must be 1–64 characters.' }, 400);
+  }
+  if (body.resolutionType === 'prefer_one' && Array.isArray(rawContextTags) && rawContextTags.length > 0) return json({ error: 'Context tags are only valid for keep_contextual decisions.' }, 400);
   if (body.resolutionType === 'prefer_one' && !isUuid(body.preferredRecordId)) return json({ error: 'Select the promoted record to prefer.' }, 400);
 
   const { data: records, error: recordsError } = await context.supabaseAdmin.from('vyral_dna_records')
@@ -90,6 +96,9 @@ Deno.serve(async (request: Request) => {
     preferred_promotion_record_id: preferred?.id ?? null,
     preferred_value: preferred?.payload.accepted_value ?? null,
     creator_context_label: contextLabel || null,
+    creator_context_tags: body.resolutionType === 'keep_contextual' ? contextTags : [],
+    context_match_policy: body.resolutionType === 'keep_contextual' ? 'exact_all_tags_required' : 'not_applicable',
+    context_application_status: 'not_evaluated_no_runtime_context_evidence',
     creator_note: note,
     resolution_source: 'server_creator_conflict_resolution',
     resolved_by: userId,
