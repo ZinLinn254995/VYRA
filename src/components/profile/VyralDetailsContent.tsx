@@ -114,6 +114,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [savingVision, setSavingVision] = useState(false);
   const [reviewingObservationId, setReviewingObservationId] = useState<string | null>(null);
   const [promotingObservationId, setPromotingObservationId] = useState<string | null>(null);
+  const [resolvingConflictKey, setResolvingConflictKey] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -914,6 +915,65 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setPromotingObservationId(null);
     }
   };
+  const resolveVisionKnowledgeConflict = async (
+    group: { assetId: string; versionId: string; taskKind: string; fieldPath: string; records: DnaRow[] },
+    resolutionType: 'prefer_one' | 'keep_contextual',
+  ) => {
+    if (!supabase || resolvingConflictKey) return;
+    let preferredRecordId: string | undefined;
+    let note = '';
+    if (resolutionType === 'prefer_one') {
+      const choices = group.records.map((record, index) => {
+        const model = String(record.payload.model_provider_claim ?? 'Unknown model') + ' · ' + String(record.payload.model_id_claim ?? 'Unknown ID');
+        return (index + 1) + '. ' + model + '\n' + JSON.stringify(record.payload.accepted_value);
+      }).join('\n\n');
+      const answer = window.prompt('Choose the value to prefer for this exact conflict scope. This will not delete or overwrite other evidence.\n\n' + choices + '\n\nEnter the number to prefer:');
+      if (answer === null) return;
+      const selectedIndex = Number(answer) - 1;
+      if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= group.records.length) {
+        setError('Please enter a valid number from the conflict list.');
+        return;
+      }
+      preferredRecordId = group.records[selectedIndex].id;
+      note = window.prompt('Optional reason for this preference (max 2,000 characters).') ?? '';
+    } else {
+      const answer = window.prompt('Explain why these values should remain valid in different contexts. This preserves all competing values. (Required)');
+      if (answer === null || answer.trim().length < 3) return;
+      note = answer.trim();
+    }
+    const groupKey = JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]);
+    setResolvingConflictKey(groupKey);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('resolve-vyral-vision-conflict', {
+        body: {
+          resolutionRequestId: crypto.randomUUID(),
+          resolutionType,
+          recordIds: group.records.map((record) => record.id),
+          preferredRecordId,
+          note,
+        },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try { const payload = await response.clone().json() as { error?: string }; if (payload.error) detail = payload.error; } catch { /* Keep SDK error. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'conflict_resolved' && data?.status !== 'already_recorded') throw new Error('Conflict resolution was not confirmed by the server.');
+      await loadWorkspace();
+      setPackageStatus(resolutionType === 'prefer_one'
+        ? 'Creator preference recorded. All original promoted values remain unchanged.'
+        : 'Context-dependent resolution recorded. All competing values remain unchanged.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not record the conflict resolution.');
+    } finally {
+      setResolvingConflictKey(null);
+    }
+  };
+
   const saveDnaNote = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || !dnaNote.trim()) return;
@@ -1121,6 +1181,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     <p className={'mt-1 text-[9px] '+muted}>{dateLabel(record.created_at)} · observation {String(record.payload.promotion_observation_id).slice(0,8)}</p>
                   </div>)}</div>
                   <p className={'mt-2 text-[9px] '+muted}>Both records remain immutable evidence. This comparison does not decide which value is correct, combine different contexts, or change DNA completion/reconstruction eligibility.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" className={button} disabled={!!resolvingConflictKey} onClick={() => resolveVisionKnowledgeConflict(group, 'prefer_one')}>
+                      {resolvingConflictKey === JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]) ? 'Saving…' : 'Prefer one value'}
+                    </button>
+                    <button type="button" className={button} disabled={!!resolvingConflictKey} onClick={() => resolveVisionKnowledgeConflict(group, 'keep_contextual')}>
+                      Keep both as contextual
+                    </button>
+                  </div>
                 </article>;
               })}</div>
               {visionKnowledgeConflicts.length > 12 && <p className={'mt-2 text-[9px] '+muted}>Showing 12 of {visionKnowledgeConflicts.length} conflict groups.</p>}
