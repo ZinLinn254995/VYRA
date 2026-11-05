@@ -242,7 +242,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'SHA-256 values were recalculated from the downloaded media during export.',
           'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
           'ZIP entries use the standard Store method (no compression) for broad compatibility.',
-        ].join('\\n'),
+        ].join('\n'),
       });
       packageEntries.push({ path: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
       const archive = createVyralZip(packageEntries);
@@ -280,7 +280,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
       const assetCount = manifest.assets.length;
       const folderCount = manifest.folders.length;
-      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\\n\\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions\\n\\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
+      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
         setPackageStatus('');
         setPackageBusy(false);
         return;
@@ -292,7 +292,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
       const stringValue = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
       const safeName = (value: unknown, fallback: string, max: number) =>
-        (stringValue(value, fallback).trim().replace(/[\\\\/\\0]/g, '-').slice(0, max) || fallback);
+        (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);
       const allowedAssetTypes = ['image','video','audio','document','model_3d','archive','other'];
       const allowedVersionSources = ['original','generated','edited','restored','derived'];
       const allowedDnaSources = ['creator','generation','vision','audio_analysis','user_report','community','system','verification'];
