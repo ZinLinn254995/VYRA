@@ -56,7 +56,7 @@ export const MarketplaceHome: React.FC<MarketplaceProps> = ({ onLoginRequired })
         </div>
         <div className="flex w-full items-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3 py-2.5 md:max-w-xs">
           <Search size={17} className="shrink-0 text-[var(--vyra-text-muted)]" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search marketplace" aria-label="Search marketplace" className="min-w-0 flex-1 bg-transparent text-sm text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-muted)]" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search marketplace" aria-label="Search marketplace" style={{ outline: "none", boxShadow: "none", WebkitTapHighlightColor: "transparent", WebkitAppearance: "none" }} className="min-w-0 flex-1 bg-transparent text-sm text-[var(--vyra-text-primary)] outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-[var(--vyra-text-muted)] [-webkit-tap-highlight-color:transparent]" />
         </div>
       </section>
 
