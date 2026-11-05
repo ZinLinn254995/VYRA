@@ -156,7 +156,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : activePage === 'my-vyrals' ? (
         <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} />
       ) : (
-        <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+        <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
             backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
@@ -164,7 +164,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
           />
-          <div className="profile-subpage-scroll p-5 sm:p-6">
+          <div className="profile-subpage-content p-5 sm:p-6">
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
@@ -221,7 +221,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
             )}
           </div>
-        </section>
+        </section></div>
       )}
     </main>
   );
