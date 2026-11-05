@@ -95,6 +95,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [visionConfidence, setVisionConfidence] = useState('');
   const [visionJson, setVisionJson] = useState('{"summary":"","attributes":[],"uncertainties":[]}');
   const [savingVision, setSavingVision] = useState(false);
+  const [reviewingObservationId, setReviewingObservationId] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -799,6 +800,37 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
+  const reviewVisionObservation = async (observationId: string, decision: 'creator_confirmed' | 'disputed') => {
+    if (!supabase || reviewingObservationId) return;
+    setReviewingObservationId(observationId);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('record-vyral-vision-review', {
+        body: { observationId, decision },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json() as { error?: string };
+            if (payload.error) detail = payload.error;
+          } catch { /* Keep the SDK error message. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'review_recorded') throw new Error('Creator review was not confirmed as recorded.');
+      await loadWorkspace();
+      setPackageStatus(decision === 'creator_confirmed'
+        ? 'Creator confirmation recorded for this observation only. The complete Asset DNA remains evolving.'
+        : 'Dispute recorded for this observation. The original AI observation remains preserved.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not record creator review.');
+    } finally {
+      setReviewingObservationId(null);
+    }
+  };
+
   const saveDnaNote = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || !dnaNote.trim()) return;
@@ -973,7 +1005,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <label className={'block space-y-1 text-[10px] '+muted}><span>Structured observation (JSON)</span><textarea required rows={6} maxLength={65536} value={visionJson} onChange={(event)=>setVisionJson(event.target.value)} className={field+' min-h-32 py-2.5 font-mono text-[11px]'} /></label>
               <div className="flex flex-wrap items-center justify-between gap-2"><p className={'max-w-xl text-[10px] leading-4 '+muted}>The server rechecks the private source file's SHA-256 and size. Provider/model labels are recorded as user-supplied claims, not verified credentials.</p><button type="submit" disabled={savingVision||!visionAssetId||!visionVersionId||!visionProvider.trim()||!visionModel.trim()} className={primaryButton}><Plus size={13}/>{savingVision?'Recording…':'Record observation'}</button></div>
             </form>
-            {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p></article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
+            {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.payload?.vision_observation_review_id === item.id); return review ? <p className={'mt-2 text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
           </section>
           <section className={surface+' p-4'}>
             <h3 className={'text-sm font-semibold '+primary}>Reconstruction verification</h3><p className={'mt-1 text-xs leading-5 '+subtle}>DNA is not complete because it contains many descriptions. It earns a verified status only after an independent DNA-only reconstruction test, with the original withheld from the reconstruction model.</p>
