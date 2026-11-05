@@ -98,7 +98,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   );
 
   return (
-    <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+    <div className="profile-subpage-scroll profile-subpage-viewport">    <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
       <ProfileSubpageHeader
         onBack={onBack}
         backLabel={backLabel}
