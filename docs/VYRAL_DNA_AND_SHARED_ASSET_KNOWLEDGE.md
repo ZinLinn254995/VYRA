@@ -542,7 +542,8 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - SHA-256 is recalculated server-side from the protected Storage object, and actual byte size is checked against the stored version metadata.
 - The server writes a cryptographic fingerprint with `verification_status: server_verified` and a separate `comparison_status: matched|mismatch`.
 - If the stored claim does not match the actual bytes or file size, the service records the actual hash and mismatch evidence, returns an integrity error, and does not silently overwrite the original expected hash.
-- If no previous hash exists, a successful server verification stores the calculated hash on the version and current asset record.
+- If no previous hash exists, a successful server verification stores the calculated hash on the version and current asset record and labels the result `baseline_created`; it is not falsely described as a match against a prior hash.
+- `server_verified` means the server calculated the fingerprint from private Storage bytes. The separate comparison status means `matched`, `mismatch`, or `baseline_created`; these meanings must not be conflated.
 - The Details workspace exposes a per-asset Verify action and distinguishes a successful match from an integrity mismatch.
 - The Edge Function uses the user's authenticated identity for ownership checks; privileged Storage/database access is only performed after those checks. The service/secret key is never sent to the browser.
 
