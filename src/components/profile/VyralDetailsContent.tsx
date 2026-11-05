@@ -177,8 +177,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setError('Your session has expired. Please sign in again.'); return; }
     setBusy(true); setError('');
+    const failures: string[] = [];
     for (const file of selected) {
-      if (file.size > 100 * 1024 * 1024) { setError(file.name + ' is larger than the 100 MB upload limit.'); continue; }
+      if (file.size > 100 * 1024 * 1024) { failures.push(file.name + ' is larger than the 100 MB upload limit.'); continue; }
       let storagePath = '';
       let assetId = '';
       try {
@@ -229,10 +230,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       } catch (cause) {
         if (storagePath) await supabase.storage.from('vyral-assets').remove([storagePath]);
         if (assetId) await supabase.from('vyral_assets').delete().eq('id', assetId);
-        setError(cause instanceof Error ? file.name + ': ' + cause.message : file.name + ': upload failed.');
+        failures.push(cause instanceof Error ? file.name + ': ' + cause.message : file.name + ': upload failed.');
       }
     }
     await loadWorkspace();
+    if (failures.length) setError(failures.join(' · '));
     setBusy(false);
   };
 
@@ -244,8 +246,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const { error: storageError } = await supabase.storage.from('vyral-assets').remove(paths);
     if (storageError) { setError(storageError.message); setBusy(false); return; }
     const { error: deleteError } = await supabase.from('vyral_assets').delete().eq('id', asset.id);
-    if (deleteError) setError(deleteError.message);
-    await loadWorkspace(); setBusy(false);
+    await loadWorkspace();
+    if (deleteError) setError('Stored media was removed, but the asset record could not be deleted: ' + deleteError.message);
+    setBusy(false);
   };
 
   const renameAsset = async (asset: AssetRow) => {
@@ -296,7 +299,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || !window.confirm('Delete folder "' + folder.name + '"? Files inside will move to the Vyral root.')) return;
     setBusy(true);
     const { error: deleteError } = await supabase.from('vyral_folders').delete().eq('id', folder.id);
-    if (deleteError) setError(deleteError.message);
+    if (deleteError) { setError(deleteError.message); setBusy(false); return; }
     if (activeFolderId === folder.id) setActiveFolderId(folder.parent_id);
     await loadWorkspace(); setBusy(false);
   };
