@@ -53,7 +53,7 @@ const samplePatch = (rgb: Uint8Array, width: number, height: number, x0: number,
       r += rgb[i]; g += rgb[i + 1]; b += rgb[i + 2]; count++;
     }
   }
-  return count ? [r / count, g / count, b / count].map((v) => Number((v / count * count).toFixed(2))) : null;
+  return count ? [r / count, g / count, b / count].map((v) => Number(v.toFixed(2))) : null;
 };
 
 const round = (value: number) => Number(value.toFixed(6));
