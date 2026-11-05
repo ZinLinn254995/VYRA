@@ -539,3 +539,14 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - Archive creation, CRC validation, manifest validation and binary round-trip tests are included.
 - Package import/restore is the next implementation stage. It must remap database IDs, restore folders and versions safely, recalculate hashes, and treat imported AI observations and reconstruction claims as untrusted evidence until trusted services re-verify them.
 
+### Import / restore behavior
+- A creator can import a `.vyral` package into the currently open Vyral workspace. Import is additive: existing content is not overwritten.
+- Folder, asset and version IDs are remapped to fresh IDs for the destination workspace; folder hierarchy and asset lineage are rebuilt against those new IDs.
+- Every media version is SHA-256 checked against the package manifest before upload. Each restored version receives a new storage path and a new cryptographic fingerprint record.
+- Folder-name collisions are resolved with an explicit `(Imported N)` suffix rather than overwriting existing folders.
+- Imported DNA records and their reconstruction data are preserved, but all imported DNA states are reset to `evolving` and verification status to `unverified`.
+- Imported AI Vision observations, non-cryptographic fingerprint claims and reconstruction-test reports are retained as unverified DNA evidence. They are not inserted into trusted Vision or reconstruction result tables by the browser client.
+- The package's original collection identity and license policy are preserved as imported Vyral-level evidence; they do not silently replace the destination Vyral's identity or permissions.
+- On an import failure, the client attempts to remove newly uploaded media and delete newly created asset/folder records. This is compensating cleanup, not a single database transaction; cleanup failure must be surfaced and audited.
+- Current browser memory limits: 200 MB source media per export and 256 MB maximum package import/archive size. Larger packages require a future server-streaming package service.
+
