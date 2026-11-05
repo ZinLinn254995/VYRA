@@ -16,7 +16,7 @@
 .profile-collapse-description, .profile-collapse-action { position: absolute; z-index: 2; }
 .profile-collapse-back {
   top: 12px; left: 24px; display: inline-flex; align-items: center; gap: 7px;
-  width: var(--profile-back-button-width, 210px); max-width: calc(100% - 24px); box-sizing: border-box; transition: width 180ms ease-out;
+  width: 210px; max-width: calc(100% - 24px); box-sizing: border-box;
   overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
   color: var(--vyra-text-secondary); font-size: 14px; font-weight: 500;
 }
@@ -24,9 +24,8 @@
 .profile-collapse-back svg { flex: 0 0 16px; }
 .profile-collapse-back span {
   min-width: 0; overflow: hidden; white-space: nowrap;
-  max-width: var(--profile-back-label-width, 190px);
-  opacity: calc(1 - var(--profile-header-progress, 0));
-  transition: max-width 180ms ease-out, opacity 140ms ease-out;
+  opacity: var(--profile-back-label-opacity, 1);
+  transition: opacity 70ms linear;
 }
 .profile-collapse-icon {
   top: calc(58px - var(--profile-header-shift-y, 0px));
