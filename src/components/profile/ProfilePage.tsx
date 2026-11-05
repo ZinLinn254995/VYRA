@@ -152,9 +152,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               const Icon = info.icon;
               return (
                 <>
-                  <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Icon size={14} /> PROFILE</p>
-                  <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">{info.title}</h1>
-                  <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">{info.description}</p>
+                  <div className="mb-3 grid size-11 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Icon size={21} /></div>
+                  <h1 className="text-xl font-bold text-[var(--vyra-text-primary)] sm:text-2xl">{info.title}</h1>
+                  <p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">{info.description}</p>
                 </>
               );
             })()}
