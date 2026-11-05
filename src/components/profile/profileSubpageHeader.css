@@ -1,7 +1,8 @@
 /* The profile card is the scroll viewport; its header remains fixed above the body. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 2;
   flex: 0 0 auto;
   height: var(--profile-height, 156px);
@@ -54,24 +55,34 @@
 .profile-collapse-header.is-compact .profile-collapse-action-compact { pointer-events: auto; }
 .profile-collapse-action-compact button { min-height: 34px; padding: 0 10px; font-size: 12px; }
 
-/* Only this lower card region scrolls; the card shell and header never move. */
-.profile-subpage-card {
-  display: flex;
-  flex-direction: column;
-  height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem + var(--profile-card-extra, 0px) - var(--profile-card-shrink, 0px));
-  min-height: 320px;
-  overflow: hidden;
-  overflow-anchor: none;
-}
-.profile-subpage-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
+/* The card surface is taller than the viewport when its data is long.
+   The viewport scrolls the whole surface upward; the header stays pinned. */
+.profile-subpage-viewport {
+  height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
+  max-height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
+  min-height: 240px;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+  border-radius: 1rem;
+}
+.profile-subpage-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: auto;
+  overflow: visible;
+  overflow-anchor: none;
+}
+.profile-subpage-content {
+  flex: 1 0 auto;
+  min-height: 0;
 }
 @media (min-width: 640px) {
-  .profile-subpage-card { height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem + var(--profile-card-extra, 0px) - var(--profile-card-shrink, 0px)); }
+  .profile-subpage-viewport {
+    height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem);
+    max-height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem);
+  }
 }
