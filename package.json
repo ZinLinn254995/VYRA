@@ -21,7 +21,7 @@
     "test:pricing-auth": "node --import tsx --test tests/pricing-auth.spec.ts",
     "test:usage-ledger-local-e2e": "node --import tsx --test tests/openrouter-usage-ledger-local-e2e.spec.ts",
     "test:profile-header": "node --import tsx --test tests/profile-subpage-header.spec.ts",
-    "test:vyral-package": "node --import tsx --test tests/vyral-package.spec.ts",
+    "test:vyral-package": "node --import tsx --test tests/vyral-package.spec.ts tests/vyral-context-applicability.spec.ts",
     "test:vyral-context": "node --import tsx --test tests/vyral-context-applicability.spec.ts"
   },
   "dependencies": {
