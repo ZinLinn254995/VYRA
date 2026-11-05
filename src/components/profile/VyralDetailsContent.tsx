@@ -297,6 +297,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const stringValue = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
       const safeName = (value: unknown, fallback: string, max: number) =>
         (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);
+      const safeMimeType = (value: unknown, fallback: string) => {
+        const candidate = stringValue(value, fallback).trim();
+        return candidate.length <= 160 && /^[a-z0-9][a-z0-9!#      const safeName = (value: unknown, fallback: string, max: number) =>
+        (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);^_.+-]*\\/[a-z0-9][a-z0-9!#      const safeName = (value: unknown, fallback: string, max: number) =>
+        (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);^_.+-]*$/i.test(candidate) ? candidate : fallback;
+      };
       const allowedAssetTypes = ['image','video','audio','document','model_3d','archive','other'];
       const allowedVersionSources = ['original','generated','edited','restored','derived'];
       const allowedDnaSources = ['creator','generation','vision','audio_analysis','user_report','community','system','verification'];
@@ -386,7 +392,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const originalFilename = safeName(sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
         const assetTypeValue = stringValue(sourceAsset.asset_type, 'other');
         const assetTypeValueSafe = allowedAssetTypes.includes(assetTypeValue) ? assetTypeValue : 'other';
-        const mimeType = safeName(sourceAsset.mime_type, 'application/octet-stream', 160);
+        const mimeType = safeMimeType(sourceAsset.mime_type, 'application/octet-stream');
         const { error: assetError } = await supabase.from('vyral_assets').insert({
           id: assetId,
           vyral_id: vyral.id,
@@ -410,7 +416,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const versionRows: Record<string, unknown>[] = [];
         const fingerprintRows: Record<string, unknown>[] = [];
         for (const item of preparedVersions) {
-          const versionMimeType = safeName(item.source.mime_type, mimeType, 160);
+          const versionMimeType = safeMimeType(item.source.mime_type, mimeType);
           const versionBuffer = new ArrayBuffer(item.bytes.byteLength);
           new Uint8Array(versionBuffer).set(item.bytes);
           const { error: uploadError } = await supabase.storage.from('vyral-assets').upload(item.storagePath, new Blob([versionBuffer], { type: versionMimeType }), {
