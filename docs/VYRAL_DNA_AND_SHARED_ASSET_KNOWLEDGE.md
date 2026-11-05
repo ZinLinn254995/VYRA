@@ -628,3 +628,15 @@ A Vision observation can enter the creator-adopted asset DNA knowledge stream on
 - Each observation can be promoted once; a database unique index enforces this in addition to the server-side duplicate check.
 - Promoted knowledge is scoped to that asset observation. It does not certify the complete asset, the whole Vyral, ownership, or lossless/DNA-only reconstruction. Its reconstruction eligibility remains false.
 - No AI provider is called. The creator is the authority explicitly adopting the statement; model identity remains a user-supplied claim unless provider authentication is implemented.
+
+## Creator-approved field-level Vision Knowledge promotion — 2026-11-06
+
+A Vision observation is never promoted wholesale. The creator must first create an immutable `creator_confirmed` review for that exact observation, then explicitly select one dotted JSON field path for promotion.
+
+- The promotion endpoint requires a signed-in user JWT and verifies observation ownership and the source asset's ownership.
+- It verifies a matching server-recorded Creator Review with decision `creator_confirmed`; a disputed, imported, or merely observed record cannot authorize promotion.
+- The accepted value must exactly match the selected field in the stored observation. Creator-authored corrections belong in a separate creator statement, not as a silent rewrite of model evidence.
+- Each promoted field becomes a new immutable asset-scoped DNA record. It retains the observation ID, review-record ID, asset version, source SHA-256, task kind, and unverified provider/model labels.
+- A database unique index prevents the same observation field from being promoted more than once. A new observation creates a new review/promotion cycle.
+- Promotion does not set asset/Vyral DNA status to complete and does not make the field eligible for DNA-only reconstruction by itself.
+- This is creator-authorized knowledge adoption, not independent factual verification or proof of ownership.
