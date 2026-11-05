@@ -6,9 +6,9 @@ type VyralIdentityIconProps = {
 };
 
 /**
- * VYRA's original Vyral Identity mark.
- * The outer V represents the Vyral identity; the intertwined inner strands
- * represent its connected assets, with the center diamond as its unique core.
+ * VYRA's abstract geometric Vyral Identity mark.
+ * Four distinct facets represent the Vyral's connected creative assets;
+ * their shared negative space protects the identity at the center.
  */
 export const VyralIdentityIcon: React.FC<VyralIdentityIconProps> = ({
   size = 20,
@@ -24,24 +24,27 @@ export const VyralIdentityIcon: React.FC<VyralIdentityIconProps> = ({
     className={className}
   >
     <path
-      d="M5.5 5.5 13.35 25.1c1.02 2.55 4.28 2.55 5.3 0L26.5 5.5"
-      stroke="currentColor"
-      strokeWidth="2.35"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M9.2 7.2c0 5.05 13.6 12.55 13.6 17.6M22.8 7.2c0 5.05-13.6 12.55-13.6 17.6"
-      stroke="currentColor"
-      strokeWidth="1.55"
-      strokeLinecap="round"
-      opacity="0.68"
-    />
-    <path
-      d="m16 12.35 3.65 3.65L16 19.65 12.35 16 16 12.35Z"
+      d="M15.15 2.8 5.15 8.55 11.45 12.2 16 9.55 20.55 12.2 26.85 8.55 16.85 2.8a1.7 1.7 0 0 0-1.7 0Z"
       fill="currentColor"
     />
-    <circle cx="9.2" cy="7.2" r="1.35" fill="currentColor" />
-    <circle cx="22.8" cy="7.2" r="1.35" fill="currentColor" />
+    <path
+      d="m4.7 9.35 6.15 3.55v7.1L4.7 23.55V9.35Z"
+      fill="currentColor"
+      opacity="0.76"
+    />
+    <path
+      d="m27.3 9.35-6.15 3.55v7.1l6.15 3.55V9.35Z"
+      fill="currentColor"
+      opacity="0.9"
+    />
+    <path
+      d="m5.55 24.55 6.15-3.55L16 23.65l4.3-2.65 6.15 3.55-9.6 5.55a1.7 1.7 0 0 1-1.7 0l-9.6-5.55Z"
+      fill="currentColor"
+      opacity="0.62"
+    />
+    <path
+      d="m16 11.1 4.1 2.4v5L16 20.9l-4.1-2.4v-5l4.1-2.4Z"
+      fill="currentColor"
+    />
   </svg>
 );
