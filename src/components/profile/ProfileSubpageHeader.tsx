@@ -38,10 +38,10 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       header.style.setProperty('--profile-collapse-percent', `${(progress * 100).toFixed(2)}%`);
       header.style.setProperty('--profile-shadow-opacity', (progress * 0.06).toFixed(4));
       set('--profile-height', mix(mobile ? 150 : 156, 48));
-      set('--back-top', mix(12, 7));
-      set('--back-left', mix(mobile ? 12 : 24, 10));
-      set('--back-font-size', mix(14, 12));
-      set('--back-width', mix(mobile ? 132 : 144, 32));
+      set('--back-top', 12);
+      set('--back-left', mobile ? 12 : 24);
+      set('--back-font-size', 14);
+      set('--back-width', mix(mobile ? 190 : 210, 32));
       set('--back-gap', mix(7, 0));
       header.style.setProperty('--back-label-opacity', (1 - progress).toFixed(4));
       set('--icon-top', mix(58, 7));
@@ -55,8 +55,9 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       set('--title-font-size', mix(mobile ? 21 : 24, 14));
       set('--description-top', mix(96, 72));
       set('--description-left', mix(mobile ? 64 : 84, mobile ? 92 : 100));
-      header.style.setProperty('--description-opacity', (1 - progress).toFixed(4));
-      set('--description-shift', -8 * progress);
+      const descriptionFade = Math.max(0, Math.min(1, (progress - 0.28) / 0.58));
+      header.style.setProperty('--description-opacity', (1 - descriptionFade).toFixed(4));
+      set('--description-shift', -12 * progress);
       set('--action-top', mix(mobile ? 58 : 56, 5));
       set('--action-right', mix(mobile ? 12 : 24, 12));
     };
@@ -89,7 +90,8 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
         <span className="profile-collapse-icon" aria-hidden="true">{icon}</span>
         <h1 className="profile-collapse-title">{title}</h1>
         <p className="profile-collapse-description">{description}</p>
-        {action || compactAction ? <div className="profile-collapse-action">{action ?? compactAction}</div> : null}
+        {action ? <div className="profile-collapse-action profile-collapse-action-expanded">{action}</div> : null}
+        {compactAction ? <div className="profile-collapse-action profile-collapse-action-compact">{compactAction}</div> : null}
       </div>
     </div>
   );
