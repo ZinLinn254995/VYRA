@@ -616,3 +616,15 @@ The Vyral Details DNA & Identity workspace now derives a comparison view from st
 - The comparison is a read-only derived view. It does not mutate observations, creator reviews, DNA records, fingerprints, or reconstruction eligibility.
 - Provider/model labels remain user-supplied claims until provider-authenticated execution is implemented. No paid model is invoked by this comparison layer.
 - The current interface shows the most recent eight version/task groups and up to twenty field paths per group; the underlying observations remain preserved and are not truncated in storage.
+
+## Creator-controlled Vision knowledge promotion — 2026-11-06
+
+A Vision observation can enter the creator-adopted asset DNA knowledge stream only through a separate explicit action after a server-recorded creator confirmation.
+
+- The promotion Edge Function requires an authenticated owner, an observation belonging to that owner, its source asset, and a matching immutable server creator review with `creator_confirmed` status.
+- Unreviewed and disputed observations are rejected. Model agreement alone never authorizes promotion.
+- The creator must enter an adoption statement describing what they are accepting. The original model observation, its model labels, source version, and source SHA-256 are preserved as provenance.
+- Promotion creates a new immutable creator DNA record. It does not edit the AI observation or review record.
+- Each observation can be promoted once; a database unique index enforces this in addition to the server-side duplicate check.
+- Promoted knowledge is scoped to that asset observation. It does not certify the complete asset, the whole Vyral, ownership, or lossless/DNA-only reconstruction. Its reconstruction eligibility remains false.
+- No AI provider is called. The creator is the authority explicitly adopting the statement; model identity remains a user-supplied claim unless provider authentication is implemented.
