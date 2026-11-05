@@ -482,7 +482,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dna_status: 'evolving',
           source_kind: allowedDnaSources.includes(sourceKind) ? sourceKind : 'system',
           verification_status: 'unverified',
-          payload,
+          payload: { ...payload, package_id: manifest.packageId, import_run_id: importRunId, trust: 'unverified_imported_evidence' },
           reconstruction_data: reconstructionData,
         });
       };
@@ -566,10 +566,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     } catch (cause) {
       const cleanupFailures: string[] = [];
       if (importPackageId && importUserId) {
-        const importedDna = await supabase.from('vyral_dna_records').delete().eq('vyral_id', vyral.id).eq('user_id', importUserId).contains('payload', { imported_provenance: { import_run_id: importRunId } });
-        if (importedDna.error) cleanupFailures.push('Imported DNA evidence cleanup: ' + importedDna.error.message);
-        const collectionEvidence = await supabase.from('vyral_dna_records').delete().eq('vyral_id', vyral.id).eq('user_id', importUserId).contains('payload', { import_run_id: importRunId, trust: 'unverified_imported_evidence' });
-        if (collectionEvidence.error) cleanupFailures.push('Imported collection evidence cleanup: ' + collectionEvidence.error.message);
+        const importedEvidence = await supabase.from('vyral_dna_records').delete().eq('vyral_id', vyral.id).eq('user_id', importUserId).contains('payload', { import_run_id: importRunId });
+        if (importedEvidence.error) cleanupFailures.push('Imported DNA evidence cleanup: ' + importedEvidence.error.message);
       }
       if (uploadedPaths.length) {
         for (let index = 0; index < uploadedPaths.length; index += 100) {
