@@ -604,3 +604,15 @@ The Development project also has a JWT-protected `record-vyral-vision-review` Ed
 - A creator review is never eligible by itself to authorize DNA-only reconstruction.
 
 The next comparison layer can now group multiple observations by source version and task, expose model-to-model agreement/conflicts, and require creator review before accepted claims are promoted into reusable reconstruction knowledge.
+
+## Multi-model Vision comparison — 2026-11-06
+
+The Vyral Details DNA & Identity workspace now derives a comparison view from stored Vision observations.
+
+- Observations are grouped only when the asset ID, exact source asset-version ID, and task kind all match. Results from different versions or tasks are never placed in the same comparison group.
+- Each group shows its model/provider labels, observation count, version number, source SHA-256, and the structured JSON outputs side by side.
+- A deterministic field-level comparison canonicalizes JSON object key order and compares exact values at each field path. Missing fields are explicitly treated as differences.
+- The interface labels these results as exact JSON value matches or differences. It does not claim semantic agreement, truth, accuracy, or independent model corroboration.
+- The comparison is a read-only derived view. It does not mutate observations, creator reviews, DNA records, fingerprints, or reconstruction eligibility.
+- Provider/model labels remain user-supplied claims until provider-authenticated execution is implemented. No paid model is invoked by this comparison layer.
+- The current interface shows the most recent eight version/task groups and up to twenty field paths per group; the underlying observations remain preserved and are not truncated in storage.
