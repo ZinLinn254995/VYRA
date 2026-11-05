@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { calculateCollapseProgress } from './profileSubpageHeader.utils';
 
 type Props = {
   onBack: () => void;
@@ -30,11 +31,13 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
 
       const stickyBottom = stickyBar.getBoundingClientRect().bottom;
       const titleTop = titleRow.getBoundingClientRect().top;
-      const start = stickyBottom + 36;
-      const end = stickyBottom - 12;
-      const progress = Math.max(0, Math.min(1, (start - titleTop) / (start - end)));
+      const progress = calculateCollapseProgress(titleTop, stickyBottom);
 
       stickyBar.style.setProperty('--collapse', progress.toFixed(3));
+      stickyBar.style.setProperty('--collapse-y', `${((1 - progress) * 5).toFixed(2)}px`);
+      stickyBar.style.setProperty('--collapse-blur', `${(progress * 16).toFixed(2)}px`);
+      stickyBar.style.setProperty('--collapse-bg', `${(progress * 96).toFixed(2)}%`);
+      stickyBar.style.setProperty('--collapse-border', `${(progress * 100).toFixed(2)}%`);
       const nextVisible = progress >= 0.98;
       if (nextVisible !== compactVisibleRef.current) {
         compactVisibleRef.current = nextVisible;
@@ -69,9 +72,9 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
         ref={stickyBarRef}
         className={`sticky top-[calc(var(--vyra-visual-viewport-top,0px)_+_var(--vyra-global-header-height,64px))] z-40 flex h-12 items-center gap-2.5 border-b px-3 transition-[border-color,box-shadow] duration-150 sm:px-6 ${compactVisible ? 'shadow-md shadow-black/5' : ''}`}
         style={{
-          backgroundColor: 'color-mix(in srgb, var(--vyra-bg-surface) calc(var(--collapse, 0) * 96%), transparent)',
-          borderColor: 'color-mix(in srgb, var(--vyra-border-subtle) calc(var(--collapse, 0) * 100%), transparent)',
-          backdropFilter: 'blur(calc(var(--collapse, 0) * 16px))',
+          backgroundColor: 'color-mix(in srgb, var(--vyra-bg-surface) var(--collapse-bg, 0%), transparent)',
+          borderColor: 'color-mix(in srgb, var(--vyra-border-subtle) var(--collapse-border, 0%), transparent)',
+          backdropFilter: 'blur(var(--collapse-blur, 0px)',
         }}
       >
         <div
@@ -80,7 +83,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
           className="flex min-w-0 flex-1 items-center gap-2.5"
           style={{
             opacity: 'var(--collapse, 0)',
-            transform: 'translateY(calc((1 - var(--collapse, 0)) * 5px))',
+            transform: 'translateY(var(--collapse-y, 5px))',
             pointerEvents: compactVisible ? 'auto' : 'none',
           }}
         >
