@@ -521,6 +521,7 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - MIME type: `application/vnd.vyra.vyral+zip`
 - Package manifest: `manifest.json`
 - Initial format version: `1`
+- Public manifest contract: [`docs/schemas/vyral-package-v1.schema.json`](./schemas/vyral-package-v1.schema.json), JSON Schema Draft 2020-12.
 - Each media version is stored as a separate binary entry under `assets/<asset-id>/versions/<version>-<version-id>.bin`.
 - The manifest preserves collection metadata, folders, assets, asset versions, DNA records, fingerprints, AI Vision observations, lineage and reconstruction-test evidence.
 - Internal Supabase storage paths and user IDs are not exported as portable package metadata.
@@ -529,6 +530,7 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - Export downloads each stored version and recalculates SHA-256 from the actual binary bytes.
 - If a stored SHA-256 exists and does not match the downloaded media, export stops rather than producing a package with a known integrity mismatch.
 - ZIP entries include CRC-32 checks, UTF-8 filenames and standard local/central directory records.
+- The reader rejects unsupported flags, multi-disk/ZIP64 records, unsafe paths, malformed local/central header mismatches and overlapping entry ranges.
 - Package paths reject absolute paths, traversal segments, Windows drive paths, backslashes, duplicate paths and malformed ZIP headers.
 - Initial limits: 5,000 archive entries, 200 MB total source media per browser export, 256 MB archive/import size and 32 MB manifest.
 - ZIP reader currently supports Store (method 0) only; compressed/deflated archives, encrypted archives and ZIP64 are explicitly rejected rather than guessed.
