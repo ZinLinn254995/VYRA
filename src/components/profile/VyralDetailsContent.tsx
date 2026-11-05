@@ -87,6 +87,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [folderName, setFolderName] = useState('');
   const [dnaNote, setDnaNote] = useState('');
   const [dnaAssetId, setDnaAssetId] = useState('');
+  const [visionAssetId, setVisionAssetId] = useState('');
+  const [visionVersionId, setVisionVersionId] = useState('');
+  const [visionTaskKind, setVisionTaskKind] = useState('description');
+  const [visionProvider, setVisionProvider] = useState('external_model');
+  const [visionModel, setVisionModel] = useState('user_supplied');
+  const [visionConfidence, setVisionConfidence] = useState('');
+  const [visionJson, setVisionJson] = useState('{
+  "summary": "",
+  "attributes": [],
+  "uncertainties": []
+}');
+  const [savingVision, setSavingVision] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -739,6 +751,62 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     else setPreviewUrl(data.signedUrl);
   };
 
+  const saveVisionObservation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!supabase || savingVision) return;
+    const asset = assets.find((item) => item.id === visionAssetId);
+    const version = versions.find((item) => item.id === visionVersionId && item.asset_id === visionAssetId);
+    if (!asset || !version) { setError('Select an asset and one of its source versions.'); return; }
+    let observation: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(visionJson);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Observation must be a JSON object.');
+      observation = parsed as Record<string, unknown>;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Observation JSON is invalid.');
+      return;
+    }
+    setSavingVision(true);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('record-vyral-vision-observation', {
+        body: {
+          assetId: asset.id,
+          versionId: version.id,
+          taskKind: visionTaskKind,
+          modelProvider: visionProvider.trim(),
+          modelId: visionModel.trim(),
+          confidence: visionConfidence.trim() ? Number(visionConfidence) : null,
+          observation,
+        },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json() as { error?: string };
+            if (payload.error) detail = payload.error;
+          } catch { /* Keep the SDK error message. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'recorded') throw new Error('Vision observation was not confirmed as recorded.');
+      setVisionJson('{
+  "summary": "",
+  "attributes": [],
+  "uncertainties": []
+}');
+      setVisionConfidence('');
+      await loadWorkspace();
+      setPackageStatus('Vision observation recorded with source-version integrity evidence. Model identity remains self-reported.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not record Vision observation.');
+    } finally {
+      setSavingVision(false);
+    }
+  };
+
   const saveDnaNote = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || !dnaNote.trim()) return;
@@ -900,7 +968,19 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </section>
           <section className={surface+' p-4'}>
             <h3 className={'text-sm font-semibold '+primary}>AI Vision evidence</h3>
-            <p className={'mt-1 text-xs '+muted}>Observations remain separate from creator-confirmed identity rules until they are reviewed or corroborated.</p>
+            <p className={'mt-1 text-xs '+muted}>Observations remain separate from creator-confirmed identity rules until they are reviewed or corroborated. This recorder stores externally generated model output; it does not call an AI provider or claim provider-authenticated provenance.</p>
+            <form onSubmit={(event)=>void saveVisionObservation(event)} className="mt-3 space-y-2 rounded-lg border border-[var(--vyra-border-subtle)] p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Source asset</span><select required value={visionAssetId} onChange={(event)=>{setVisionAssetId(event.target.value);setVisionVersionId('');}} className={field}><option value="">Select asset</option>{assets.map((asset)=><option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></label>
+                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Source version</span><select required value={visionVersionId} onChange={(event)=>setVisionVersionId(event.target.value)} className={field}><option value="">Select version</option>{versions.filter((version)=>version.asset_id===visionAssetId).sort((a,b)=>b.version_number-a.version_number).map((version)=><option key={version.id} value={version.id}>Version {version.version_number} · {version.sha256?'SHA-256 recorded':'No hash'}</option>)}</select></label>
+                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Analysis task</span><select value={visionTaskKind} onChange={(event)=>setVisionTaskKind(event.target.value)} className={field}><option value="identity">Identity</option><option value="description">Description</option><option value="consistency">Consistency</option><option value="generation_context">Generation context</option><option value="reconstruction">Reconstruction</option><option value="safety">Safety</option><option value="other">Other</option></select></label>
+                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Model provider / source</span><input required maxLength={80} value={visionProvider} onChange={(event)=>setVisionProvider(event.target.value)} className={field} placeholder="e.g. OpenRouter, Gemini"/></label>
+                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Model identifier</span><input required maxLength={160} value={visionModel} onChange={(event)=>setVisionModel(event.target.value)} className={field} placeholder="Exact model name or ID"/></label>
+                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Model-reported confidence (optional, 0–1)</span><input type="number" min="0" max="1" step="0.0001" value={visionConfidence} onChange={(event)=>setVisionConfidence(event.target.value)} className={field} placeholder="e.g. 0.82"/></label>
+              </div>
+              <label className={'block space-y-1 text-[10px] '+muted}><span>Structured observation (JSON)</span><textarea required rows={6} maxLength={65536} value={visionJson} onChange={(event)=>setVisionJson(event.target.value)} className={field+' min-h-32 py-2.5 font-mono text-[11px]'} /></label>
+              <div className="flex flex-wrap items-center justify-between gap-2"><p className={'max-w-xl text-[10px] leading-4 '+muted}>The server rechecks the private source file's SHA-256 and size. Provider/model labels are recorded as user-supplied claims, not verified credentials.</p><button type="submit" disabled={savingVision||!visionAssetId||!visionVersionId||!visionProvider.trim()||!visionModel.trim()} className={primaryButton}><Plus size={13}/>{savingVision?'Recording…':'Record observation'}</button></div>
+            </form>
             {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p></article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
           </section>
           <section className={surface+' p-4'}>
