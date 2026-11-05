@@ -3,7 +3,7 @@ name: VYRA CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'rebuild/**']
 
 jobs:
   verify:
@@ -41,5 +41,7 @@ jobs:
         run: npm run test:consistency
       - name: Audio export validation and runtime tests
         run: npm run test:audio-export
+      - name: VYRAL package archive tests
+        run: npm run test:vyral-package
       - name: Production build
         run: npm run build
