@@ -12,9 +12,22 @@ const ORIGIN = {
   vyralId: 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d',
   originalAssetId: '2c496cd5-84c4-44b1-b02a-fca4265cc592',
   originalVersionId: 'b4376fd9-a577-464e-91b4-e33791559e7f',
-  candidateAssetId: 'a40f067c-0ed1-4b93-814f-4f2f925ff320',
-  candidateVersionId: 'b23dafc8-f5b8-447b-b06b-77553c590a08',
-  candidateDnaId: '8856e567-0221-4011-b9c2-22c228faa449',
+  candidates: {
+    'a40f067c-0ed1-4b93-814f-4f2f925ff320': {
+      versionId: 'b23dafc8-f5b8-447b-b06b-77553c590a08',
+      dnaId: '8856e567-0221-4011-b9c2-22c228faa449',
+      provider: selectedCandidate.provider,
+      method: 'blind_reconstruction_from_dna_only_package',
+      modelName: 'Gemini',
+    },
+    'a63edc73-0247-4477-84b9-f942080de694': {
+      versionId: '273ecd4f-4045-490d-8616-993995a3bec4',
+      dnaId: '95b1ca66-01f5-4ecd-a679-bd891c8549ad',
+      provider: 'xAI',
+      method: 'blind_visual_reconstruction_from_dna_only_package',
+      modelName: 'Grok',
+    },
+  } as Record<string, { versionId: string; dnaId: string; provider: string; method: string; modelName: string }>,
   packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
   masterDnaRecordId: 'b1c8b6a3-205c-4472-991d-0b73aa9e3bff',
   ownerId: 'c9801424-1e4d-4604-99d3-791a8a389b48',
@@ -129,22 +142,24 @@ Deno.serve(async (request: Request) => {
 
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
+  const selectedCandidate = typeof body.candidateAssetId === 'string' ? ORIGIN.candidates[body.candidateAssetId] : undefined;
   if (
     body.originalAssetId !== ORIGIN.originalAssetId ||
     body.originalVersionId !== ORIGIN.originalVersionId ||
-    body.candidateAssetId !== ORIGIN.candidateAssetId ||
-    body.candidateVersionId !== ORIGIN.candidateVersionId ||
-    body.dnaRecordId !== ORIGIN.candidateDnaId
-  ) return json({ error: 'The supplied comparison pair is not the registered ORIGIN-01 blind reconstruction pair.' }, 400);
+    !selectedCandidate ||
+    body.candidateVersionId !== selectedCandidate.versionId ||
+    body.dnaRecordId !== selectedCandidate.dnaId
+  ) return json({ error: 'The supplied comparison pair is not a registered ORIGIN-01 blind reconstruction candidate.' }, 400);
+  const candidateAssetId = String(body.candidateAssetId);
 
   const [vyralResult, originalAssetResult, candidateAssetResult, originalVersionResult, candidateVersionResult, dnaResult, lineageResult] = await Promise.all([
     context.supabase.from('vyrals').select('id,metadata').eq('id', ORIGIN.vyralId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_assets').select('id,vyral_id,user_id,name,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', ORIGIN.originalAssetId).eq('user_id', userId).maybeSingle(),
-    context.supabase.from('vyral_assets').select('id,vyral_id,user_id,name,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
+    context.supabase.from('vyral_assets').select('id,vyral_id,user_id,name,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', candidateAssetId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number').eq('id', ORIGIN.originalVersionId).eq('asset_id', ORIGIN.originalAssetId).eq('user_id', userId).maybeSingle(),
-    context.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number').eq('id', ORIGIN.candidateVersionId).eq('asset_id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
-    context.supabase.from('vyral_dna_records').select('id,asset_id,vyral_id,user_id,source_kind,payload,verification_status').eq('id', ORIGIN.candidateDnaId).eq('asset_id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
-    context.supabase.from('vyral_lineage').select('id').eq('vyral_id', ORIGIN.vyralId).eq('parent_asset_id', ORIGIN.originalAssetId).eq('child_asset_id', ORIGIN.candidateAssetId).eq('relation_kind', 'generated_from').limit(1),
+    context.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number').eq('id', selectedCandidate.versionId).eq('asset_id', candidateAssetId).eq('user_id', userId).maybeSingle(),
+    context.supabase.from('vyral_dna_records').select('id,asset_id,vyral_id,user_id,source_kind,payload,verification_status').eq('id', selectedCandidate.dnaId).eq('asset_id', candidateAssetId).eq('user_id', userId).maybeSingle(),
+    context.supabase.from('vyral_lineage').select('id').eq('vyral_id', ORIGIN.vyralId).eq('parent_asset_id', ORIGIN.originalAssetId).eq('child_asset_id', candidateAssetId).eq('relation_kind', 'generated_from').limit(1),
   ]);
   const queryError = [vyralResult, originalAssetResult, candidateAssetResult, originalVersionResult, candidateVersionResult, dnaResult, lineageResult].find((result) => result.error)?.error;
   if (queryError) return json({ error: 'Could not validate the registered ORIGIN-01 evidence records.' }, 500);
@@ -185,8 +200,8 @@ Deno.serve(async (request: Request) => {
     ? dnaPayload.upload as Record<string, unknown> : {};
   if (
     dna.source_kind !== 'generation' ||
-    dnaProvenance.provider !== 'Google Gemini' ||
-    dnaProvenance.method !== 'blind_reconstruction_from_dna_only_package' ||
+    dnaProvenance.provider !== selectedCandidate.provider ||
+    dnaProvenance.method !== selectedCandidate.method ||
     dnaProvenance.input_package_id !== ORIGIN.packageId ||
     dnaProvenance.input_package_mode !== 'dna-only' ||
     dnaProvenance.source_binary_provided_to_model !== false ||
@@ -195,10 +210,10 @@ Deno.serve(async (request: Request) => {
     dnaProvenance.source_master_dna_record_id !== ORIGIN.masterDnaRecordId ||
     dnaUpload.sha256 !== candidateVersion.sha256 ||
     Number(dnaUpload.size_bytes) !== Number(candidateVersion.size_bytes)
-  ) return json({ error: 'The candidate DNA provenance does not match the registered Gemini DNA-only reconstruction record.' }, 409);
+  ) return json({ error: 'The candidate DNA provenance does not match its registered DNA-only reconstruction record.' }, 409);
 
   const originalPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.originalAssetId + '/';
-  const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.candidateAssetId + '/';
+  const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + candidateAssetId + '/';
   if (!originalVersion.storage_path.startsWith(originalPrefix) || !candidateVersion.storage_path.startsWith(candidatePrefix)) {
     return json({ error: 'A stored asset path failed its ownership-prefix validation.' }, 409);
   }
@@ -234,7 +249,7 @@ Deno.serve(async (request: Request) => {
       comparison: { performed: false, reason: 'Stored file integrity must be verified before visual comparison.' },
       provenance: {
         reconstructionInput: {
-          provider: 'Google Gemini',
+          provider: selectedCandidate.provider,
           packageId: ORIGIN.packageId,
           packageMode: 'DNA-only',
           originalBinaryExposure: 'creator_attested_not_provided',
@@ -246,7 +261,7 @@ Deno.serve(async (request: Request) => {
     };
     const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
       vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
-      dna_record_id: dna.id, model_provider: 'Google Gemini', model_id: 'model_not_recorded',
+      dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: selectedCandidate.modelName + '_model_not_recorded',
       protocol_version: 'ORIGIN-01-v1', comparison_mode: 'decoded_exact', test_status: 'inconclusive',
       exact_match: null, similarity_score: null, verifier: { engine: 'ImageMagick WASM', version: '0.0.30', execution: 'server_edge_function' },
       report, tested_at: testedAt,
@@ -316,7 +331,7 @@ Deno.serve(async (request: Request) => {
     },
     provenance: {
       reconstructionInput: {
-        provider: 'Google Gemini',
+        provider: selectedCandidate.provider,
         packageId: ORIGIN.packageId,
         packageMode: 'DNA-only',
         originalBinaryExposure: 'creator_attested_not_provided',
@@ -337,7 +352,7 @@ Deno.serve(async (request: Request) => {
   };
   const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
     vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
-    dna_record_id: dna.id, model_provider: 'Google Gemini', model_id: 'model_not_recorded',
+    dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: selectedCandidate.modelName + '_model_not_recorded',
     protocol_version: 'ORIGIN-01-v1', comparison_mode: sameDimensions ? 'decoded_exact' : 'perceptual',
     test_status: exactMatch === true ? 'passed' : 'failed',
     exact_match: exactMatch, similarity_score: similarityScore,
