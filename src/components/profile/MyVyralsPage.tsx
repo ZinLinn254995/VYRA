@@ -55,20 +55,31 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   };
 
   if (active) return (
-    <section className="space-y-5">
-      <button type="button" onClick={() => { setActiveId(null); setQuery(''); setCategory('all'); }} className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)]"><ArrowLeft size={16} /> Back to My Vyrals</button>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2"><VyralIdentityIcon size={22} className="text-[var(--vyra-accent-primary)]" /><h2 className="truncate text-lg font-bold text-[var(--vyra-text-primary)]">{active.name}</h2></div>
-          {active.description && <p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">{active.description}</p>}
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--vyra-text-muted)]"><span>{active.folders.length} folders</span><span>·</span><span>Private Vyral</span><span>·</span><span>DNA identity initialized</span></div>
+    <section className="space-y-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <button type="button" onClick={() => { setActiveId(null); setQuery(''); setCategory('all'); }} aria-label="Back to My Vyrals" className="grid size-8 shrink-0 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)]"><ArrowLeft size={17} /></button>
+        <VyralIdentityIcon size={21} className="shrink-0 text-[var(--vyra-accent-primary)]" />
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-base font-bold text-[var(--vyra-text-primary)]">{active.name}</h2>
+          {active.description && <p className="truncate text-xs text-[var(--vyra-text-secondary)]">{active.description}</p>}
         </div>
-        <Button size="sm" onClick={() => setFolderOpen(true)} startIcon={<FolderPlus size={15} />}>New Folder</Button>
+        <Button size="sm" onClick={() => setFolderOpen(true)} startIcon={<FolderPlus size={14} />}>New Folder</Button>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-0 flex-1 sm:max-w-xs"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this Vyral" className={fieldClass + ' pl-9'} /></div>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} className={fieldClass + ' w-auto min-w-32'}><option value="all">All types</option><option value="image">Images</option><option value="video">Videos</option><option value="audio">Audio</option><option value="document">Documents</option><option value="other">Other files</option></select>
-        <div className="flex rounded-lg border border-[var(--vyra-border)] p-1"><button type="button" aria-label="Grid view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`rounded-md p-2 ${viewMode === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={16} /></button><button type="button" aria-label="List view" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} className={`rounded-md p-2 ${viewMode === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={16} /></button></div>
+      <div className="flex items-center gap-1.5">
+        <div className="relative min-w-0 flex-1">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" className={fieldClass + ' !min-h-9 !rounded-md !pl-8 !pr-2 !text-xs'} />
+        </div>
+        <select aria-label="Filter file type" value={category} onChange={(event) => setCategory(event.target.value)} className={fieldClass + ' !min-h-9 !w-[104px] !rounded-md !px-2 !text-xs'}>
+          <option value="all">All types</option><option value="image">Images</option><option value="video">Videos</option><option value="audio">Audio</option><option value="document">Documents</option><option value="other">Other</option>
+        </select>
+        <div className="flex shrink-0 rounded-md border border-[var(--vyra-border)] p-0.5">
+          <button type="button" aria-label="Grid view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`rounded p-1.5 ${viewMode === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15} /></button>
+          <button type="button" aria-label="List view" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} className={`rounded p-1.5 ${viewMode === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15} /></button>
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-1 text-[10px] text-[var(--vyra-text-muted)]">
+        <span>{active.folders.length} folders</span><span>Private · DNA identity initialized</span>
       </div>
       <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)]/40 p-4">
         <div className="flex items-center gap-2 text-xs font-semibold text-[var(--vyra-text-secondary)]"><Folder size={15} /> FOLDER STRUCTURE</div>
@@ -87,7 +98,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0"><h2 className="text-base font-bold text-[var(--vyra-text-primary)]">Your Vyrals</h2><p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">Independent creative libraries with their own identity and knowledge.</p></div>
+        <div className="min-w-0"><h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)]">My Vyrals</h1><p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">Your creative libraries, identity and knowledge.</p></div>
         <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}>Create New Vyral</Button>
       </div>
       <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>
