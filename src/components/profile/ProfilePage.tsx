@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ArrowLeft, Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images,
+  Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images,
   CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
   LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
   Users, Wallet, type LucideIcon,
