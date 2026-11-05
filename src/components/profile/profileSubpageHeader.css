@@ -1,7 +1,8 @@
 /* The header remains pinned while its contents ease into a compact top row. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
-  --profile-header-expanded: 204px;
+  --profile-header-expanded: 148px;
+  --profile-header-collapse-distance: 44px;
   position: relative; z-index: 3;
   flex: 0 0 var(--profile-header-height, 156px);
   height: var(--profile-header-height, 156px);
@@ -11,6 +12,10 @@
   border-top-left-radius: 1rem; border-top-right-radius: 1rem;
   border-bottom: 1px solid var(--vyra-border-subtle);
   transition: height 180ms ease-out, flex-basis 180ms ease-out, min-height 180ms ease-out;
+}
+.profile-collapse-header--search {
+  --profile-header-expanded: 204px;
+  --profile-header-collapse-distance: 80px;
 }
 .profile-collapse-back, .profile-collapse-icon, .profile-collapse-title,
 .profile-collapse-description, .profile-collapse-action { position: absolute; z-index: 2; }
@@ -166,6 +171,17 @@
   max-height: none;
 }
 
+/* The main Profile landing page scrolls inside the fixed app viewport. */
+.profile-page-main:not(:has(.profile-subpage-viewport)) {
+  display: block;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* The search field is part of the card header and remains visible in compact mode. */
 .profile-collapse-search {
   position: absolute;
@@ -176,7 +192,8 @@
 }
 .profile-collapse-search > * { width: 100%; }
 @media (max-width: 639px) {
-  .profile-collapse-header { --profile-header-expanded: 198px; }
+  .profile-collapse-header { --profile-header-expanded: 142px; }
+  .profile-collapse-header--search { --profile-header-expanded: 198px; }
   .profile-collapse-search { left: 12px; right: 12px; bottom: 10px; }
   .profile-collapse-back { left: 12px; width: 190px; }
   .profile-collapse-icon { left: calc(12px + var(--profile-header-shift-x, 0px)); }
