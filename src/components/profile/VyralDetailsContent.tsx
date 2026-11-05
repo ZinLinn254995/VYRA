@@ -113,6 +113,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [visionJson, setVisionJson] = useState('{"summary":"","attributes":[],"uncertainties":[]}');
   const [savingVision, setSavingVision] = useState(false);
   const [reviewingObservationId, setReviewingObservationId] = useState<string | null>(null);
+  const [promotingObservationId, setPromotingObservationId] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -866,6 +867,35 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
+
+  const promoteVisionKnowledge = async (observationId: string) => {
+    if (!supabase || promotingObservationId) return;
+    const creatorStatement = window.prompt('Write what you, as the creator, are explicitly adopting as asset knowledge. This does not certify the whole Vyral or exact reconstruction.');
+    if (!creatorStatement?.trim()) return;
+    setPromotingObservationId(observationId);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('promote-vyral-vision-knowledge', {
+        body: { observationId, creatorStatement: creatorStatement.trim() },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try { const payload = await response.clone().json() as { error?: string }; if (payload.error) detail = payload.error; } catch { /* Keep SDK error. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'knowledge_promoted') throw new Error('Creator-approved knowledge was not confirmed as recorded.');
+      await loadWorkspace();
+      setPackageStatus('Creator-adopted knowledge saved as a separate immutable DNA record. It does not certify complete DNA or exact reconstruction.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not promote Vision knowledge.');
+    } finally {
+      setPromotingObservationId(null);
+    }
+  };
+
   const saveDnaNote = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || !dnaNote.trim()) return;
@@ -1057,7 +1087,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 </article>;
               })}</div>
             </section>}
-            {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.source_kind === 'creator' && ['creator_confirmed', 'disputed'].includes(record.verification_status) && record.payload?.review_source === 'server_creator_review' && record.payload?.vision_observation_review_id === item.id); return review ? <p className={'mt-2 text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
+            {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.source_kind === 'creator' && ['creator_confirmed', 'disputed'].includes(record.verification_status) && record.payload?.review_source === 'server_creator_review' && record.payload?.vision_observation_review_id === item.id); return review ? <div className="mt-2"><p className={'text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p>{review.verification_status === 'creator_confirmed' && (() => { const promoted = dnaRecords.some((record) => record.source_kind === 'creator' && record.payload?.knowledge_promotion_source === 'creator_adopted_vision_observation' && record.payload?.vision_observation_id === item.id); return promoted ? <p className={'mt-2 text-[10px] '+muted}>Promoted to creator-adopted DNA knowledge · immutable record</p> : <button type="button" disabled={promotingObservationId !== null} onClick={()=>void promoteVisionKnowledge(item.id)} className={button+' mt-2'}>{promotingObservationId===item.id?'Promoting…':'Adopt as DNA knowledge'}</button>; })()}</div> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
           </section>
           <section className={surface+' p-4'}>
             <h3 className={'text-sm font-semibold '+primary}>Reconstruction verification</h3><p className={'mt-1 text-xs leading-5 '+subtle}>DNA is not complete because it contains many descriptions. It earns a verified status only after an independent DNA-only reconstruction test, with the original withheld from the reconstruction model.</p>
