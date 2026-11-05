@@ -3,9 +3,10 @@ import {
   ArrowLeft, Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images,
   CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
   LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
-  Users, Wallet, WandSparkles, type LucideIcon,
+  Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 
 type ProfilePageProps = {
   userEmail: string;
@@ -32,7 +33,7 @@ type NavItem = { key: PageKey; label: string; detail: string; icon: LucideIcon }
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
     { key: 'public-profile', label: 'My Public Profile', detail: 'Your creator identity and public showcase', icon: UserRound },
-    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage drafts and published creative assets', icon: WandSparkles },
+    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage drafts and published creative assets', icon: VyralIdentityIcon },
     { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded images, videos, audio and files', icon: Images },
   ] },
   { title: 'My Library', items: [
@@ -55,7 +56,7 @@ const groups: { title: string; items: NavItem[] }[] = [
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: LucideIcon; note: string }> = {
   'public-profile': { title: 'My Public Profile', description: 'Manage the creator profile other people can visit.', icon: UserRound, note: 'Your public creator page and profile editor will appear here.' },
-  'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: WandSparkles, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
+  'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: VyralIdentityIcon, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
   'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded images, videos, audio and files.', icon: Images, note: 'Your uploaded images, videos, audio and documents will appear here.' },
   saved: { title: 'Saved', description: 'Keep interesting Vyrals together for later.', icon: Bookmark, note: 'Vyrals you save from the Marketplace will appear here. Saved items are private by default.' },
   purchased: { title: 'Purchased', description: 'Access your purchased Vyrals and their license details.', icon: ShoppingBag, note: 'Your purchases, receipts, license terms and available updates will appear here. A purchase does not automatically grant resale rights.' },
