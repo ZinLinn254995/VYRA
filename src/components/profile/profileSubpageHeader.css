@@ -108,6 +108,12 @@
   overflow: hidden;
   overflow-anchor: none;
 }
+/* Bottom corners emerge gradually as the final content approaches the scroll edge. */
+.profile-subpage-card {
+  border-bottom-left-radius: var(--profile-card-bottom-radius, 0px) !important;
+  border-bottom-right-radius: var(--profile-card-bottom-radius, 0px) !important;
+  transition: border-bottom-left-radius 180ms ease-out, border-bottom-right-radius 180ms ease-out;
+}
 .profile-subpage-content {
   flex: 1 1 auto;
   min-height: 0;
