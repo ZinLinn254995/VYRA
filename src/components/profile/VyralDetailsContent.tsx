@@ -938,6 +938,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     let preferredRecordId: string | undefined;
     let note = '';
     let contextLabel = '';
+    let contextTags: string[] = [];
     if (resolutionType === 'prefer_one') {
       const choices = group.records.map((record, index) => {
         const model = String(record.payload.model_provider_claim ?? 'Unknown model') + ' · ' + String(record.payload.model_id_claim ?? 'Unknown ID');
@@ -959,6 +960,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         return;
       }
       contextLabel = label.trim();
+      const tagsAnswer = window.prompt('Enter exact context tags separated by semicolons (1–12 tags, each 1–64 characters). Example: front view; daylight; close-up. These are creator-defined tags, not AI-inferred.');
+      if (tagsAnswer === null) return;
+      contextTags = tagsAnswer.split(';').map((tag) => tag.trim().toLowerCase()).filter(Boolean);
+      if (contextTags.length < 1 || contextTags.length > 12 || contextTags.some((tag) => tag.length > 64 || !/^[a-z0-9][a-z0-9 _-]*$/.test(tag)) || new Set(contextTags).size !== contextTags.length) {
+        setError('Enter 1–12 unique context tags using letters, numbers, spaces, underscores or hyphens; each tag must be 1–64 characters.');
+        return;
+      }
       const answer = window.prompt('Explain why these values should remain valid in those contexts. (Required, max 2,000 characters)');
       if (answer === null || answer.trim().length < 3 || answer.trim().length > 2000) return;
       note = answer.trim();
@@ -974,6 +982,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           recordIds: group.records.map((record) => record.id),
           preferredRecordId,
           contextLabel,
+          contextTags,
           note,
         },
       });
@@ -1210,7 +1219,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     <p className={'mt-2 text-[10px] font-semibold '+primary}>Creator resolution history</p>
                     {group.resolutionRecords.map((resolution) => <div key={resolution.id} className="mt-2">
                       <p className={'text-[10px] '+subtle}>{resolution.payload.resolution_type === 'prefer_one' ? 'Preferred value: ' + String(resolution.payload.preferred_promotion_record_id).slice(0,8) : 'Both values retained as context-dependent'} · {dateLabel(resolution.created_at)}</p>
-                      {typeof resolution.payload.creator_context_label === 'string' && resolution.payload.creator_context_label && <div className="mt-1"><p className={'text-[9px] '+primary}>Creator-defined context: {resolution.payload.creator_context_label}</p><p className={'mt-1 text-[9px] '+muted}>Descriptive label only · context has not been matched or applied to other evidence.</p></div>}
+                      {typeof resolution.payload.creator_context_label === 'string' && resolution.payload.creator_context_label && <div className="mt-1"><p className={'text-[9px] '+primary}>Creator-defined context: {resolution.payload.creator_context_label}</p>{Array.isArray(resolution.payload.creator_context_tags) && resolution.payload.creator_context_tags.length > 0 && <p className={'mt-1 break-words text-[9px] '+subtle}>Exact tags required: {resolution.payload.creator_context_tags.join(' · ')}</p>}<p className={'mt-1 text-[9px] '+muted}>Not applied: runtime context has not been independently supplied and exactly matched. Tags are creator-defined, not AI-inferred.</p></div>}
                       {typeof resolution.payload.creator_note === 'string' && resolution.payload.creator_note && <p className={'mt-1 text-[9px] '+muted}>{resolution.payload.creator_note}</p>}
                     </div>)}
                   </div>}
