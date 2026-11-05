@@ -476,8 +476,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             claimed_verification_status: sourceRecord.verification_status ?? null,
             trust: 'unverified_imported_evidence',
           },
-          objectValue(sourceRecord.reconstruction_data),
-        );
+        }, objectValue(sourceRecord.reconstruction_data));
       }
 
       for (const sourceFingerprint of manifest.fingerprints) {
