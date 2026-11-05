@@ -679,3 +679,12 @@ The conflict-resolution workflow now records an explicit creator-supplied contex
 - Context labels are limited to 300 characters. The server validates the field; a client-side prompt alone is not trusted.
 - A context label is descriptive scope metadata, not proof that either value is factually correct. It does not change the original observations or promoted values, select a winner, certify the asset, or enable DNA-only reconstruction.
 - Future decisions may append a new resolution record. Earlier creator decisions remain in the audit history.
+
+
+## Conflict decision scope and trusted history — 2026-11-06
+
+The conflict panel now displays a latest-decision summary only from creator-confirmed records carrying the server conflict-resolution provenance marker. Imported or user-claimed resolution payloads are not treated as trusted creator decisions.
+
+A resolution history entry is associated with a displayed conflict when its exact asset/version/task/field scope matches and every promotion ID named by that immutable resolution is still present in the displayed conflict group. This preserves visibility of earlier decisions when later evidence adds another competing promotion. The UI explicitly states that a decision applies only to the promotion records named in that history entry; newly added evidence does not inherit an earlier preference or contextual label automatically.
+
+The latest decision is a history/status indicator, not a global winner and not an instruction to rewrite DNA. All competing promotions and resolution records remain immutable. No contextual precedence is inferred, and no resolution increases reconstruction eligibility.
