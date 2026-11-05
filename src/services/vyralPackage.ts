@@ -219,6 +219,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   const folderParents = new Map<string, string | null>();
   for (const folder of folders) {
     if (typeof folder.id !== 'string' || !folder.id || typeof folder.name !== 'string' || !folder.name.trim()) throw new Error('A VYRAL folder is missing its ID or name.');
+    if (folder.parent_id !== undefined && folder.parent_id !== null && typeof folder.parent_id !== 'string') throw new Error('A VYRAL folder parent ID is invalid.');
     if (folderIds.has(folder.id)) throw new Error('Duplicate VYRAL folder identity.');
     folderIds.add(folder.id);
     folderParents.set(folder.id, typeof folder.parent_id === 'string' ? folder.parent_id : null);
@@ -238,6 +239,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     if (typeof asset.id !== 'string' || !asset.id || typeof asset.name !== 'string' || !asset.name.trim()) throw new Error('A VYRAL asset is missing its ID or name.');
     if (assetIds.has(asset.id)) throw new Error('Duplicate VYRAL asset identity.');
     assetIds.add(asset.id);
+    if (asset.folder_id !== undefined && asset.folder_id !== null && typeof asset.folder_id !== 'string') throw new Error('A VYRAL asset folder ID is invalid.');
     if (typeof asset.folder_id === 'string' && !folderIds.has(asset.folder_id)) throw new Error('A VYRAL asset references a missing folder.');
   }
 
@@ -247,6 +249,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     if (typeof version.id !== 'string' || !version.id || versionIds.has(version.id)) throw new Error('A VYRAL asset version has a missing or duplicate ID.');
     versionIds.add(version.id);
     if (typeof version.asset_id !== 'string' || !assetIds.has(version.asset_id)) throw new Error('A VYRAL version references a missing asset.');
+    if (version.parent_version_id !== undefined && version.parent_version_id !== null && typeof version.parent_version_id !== 'string') throw new Error('A VYRAL version parent ID is invalid.');
     const versionNumber = Number(version.version_number);
     if (!Number.isInteger(versionNumber) || versionNumber < 1) throw new Error('A VYRAL asset version number is invalid.');
     const assetVersionNumbers = versionsByAsset.get(version.asset_id) ?? new Set<number>();
