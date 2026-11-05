@@ -36,8 +36,8 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
     header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-    header.style.setProperty('--profile-create-button-width', (142 - 56 * headerProgress) + 'px');
-    header.style.setProperty('--profile-create-extra-width', (88 * (1 - headerProgress)) + 'px');
+    header.style.setProperty('--profile-create-button-width', (148 - 64 * headerProgress) + 'px');
+    header.style.setProperty('--profile-create-extra-width', (100 * (1 - headerProgress)) + 'px');
     header.style.setProperty('--profile-create-extra-opacity', (1 - headerProgress).toFixed(3));
     header.style.setProperty('--profile-create-extra-shift', (12 * headerProgress) + 'px');
     header.style.setProperty('--profile-back-label-width', (190 * (1 - headerProgress)) + 'px');
@@ -138,7 +138,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         icon={<VyralIdentityIcon size={22} />}
         title="My Vyrals"
         description="Your creative libraries, identity and knowledge."
-        action={<Button size="sm" onClick={() => setCreateOpen(true)} startIcon={<Plus size={14} />} className="profile-create-button" aria-label="Create New Vyral"><span className="profile-create-label">Create</span><span className="profile-create-extra"> New Vyral</span></Button>}
+        action={<Button size="sm" onClick={() => setCreateOpen(true)} startIcon={<Plus size={14} />} className="profile-create-button" aria-label="Create New Vyral"><span className="profile-create-copy"><span className="profile-create-label">Create</span><span className="profile-create-extra">New Vyral</span></span></Button>}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
       />
       <div className="profile-subpage-content space-y-5 p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
