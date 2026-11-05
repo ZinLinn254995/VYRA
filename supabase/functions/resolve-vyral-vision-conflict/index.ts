@@ -34,7 +34,7 @@ Deno.serve(async (request: Request) => {
   if (contextLabel.length > 300) return json({ error: 'Context label must be 300 characters or fewer.' }, 400);
   if (body.resolutionType === 'keep_contextual' && !contextLabel) return json({ error: 'A creator-defined context label is required when retaining contextual values.' }, 400);
   const rawContextTags = body.contextTags;
-  const contextTags = Array.isArray(rawContextTags) ? rawContextTags.map((tag) => typeof tag === 'string' ? tag.trim().toLowerCase() : '') : [];
+  const contextTags = Array.isArray(rawContextTags) ? rawContextTags.map((tag) => typeof tag === 'string' ? tag.trim().normalize('NFC').toLowerCase() : '') : [];
   if (body.resolutionType === 'keep_contextual' && (contextTags.length < 1 || contextTags.length > 12 || contextTags.some((tag) => !tag || tag.length > 64 || !/^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u.test(tag)) || new Set(contextTags).size !== contextTags.length)) {
     return json({ error: 'Provide 1–12 unique context tags using letters, numbers, spaces, underscores or hyphens; each tag must be 1–64 characters.' }, 400);
   }
