@@ -305,7 +305,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);
       const safeMimeType = (value: unknown, fallback: string) => {
         const candidate = stringValue(value, fallback).trim();
-        return candidate.length <= 160 && /^[a-zA-Z0-9!#$&^_.+-]+\\/[a-zA-Z0-9!#$&^_.+-]+$/.test(candidate)
+        const separator = candidate.indexOf('/');
+        const isMimeToken = (token: string) => /^[a-zA-Z0-9!#$&^_.+-]+$/.test(token);
+        return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') &&
+          isMimeToken(candidate.slice(0, separator)) && isMimeToken(candidate.slice(separator + 1))
           ? candidate
           : fallback;
       };
