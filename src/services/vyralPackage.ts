@@ -73,7 +73,7 @@ export const createVyralZip = (entries: VyralPackageEntry[]) => {
     const data = typeof entry.data === 'string' ? encoder.encode(entry.data) : entry.data;
     if (name.length > 65535 || data.byteLength > 0xffffffff) throw new Error('Package entry exceeds ZIP format limits: ' + entry.path);
     totalBytes += data.byteLength;
-    if (totalBytes > MAX_ARCHIVE_BYTES) throw new Error('VYRAL package exceeds the 512 MB archive limit.');
+    if (totalBytes > MAX_ARCHIVE_BYTES) throw new Error('VYRAL package exceeds the 256 MB archive limit.');
     const checksum = crc32(data);
     const local = new Uint8Array(30 + name.length);
     const localView = new DataView(local.buffer);
