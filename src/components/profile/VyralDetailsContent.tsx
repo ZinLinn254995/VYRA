@@ -300,7 +300,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const safeMimeType = (value: unknown, fallback: string) => {
         const candidate = stringValue(value, fallback).trim();
         const separator = candidate.indexOf('/');
-        return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') && !/\\s/.test(candidate)
+        return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') && !candidate.split('').some((character) => character.trim() === '')
           ? candidate
           : fallback;
       };
