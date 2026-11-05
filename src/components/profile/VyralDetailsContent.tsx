@@ -299,9 +299,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);
       const safeMimeType = (value: unknown, fallback: string) => {
         const candidate = stringValue(value, fallback).trim();
-        return candidate.length <= 160 && /^[a-z0-9][a-z0-9!#      const safeName = (value: unknown, fallback: string, max: number) =>
-        (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);^_.+-]*\\/[a-z0-9][a-z0-9!#      const safeName = (value: unknown, fallback: string, max: number) =>
-        (stringValue(value, fallback).trim().replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').replaceAll(String.fromCharCode(0), '-').slice(0, max) || fallback);^_.+-]*$/i.test(candidate) ? candidate : fallback;
+        const separator = candidate.indexOf('/');
+        return candidate.length <= 160 && separator > 0 && separator === candidate.lastIndexOf('/') && !/\\s/.test(candidate)
+          ? candidate
+          : fallback;
       };
       const allowedAssetTypes = ['image','video','audio','document','model_3d','archive','other'];
       const allowedVersionSources = ['original','generated','edited','restored','derived'];
