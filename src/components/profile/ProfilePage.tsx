@@ -19,6 +19,7 @@ type ProfilePageProps = {
   onBack: () => void;
   backLabel: string;
   onSignOut: () => void;
+  onLoginRequired: () => void;
   initialPage?: 'my-vyrals' | 'my-media-library' | null;
 };
 
@@ -90,7 +91,7 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, initialPage = null,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
@@ -171,7 +172,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
           <div className="p-5 sm:p-6">
             {activePage === 'my-vyrals' ? (
-              <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onBack} />
+              <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} />
             ) : activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
