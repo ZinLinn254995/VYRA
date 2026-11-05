@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle, Archive, Box, ChevronRight, Clock3, Dna,
-  Download, File, FileText, Fingerprint, FlaskConical, Folder, FolderPlus, GitBranch,
+  Download, File as FileIcon, FileText, Fingerprint, FlaskConical, Folder, FolderPlus, GitBranch,
   HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck,
   Trash2, Upload, Video, X,
 } from 'lucide-react';
@@ -59,7 +59,7 @@ const typeIcon = (type: string) => {
   if (type === 'document') return FileText;
   if (type === 'model_3d') return Box;
   if (type === 'archive') return Archive;
-  return File;
+  return FileIcon;
 };
 const dateLabel = (value: string) => new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
