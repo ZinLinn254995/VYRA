@@ -17,7 +17,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
-    const update = () => setCompact(window.scrollY > 150);
+    const update = () => setCompact(window.scrollY > 80);
     update();
     window.addEventListener('scroll', update, { passive: true });
     return () => window.removeEventListener('scroll', update);
@@ -25,7 +25,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
 
   return (
     <header
-      className={`sticky top-[calc(var(--vyra-visual-viewport-top,0px)+109px)] sm:top-[calc(var(--vyra-visual-viewport-top,0px)+64px)] z-40 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)]/95 backdrop-blur-xl transition-shadow duration-200 ${compact ? 'shadow-md shadow-black/5' : ''}`}
+      className={`sticky top-[calc(var(--vyra-visual-viewport-top,0px)_+_109px)] sm:top-[calc(var(--vyra-visual-viewport-top,0px)_+_64px)] z-40 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)]/95 backdrop-blur-xl transition-shadow duration-200 ${compact ? 'shadow-md shadow-black/5' : ''}`}
     >
       <div className={`transition-all duration-200 sm:px-6 ${compact ? 'px-3 py-2 sm:py-2.5' : 'p-5 sm:py-6'}`}>
         {compact ? (
