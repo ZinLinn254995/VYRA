@@ -93,11 +93,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [visionProvider, setVisionProvider] = useState('external_model');
   const [visionModel, setVisionModel] = useState('user_supplied');
   const [visionConfidence, setVisionConfidence] = useState('');
-  const [visionJson, setVisionJson] = useState('{
-  "summary": "",
-  "attributes": [],
-  "uncertainties": []
-}');
+  const [visionJson, setVisionJson] = useState('{"summary":"","attributes":[],"uncertainties":[]}');
   const [savingVision, setSavingVision] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -792,11 +788,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         throw new Error(detail);
       }
       if (data?.status !== 'recorded') throw new Error('Vision observation was not confirmed as recorded.');
-      setVisionJson('{
-  "summary": "",
-  "attributes": [],
-  "uncertainties": []
-}');
+      setVisionJson('{"summary":"","attributes":[],"uncertainties":[]}');
       setVisionConfidence('');
       await loadWorkspace();
       setPackageStatus('Vision observation recorded with source-version integrity evidence. Model identity remains self-reported.');
