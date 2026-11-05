@@ -19,11 +19,12 @@
 .profile-collapse-action { position: absolute; z-index: 1; }
 .profile-collapse-back {
   top: var(--back-top, 12px); left: var(--back-left, 24px);
-  display: inline-flex; align-items: center; gap: 7px; max-width: 44%;
+  display: inline-flex; align-items: center; gap: var(--back-gap, 7px); width: var(--back-width, 144px); max-width: 44%;
   overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
   color: var(--vyra-text-secondary); font-size: var(--back-font-size, 14px); font-weight: 500;
 }
 .profile-collapse-back:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
+.profile-collapse-back span { min-width: 0; overflow: hidden; opacity: var(--back-label-opacity, 1); transition: opacity 80ms linear; white-space: nowrap; }
 .profile-collapse-icon {
   top: var(--icon-top, 58px); left: var(--icon-left, 24px);
   display: grid; width: var(--icon-size, 44px); height: var(--icon-size, 44px);
