@@ -1,22 +1,23 @@
-/* The scroll viewport is only a behavior layer: it has no visible surface,
-   border, or rounded mask. The Card below owns the complete visible outline. */
+/* The scroll viewport is an invisible behavior layer. The Card owns the visible outline. */
 .profile-collapse-shell { display: contents; }
+
+/* Keep the complete Card header stationary at its original expanded size.
+   Only the Card body scrolls; no compact/collapsing header state is used. */
 .profile-collapse-header {
   position: sticky;
   top: 0;
   z-index: 2;
-  flex: 0 0 auto;
-  height: var(--profile-height, 156px);
-  min-height: 48px;
+  flex: 0 0 156px;
+  height: 156px;
+  min-height: 156px;
+  box-sizing: border-box;
   overflow: hidden;
   overflow-anchor: none;
   isolation: isolate;
   background: var(--vyra-bg-surface);
-  /* The shell uses display: contents, so inherit has no Card radius to read. */
   border-top-left-radius: 1rem;
   border-top-right-radius: 1rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--vyra-border-subtle) var(--profile-collapse-percent, 0%), transparent);
-  box-shadow: 0 5px 18px rgb(0 0 0 / var(--profile-shadow-opacity, 0));
+  border-bottom: 1px solid var(--vyra-border-subtle);
 }
 .profile-collapse-back,
 .profile-collapse-icon,
@@ -24,41 +25,63 @@
 .profile-collapse-description,
 .profile-collapse-action { position: absolute; z-index: 1; }
 .profile-collapse-back {
-  top: var(--back-top, 12px); left: var(--back-left, 24px);
-  display: inline-flex; align-items: center; gap: var(--back-gap, 7px); width: var(--back-width, 210px); max-width: calc(100% - 24px);
-  box-sizing: border-box; overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
-  color: var(--vyra-text-secondary); font-size: var(--back-font-size, 14px); font-weight: 500;
+  top: 12px;
+  left: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: 210px;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: 9px;
+  padding: 7px 8px;
+  color: var(--vyra-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
 }
 .profile-collapse-back:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
-.profile-collapse-back span { min-width: 0; overflow: hidden; opacity: var(--back-label-opacity, 1); transition: opacity 80ms linear; white-space: nowrap; }
+.profile-collapse-back span { min-width: 0; overflow: hidden; white-space: nowrap; }
 .profile-collapse-icon {
-  top: var(--icon-top, 58px); left: var(--icon-left, 24px);
-  display: grid; width: var(--icon-size, 44px); height: var(--icon-size, 44px);
-  place-items: center; border-radius: var(--icon-radius, 12px);
-  background: var(--vyra-bg-subtle); color: var(--vyra-accent-primary);
+  top: 58px;
+  left: 24px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--vyra-bg-subtle);
+  color: var(--vyra-accent-primary);
 }
-.profile-collapse-icon > * { width: var(--icon-glyph-size, 22px); height: var(--icon-glyph-size, 22px); }
+.profile-collapse-icon > * { width: 22px; height: 22px; }
 .profile-collapse-title {
-  top: var(--title-top, 56px); left: var(--title-left, 84px); right: var(--title-right, 24px);
-  overflow: hidden; color: var(--vyra-text-primary); font-size: var(--title-font-size, 24px);
-  font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap;
+  top: 56px;
+  left: 84px;
+  right: 24px;
+  overflow: hidden;
+  color: var(--vyra-text-primary);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .profile-collapse-description {
-  top: var(--description-top, 96px); left: var(--description-left, 84px); right: 16px;
-  overflow: hidden; margin: 0; color: var(--vyra-text-secondary); font-size: 14px;
-  line-height: 20px; opacity: var(--description-opacity, 1);
-  transform: translateY(var(--description-shift, 0px)); white-space: nowrap; text-overflow: ellipsis;
+  top: 96px;
+  left: 84px;
+  right: 16px;
+  overflow: hidden;
+  margin: 0;
+  color: var(--vyra-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.profile-collapse-action { top: var(--action-top, 56px); right: var(--action-right, 24px); transition: opacity 100ms linear; }
-.profile-collapse-action-expanded { opacity: calc(1 - var(--profile-collapse, 0)); }
-.profile-collapse-action-compact { opacity: var(--profile-collapse, 0); pointer-events: none; }
-.profile-collapse-header:not(.is-compact) .profile-collapse-action-expanded { pointer-events: auto; }
-.profile-collapse-header.is-compact .profile-collapse-action-expanded { pointer-events: none; }
-.profile-collapse-header.is-compact .profile-collapse-action-compact { pointer-events: auto; }
-.profile-collapse-action-compact button { min-height: 34px; padding: 0 10px; font-size: 12px; }
+.profile-collapse-action { top: 56px; right: 24px; }
 
-/* Invisible scroll mechanism for the natural-height Card. It deliberately
-   does not round or paint a second container over the Card's own corners. */
+/* Invisible scroll mechanism: no second border, background, or rounded mask. */
 .profile-subpage-viewport {
   box-sizing: border-box;
   width: 100%;
@@ -72,8 +95,6 @@
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
-  /* Keep the scrollport rectangular and visually transparent. The Card's
-     own rounded border remains the only visible edge. */
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -93,9 +114,6 @@
   flex: 0 0 auto;
   min-height: 0;
 }
-/* Let the page's actual space below the fixed global header define the scroll area.
-   This avoids subtracting the global header twice and keeps the bottom inset owned
-   by the Profile page padding rather than a guessed viewport-height calculation. */
 .profile-page-main:has(.profile-subpage-viewport) {
   display: flex;
   flex: 1 1 0%;
@@ -108,4 +126,17 @@
   min-height: 0;
   height: auto;
   max-height: none;
+}
+
+@media (max-width: 639px) {
+  .profile-collapse-header {
+    flex-basis: 150px;
+    height: 150px;
+    min-height: 150px;
+  }
+  .profile-collapse-back { left: 12px; width: 190px; }
+  .profile-collapse-icon { left: 12px; }
+  .profile-collapse-title { left: 64px; right: 12px; font-size: 21px; }
+  .profile-collapse-description { left: 64px; }
+  .profile-collapse-action { top: 58px; right: 12px; }
 }
