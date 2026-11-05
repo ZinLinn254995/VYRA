@@ -15,22 +15,17 @@ type Props = {
 export const ProfileSubpageHeader: React.FC<Props> = ({
   onBack, backLabel, icon, title, description, action, compactAction,
 }) => {
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let frame = 0;
     const update = () => {
       frame = 0;
-      const sentinel = sentinelRef.current;
       const header = headerRef.current;
-      if (!sentinel || !header) return;
-      const rootStyle = getComputedStyle(document.documentElement);
-      const globalHeight = Number.parseFloat(rootStyle.getPropertyValue('--vyra-global-header-height')) || 64;
-      const viewportTop = Number.parseFloat(rootStyle.getPropertyValue('--vyra-visual-viewport-top')) || 0;
-      const stickyTop = globalHeight + viewportTop;
-      const sentinelTop = sentinel.getBoundingClientRect().top;
-      const progress = Math.max(0, Math.min(1, (stickyTop - sentinelTop) / 104));
+      const scrollContainer = scrollRef.current;
+      if (!header || !scrollContainer) return;
+      const progress = Math.max(0, Math.min(1, scrollContainer.scrollTop / 104));
       const mobile = window.matchMedia('(max-width: 639px)').matches;
       const mix = (from: number, to: number) => from + (to - from) * progress;
       const set = (name: string, value: number) => header.style.setProperty(name, `${value.toFixed(2)}px`);
@@ -63,19 +58,21 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       set('--action-right', mix(mobile ? 12 : 24, 12));
     };
     const schedule = () => { if (!frame) frame = window.requestAnimationFrame(update); };
-    update();
-    window.addEventListener('scroll', schedule, { passive: true });
+    const attachScrollContainer = () => {
+      const container = headerRef.current?.parentElement?.querySelector<HTMLElement>('.profile-subpage-scroll') ?? null;
+      if (scrollRef.current === container) return;
+      scrollRef.current?.removeEventListener('scroll', schedule);
+      scrollRef.current = container;
+      scrollRef.current?.addEventListener('scroll', schedule, { passive: true });
+      update();
+    };
+    attachScrollContainer();
     window.addEventListener('resize', schedule, { passive: true });
-    window.visualViewport?.addEventListener('resize', schedule);
-    window.visualViewport?.addEventListener('scroll', schedule);
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
-    if (sentinelRef.current) observer?.observe(sentinelRef.current);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { attachScrollContainer(); schedule(); }) : null;
     if (headerRef.current) observer?.observe(headerRef.current);
     return () => {
-      window.removeEventListener('scroll', schedule);
+      scrollRef.current?.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
-      window.visualViewport?.removeEventListener('resize', schedule);
-      window.visualViewport?.removeEventListener('scroll', schedule);
       observer?.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
     };
@@ -83,8 +80,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
 
   return (
     <div className="profile-collapse-shell">
-      <div ref={sentinelRef} aria-hidden="true" className="profile-collapse-sentinel" />
-      <div ref={headerRef} className="profile-collapse-header sticky top-[calc(var(--vyra-visual-viewport-top,0px)_+_var(--vyra-global-header-height,64px))] z-40">
+      <div ref={headerRef} className="profile-collapse-header">
         <button type="button" onClick={onBack} aria-label={backLabel} title={backLabel} className="profile-collapse-back">
           <ArrowLeft size={16} /><span>{backLabel}</span>
         </button>
