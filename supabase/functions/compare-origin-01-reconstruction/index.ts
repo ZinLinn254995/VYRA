@@ -208,7 +208,17 @@ Deno.serve(async (request: Request) => {
         candidate: { expectedSizeBytes: Number(candidateVersion.size_bytes), actualSizeBytes: candidateBytes.byteLength, expectedSha256: candidateVersion.sha256, actualSha256: candidateHash, matched: candidateIntegrity },
       },
       comparison: { performed: false, reason: 'Stored file integrity must be verified before visual comparison.' },
-      claims: { originalBinaryProvidedToGemini: false, reconstructionSuccess: false },
+      provenance: {
+        reconstructionInput: {
+          provider: 'Google Gemini',
+          packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
+          packageMode: 'DNA-only',
+          originalBinaryExposure: 'creator_attested_not_provided',
+          exposureIndependentlyVerifiedByComparator: false,
+        },
+        comparisonInput: { originalBinaryDownloadedByVerifier: true, candidateBinaryDownloadedByVerifier: true },
+      },
+      claims: { reconstructionSuccess: false },
     };
     const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
       vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
@@ -280,8 +290,17 @@ Deno.serve(async (request: Request) => {
       exactDecodedPixelMatch: exactMatch,
       binaryFileMatch: originalHash === candidateHash,
     },
+    provenance: {
+      reconstructionInput: {
+        provider: 'Google Gemini',
+        packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
+        packageMode: 'DNA-only',
+        originalBinaryExposure: 'creator_attested_not_provided',
+        exposureIndependentlyVerifiedByComparator: false,
+      },
+      comparisonInput: { originalBinaryDownloadedByVerifier: true, candidateBinaryDownloadedByVerifier: true },
+    },
     claims: {
-      originalBinaryProvidedToGemini: false,
       reconstructionSuccess: exactMatch === true,
       successCriterion: 'Exact decoded RGB equality at identical dimensions. Perceptual similarity is reported separately and is not treated as exact reconstruction.',
     },
