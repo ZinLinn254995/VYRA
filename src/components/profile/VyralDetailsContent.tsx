@@ -99,22 +99,30 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyral_assets').select('*').eq('vyral_id', vyral.id).neq('processing_status', 'archived').order('created_at', { ascending: false }),
       supabase.from('vyral_asset_versions').select('*').eq('vyral_id', vyral.id).order('version_number', { ascending: false }),
       supabase.from('vyral_dna_records').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
-      supabase.from('vyral_fingerprints').select('*').order('created_at', { ascending: false }).limit(500),
-      supabase.from('vyral_vision_observations').select('*').order('created_at', { ascending: false }).limit(300),
       supabase.from('vyral_lineage').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
       supabase.from('vyral_reconstruction_tests').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
     ]);
     const failed = results.find((item) => item.error);
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
+    const assetRows = (results[1].data ?? []) as AssetRow[];
+    const assetIds = assetRows.map((item) => item.id);
+    const [fingerprintResult, observationResult] = assetIds.length ? await Promise.all([
+      supabase.from('vyral_fingerprints').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
+      supabase.from('vyral_vision_observations').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
+    ]) : [{ data: [], error: null }, { data: [], error: null }];
+    if (fingerprintResult.error || observationResult.error) {
+      setError(fingerprintResult.error?.message ?? observationResult.error?.message ?? 'Could not load Vyral identity evidence.');
+      setLoading(false);
+      return;
+    }
     setFolders((results[0].data ?? []) as FolderRow[]);
-    setAssets((results[1].data ?? []) as AssetRow[]);
+    setAssets(assetRows);
     setVersions((results[2].data ?? []) as AssetVersionRow[]);
     setDnaRecords((results[3].data ?? []) as DnaRow[]);
-    const assetIds = new Set(((results[1].data ?? []) as AssetRow[]).map((item) => item.id));
-    setFingerprints(((results[4].data ?? []) as FingerprintRow[]).filter((item) => assetIds.has(item.asset_id)));
-    setObservations(((results[5].data ?? []) as ObservationRow[]).filter((item) => assetIds.has(item.asset_id)));
-    setLineage((results[6].data ?? []) as LineageRow[]);
-    setReconstructionTests((results[7].data ?? []) as ReconstructionRow[]);
+    setFingerprints((fingerprintResult.data ?? []) as FingerprintRow[]);
+    setObservations((observationResult.data ?? []) as ObservationRow[]);
+    setLineage((results[4].data ?? []) as LineageRow[]);
+    setReconstructionTests((results[5].data ?? []) as ReconstructionRow[]);
     const policy = (vyral.license_policy ?? {}) as Record<string, unknown>;
     setLicenseDraft({
       allow_ai_analysis: policy.allow_ai_analysis !== false,
@@ -146,7 +154,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     return result;
   }, [folders, activeFolderId]);
   const totalBytes = assets.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0);
-  const latestDna = dnaRecords[0] ?? null;
   const selectedDnaRecords = dnaRecords.filter((item) => !dnaAssetId || item.asset_id === dnaAssetId || (dnaAssetId === 'vyral' && item.scope === 'vyral'));
 
   const createFolder = async (event: React.FormEvent) => {
