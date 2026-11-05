@@ -97,14 +97,11 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         icon={<VyralIdentityIcon size={22} />}
         title={active.name}
         description={active.description || 'Your creative Vyral identity and asset library.'}
+        search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
       <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
         <div className="flex justify-end"><Button size="sm" onClick={() => setFolderOpen(true)} startIcon={<FolderPlus size={14} />}>New Folder</Button></div>
-      <div className="flex items-center gap-1.5">
-        <div className="relative min-w-0 flex-1">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" className={fieldClass + ' !min-h-9 !rounded-md !pl-8 !pr-2 !text-xs'} />
-        </div>
+      <div className="flex items-center justify-end gap-1.5">
         <select aria-label="Filter file type" value={category} onChange={(event) => setCategory(event.target.value)} className={fieldClass + ' !min-h-9 !w-[104px] !rounded-md !px-2 !text-xs'}>
           <option value="all">All types</option><option value="image">Images</option><option value="video">Videos</option><option value="audio">Audio</option><option value="document">Documents</option><option value="other">Other</option>
         </select>
