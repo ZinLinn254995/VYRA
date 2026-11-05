@@ -365,7 +365,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const bytes = typeof packagePath === 'string' ? archiveFiles.get(packagePath) : undefined;
           if (!bytes) throw new Error('A media version is missing from the package archive.');
           if (bytes.byteLength > 100 * 1024 * 1024) throw new Error('An asset version exceeds the 100 MB storage limit.');
-          const digest = await crypto.subtle.digest('SHA-256', bytes);
+          const importDigestBuffer = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(importDigestBuffer).set(bytes);
+          const digest = await crypto.subtle.digest('SHA-256', importDigestBuffer);
           const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
           if (typeof sourceVersion.sha256 === 'string' && sourceVersion.sha256 !== sha256) {
             throw new Error('Integrity verification failed for "' + stringValue(sourceAsset.name, oldAssetId) + '". The package media does not match its SHA-256 record.');
