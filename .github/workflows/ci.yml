@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Install browser test dependency
-        run: npm install --no-save @playwright/test
+        run: npm install --no-save @playwright/test@1.56.1
       - name: TypeScript check
         run: npm run lint
       - name: Supabase auth verification tests
