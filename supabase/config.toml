@@ -1,3 +1,7 @@
 # Local Supabase project configuration for VYRA development.
 # Generated/local service settings can be customized with `supabase init` and the CLI.
 project_id = "vyra"
+
+# Match the temporary guest session used by the VYRAL upload workflow.
+[auth]
+enable_anonymous_sign_ins = true
