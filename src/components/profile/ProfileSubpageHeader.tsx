@@ -12,12 +12,6 @@ type Props = {
   compactAction?: React.ReactNode;
 };
 
-/**
- * A single sticky header whose original controls move into their compact
- * positions as the page scrolls. The zero-height sentinel stays in normal
- * document flow and gives us scroll progress after the header reaches the
- * global navigation bar.
- */
 export const ProfileSubpageHeader: React.FC<Props> = ({
   onBack, backLabel, icon, title, description, action, compactAction,
 }) => {
@@ -39,8 +33,31 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       const stickyTop = globalHeight + viewportTop;
       const sentinelTop = sentinel.getBoundingClientRect().top;
       const progress = Math.max(0, Math.min(1, (stickyTop - sentinelTop) / 104));
+      const mobile = window.matchMedia('(max-width: 639px)').matches;
+      const mix = (from: number, to: number) => from + (to - from) * progress;
+      const set = (name: string, value: number) => header.style.setProperty(name, `${value.toFixed(2)}px`);
 
+      set('--profile-height', mix(mobile ? 150 : 156, mobile ? 48 : 48));
+      set('--back-top', mix(12, 7));
+      set('--back-left', mix(mobile ? 12 : 24, 10));
+      set('--back-font-size', mix(14, 12));
+      set('--icon-top', mix(58, 7));
+      set('--icon-left', mix(mobile ? 12 : 24, mobile ? 84 : 108));
+      set('--icon-size', mix(44, 32));
+      set('--icon-radius', mix(12, 8));
+      set('--icon-glyph-size', mix(22, 18));
+      set('--title-top', mix(56, 14));
+      set('--title-left', mix(mobile ? 64 : 84, mobile ? 132 : 172));
+      set('--title-right', mix(mobile ? 12 : 24, mobile ? 110 : 142));
+      set('--title-font-size', mix(mobile ? 21 : 24, 14));
+      set('--description-top', mix(96, 72));
+      set('--description-left', mix(mobile ? 64 : 84, mobile ? 132 : 172));
+      set('--description-opacity', 1 - progress);
+      set('--action-top', mix(mobile ? 58 : 56, 5));
+      set('--action-right', mix(mobile ? 12 : 24, 12));
+      set('--action-opacity', 1);
       header.style.setProperty('--profile-collapse', progress.toFixed(4));
+      header.style.setProperty('--description-shift', `${(-8 * progress).toFixed(2)}px`);
     };
 
     const schedule = () => {
@@ -73,30 +90,15 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       <div
         ref={headerRef}
         className="profile-collapse-header sticky top-[calc(var(--vyra-visual-viewport-top,0px)_+_var(--vyra-global-header-height,64px))] z-40"
-        style={{ '--profile-collapse': 0 } as React.CSSProperties}
       >
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label={backLabel}
-          title={backLabel}
-          className="profile-collapse-back"
-        >
+        <button type="button" onClick={onBack} aria-label={backLabel} title={backLabel} className="profile-collapse-back">
           <ArrowLeft size={16} />
           <span>{backLabel}</span>
         </button>
-
         <span className="profile-collapse-icon" aria-hidden="true">{icon}</span>
-
         <h1 className="profile-collapse-title">{title}</h1>
         <p className="profile-collapse-description">{description}</p>
-
-        {action ? <div className="profile-collapse-action">{action}</div> : null}
-        {compactAction ? (
-          <div className="profile-collapse-compact-action" aria-hidden="true" inert>
-            {compactAction}
-          </div>
-        ) : null}
+        {action || compactAction ? <div className="profile-collapse-action">{action ?? compactAction}</div> : null}
       </div>
     </div>
   );
