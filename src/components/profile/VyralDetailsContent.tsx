@@ -402,7 +402,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           processing_status: 'uploading',
           description: stringValue(sourceAsset.description).slice(0, 2000),
           license_override: objectValue(sourceAsset.license_override),
-          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId },
+          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null },
         });
         if (assetError) throw assetError;
         createdAssetIds.push(assetId);
@@ -430,7 +430,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             sha256: item.sha256,
             source_kind: allowedVersionSources.includes(String(item.source.source_kind)) ? item.source.source_kind : 'restored',
             parent_version_id: item.source.parent_version_id ? versionMap.get(String(item.source.parent_version_id)) ?? null : null,
-            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId },
+            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId, imported_original_created_at: item.source.created_at ?? null },
           });
           fingerprintRows.push({
             asset_id: assetId,
@@ -483,6 +483,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             original_record_id: sourceRecord.id ?? null,
             claimed_dna_status: sourceRecord.dna_status ?? null,
             claimed_verification_status: sourceRecord.verification_status ?? null,
+            original_created_at: sourceRecord.created_at ?? null,
             trust: 'unverified_imported_evidence',
           },
         }, objectValue(sourceRecord.reconstruction_data));
@@ -535,7 +536,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           parent_asset_id: parentId,
           child_asset_id: childId,
           relation_kind: relation,
-          metadata: { ...objectValue(item.metadata), imported_from_package: manifest.packageId },
+          metadata: { ...objectValue(item.metadata), imported_from_package: manifest.packageId, imported_original_created_at: item.created_at ?? null },
         }] : [];
       });
       for (let index = 0; index < lineageRows.length; index += 100) {
