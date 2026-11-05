@@ -70,8 +70,8 @@
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
-  /* The viewport is only a scroll window; let the card own the visible corners. */
-  border-radius: 0;
+  /* Match the card's rounded-2xl radius so the scrollport clips on the same curve. */
+  border-radius: 1rem;
 }
 .profile-subpage-card {
   display: flex;
