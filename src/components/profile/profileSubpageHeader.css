@@ -124,6 +124,9 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+  /* The subpage card should extend to the available screen bottom,
+     rather than inheriting the profile page's decorative bottom padding. */
+  padding-bottom: 0;
 }
 .profile-page-main:has(.profile-subpage-viewport) > .profile-subpage-viewport,
 .profile-page-main:has(.profile-subpage-viewport) .profile-subpage-viewport {
