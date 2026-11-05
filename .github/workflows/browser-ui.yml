@@ -3,7 +3,7 @@ name: VYRA Browser UI Tests
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'rebuild/**']
 
 jobs:
   browser-ui:
@@ -19,7 +19,7 @@ jobs:
       - name: Install app dependencies
         run: npm install --no-package-lock
       - name: Install Playwright
-        run: npm install --no-save @playwright/test
+        run: npm install --no-save @playwright/test@1.56.1
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run production build
