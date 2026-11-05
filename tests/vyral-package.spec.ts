@@ -39,6 +39,7 @@ test('writes and reads a ZIP-compatible VYRAL package with binary media', async 
 
 test('rejects unsafe and duplicate package paths', () => {
   assert.throws(() => createVyralZip([{ path: '../outside.txt', data: 'no' }]), /Unsafe package path/);
+  assert.throws(() => createVyralZip([{ path: 'assets\\\\..\\\\outside.txt', data: 'no' }]), /Unsafe package path/);
   assert.throws(() => createVyralZip([
     { path: 'same.txt', data: 'one' },
     { path: 'same.txt', data: 'two' },
@@ -56,7 +57,7 @@ test('rejects ZIP payload corruption using CRC32', async () => {
     { path: 'assets/asset-test/versions/1.bin', data: new Uint8Array([1, 2, 3, 4]) },
   ]);
   const bytes = new Uint8Array(await archive.arrayBuffer());
-  bytes[40] ^= 0xff;
+  bytes[43] ^= 0xff;
   await assert.rejects(() => readVyralZip(bytes), /integrity check failed/);
 });
 
