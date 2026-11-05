@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ArrowLeft, Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp,
+  ArrowLeft, Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images,
   CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
   LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
   Users, Wallet, WandSparkles, type LucideIcon,
@@ -17,10 +17,11 @@ type ProfilePageProps = {
   onBack: () => void;
   backLabel: string;
   onSignOut: () => void;
+  initialPage?: 'my-vyrals' | 'my-media-library' | null;
 };
 
 type PageKey =
-  | 'home' | 'public-profile' | 'my-vyrals' | 'saved' | 'purchased'
+  | 'home' | 'public-profile' | 'my-vyrals' | 'my-media-library' | 'saved' | 'purchased'
   | 'collections' | 'following' | 'creator-dashboard' | 'notifications'
   | 'settings' | 'setting-account' | 'setting-security' | 'setting-appearance'
   | 'setting-notifications' | 'setting-billing' | 'setting-ai' | 'setting-legal'
@@ -32,6 +33,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
     { key: 'public-profile', label: 'My Public Profile', detail: 'Your creator identity and public showcase', icon: UserRound },
     { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage drafts and published creative assets', icon: WandSparkles },
+    { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded images, videos, audio and files', icon: Images },
   ] },
   { title: 'My Library', items: [
     { key: 'saved', label: 'Saved', detail: 'Vyrals you bookmarked for later', icon: Bookmark },
@@ -54,6 +56,7 @@ const groups: { title: string; items: NavItem[] }[] = [
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: LucideIcon; note: string }> = {
   'public-profile': { title: 'My Public Profile', description: 'Manage the creator profile other people can visit.', icon: UserRound, note: 'Your public creator page and profile editor will appear here.' },
   'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: WandSparkles, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
+  'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded images, videos, audio and files.', icon: Images, note: 'Your uploaded images, videos, audio and documents will appear here.' },
   saved: { title: 'Saved', description: 'Keep interesting Vyrals together for later.', icon: Bookmark, note: 'Vyrals you save from the Marketplace will appear here. Saved items are private by default.' },
   purchased: { title: 'Purchased', description: 'Access your purchased Vyrals and their license details.', icon: ShoppingBag, note: 'Your purchases, receipts, license terms and available updates will appear here. A purchase does not automatically grant resale rights.' },
   collections: { title: 'My Collections', description: 'Group Vyrals into collections that match your creative interests.', icon: FolderHeart, note: 'Create and manage private or public collections here.' },
@@ -84,9 +87,10 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, initialPage = null,
 }) => {
-  const [activePage, setActivePage] = useState<PageKey>('home');
+  const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
+  React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
   const goHome = () => setActivePage('home');
@@ -144,8 +148,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : (
         <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
-            <button type="button" onClick={() => setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home')} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
-              <ArrowLeft size={16} /> {activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
+            <button type="button" onClick={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+              <ArrowLeft size={16} /> {initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
             </button>
             {(() => {
               const info = pageInfo[activePage];
