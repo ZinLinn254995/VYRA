@@ -111,7 +111,7 @@ function MarketplaceApp() {
   const seedDemoStoryboards = user?.email?.trim().toLowerCase() === 'zla264995@gmail.com';
 
   return (
-    <div className="flex min-h-svh flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]">
+    <div className={`flex ${profileOpen && user ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <MarketplaceHeader
         userEmail={user?.email ?? null}
         creditBalance={creditBalance}
@@ -127,7 +127,7 @@ function MarketplaceApp() {
         onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
       <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
-      <div className="min-h-0 flex-1">
+      <div className={`min-h-0 flex-1 ${profileOpen && user ? "overflow-hidden" : ""}`}>
         <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
         {profileOpen && user ? (
           <ProfilePage
