@@ -124,6 +124,20 @@ test('rejects ZIP entries without the VYRAL UTF-8 flag and multi-disk metadata',
   await assert.rejects(() => readVyralZip(multiDisk), /Multi-disk and ZIP64/);
 });
 
+test('accepts DNA-only test packages with asset metadata and no binary versions', () => {
+  const dnaOnlyManifest = {
+    ...manifest,
+    exportMode: 'dna-only' as const,
+    versions: [],
+    dnaRecords: [{ id: 'dna-master', scope: 'vyral' }],
+    fingerprints: [{ id: 'fingerprint-asset', asset_id: 'asset-test' }],
+  };
+  const validated = validateVyralManifest(dnaOnlyManifest);
+  assert.equal(validated.exportMode, 'dna-only');
+  assert.equal(validated.assets.length, 1);
+  assert.equal(validated.versions.length, 0);
+});
+
 test('rejects invalid DNA, fingerprint, vision, lineage and reconstruction references', () => {
   assert.throws(() => validateVyralManifest({
     ...manifest,
