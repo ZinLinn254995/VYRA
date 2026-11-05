@@ -217,15 +217,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       group.records.push(record); groups.set(key, group);
     });
     return Array.from(groups.values()).map((group) => {
-      const recordIds = group.records.map((record) => record.id).sort();
+      const recordIds = new Set(group.records.map((record) => record.id));
       const resolutionRecords = dnaRecords.filter((record) => {
         const payload = record.payload ?? {};
         const scope = payload.conflict_scope as Record<string, unknown> | undefined;
-        return payload.record_kind === 'vision_field_conflict_resolution' &&
+        const competingIds = payload.competing_promotion_record_ids;
+        return record.source_kind === 'creator' && record.verification_status === 'creator_confirmed' &&
+          payload.record_kind === 'vision_field_conflict_resolution' &&
+          payload.resolution_source === 'server_creator_conflict_resolution' &&
           scope?.asset_id === group.assetId && scope?.source_asset_version_id === group.versionId &&
           scope?.task_kind === group.taskKind && scope?.field_path === group.fieldPath &&
-          Array.isArray(payload.competing_promotion_record_ids) &&
-          stableJson([...(payload.competing_promotion_record_ids as string[])].sort()) === stableJson(recordIds);
+          Array.isArray(competingIds) && competingIds.length >= 2 &&
+          competingIds.every((id) => typeof id === 'string' && recordIds.has(id));
       }).sort((a, b) => a.created_at.localeCompare(b.created_at));
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
@@ -1202,7 +1205,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   </div>)}</div>
                   <p className={'mt-2 text-[9px] '+muted}>Both records remain immutable evidence. This comparison does not decide which value is correct, combine different contexts, or change DNA completion/reconstruction eligibility.</p>
                   {group.resolutionRecords.length > 0 && <div className="mt-3 rounded-md border border-[var(--vyra-border-subtle)] p-2">
-                    <p className={'text-[10px] font-semibold '+primary}>Creator resolution history</p>
+                    <p className={'text-[10px] font-semibold '+primary}>Latest creator decision: {group.resolutionRecords[group.resolutionRecords.length - 1].payload.resolution_type === 'prefer_one' ? 'Scoped preference recorded' : 'Context-dependent values recorded'}</p>
+                    <p className={'mt-1 text-[9px] '+muted}>This decision applies only to the exact promotion records listed in its history entry. New evidence does not inherit the decision automatically.</p>
+                    <p className={'mt-2 text-[10px] font-semibold '+primary}>Creator resolution history</p>
                     {group.resolutionRecords.map((resolution) => <div key={resolution.id} className="mt-2">
                       <p className={'text-[10px] '+subtle}>{resolution.payload.resolution_type === 'prefer_one' ? 'Preferred value: ' + String(resolution.payload.preferred_promotion_record_id).slice(0,8) : 'Both values retained as context-dependent'} · {dateLabel(resolution.created_at)}</p>
                       {typeof resolution.payload.creator_context_label === 'string' && resolution.payload.creator_context_label && <p className={'mt-1 text-[9px] '+primary}>Creator-defined context: {resolution.payload.creator_context_label}</p>}
