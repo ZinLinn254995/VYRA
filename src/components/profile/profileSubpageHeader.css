@@ -117,8 +117,10 @@
 .profile-page-main:has(.profile-subpage-viewport) {
   display: flex;
   flex: 1 1 0%;
+  height: 100%;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
 }
 .profile-page-main:has(.profile-subpage-viewport) > .profile-subpage-viewport,
 .profile-page-main:has(.profile-subpage-viewport) .profile-subpage-viewport {
