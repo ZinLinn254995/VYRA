@@ -9,6 +9,7 @@ export type VyralPackageManifest = {
   formatVersion: number;
   packageId: string;
   exportedAt: string;
+  exportMode?: 'full' | 'dna-only';
   vyral: Record<string, unknown>;
   folders: Record<string, unknown>[];
   assets: Record<string, unknown>[];
@@ -314,8 +315,10 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       if (!version || version.asset_id !== test.asset_id) throw new Error('A reconstruction test references an invalid asset version.');
     }
   }
-  for (const assetId of assetIds) {
-    if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
+  if (manifest.exportMode !== 'dna-only') {
+    for (const assetId of assetIds) {
+      if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
+    }
   }
   return manifest as VyralPackageManifest;
 };
