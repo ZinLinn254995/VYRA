@@ -157,6 +157,7 @@ export const readVyralZip = async (source: Blob | ArrayBuffer | Uint8Array) => {
   if (centralOffset + centralSize > endOffset) throw new Error('ZIP central directory is out of bounds.');
 
   const files = new Map<string, Uint8Array>();
+  const entryRanges: { start: number; end: number; path: string }[] = [];
   let cursor = centralOffset;
   for (let i = 0; i < entryCount; i += 1) {
     if (cursor + 46 > centralOffset + centralSize || view.getUint32(cursor, true) !== centralHeaderSignature) throw new Error('Malformed ZIP central directory.');
@@ -168,10 +169,12 @@ export const readVyralZip = async (source: Blob | ArrayBuffer | Uint8Array) => {
     const nameLength = view.getUint16(cursor + 28, true);
     const extraLength = view.getUint16(cursor + 30, true);
     const entryCommentLength = view.getUint16(cursor + 32, true);
+    const diskStart = view.getUint16(cursor + 34, true);
     const localOffset = view.getUint32(cursor + 42, true);
     const next = cursor + 46 + nameLength + extraLength + entryCommentLength;
     if (next > centralOffset + centralSize) throw new Error('Malformed ZIP entry metadata.');
-    if (flags & 0x0009) throw new Error('Encrypted ZIP entries and data descriptors are not supported.');
+    if (flags !== 0x0800) throw new Error('VYRAL ZIP entries must use UTF-8 names without encryption or data descriptors.');
+    if (diskStart !== 0 || compressedSize === 0xffffffff || uncompressedSize === 0xffffffff || localOffset === 0xffffffff) throw new Error('Multi-disk and ZIP64 entries are not supported.');
     if (method !== 0) throw new Error('This VYRAL package reader currently supports ZIP Store (no-compression) entries only.');
     if (compressedSize !== uncompressedSize) throw new Error('Invalid stored ZIP entry size.');
     const path = decoder.decode(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
@@ -193,9 +196,14 @@ export const readVyralZip = async (source: Blob | ArrayBuffer | Uint8Array) => {
     const data = bytes.slice(dataStart, dataEnd);
     if (crc32(data) !== checksum) throw new Error('ZIP integrity check failed for ' + path);
     files.set(path, data);
+    entryRanges.push({ start: localOffset, end: dataEnd, path });
     cursor = next;
   }
   if (cursor !== centralOffset + centralSize) throw new Error('Unexpected ZIP central directory size.');
+  entryRanges.sort((left, right) => left.start - right.start);
+  for (let index = 1; index < entryRanges.length; index += 1) {
+    if (entryRanges[index].start < entryRanges[index - 1].end) throw new Error('ZIP entries overlap: ' + entryRanges[index - 1].path + ' and ' + entryRanges[index].path);
+  }
   return files;
 };
 
