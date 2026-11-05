@@ -95,6 +95,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
       {activePage === 'home' ? (
         <>
+          <section className="mb-7">
+            <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><UserRound size={14} /> PROFILE</p>
+            <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Profile</h1>
+            <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Manage your creator identity, library, account and preferences.</p>
+          </section>
           <section className="mb-6 flex flex-col gap-4 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex min-w-0 items-center gap-3">
               <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><UserRound size={22} /></div>
