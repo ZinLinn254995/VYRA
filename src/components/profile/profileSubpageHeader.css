@@ -1,6 +1,7 @@
 /* The header remains pinned while its contents ease into a compact top row. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
+  --profile-header-expanded: 156px;
   position: relative;
   z-index: 3;
   flex: 0 0 var(--profile-header-height, 156px);
@@ -22,78 +23,50 @@
 .profile-collapse-description,
 .profile-collapse-action { position: absolute; z-index: 2; }
 .profile-collapse-back {
-  top: 12px;
-  left: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  width: 210px;
-  max-width: calc(100% - 24px);
-  box-sizing: border-box;
-  overflow: hidden;
-  white-space: nowrap;
-  border-radius: 9px;
-  padding: 7px 8px;
-  color: var(--vyra-text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+  top: 12px; left: 24px; display: inline-flex; align-items: center; gap: 7px;
+  width: 210px; max-width: calc(100% - 24px); box-sizing: border-box;
+  overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
+  color: var(--vyra-text-secondary); font-size: 14px; font-weight: 500;
 }
 .profile-collapse-back:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
 .profile-collapse-back svg { flex: 0 0 16px; }
 .profile-collapse-back span {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  max-width: calc(190px * (1 - var(--profile-header-progress, 0)));
+  min-width: 0; overflow: hidden; white-space: nowrap;
+  max-width: var(--profile-back-label-width, 190px);
   opacity: calc(1 - var(--profile-header-progress, 0));
   transition: max-width 180ms ease-out, opacity 140ms ease-out;
 }
 .profile-collapse-icon {
-  top: 58px;
-  left: 24px;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 12px;
-  background: var(--vyra-bg-subtle);
+  position: absolute; top: calc(58px - var(--profile-header-shift-y, 0px));
+  left: calc(24px + var(--profile-header-shift-x, 0px));
+  display: grid; width: var(--profile-header-icon-size, 44px); height: var(--profile-header-icon-size, 44px);
+  place-items: center; border-radius: 12px; background: var(--vyra-bg-subtle);
   color: var(--vyra-accent-primary);
   transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out;
 }
 .profile-collapse-icon > * { width: 22px; height: 22px; }
 .profile-collapse-title {
-  top: 56px;
-  left: 84px;
-  right: 24px;
-  overflow: hidden;
-  color: var(--vyra-text-primary);
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  top: calc(56px - var(--profile-header-title-shift-y, 0px));
+  left: calc(84px + var(--profile-header-title-shift-x, 0px)); right: 24px;
+  overflow: hidden; color: var(--vyra-text-primary); font-size: var(--profile-header-title-size, 24px);
+  font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap;
   transition: top 180ms ease-out, left 180ms ease-out, right 180ms ease-out, font-size 180ms ease-out;
 }
 .profile-collapse-header:has(.profile-collapse-action) .profile-collapse-title { right: 180px; }
 .profile-collapse-description {
-  top: 96px;
-  left: 84px;
-  right: 16px;
-  overflow: hidden;
-  margin: 0;
-  color: var(--vyra-text-secondary);
-  font-size: 14px;
-  line-height: 20px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  top: 96px; left: 84px; right: 16px; overflow: hidden; margin: 0;
+  color: var(--vyra-text-secondary); font-size: 14px; line-height: 20px;
+  white-space: nowrap; text-overflow: ellipsis;
   opacity: calc(1 - var(--profile-header-progress, 0));
-  transform: translateY(calc(-8px * var(--profile-header-progress, 0)));
+  transform: translateY(var(--profile-description-shift, 0px));
   transition: opacity 140ms ease-out, transform 180ms ease-out;
 }
-.profile-collapse-action { top: 56px; right: 24px; transition: top 180ms ease-out, right 180ms ease-out; }
-.profile-collapse-action-compact { display: none; }
-.profile-collapse-header[style*="--profile-header-progress: 1"] .profile-collapse-action-full { display: none; }
-.profile-collapse-header[style*="--profile-header-progress: 1"] .profile-collapse-action-compact { display: block; }
+.profile-collapse-action {
+  top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
+  transition: top 180ms ease-out, right 180ms ease-out, opacity 140ms ease-out;
+}
+.profile-collapse-action-full { opacity: calc(1 - var(--profile-header-progress, 0)); }
+.profile-collapse-action-compact { display: block; opacity: var(--profile-header-progress, 0); pointer-events: none; }
 
 /* The wrapper does not clip or scroll. The Card itself defines the visible edge,
    while only its content region scrolls beneath the stationary header. */
@@ -212,4 +185,22 @@
   }
   .profile-collapse-description { opacity: calc(1 - var(--profile-header-progress, 0)); }
   .profile-collapse-action { top: calc(56px - 42px * var(--profile-header-progress, 0)); }
+}
+ 
+/* Keep the primary Vyral search control immediately below the compact header. */
+.profile-subpage-search {
+  position: sticky; top: 0; z-index: 2; margin-top: -1.25rem;
+  padding-top: 1.25rem; padding-bottom: 0.75rem; background: var(--vyra-bg-surface);
+}
+@media (max-width: 639px) {
+  .profile-collapse-header { --profile-header-expanded: 150px; }
+  .profile-collapse-back { left: 12px; width: 190px; }
+  .profile-collapse-icon { left: calc(12px + var(--profile-header-shift-x, 0px)); }
+  .profile-collapse-title {
+    left: calc(64px + var(--profile-header-title-shift-x, 0px)); right: 12px;
+    font-size: var(--profile-header-title-size, 21px);
+  }
+  .profile-collapse-header:has(.profile-collapse-action) .profile-collapse-title { right: 116px; }
+  .profile-collapse-description { left: 64px; }
+  .profile-collapse-action { right: 12px; }
 }
