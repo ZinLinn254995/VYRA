@@ -34,6 +34,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       const mobile = window.matchMedia('(max-width: 639px)').matches;
       const mix = (from: number, to: number) => from + (to - from) * progress;
       const set = (name: string, value: number) => header.style.setProperty(name, `${value.toFixed(2)}px`);
+      header.classList.toggle('is-compact', progress >= 0.98);
       header.style.setProperty('--profile-collapse', progress.toFixed(4));
       header.style.setProperty('--profile-collapse-percent', `${(progress * 100).toFixed(2)}%`);
       header.style.setProperty('--profile-shadow-opacity', (progress * 0.06).toFixed(4));
