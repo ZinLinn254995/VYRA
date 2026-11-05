@@ -15,6 +15,8 @@ const ORIGIN = {
   candidateAssetId: 'a40f067c-0ed1-4b93-814f-4f2f925ff320',
   candidateVersionId: 'b23dafc8-f5b8-447b-b06b-77553c590a08',
   candidateDnaId: '8856e567-0221-4011-b9c2-22c228faa449',
+  packageId: ORIGIN.packageId,
+  masterDnaRecordId: 'b1c8b6a3-205c-4472-991d-0b73aa9e3bff',
   ownerId: 'c9801424-1e4d-4604-99d3-791a8a389b48',
 };
 
@@ -141,7 +143,7 @@ Deno.serve(async (request: Request) => {
     context.supabase.from('vyral_assets').select('id,vyral_id,user_id,name,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number').eq('id', ORIGIN.originalVersionId).eq('asset_id', ORIGIN.originalAssetId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number').eq('id', ORIGIN.candidateVersionId).eq('asset_id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
-    context.supabase.from('vyral_dna_records').select('id,asset_id,vyral_id,user_id,payload,verification_status').eq('id', ORIGIN.candidateDnaId).eq('asset_id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
+    context.supabase.from('vyral_dna_records').select('id,asset_id,vyral_id,user_id,source_kind,payload,verification_status').eq('id', ORIGIN.candidateDnaId).eq('asset_id', ORIGIN.candidateAssetId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_lineage').select('id').eq('vyral_id', ORIGIN.vyralId).eq('parent_asset_id', ORIGIN.originalAssetId).eq('child_asset_id', ORIGIN.candidateAssetId).eq('relation_kind', 'generated_from').limit(1),
   ]);
   const queryError = [vyralResult, originalAssetResult, candidateAssetResult, originalVersionResult, candidateVersionResult, dnaResult, lineageResult].find((result) => result.error)?.error;
@@ -172,6 +174,28 @@ Deno.serve(async (request: Request) => {
     Number(original.size_bytes) !== Number(originalVersion.size_bytes) ||
     Number(candidate.size_bytes) !== Number(candidateVersion.size_bytes)
   ) return json({ error: 'An asset record does not match its registered comparison version.' }, 409);
+
+  // Treat the candidate's recorded generation provenance as an assertion that
+  // must remain internally consistent; it is not independent proof of what
+  // Gemini actually received.
+  const dnaPayload = dna.payload && typeof dna.payload === 'object' ? dna.payload as Record<string, unknown> : {};
+  const dnaProvenance = dnaPayload.provenance && typeof dnaPayload.provenance === 'object'
+    ? dnaPayload.provenance as Record<string, unknown> : {};
+  const dnaUpload = dnaPayload.upload && typeof dnaPayload.upload === 'object'
+    ? dnaPayload.upload as Record<string, unknown> : {};
+  if (
+    dna.source_kind !== 'generation' ||
+    dnaProvenance.provider !== 'Google Gemini' ||
+    dnaProvenance.method !== 'blind_reconstruction_from_dna_only_package' ||
+    dnaProvenance.input_package_id !== ORIGIN.packageId ||
+    dnaProvenance.input_package_mode !== 'dna-only' ||
+    dnaProvenance.source_binary_provided_to_model !== false ||
+    dnaProvenance.source_asset_id !== ORIGIN.originalAssetId ||
+    dnaProvenance.source_vyral_id !== ORIGIN.vyralId ||
+    dnaProvenance.source_master_dna_record_id !== ORIGIN.masterDnaRecordId ||
+    dnaUpload.sha256 !== candidateVersion.sha256 ||
+    Number(dnaUpload.size_bytes) !== Number(candidateVersion.size_bytes)
+  ) return json({ error: 'The candidate DNA provenance does not match the registered Gemini DNA-only reconstruction record.' }, 409);
 
   const originalPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.originalAssetId + '/';
   const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.candidateAssetId + '/';
@@ -211,7 +235,7 @@ Deno.serve(async (request: Request) => {
       provenance: {
         reconstructionInput: {
           provider: 'Google Gemini',
-          packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
+          packageId: ORIGIN.packageId,
           packageMode: 'DNA-only',
           originalBinaryExposure: 'creator_attested_not_provided',
           exposureIndependentlyVerifiedByComparator: false,
@@ -293,7 +317,7 @@ Deno.serve(async (request: Request) => {
     provenance: {
       reconstructionInput: {
         provider: 'Google Gemini',
-        packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
+        packageId: ORIGIN.packageId,
         packageMode: 'DNA-only',
         originalBinaryExposure: 'creator_attested_not_provided',
         exposureIndependentlyVerifiedByComparator: false,
