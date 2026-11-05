@@ -12,7 +12,7 @@ For a new `keep_contextual` conflict resolution, the creator must provide:
 - A descriptive context label (1–300 characters).
 - 1–12 explicit context tags.
 - Each tag is normalized to lowercase and must be 1–64 characters.
-- Allowed characters: lowercase letters, numbers, spaces, underscores and hyphens.
+- Allowed characters: Unicode letters and numbers, spaces, underscores and hyphens. This supports Burmese and other writing systems.
 - Duplicate tags are rejected.
 - Tags are creator-supplied claims; the system must never infer them from model output.
 
