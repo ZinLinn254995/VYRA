@@ -499,13 +499,13 @@ The first VYRAL Details Workspace foundation is now implemented on `rebuild/mark
 - Similarity is not exact identity. DNA completion remains unearned until an isolated DNA-only reconstruction is independently compared with the protected original.
 
 ### Not yet implemented
-- Trusted server-side file hashing and fingerprint verification.
+- ~~Trusted server-side file hashing and fingerprint verification.~~ Implemented through the authenticated `verify-vyral-asset` Edge Function on VYRA Development.
 - AI Vision execution, multi-model observation ingestion and conflict resolution.
 - Perceptual, semantic and structural fingerprint generation.
 - Native `.vyral` ZIP-compatible package import/export — subsequently implemented in Package Engine v1 below.
 - DNA-only reconstruction runner, isolated evaluation environment and independent verifier.
 - License enforcement in generation, sharing and publishing workflows.
-- Full runtime/browser validation of the new workspace.
+- Full end-to-end validation of package import/export and server verification against a real signed-in browser session.
 
 The existing Profile Subpage Header, Compact Style transition, Sticky Header behavior, and bottom-radius scroll logic remain protected and unchanged during this implementation.
 
@@ -535,6 +535,17 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - Initial limits: 5,000 archive entries, 200 MB total source media per browser export, 256 MB archive/import size and 32 MB manifest.
 - ZIP reader currently supports Store (method 0) only; compressed/deflated archives, encrypted archives and ZIP64 are explicitly rejected rather than guessed.
 - Package records are portable evidence, not automatic proof. Imported verification statuses must never be trusted without independent verification.
+
+### Server-side cryptographic verification
+
+- Deployed Edge Function: `verify-vyral-asset` (VYRA Development only), with platform JWT verification enabled.
+- The function authenticates the caller, checks ownership of both the asset and requested version through the user's RLS-scoped client, and validates the private Storage path before using its privileged client to download the original bytes.
+- SHA-256 is recalculated server-side from the protected Storage object, and actual byte size is checked against the stored version metadata.
+- The server writes a cryptographic fingerprint with `verification_status: server_verified` and a separate `comparison_status: matched|mismatch`.
+- If the stored claim does not match the actual bytes or file size, the service records the actual hash and mismatch evidence, returns an integrity error, and does not silently overwrite the original expected hash.
+- If no previous hash exists, a successful server verification stores the calculated hash on the version and current asset record.
+- The Details workspace exposes a per-asset Verify action and distinguishes a successful match from an integrity mismatch.
+- The Edge Function uses the user's authenticated identity for ownership checks; privileged Storage/database access is only performed after those checks. The service/secret key is never sent to the browser.
 
 ### Current implementation boundary
 - Export is available from the Vyral Details workspace.
