@@ -1,5 +1,5 @@
-/* The outer viewport scrolls the natural-height card. The card header sticks
-   to the viewport top while the card body and lower edge move upward. */
+/* The scroll viewport is only a behavior layer: it has no visible surface,
+   border, or rounded mask. The Card below owns the complete visible outline. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
   position: sticky;
@@ -12,8 +12,9 @@
   overflow-anchor: none;
   isolation: isolate;
   background: var(--vyra-bg-surface);
-  border-top-left-radius: inherit;
-  border-top-right-radius: inherit;
+  /* The shell uses display: contents, so inherit has no Card radius to read. */
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
   border-bottom: 1px solid color-mix(in srgb, var(--vyra-border-subtle) var(--profile-collapse-percent, 0%), transparent);
   box-shadow: 0 5px 18px rgb(0 0 0 / var(--profile-shadow-opacity, 0));
 }
@@ -56,8 +57,8 @@
 .profile-collapse-header.is-compact .profile-collapse-action-compact { pointer-events: auto; }
 .profile-collapse-action-compact button { min-height: 34px; padding: 0 10px; font-size: 12px; }
 
-/* The card surface is taller than the viewport when its data is long.
-   The viewport scrolls the whole surface upward; the header stays pinned. */
+/* Invisible scroll mechanism for the natural-height Card. It deliberately
+   does not round or paint a second container over the Card's own corners. */
 .profile-subpage-viewport {
   box-sizing: border-box;
   width: 100%;
@@ -70,8 +71,11 @@
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
-  /* Match the card's rounded-2xl radius so the scrollport clips on the same curve. */
-  border-radius: 1rem;
+  /* Keep the scrollport rectangular and visually transparent. The Card's
+     own rounded border remains the only visible edge. */
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .profile-subpage-card {
   display: flex;
