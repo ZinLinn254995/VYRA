@@ -6,6 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
+import { createVyralZip, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -67,6 +68,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [tab, setTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [packageBusy, setPackageBusy] = useState(false);
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);
@@ -155,6 +157,109 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   }, [folders, activeFolderId]);
   const totalBytes = assets.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0);
   const selectedDnaRecords = dnaRecords.filter((item) => !dnaAssetId || item.asset_id === dnaAssetId || (dnaAssetId === 'vyral' && item.scope === 'vyral'));
+
+  const exportVyralPackage = async () => {
+    if (!supabase || packageBusy) return;
+    setPackageBusy(true);
+    setError('');
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) throw new Error('Please sign in again before exporting this Vyral.');
+      const packageEntries: { path: string; data: Uint8Array | string }[] = [];
+      const packageVersions: Record<string, unknown>[] = [];
+      let totalMediaBytes = 0;
+      const ownerless = <T extends Record<string, unknown>>(record: T) => {
+        const { user_id: _userId, storage_path: _storagePath, ...safe } = record;
+        return safe;
+      };
+
+      for (const asset of assets) {
+        const savedVersions = versions.filter((version) => version.asset_id === asset.id);
+        const sourceVersions = savedVersions.length ? savedVersions : [{
+          id: 'current-' + asset.id,
+          asset_id: asset.id,
+          storage_path: asset.storage_path,
+          version_number: 1,
+          sha256: asset.sha256,
+          mime_type: asset.mime_type,
+          size_bytes: asset.size_bytes,
+          source_kind: 'original',
+          parent_version_id: null,
+          metadata: { fallback_current_asset: true },
+          created_at: asset.created_at,
+        }];
+        for (const version of sourceVersions) {
+          const { data: fileBlob, error: downloadError } = await supabase.storage.from('vyral-assets').download(version.storage_path);
+          if (downloadError || !fileBlob) throw new Error('Could not package ' + asset.name + ' version ' + version.version_number + ': ' + (downloadError?.message ?? 'media file missing'));
+          totalMediaBytes += fileBlob.size;
+          if (totalMediaBytes > 500 * 1024 * 1024) throw new Error('This Vyral is larger than the 500 MB export limit. Export smaller Vyrals separately.');
+          const bytes = new Uint8Array(await fileBlob.arrayBuffer());
+          const digest = await crypto.subtle.digest('SHA-256', bytes);
+          const actualHash = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+          if (version.sha256 && version.sha256 !== actualHash) throw new Error('Integrity check failed for ' + asset.name + ' version ' + version.version_number + '. The stored file does not match its recorded SHA-256.');
+          const packagePath = 'assets/' + asset.id + '/versions/' + version.version_number + '-' + version.id + '.bin';
+          packageEntries.push({ path: packagePath, data: bytes });
+          packageVersions.push({
+            ...ownerless(version as unknown as Record<string, unknown>),
+            sha256: actualHash,
+            mime_type: version.mime_type || asset.mime_type,
+            size_bytes: bytes.byteLength,
+            package_path: packagePath,
+          });
+        }
+      }
+
+      const manifest = {
+        format: VYRAL_PACKAGE_FORMAT,
+        formatVersion: VYRAL_PACKAGE_VERSION,
+        packageId: crypto.randomUUID(),
+        exportedAt: new Date().toISOString(),
+        vyral: {
+          id: vyral.id,
+          name: vyral.name,
+          description: vyral.description,
+          visibility: vyral.visibility,
+          dna_status: vyral.dna_status,
+          license_policy: vyral.license_policy ?? {},
+        },
+        folders: folders.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        assets: assets.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        versions: packageVersions,
+        dnaRecords: dnaRecords.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        fingerprints: fingerprints.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        visionObservations: observations.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        lineage: lineage.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        reconstructionTests: reconstructionTests.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+      };
+      packageEntries.push({
+        path: 'README.txt',
+        data: [
+          'VYRAL PORTABLE PACKAGE',
+          'Format: ' + VYRAL_PACKAGE_FORMAT,
+          'Version: ' + VYRAL_PACKAGE_VERSION,
+          'This archive contains the Vyral manifest, identity records and original asset-version media.',
+          'SHA-256 values were recalculated from the downloaded media during export.',
+          'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
+          'ZIP entries use the standard Store method (no compression) for broad compatibility.',
+        ].join('\\n'),
+      });
+      packageEntries.push({ path: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
+      const archive = createVyralZip(packageEntries);
+      const url = window.URL.createObjectURL(archive);
+      const anchor = document.createElement('a');
+      const safeName = vyral.name.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'Vyral';
+      anchor.href = url;
+      anchor.download = safeName + '.vyral';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'VYRAL package export failed.');
+    } finally {
+      setPackageBusy(false);
+    }
+  };
 
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -337,7 +442,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><div className={'text-[10px] font-semibold uppercase tracking-[0.16em] ' + muted}>VYRAL WORKSPACE</div><p className={'mt-1 text-xs ' + subtle}>Your assets, identity records and evolving knowledge.</p></div>
-        <div className="flex items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy}><Clock3 size={13}/> Refresh</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><button type="button" onClick={() => void exportVyralPackage()} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Preparing…':'Export .vyral'}</button><button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy}><Clock3 size={13}/> Refresh</button></div>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-[var(--vyra-border)] pb-1" aria-label="Vyral sections">
