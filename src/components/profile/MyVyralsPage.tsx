@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { ChevronRight, Plus, Search, Trash2 } from 'lucide-react';
+import { ChevronRight, LockKeyhole, Plus, Search, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
@@ -11,12 +11,14 @@ type LegacyVyral = { id: string; name: string; description: string; visibility: 
 type VyralRecord = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
   dna_status: string; license_policy: Record<string, unknown>; created_at: string; updated_at: string;
-  assetCount: number; folderCount: number;
+  assetCount: number; folderCount: number; metadata?: Record<string, unknown>;
 };
 type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string };
 const STORAGE_KEY = 'vyra:my-vyrals:v1';
 const MIGRATION_KEY = 'vyra:my-vyrals:cloud-migrated:v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROTECTED_VYRAL_ID = 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d';
+const isProtectedVyral = (item: VyralRecord) => item.id === PROTECTED_VYRAL_ID || item.metadata?.protected === true;
 const readLegacyVyrals = (): LegacyVyral[] => {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -144,9 +146,9 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   useEffect(() => { void loadVyrals(); }, [loadVyrals]);
 
   const active = vyrals.find((item) => item.id === activeId) ?? null;
-  const visibleVyrals = useMemo(() => vyrals.filter((item) =>
-    (item.name + ' ' + item.description).toLowerCase().includes(query.toLowerCase())
-  ), [vyrals, query]);
+  const visibleVyrals = useMemo(() => vyrals
+    .filter((item) => (item.name + ' ' + item.description).toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => Number(isProtectedVyral(b)) - Number(isProtectedVyral(a)) || Date.parse(b.updated_at) - Date.parse(a.updated_at)), [vyrals, query]);
 
   useLayoutEffect(() => {
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
@@ -193,6 +195,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   };
 
   const deleteVyral = async (item: VyralRecord) => {
+    if (isProtectedVyral(item)) { setError('ORIGIN-01 is protected and cannot be deleted from the app.'); return; }
     if (!supabase || !window.confirm('Delete "' + item.name + '" and all of its assets, folders and identity records?')) return;
     setBusy(true); setError('');
     const [assetResult, versionResult] = await Promise.all([
@@ -252,7 +255,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
               <article key={item.id} className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
                 <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">VYRAL COLLECTION</span></button>
-                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A private creative asset library.'}</p></button><button type="button" onClick={() => void deleteVyral(item)} aria-label={'Delete '+item.name} disabled={busy} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15}/></button></div>
+                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A private creative asset library.'}</p></button>{isProtectedVyral(item) ? <span title="Protected sample — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={12}/> Protected</span> : <button type="button" onClick={() => void deleteVyral(item)} aria-label={'Delete '+item.name} disabled={busy} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15}/></button>}</div>
                   <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--vyra-text-muted)]"><span>{item.assetCount} assets · {item.folderCount} folders</span><span className="capitalize">{item.dna_status.replaceAll('_',' ')}</span></div>
                   <button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Vyral <ChevronRight size={14}/></button>
                 </div>
