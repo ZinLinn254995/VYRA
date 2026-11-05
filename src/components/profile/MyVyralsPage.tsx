@@ -57,13 +57,13 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   if (active) return (
     <section className="space-y-3">
       <div className="flex items-center">
-        <button type="button" onClick={() => { setActiveId(null); setQuery(''); setCategory('all'); }} className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)]"><ArrowLeft size={16} /> Back</button>
+        <button type="button" onClick={() => { setActiveId(null); setQuery(''); setCategory('all'); }} className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)]"><ArrowLeft size={16} /> Back to My Vyrals</button>
       </div>
       <div className="flex min-w-0 items-center gap-2">
-        <VyralIdentityIcon size={22} className="shrink-0 text-[var(--vyra-accent-primary)]" />
+        <VyralIdentityIcon size={25} className="shrink-0 text-[var(--vyra-accent-primary)]" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-bold text-[var(--vyra-text-primary)]">{active.name}</h2>
-          {active.description && <p className="truncate text-xs text-[var(--vyra-text-secondary)]">{active.description}</p>}
+          <h2 className="truncate text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">{active.name}</h2>
+          {active.description && <p className="mt-0.5 truncate text-xs text-[var(--vyra-text-secondary)]">{active.description}</p>}
         </div>
         <Button size="sm" onClick={() => setFolderOpen(true)} startIcon={<FolderPlus size={14} />}>New Folder</Button>
       </div>
@@ -104,7 +104,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <VyralIdentityIcon size={25} className="shrink-0 text-[var(--vyra-accent-primary)]" />
-            <div className="min-w-0"><h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)]">My Vyrals</h1><p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">Your creative libraries, identity and knowledge.</p></div>
+            <div className="min-w-0"><h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">My Vyrals</h1><p className="mt-0.5 text-xs text-[var(--vyra-text-secondary)]">Your creative libraries, identity and knowledge.</p></div>
           </div>
           <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}>Create New Vyral</Button>
         </div>
