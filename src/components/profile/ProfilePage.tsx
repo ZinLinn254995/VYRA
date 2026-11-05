@@ -8,6 +8,7 @@ import {
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
+import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 
 type ProfilePageProps = {
   userEmail: string;
@@ -155,23 +156,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : activePage === 'my-vyrals' ? (
         <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} />
       ) : (
-        <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-          <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
-            <button type="button" onClick={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
-              <ArrowLeft size={16} /> {initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
-            </button>
-            {(() => {
-              const info = pageInfo[activePage];
-              const Icon = info.icon;
-              return (
-                <>
-                  <div className="mb-3 grid size-11 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Icon size={21} /></div>
-                  <h1 className="text-xl font-bold text-[var(--vyra-text-primary)] sm:text-2xl">{info.title}</h1>
-                  <p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">{info.description}</p>
-                </>
-              );
-            })()}
-          </div>
+        <section className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+          <ProfileSubpageHeader
+            onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
+            backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
+            icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
+            title={pageInfo[activePage].title}
+            description={pageInfo[activePage].description}
+          />
           <div className="p-5 sm:p-6">
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
