@@ -98,7 +98,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
                 <span>{creditLoading ? '…' : formattedBalance}</span>
                 <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
               </div>
-              <button type="button" onClick={onProfileClick} aria-label="Open user profile" title="Profile" className={`grid size-9 place-items-center rounded-full border transition hover:bg-[var(--vyra-bg-hover)] ${activeSection === 'profile' ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/10 text-[var(--vyra-accent-primary)] ring-2 ring-[var(--vyra-accent-primary)]/20' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]'}`}>
+              <button type="button" onClick={onProfileClick} aria-label="Open user profile" title="Profile" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
                 <UserRound size={17} />
               </button>
             </>
@@ -126,7 +126,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
                   {creditLoading ? '…' : formattedBalance}
                   <span className="font-medium text-[var(--vyra-text-muted)]">Credits</span>
                 </span>
-                <button type="button" onClick={onProfileClick} aria-label="Open user profile" className={`grid size-9 place-items-center rounded-full border transition hover:bg-[var(--vyra-bg-hover)] ${activeSection === 'profile' ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/10 text-[var(--vyra-accent-primary)] ring-2 ring-[var(--vyra-accent-primary)]/20' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]'}`}>
+                <button type="button" onClick={onProfileClick} aria-label="Open user profile" className="grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
                   <UserRound size={17} />
                 </button>
               </>
