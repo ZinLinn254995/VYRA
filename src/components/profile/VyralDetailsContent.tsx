@@ -82,6 +82,13 @@ const flattenObservation = (value: unknown, prefix = ''): Record<string, string>
   }), {});
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const formatRgb = (value: unknown) =>
+  Array.isArray(value) && value.length >= 3
+    ? value.slice(0, 3).map((channel) => Number(channel).toFixed(0)).join(', ')
+    : '—';
+
 export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
@@ -1111,6 +1118,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const renderAssetCard = (asset: AssetRow) => {
     const Icon = typeIcon(asset.asset_type);
+    const latestReconstructionTest = asset.id === 'a40f067c-0ed1-4b93-814f-4f2f925ff320'
+      ? reconstructionTests.filter((test) => test.asset_id === asset.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+      : undefined;
+    const reconstructionReport = asRecord(latestReconstructionTest?.report);
+    const originalReport = asRecord(reconstructionReport.original);
+    const candidateReport = asRecord(reconstructionReport.candidate);
+    const pixelReport = asRecord(asRecord(reconstructionReport.comparison).pixelComparison);
+    const backgroundDelta = reconstructionReport.comparison
+      ? asRecord(reconstructionReport.comparison).backgroundCornerColorEuclideanDelta
+      : null;
     return (
       <article key={asset.id} className={surface + ' group min-w-0 overflow-hidden'}>
         <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[16/10] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]">
@@ -1121,7 +1138,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{asset.id==='a40f067c-0ed1-4b93-814f-4f2f925ff320' && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this Gemini reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{asset.id==='a40f067c-0ed1-4b93-814f-4f2f925ff320' && reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0] && <p className={'mt-2 text-[10px] '+muted}>Latest test: {reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0].test_status}{reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0].similarity_score !== null ? ' · '+(Number(reconstructionTests.filter((test)=>test.asset_id===asset.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0].similarity_score)*100).toFixed(2)+'% RGB similarity' : ''}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{asset.id==='a40f067c-0ed1-4b93-814f-4f2f925ff320' && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this Gemini reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2'}>
+            <p className={'text-[10px] font-semibold '+primary}>Latest test: {latestReconstructionTest.test_status}{latestReconstructionTest.similarity_score !== null ? ' · '+(Number(latestReconstructionTest.similarity_score)*100).toFixed(2)+'% RGB similarity' : ''}</p>
+            <div className={'mt-1 space-y-1 text-[10px] '+muted}>
+              <p>Original: {String(originalReport.width ?? '—')} × {String(originalReport.height ?? '—')} · Background RGB ({formatRgb(originalReport.backgroundCornerAverageRgb)})</p>
+              <p>Gemini: {String(candidateReport.width ?? '—')} × {String(candidateReport.height ?? '—')} · Background RGB ({formatRgb(candidateReport.backgroundCornerAverageRgb)})</p>
+              {typeof backgroundDelta === 'number' && <p>Background color delta: {backgroundDelta.toFixed(2)}</p>}
+              {pixelReport.performed === true && <p>Exact pixels: {String(pixelReport.exactPixels ?? '—')} / {String(pixelReport.pixelCount ?? '—')} · Different pixels: {String(pixelReport.differentPixels ?? '—')}</p>}
+              {pixelReport.performed === false && <p>Pixel comparison: {String(pixelReport.reason ?? 'Not performed')}</p>}
+            </div>
+          </div>}
         </div>
       </article>
     );
