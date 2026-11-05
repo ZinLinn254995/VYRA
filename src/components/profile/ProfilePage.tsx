@@ -101,6 +101,8 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
     header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
     header.style.setProperty('--profile-back-label-width', (190 * (1 - headerProgress)) + 'px');
     header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+    header.style.setProperty('--profile-full-action-events', headerProgress < 0.5 ? 'auto' : 'none');
+    header.style.setProperty('--profile-compact-action-events', headerProgress >= 0.5 ? 'auto' : 'none');
   }
 };
 
