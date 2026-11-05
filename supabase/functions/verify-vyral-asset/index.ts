@@ -81,7 +81,7 @@ Deno.serve(async (request: Request) => {
     : currentAssetVersion && typeof asset.sha256 === 'string' ? asset.sha256 : null;
   const sizeMatches = actualSize === expectedSize;
   const hashMatches = expectedSha256 === null || expectedSha256.toLowerCase() === actualSha256;
-  const comparisonStatus = sizeMatches && hashMatches ? 'matched' : 'mismatch';
+  const comparisonStatus = !sizeMatches || !hashMatches ? 'mismatch' : expectedSha256 === null ? 'baseline_created' : 'matched';
   const verifiedAt = new Date().toISOString();
 
   const fingerprintMetadata = {
