@@ -62,9 +62,10 @@
 .profile-subpage-viewport {
   box-sizing: border-box;
   width: 100%;
-  height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
-  max-height: calc(100dvh - var(--vyra-global-header-height, 64px) - 3rem);
-  min-height: 240px;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  flex: 1 1 0%;
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -92,9 +93,19 @@
   flex: 0 0 auto;
   min-height: 0;
 }
-@media (min-width: 640px) {
-  .profile-subpage-viewport {
-    height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem);
-    max-height: calc(100dvh - var(--vyra-global-header-height, 64px) - 5rem);
-  }
+/* Let the page's actual space below the fixed global header define the scroll area.
+   This avoids subtracting the global header twice and keeps the bottom inset owned
+   by the Profile page padding rather than a guessed viewport-height calculation. */
+.profile-page-main:has(.profile-subpage-viewport) {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+}
+.profile-page-main:has(.profile-subpage-viewport) > .profile-subpage-viewport,
+.profile-page-main:has(.profile-subpage-viewport) .profile-subpage-viewport {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: auto;
+  max-height: none;
 }
