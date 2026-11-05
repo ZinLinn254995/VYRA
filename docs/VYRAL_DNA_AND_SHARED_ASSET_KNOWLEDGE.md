@@ -502,7 +502,7 @@ The first VYRAL Details Workspace foundation is now implemented on `rebuild/mark
 - Trusted server-side file hashing and fingerprint verification.
 - AI Vision execution, multi-model observation ingestion and conflict resolution.
 - Perceptual, semantic and structural fingerprint generation.
-- Native `.vyral` ZIP-compatible package import/export.
+- Native `.vyral` ZIP-compatible package import/export — subsequently implemented in Package Engine v1 below.
 - DNA-only reconstruction runner, isolated evaluation environment and independent verifier.
 - License enforcement in generation, sharing and publishing workflows.
 - Full runtime/browser validation of the new workspace.
