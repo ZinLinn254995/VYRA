@@ -156,7 +156,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : activePage === 'my-vyrals' ? (
         <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} />
       ) : (
-        <section className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+        <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
             backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
