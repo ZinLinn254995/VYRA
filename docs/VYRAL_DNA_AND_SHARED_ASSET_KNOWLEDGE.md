@@ -499,7 +499,6 @@ The first VYRAL Details Workspace foundation is now implemented on `rebuild/mark
 - Similarity is not exact identity. DNA completion remains unearned until an isolated DNA-only reconstruction is independently compared with the protected original.
 
 ### Not yet implemented
-- ~~Trusted server-side file hashing and fingerprint verification.~~ Implemented through the authenticated `verify-vyral-asset` Edge Function on VYRA Development.
 - AI Vision execution, multi-model observation ingestion and conflict resolution.
 - Perceptual, semantic and structural fingerprint generation.
 - Native `.vyral` ZIP-compatible package import/export — subsequently implemented in Package Engine v1 below.
