@@ -186,9 +186,9 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
       },
       reconstruction_data: { original_media_policy: 'preserve_original_binary', reconstruction_runner: 'not_connected' },
     });
-    if (dnaError) setError('Vyral created, but its initial DNA record could not be written: ' + dnaError.message);
     setName(''); setDescription(''); setCreateOpen(false); setActiveId(created.id);
     await loadVyrals();
+    if (dnaError) setError('Vyral created, but its initial DNA record could not be written: ' + dnaError.message);
     setBusy(false);
   };
 
