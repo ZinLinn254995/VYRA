@@ -80,6 +80,14 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
   help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
 };
 
+const updateProfileCardBottomRadius = (content: HTMLElement) => {
+  const card = content.closest<HTMLElement>('.profile-subpage-card');
+  if (!card) return;
+  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
+  const progress = Math.max(0, Math.min(1, 1 - remaining / 120));
+  card.style.setProperty('--profile-card-bottom-radius', (16 * progress).toFixed(2) + 'px');
+};
+
 const settingsItems: { key: PageKey; label: string; detail: string; icon: LucideIcon }[] = [
   { key: 'setting-account', label: 'Account & Profile', detail: 'Email, personal details and public profile', icon: UserRound },
   { key: 'setting-security', label: 'Security & Privacy', detail: 'Password, sessions and visibility controls', icon: ShieldCheck },
@@ -98,6 +106,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activePage]);
+  React.useLayoutEffect(() => {
+    const content = document.querySelector<HTMLElement>('.profile-subpage-content');
+    if (content) updateProfileCardBottomRadius(content);
   }, [activePage]);
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
@@ -164,7 +176,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
           />
-          <div className="profile-subpage-content p-5 sm:p-6">
+          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
