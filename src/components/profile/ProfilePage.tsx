@@ -104,7 +104,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const goHome = () => setActivePage('home');
 
   return (
-    <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
+    <main className="profile-page-main mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
       {activePage === 'home' ? (
         <>
           <section className="mb-7">
