@@ -246,7 +246,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'ZIP entries use the standard Store method (no compression) for broad compatibility.\nThe initial browser export limit is 200 MB of source media.',
         ].join('\n'),
       });
-      packageEntries.push({ path: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
+      const manifestJson = JSON.stringify(manifest, null, 2);
+      if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
+      packageEntries.push({ path: 'manifest.json', data: manifestJson });
       const archive = createVyralZip(packageEntries);
       const url = window.URL.createObjectURL(archive);
       const anchor = document.createElement('a');
@@ -256,7 +258,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.URL.revokeObjectURL(url);
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'VYRAL package export failed.');
     } finally {
