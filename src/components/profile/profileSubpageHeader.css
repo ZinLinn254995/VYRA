@@ -54,3 +54,5 @@
 .profile-collapse-header.is-compact .profile-collapse-action-expanded { pointer-events: none; }
 .profile-collapse-header.is-compact .profile-collapse-action-compact { pointer-events: auto; }
 .profile-collapse-action-compact button { min-height: 34px; padding: 0 10px; font-size: 12px; }
+
+.profile-subpage-card { overflow-anchor: none; }
