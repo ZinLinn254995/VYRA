@@ -170,7 +170,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const packageVersions: Record<string, unknown>[] = [];
       let totalMediaBytes = 0;
       const ownerless = <T extends Record<string, unknown>>(record: T) => {
-        const { user_id: _userId, storage_path: _storagePath, ...safe } = record;
+        const { user_id: _userId, vyral_id: _vyralId, storage_path: _storagePath, ...safe } = record;
         return safe;
       };
 
@@ -408,8 +408,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const versionRows: Record<string, unknown>[] = [];
         const fingerprintRows: Record<string, unknown>[] = [];
         for (const item of preparedVersions) {
-          const { error: uploadError } = await supabase.storage.from('vyral-assets').upload(item.storagePath, new Blob([(() => { const buffer = new ArrayBuffer(item.bytes.byteLength); new Uint8Array(buffer).set(item.bytes); return buffer; })()], { type: stringValue(item.source.mime_type, mimeType) }), {
-            contentType: stringValue(item.source.mime_type, mimeType), upsert: false, cacheControl: '3600',
+          const versionMimeType = safeName(item.source.mime_type, mimeType, 160);
+          const versionBuffer = new ArrayBuffer(item.bytes.byteLength);
+          new Uint8Array(versionBuffer).set(item.bytes);
+          const { error: uploadError } = await supabase.storage.from('vyral-assets').upload(item.storagePath, new Blob([versionBuffer], { type: versionMimeType }), {
+            contentType: versionMimeType, upsert: false, cacheControl: '3600',
           });
           if (uploadError) throw uploadError;
           uploadedPaths.push(item.storagePath);
@@ -420,7 +423,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             user_id: userId,
             version_number: item.versionNumber,
             storage_path: item.storagePath,
-            mime_type: stringValue(item.source.mime_type, mimeType),
+            mime_type: versionMimeType,
             size_bytes: item.bytes.byteLength,
             sha256: item.sha256,
             source_kind: allowedVersionSources.includes(String(item.source.source_kind)) ? item.source.source_kind : 'restored',
@@ -537,14 +540,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       await loadWorkspace();
       setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.');
     } catch (cause) {
+      const cleanupFailures: string[] = [];
       if (uploadedPaths.length) {
         for (let index = 0; index < uploadedPaths.length; index += 100) {
-          await supabase.storage.from('vyral-assets').remove(uploadedPaths.slice(index, index + 100));
+          const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(uploadedPaths.slice(index, index + 100));
+          if (cleanupError) cleanupFailures.push('Stored media cleanup: ' + cleanupError.message);
         }
       }
-      if (createdAssetIds.length) await supabase.from('vyral_assets').delete().in('id', createdAssetIds);
-      if (createdFolderIds.length) await supabase.from('vyral_folders').delete().in('id', createdFolderIds);
-      setError(cause instanceof Error ? cause.message : 'VYRAL package import failed. Newly created package records were rolled back where possible.');
+      if (createdAssetIds.length) {
+        const { error: cleanupError } = await supabase.from('vyral_assets').delete().in('id', createdAssetIds);
+        if (cleanupError) cleanupFailures.push('Asset-record cleanup: ' + cleanupError.message);
+      }
+      if (createdFolderIds.length) {
+        const { error: cleanupError } = await supabase.from('vyral_folders').delete().in('id', createdFolderIds);
+        if (cleanupError) cleanupFailures.push('Folder cleanup: ' + cleanupError.message);
+      }
+      const primaryError = cause instanceof Error ? cause.message : 'VYRAL package import failed.';
+      setError(primaryError + (cleanupFailures.length ? ' Cleanup needs attention: ' + cleanupFailures.join(' · ') : ' Newly created package records were rolled back.'));
       setPackageStatus('');
     } finally {
       setPackageBusy(false);
