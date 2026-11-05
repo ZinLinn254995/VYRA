@@ -93,9 +93,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
       <section className="mb-7 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-3xl">My Storyboards</h1>
-          <p className="mt-2 text-sm text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
+          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] sm:text-[11px] text-[var(--vyra-accent-primary)]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">My Storyboards</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
       </section>
