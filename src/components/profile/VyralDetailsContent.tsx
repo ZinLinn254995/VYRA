@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
-import { createVyralZip, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralZip, parseVyralManifest, readVyralZip, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -69,6 +69,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
+  const [packageStatus, setPackageStatus] = useState('');
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);
@@ -261,6 +262,291 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
+  const importVyralPackage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !supabase || packageBusy) return;
+    if (file.size > 512 * 1024 * 1024) { setError('VYRAL package exceeds the 512 MB import limit.'); return; }
+
+    setPackageBusy(true);
+    setPackageStatus('Reading package…');
+    setError('');
+    const createdFolderIds: string[] = [];
+    const createdAssetIds: string[] = [];
+    const uploadedPaths: string[] = [];
+    try {
+      const archiveFiles = await readVyralZip(file);
+      const manifest = parseVyralManifest(archiveFiles);
+      const packageName = String(manifest.vyral.name || 'Imported Vyral');
+      const assetCount = manifest.assets.length;
+      const folderCount = manifest.folders.length;
+      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\\n\\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions\\n\\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
+        setPackageStatus('');
+        setPackageBusy(false);
+        return;
+      }
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) throw new Error('Please sign in again before importing a VYRAL package.');
+      const userId = auth.user.id;
+      const objectValue = (value: unknown): Record<string, unknown> =>
+        value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+      const stringValue = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
+      const safeName = (value: unknown, fallback: string, max: number) =>
+        (stringValue(value, fallback).trim().replace(/[\\\\/\\0]/g, '-').slice(0, max) || fallback);
+      const allowedAssetTypes = ['image','video','audio','document','model_3d','archive','other'];
+      const allowedVersionSources = ['original','generated','edited','restored','derived'];
+      const allowedDnaSources = ['creator','generation','vision','audio_analysis','user_report','community','system','verification'];
+      const allowedRelations = ['generated_from','edited_from','derived_from','variant_of','restored_from','reference_for'];
+
+      const folderMap = new Map<string, string>();
+      const folderNameKeys = new Set(folders.map((item) => (item.parent_id ?? 'root') + '|' + item.name.toLowerCase()));
+      const pendingFolders = [...manifest.folders];
+      let folderPasses = 0;
+      while (pendingFolders.length) {
+        const index = pendingFolders.findIndex((item) => !item.parent_id || folderMap.has(String(item.parent_id)));
+        if (index < 0 || folderPasses++ > manifest.folders.length) throw new Error('The package folder tree contains a missing parent or circular reference.');
+        const [sourceFolder] = pendingFolders.splice(index, 1);
+        const oldId = stringValue(sourceFolder.id);
+        if (!oldId) throw new Error('A package folder is missing its identity.');
+        const parentId = sourceFolder.parent_id ? folderMap.get(String(sourceFolder.parent_id)) ?? null : null;
+        const baseName = safeName(sourceFolder.name, 'Imported folder', 100);
+        let name = baseName;
+        let suffix = 2;
+        let key = (parentId ?? 'root') + '|' + name.toLowerCase();
+        while (folderNameKeys.has(key)) {
+          const ending = ' (Imported ' + suffix++ + ')';
+          name = baseName.slice(0, Math.max(1, 100 - ending.length)) + ending;
+          key = (parentId ?? 'root') + '|' + name.toLowerCase();
+        }
+        const newId = crypto.randomUUID();
+        const { error: folderError } = await supabase.from('vyral_folders').insert({
+          id: newId, vyral_id: vyral.id, user_id: userId, parent_id: parentId, name,
+        });
+        if (folderError) throw folderError;
+        folderMap.set(oldId, newId);
+        folderNameKeys.add(key);
+        createdFolderIds.push(newId);
+      }
+
+      const assetMap = new Map<string, string>();
+      const versionMap = new Map<string, string>();
+      for (const version of manifest.versions) {
+        if (typeof version.id === 'string') versionMap.set(version.id, crypto.randomUUID());
+      }
+      const versionsByAsset = new Map<string, typeof manifest.versions>();
+      for (const version of manifest.versions) {
+        const assetId = String(version.asset_id ?? '');
+        const group = versionsByAsset.get(assetId) ?? [];
+        group.push(version);
+        versionsByAsset.set(assetId, group);
+      }
+
+      let completedAssets = 0;
+      for (const sourceAsset of manifest.assets) {
+        const oldAssetId = stringValue(sourceAsset.id);
+        if (!oldAssetId) throw new Error('A package asset is missing its identity.');
+        const assetId = crypto.randomUUID();
+        assetMap.set(oldAssetId, assetId);
+        const sourceVersions = [...(versionsByAsset.get(oldAssetId) ?? [])].sort((a, b) => Number(a.version_number) - Number(b.version_number));
+        if (!sourceVersions.length) throw new Error('Asset "' + stringValue(sourceAsset.name, oldAssetId) + '" has no media version in the package.');
+        const preparedVersions: {
+          source: (typeof sourceVersions)[number];
+          bytes: Uint8Array;
+          sha256: string;
+          id: string;
+          storagePath: string;
+          versionNumber: number;
+        }[] = [];
+
+        for (const sourceVersion of sourceVersions) {
+          const packagePath = sourceVersion.package_path;
+          const bytes = typeof packagePath === 'string' ? archiveFiles.get(packagePath) : undefined;
+          if (!bytes) throw new Error('A media version is missing from the package archive.');
+          if (bytes.byteLength > 100 * 1024 * 1024) throw new Error('An asset version exceeds the 100 MB storage limit.');
+          const digest = await crypto.subtle.digest('SHA-256', bytes);
+          const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+          if (typeof sourceVersion.sha256 === 'string' && sourceVersion.sha256 !== sha256) {
+            throw new Error('Integrity verification failed for "' + stringValue(sourceAsset.name, oldAssetId) + '". The package media does not match its SHA-256 record.');
+          }
+          const versionNumber = Math.max(1, Math.floor(Number(sourceVersion.version_number) || 1));
+          const versionId = versionMap.get(String(sourceVersion.id)) ?? crypto.randomUUID();
+          const filename = safeName(sourceAsset.original_filename ?? sourceAsset.name, 'asset.bin', 120);
+          const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v' + versionNumber + '/' + versionId + '-' + encodeURIComponent(filename);
+          preparedVersions.push({ source: sourceVersion, bytes, sha256, id: versionId, storagePath, versionNumber });
+        }
+
+        const latest = preparedVersions[preparedVersions.length - 1];
+        const assetName = safeName(sourceAsset.name, 'Imported asset', 180);
+        const originalFilename = safeName(sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
+        const assetTypeValue = stringValue(sourceAsset.asset_type, 'other');
+        const assetTypeValueSafe = allowedAssetTypes.includes(assetTypeValue) ? assetTypeValue : 'other';
+        const mimeType = safeName(sourceAsset.mime_type, 'application/octet-stream', 160);
+        const { error: assetError } = await supabase.from('vyral_assets').insert({
+          id: assetId,
+          vyral_id: vyral.id,
+          user_id: userId,
+          folder_id: sourceAsset.folder_id ? folderMap.get(String(sourceAsset.folder_id)) ?? null : null,
+          name: assetName,
+          original_filename: originalFilename,
+          asset_type: assetTypeValueSafe,
+          mime_type: mimeType,
+          size_bytes: latest.bytes.byteLength,
+          storage_path: latest.storagePath,
+          sha256: latest.sha256,
+          processing_status: 'uploading',
+          description: stringValue(sourceAsset.description).slice(0, 2000),
+          license_override: objectValue(sourceAsset.license_override),
+          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId },
+        });
+        if (assetError) throw assetError;
+        createdAssetIds.push(assetId);
+
+        const versionRows: Record<string, unknown>[] = [];
+        const fingerprintRows: Record<string, unknown>[] = [];
+        for (const item of preparedVersions) {
+          const { error: uploadError } = await supabase.storage.from('vyral-assets').upload(item.storagePath, new Blob([item.bytes], { type: stringValue(item.source.mime_type, mimeType) }), {
+            contentType: stringValue(item.source.mime_type, mimeType), upsert: false, cacheControl: '3600',
+          });
+          if (uploadError) throw uploadError;
+          uploadedPaths.push(item.storagePath);
+          versionRows.push({
+            id: item.id,
+            asset_id: assetId,
+            vyral_id: vyral.id,
+            user_id: userId,
+            version_number: item.versionNumber,
+            storage_path: item.storagePath,
+            mime_type: stringValue(item.source.mime_type, mimeType),
+            size_bytes: item.bytes.byteLength,
+            sha256: item.sha256,
+            source_kind: allowedVersionSources.includes(String(item.source.source_kind)) ? item.source.source_kind : 'restored',
+            parent_version_id: item.source.parent_version_id ? versionMap.get(String(item.source.parent_version_id)) ?? null : null,
+            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId },
+          });
+          fingerprintRows.push({
+            asset_id: assetId,
+            asset_version_id: item.id,
+            user_id: userId,
+            fingerprint_kind: 'cryptographic',
+            algorithm: 'SHA-256',
+            value: item.sha256,
+            metadata: { computed_by: 'browser_web_crypto', verification_status: 'unverified', source: 'package_import' },
+          });
+        }
+        const { error: versionError } = await supabase.from('vyral_asset_versions').insert(versionRows);
+        if (versionError) throw versionError;
+        const { error: fingerprintError } = await supabase.from('vyral_fingerprints').insert(fingerprintRows);
+        if (fingerprintError) throw fingerprintError;
+        const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
+        if (readyError) throw readyError;
+        completedAssets += 1;
+        setPackageStatus('Restoring assets ' + completedAssets + ' / ' + manifest.assets.length + '…');
+      }
+
+      const dnaRows: Record<string, unknown>[] = [];
+      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>) => {
+        dnaRows.push({
+          vyral_id: vyral.id,
+          user_id: userId,
+          asset_id: assetId,
+          scope: assetId ? 'asset' : 'vyral',
+          schema_version: 1,
+          dna_status: 'evolving',
+          source_kind: allowedDnaSources.includes(sourceKind) ? sourceKind : 'system',
+          verification_status: 'unverified',
+          payload,
+          reconstruction_data: {},
+        });
+      };
+
+      for (const sourceRecord of manifest.dnaRecords) {
+        const oldAssetId = sourceRecord.asset_id ? String(sourceRecord.asset_id) : '';
+        const assetId = oldAssetId ? assetMap.get(oldAssetId) ?? null : null;
+        const originalPayload = objectValue(sourceRecord.payload);
+        addImportedEvidence(stringValue(sourceRecord.source_kind, 'system'), assetId, {
+          ...originalPayload,
+          imported_provenance: {
+            package_id: manifest.packageId,
+            original_record_id: sourceRecord.id ?? null,
+            claimed_dna_status: sourceRecord.dna_status ?? null,
+            claimed_verification_status: sourceRecord.verification_status ?? null,
+            trust: 'unverified_imported_evidence',
+          },
+        });
+      }
+
+      for (const sourceFingerprint of manifest.fingerprints) {
+        if (sourceFingerprint.fingerprint_kind === 'cryptographic' && sourceFingerprint.algorithm === 'SHA-256') continue;
+        const assetId = assetMap.get(String(sourceFingerprint.asset_id ?? ''));
+        if (!assetId) continue;
+        addImportedEvidence('system', assetId, {
+          imported_fingerprint_claim: sourceFingerprint,
+          trust: 'unverified_imported_evidence',
+        });
+      }
+      for (const observation of manifest.visionObservations) {
+        const assetId = assetMap.get(String(observation.asset_id ?? ''));
+        if (!assetId) continue;
+        addImportedEvidence('vision', assetId, {
+          imported_vision_observation: observation,
+          trust: 'unverified_imported_evidence',
+        });
+      }
+      for (const reconstruction of manifest.reconstructionTests) {
+        const assetId = assetMap.get(String(reconstruction.asset_id ?? ''));
+        if (!assetId) continue;
+        addImportedEvidence('verification', assetId, {
+          imported_reconstruction_claim: reconstruction,
+          trust: 'unverified_imported_evidence',
+        });
+      }
+      addImportedEvidence('system', null, {
+        imported_collection_identity: manifest.vyral,
+        package_id: manifest.packageId,
+        exported_at: manifest.exportedAt,
+        trust: 'unverified_imported_evidence',
+      });
+
+      for (let index = 0; index < dnaRows.length; index += 100) {
+        const { error: dnaError } = await supabase.from('vyral_dna_records').insert(dnaRows.slice(index, index + 100));
+        if (dnaError) throw dnaError;
+      }
+
+      const lineageRows = manifest.lineage.flatMap((item) => {
+        const parentId = assetMap.get(String(item.parent_asset_id ?? ''));
+        const childId = assetMap.get(String(item.child_asset_id ?? ''));
+        const relation = String(item.relation_kind ?? '');
+        return parentId && childId && parentId !== childId && allowedRelations.includes(relation) ? [{
+          vyral_id: vyral.id,
+          user_id: userId,
+          parent_asset_id: parentId,
+          child_asset_id: childId,
+          relation_kind: relation,
+          metadata: { ...objectValue(item.metadata), imported_from_package: manifest.packageId },
+        }] : [];
+      });
+      if (lineageRows.length) {
+        const { error: lineageError } = await supabase.from('vyral_lineage').insert(lineageRows);
+        if (lineageError) throw lineageError;
+      }
+
+      await loadWorkspace();
+      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.');
+    } catch (cause) {
+      if (uploadedPaths.length) {
+        for (let index = 0; index < uploadedPaths.length; index += 100) {
+          await supabase.storage.from('vyral-assets').remove(uploadedPaths.slice(index, index + 100));
+        }
+      }
+      if (createdAssetIds.length) await supabase.from('vyral_assets').delete().in('id', createdAssetIds);
+      if (createdFolderIds.length) await supabase.from('vyral_folders').delete().in('id', createdFolderIds);
+      setError(cause instanceof Error ? cause.message : 'VYRAL package import failed. Newly created package records were rolled back where possible.');
+      setPackageStatus('');
+    } finally {
+      setPackageBusy(false);
+    }
+  };
+
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || !folderName.trim()) return;
@@ -439,10 +725,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   return (
     <div className="space-y-5">
+      {packageStatus && <p className={'text-[10px] '+muted} role="status">{packageStatus}</p>}
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><div className={'text-[10px] font-semibold uppercase tracking-[0.16em] ' + muted}>VYRAL WORKSPACE</div><p className={'mt-1 text-xs ' + subtle}>Your assets, identity records and evolving knowledge.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><button type="button" onClick={() => void exportVyralPackage()} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Preparing…':'Export .vyral'}</button><button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy}><Clock3 size={13}/> Refresh</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><label className={button+' cursor-pointer'}><Upload size={13}/>Import .vyral<input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>void importVyralPackage(event)} disabled={busy || packageBusy}/></label><button type="button" onClick={() => void exportVyralPackage()} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Working…':'Export .vyral'}</button><button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy}><Clock3 size={13}/> Refresh</button></div>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-[var(--vyra-border)] pb-1" aria-label="Vyral sections">
