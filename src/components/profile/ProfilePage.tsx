@@ -91,6 +91,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
+  React.useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activePage]);
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
   const goHome = () => setActivePage('home');
