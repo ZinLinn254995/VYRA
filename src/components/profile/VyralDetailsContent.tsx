@@ -205,6 +205,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }).filter((group) => group.modelCount > 1).sort((a, b) => b.items[0].created_at.localeCompare(a.items[0].created_at));
   }, [observations]);
 
+  const visionKnowledgeConflicts = useMemo(() => {
+    const groups = new Map<string, { assetId: string; versionId: string; taskKind: string; fieldPath: string; records: DnaRow[] }>();
+    dnaRecords.forEach((record) => {
+      const payload = record.payload ?? {};
+      if (record.source_kind !== 'creator' || record.verification_status !== 'creator_confirmed' || payload.promotion_source !== 'creator_approved_vision_field' || typeof payload.promotion_field_path !== 'string' || typeof payload.source_asset_version_id !== 'string' || typeof payload.promotion_observation_id !== 'string' || !Object.prototype.hasOwnProperty.call(payload, 'accepted_value')) return;
+      const taskKind = typeof payload.task_kind === 'string' ? payload.task_kind : 'unknown_task';
+      const key = JSON.stringify([record.asset_id, payload.source_asset_version_id, taskKind, payload.promotion_field_path]);
+      const group = groups.get(key) ?? { assetId: record.asset_id ?? '', versionId: payload.source_asset_version_id, taskKind, fieldPath: payload.promotion_field_path, records: [] };
+      group.records.push(record); groups.set(key, group);
+    });
+    return Array.from(groups.values()).map((group) => ({ ...group, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size })).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
+  }, [dnaRecords]);
   const exportVyralPackage = async () => {
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
@@ -1092,6 +1104,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   <p className={'mt-2 text-[9px] '+muted}>A matching JSON value is not proof that the models agree semantically. Missing fields are counted as differences. Creator review remains separate.</p>
                 </article>;
               })}</div>
+            </section>}
+            {visionKnowledgeConflicts.length > 0 && <section className="mt-4 rounded-lg border border-amber-500/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div><h4 className={'text-xs font-semibold '+primary}>Creator-approved knowledge conflicts</h4><p className={'mt-1 text-[10px] '+muted}>Different exact values were explicitly promoted by the creator for the same asset version, task and field. No value is automatically preferred or overwritten.</p></div>
+                <span className="rounded bg-amber-500/10 px-2 py-1 text-[9px] font-semibold text-amber-500">{visionKnowledgeConflicts.length} conflict group(s)</span>
+              </div>
+              <div className="mt-3 space-y-3">{visionKnowledgeConflicts.slice(0,12).map((group) => {
+                const version = versions.find((item) => item.id === group.versionId); const asset = assets.find((item) => item.id === group.assetId);
+                return <article key={group.assetId+':'+group.versionId+':'+group.taskKind+':'+group.fieldPath} className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className={'break-all text-xs font-semibold '+primary}>{asset?.name ?? 'Asset'} · {group.fieldPath}</p><p className={'mt-1 text-[10px] '+muted}>Version {version?.version_number ?? 'unknown'} · {group.taskKind.replaceAll('_',' ')} · {group.records.length} creator-approved records</p></div><span className="text-[9px] font-semibold text-amber-500">Exact-value disagreement</span></div>
+                  <div className="mt-2 space-y-2">{group.records.map((record) => <div key={record.id} className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
+                    <p className={'text-[10px] font-semibold '+primary}>{String(record.payload.model_provider_claim ?? 'Model unknown')} · {String(record.payload.model_id_claim ?? 'Model ID unknown')}</p>
+                    <pre className={'mt-1 whitespace-pre-wrap break-words text-[10px] leading-4 '+subtle}>{JSON.stringify(record.payload.accepted_value, null, 2)}</pre>
+                    {typeof record.payload.creator_note === 'string' && record.payload.creator_note && <p className={'mt-1 text-[9px] '+muted}>Creator note: {record.payload.creator_note}</p>}
+                    <p className={'mt-1 text-[9px] '+muted}>{dateLabel(record.created_at)} · observation {String(record.payload.promotion_observation_id).slice(0,8)}</p>
+                  </div>)}</div>
+                  <p className={'mt-2 text-[9px] '+muted}>Both records remain immutable evidence. This comparison does not decide which value is correct, combine different contexts, or change DNA completion/reconstruction eligibility.</p>
+                </article>;
+              })}</div>
+              {visionKnowledgeConflicts.length > 12 && <p className={'mt-2 text-[9px] '+muted}>Showing 12 of {visionKnowledgeConflicts.length} conflict groups.</p>}
             </section>}
             {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.source_kind === 'creator' && ['creator_confirmed', 'disputed'].includes(record.verification_status) && record.payload?.review_source === 'server_creator_review' && record.payload?.vision_observation_review_id === item.id); return review ? <div className="mt-2"><p className={'text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p>{review.verification_status === 'creator_confirmed' && (() => { const promotedFields = dnaRecords.filter((record) => record.source_kind === 'creator' && record.payload?.promotion_source === 'creator_approved_vision_field' && record.payload?.promotion_observation_id === item.id); const availableFields = Object.keys(flattenObservation(item.observation)); return <div className="mt-2"><p className={'text-[10px] '+muted}>{promotedFields.length} field(s) promoted · {availableFields.length} available</p>{promotedFields.map((record)=><p key={record.id} className={'mt-1 break-all text-[10px] text-emerald-500'}>{String(record.payload?.promotion_field_path)} · creator-approved DNA field</p>)}<button type="button" disabled={promotingObservationId !== null || availableFields.length === 0} onClick={()=>void promoteVisionKnowledge(item.id)} className={button+' mt-2'}>{promotingObservationId===item.id?'Promoting…':'Promote one field to DNA'}</button></div>; })()}</div> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
           </section>
