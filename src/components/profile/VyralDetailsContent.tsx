@@ -675,7 +675,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
 
   const verifyAssetIntegrity = async (asset: AssetRow) => {
-    if (!supabase || verifyingAssetId) return;
+    if (!supabase || verifyingAssetId || busy || packageBusy) return;
     const assetVersions = versions.filter((version) => version.asset_id === asset.id);
     const currentVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
       ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
@@ -787,7 +787,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button></div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button></div>
         </div>
       </article>
     );
