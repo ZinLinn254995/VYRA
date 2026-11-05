@@ -30,6 +30,9 @@ Deno.serve(async (request: Request) => {
   const note = typeof body.note === 'string' ? body.note.trim() : '';
   if (note.length > 2000) return json({ error: 'Resolution note must be 2,000 characters or fewer.' }, 400);
   if (body.resolutionType === 'keep_contextual' && note.length < 3) return json({ error: 'Explain why both values should remain context-dependent.' }, 400);
+  const contextLabel = typeof body.contextLabel === 'string' ? body.contextLabel.trim() : '';
+  if (contextLabel.length > 300) return json({ error: 'Context label must be 300 characters or fewer.' }, 400);
+  if (body.resolutionType === 'keep_contextual' && !contextLabel) return json({ error: 'A creator-defined context label is required when retaining contextual values.' }, 400);
   if (body.resolutionType === 'prefer_one' && !isUuid(body.preferredRecordId)) return json({ error: 'Select the promoted record to prefer.' }, 400);
 
   const { data: records, error: recordsError } = await context.supabaseAdmin.from('vyral_dna_records')
@@ -86,6 +89,7 @@ Deno.serve(async (request: Request) => {
     competing_values: records.map((record) => ({ promotion_record_id: record.id, value: record.payload.accepted_value })),
     preferred_promotion_record_id: preferred?.id ?? null,
     preferred_value: preferred?.payload.accepted_value ?? null,
+    creator_context_label: contextLabel || null,
     creator_note: note,
     resolution_source: 'server_creator_conflict_resolution',
     resolved_by: userId,
