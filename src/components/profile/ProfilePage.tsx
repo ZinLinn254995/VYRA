@@ -164,7 +164,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
           />
-          <div className="p-5 sm:p-6">
+          <div className="profile-subpage-scroll p-5 sm:p-6">
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
