@@ -1,0 +1,161 @@
+.profile-collapse-shell {
+  position: relative;
+}
+
+.profile-collapse-sentinel {
+  height: 1px;
+  margin-bottom: -1px;
+  pointer-events: none;
+}
+
+.profile-collapse-header {
+  --profile-collapse: 0;
+  --collapse: var(--profile-collapse);
+  height: calc(156px - (108px * var(--profile-collapse)));
+  min-height: 48px;
+  overflow: hidden;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--vyra-bg-surface) calc(var(--profile-collapse) * 100%), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--vyra-border-subtle) calc(var(--profile-collapse) * 100%), transparent);
+  box-shadow: 0 5px 18px rgb(0 0 0 / calc(var(--profile-collapse) * 0.06));
+}
+
+.profile-collapse-back,
+.profile-collapse-icon,
+.profile-collapse-title,
+.profile-collapse-description,
+.profile-collapse-action,
+.profile-collapse-compact-action {
+  position: absolute;
+  z-index: 1;
+  transition: none;
+}
+
+.profile-collapse-back {
+  top: calc(12px - (5px * var(--profile-collapse)));
+  left: calc(24px - (12px * var(--profile-collapse)));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(42% - (12% * var(--profile-collapse)));
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: 9px;
+  padding: 7px 8px;
+  color: var(--vyra-text-secondary);
+  font-size: calc(14px - (2px * var(--profile-collapse)));
+  font-weight: 500;
+}
+.profile-collapse-back:hover {
+  background: var(--vyra-bg-hover);
+  color: var(--vyra-text-primary);
+}
+
+.profile-collapse-icon {
+  top: calc(58px - (51px * var(--profile-collapse)));
+  left: calc(24px + (84px * var(--profile-collapse)));
+  display: grid;
+  width: calc(44px - (12px * var(--profile-collapse)));
+  height: calc(44px - (12px * var(--profile-collapse)));
+  place-items: center;
+  border-radius: calc(12px - (4px * var(--profile-collapse)));
+  background: var(--vyra-bg-subtle);
+  color: var(--vyra-accent-primary);
+}
+
+.profile-collapse-icon > * {
+  width: calc(22px - (4px * var(--profile-collapse)));
+  height: calc(22px - (4px * var(--profile-collapse)));
+}
+
+.profile-collapse-title {
+  top: calc(56px - (42px * var(--profile-collapse)));
+  left: calc(84px + (64px * var(--profile-collapse)));
+  right: calc(24px + (118px * var(--profile-collapse)));
+  overflow: hidden;
+  color: var(--vyra-text-primary);
+  font-size: calc(24px - (10px * var(--profile-collapse)));
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-collapse-description {
+  top: calc(96px - (36px * var(--profile-collapse)));
+  left: calc(84px + (64px * var(--profile-collapse)));
+  right: 24px;
+  overflow: hidden;
+  margin: 0;
+  color: var(--vyra-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  opacity: calc(1 - var(--profile-collapse));
+  transform: translateY(calc(-8px * var(--profile-collapse)));
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.profile-collapse-action {
+  top: 56px;
+  right: 24px;
+  opacity: calc(1 - var(--profile-collapse));
+  transform: translateY(calc(-30px * var(--profile-collapse)));
+  pointer-events: auto;
+}
+
+.profile-collapse-compact-action {
+  top: 5px;
+  right: 12px;
+  opacity: var(--profile-collapse);
+  transform: translateY(calc(8px * (1 - var(--profile-collapse))));
+  pointer-events: none;
+}
+
+.profile-collapse-compact-action button {
+  pointer-events: none;
+}
+
+.profile-collapse-header[style*="--profile-collapse: 1"] .profile-collapse-compact-action,
+.profile-collapse-header[style*="--profile-collapse: 0.999"] .profile-collapse-compact-action {
+  pointer-events: auto;
+}
+
+.profile-collapse-header[style*="--profile-collapse: 1"] .profile-collapse-compact-action button,
+.profile-collapse-header[style*="--profile-collapse: 0.999"] .profile-collapse-compact-action button {
+  pointer-events: auto;
+}
+
+@media (max-width: 639px) {
+  .profile-collapse-header {
+    height: calc(150px - (102px * var(--profile-collapse)));
+  }
+  .profile-collapse-back {
+    left: calc(12px - (2px * var(--profile-collapse)));
+    max-width: 44%;
+  }
+  .profile-collapse-icon {
+    left: calc(12px + (72px * var(--profile-collapse)));
+  }
+  .profile-collapse-title {
+    left: calc(64px + (48px * var(--profile-collapse)));
+    right: calc(12px + (92px * var(--profile-collapse)));
+    font-size: calc(21px - (7px * var(--profile-collapse)));
+  }
+  .profile-collapse-description {
+    left: 64px;
+    right: 12px;
+    font-size: 12px;
+  }
+  .profile-collapse-action {
+    top: 58px;
+    right: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-collapse-header,
+  .profile-collapse-header * {
+    scroll-behavior: auto;
+  }
+}
