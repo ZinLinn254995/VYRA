@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { MyVyralsPage } from './MyVyralsPage';
 
 type ProfilePageProps = {
   userEmail: string;
@@ -169,7 +170,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             })()}
           </div>
           <div className="p-5 sm:p-6">
-            {activePage === 'settings' ? (
+            {activePage === 'my-vyrals' ? (
+              <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onBack} />
+            ) : activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
                   <button key={key} type="button" onClick={() => setActivePage(key)} className="group flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--vyra-bg-hover)] first:pt-0 last:pb-0">
