@@ -62,11 +62,11 @@ for delete
 to authenticated
 using (
   bucket_id = 'vyral-assets'
-  and (storage.foldername(name))[1] = (select auth.uid())::text
+  and (storage.foldername(objects.name))[1] = (select auth.uid())::text
   and not exists (
     select 1
     from public.vyrals v
-    where v.id::text = (storage.foldername(name))[2]
+    where v.id::text = (storage.foldername(objects.name))[2]
       and coalesce(v.metadata ->> 'protected', 'false') = 'true'
   )
 );
