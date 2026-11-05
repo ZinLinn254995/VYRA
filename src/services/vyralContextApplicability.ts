@@ -17,7 +17,7 @@ export type ContextApplicability =
 
 const normalizeTag = (value: string): string => value.trim().normalize('NFC').toLowerCase();
 const validTag = (value: string): boolean =>
-  value.length >= 1 && value.length <= 64 && /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u.test(value);
+  value.length >= 1 && value.length <= 64 && /^[\p{L}\p{N}][\p{L}\p{N}\p{M} _-]*$/u.test(value);
 
 /**
  * Deterministic exact-tag applicability check.
