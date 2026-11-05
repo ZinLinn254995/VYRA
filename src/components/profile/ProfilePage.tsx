@@ -94,7 +94,7 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
     header.style.setProperty('--profile-header-height', (expandedHeight - 84 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-rotation', (90 * headerProgress) + 'deg');
+    header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
     header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
