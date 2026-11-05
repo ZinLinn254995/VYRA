@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ArrowLeft, Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp,
+  Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp,
   CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
   LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
   Users, Wallet, WandSparkles, type LucideIcon,
@@ -93,18 +93,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   return (
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
-      <button type="button" onClick={activePage === 'home' ? onBack : goHome} className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:text-[var(--vyra-text-primary)]">
-        <ArrowLeft size={16} /> {activePage === 'home' ? backLabel : 'Back to Profile'}
-      </button>
-
       {activePage === 'home' ? (
         <>
-          <div className="mb-7">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--vyra-accent-primary)]">Account Center</p>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-3xl">Your Profile</h1>
-            <p className="mt-2 text-sm text-[var(--vyra-text-secondary)]">Your personal space to manage your creative work, library and account.</p>
-          </div>
-
           <section className="mb-6 flex flex-col gap-4 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex min-w-0 items-center gap-3">
               <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><UserRound size={22} /></div>
@@ -220,7 +210,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </section>
       )}
-      <p className="mt-8 text-center text-xs text-[var(--vyra-text-muted)]">VYRA Account Center</p>
     </main>
   );
 };
