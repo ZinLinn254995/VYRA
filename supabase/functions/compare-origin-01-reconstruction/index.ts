@@ -158,8 +158,20 @@ Deno.serve(async (request: Request) => {
   if (
     original.vyral_id !== ORIGIN.vyralId || candidate.vyral_id !== ORIGIN.vyralId ||
     originalVersion.vyral_id !== ORIGIN.vyralId || candidateVersion.vyral_id !== ORIGIN.vyralId ||
+    dna.vyral_id !== ORIGIN.vyralId ||
     original.processing_status !== 'ready' || candidate.processing_status !== 'ready'
   ) return json({ error: 'The comparison records are not in a ready, same-Vyral state.' }, 409);
+
+  // The asset row and the explicitly selected version must describe the same
+  // stored object. Do not compare a stale asset pointer with another version.
+  if (
+    original.storage_path !== originalVersion.storage_path ||
+    candidate.storage_path !== candidateVersion.storage_path ||
+    original.sha256 !== originalVersion.sha256 ||
+    candidate.sha256 !== candidateVersion.sha256 ||
+    Number(original.size_bytes) !== Number(originalVersion.size_bytes) ||
+    Number(candidate.size_bytes) !== Number(candidateVersion.size_bytes)
+  ) return json({ error: 'An asset record does not match its registered comparison version.' }, 409);
 
   const originalPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.originalAssetId + '/';
   const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.candidateAssetId + '/';
