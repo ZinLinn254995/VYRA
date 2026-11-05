@@ -48,7 +48,7 @@
     color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    min-height: 100vh;
+    min-height: 100svh;
   }
 }
 
@@ -77,7 +77,19 @@ textarea,
 }
 
 /* Keep the web app viewport fixed; only designated content panes may scroll. */
+html {
+  height: 100%;
+}
+
 html, body, #root {
   width: 100%;
   min-height: 100%;
+}
+
+html {
+  scroll-padding-top: calc(var(--vyra-global-header-height, 64px) + 12px);
+}
+
+input, textarea, [contenteditable="true"] {
+  scroll-margin-top: calc(var(--vyra-global-header-height, 64px) + 12px);
 }
