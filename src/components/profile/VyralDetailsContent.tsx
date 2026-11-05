@@ -216,7 +216,19 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const group = groups.get(key) ?? { assetId: record.asset_id ?? '', versionId: payload.source_asset_version_id, taskKind, fieldPath: payload.promotion_field_path, records: [] };
       group.records.push(record); groups.set(key, group);
     });
-    return Array.from(groups.values()).map((group) => ({ ...group, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size })).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
+    return Array.from(groups.values()).map((group) => {
+      const recordIds = group.records.map((record) => record.id).sort();
+      const resolutionRecords = dnaRecords.filter((record) => {
+        const payload = record.payload ?? {};
+        const scope = payload.conflict_scope as Record<string, unknown> | undefined;
+        return payload.record_kind === 'vision_field_conflict_resolution' &&
+          scope?.asset_id === group.assetId && scope?.source_asset_version_id === group.versionId &&
+          scope?.task_kind === group.taskKind && scope?.field_path === group.fieldPath &&
+          Array.isArray(payload.competing_promotion_record_ids) &&
+          stableJson([...(payload.competing_promotion_record_ids as string[])].sort()) === stableJson(recordIds);
+      }).sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
+    }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
   const exportVyralPackage = async () => {
     if (!supabase || packageBusy) return;
@@ -1181,6 +1193,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     <p className={'mt-1 text-[9px] '+muted}>{dateLabel(record.created_at)} · observation {String(record.payload.promotion_observation_id).slice(0,8)}</p>
                   </div>)}</div>
                   <p className={'mt-2 text-[9px] '+muted}>Both records remain immutable evidence. This comparison does not decide which value is correct, combine different contexts, or change DNA completion/reconstruction eligibility.</p>
+                  {group.resolutionRecords.length > 0 && <div className="mt-3 rounded-md border border-[var(--vyra-border-subtle)] p-2">
+                    <p className={'text-[10px] font-semibold '+primary}>Creator resolution history</p>
+                    {group.resolutionRecords.map((resolution) => <div key={resolution.id} className="mt-2">
+                      <p className={'text-[10px] '+subtle}>{resolution.payload.resolution_type === 'prefer_one' ? 'Preferred value: ' + String(resolution.payload.preferred_promotion_record_id).slice(0,8) : 'Both values retained as context-dependent'} · {dateLabel(resolution.created_at)}</p>
+                      {typeof resolution.payload.creator_note === 'string' && resolution.payload.creator_note && <p className={'mt-1 text-[9px] '+muted}>{resolution.payload.creator_note}</p>}
+                    </div>)}
+                  </div>}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button type="button" className={button} disabled={!!resolvingConflictKey} onClick={() => resolveVisionKnowledgeConflict(group, 'prefer_one')}>
                       {resolvingConflictKey === JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]) ? 'Saving…' : 'Prefer one value'}
