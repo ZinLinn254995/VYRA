@@ -574,3 +574,19 @@ The first portable package engine is implemented on `rebuild/marketplace-workspa
 - The resulting cryptographic fingerprint records server verification metadata and the verification timestamp. This verifies file integrity, not creator ownership or copyright.
 - The client-facing Verify action calls this Edge Function. The function remains JWT-protected; no service-role key is exposed to the browser.
 
+
+
+## AI Vision observation ingestion
+
+The Development project now has a JWT-protected `record-vyral-vision-observation` Edge Function and a matching recorder in the Vyral Details DNA & Identity section.
+
+- The recorder accepts structured JSON observations associated with an exact asset and version.
+- The Edge Function authenticates the caller, verifies asset/version ownership and Vyral-level plus asset-level `allow_ai_analysis` permissions.
+- Before recording, the server downloads the private source media and independently recalculates SHA-256 and byte size. The version's stored SHA-256 and size must match; a current asset's size and hash are also checked when present.
+- The observation stores the exact source version ID, source SHA-256, server integrity result, task kind, confidence (if supplied), and submitted model/provider labels.
+- Provider and model labels are explicitly marked as user-supplied claims, not provider-authenticated provenance. This recorder does not invoke an AI provider.
+- Each observation is mirrored into an evolving asset-level DNA record with `verification_status: observed`. It is not creator-confirmed, independently verified, or automatically eligible for DNA-only reconstruction.
+- If the linked DNA record cannot be written, the newly inserted observation is rolled back.
+- Observation JSON is limited to 64 KB; source media verification is limited to 100 MB, matching the private asset-storage limit.
+
+This establishes a source-bound evidence intake path without pretending that a model's output is ground truth. Real provider execution, authenticated provider provenance, multi-model comparison, creator review/corroboration, and DNA-only reconstruction remain separate stages.
