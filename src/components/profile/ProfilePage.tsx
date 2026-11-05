@@ -153,7 +153,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </>
       ) : activePage === 'my-vyrals' ? (
-        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} />
+        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} />
       ) : (
         <section className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <div className="border-b border-[var(--vyra-border-subtle)] p-5 sm:p-6">
