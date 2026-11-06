@@ -100,7 +100,7 @@ values
   ('24000000-0000-4000-8000-000000000042','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000022','asset',3,'{}'::jsonb,'system');
 
 select lives_ok(
-  $ insert into public.vyral_master_dna_revisions
+  $$ insert into public.vyral_master_dna_revisions
      (vyral_id,user_id,revision,schema_id,schema_version,manifest_sha256,vyral_fingerprint,snapshot,created_by)
      values (
        '24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
@@ -121,7 +121,7 @@ select lives_ok(
          'integrity',jsonb_build_object('manifest_sha256',repeat('a',64),'vyral_fingerprint',repeat('b',64))
        ),
        '24000000-0000-4000-8000-000000000001'
-     ) $,
+     ) $$,
   'Service role can append a Master DNA snapshot after canonical membership validation'
 );
 
