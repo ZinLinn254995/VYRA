@@ -509,7 +509,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         versionsByAsset.set(assetId, group);
       }
 
-      const importedDnaSources = new Map<string, { version_id: string; sha256: string; size_bytes: number; mime_type: string }>();
+      const importedDnaSources = new Map<string, { version_id: string; sha256: string; size_bytes: number; mime_type: string; tile_storage_paths: string[] }>();
       let completedAssets = 0;
       for (const sourceAsset of manifest.assets) {
         const oldAssetId = stringValue(sourceAsset.id);
@@ -517,6 +517,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const assetId = crypto.randomUUID();
         assetMap.set(oldAssetId, assetId);
         const sourceVersions = [...(versionsByAsset.get(oldAssetId) ?? [])].sort((a, b) => Number(a.version_number) - Number(b.version_number));
+        const sourceDnaEntry = manifest.dnaRecords.find((record) =>
+          record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3 && record.asset_id === oldAssetId
+        );
         const preparedVersions: {
           source: (typeof sourceVersions)[number];
           bytes: Uint8Array;
@@ -529,11 +532,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         let reconstructedSourceSha256: string | null = null;
 
         if (!sourceVersions.length && manifest.exportMode === 'dna-only') {
-          const dnaEntry = manifest.dnaRecords.find((record) =>
-            record.dna_schema_id === 'vyra.asset-dna' &&
-            record.dna_schema_version === 3 &&
-            record.asset_id === oldAssetId
-          );
+          const dnaEntry = sourceDnaEntry;
           if (!dnaEntry) throw new Error('The DNA-only package has no v3 record for its selected asset.');
           const reconstruction = await encodeVyralDnaV3PngFromPackage(archiveFiles, String(dnaEntry.id));
           const pngBytes = reconstruction.pngBytes;
@@ -588,12 +587,40 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
 
         const latest = preparedVersions[preparedVersions.length - 1];
-        if (reconstructedFromDnaV3) {
+        if (sourceDnaEntry) {
+          const sourceDnaRecord = asRecord(sourceDnaEntry.dna_record);
+          const sourceDnaRecordSource = asRecord(sourceDnaRecord.source);
+          const sourceVersion = preparedVersions.find((item) => item.source.id === String(sourceDnaRecordSource.asset_version_id ?? '')) ?? latest;
+          const losslessPayload = asRecord(sourceDnaRecord.lossless_payload);
+          const tiles = Array.isArray(losslessPayload.tiles) ? losslessPayload.tiles : [];
+          const tileStoragePaths: string[] = [];
+          for (let index = 0; index < tiles.length; index += 1) {
+            const tile = asRecord(tiles[index]);
+            const packagePath = stringValue(tile.package_path);
+            const tileBytes = archiveFiles.get(packagePath);
+            if (!packagePath || !tileBytes || tileBytes.byteLength !== Number(tile.byte_length)) {
+              throw new Error('A DNA v3 tile is missing or has an invalid byte length during import.');
+            }
+            const tileFilename = packagePath.split('/').pop() ?? ('tile-' + index + '.raw');
+            const tileStoragePath = userId + '/' + vyral.id + '/' + assetId + '/dna/v3/' +
+              encodeURIComponent(String(sourceDnaRecord.record_id)) + '/' + index + '-' + encodeURIComponent(tileFilename);
+            const tileBuffer = new ArrayBuffer(tileBytes.byteLength);
+            new Uint8Array(tileBuffer).set(tileBytes);
+            const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
+              tileStoragePath,
+              new Blob([tileBuffer], { type: 'application/octet-stream' }),
+              { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
+            );
+            if (tileUploadError) throw tileUploadError;
+            uploadedPaths.push(tileStoragePath);
+            tileStoragePaths.push(tileStoragePath);
+          }
           importedDnaSources.set(oldAssetId, {
-            version_id: latest.id,
-            sha256: latest.sha256,
-            size_bytes: latest.bytes.byteLength,
-            mime_type: 'image/png',
+            version_id: sourceVersion.id,
+            sha256: sourceVersion.sha256,
+            size_bytes: sourceVersion.bytes.byteLength,
+            mime_type: sourceVersion.source.mime_type || (reconstructedFromDnaV3 ? 'image/png' : mimeType),
+            tile_storage_paths: tileStoragePaths,
           });
         }
         const assetName = safeName(sourceAsset.name, 'Imported asset', 180);
@@ -714,7 +741,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         } : null;
         addImportedEvidence(stringValue(sourceRecord.source_kind, 'system'), assetId, {
           ...originalPayload,
-          ...(isDnaV3Record ? { dna_record: remappedDnaRecord } : {}),
+          ...(isDnaV3Record ? { dna_record: remappedDnaRecord, tile_storage_paths: importedDnaSource?.tile_storage_paths ?? [] } : {}),
           imported_provenance: {
             ...(isDnaV3Record ? {
               original_dna_record_id: sourceRecord.id ?? null,
