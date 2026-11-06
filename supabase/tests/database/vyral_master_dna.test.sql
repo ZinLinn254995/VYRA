@@ -126,8 +126,8 @@ values
 insert into public.vyral_dna_records
   (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
 values
-  ('24000000-0000-4000-8000-000000000041','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000021','asset',3,'{}'::jsonb,'system'),
-  ('24000000-0000-4000-8000-000000000042','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000022','asset',3,'{}'::jsonb,'system');
+  ('24000000-0000-4000-8000-000000000041','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000021','asset',3,jsonb_build_object('dna_schema_id','vyra.asset-dna','dna_record',jsonb_build_object('schema_id','vyra.asset-dna','source',jsonb_build_object('asset_version_id','24000000-0000-4000-8000-000000000031','sha256',repeat('c',64)))),'system'),
+  ('24000000-0000-4000-8000-000000000042','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000022','asset',3,jsonb_build_object('dna_schema_id','vyra.asset-dna','dna_record',jsonb_build_object('schema_id','vyra.asset-dna','source',jsonb_build_object('asset_version_id','24000000-0000-4000-8000-000000000032','sha256',repeat('d',64)))),'system');
 
 select lives_ok(
   $$ insert into public.vyral_master_dna_revisions
@@ -142,8 +142,8 @@ select lives_ok(
          'snapshot',jsonb_build_object('revision',1),
          'purpose',jsonb_build_object('summary','A primary character with supporting production resources.','intended_uses','["storyboarding","video_generation"]'::jsonb),
          'assets',jsonb_build_array(
-           jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000021','asset_version_id','24000000-0000-4000-8000-000000000031','role','main','purpose','Primary visual identity.','dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000041')),
-           jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000022','asset_version_id','24000000-0000-4000-8000-000000000032','role','supporting','purpose','Supporting voice identity.','dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000042'))
+           jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000021','asset_version_id','24000000-0000-4000-8000-000000000031','role','main','purpose','Primary visual identity.','asset_fingerprint',repeat('c',64),'dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000041','schema_version',3)),
+           jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000022','asset_version_id','24000000-0000-4000-8000-000000000032','role','supporting','purpose','Supporting voice identity.','asset_fingerprint',repeat('d',64),'dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000042','schema_version',3))
          ),
          'relationships',jsonb_build_array(
            jsonb_build_object('relationship_id','edge-1'),
