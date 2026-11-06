@@ -106,6 +106,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
+    setSelectedFile(null);
+    setSelectedFileStatus(null);
+    setSelectedVyralContext(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
 
@@ -113,6 +117,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setMessages(session.messages);
     setActiveSessionId(session.id);
     setIsLocked(Boolean(session.locked));
+    setSelectedFile(null);
+    setSelectedFileStatus(null);
+    setSelectedVyralContext(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setDraft('');
     setHistoryOpen(false);
   };
@@ -178,6 +186,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
+    setSelectedFile(null);
+    setSelectedFileStatus(null);
+    setSelectedVyralContext(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
 
@@ -189,6 +201,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
+    setSelectedFile(null);
+    setSelectedFileStatus(null);
+    setSelectedVyralContext(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
 
