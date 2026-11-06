@@ -47,5 +47,7 @@ jobs:
         run: npm run test:audio-export
       - name: VYRAL package archive tests
         run: npm run test:vyral-package
+      - name: VYRA DNA v3 lossless reconstruction tests
+        run: npm run test:vyral-dna-v3
       - name: Production build
         run: npm run build
