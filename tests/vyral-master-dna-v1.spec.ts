@@ -61,7 +61,7 @@ test('requires every asset to have an explicit relationship to another asset or 
 test('rejects cross-Vyral links, stale asset versions, and private public-asset resolution', async () => {
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, relationships: input.relationships.map((edge, i) => i === 0 ? { ...edge, to: { kind: 'vyral' as const, vyral_id: 'other-vyral' } } : edge) }), /different Vyral root/);
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, relationships: input.relationships.map((edge, i) => i === 0 ? { ...edge, from: { kind: 'asset' as const, asset_id: 'character', asset_version_id: 'old-version' } } : edge) }), /asset version outside/);
-  await assert.rejects(() => createVyralMasterDnaV1({ ...input, source_resolution: { ...input.source_resolution, resolution_policy: 'public_assets' as const } }), /cannot expose public asset resolution/);
+  await assert.rejects(() => createVyralMasterDnaV1({ ...input, source_resolution: { ...input.source_resolution, resolution_policy: 'public_assets' as const } }), /cannot expose public metadata/);
 });
 
 test('rejects an overall reconstruction claim stronger than the weakest asset', async () => {
