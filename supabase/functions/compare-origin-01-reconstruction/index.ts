@@ -307,7 +307,7 @@ Deno.serve(async (request: Request) => {
 
   if (!originalIntegrity || !candidateIntegrity) {
     const report = {
-      protocol: 'ORIGIN-01-blind-reconstruction-comparison-v1',
+      protocol: 'ORIGIN-01-blind-reconstruction-comparison-v2',
       testedAt,
       candidateUploadReconciliation,
       integrity: {
@@ -330,7 +330,7 @@ Deno.serve(async (request: Request) => {
     const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
       vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
       dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: selectedCandidate.modelName + '_model_not_recorded',
-      protocol_version: 'ORIGIN-01-v1', comparison_mode: 'decoded_exact', test_status: 'inconclusive',
+      protocol_version: 'ORIGIN-01-v2', comparison_mode: 'decoded_exact', test_status: 'inconclusive',
       exact_match: null, similarity_score: null, verifier: { engine: 'ImageMagick WASM', version: '0.0.30', execution: 'server_edge_function' },
       report, tested_at: testedAt,
     }).select('id,test_status').single();
@@ -380,7 +380,7 @@ Deno.serve(async (request: Request) => {
     ? round(Math.sqrt(originalDescription.backgroundCornerAverageRgb.reduce((sum, value, index) => sum + Math.pow(value - candidateDescription.backgroundCornerAverageRgb![index], 2), 0)))
     : null;
   const report = {
-    protocol: 'ORIGIN-01-blind-reconstruction-comparison-v1',
+    protocol: 'ORIGIN-01-blind-reconstruction-comparison-v2',
     testedAt,
       candidateUploadReconciliation,
     integrity: {
@@ -417,14 +417,15 @@ Deno.serve(async (request: Request) => {
     limitations: [
       'Only the first decoded frame is compared.',
       'RGB pixels are compared after ImageMagick decoding; embedded profiles are not compared as separate binary metadata.',
-      'A different-dimension image receives no direct pixel similarity score; no resize or alignment is silently applied.',
+      'A different-dimension image receives no direct pixel similarity score; normalized-grid RGB similarity is a separate nearest-neighbor sample and is not SSIM or exact pixel equality.',
+      'Normalized-grid comparison is withheld when aspect ratios differ beyond the configured tolerance.',
       'This test does not establish ownership or authorship.',
     ],
   };
   const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
     vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
     dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: selectedCandidate.modelName + '_model_not_recorded',
-    protocol_version: 'ORIGIN-01-v1', comparison_mode: sameDimensions ? 'decoded_exact' : 'perceptual',
+    protocol_version: 'ORIGIN-01-v2', comparison_mode: sameDimensions ? 'decoded_exact' : 'perceptual',
     test_status: exactMatch === true ? 'passed' : 'failed',
     exact_match: exactMatch, similarity_score: similarityScore,
     verifier: { engine: 'ImageMagick WASM', version: '0.0.30', execution: 'server_edge_function', pixel_format: 'RGB8' },
