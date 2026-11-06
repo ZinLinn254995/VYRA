@@ -62,6 +62,14 @@ create index if not exists vyral_resource_share_grants_recipient_idx
   on public.vyral_resource_share_grants(recipient_kind,recipient_ref,status);
 create index if not exists vyral_resource_share_grants_revision_idx
   on public.vyral_resource_share_grants(master_dna_revision_id,status);
+create index if not exists vyral_resource_share_grants_asset_idx
+  on public.vyral_resource_share_grants(asset_id) where asset_id is not null;
+create index if not exists vyral_resource_share_grants_asset_version_idx
+  on public.vyral_resource_share_grants(asset_version_id) where asset_version_id is not null;
+create index if not exists vyral_resource_share_grants_creator_idx
+  on public.vyral_resource_share_grants(created_by);
+create index if not exists vyral_resource_share_grants_revoker_idx
+  on public.vyral_resource_share_grants(revoked_by) where revoked_by is not null;
 
 -- Only a one-way SHA-256 digest is persisted. The bearer token itself is returned
 -- once by a future trusted creation endpoint and is never stored in the database.
