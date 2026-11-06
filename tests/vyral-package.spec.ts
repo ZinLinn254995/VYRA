@@ -214,6 +214,23 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   const parsed = parseVyralManifest(files);
   assert.equal(parsed.exportMode, 'dna-only');
   assert.equal(parsed.versions.length, 0);
+  assert.equal(parsed.dnaRecords.length, 1);
+  assert.equal(parsed.fingerprints.length, 0);
+  assert.equal(parsed.visionObservations.length, 0);
+  assert.equal(parsed.lineage.length, 0);
+  assert.equal(parsed.reconstructionTests.length, 0);
+  const portableRecord = parsed.dnaRecords[0].dna_record as {
+    decoded_image: { sample_layout: Record<string, unknown> };
+  };
+  assert.deepEqual(portableRecord.decoded_image.sample_layout, {
+    row_order: 'top-to-bottom',
+    pixel_order: 'left-to-right',
+    channel_order: 'RGBA',
+    packing: 'interleaved',
+    row_stride: 'tightly-packed',
+    hash_algorithm: 'SHA-256',
+    hash_scope: 'full-decoded-sample-stream',
+  });
   assert.equal(files.has('assets/asset-test/versions/1.bin'), false);
   assert.equal([...files.keys()].some((path) => /preview|thumbnail|derivative|original/i.test(path)), false);
   assert.equal([...files.keys()].every((path) => path === 'manifest.json' || path.startsWith('dna/v3/')), true);
@@ -231,6 +248,27 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   assert.equal(reconstructedA.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
   assert.equal(reconstructedB.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
   assert.deepEqual(reconstructedA.samples, reconstructedB.samples);
+});
+
+test('DNA-only manifests reject ambiguous or missing canonical sample layouts', async () => {
+  const samples = new Uint8Array([1, 2, 3]);
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'portable-layout-contract',
+    source: { asset_id: 'asset-test', asset_version_id: 'version-test', sha256: 'c'.repeat(64), size_bytes: 10, mime_type: 'image/png' },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGB', color_space: 'unknown',
+    icc_profile_sha256: null, alpha_mode: 'none',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    decoded_samples: samples,
+  });
+  const archive = await createVyralDnaOnlyPackage(manifest, record, entries);
+  const files = await readVyralZip(archive);
+  const parsed = parseVyralManifest(files);
+  const dna = parsed.dnaRecords[0].dna_record as Record<string, unknown>;
+  const decoded = dna.decoded_image as Record<string, unknown>;
+  const badRecord = { ...dna, decoded_image: { ...decoded, sample_layout: { row_order: 'bottom-to-top' } } };
+  const badManifest = { ...parsed, dnaRecords: [{ ...parsed.dnaRecords[0], dna_record: badRecord }] };
+  assert.throws(() => validateVyralManifest(badManifest), /canonical decoded-sample layout/);
 });
 
 test('rejects DNA-only export with missing or undeclared DNA tile payloads', async () => {
