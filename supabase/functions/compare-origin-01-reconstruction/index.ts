@@ -16,7 +16,7 @@ const ORIGIN = {
     'a40f067c-0ed1-4b93-814f-4f2f925ff320': {
       versionId: 'b23dafc8-f5b8-447b-b06b-77553c590a08',
       dnaId: '8856e567-0221-4011-b9c2-22c228faa449',
-      provider: selectedCandidate.provider,
+      provider: 'Google Gemini',
       method: 'blind_reconstruction_from_dna_only_package',
       modelName: 'Gemini',
     },
@@ -26,6 +26,13 @@ const ORIGIN = {
       provider: 'xAI',
       method: 'blind_visual_reconstruction_from_dna_only_package',
       modelName: 'Grok',
+    },
+    '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23': {
+      versionId: '07e940be-b5c2-4163-b45b-34ad9c66e318',
+      dnaId: '5460940d-4343-44bc-a109-a0141e5a17d4',
+      provider: 'Anthropic',
+      method: 'blind_reconstruction_from_dna_only_package',
+      modelName: 'Claude',
     },
   } as Record<string, { versionId: string; dnaId: string; provider: string; method: string; modelName: string }>,
   packageId: 'c5afacb6-174a-498a-88f2-476b24f08e87',
