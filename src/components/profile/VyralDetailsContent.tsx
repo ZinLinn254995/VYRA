@@ -443,7 +443,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const safeRecord = ownerless(item as unknown as Record<string, unknown>);
           const safePayload = { ...asRecord(safeRecord.payload) };
           delete safePayload.tile_storage_paths;
-          return { ...safeRecord, payload: safePayload };
+          const nestedRecord = asRecord(safePayload.dna_record);
+          const isPortableAssetDna =
+            (safePayload.dna_schema_id === 'vyra.asset-dna' && safePayload.dna_schema_version === 3) ||
+            (safePayload.dna_schema_id === 'vyra.asset-file-dna' && safePayload.dna_schema_version === 1);
+          return {
+            ...safeRecord,
+            ...(isPortableAssetDna && typeof nestedRecord.record_id === 'string' ? { id: nestedRecord.record_id } : {}),
+            payload: safePayload,
+          };
         }),
         fingerprints: (dnaOnly ? fingerprints.filter((item) => !item.asset_version_id) : fingerprints).map((item) => ownerless(item as unknown as Record<string, unknown>)),
         // DNA-only exports omit binary versions, so keep only evidence that is not bound to an omitted version.
@@ -1296,6 +1304,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (failedTile) throw failedTile.reason;
           }
           const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
+            id: recordId,
             vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
             schema_version: 3, dna_status: 'evolving', source_kind: 'system',
             verification_status: 'observed',
