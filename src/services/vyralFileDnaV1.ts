@@ -123,6 +123,88 @@ const readU32LE = (bytes: Uint8Array, offset: number) =>
 const readU32BE = (bytes: Uint8Array, offset: number) =>
   offset + 4 <= bytes.length ? new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false) : 0;
 
+const inspectIsoBmff = (bytes: Uint8Array) => {
+  const facts: VyralFileStructureFact[] = [];
+  const notes: string[] = [];
+  const topLevel: string[] = [];
+  const handlers: string[] = [];
+  const codecs = new Set<string>();
+  let movieDuration = 0;
+  let movieTimescale = 0;
+  let maxWidth = 0;
+  let maxHeight = 0;
+  let visited = 0;
+  let truncated = false;
+  const containers = new Set(['moov','trak','mdia','minf','stbl','edts','dinf','udta','mvex','moof','traf','mfra','tref','ipro']);
+  const readU64Safe = (offset: number) => {
+    if (offset + 8 > bytes.length) return 0;
+    const value = new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getBigUint64(0, false);
+    return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : 0;
+  };
+  const walk = (start: number, end: number, depth: number, parent: string) => {
+    if (depth > 8 || visited >= 4096) { truncated = true; return; }
+    let offset = start;
+    while (offset + 8 <= end && visited < 4096) {
+      const size32 = readU32BE(bytes, offset);
+      const type = readAscii(bytes, offset + 4, 4);
+      let header = 8;
+      let size = size32;
+      if (size32 === 1) { if (offset + 16 > end) { truncated = true; break; } size = readU64Safe(offset + 8); header = 16; }
+      else if (size32 === 0) size = end - offset;
+      if (!Number.isSafeInteger(size) || size < header || offset + size > end) { truncated = true; break; }
+      visited += 1;
+      if (depth === 0) topLevel.push(type);
+      const body = offset + header;
+      const boxEnd = offset + size;
+      if (type === 'mvhd' && body + 20 <= boxEnd) {
+        const version = bytes[body];
+        const timescaleOffset = body + (version === 1 ? 20 : 12);
+        const durationOffset = timescaleOffset + 4;
+        movieTimescale = readU32BE(bytes, timescaleOffset);
+        movieDuration = version === 1 ? readU64Safe(durationOffset) : readU32BE(bytes, durationOffset);
+      } else if (type === 'hdlr' && body + 12 <= boxEnd) {
+        const handler = readAscii(bytes, body + 8, 4);
+        if (/^[\x20-\x7e]{4}$/.test(handler)) handlers.push(handler);
+      } else if (type === 'tkhd' && boxEnd - body >= 8) {
+        const width = readU32BE(bytes, boxEnd - 8) / 65536;
+        const height = readU32BE(bytes, boxEnd - 4) / 65536;
+        if (width > 0 && height > 0 && width <= 100000 && height <= 100000) {
+          maxWidth = Math.max(maxWidth, width); maxHeight = Math.max(maxHeight, height);
+        }
+      } else if (type === 'stsd' && body + 16 <= boxEnd) {
+        const count = Math.min(readU32BE(bytes, body + 4), 128);
+        let entry = body + 8;
+        for (let index = 0; index < count && entry + 8 <= boxEnd; index += 1) {
+          const entrySize = readU32BE(bytes, entry);
+          const codec = readAscii(bytes, entry + 4, 4);
+          if (entrySize < 8 || entry + entrySize > boxEnd) break;
+          if (/^[\x20-\x7e]{4}$/.test(codec)) codecs.add(codec);
+          entry += entrySize;
+        }
+      }
+      if (containers.has(type)) walk(body, boxEnd, depth + 1, type);
+      else if (type === 'meta' && body + 4 <= boxEnd) walk(body + 4, boxEnd, depth + 1, type);
+      offset = boxEnd;
+    }
+    if (offset < end && visited >= 4096) truncated = true;
+  };
+  walk(0, bytes.length, 0, 'root');
+  if (movieTimescale > 0 && movieDuration > 0) {
+    addFact(facts, 'duration', Number((movieDuration / movieTimescale).toFixed(3)), 'container_index', 'seconds');
+    addFact(facts, 'movie_timescale', movieTimescale, 'container_header');
+  }
+  if (handlers.length) addFact(facts, 'track_handlers', [...new Set(handlers)].join(','), 'container_index');
+  if (codecs.size) addFact(facts, 'sample_entry_codecs', [...codecs].join(','), 'container_index');
+  if (maxWidth && maxHeight) {
+    addFact(facts, 'video_width', Math.round(maxWidth), 'container_index', 'pixels');
+    addFact(facts, 'video_height', Math.round(maxHeight), 'container_index', 'pixels');
+  }
+  addFact(facts, 'top_level_boxes', topLevel.join(','), 'container_index');
+  if (truncated) notes.push('ISO-BMFF metadata walk reached a malformed boundary or its 4096-box/depth safety limit; facts may be partial.');
+  notes.push('Container metadata is structural only; compressed audio/video content and individual frames are not decoded.');
+  return { facts, notes, partial: truncated || handlers.length === 0 };
+};
+
 export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string, filename?: string | null): VyralFileStructure => {
   const mime = mimeType.toLowerCase();
   const extension = filename?.match(/\.([a-zA-Z0-9]{1,16})$/)?.[1]?.toLowerCase() ?? '';
@@ -158,19 +240,10 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
   } else if (signature === 'iso-bmff-family' && bytes.length >= 16) {
     profile = mime.startsWith('audio/') ? 'audio' : 'video'; status = 'partial';
     addFact(facts, 'major_brand', readAscii(bytes, 8, 4).replace(/[^\x20-\x7e]/g, ''), 'container_header');
-    const boxes: string[] = []; let offset = 0;
-    while (offset + 8 <= bytes.length && boxes.length < 64) {
-      let size = readU32BE(bytes, offset);
-      const type = readAscii(bytes, offset + 4, 4);
-      if (size === 1 && offset + 16 <= bytes.length) {
-        const high = readU32BE(bytes, offset + 8); const low = readU32BE(bytes, offset + 12);
-        size = high * 0x100000000 + low;
-      } else if (size === 0) size = bytes.length - offset;
-      if (!Number.isSafeInteger(size) || size < 8 || offset + size > bytes.length) break;
-      boxes.push(type); offset += size;
-    }
-    addFact(facts, 'top_level_boxes', boxes.join(','), 'container_index');
-    notes.push('ISO-BMFF box inventory is a structural scan; codecs, tracks and duration are not decoded.');
+    const inspected = inspectIsoBmff(bytes);
+    facts.push(...inspected.facts);
+    notes.push(...inspected.notes);
+    status = inspected.partial ? 'partial' : 'parsed';
   } else if (signature === 'mp3-id3' || signature === 'mpeg-audio-frame' || signature === 'flac' || signature === 'ogg-container' || signature === 'aiff') {
     setSignature('audio', 'Audio container signature detected; codec frames and duration are not fully decoded.');
     addFact(facts, 'audio_container', signature, 'binary_signature');
