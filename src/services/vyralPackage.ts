@@ -1,3 +1,10 @@
+import {
+  reconstructVyralDnaV3,
+  validateVyralDnaV3Record,
+  type VyralDnaV3Record,
+  type VyralDnaV3PackageEntry,
+} from './vyralDnaV3.ts';
+
 export const VYRAL_PACKAGE_FORMAT = 'application/vnd.vyra.vyral+zip';
 export const VYRAL_PACKAGE_VERSION = 1;
 export const VYRAL_PACKAGE_MANIFEST = 'manifest.json';
@@ -315,6 +322,18 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       if (!version || version.asset_id !== test.asset_id) throw new Error('A reconstruction test references an invalid asset version.');
     }
   }
+  for (const record of manifest.dnaRecords ?? []) {
+    if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
+      const dnaRecord = validateVyralDnaV3Record(record.dna_record);
+      if (record.id !== dnaRecord.record_id || record.asset_id !== dnaRecord.source.asset_id ||
+          record.recovery_level !== 'decoded-samples-exact' || !assetIds.has(dnaRecord.source.asset_id)) {
+        throw new Error('A VYRA DNA v3 package record has inconsistent identity or recovery metadata.');
+      }
+      if (manifest.exportMode !== 'dna-only' && !versionById.has(dnaRecord.source.asset_version_id)) {
+        throw new Error('A VYRA DNA v3 record references a source version missing from the package.');
+      }
+    }
+  }
   if (manifest.exportMode !== 'dna-only') {
     for (const assetId of assetIds) {
       if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
@@ -334,5 +353,99 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
   for (const version of manifest.versions) {
     if (!files.has(version.package_path)) throw new Error('Package media is missing: ' + version.package_path);
   }
+  for (const record of manifest.dnaRecords) {
+    if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
+      const dnaRecord = validateVyralDnaV3Record(record.dna_record);
+      for (const tile of dnaRecord.lossless_payload.tiles) {
+        if (!files.has(tile.package_path)) throw new Error('DNA v3 package payload is missing: ' + tile.package_path);
+      }
+    }
+  }
   return manifest;
+};
+
+/**
+ * Builds a DNA-only .vyral archive. The original media version is deliberately
+ * omitted; the lossless DNA tiles are retained as first-class package payload.
+ * URL/storage/preview/derivative fields are removed recursively from exported metadata.
+ */
+const removeNonPortableReferences = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(removeNonPortableReferences);
+  if (!value || typeof value !== 'object') return value;
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (/(url|preview|thumbnail|derivative|storage.?path|file.?path|download|signed)/i.test(key)) continue;
+    result[key] = removeNonPortableReferences(child);
+  }
+  return result;
+};
+
+export const createVyralDnaOnlyPackage = (
+  baseManifest: VyralPackageManifest,
+  dnaRecordValue: VyralDnaV3Record,
+  payloadEntries: VyralDnaV3PackageEntry[],
+) => {
+  const dnaRecord = validateVyralDnaV3Record(dnaRecordValue);
+  if (!Array.isArray(payloadEntries) || payloadEntries.length !== dnaRecord.lossless_payload.tiles.length) {
+    throw new Error('DNA-only export requires every declared v3 tile payload exactly once.');
+  }
+  const payloadByPath = new Map<string, Uint8Array>();
+  for (const entry of payloadEntries) {
+    if (!entry || typeof entry.path !== 'string' || !(entry.data instanceof Uint8Array)) {
+      throw new Error('DNA-only export contains an invalid DNA payload entry.');
+    }
+    if (payloadByPath.has(entry.path)) throw new Error('DNA-only export contains a duplicate DNA payload path.');
+    payloadByPath.set(entry.path, entry.data);
+  }
+  for (const tile of dnaRecord.lossless_payload.tiles) {
+    const bytes = payloadByPath.get(tile.package_path);
+    if (!bytes || bytes.byteLength !== tile.byte_length) throw new Error('DNA-only export is missing a correctly sized tile: ' + tile.package_path);
+  }
+  if (payloadByPath.size !== dnaRecord.lossless_payload.tiles.length) {
+    throw new Error('DNA-only export contains undeclared DNA payload entries.');
+  }
+
+  const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
+  const dnaOnlyManifest: VyralPackageManifest = {
+    ...portableBase,
+    exportMode: 'dna-only',
+    versions: [],
+    dnaRecords: [
+      ...portableBase.dnaRecords.filter((record) => record.id !== dnaRecord.record_id),
+      {
+        id: dnaRecord.record_id,
+        scope: 'asset',
+        asset_id: dnaRecord.source.asset_id,
+        dna_schema_id: 'vyra.asset-dna',
+        dna_schema_version: 3,
+        recovery_level: 'decoded-samples-exact',
+        dna_record: dnaRecord,
+      },
+    ],
+  };
+  validateVyralManifest(dnaOnlyManifest);
+  const entries: VyralPackageEntry[] = [
+    ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
+    { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
+  ];
+  return createVyralZip(entries);
+};
+
+export const reconstructVyralDnaV3FromPackage = async (
+  files: Map<string, Uint8Array>,
+  recordId: string,
+) => {
+  const manifest = parseVyralManifest(files);
+  const entry = manifest.dnaRecords.find((record) =>
+    record.id === recordId && record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3,
+  );
+  if (!entry) throw new Error('The VYRAL package does not contain the requested DNA v3 record.');
+  const dnaRecord = validateVyralDnaV3Record(entry.dna_record);
+  const tileFiles = new Map<string, Uint8Array>();
+  for (const tile of dnaRecord.lossless_payload.tiles) {
+    const bytes = files.get(tile.package_path);
+    if (!bytes) throw new Error('DNA v3 package payload is missing: ' + tile.package_path);
+    tileFiles.set(tile.package_path, bytes);
+  }
+  return reconstructVyralDnaV3(dnaRecord, tileFiles);
 };
