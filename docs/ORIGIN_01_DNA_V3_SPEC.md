@@ -174,3 +174,21 @@ Verification boundary:
 - A successful result establishes byte-for-byte equality of decoded sample streams under the recorded decoder contract. It does not establish byte-exact reconstruction of the encoded PNG file.
 - The verifier's successful execution against ORIGIN-01 is still pending until the owner invokes it through the Workspace UI and a passing test row is confirmed in Development.
 - DNA-only package export/import and clean-context reconstruction remain separate acceptance gates.
+
+
+## 11. Canonical decoded-sample byte layout
+
+DNA-only packages must declare `decoded_image.sample_layout` explicitly:
+
+- Rows are ordered top-to-bottom.
+- Pixels within each row are ordered left-to-right.
+- Channels are interleaved per pixel in the exact declared channel order (RGB or RGBA).
+- Rows are tightly packed; there is no row padding or stride gap.
+- Tile payloads use the same interleaved channel order and are packed row-by-row within each tile.
+- `decoded_samples_sha256` is SHA-256 over the complete reconstructed image sample stream in this exact order, with no headers, dimensions, padding, or metadata included in the hash input.
+
+This contract describes decoded samples, not encoded PNG/JPEG bytes. Existing stored v3 records created before this declaration may be normalized into the explicit contract only at DNA-only package export, because the current v3 tile creation and reconstruction implementation already uses this byte order. The stored source record remains unchanged.
+
+## 12. DNA-only evidence isolation
+
+A DNA-only package contains only the selected v3 DNA record for the exported source asset. It excludes legacy DNA records, fingerprints, vision observations, lineage and reconstruction-test rows because the original asset-version binaries are intentionally omitted. Version-bound evidence must never be detached from its source version or presented as evidence about the selected original. Full packages retain their complete evidence history.
