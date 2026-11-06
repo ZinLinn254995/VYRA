@@ -1038,7 +1038,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               const tileStoragePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
               const tileBuffer = new ArrayBuffer(entry.data.byteLength);
               new Uint8Array(tileBuffer).set(entry.data);
-              const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
+              const { error: tileUploadError } = await supabase!.storage.from('vyral-assets').upload(
                 tileStoragePath,
                 new Blob([tileBuffer], { type: 'application/octet-stream' }),
                 { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
