@@ -89,3 +89,46 @@ test('requires at least one declared intended use for a Vyral', async () => {
   );
 });
 
+
+import { preflightVyralMasterDna } from '../src/services/vyralMasterDnaPreflight.ts';
+
+test('Master DNA preflight reports every missing requirement across all assets at once', () => {
+  const blockers = preflightVyralMasterDna({
+    vyralPurpose: '',
+    intendedUses: [],
+    assets: [
+      { asset_id: 'hero', role: null, purpose: '', has_latest_version: true, has_matching_dna: false },
+      { asset_id: 'voice', role: 'supporting', purpose: 'Character voice', has_latest_version: false, has_matching_dna: false },
+    ],
+    relationships: [],
+  });
+  assert.deepEqual(blockers.map((item) => item.code), [
+    'missing_vyral_purpose',
+    'missing_intended_uses',
+    'missing_main_asset',
+    'needs_classification',
+    'missing_asset_dna',
+    'missing_asset_relationship',
+    'missing_asset_version',
+    'missing_asset_dna',
+    'missing_asset_relationship',
+  ]);
+  assert.equal(blockers.filter((item) => item.asset_id === 'hero').length, 3);
+  assert.equal(blockers.filter((item) => item.asset_id === 'voice').length, 3);
+});
+
+test('Master DNA preflight passes when root, versions, DNA, classifications and relationships are complete', () => {
+  const blockers = preflightVyralMasterDna({
+    vyralPurpose: 'A reusable character production kit.',
+    intendedUses: ['storyboarding', 'video generation'],
+    assets: [
+      { asset_id: 'hero', role: 'main', purpose: 'Primary character appearance', has_latest_version: true, has_matching_dna: true },
+      { asset_id: 'voice', role: 'supporting', purpose: 'Character voice identity', has_latest_version: true, has_matching_dna: true },
+    ],
+    relationships: [
+      { from_kind: 'asset', from_asset_id: 'hero', to_kind: 'vyral', to_asset_id: null },
+      { from_kind: 'asset', from_asset_id: 'voice', to_kind: 'asset', to_asset_id: 'hero' },
+    ],
+  });
+  assert.deepEqual(blockers, []);
+});
