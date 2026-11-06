@@ -353,28 +353,6 @@ begin
     ) then
       raise exception using errcode = '23514', message = 'Every Master DNA asset must have at least one explicit relationship.';
     end if;
-    if asset_row.master_dna_role = 'main' and not exists (
-      select 1 from public.vyral_asset_relationships rel
-      where rel.vyral_id = new.vyral_id and rel.user_id = new.user_id
-        and rel.relationship_type = 'master_membership'
-        and rel.from_kind = 'asset' and rel.from_asset_id = asset_row.id
-        and rel.to_kind = 'vyral'
-    ) then
-      raise exception using errcode = '23514', message = 'Every Main Asset must have a membership edge to the Vyral root.';
-    end if;
-    if asset_row.master_dna_role = 'supporting' and not exists (
-      select 1 from public.vyral_asset_relationships rel
-      join public.vyral_assets main_asset
-        on main_asset.id = rel.to_asset_id
-       and main_asset.vyral_id = rel.vyral_id
-       and main_asset.user_id = rel.user_id
-      where rel.vyral_id = new.vyral_id and rel.user_id = new.user_id
-        and rel.relationship_type = 'master_membership'
-        and rel.from_kind = 'asset' and rel.from_asset_id = asset_row.id
-        and rel.to_kind = 'asset' and main_asset.master_dna_role = 'main'
-    ) then
-      raise exception using errcode = '23514', message = 'Every Supporting Asset must have a membership edge to a Main Asset.';
-    end if;
   end loop;
 
   select count(*)::integer into snapshot_relationship_count
@@ -456,30 +434,16 @@ begin
     raise exception using errcode = 'P0002', message = 'Asset not found in the signed-in owner scope.';
   end if;
 
-  if p_role = 'supporting' and exists (
-    select 1 from public.vyral_asset_relationships rel
-    where rel.vyral_id = target_vyral_id and rel.user_id = caller_id
-      and rel.relationship_type = 'master_membership'
-      and rel.from_kind = 'asset' and rel.to_kind = 'asset'
-      and rel.to_asset_id = p_asset_id
-  ) then
-    raise exception using errcode = '22023', message = 'A Main Asset cannot be demoted while Supporting Assets still depend on it.';
-  end if;
-
-  if p_role = 'main' then
-    if p_target_asset_id is not null then
-      raise exception using errcode = '22023', message = 'A Main Asset must be linked directly to its Vyral root.';
-    end if;
+  if p_target_asset_id is null then
     target_kind := 'vyral';
   else
-    if p_target_asset_id is null or p_target_asset_id = p_asset_id or not exists (
+    if p_target_asset_id = p_asset_id or not exists (
       select 1 from public.vyral_assets target
       where target.id = p_target_asset_id
         and target.vyral_id = target_vyral_id
         and target.user_id = caller_id
-        and target.master_dna_role = 'main'
     ) then
-      raise exception using errcode = '22023', message = 'A Supporting Asset must link to a different Main Asset in the same Vyral.';
+      raise exception using errcode = '22023', message = 'A relationship target must be a different Asset in the same Vyral.';
     end if;
     target_kind := 'asset';
   end if;
