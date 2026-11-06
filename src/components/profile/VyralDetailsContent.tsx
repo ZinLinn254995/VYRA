@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
-import { createVyralDnaOnlyPackage, createVyralZip, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -88,34 +88,6 @@ const formatRgb = (value: unknown) =>
   Array.isArray(value) && value.length >= 3
     ? value.slice(0, 3).map((channel) => Number(channel).toFixed(0)).join(', ')
     : '—';
-
-const encodeDecodedSamplesAsPng = async (
-  samples: Uint8Array,
-  width: number,
-  height: number,
-  channelLayout: 'RGB' | 'RGBA',
-): Promise<Blob> => {
-  const channels = channelLayout === 'RGBA' ? 4 : 3;
-  if (samples.byteLength !== width * height * channels) {
-    throw new Error('DNA v3 reconstructed sample length does not match its image dimensions.');
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('This browser cannot encode the reconstructed DNA image.');
-  const imageData = context.createImageData(width, height);
-  for (let source = 0, target = 0; source < samples.length; source += channels, target += 4) {
-    imageData.data[target] = samples[source];
-    imageData.data[target + 1] = samples[source + 1];
-    imageData.data[target + 2] = samples[source + 2];
-    imageData.data[target + 3] = channels === 4 ? samples[source + 3] : 255;
-  }
-  context.putImageData(imageData, 0, 0);
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('The browser could not encode the reconstructed PNG.')), 'image/png');
-  });
-};
 
 export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated }) => {
   const [tab, setTab] = useState<Tab>('overview');
@@ -561,15 +533,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             record.asset_id === oldAssetId
           );
           if (!dnaEntry) throw new Error('The DNA-only package has no v3 record for its selected asset.');
-          const reconstruction = await reconstructVyralDnaV3FromPackage(archiveFiles, String(dnaEntry.id));
-          const pngBlob = await encodeDecodedSamplesAsPng(
-            reconstruction.samples,
-            reconstruction.width,
-            reconstruction.height,
-            reconstruction.channel_layout,
-          );
-          const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
-          const digest = await crypto.subtle.digest('SHA-256', pngBytes.slice().buffer);
+          const reconstruction = await encodeVyralDnaV3PngFromPackage(archiveFiles, String(dnaEntry.id));
+          const pngBytes = reconstruction.pngBytes;
+          const digestBuffer = new ArrayBuffer(pngBytes.byteLength);
+          new Uint8Array(digestBuffer).set(pngBytes);
+          const digest = await crypto.subtle.digest('SHA-256', digestBuffer);
           const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
           const versionId = crypto.randomUUID();
           const filenameBase = safeName(sourceAsset.original_filename ?? sourceAsset.name, 'reconstructed-image', 120).replace(/\.[^.]+$/, '');
