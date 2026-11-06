@@ -380,7 +380,7 @@ const removeNonPortableReferences = (value: unknown): unknown => {
   return result;
 };
 
-export const createVyralDnaOnlyPackage = (
+export const createVyralDnaOnlyPackage = async (
   baseManifest: VyralPackageManifest,
   dnaRecordValue: VyralDnaV3Record,
   payloadEntries: VyralDnaV3PackageEntry[],
@@ -404,6 +404,7 @@ export const createVyralDnaOnlyPackage = (
   if (payloadByPath.size !== dnaRecord.lossless_payload.tiles.length) {
     throw new Error('DNA-only export contains undeclared DNA payload entries.');
   }
+  await reconstructVyralDnaV3(dnaRecord, payloadByPath);
 
   const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
   const dnaOnlyManifest: VyralPackageManifest = {
