@@ -1107,7 +1107,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
 
   const recoverAssetDna = async (asset: AssetRow) => {
-    if (!supabase || busy || packageBusy || verifyingAssetId || asset.processing_status !== 'uploading') return;
+    const userId = auth.user?.id;
+    if (!supabase || !userId || busy || packageBusy || verifyingAssetId || asset.processing_status !== 'uploading') return;
     if (asset.asset_type !== 'image' || !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase())) { setError('Automatic DNA recovery currently supports PNG, JPEG and WebP images only.'); return; }
     const version = versions.find((item) => item.asset_id === asset.id && item.storage_path === asset.storage_path) ?? [...versions].filter((item) => item.asset_id === asset.id).sort((a, b) => b.version_number - a.version_number)[0];
     if (!version) { setError('The original asset version is missing; recovery stopped without changing the asset.'); return; }
