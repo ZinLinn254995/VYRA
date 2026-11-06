@@ -187,3 +187,10 @@ Accepted truth rule:
 - only a package that carries all lossless raw source-byte chunks, verifies every chunk digest, and verifies the final original-byte SHA-256 may claim `source_file_exact`.
 
 This is a foundational binary identity contract, not yet universal semantic understanding. Non-raster Asset upload now writes an identity-only File DNA v1 record to Supabase, and the Master DNA builder validates the record against the latest immutable version. It remains `unavailable` for reconstruction unless lossless source-byte chunks are present and verified. Audio/video/document/3D/archive-specific parsing and mixed-media whole-Vyral DNA-only package export/import remain pending. The existing image DNA v3 pipeline remains separate and unchanged.
+
+
+## 2026-11-07 — Mixed-media DNA-only package support
+
+Extended the DNA-only package service to accept raster DNA v3 and Universal File DNA v1 together. File DNA exports now include lossless raw source-byte chunks after the canonical immutable source version is downloaded and its SHA-256 is rechecked. Imports verify those chunks, restore the original bytes as a new source version, and create a fresh identity-only File DNA record pinned to the imported version. The package parser rejects missing, altered, or undeclared chunks.
+
+The current package-level tests cover binary-only File DNA export, clean ZIP reconstruction, tampering, and refusal to export a hash-only File DNA record as exact. The authenticated Preview and a real mixed-media Vyral have not yet been manually tested. Semantic parsing for audio/video/documents/3D/archive formats is still pending.
