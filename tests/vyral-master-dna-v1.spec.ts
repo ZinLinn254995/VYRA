@@ -81,3 +81,10 @@ test('private and unlisted Vyrals cannot expose public resolver metadata', async
     /cannot publish metadata-only resolution/,
   );
 });
+
+test('requires at least one declared intended use for a Vyral', async () => {
+  await assert.rejects(
+    () => createVyralMasterDnaV1({ ...input, purpose: { ...input.purpose, intended_uses: [] } }),
+    /purpose, asset inventory, or relationships are invalid/,
+  );
+});
