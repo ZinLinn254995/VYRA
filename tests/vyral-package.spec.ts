@@ -6,7 +6,10 @@ import {
   readVyralZip,
   validateVyralManifest,
   VYRAL_PACKAGE_FORMAT,
+  createVyralDnaOnlyPackage,
+  reconstructVyralDnaV3FromPackage,
 } from '../src/services/vyralPackage.ts';
+import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 
 const manifest = {
   format: VYRAL_PACKAGE_FORMAT,
@@ -163,4 +166,86 @@ test('rejects invalid DNA, fingerprint, vision, lineage and reconstruction refer
     ...manifest,
     reconstructionTests: [{ asset_id: 'asset-test', dna_record_id: 'missing-dna' }],
   }), /missing DNA record/);
+});
+
+
+test('exports and reconstructs a DNA v3-only package without source media or derivative references', async () => {
+  const samples = new Uint8Array([
+    255, 0, 0, 255, 0, 255, 0, 255,
+    0, 0, 255, 255, 10, 20, 30, 255,
+  ]);
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'portable-dna-v3',
+    source: {
+      asset_id: 'asset-test',
+      asset_version_id: 'version-test',
+      sha256: 'a'.repeat(64),
+      size_bytes: 2048,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 2,
+    height: 2,
+    channel_layout: 'RGBA',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1,
+    tile_height: 1,
+    decoded_samples: samples,
+  });
+  const sourceAwareManifest = {
+    ...manifest,
+    assets: [{
+      ...manifest.assets[0],
+      preview_url: 'https://private.invalid/preview.png',
+      thumbnail: { url: 'https://private.invalid/thumb.png' },
+      storage_path: 'private/original.png',
+      derivative_path: 'private/derived.webp',
+    }],
+  };
+  const archive = createVyralDnaOnlyPackage(sourceAwareManifest, record, entries);
+  const files = await readVyralZip(archive);
+  const parsed = parseVyralManifest(files);
+  assert.equal(parsed.exportMode, 'dna-only');
+  assert.equal(parsed.versions.length, 0);
+  assert.equal(files.has('assets/asset-test/versions/1.bin'), false);
+  assert.equal([...files.keys()].some((path) => /preview|thumbnail|derivative|original/i.test(path)), false);
+  const serializedManifest = new TextDecoder().decode(files.get('manifest.json'));
+  assert.equal(serializedManifest.includes('private.invalid'), false);
+  assert.equal(serializedManifest.includes('storage_path'), false);
+  const reconstructed = await reconstructVyralDnaV3FromPackage(files, record.record_id);
+  assert.deepEqual(reconstructed.samples, samples);
+  assert.equal(reconstructed.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
+});
+
+test('rejects DNA-only export with missing or undeclared DNA tile payloads', async () => {
+  const samples = new Uint8Array(2 * 2 * 4).fill(11);
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'portable-dna-invalid',
+    source: {
+      asset_id: 'asset-test',
+      asset_version_id: 'version-test',
+      sha256: 'b'.repeat(64),
+      size_bytes: 2048,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 2,
+    height: 2,
+    channel_layout: 'RGBA',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1,
+    tile_height: 1,
+    decoded_samples: samples,
+  });
+  assert.throws(() => createVyralDnaOnlyPackage(manifest, record, entries.slice(1)), /requires every declared v3 tile/);
+  assert.throws(() => createVyralDnaOnlyPackage(manifest, record, [
+    ...entries,
+    { path: 'dna/v3/portable-dna-invalid/tiles/extra_0.raw', data: new Uint8Array([1]) },
+  ]), /undeclared DNA payload entries/);
 });
