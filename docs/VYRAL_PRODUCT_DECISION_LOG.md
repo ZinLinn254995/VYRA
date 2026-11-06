@@ -199,3 +199,8 @@ The current package-level tests cover binary-only File DNA export, clean ZIP rec
 ## 2026-11-07 — AI Chat File DNA inspection
 
 AI Chat now validates Universal File DNA v1 attachments. DNA-only packages are reconstructed from lossless binary chunks; full packages verify their pinned original version bytes against the File DNA digest and size. The chat context receives format/identity metadata while explicitly stating that audio, video, document and 3D semantic contents have not been decoded or sent to Vision. This is integrity-aware attachment understanding, not yet media-content understanding.
+
+
+## 2026-11-07 — Deterministic File Structure Profiles
+
+File DNA v1 now includes optional bounded structural metadata for WAV, ISO-BMFF, common audio signatures, PDF, GLB/glTF, and UTF-8 text/Markdown/JSON. The metadata records container/header facts and simple structural counts, not private source text or inferred meaning. PDF and large text/3D parsing are bounded to 8 MiB. These facts are integrity-adjacent structure hints only; full media decoding, OCR, transcription and semantic interpretation remain separate roadmap work.
