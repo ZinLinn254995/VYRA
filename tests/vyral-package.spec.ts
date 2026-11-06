@@ -456,6 +456,14 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     versions: [],
     masterDna,
   };
+  const tamperedMasterDna = {
+    ...masterDna,
+    integrity: { ...masterDna.integrity, vyral_fingerprint: '0'.repeat(64) },
+  };
+  await assert.rejects(
+    () => createVyralDnaOnlyPackage({ ...base, masterDna: tamperedMasterDna }, sourceRecords, payloadEntries),
+    /Vyral fingerprint verification failed/,
+  );
   const archive = await createVyralDnaOnlyPackage(base, sourceRecords, payloadEntries);
   const files = await readVyralZip(archive);
   const parsed = parseVyralManifest(files);
