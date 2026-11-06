@@ -508,6 +508,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         versionsByAsset.set(assetId, group);
       }
 
+      const importedDnaSources = new Map<string, { version_id: string; sha256: string; size_bytes: number; mime_type: string }>();
       let completedAssets = 0;
       for (const sourceAsset of manifest.assets) {
         const oldAssetId = stringValue(sourceAsset.id);
@@ -582,6 +583,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
 
         const latest = preparedVersions[preparedVersions.length - 1];
+        if (reconstructedFromDnaV3) {
+          importedDnaSources.set(oldAssetId, {
+            version_id: latest.id,
+            sha256: latest.sha256,
+            size_bytes: latest.bytes.byteLength,
+            mime_type: 'image/png',
+          });
+        }
         const assetName = safeName(sourceAsset.name, 'Imported asset', 180);
         const originalFilename = reconstructedFromDnaV3
           ? safeName(sourceAsset.original_filename ?? sourceAsset.name, 'reconstructed-image', 120).replace(/\.[^.]+$/, '') + '.reconstructed.png'
@@ -659,8 +668,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
 
       const dnaRows: Record<string, unknown>[] = [];
-      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>, reconstructionData: Record<string, unknown> = {}, schemaVersion = 1) => {
+      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>, reconstructionData: Record<string, unknown> = {}, schemaVersion = 1, recordId?: string) => {
         dnaRows.push({
+          ...(recordId ? { id: recordId } : {}),
           vyral_id: vyral.id,
           user_id: userId,
           asset_id: assetId,
@@ -681,9 +691,40 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const originalPayload = isDnaV3Record
           ? { dna_schema_id: sourceRecord.dna_schema_id, dna_schema_version: sourceRecord.dna_schema_version, dna_record: sourceRecord.dna_record, recovery_level: sourceRecord.recovery_level }
           : objectValue(sourceRecord.payload);
+        const originalDnaRecord = isDnaV3Record ? objectValue(sourceRecord.dna_record) : {};
+        const originalDnaSource = objectValue(originalDnaRecord.source);
+        const importedDnaSource = importedDnaSources.get(oldAssetId);
+        const remappedDnaRecordId = isDnaV3Record ? crypto.randomUUID() : undefined;
+        const remappedDnaRecord = isDnaV3Record ? {
+          ...originalDnaRecord,
+          record_id: remappedDnaRecordId,
+          source: {
+            ...originalDnaSource,
+            asset_id: assetId,
+            asset_version_id: importedDnaSource?.version_id ?? versionMap.get(String(originalDnaSource.asset_version_id ?? '')) ?? originalDnaSource.asset_version_id,
+            sha256: importedDnaSource?.sha256 ?? originalDnaSource.sha256,
+            size_bytes: importedDnaSource?.size_bytes ?? originalDnaSource.size_bytes,
+            mime_type: importedDnaSource?.mime_type ?? originalDnaSource.mime_type,
+          },
+        } : null;
         addImportedEvidence(stringValue(sourceRecord.source_kind, 'system'), assetId, {
           ...originalPayload,
+          ...(isDnaV3Record ? {
+            dna_record: remappedDnaRecord,
+            imported_provenance: {
+              original_dna_record_id: sourceRecord.id ?? null,
+              original_source: originalDnaSource,
+              reconstructed_asset_sha256: importedDnaSource?.sha256 ?? null,
+              original_encoded_source_bytes_recovered: false,
+            },
+          } : {}),
           imported_provenance: {
+            ...(isDnaV3Record ? {
+              original_dna_record_id: sourceRecord.id ?? null,
+              original_source: originalDnaSource,
+              reconstructed_asset_sha256: importedDnaSource?.sha256 ?? null,
+              original_encoded_source_bytes_recovered: false,
+            } : {}),
             package_id: manifest.packageId,
             import_run_id: importRunId,
             original_record_id: sourceRecord.id ?? null,
@@ -692,7 +733,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             original_created_at: sourceRecord.created_at ?? null,
             trust: 'unverified_imported_evidence',
           },
-        }, objectValue(sourceRecord.reconstruction_data), isDnaV3Record ? 3 : 1);
+        }, objectValue(sourceRecord.reconstruction_data), isDnaV3Record ? 3 : 1, remappedDnaRecordId);
       }
 
       for (const sourceFingerprint of manifest.fingerprints) {
