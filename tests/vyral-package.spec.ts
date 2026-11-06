@@ -8,6 +8,7 @@ import {
   VYRAL_PACKAGE_FORMAT,
   createVyralDnaOnlyPackage,
   reconstructVyralDnaV3FromPackage,
+  encodeVyralDnaV3PngFromPackage,
 } from '../src/services/vyralPackage.ts';
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 
@@ -262,6 +263,72 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   assert.equal(reconstructedA.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
   assert.equal(reconstructedB.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
   assert.deepEqual(reconstructedA.samples, reconstructedB.samples);
+});
+
+test('encodes reconstructed DNA v3 samples into a PNG without changing sample bytes', async () => {
+  const samples = new Uint8Array([
+    255, 0, 0, 255, 0, 255, 0, 128,
+    0, 0, 255, 64, 10, 20, 30, 0,
+  ]);
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'portable-png-roundtrip',
+    source: {
+      asset_id: 'asset-test',
+      asset_version_id: 'version-test',
+      sha256: 'd'.repeat(64),
+      size_bytes: 2048,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 2,
+    height: 2,
+    channel_layout: 'RGBA',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1,
+    tile_height: 1,
+    decoded_samples: samples,
+  });
+  const archive = await createVyralDnaOnlyPackage(manifest, record, entries);
+  const files = await readVyralZip(archive);
+  const encoded = await encodeVyralDnaV3PngFromPackage(files, record.record_id);
+  assert.deepEqual([...encoded.pngBytes.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+
+  const view = new DataView(encoded.pngBytes.buffer, encoded.pngBytes.byteOffset, encoded.pngBytes.byteLength);
+  let cursor = 8;
+  const idatParts: Uint8Array[] = [];
+  while (cursor + 12 <= encoded.pngBytes.byteLength) {
+    const length = view.getUint32(cursor, false);
+    const type = new TextDecoder().decode(encoded.pngBytes.subarray(cursor + 4, cursor + 8));
+    const data = encoded.pngBytes.subarray(cursor + 8, cursor + 8 + length);
+    if (type === 'IHDR') {
+      assert.equal(view.getUint32(cursor + 8, false), 2);
+      assert.equal(view.getUint32(cursor + 12, false), 2);
+      assert.equal(data[8], 8);
+      assert.equal(data[9], 6);
+    }
+    if (type === 'IDAT') idatParts.push(data);
+    cursor += 12 + length;
+    if (type === 'IEND') break;
+  }
+  const idatLength = idatParts.reduce((sum, part) => sum + part.byteLength, 0);
+  const idat = new Uint8Array(idatLength);
+  let offset = 0;
+  for (const part of idatParts) {
+    idat.set(part, offset);
+    offset += part.byteLength;
+  }
+  const { inflateSync } = await import('node:zlib');
+  const decodedScanlines = new Uint8Array(inflateSync(idat));
+  const expectedScanlines = new Uint8Array([
+    0, ...samples.slice(0, 8),
+    0, ...samples.slice(8, 16),
+  ]);
+  assert.deepEqual(decodedScanlines, expectedScanlines);
+  assert.deepEqual(encoded.samples, samples);
+  assert.equal(encoded.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
 });
 
 test('DNA-only manifests reject ambiguous or missing canonical sample layouts', async () => {
