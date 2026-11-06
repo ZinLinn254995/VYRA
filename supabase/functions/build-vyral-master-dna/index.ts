@@ -166,7 +166,12 @@ Deno.serve(async (request: Request) => {
           typeof version.sha256 === 'string' && sourceSha.toLowerCase() === version.sha256.toLowerCase()),
       };
     }),
-    relationships: relationships as Row[],
+    relationships: relationships.map((item: Row) => ({
+      from_kind: item.from_kind,
+      from_asset_id: item.from_asset_id,
+      to_kind: item.to_kind,
+      to_asset_id: item.to_asset_id,
+    })),
   });
   if (preflight.length) {
     return json({
