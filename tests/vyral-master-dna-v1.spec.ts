@@ -45,9 +45,17 @@ test('rejects a modified snapshot and a modified asset purpose', async () => {
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, assets: input.assets.map((asset, i) => i === 0 ? { ...asset, purpose: '  ' } : asset) }), /asset entry is invalid/);
 });
 
-test('requires every asset to have an explicit relationship', async () => {
+test('requires every asset to have an explicit relationship to another asset or the Vyral root', async () => {
   const invalid = { ...input, relationships: input.relationships.slice(0, 1) };
   await assert.rejects(() => createVyralMasterDnaV1(invalid), /Every Master DNA asset/);
+  const selfOnly = {
+    ...input,
+    relationships: [
+      input.relationships[0],
+      { relationship_id: 'self-edge', type: 'references', from: { kind: 'asset' as const, asset_id: 'voice' }, to: { kind: 'asset' as const, asset_id: 'voice' }, rationale: 'Self references are not membership relationships.' },
+    ],
+  };
+  await assert.rejects(() => createVyralMasterDnaV1(selfOnly), /Every Master DNA asset/);
 });
 
 test('rejects cross-Vyral links, stale asset versions, and private public-asset resolution', async () => {
