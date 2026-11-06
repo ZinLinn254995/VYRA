@@ -176,7 +176,7 @@ Deno.serve(async (request: Request) => {
   }
 
   if (!mainAssetIds.length) return json({ error: 'At least one Asset must be explicitly designated as Main.', status: 'missing_main_asset' }, 409);
-  if (!Array.isArray(vyral.master_dna_intended_uses) ||
+  if (!Array.isArray(vyral.master_dna_intended_uses) || vyral.master_dna_intended_uses.length === 0 ||
       !vyral.master_dna_intended_uses.every((item: unknown) => typeof item === 'string' && item.trim())) {
     return json({ error: 'Declare the Vyral intended uses before creating Master DNA.', status: 'missing_intended_uses' }, 409);
   }
@@ -199,6 +199,17 @@ Deno.serve(async (request: Request) => {
 
   const latest = latestResult.data as Row | null;
   const currentRevision = Number(vyral.master_dna_revision ?? 0);
+  if (vyral.master_dna_status === 'ready' && latest && latest.revision === currentRevision) {
+    return json({
+      status: 'ready',
+      vyralId: vyral.id,
+      masterDnaRevisionId: latest.id,
+      revision: latest.revision,
+      manifestSha256: latest.manifest_sha256,
+      vyralFingerprint: latest.vyral_fingerprint,
+      unchanged: true,
+    }, 200);
+  }
   if (!Number.isSafeInteger(currentRevision) || currentRevision < 0 ||
       (latest ? latest.revision !== currentRevision : currentRevision !== 0)) {
     return json({ error: 'Master DNA revision head is inconsistent; an administrator review is required.', status: 'revision_head_mismatch' }, 409);
