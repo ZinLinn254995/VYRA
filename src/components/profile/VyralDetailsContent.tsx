@@ -1158,7 +1158,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               </div>
               <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
                 <p className={'text-[9px] '+muted}>Exact pixel comparison</p>
-                <p className={'mt-0.5 text-xs font-semibold '+primary}>{exactDecodedPixelMatch === true ? 'Matched' : 'Not matched'}</p>
+                <p className={'mt-0.5 text-xs font-semibold '+primary}>{pixelReport.performed === true ? (exactDecodedPixelMatch === true ? 'Matched' : 'Not matched') : 'Not evaluated'}</p>
                 <p className={'text-[9px] '+muted}>{pixelReport.performed === true ? String(pixelReport.exactPixels ?? '—')+' / '+String(pixelReport.pixelCount ?? '—')+' pixels exact' : 'Not performed: dimensions differ'}</p>
               </div>
               <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
