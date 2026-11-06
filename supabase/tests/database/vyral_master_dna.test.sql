@@ -87,14 +87,42 @@ select throws_ok(
   'Root-to-root relationships are rejected'
 );
 
+insert into public.vyral_asset_versions
+  (id,asset_id,vyral_id,user_id,version_number,storage_path,mime_type,size_bytes,sha256)
+values
+  ('24000000-0000-4000-8000-000000000031','24000000-0000-4000-8000-000000000021','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',1,'master-dna-test/a/main-v1.png','image/png',100,repeat('c',64)),
+  ('24000000-0000-4000-8000-000000000032','24000000-0000-4000-8000-000000000022','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',1,'master-dna-test/a/support-v1.png','image/png',100,repeat('d',64));
+
+insert into public.vyral_dna_records
+  (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
+values
+  ('24000000-0000-4000-8000-000000000041','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000021','asset',3,'{}'::jsonb,'system'),
+  ('24000000-0000-4000-8000-000000000042','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000022','asset',3,'{}'::jsonb,'system');
+
 select lives_ok(
-  $$ insert into public.vyral_master_dna_revisions
+  $ insert into public.vyral_master_dna_revisions
      (vyral_id,user_id,revision,schema_id,schema_version,manifest_sha256,vyral_fingerprint,snapshot,created_by)
-     values ('24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
+     values (
+       '24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
        1,'vyra.vyral-master-dna',1,repeat('a',64),repeat('b',64),
-       '{"schema_id":"vyra.vyral-master-dna","schema_version":1}'::jsonb,
-       '24000000-0000-4000-8000-000000000001') $$,
-  'Service role can append a Master DNA snapshot'
+       jsonb_build_object(
+         'schema_id','vyra.vyral-master-dna',
+         'schema_version',1,
+         'vyral',jsonb_build_object('vyral_id','24000000-0000-4000-8000-000000000011'),
+         'snapshot',jsonb_build_object('revision',1),
+         'assets',jsonb_build_array(
+           jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000021','asset_version_id','24000000-0000-4000-8000-000000000031','role','main','purpose','Primary visual identity.','dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000041')),
+           jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000022','asset_version_id','24000000-0000-4000-8000-000000000032','role','supporting','purpose','Supporting voice identity.','dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000042'))
+         ),
+         'relationships',jsonb_build_array(
+           jsonb_build_object('relationship_id','edge-1'),
+           jsonb_build_object('relationship_id','edge-2')
+         ),
+         'integrity',jsonb_build_object('manifest_sha256',repeat('a',64),'vyral_fingerprint',repeat('b',64))
+       ),
+       '24000000-0000-4000-8000-000000000001'
+     ) $,
+  'Service role can append a Master DNA snapshot after canonical membership validation'
 );
 
 select throws_ok(
