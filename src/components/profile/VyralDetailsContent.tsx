@@ -341,7 +341,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dnaOnly
             ? 'Asset records are retained as metadata; no original media bytes are included.'
             : 'SHA-256 values were recalculated from the downloaded media during export.',
-          'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
+          dnaOnly
+            ? 'Canonical samples: top-to-bottom rows, left-to-right pixels, interleaved RGB/RGBA channels, tightly packed rows; SHA-256 covers the complete decoded sample stream only.'
+            : 'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
+          dnaOnly
+            ? 'This package does not recover original PNG/JPEG bytes and does not independently verify the source decoder or unknown color space. Legacy fingerprints, observations and version-bound evidence are excluded.'
+            : 'Importing a package must not automatically trust its verification claims.',
           'ZIP entries use the standard Store method (no compression) for broad compatibility.'
         ].join('\n'),
       });
