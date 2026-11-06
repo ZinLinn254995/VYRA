@@ -4,9 +4,11 @@ import {
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { getCurrentAccessToken } from '../../context/AuthContext';
+import { aiService } from '../../services/aiService';
 import { parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage } from '../../services/vyralPackage.ts';
 
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
   id: string;
   title: string;
@@ -67,6 +69,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,9 +128,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setHistoryOpen(false);
   };
 
-  const sendMessage = (value = draft) => {
+  const sendMessage = async (value = draft) => {
     const text = value.trim();
-    if ((!text && !selectedFile) || isLocked) return;
+    if ((!text && !selectedFile) || isLocked || isSending) return;
     if (selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext) return;
     if (!isAuthenticated) {
       onLoginRequired();
@@ -136,13 +139,45 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
-    setMessages((previous) => [...previous, { id: makeId(), role: 'user', content: (text || 'Please inspect this attachment.') + attachmentText }]);
+    const userMessage: ChatMessage = {
+      id: makeId(),
+      role: 'user',
+      content: (text || 'Please inspect this attachment.') + attachmentText,
+    };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
     setDraft('');
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!activeSessionId) setActiveSessionId(makeId());
+
+    setIsSending(true);
+    try {
+      const accessToken = await getCurrentAccessToken();
+      const result = await aiService.generateResponse({
+        messages: nextMessages.map(({ role, content }) => ({ role, content })),
+        ...(accessToken ? { accessToken } : {}),
+        idempotencyKey: 'chat-' + makeId(),
+      });
+      setMessages((previous) => [...previous, {
+        id: makeId(),
+        role: 'assistant',
+        content: result.content,
+        status: result.status,
+        providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
+      }]);
+    } catch (error) {
+      setMessages((previous) => [...previous, {
+        id: makeId(),
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.',
+        status: 'error',
+      }]);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleFileSelection = async (file: File | null) => {
@@ -285,13 +320,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`min-w-0 max-w-[88%] break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
                   <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</p>
+                  {message.role === 'assistant' && message.providerLabel && <p className="mt-2 text-[10px] text-[var(--vyra-text-muted)]">{message.providerLabel}</p>}
+                  {message.role === 'assistant' && message.status === 'preview' && <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">Preview response · no live model was confirmed</p>}
                   {message.role === 'assistant' && <button type="button" onClick={() => handleCopy(message.content)} className="mt-2 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]"><Copy size={12} /> Copy</button>}
                 </div>
               </div>
             ))}
-            <div className="rounded-xl border border-dashed border-[var(--vyra-border)] px-4 py-3 text-xs leading-5 text-[var(--vyra-text-muted)]">
-              VYRA AI ရဲ့ အဖြေထုတ်ပေးနိုင်မှုကို AI Provider ချိတ်ဆက်ပြီးနောက် ဖွင့်ပေးမယ်။
-            </div>
+            {isSending && <p className="text-center text-xs text-[var(--vyra-text-muted)]">VYRA AI is preparing a response…</p>}
           </div>
         )}
       </section>
@@ -300,7 +335,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
-        <form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
+        <form onSubmit={(event) => { event.preventDefault(); void sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
               <span className="min-w-0 flex-1 truncate">{selectedFile.name}{selectedFileStatus ? ` · ${selectedFileStatus}` : ''}</span>
@@ -331,10 +366,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               ref={textareaRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); } }}
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }}
               rows={1}
               disabled={isLocked}
-              placeholder={isLocked ? 'Chat locked' : 'Message VYRA AI…'}
+              placeholder={isLocked ? 'Chat locked' : isSending ? 'VYRA AI is thinking…' : 'Message VYRA AI…'}
               aria-label="Message VYRA AI"
               style={{ outline: "none", boxShadow: "none", WebkitTapHighlightColor: "transparent", WebkitAppearance: "none" }}
               className={`col-start-2 row-start-1 w-full max-h-36 min-h-10 min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-appearance:none] [-webkit-tap-highlight-color:transparent]`}
@@ -343,10 +378,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               type="submit"
               size="sm"
               className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
-              disabled={(!draft.trim() && !selectedFile) || isLocked || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
+              disabled={(!draft.trim() && !selectedFile) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
               aria-label="Send message"
             >
-              <ArrowUp size={17} />
+              {isSending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <ArrowUp size={17} />}
             </Button>
           </div>
         </form>
