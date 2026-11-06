@@ -342,3 +342,17 @@ This generic layer does not yet parse audio codecs, video tracks/timelines, docu
 The existing whole-Vyral DNA-only package exporter/importer still accepts only image DNA v3 records. Mixed-media DNA-only package export/import and source-byte retrieval are not yet implemented. The generic service can create lossless chunks when explicitly requested, but the current upload path intentionally does not duplicate the original binary into DNA storage.
 
 Automated tests cover exact byte round-trip, hash-only non-reconstruction, altered/missing/undeclared chunks, malformed chunk coverage, and false exact-claim rejection. CI now runs this suite; the newest commit's Actions result has not yet been returned by the GitHub status query. Do not describe the suite as passed until a run is visible.
+
+
+## 22. Mixed-media DNA-only package contract
+
+The package service now supports a single DNA-only Vyral containing both raster DNA v3 and binary File DNA v1 records. Each Asset must have exactly one supported reconstruction record. Raster Assets carry lossless decoded-sample tiles; non-raster Assets carry lossless raw source-byte chunks. The parser verifies every declared chunk/tile and rejects undeclared archive entries.
+
+For File DNA v1, the canonical upload record may remain identity-only. During DNA-only export, VYRA reads the exact immutable source version, recomputes its SHA-256, compares it with the File DNA identity record, and only then emits lossless chunks. The package's File DNA record declares `source_file_exact` only when those chunks are included and verified. Import verifies the package bytes again, writes a new immutable source version, and creates a new identity-only File DNA record pinned to the imported version. Imported evidence remains marked unverified until local verification/rebuild.
+
+Capability metadata is per-media-aware:
+- raster DNA v3 can restore decoded samples, not original encoded PNG/JPEG bytes;
+- File DNA v1 can restore exact original binary bytes when the lossless chunks are present;
+- a mixed package does not claim that every original encoded file is recovered merely because some File DNA records are exact.
+
+This package path has synthetic automated coverage for binary clean-import reconstruction and tamper rejection. It does not yet prove a real-world multi-asset mixed Vyral import/export in the authenticated Preview. Audio/video/document/3D/archive semantic parsing remains a separate layer above exact binary preservation.
