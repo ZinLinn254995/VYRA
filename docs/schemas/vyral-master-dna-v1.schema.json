@@ -158,7 +158,6 @@
             "source_file_exact",
             "semantic_only",
             "model_reconstructed",
-            "mixed",
             "unavailable"
           ]
         },
@@ -197,7 +196,8 @@
             }
           }
         }
-      }
+      },
+      "description": "The overall claim must equal the weakest reconstruction claim among included assets."
     },
     "provenance": {
       "type": "object",
@@ -277,7 +277,34 @@
           ],
           "minimum": 1
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "enum": [
+                  "private",
+                  "unlisted"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "canonical_uri": {
+                "type": "null"
+              },
+              "resolution_policy": {
+                "enum": [
+                  "authenticated_owner",
+                  "no_remote_resolution"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "integrity": {
       "type": "object",
@@ -353,7 +380,25 @@
             "maxLength": 1000
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "profile": {
+                "const": "compact"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "includes_full_reconstruction_payloads": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "$defs": {
@@ -457,20 +502,86 @@
     },
     "endpoint": {
       "oneOf": [
-        {"type":"object","additionalProperties":false,"required":["kind","asset_id"],"properties":{"kind":{"const":"asset"},"asset_id":{"$ref":"#/$defs/id"},"asset_version_id":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]}}},
-        {"type":"object","additionalProperties":false,"required":["kind","vyral_id"],"properties":{"kind":{"const":"vyral"},"vyral_id":{"$ref":"#/$defs/id"}}}
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "asset_id"
+          ],
+          "properties": {
+            "kind": {
+              "const": "asset"
+            },
+            "asset_id": {
+              "$ref": "#/$defs/id"
+            },
+            "asset_version_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "vyral_id"
+          ],
+          "properties": {
+            "kind": {
+              "const": "vyral"
+            },
+            "vyral_id": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        }
       ]
     },
     "relationship": {
-      "type":"object","additionalProperties":false,
-      "required":["relationship_id","type","from","to","rationale"],
-      "properties":{
-        "relationship_id":{"$ref":"#/$defs/id"},
-        "type":{"type":"string","pattern":"^[a-z][a-z0-9_]{1,63}$"},
-        "from":{"$ref":"#/$defs/endpoint"},
-        "to":{"$ref":"#/$defs/endpoint"},
-        "rationale":{"type":"string","minLength":1,"maxLength":2000},
-        "evidence_ref":{"type":["string","null"],"maxLength":512}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relationship_id",
+        "type",
+        "from",
+        "to",
+        "rationale"
+      ],
+      "properties": {
+        "relationship_id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$"
+        },
+        "from": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "to": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "evidence_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
       }
     }
   }
