@@ -56,3 +56,23 @@ test('File DNA validates source identity and prevents false exact claims', async
     record_id: 'file-dna-empty', source, bytes: new Uint8Array(), mime_type: 'application/octet-stream',
   }), /non-empty binary/);
 });
+
+
+test('File DNA detects conservative container signatures for audio, video, 3D and archives', async () => {
+  const cases: Array<{ bytes: Uint8Array; expected: string; mime: string; filename: string }> = [
+    { bytes: new Uint8Array([0x49,0x44,0x33,3,0,0]), expected: 'mp3-id3', mime: 'audio/mpeg', filename: 'voice.mp3' },
+    { bytes: new Uint8Array([0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x41,0x56,0x45]), expected: 'wav', mime: 'audio/wav', filename: 'voice.wav' },
+    { bytes: new Uint8Array([0,0,0,24,0x66,0x74,0x79,0x70]), expected: 'iso-bmff-family', mime: 'video/mp4', filename: 'clip.mp4' },
+    { bytes: new Uint8Array([0x67,0x6c,0x54,0x46,2,0,0,0]), expected: 'glb', mime: 'model/gltf-binary', filename: 'scene.glb' },
+    { bytes: new Uint8Array([0x37,0x7a,0xbc,0xaf,0x27,0x1c]), expected: '7z', mime: 'application/x-7z-compressed', filename: 'bundle.7z' },
+  ];
+  for (let index = 0; index < cases.length; index += 1) {
+    const item = cases[index];
+    const { record } = await createVyralFileDnaV1({
+      record_id: 'signature-' + index,
+      source: { asset_id: 'asset-' + index, asset_version_id: 'version-' + index },
+      bytes: item.bytes, mime_type: item.mime, filename: item.filename,
+    });
+    assert.equal(record.file.format_signature, item.expected);
+  }
+});
