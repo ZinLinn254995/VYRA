@@ -453,7 +453,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       importPackageId = manifest.packageId;
       if (manifest.exportMode === 'dna-only') {
         if (manifest.assets.length !== 1 || manifest.dnaRecords.length !== 1) {
-          throw new Error('A DNA-only package must contain exactly one asset and one DNA v3 record.');
+          throw new Error(`Invalid DNA-only package cardinality: expected 1 asset and 1 DNA v3 record; found assets=${manifest.assets.length}, dnaRecords=${manifest.dnaRecords.length}.`);
         }
         const dnaEntry = manifest.dnaRecords[0];
         if (dnaEntry.dna_schema_id !== 'vyra.asset-dna' || dnaEntry.dna_schema_version !== 3) {
