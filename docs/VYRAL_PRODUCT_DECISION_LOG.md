@@ -209,3 +209,17 @@ File DNA v1 now includes optional bounded structural metadata for WAV, ISO-BMFF,
 ## 2026-11-07 — Verify File DNA structure against source bytes
 
 AI Chat now re-runs the deterministic File DNA structure analyzer after verifying either the full-package original version or the DNA-only lossless chunks. If the package's stored structural profile differs from the profile derived from the verified bytes, attachment inspection is rejected. Older File DNA records without a stored profile remain readable because Chat can derive a fresh one. This closes the package-metadata trust gap without claiming semantic media decoding.
+
+
+## 2026-11-07 — Version-pinned Vyral license policy evaluator
+
+Added the first deterministic license decision helper and focused automated tests.
+
+- Basic Usage grants asset use and derivative generation, but not clone branches or resale.
+- Clone Branch grants branch creation and editing, but not resale.
+- Modified Branch + Resale grants branch creation, editing, and resale.
+- Each grant is pinned to one immutable Asset version and one grantee; expiry, revocation, wrong grantee, missing grant, stale version, and insufficient tier deny the requested action.
+- A multi-Asset operation is allowed only when every included Asset has a qualifying grant.
+- Owner bypass is explicit and must be supplied only by a trusted server-side ownership check.
+
+**Boundary:** this is a pure policy evaluator and test suite, not production enforcement. Purchase, Marketplace, branch, export, and resale APIs are not yet wired to it; grants are not yet persisted; Master DNA snapshots do not yet include effective license grant references. Existing assets remain unlicensed/unknown until explicit creator or rights-holder evidence is recorded. No licenses or permissions are inferred from filenames or asset ownership metadata.
