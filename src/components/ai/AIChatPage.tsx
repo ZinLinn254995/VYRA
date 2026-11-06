@@ -117,6 +117,7 @@ const inspectVyralAttachment = async (file: File) => {
   }
   for (const record of fileRecords) {
     const dna = validateVyralFileDnaV1Record(record.dna_record);
+    if (dna.source.asset_id !== record.asset_id) throw new Error('A File DNA record references a different Asset than its manifest entry.');
     const fileBytes = Number(dna.file.size_bytes);
     if (!Number.isSafeInteger(fileBytes) || fileBytes <= 0 || fileBytes > 128 * 1024 * 1024) {
       throw new Error('A File DNA asset exceeds the 128 MB chat inspection limit.');
@@ -132,6 +133,7 @@ const inspectVyralAttachment = async (file: File) => {
       exactSourceBytes = true;
     } else {
       const sourceVersion = manifest.versions.find((version) => version.id === dna.source.asset_version_id);
+      if (sourceVersion && sourceVersion.asset_id !== record.asset_id) throw new Error('A File DNA record is pinned to a different Asset version.');
       const packagePath = sourceVersion?.package_path;
       const sourceBytes = typeof packagePath === 'string' ? files.get(packagePath) : undefined;
       if (!sourceBytes) throw new Error('A File DNA record has neither exact reconstruction chunks nor its pinned source version.');
