@@ -28,7 +28,9 @@ const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 type VyralVisionImage = { mimeType: 'image/jpeg'; data: string; width: number; height: number };
 
 const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisionImage> => {
-  const bitmap = await createImageBitmap(new Blob([pngBytes], { type: 'image/png' }));
+  const pngBuffer = new ArrayBuffer(pngBytes.byteLength);
+  new Uint8Array(pngBuffer).set(pngBytes);
+  const bitmap = await createImageBitmap(new Blob([pngBuffer], { type: 'image/png' }));
   try {
     const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
