@@ -373,7 +373,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dnaPayloadEntries.push({ path: tile.package_path, data: tileBytes });
         }
         archive = await createVyralDnaOnlyPackage(
-          manifest as Parameters<typeof createVyralDnaOnlyPackage>[0],
+          manifest as unknown as Parameters<typeof createVyralDnaOnlyPackage>[0],
           dnaRecord as Parameters<typeof createVyralDnaOnlyPackage>[1],
           dnaPayloadEntries,
         );
