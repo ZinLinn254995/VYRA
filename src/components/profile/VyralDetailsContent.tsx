@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { createVyralDnaV3, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
@@ -465,10 +465,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             ? 'Asset records are retained as metadata; no original media bytes are included.'
             : 'SHA-256 values were recalculated from the downloaded media during export.',
           dnaOnly
-            ? 'Canonical samples: top-to-bottom rows, left-to-right pixels, interleaved RGB/RGBA channels, tightly packed rows; SHA-256 covers the complete decoded sample stream only.'
+            ? 'Raster assets use canonical decoded samples: top-to-bottom rows, left-to-right pixels, interleaved RGB/RGBA channels. Non-raster assets use lossless raw source-byte chunks with per-chunk and aggregate SHA-256 verification.'
             : 'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
           dnaOnly
-            ? 'This package does not recover original PNG/JPEG bytes and does not independently verify the source decoder or unknown color space. Legacy fingerprints, observations and version-bound evidence are excluded.'
+            ? 'Raster DNA v3 does not recover original PNG/JPEG encoded bytes and does not independently verify the source decoder or unknown color space. File DNA v1 can recover exact original non-raster source bytes only when all declared lossless chunks pass verification. Legacy fingerprints, observations and version-bound evidence are excluded.'
             : 'Importing a package must not automatically trust its verification claims.',
           'ZIP entries use the standard Store method (no compression) for broad compatibility.'
         ].join('\n'),
@@ -970,7 +970,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const originalDnaRecord = isDnaV3Record || isFileDnaRecord ? objectValue(sourceRecord.dna_record) : {};
         const originalDnaSource = objectValue(originalDnaRecord.source);
         const importedDnaSource = importedDnaSources.get(oldAssetId);
-        const remappedDnaRecordId = isDnaV3Record || isFileDnaRecord ? crypto.randomUUID() : undefined;
+        const remappedDnaRecordId = isDnaV3Record ? crypto.randomUUID() : (isFileDnaRecord ? importedDnaSource?.file_dna_record?.record_id : undefined);
         const remappedFileDnaRecord = isFileDnaRecord ? importedDnaSource?.file_dna_record : undefined;
         const originalLosslessPayload = objectValue(originalDnaRecord.lossless_payload);
         const originalTiles = Array.isArray(originalLosslessPayload.tiles) ? originalLosslessPayload.tiles : [];
