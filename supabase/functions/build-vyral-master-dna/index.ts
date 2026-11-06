@@ -261,7 +261,7 @@ Deno.serve(async (request: Request) => {
       purpose: assetMetadata.purpose.trim(),
       media_type: asset.mime_type || version.mime_type,
       dna_ref: {
-        record_id: dna.id,
+        record_id: typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dna.id,
         schema_id: schemaId,
         schema_version: Number(dna.schema_version),
       },
