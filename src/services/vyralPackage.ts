@@ -1,4 +1,5 @@
 import { validateVyralMasterDnaV1, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
+import { reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1.ts';
 import {
   reconstructVyralDnaV3,
   validateVyralDnaV3Record,
@@ -344,26 +345,47 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       if (manifest.exportMode !== 'dna-only' && !versionById.has(dnaRecord.source.asset_version_id)) {
         throw new Error('A VYRA DNA v3 record references a source version missing from the package.');
       }
+    } else if (record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1) {
+      const fileDna = validateVyralFileDnaV1Record(record.dna_record);
+      if (record.id !== fileDna.record_id || record.asset_id !== fileDna.source.asset_id ||
+          !assetIds.has(fileDna.source.asset_id)) {
+        throw new Error('A VYRA File DNA package record has inconsistent identity metadata.');
+      }
+      if (manifest.exportMode === 'dna-only' &&
+          (fileDna.reconstruction.claim !== 'source_file_exact' || record.recovery_level !== 'source-file-exact')) {
+        throw new Error('DNA-only packages require lossless source-byte payloads for every non-raster Asset.');
+      }
+      if (manifest.exportMode !== 'dna-only' && !versionById.has(fileDna.source.asset_version_id)) {
+        throw new Error('A VYRA File DNA record references a source version missing from the package.');
+      }
     }
   }
   if (manifest.exportMode === 'dna-only') {
     const capabilities = manifest.reconstructionCapabilities;
-    const v3Records = (manifest.dnaRecords ?? []).filter((record) =>
+    const dnaRecords = manifest.dnaRecords ?? [];
+    const v3Records = dnaRecords.filter((record) =>
       record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3
     );
-    if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== true ||
+    const fileRecords = dnaRecords.filter((record) =>
+      record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1
+    );
+    const supportedRecords = [...v3Records, ...fileRecords];
+    const expectedDecoded = v3Records.length > 0;
+    const expectedEncodedSource = v3Records.length === 0 && fileRecords.length > 0;
+    if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== expectedDecoded ||
         capabilities.source_decode_independently_verified !== false ||
-        capabilities.encoded_source_bytes_recoverable !== false ||
+        capabilities.encoded_source_bytes_recoverable !== expectedEncodedSource ||
+        capabilities.binary_source_bytes_reconstructable !== (fileRecords.length > 0) ||
         typeof capabilities.color_space_fully_characterized !== 'boolean') {
       throw new Error('DNA-only reconstruction capability boundaries are missing or invalid.');
     }
-    const v3AssetIds = new Set(v3Records.map((record) => String(record.asset_id)));
-    if (v3Records.length === 0 || v3Records.length !== (manifest.dnaRecords ?? []).length ||
-        v3AssetIds.size !== v3Records.length || v3AssetIds.size !== assetIds.size ||
-        [...assetIds].some((assetId) => !v3AssetIds.has(assetId)) ||
+    const recordAssetIds = new Set(supportedRecords.map((record) => String(record.asset_id)));
+    if (supportedRecords.length === 0 || supportedRecords.length !== dnaRecords.length ||
+        recordAssetIds.size !== supportedRecords.length || recordAssetIds.size !== assetIds.size ||
+        [...assetIds].some((assetId) => !recordAssetIds.has(assetId)) ||
         (manifest.fingerprints ?? []).length !== 0 || (manifest.visionObservations ?? []).length !== 0 ||
         (manifest.lineage ?? []).length !== 0 || (manifest.reconstructionTests ?? []).length !== 0) {
-      throw new Error('DNA-only packages must isolate one selected v3 record and omit version-bound legacy evidence.');
+      throw new Error('DNA-only packages require one exact reconstruction record per Asset and omit version-bound legacy evidence.');
     }
   }
   if (manifest.exportMode !== 'dna-only') {
@@ -393,6 +415,14 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
         if (!files.has(tile.package_path)) throw new Error('DNA v3 package payload is missing: ' + tile.package_path);
         dnaOnlyExpectedPaths.add(tile.package_path);
       }
+    } else if (record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1) {
+      const fileDna = validateVyralFileDnaV1Record(record.dna_record);
+      for (const chunk of fileDna.reconstruction.chunks) {
+        if (!files.has(chunk.package_path)) throw new Error('File DNA package payload is missing: ' + chunk.package_path);
+        dnaOnlyExpectedPaths.add(chunk.package_path);
+      }
+      const filePayload = new Map(fileDna.reconstruction.chunks.map((chunk) => [chunk.package_path, files.get(chunk.package_path)!]));
+      await reconstructVyralFileDnaV1(fileDna, filePayload);
     }
   }
   if (manifest.exportMode === 'dna-only') {
@@ -546,6 +576,131 @@ export const createVyralDnaOnlyPackage = async (
     { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
   ];
   return createVyralZip(entries);
+};
+
+export const createVyralAssetDnaOnlyPackage = async (
+  baseManifest: VyralPackageManifest,
+  dnaRecords: Array<VyralDnaV3Record | VyralFileDnaRecord>,
+  payloadEntries: Array<VyralDnaV3PackageEntry | VyralFileDnaEntry>,
+) => {
+  if (!Array.isArray(dnaRecords) || dnaRecords.length === 0) throw new Error('DNA-only export requires at least one supported Asset DNA record.');
+  if (!Array.isArray(payloadEntries)) throw new Error('DNA-only export payload entries must be an array.');
+  const recordIds = new Set<string>();
+  const assetIds = new Set<string>();
+  const normalized: Array<{ schemaId: string; schemaVersion: number; recordId: string; assetId: string; value: VyralDnaV3Record | VyralFileDnaRecord }> = [];
+  const payloadByPath = new Map<string, Uint8Array>();
+  for (const entry of payloadEntries) {
+    if (!entry || typeof entry.path !== 'string' || !(entry.data instanceof Uint8Array) || payloadByPath.has(entry.path)) {
+      throw new Error('DNA-only export contains an invalid or duplicate payload entry.');
+    }
+    payloadByPath.set(entry.path, entry.data);
+  }
+  const declaredPaths = new Set<string>();
+  let hasV3 = false;
+  let hasFile = false;
+  for (const raw of dnaRecords) {
+    if ('decoded_image' in raw) {
+      const record = validateVyralDnaV3Record(raw);
+      hasV3 = true;
+      const recordWithLayout: VyralDnaV3Record = {
+        ...record,
+        decoded_image: {
+          ...record.decoded_image,
+          sample_layout: {
+            row_order: 'top-to-bottom',
+            pixel_order: 'left-to-right',
+            channel_order: record.decoded_image.channel_layout,
+            packing: 'interleaved',
+            row_stride: 'tightly-packed',
+            hash_algorithm: 'SHA-256',
+            hash_scope: 'full-decoded-sample-stream',
+          },
+        },
+      };
+      for (const tile of recordWithLayout.lossless_payload.tiles) {
+        if (declaredPaths.has(tile.package_path)) throw new Error('DNA-only export contains a duplicate declared payload path.');
+        declaredPaths.add(tile.package_path);
+        const bytes = payloadByPath.get(tile.package_path);
+        if (!bytes || bytes.byteLength !== tile.byte_length) throw new Error('DNA-only export is missing a correctly sized DNA v3 tile: ' + tile.package_path);
+      }
+      const tiles = new Map(recordWithLayout.lossless_payload.tiles.map((tile) => [tile.package_path, payloadByPath.get(tile.package_path)!]));
+      await reconstructVyralDnaV3(recordWithLayout, tiles);
+      normalized.push({ schemaId: 'vyra.asset-dna', schemaVersion: 3, recordId: record.record_id, assetId: record.source.asset_id, value: recordWithLayout });
+    } else {
+      const record = validateVyralFileDnaV1Record(raw);
+      hasFile = true;
+      if (record.reconstruction.claim !== 'source_file_exact') throw new Error('DNA-only export requires lossless source-byte chunks for each non-raster Asset.');
+      for (const chunk of record.reconstruction.chunks) {
+        if (declaredPaths.has(chunk.package_path)) throw new Error('DNA-only export contains a duplicate declared payload path.');
+        declaredPaths.add(chunk.package_path);
+        const bytes = payloadByPath.get(chunk.package_path);
+        if (!bytes || bytes.byteLength !== chunk.byte_length) throw new Error('DNA-only export is missing a correctly sized source-byte chunk: ' + chunk.package_path);
+      }
+      const chunks = new Map(record.reconstruction.chunks.map((chunk) => [chunk.package_path, payloadByPath.get(chunk.package_path)!]));
+      await reconstructVyralFileDnaV1(record, chunks);
+      normalized.push({ schemaId: 'vyra.asset-file-dna', schemaVersion: 1, recordId: record.record_id, assetId: record.source.asset_id, value: record });
+    }
+    const last = normalized[normalized.length - 1];
+    if (recordIds.has(last.recordId) || assetIds.has(last.assetId)) throw new Error('DNA-only export contains duplicate DNA record or Asset identities.');
+    recordIds.add(last.recordId);
+    assetIds.add(last.assetId);
+  }
+  if (payloadByPath.size !== declaredPaths.size) throw new Error('DNA-only export contains undeclared DNA payload entries.');
+  const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
+  const selectedAssets = portableBase.assets.filter((asset) => assetIds.has(String(asset.id)));
+  if (selectedAssets.length !== normalized.length) throw new Error('Every DNA-only record must map to exactly one Asset in the Vyral manifest.');
+  if (normalized.length > 1 && selectedAssets.length !== portableBase.assets.length) throw new Error('A whole-Vyral DNA-only export requires a reconstruction record for every Asset.');
+  if (portableBase.masterDna) {
+    portableBase.masterDna = await validateVyralMasterDnaV1(portableBase.masterDna);
+    const masterIds = new Set(portableBase.masterDna.assets.map((asset) => asset.asset_id));
+    if (masterIds.size !== assetIds.size || [...masterIds].some((id) => !assetIds.has(id))) throw new Error('Master DNA inventory does not match the DNA-only Asset set.');
+  } else if (normalized.length > 1) {
+    throw new Error('A whole-Vyral DNA-only export requires a verified Master DNA snapshot.');
+  }
+  const dnaOnlyManifest: VyralPackageManifest = {
+    ...portableBase,
+    exportMode: 'dna-only',
+    folders: [],
+    versions: [],
+    assets: selectedAssets.map((asset) => ({ ...asset, folder_id: null, description_provenance: 'creator_declared', description_is_visual_measurement: false })),
+    reconstructionCapabilities: {
+      decoded_sample_stream_reconstructable: hasV3,
+      source_decode_independently_verified: false,
+      encoded_source_bytes_recoverable: !hasV3 && hasFile,
+      binary_source_bytes_reconstructable: hasFile,
+      color_space_fully_characterized: normalized.filter((item) => item.schemaId === 'vyra.asset-dna').every((item) => (item.value as VyralDnaV3Record).decoded_image.color_space !== 'unknown'),
+      verification_note: 'Each Asset has its own exact reconstruction payload: decoded sample streams for raster DNA v3 and original source bytes for File DNA v1. Claims remain per-Asset and do not imply independent source-decoder verification.',
+    },
+    dnaRecords: normalized.map((item) => ({
+      id: item.recordId,
+      scope: 'asset',
+      asset_id: item.assetId,
+      dna_schema_id: item.schemaId,
+      dna_schema_version: item.schemaVersion,
+      recovery_level: item.schemaId === 'vyra.asset-dna' ? 'decoded-samples-exact' : 'source-file-exact',
+      dna_record: item.value,
+    })),
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+  };
+  validateVyralManifest(dnaOnlyManifest);
+  return createVyralZip([
+    ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
+    { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
+  ]);
+};
+
+export const reconstructVyralFileDnaFromPackage = async (files: Map<string, Uint8Array>, recordId: string) => {
+  const manifest = parseVyralManifest(files);
+  const entry = manifest.dnaRecords.find((record) =>
+    record.id === recordId && record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1,
+  );
+  if (!entry) throw new Error('The VYRAL package does not contain the requested File DNA v1 record.');
+  const fileDna = validateVyralFileDnaV1Record(entry.dna_record);
+  const chunks = new Map(fileDna.reconstruction.chunks.map((chunk) => [chunk.package_path, files.get(chunk.package_path)!]));
+  return reconstructVyralFileDnaV1(fileDna, chunks);
 };
 
 export const reconstructVyralDnaV3FromPackage = async (
