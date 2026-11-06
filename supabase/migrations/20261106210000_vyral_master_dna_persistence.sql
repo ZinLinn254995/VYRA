@@ -268,8 +268,6 @@ comment on table public.vyral_master_dna_revisions is
   'Append-only canonical Master DNA snapshots with manifest digest and Vyral fingerprint.';
 comment on column public.vyrals.master_dna_status is
   'Current Master DNA readiness: classification required, stale, ready, or not started.';
-comment on column public.vyral_assets.master_dna_purpose is
-  'Creator-declared reason this asset belongs to the Vyral; never inferred from filename.';
 
 
 create or replace function public.validate_vyral_master_dna_revision()
