@@ -232,12 +232,12 @@ begin
     raise exception using errcode = '23514', message = 'Master DNA revision must extend the current immutable revision head.';
   end if;
 
-  if new.snapshot ->> 'schema_id' <> new.schema_id
-     or new.snapshot ->> 'schema_version' <> new.schema_version::text
-     or new.snapshot -> 'vyral' ->> 'vyral_id' <> new.vyral_id::text
-     or new.snapshot -> 'snapshot' ->> 'revision' <> new.revision::text
-     or new.snapshot -> 'integrity' ->> 'manifest_sha256' <> new.manifest_sha256
-     or new.snapshot -> 'integrity' ->> 'vyral_fingerprint' <> new.vyral_fingerprint then
+  if new.snapshot ->> 'schema_id' is distinct from new.schema_id
+     or new.snapshot ->> 'schema_version' is distinct from new.schema_version::text
+     or new.snapshot -> 'vyral' ->> 'vyral_id' is distinct from new.vyral_id::text
+     or new.snapshot -> 'snapshot' ->> 'revision' is distinct from new.revision::text
+     or new.snapshot -> 'integrity' ->> 'manifest_sha256' is distinct from new.manifest_sha256
+     or new.snapshot -> 'integrity' ->> 'vyral_fingerprint' is distinct from new.vyral_fingerprint then
     raise exception using errcode = '23514', message = 'Master DNA snapshot identity or integrity metadata does not match its revision row.';
   end if;
 
@@ -268,7 +268,7 @@ begin
     where a.vyral_id = new.vyral_id and a.user_id = new.user_id
   loop
     select item into snapshot_asset
-    from jsonb_array_elements(new.snapshot -> 'assets') item
+    from jsonb_array_elements(new.snapshot -> 'assets') as elements(item)
     where item ->> 'asset_id' = asset_row.id::text
     limit 1;
 
