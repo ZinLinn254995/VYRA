@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase, useAuth } from '../../context/AuthContext';
 import { createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { createVyralDnaV3 } from '../../services/vyralDnaV3';
 
 type Vyral = {
@@ -357,6 +358,24 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       if (!auth.user) throw new Error('Please sign in again before exporting this Vyral.');
       const packageEntries: { path: string; data: Uint8Array | string }[] = [];
       const packageVersions: Record<string, unknown>[] = [];
+      let portableMasterDna: Awaited<ReturnType<typeof validateVyralMasterDnaV1>> | null = null;
+      if (vyral.master_dna_status === 'ready') {
+        const { data: revisionRow, error: revisionError } = await supabase
+          .from('vyral_master_dna_revisions')
+          .select('snapshot,revision')
+          .eq('vyral_id', vyral.id)
+          .eq('user_id', auth.user.id)
+          .order('revision', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (revisionError) throw new Error('Could not load the current Master DNA snapshot for export.');
+        if (revisionRow?.snapshot) {
+          portableMasterDna = await validateVyralMasterDnaV1(revisionRow.snapshot);
+          if (portableMasterDna.snapshot.revision !== Number(vyral.master_dna_revision)) {
+            throw new Error('The Master DNA snapshot is not the current Vyral revision. Rebuild Master DNA before exporting.');
+          }
+        }
+      }
       let totalMediaBytes = 0;
       const ownerless = <T extends Record<string, unknown>>(record: T) => {
         const { user_id: _userId, vyral_id: _vyralId, storage_path: _storagePath, ...safe } = record;
@@ -415,6 +434,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dna_status: vyral.dna_status,
           license_policy: vyral.license_policy ?? {},
         },
+        ...(portableMasterDna ? { masterDna: portableMasterDna } : {}),
         folders: folders.map((item) => ownerless(item as unknown as Record<string, unknown>)),
         assets: assets.map((item) => ownerless(item as unknown as Record<string, unknown>)),
         versions: packageVersions,
