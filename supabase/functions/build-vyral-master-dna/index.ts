@@ -1,7 +1,7 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { createVyralMasterDnaV1 } from '../../../src/services/vyralMasterDnaV1.ts';
-import { reconstructVyralDnaV3 } from '../../../src/services/vyralDnaV3.ts';
+import { validateVyralDnaV3Record } from '../../../src/services/vyralDnaV3.ts';
 
 type Row = Record<string, any>;
 
@@ -21,20 +21,14 @@ const isSha256 = (value: unknown): value is string =>
 const asRecord = (value: unknown): Row =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 
-const getReconstructionClaim = (
-  tests: Row[],
-  assetId: string,
-  versionId: string,
-  losslessDecodedVerified: boolean,
-  semanticDnaAvailable: boolean,
-) => {
+const getReconstructionClaim = (tests: Row[], assetId: string, versionId: string, semanticDnaAvailable: boolean) => {
   const pinned = tests.filter((item) =>
     item.asset_id === assetId &&
     item.asset_version_id === versionId &&
     item.test_status === 'passed'
   );
   if (pinned.some((item) => item.comparison_mode === 'byte_exact' && item.exact_match === true)) return 'source_file_exact' as const;
-  if (pinned.some((item) => item.comparison_mode === 'decoded_exact' && item.exact_match === true) || losslessDecodedVerified) return 'lossless_decoded' as const;
+  if (pinned.some((item) => item.comparison_mode === 'decoded_exact' && item.exact_match === true)) return 'lossless_decoded' as const;
   if (pinned.some((item) => item.exact_match === false)) return 'model_reconstructed' as const;
   if (semanticDnaAvailable) return 'semantic_only' as const;
   return 'unavailable' as const;
@@ -142,7 +136,6 @@ Deno.serve(async (request: Request) => {
   const reconstructionTests = testsResult.data ?? [];
   const mainAssetIds: string[] = [];
   const claims: Array<'lossless_decoded' | 'source_file_exact' | 'semantic_only' | 'model_reconstructed' | 'unavailable'> = [];
-  let totalTileBytes = 0;
 
   const masterAssets = [];
   for (const asset of assets as Row[]) {
@@ -181,58 +174,54 @@ Deno.serve(async (request: Request) => {
       return json({ error: 'An Asset DNA record does not match the latest immutable Asset version.', status: 'stale_asset_dna', assetId: asset.id }, 409);
     }
 
-    let losslessDecodedVerified = false;
     if (Number(dna.schema_version) === 3) {
-      const decodedImage = asRecord(nestedDna.decoded_image);
+      const bucket = typeof payload.storage_bucket === 'string' ? payload.storage_bucket : 'vyral-assets';
       const losslessPayload = asRecord(nestedDna.lossless_payload);
       const tiles = Array.isArray(losslessPayload.tiles) ? losslessPayload.tiles as Row[] : [];
       const tilePaths = Array.isArray(payload.tile_storage_paths) ? payload.tile_storage_paths : [];
-      const bucket = typeof payload.storage_bucket === 'string' ? payload.storage_bucket : 'vyral-assets';
-      if (bucket !== 'vyral-assets' || tiles.length === 0 || tilePaths.length !== tiles.length ||
-          typeof decodedImage.decoded_samples_sha256 !== 'string') {
+      if (bucket !== 'vyral-assets' || tiles.length === 0 || tilePaths.length !== tiles.length) {
         return json({ error: 'An Asset DNA v3 record is missing a complete lossless tile storage map.', status: 'incomplete_lossless_dna', assetId: asset.id }, 409);
       }
-      const assetStoragePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
-      const assetTileBytes = tiles.reduce((sum, tile) => sum + Number(tile.byte_length || 0), 0);
-      if (!Number.isSafeInteger(assetTileBytes) || assetTileBytes <= 0 || assetTileBytes > 64 * 1024 * 1024 ||
-          totalTileBytes + assetTileBytes > 128 * 1024 * 1024) {
-        return json({ error: 'The lossless DNA payload exceeds the safe Master DNA verification limit.', status: 'dna_payload_too_large', assetId: asset.id }, 413);
-      }
-      totalTileBytes += assetTileBytes;
-      const files = new Map<string, Uint8Array>();
       try {
-        for (let offset = 0; offset < tiles.length; offset += 3) {
-          const batch = await Promise.all(tiles.slice(offset, offset + 3).map(async (tile, index) => {
-            const path = tilePaths[offset + index];
-            if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix)) {
-              throw new Error('DNA tile storage path escaped its canonical Asset prefix.');
-            }
-            const { data: blob, error: downloadError } = await context.supabaseAdmin.storage.from(bucket).download(path);
-            if (downloadError || !blob) throw new Error('A lossless DNA tile is missing from private Storage.');
-            const bytes = new Uint8Array(await blob.arrayBuffer());
-            if (bytes.byteLength !== Number(tile.byte_length)) throw new Error('A lossless DNA tile has an unexpected byte length.');
-            return [String(tile.package_path), bytes] as const;
-          }));
-          for (const [path, bytes] of batch) files.set(path, bytes);
+        validateVyralDnaV3Record(nestedDna);
+        const assetStoragePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
+        const firstPath = tilePaths[0];
+        if (typeof firstPath !== 'string' || !firstPath.startsWith(assetStoragePrefix) || firstPath.includes('\\\\')) {
+          throw new Error('DNA tile storage path escaped its canonical Asset prefix.');
         }
-        const rebuilt = await reconstructVyralDnaV3(nestedDna, files);
-        if (rebuilt.decoded_samples_sha256 !== decodedImage.decoded_samples_sha256) {
-          throw new Error('The reconstructed DNA sample digest does not match its record.');
+        const directory = firstPath.slice(0, firstPath.lastIndexOf('/'));
+        const requiredNames = tilePaths.map((path) => {
+          if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix) || path.includes('\\\\') ||
+              path.split('/').some((part) => part === '.' || part === '..') ||
+              path.slice(0, path.lastIndexOf('/')) !== directory) {
+            throw new Error('DNA tile storage paths must remain in one canonical private Asset folder.');
+          }
+          return path.slice(path.lastIndexOf('/') + 1);
+        });
+        if (new Set(requiredNames).size !== requiredNames.length) throw new Error('DNA tile storage map contains duplicate object paths.');
+
+        const storedNames = new Set<string>();
+        for (let offset = 0; offset < requiredNames.length; offset += 1000) {
+          const { data: objects, error: listError } = await context.supabaseAdmin.storage
+            .from(bucket).list(directory, { limit: 1000, offset });
+          if (listError) throw new Error('Could not verify private DNA tile objects in Storage.');
+          for (const object of objects ?? []) storedNames.add(object.name);
+          if ((objects ?? []).length < 1000) break;
         }
-        losslessDecodedVerified = true;
+        if (requiredNames.some((name) => !storedNames.has(name))) {
+          throw new Error('One or more lossless DNA tile objects are missing from private Storage.');
+        }
       } catch (error) {
         return json({
-          error: error instanceof Error ? error.message : 'Lossless DNA reconstruction verification failed.',
-          status: 'lossless_dna_verification_failed',
+          error: error instanceof Error ? error.message : 'Lossless DNA manifest validation failed.',
+          status: 'lossless_dna_manifest_invalid',
           assetId: asset.id,
         }, 409);
       }
     }
 
     const semanticDnaAvailable = Boolean(schemaId && Number(dna.schema_version) < 3 && Object.keys(payload).length > 0);
-    const claim = getReconstructionClaim(
-      reconstructionTests as Row[], asset.id, version.id, losslessDecodedVerified, semanticDnaAvailable,
-    );
+    const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, semanticDnaAvailable);
     claims.push(claim);
     if (asset.master_dna_role === 'main') mainAssetIds.push(asset.id);
 
