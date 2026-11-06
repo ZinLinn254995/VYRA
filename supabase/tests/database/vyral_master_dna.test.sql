@@ -32,6 +32,11 @@ select is(
   'needs_classification',
   'New unclassified assets require Master DNA classification'
 );
+update public.vyrals
+set master_dna_purpose = 'A primary character with supporting production resources.',
+    master_dna_intended_uses = '["storyboarding","video_generation"]'::jsonb
+where id='24000000-0000-4000-8000-000000000011';
+
 
 update public.vyral_assets
 set master_dna_role = case when id='24000000-0000-4000-8000-000000000021' then 'main' else 'supporting' end,
@@ -110,6 +115,7 @@ select lives_ok(
          'schema_version',1,
          'vyral',jsonb_build_object('vyral_id','24000000-0000-4000-8000-000000000011'),
          'snapshot',jsonb_build_object('revision',1),
+         'purpose',jsonb_build_object('summary','A primary character with supporting production resources.','intended_uses','["storyboarding","video_generation"]'::jsonb),
          'assets',jsonb_build_array(
            jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000021','asset_version_id','24000000-0000-4000-8000-000000000031','role','main','purpose','Primary visual identity.','dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000041')),
            jsonb_build_object('asset_id','24000000-0000-4000-8000-000000000022','asset_version_id','24000000-0000-4000-8000-000000000032','role','supporting','purpose','Supporting voice identity.','dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000042'))
