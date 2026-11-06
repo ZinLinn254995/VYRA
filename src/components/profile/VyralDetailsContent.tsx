@@ -1119,7 +1119,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       if (existingDnaError) throw existingDnaError;
       if (existingDna?.length) {
         if (asRecord(existingDna[0].payload).recovery_run !== true) throw new Error('A DNA record already exists. Refresh the workspace before retrying.');
-        const { data: finalizedAsset, error: finalizeError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', auth.user.id).select('id').maybeSingle();
+        const { data: finalizedAsset, error: finalizeError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
         if (finalizeError) throw finalizeError;
         if (!finalizedAsset) throw new Error('The recovered DNA exists, but asset finalization is still blocked by permissions.');
         setPackageStatus('Previously recovered DNA finalized for ' + asset.name + '.');
@@ -1146,7 +1146,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       for (let start = 0; start < entries.length; start += 3) {
         const batch = entries.slice(start, start + 3);
         const results = await Promise.allSettled(batch.map(async (entry, offset) => {
-          const index = start + offset; const path = auth.user.id + '/' + vyral.id + '/' + asset.id + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
+          const index = start + offset; const path = userId + '/' + vyral.id + '/' + asset.id + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
           const buffer = new ArrayBuffer(entry.data.byteLength); new Uint8Array(buffer).set(entry.data);
           const { error } = await supabase!.storage.from('vyral-assets').upload(path, new Blob([buffer], { type: 'application/octet-stream' }), { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' });
           if (error) throw new Error('DNA tile ' + (index + 1) + '/' + entries.length + ': ' + error.message); return path;
@@ -1158,13 +1158,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (failedTile) throw failedTile.reason;
       }
       const { error: insertError } = await supabase.from('vyral_dna_records').insert({
-        vyral_id: vyral.id, user_id: auth.user.id, asset_id: asset.id, scope: 'asset', schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
+        vyral_id: vyral.id, user_id: userId, asset_id: asset.id, scope: 'asset', schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
         payload: { dna_schema_id: 'vyra.asset-dna', dna_schema_version: 3, dna_record: record, tile_storage_paths: tileStoragePaths, extraction_kind: 'deterministic_decoded_raster_samples', source_file_sha256: sourceSha256, recovery_run: true },
         reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: true, recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false },
       });
       if (insertError) throw insertError;
       dnaRecordInserted = true;
-      const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', auth.user.id).select('id').maybeSingle();
+      const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
       if (readyError) throw readyError;
       if (!readyAsset) throw new Error('DNA record was saved, but asset status could not be updated. Stored DNA tiles were preserved.');
       setPackageStatus('DNA v3 recovered and saved for ' + asset.name + '. Original file hash and size were verified.'); await loadWorkspace();
