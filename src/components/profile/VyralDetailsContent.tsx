@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
 import { createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralDnaV3 } from '../../services/vyralDnaV3';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -53,6 +54,40 @@ const assetType = (file: File) => {
   if (['zip','rar','7z','tar','gz'].includes(ext)) return 'archive';
   if (file.type.startsWith('text/') || file.type === 'application/pdf' || file.type.includes('document') || ['doc','docx','xls','xlsx','ppt','pptx','pdf','txt','md','json'].includes(ext)) return 'document';
   return 'other';
+};
+const decodeRasterImageForDnaV3 = async (file: File) => {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type.toLowerCase())) {
+    throw new Error('Automatic lossless DNA v3 extraction currently supports PNG, JPEG and WebP images only.');
+  }
+  if (typeof createImageBitmap !== 'function') throw new Error('This browser does not support the required image decoder for DNA v3.');
+  const bitmap = await createImageBitmap(file, {
+    imageOrientation: 'none',
+    premultiplyAlpha: 'none',
+    colorSpaceConversion: 'default',
+  });
+  try {
+    const pixelCount = bitmap.width * bitmap.height;
+    if (!Number.isSafeInteger(pixelCount) || pixelCount <= 0 || pixelCount > 20_000_000) {
+      throw new Error('Image exceeds the 20-megapixel automatic DNA v3 extraction limit.');
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('Could not initialize the browser canvas decoder for DNA v3.');
+    context.drawImage(bitmap, 0, 0);
+    const imageData = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    const samples = new Uint8Array(imageData.data.length);
+    samples.set(imageData.data);
+    return {
+      width: bitmap.width,
+      height: bitmap.height,
+      samples,
+      decoderVersion: (navigator.userAgent || 'unknown-browser').slice(0, 256),
+    };
+  } finally {
+    bitmap.close();
+  }
 };
 const typeIcon = (type: string) => {
   if (type === 'image') return ImageIcon;
@@ -931,8 +966,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       if (file.size > 100 * 1024 * 1024) { failures.push(file.name + ' is larger than the 100 MB upload limit.'); continue; }
       let storagePath = '';
       let assetId = '';
+      const uploadedDnaTilePaths: string[] = [];
       try {
-        const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+        const sourceBytes = new Uint8Array(await file.arrayBuffer());
+        const digest = await crypto.subtle.digest('SHA-256', sourceBytes.slice().buffer);
         const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
         assetId = crypto.randomUUID();
         storagePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/' + encodeURIComponent(file.name);
@@ -954,29 +991,87 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           storage_path: storagePath, mime_type: mime, size_bytes: file.size, sha256,
           source_kind: 'original', metadata: { original_filename: file.name },
         }).select('id').single();
-        if (versionError) throw versionError;
+        if (versionError || !version?.id) throw versionError ?? new Error('Could not create the original asset version record.');
         const { error: fingerprintError } = await supabase.from('vyral_fingerprints').insert({
           asset_id: assetId, asset_version_id: version.id, user_id: auth.user.id,
           fingerprint_kind: 'cryptographic', algorithm: 'SHA-256', value: sha256,
           metadata: { computed_by: 'browser_web_crypto', verification_status: 'unverified', source: 'original_upload' },
         });
         if (fingerprintError) throw fingerprintError;
-        const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
-          vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
-          schema_version: 1, dna_status: 'evolving', source_kind: 'creator',
-          verification_status: 'observed',
-          payload: {
-            identity: { asset_name: file.name, asset_type: kind },
-            source: { original_filename: file.name, mime_type: mime, size_bytes: file.size },
-            integrity: { algorithm: 'SHA-256', value: sha256 },
-            reconstruction: { dna_only_test: 'not_tested', exact_recovery_claim: false },
-          },
-          reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: false },
-        });
-        if (dnaError) throw dnaError;
+
+        if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
+          const decoded = await decodeRasterImageForDnaV3(file);
+          const recordId = crypto.randomUUID();
+          const { record, entries } = await createVyralDnaV3({
+            record_id: recordId,
+            source: { asset_id: assetId, asset_version_id: version.id, sha256, size_bytes: file.size, mime_type: mime },
+            extractor: { name: 'vyra-browser-raster-dna-v3', version: '1.0.0' },
+            width: decoded.width,
+            height: decoded.height,
+            channel_layout: 'RGBA',
+            color_space: 'sRGB',
+            icc_profile_sha256: null,
+            alpha_mode: 'straight',
+            decoder_contract: {
+              name: 'createImageBitmap+Canvas2D.getImageData',
+              version: decoded.decoderVersion,
+              color_management: 'browser-managed-to-sRGB; EXIF orientation disabled; straight-alpha RGBA8 samples',
+            },
+            decoded_samples: decoded.samples,
+          });
+          const tileStoragePaths: string[] = [];
+          for (let index = 0; index < entries.length; index += 1) {
+            const entry = entries[index];
+            const tileStoragePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
+            const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
+              tileStoragePath,
+              new Blob([entry.data.slice().buffer], { type: 'application/octet-stream' }),
+              { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
+            );
+            if (tileUploadError) throw tileUploadError;
+            uploadedDnaTilePaths.push(tileStoragePath);
+            tileStoragePaths.push(tileStoragePath);
+          }
+          const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
+            vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
+            schema_version: 3, dna_status: 'evolving', source_kind: 'system',
+            verification_status: 'observed',
+            payload: {
+              dna_schema_id: 'vyra.asset-dna',
+              dna_schema_version: 3,
+              dna_record: record,
+              tile_storage_paths: tileStoragePaths,
+              extraction_kind: 'deterministic_decoded_raster_samples',
+              source_file_sha256: sha256,
+            },
+            reconstruction_data: {
+              source_preservation: 'original_binary_retained',
+              reconstruction_ready: true,
+              recovery_level: 'decoded-samples-exact',
+              encoded_source_bytes_recoverable: false,
+            },
+          });
+          if (dnaError) throw dnaError;
+        } else {
+          const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
+            vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
+            schema_version: 1, dna_status: 'evolving', source_kind: 'creator',
+            verification_status: 'observed',
+            payload: {
+              identity: { asset_name: file.name, asset_type: kind },
+              source: { original_filename: file.name, mime_type: mime, size_bytes: file.size },
+              integrity: { algorithm: 'SHA-256', value: sha256 },
+              reconstruction: { dna_only_test: 'not_tested', exact_recovery_claim: false },
+              extraction: { dna_v3_status: 'not_supported_for_this_asset_format' },
+            },
+            reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: false },
+          });
+          if (dnaError) throw dnaError;
+        }
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
       } catch (cause) {
+        if (uploadedDnaTilePaths.length) await supabase.storage.from('vyral-assets').remove(uploadedDnaTilePaths);
         if (storagePath) await supabase.storage.from('vyral-assets').remove([storagePath]);
         if (assetId) await supabase.from('vyral_assets').delete().eq('id', assetId);
         failures.push(cause instanceof Error ? file.name + ': ' + cause.message : file.name + ': upload failed.');
