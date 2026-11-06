@@ -1115,6 +1115,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setVerifyingAssetId(asset.id); setError(''); setPackageStatus('Recovering DNA from the preserved original file…');
     const newTilePaths: string[] = [];
     let dnaRecordInserted = false;
+    let preserveRecoveryTiles = false;
+    let recoveryOutcomeUncertain = false;
     try {
       const { data: existingDna, error: existingDnaError } = await supabase.from('vyral_dna_records').select('id,payload').eq('asset_id', asset.id).limit(1);
       if (existingDnaError) throw existingDnaError;
@@ -1164,19 +1166,28 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: true, recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false },
       });
       if (insertError) {
-        // A lost response can make a committed INSERT look like a failure. Reconcile by the deterministic row id before cleaning tiles.
-        const { data: committedRecord } = await supabase.from('vyral_dna_records').select('id,payload').eq('id', recordId).maybeSingle();
+        // A lost response can make a committed INSERT look like a failure. Reconcile by deterministic row id before cleaning tiles.
+        const { data: committedRecord, error: reconcileError } = await supabase.from('vyral_dna_records').select('id,payload').eq('id', recordId).maybeSingle();
+        if (reconcileError) {
+          // If reconciliation itself is unavailable, preserve tiles: deleting them could corrupt a committed DNA record.
+          preserveRecoveryTiles = true;
+          recoveryOutcomeUncertain = true;
+          throw new Error(insertError.message + ' The insert result could not be confirmed (' + reconcileError.message + '); recovery tiles were preserved. Retry Recover DNA after refreshing.');
+        }
         dnaRecordInserted = asRecord(committedRecord?.payload).recovery_run === true;
+        preserveRecoveryTiles = dnaRecordInserted;
         throw insertError;
       }
       dnaRecordInserted = true;
+      preserveRecoveryTiles = true;
       const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
       if (readyError) throw readyError;
       if (!readyAsset) throw new Error('DNA record was saved, but asset status could not be updated. Stored DNA tiles were preserved.');
       setPackageStatus('DNA v3 recovered and saved for ' + asset.name + '. Original file hash and size were verified.'); await loadWorkspace();
     } catch (cause) {
-      if (!dnaRecordInserted && newTilePaths.length) { const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(newTilePaths); if (cleanupError) setPackageStatus('Recovery stopped; partial recovery tiles need cleanup: ' + cleanupError.message); }
-      setError((cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.') + (dnaRecordInserted ? ' DNA record and tiles were retained; only the ready-state update needs recovery.' : ''));
+      if (!preserveRecoveryTiles && newTilePaths.length) { const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(newTilePaths); if (cleanupError) setPackageStatus('Recovery stopped; partial recovery tiles need cleanup: ' + cleanupError.message); }
+      const recoveryNote = recoveryOutcomeUncertain ? ' Recovery outcome is uncertain; uploaded tiles were deliberately preserved. Refresh and retry Recover DNA to reconcile safely.' : dnaRecordInserted ? ' DNA record and tiles were retained; only the ready-state update needs recovery.' : '';
+      setError((cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.') + recoveryNote);
     } finally { setVerifyingAssetId(null); }
   };
   const verifyAssetIntegrity = async (asset: AssetRow) => {
