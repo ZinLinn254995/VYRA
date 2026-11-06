@@ -986,7 +986,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       if ((mimeType !== 'image/jpeg' && mimeType !== 'image/png' && mimeType !== 'image/webp') ||
           typeof data !== 'string' || data.length === 0 || data.length > 1_200_000 ||
           !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
-        return res.status(400).json({ error: 'A Vyral Vision image is invalid or exceeds the 900 KB limit.' });
+        return res.status(400).json({ error: 'A Vyral Vision image is invalid or exceeds the 600 KB limit.' });
       }
       const imageBytes = Buffer.from(data, 'base64');
       totalImageBytes += imageBytes.byteLength;
