@@ -174,3 +174,61 @@ The exact edge direction and semantics are part of the versioned vocabulary. Thi
 Asset DNA v3 remains the per-asset lossless decoded-sample layer. Master DNA references immutable Asset DNA records; it does not duplicate their raw tiles inside its JSON record. The .vyral package manifest binds the Master DNA snapshot to the exact Asset DNA records and payload paths included in that export.
 
 The current Asset DNA v3 implementation and ORIGIN-01 verification evidence remain scoped to individual assets. They do not, by themselves, implement or prove the Master DNA graph, public resolver, or multi-asset generation consistency.
+
+
+## 14. Two-layer DNA storage and compact export (architecture decision)
+
+VYRA uses a **canonical full-DNA layer** and a **compact portable DNA projection**. They are two representations of the same versioned Vyral, not two competing sources of truth.
+
+### 14.1 Canonical full-DNA layer — stored in VYRA
+
+VYRA retains the canonical originals and all data required for the strongest supported reconstruction claim:
+- original asset binaries and immutable asset versions;
+- complete per-asset DNA records and lossless reconstruction payloads (for example, DNA v3 raw decoded-sample tiles);
+- Master DNA revisions, relationship graph, provenance, fingerprints, and verification evidence.
+
+This layer may be larger than the original compressed assets. That is acceptable: it is canonical preservation/reconstruction storage, not the default AI-chat attachment. Storage, retention, backup, quota, and deduplication policies apply.
+
+### 14.2 Compact portable DNA projection — exported to AI chats
+
+The default compact export contains only what an AI needs to understand the Vyral and request relevant source material:
+- Vyral ID, Master DNA revision, purpose, and semantic brief;
+- Main/Supporting asset descriptors with stable IDs, roles, and purposes;
+- typed relationship graph and cross-asset constraints;
+- Asset DNA references, fingerprints/digests, and reconstruction capability labels;
+- canonical VYRA resolver URI when permitted;
+- explicit visibility, license summary, and retrieval policy.
+
+It does **not** embed full raw reconstruction tiles or original binaries by default. Its size should scale mainly with the number and complexity of asset descriptors/relationships, not with the pixel/audio/video payload size. Do not promise a fixed maximum size; measure real exports and enforce a configurable package budget.
+
+The compact projection is a map and request contract, not a magic substitute for missing pixels, audio samples, or video frames. Offline, it can describe assets and relationships and guide semantic generation. Exact reconstruction requires the relevant lossless payload to be included or retrieved from the canonical VYRA source with authorization.
+
+### 14.3 Intent-based selective retrieval
+
+When the user asks an AI workflow to create or edit something:
+1. The AI interprets the user's request against the compact Master DNA and selects only candidate assets/versions and required relationships.
+2. The AI or its host integration sends a structured retrieval request to VYRA containing the Vyral ID, pinned or permitted revision, requested asset IDs, intended operation, and user authorization context.
+3. VYRA authenticates the requester and checks Vyral visibility, asset-level permissions, license/derivative rules, export policy, and rate limits.
+4. VYRA returns only the minimum authorized originals, derivatives, or reconstruction payloads required for that operation, with version IDs and integrity digests.
+5. The consumer verifies returned digests and preserves the relationship/generation constraints.
+6. The request/response may be audited; credentials and short-lived access grants must not be embedded as reusable secrets in a public .vyral file.
+
+The retrieval service must support least-privilege, explicit asset selection, short-lived scoped access, revocation, and clear denial reasons. Public metadata does not imply public original binaries. Private/unlisted records must not reveal hidden asset names, paths, thumbnails, metadata, or existence through errors or timing.
+
+### 14.4 External chat compatibility boundary
+
+A compact .vyral file can explain how to resolve its canonical source, but it cannot force ChatGPT, Gemini, Claude, or another host to browse, call VYRA, authenticate, or pass through user approval. Selective retrieval works only where the chat product has a supported connector/tool/API path and the user has authorized it.
+
+If no retrieval integration is available, the AI must work only with the compact package and clearly state that it cannot access omitted originals. It must not pretend it fetched them. VYRA should provide documented APIs/connectors and a user-mediated fallback such as downloading selected authorized assets.
+
+### 14.5 Retrieval acceptance gates
+
+Before this architecture is considered implemented, tests must prove:
+- compact export omits original binaries and full raw tile payloads by default;
+- compact export still validates its manifest, Master DNA revision, relationships, and fingerprints;
+- a request for one task returns only the minimum matching authorized assets, not the entire Vyral;
+- private/unlisted assets are inaccessible without authorization and do not leak through metadata or errors;
+- license rules block prohibited derivative, clone, or resale operations;
+- stale revision, revoked access, missing source, and digest mismatch are explicit outcomes;
+- offline import remains self-describing and never claims exact reconstruction when payloads are absent;
+- an external integration can request, receive, and verify selected source assets without embedding long-lived credentials in the package.
