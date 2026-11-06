@@ -176,3 +176,14 @@ Current builder limitation: creator/license references remain unset, remote reso
 **AI Chat behavior:** AI Chat validates the portable Master DNA fingerprint and inventory, then supplies Vyral purpose, asset roles/purposes, relationship graph, reconstruction claims, and cross-asset constraints to the model. Current Vision still receives only the first Asset image preview; the remaining Asset visuals are not yet attached. Multi-image Vision and authenticated remote source resolution remain future work.
 
 **Verification status:** CI passed TypeScript, unit suites (including multi-Asset DNA-only export and per-Asset reconstruction), Deno type-check, and Production Build for the implementation commit. Browser UI and Database runs were still being checked at the time of this entry. No hosted Development migration/deployment or Production changes are authorized by this implementation.
+
+
+## 2026-11-07 — Universal binary File DNA v1 foundation
+
+Added a generic binary DNA contract for non-raster files. It records version-pinned source identity, byte length, MIME type, extension metadata, conservative magic-byte signature, extractor identity, and SHA-256.
+
+Accepted truth rule:
+- hash-only File DNA is identity evidence and has reconstruction claim `unavailable`;
+- only a package that carries all lossless raw source-byte chunks, verifies every chunk digest, and verifies the final original-byte SHA-256 may claim `source_file_exact`.
+
+This is a foundational contract, not yet universal semantic understanding. Audio/video/document/3D/archive-specific parsing, upload-time integration, Supabase persistence, Master DNA builder support, and whole-Vyral package integration remain pending. The existing image DNA v3 pipeline remains separate and unchanged.
