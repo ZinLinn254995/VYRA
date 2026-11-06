@@ -31,6 +31,7 @@ test('up to four labelled Vyral asset previews are forwarded through the authent
 test('server rejects oversized, malformed, or MIME-mismatched vision payloads', () => {
   assert.match(server, /data\.length > 1_200_000/);
   assert.match(server, /imageBytes\.byteLength > 600 \* 1024/);
+  assert.match(server, /exceeds the 600 KB limit/);
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
   assert.match(server, /MIME type does not match its file signature/);
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
