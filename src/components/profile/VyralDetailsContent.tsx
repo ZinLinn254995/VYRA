@@ -499,34 +499,44 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
       if (dnaOnly) {
-        const sourceRow = dnaRecords.find((record) =>
+        if (!portableMasterDna || vyral.master_dna_status !== 'ready') {
+          throw new Error('Build and verify the current Master DNA before exporting the whole Vyral as DNA-only.');
+        }
+        const v3Rows = dnaRecords.filter((record) =>
           record.payload?.dna_schema_id === 'vyra.asset-dna' &&
           record.payload?.dna_schema_version === 3 &&
           record.asset_id
         );
-        if (!sourceRow) throw new Error('No lossless DNA v3 record is stored for this Vyral yet. Extract and verify DNA v3 before exporting a DNA-only package.');
-        const dnaRecord = asRecord(sourceRow.payload.dna_record);
-        const losslessPayload = asRecord(dnaRecord.lossless_payload);
-        const tiles = Array.isArray(losslessPayload.tiles) ? losslessPayload.tiles : [];
-        const storagePaths = sourceRow.payload.tile_storage_paths;
-        if (!tiles.length || !Array.isArray(storagePaths) || storagePaths.length !== tiles.length) {
-          throw new Error('The stored DNA v3 record has an incomplete tile storage map.');
+        const rowsByAsset = new Map(v3Rows.map((row) => [String(row.asset_id), row]));
+        if (rowsByAsset.size !== assets.length || assets.some((asset) => !rowsByAsset.has(asset.id))) {
+          throw new Error('Every Vyral asset needs a verified lossless DNA v3 record before whole-Vyral DNA-only export.');
         }
+        const dnaRecordsForExport = [];
         const dnaPayloadEntries: { path: string; data: Uint8Array }[] = [];
-        for (let index = 0; index < tiles.length; index += 1) {
-          const tile = asRecord(tiles[index]);
-          const storagePath = storagePaths[index];
-          if (typeof tile.package_path !== 'string' || typeof storagePath !== 'string') {
-            throw new Error('The stored DNA v3 tile metadata is invalid.');
+        for (const asset of assets) {
+          const sourceRow = rowsByAsset.get(asset.id)!;
+          const dnaRecord = asRecord(sourceRow.payload.dna_record);
+          const losslessPayload = asRecord(dnaRecord.lossless_payload);
+          const tiles = Array.isArray(losslessPayload.tiles) ? losslessPayload.tiles : [];
+          const storagePaths = sourceRow.payload.tile_storage_paths;
+          if (!tiles.length || !Array.isArray(storagePaths) || storagePaths.length !== tiles.length) {
+            throw new Error('A stored DNA v3 record for ' + asset.name + ' has an incomplete tile storage map.');
           }
-          const { data: tileBlob, error: tileError } = await supabase.storage.from('vyral-assets').download(storagePath);
-          if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile ' + tile.package_path + ': ' + (tileError?.message ?? 'tile missing'));
-          const tileBytes = new Uint8Array(await tileBlob.arrayBuffer());
-          dnaPayloadEntries.push({ path: tile.package_path, data: tileBytes });
+          for (let index = 0; index < tiles.length; index += 1) {
+            const tile = asRecord(tiles[index]);
+            const storagePath = storagePaths[index];
+            if (typeof tile.package_path !== 'string' || typeof storagePath !== 'string') {
+              throw new Error('The stored DNA v3 tile metadata is invalid for ' + asset.name + '.');
+            }
+            const { data: tileBlob, error: tileError } = await supabase.storage.from('vyral-assets').download(storagePath);
+            if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile for ' + asset.name + ': ' + (tileError?.message ?? 'tile missing'));
+            dnaPayloadEntries.push({ path: tile.package_path, data: new Uint8Array(await tileBlob.arrayBuffer()) });
+          }
+          dnaRecordsForExport.push(dnaRecord as Parameters<typeof createVyralDnaOnlyPackage>[1] extends (infer T)[] ? T : never);
         }
         archive = await createVyralDnaOnlyPackage(
           manifest as unknown as Parameters<typeof createVyralDnaOnlyPackage>[0],
-          dnaRecord as Parameters<typeof createVyralDnaOnlyPackage>[1],
+          dnaRecordsForExport,
           dnaPayloadEntries,
         );
       } else {
