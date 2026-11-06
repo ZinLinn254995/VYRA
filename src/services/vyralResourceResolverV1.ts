@@ -1,79 +1,10 @@
-export type VyralResolverSnapshotAssetV1 = {
-  asset_id?: unknown;
-  asset_version_id?: unknown;
-  asset_fingerprint?: unknown;
-  dna_ref?: { record_id?: unknown; schema_version?: unknown } | null;
-};
-
-export type VyralResolverRevisionBindingV1 = {
-  schema_id?: unknown;
-  schema_version?: unknown;
-  manifest_sha256?: unknown;
-  vyral_fingerprint?: unknown;
-  snapshot?: unknown;
-};
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-
-const SHA256 = /^[a-f0-9]{64}$/i;
-
-/** Requires a canonical, owner-scoped object prefix ending in '/'. */
-export const isSafeVyralStoragePathV1 = (path: unknown, prefix: string): path is string => {
-  if (typeof path !== 'string' || !prefix.endsWith('/') || !path.startsWith(prefix)) return false;
-  const suffix = path.slice(prefix.length);
-  if (!suffix || suffix.startsWith('/') || path.includes('\\') || path.includes('\0')) return false;
-  return suffix.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..');
-};
-
-export const findVyralMasterDnaSnapshotAssetV1 = (
-  snapshotValue: unknown,
-  assetId: string,
-  versionId: string,
-): VyralResolverSnapshotAssetV1 | null => {
-  const snapshot = asRecord(snapshotValue);
-  if (snapshot.schema_id !== 'vyra.vyral-master-dna' || Number(snapshot.schema_version) !== 1) return null;
-  if (!Array.isArray(snapshot.assets)) return null;
-  const matches = snapshot.assets.filter((value) => {
-    const item = asRecord(value);
-    return item.asset_id === assetId && item.asset_version_id === versionId;
-  });
-  return matches.length === 1 ? matches[0] as VyralResolverSnapshotAssetV1 : null;
-};
-
-export const hasValidVyralMasterDnaRevisionBindingV1 = (
-  revision: VyralResolverRevisionBindingV1,
-): boolean => {
-  if (revision.schema_id !== 'vyra.vyral-master-dna' || Number(revision.schema_version) !== 1) return false;
-  if (typeof revision.manifest_sha256 !== 'string' || !SHA256.test(revision.manifest_sha256) ||
-      typeof revision.vyral_fingerprint !== 'string' || !SHA256.test(revision.vyral_fingerprint)) return false;
-  const snapshot = asRecord(revision.snapshot);
-  const integrity = asRecord(snapshot.integrity);
-  return snapshot.schema_id === revision.schema_id &&
-    Number(snapshot.schema_version) === Number(revision.schema_version) &&
-    integrity.manifest_sha256 === revision.manifest_sha256 &&
-    integrity.vyral_fingerprint === revision.vyral_fingerprint;
-};
-
-export const isVyralAssetDnaPinnedToVersionV1 = (input: {
-  snapshotAsset: VyralResolverSnapshotAssetV1;
-  dnaRecordId: string;
-  dnaSchemaVersion: number;
-  assetId: string;
-  assetVersionId: string;
-  assetSha256: string;
-  dnaSource: { asset_id?: unknown; asset_version_id?: unknown; sha256?: unknown };
-}): boolean => {
-  const ref = asRecord(input.snapshotAsset.dna_ref);
-  return ref.record_id === input.dnaRecordId &&
-    Number(ref.schema_version) === input.dnaSchemaVersion &&
-    typeof input.snapshotAsset.asset_fingerprint === 'string' &&
-    SHA256.test(input.snapshotAsset.asset_fingerprint) &&
-    input.snapshotAsset.asset_fingerprint.toLowerCase() === input.assetSha256.toLowerCase() &&
-    input.dnaSource.asset_id === input.assetId &&
-    input.dnaSource.asset_version_id === input.assetVersionId &&
-    typeof input.dnaSource.sha256 === 'string' &&
-    input.dnaSource.sha256.toLowerCase() === input.assetSha256.toLowerCase();
-};
+export {
+  findVyralMasterDnaSnapshotAssetV1,
+  hasValidVyralMasterDnaRevisionBindingV1,
+  isSafeVyralStoragePathV1,
+  isVyralAssetDnaPinnedToVersionV1,
+} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
+export type {
+  VyralResolverSnapshotAssetV1,
+  VyralResolverRevisionBindingV1,
+} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
