@@ -727,6 +727,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const originalDnaSource = objectValue(originalDnaRecord.source);
         const importedDnaSource = importedDnaSources.get(oldAssetId);
         const remappedDnaRecordId = isDnaV3Record ? crypto.randomUUID() : undefined;
+        const originalLosslessPayload = objectValue(originalDnaRecord.lossless_payload);
+        const originalTiles = Array.isArray(originalLosslessPayload.tiles) ? originalLosslessPayload.tiles : [];
         const remappedDnaRecord = isDnaV3Record ? {
           ...originalDnaRecord,
           record_id: remappedDnaRecordId,
@@ -737,6 +739,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             sha256: importedDnaSource?.sha256 ?? originalDnaSource.sha256,
             size_bytes: importedDnaSource?.size_bytes ?? originalDnaSource.size_bytes,
             mime_type: importedDnaSource?.mime_type ?? originalDnaSource.mime_type,
+          },
+          lossless_payload: {
+            ...originalLosslessPayload,
+            tiles: originalTiles.map((value) => {
+              const tile = objectValue(value);
+              return { ...tile, package_path: 'dna/v3/' + String(remappedDnaRecordId) + '/tiles/' + String(tile.x) + '_' + String(tile.y) + '.raw' };
+            }),
           },
         } : null;
         addImportedEvidence(stringValue(sourceRecord.source_kind, 'system'), assetId, {
