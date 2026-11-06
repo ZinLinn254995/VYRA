@@ -47,7 +47,7 @@ const prettyBytes = (bytes: number) => {
 };
 const storageObjectFilename = (assetId: string, file: File) => {
   // Keep arbitrary Unicode filenames in metadata, not in Storage object keys.
-  const extension = file.name.match(/\\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
+  const extension = file.name.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
   return assetId + '.' + extension;
 };
 const assetType = (file: File) => {
