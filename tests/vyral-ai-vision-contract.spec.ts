@@ -19,6 +19,8 @@ test('Vyral chat verifies DNA before creating a separate vision derivative', () 
 test('AI Chat validates Universal File DNA and clearly separates byte identity from semantic inspection', () => {
   assert.match(chat, /validateVyralFileDnaV1Record/);
   assert.match(chat, /reconstructVyralFileDnaFromPackage/);
+  assert.match(chat, /analyzeVyralFileStructureV1/);
+  assert.match(chat, /independently re-analyzed source bytes/);
   assert.match(chat, /full-package original version/);
   assert.match(chat, /exact source bytes reconstructed from DNA/);
   assert.match(chat, /structureProfile/);
