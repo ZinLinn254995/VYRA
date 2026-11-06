@@ -295,3 +295,12 @@ The working branch now includes:
 The builder deliberately sets remote resolution to `no_remote_resolution`; a public resolver/connector is not implemented. Private/unlisted packages do not receive public resolver URIs. Assets without a matching version-pinned DNA record, purpose, relationship, or declared reconstruction evidence cannot be overstated.
 
 **Verification boundary:** the app CI/browser checks have passed on earlier commits; a fresh CI run is in progress after the latest builder/UI updates. The local Database Tests workflow is still starting its Supabase services. The hosted Development database has not been migrated and the Edge Function has not been invoked against it. Production remains untouched.
+
+
+## 19. Readiness, verification, and environment boundary — 2026-11-06
+
+The builder validates the DNA v3 manifest and confirms that every declared private tile object exists in the canonical Asset storage folder. It does not download every raw tile just to build the compact Master DNA. An Asset is labelled `lossless_decoded` only when a passing exact decoded-reconstruction test is pinned to that exact Asset version; a passing byte-exact test is required for `source_file_exact`. Storage presence alone is not a reconstruction proof.
+
+The first builder currently leaves creator/license references null and sets remote resolution to `no_remote_resolution`. License-policy projection, compact `.vyral` export/import integration, and the authorized VYRA resolver/connector are separate pending work. The database readiness gate still prevents snapshots with missing Asset DNA records, roles, purposes, versions, or relationships.
+
+The hosted Development project's migration history currently ends at `20261105235017`, while this branch contains later migration files. The history/schema drift must be reconciled before applying the new Master DNA migration or deploying the Edge Function to Development. This is intentional: do not apply the new migration out of order. Production remains untouched.
