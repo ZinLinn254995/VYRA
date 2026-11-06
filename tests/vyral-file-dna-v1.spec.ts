@@ -98,7 +98,7 @@ test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON
   assert.equal(audio.facts.find((fact) => fact.key === 'sample_rate')?.value, 48000);
   assert.equal(audio.facts.find((fact) => fact.key === 'duration_estimate')?.value, 1);
 
-  const pdf = new TextEncoder().encode('%PDF-1.7\\n1 0 obj << /Type /Page >> endobj\\n2 0 obj << /Type /Pages >> endobj');
+  const pdf = new TextEncoder().encode('%PDF-1.7\n1 0 obj << /Type /Page >> endobj\n2 0 obj << /Type /Pages >> endobj');
   const document = analyzeVyralFileStructureV1(pdf, 'application/pdf', 'brief.pdf');
   assert.equal(document.profile, 'document');
   assert.equal(document.facts.find((fact) => fact.key === 'page_object_markers')?.value, 1);
@@ -110,7 +110,7 @@ test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON
   assert.equal(model.facts.find((fact) => fact.key === 'nodes_count')?.value, 1);
   assert.equal(model.facts.find((fact) => fact.key === 'meshes_count')?.value, 1);
 
-  const text = new TextEncoder().encode('# Heading\\nsecond line\\n');
+  const text = new TextEncoder().encode('# Heading\nsecond line\n');
   const structure = analyzeVyralFileStructureV1(text, 'text/markdown', 'notes.md');
   assert.equal(structure.profile, 'text');
   assert.equal(structure.facts.find((fact) => fact.key === 'line_count')?.value, 3);
