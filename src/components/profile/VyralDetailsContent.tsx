@@ -12,12 +12,14 @@ import { createVyralDnaV3 } from '../../services/vyralDnaV3';
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
   dna_status: string; license_policy?: Record<string, unknown>; metadata?: Record<string, unknown>;
+  master_dna_status?: string; master_dna_revision?: number; master_dna_purpose?: string | null; master_dna_intended_uses?: string[];
 };
 type FolderRow = { id: string; vyral_id: string; parent_id: string | null; name: string; created_at: string };
 type AssetRow = {
   id: string; vyral_id: string; folder_id: string | null; name: string; original_filename: string;
   asset_type: string; mime_type: string; size_bytes: number; storage_path: string; sha256: string | null;
   processing_status: string; description: string; created_at: string; updated_at: string;
+  master_dna_role?: 'main' | 'supporting' | null; master_dna_purpose?: string | null;
 };
 type DnaRow = {
   id: string; asset_id: string | null; scope: string; dna_status: string; source_kind: string;
@@ -26,6 +28,8 @@ type DnaRow = {
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
+type MasterRelationshipRow = { id: string; relationship_type: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; rationale: string };
+type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
 type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
@@ -174,6 +178,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     allow_ai_analysis: true, allow_ai_generation: true, allow_remix: false,
     allow_redistribution: false, commercial_use: false, require_attribution: true,
   });
+  const [masterDnaPurposeDraft, setMasterDnaPurposeDraft] = useState(vyral.master_dna_purpose ?? '');
+  const [masterDnaUsesDraft, setMasterDnaUsesDraft] = useState((vyral.master_dna_intended_uses ?? []).join(', '));
+  const [masterDnaStatus, setMasterDnaStatus] = useState(vyral.master_dna_status ?? 'not_started');
+  const [masterDnaRevision, setMasterDnaRevision] = useState(vyral.master_dna_revision ?? 0);
+  const [masterDnaSaving, setMasterDnaSaving] = useState(false);
+  const [masterDnaBuilding, setMasterDnaBuilding] = useState(false);
+  const [masterDnaMessage, setMasterDnaMessage] = useState('');
+  const [masterAssetDrafts, setMasterAssetDrafts] = useState<Record<string, MasterAssetDraft>>({});
+  const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
 
   const loadWorkspace = useCallback(async () => {
     if (!supabase) { setError('Cloud storage is not configured for this environment.'); setLoading(false); return; }
@@ -186,6 +199,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyral_dna_records').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
       supabase.from('vyral_lineage').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
       supabase.from('vyral_reconstruction_tests').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
+      supabase.from('vyrals').select('master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses').eq('id', vyral.id).single(),
+      supabase.from('vyral_asset_relationships').select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale').eq('vyral_id', vyral.id).order('created_at', { ascending: true }),
     ]);
     const failed = results.find((item) => item.error);
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
@@ -208,6 +223,28 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setObservations((observationResult.data ?? []) as ObservationRow[]);
     setLineage((results[4].data ?? []) as LineageRow[]);
     setReconstructionTests((results[5].data ?? []) as ReconstructionRow[]);
+    const masterRoot = results[6].data as Pick<Vyral, 'master_dna_status' | 'master_dna_revision' | 'master_dna_purpose' | 'master_dna_intended_uses'>;
+    const masterEdges = (results[7].data ?? []) as MasterRelationshipRow[];
+    setMasterRelationships(masterEdges);
+    setMasterDnaPurposeDraft(masterRoot.master_dna_purpose ?? '');
+    setMasterDnaUsesDraft((masterRoot.master_dna_intended_uses ?? []).join(', '));
+    setMasterDnaStatus(masterRoot.master_dna_status ?? 'not_started');
+    setMasterDnaRevision(masterRoot.master_dna_revision ?? 0);
+    setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => {
+      const edge = masterEdges.find((item) => item.relationship_type === 'master_membership' && item.from_kind === 'asset' && item.from_asset_id === asset.id);
+      return [asset.id, {
+        role: asset.master_dna_role ?? '',
+        purpose: asset.master_dna_purpose ?? '',
+        targetAssetId: edge?.to_kind === 'asset' && edge.to_asset_id ? edge.to_asset_id : '__vyral__',
+        rationale: edge?.rationale ?? '',
+      }];
+    })));
+    onVyralUpdated({
+      master_dna_status: masterRoot.master_dna_status ?? 'not_started',
+      master_dna_revision: masterRoot.master_dna_revision ?? 0,
+      master_dna_purpose: masterRoot.master_dna_purpose ?? null,
+      master_dna_intended_uses: masterRoot.master_dna_intended_uses ?? [],
+    });
     const policy = (vyral.license_policy ?? {}) as Record<string, unknown>;
     setLicenseDraft({
       allow_ai_analysis: policy.allow_ai_analysis !== false,
@@ -1579,6 +1616,84 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     else { setDnaNote(''); await loadWorkspace(); }
   };
 
+  const updateMasterAssetDraft = (assetId: string, patch: Partial<MasterAssetDraft>) => {
+    setMasterAssetDrafts((current) => ({
+      ...current,
+      [assetId]: {
+        role: current[assetId]?.role ?? '',
+        purpose: current[assetId]?.purpose ?? '',
+        targetAssetId: current[assetId]?.targetAssetId ?? '__vyral__',
+        rationale: current[assetId]?.rationale ?? '',
+        ...patch,
+      },
+    }));
+  };
+
+  const saveMasterDnaPurpose = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!supabase) return;
+    const intendedUses = masterDnaUsesDraft.split(',').map((item) => item.trim()).filter(Boolean);
+    if (!masterDnaPurposeDraft.trim() || !intendedUses.length) {
+      setError('Add a Vyral purpose and at least one intended use.');
+      return;
+    }
+    setMasterDnaSaving(true); setError(''); setMasterDnaMessage('');
+    const { error: saveError } = await supabase.from('vyrals').update({
+      master_dna_purpose: masterDnaPurposeDraft.trim(),
+      master_dna_intended_uses: intendedUses,
+    }).eq('id', vyral.id);
+    if (saveError) {
+      setError(saveError.message);
+    } else {
+      setMasterDnaMessage('Vyral purpose saved. The previous Master DNA snapshot, if any, is now stale.');
+      await loadWorkspace();
+    }
+    setMasterDnaSaving(false);
+  };
+
+  const saveMasterAssetClassification = async (asset: AssetRow) => {
+    if (!supabase) return;
+    const draft = masterAssetDrafts[asset.id];
+    if (!draft || !draft.role || !draft.purpose.trim() || !draft.rationale.trim()) {
+      setError('Choose an Asset role and enter its purpose and relationship rationale.');
+      return;
+    }
+    setMasterDnaSaving(true); setError(''); setMasterDnaMessage('');
+    const { error: saveError } = await supabase.rpc('set_vyral_master_dna_asset_classification', {
+      p_asset_id: asset.id,
+      p_role: draft.role,
+      p_purpose: draft.purpose.trim(),
+      p_target_asset_id: draft.targetAssetId === '__vyral__' ? null : draft.targetAssetId,
+      p_rationale: draft.rationale.trim(),
+    });
+    if (saveError) setError(saveError.message);
+    else {
+      setMasterDnaMessage('Asset role, purpose and relationship saved.');
+      await loadWorkspace();
+    }
+    setMasterDnaSaving(false);
+  };
+
+  const buildMasterDna = async () => {
+    if (!supabase) return;
+    setMasterDnaBuilding(true); setError(''); setMasterDnaMessage('');
+    const { data, error: buildError } = await supabase.functions.invoke('build-vyral-master-dna', {
+      body: { vyralId: vyral.id },
+    });
+    if (buildError || data?.error) {
+      setError(data?.error ?? buildError?.message ?? 'Master DNA could not be created.');
+    } else {
+      setMasterDnaStatus('ready');
+      setMasterDnaRevision(Number(data?.revision ?? masterDnaRevision));
+      setMasterDnaMessage(data?.unchanged
+        ? 'Master DNA is already current. No new revision was needed.'
+        : 'Master DNA revision ' + data.revision + ' created and verified.');
+      onVyralUpdated({ master_dna_status: 'ready', master_dna_revision: Number(data?.revision ?? masterDnaRevision) });
+      await loadWorkspace();
+    }
+    setMasterDnaBuilding(false);
+  };
+
   const saveLicense = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase) return;
@@ -1788,6 +1903,39 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {tab === 'dna' && (
         <div className="space-y-4">
+          <section className={surface+' p-4'}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><h3 className={'text-sm font-semibold '+primary}>Vyral Master DNA</h3><p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>Describe the purpose of this Vyral, classify every Asset, and connect each Asset to the Vyral root or another Asset. No purpose or relationship is guessed from filenames.</p></div>
+              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{masterDnaStatus.replaceAll('_',' ')} · rev {masterDnaRevision}</span>
+            </div>
+            <form onSubmit={(event)=>void saveMasterDnaPurpose(event)} className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className="block md:col-span-2"><span className={'mb-1 block text-[10px] font-semibold '+subtle}>What is this Vyral for?</span><textarea value={masterDnaPurposeDraft} onChange={(event)=>setMasterDnaPurposeDraft(event.target.value)} rows={2} maxLength={2000} className={field+' py-2'} placeholder="Describe the Vyral's overall purpose and identity."/></label>
+              <label className="block"><span className={'mb-1 block text-[10px] font-semibold '+subtle}>Intended uses (comma-separated)</span><input value={masterDnaUsesDraft} onChange={(event)=>setMasterDnaUsesDraft(event.target.value)} className={field} placeholder="storyboarding, video_generation"/></label>
+              <div className="flex items-end"><button type="submit" className={button} disabled={masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Vyral purpose'}</button></div>
+            </form>
+            {assets.length === 0 ? <p className={'mt-3 text-xs '+muted}>Add at least one Asset before building Master DNA.</p> : <div className="mt-4 space-y-3">
+              <div><h4 className={'text-xs font-semibold '+primary}>Asset roles, purposes and relationships</h4><p className={'mt-1 text-[10px] '+muted}>Main and Supporting are organizational roles. A relationship may point to the Vyral root or any other Asset, with a clear reason.</p></div>
+              {assets.map((asset) => {
+                const draft = masterAssetDrafts[asset.id] ?? { role: asset.master_dna_role ?? '', purpose: asset.master_dna_purpose ?? '', targetAssetId: '__vyral__', rationale: '' };
+                return <article key={asset.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><p className={'text-xs font-semibold '+primary}>{asset.name}</p><span className={'text-[9px] '+muted}>{asset.master_dna_role ?? 'role not set'}</span></div>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <label><span className={'mb-1 block text-[10px] '+subtle}>Role</span><select value={draft.role} onChange={(event)=>updateMasterAssetDraft(asset.id,{role:event.target.value as MasterAssetDraft['role']})} className={field}><option value="">Choose role</option><option value="main">Main Asset</option><option value="supporting">Supporting Asset</option></select></label>
+                    <label><span className={'mb-1 block text-[10px] '+subtle}>Purpose</span><input value={draft.purpose} onChange={(event)=>updateMasterAssetDraft(asset.id,{purpose:event.target.value})} className={field} maxLength={2000} placeholder="Why does this Asset belong here?"/></label>
+                    <label><span className={'mb-1 block text-[10px] '+subtle}>Related to</span><select value={draft.targetAssetId} onChange={(event)=>updateMasterAssetDraft(asset.id,{targetAssetId:event.target.value})} className={field}><option value="__vyral__">Vyral root</option>{assets.filter((candidate)=>candidate.id!==asset.id).map((candidate)=><option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
+                    <label><span className={'mb-1 block text-[10px] '+subtle}>Relationship reason</span><input value={draft.rationale} onChange={(event)=>updateMasterAssetDraft(asset.id,{rationale:event.target.value})} className={field} maxLength={2000} placeholder="How does it relate?"/></label>
+                  </div>
+                  <div className="mt-3 flex justify-end"><button type="button" className={button} onClick={()=>void saveMasterAssetClassification(asset)} disabled={masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Asset DNA structure'}</button></div>
+                </article>;
+              })}
+            </div>}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--vyra-border-subtle)] pt-3">
+              <p className={'text-[10px] '+muted}>Master DNA is a compact snapshot. Full Asset DNA and original media stay in this Vyral.</p>
+              <button type="button" className={primaryButton} onClick={()=>void buildMasterDna()} disabled={masterDnaBuilding || masterDnaSaving || !assets.length}><Dna size={13}/>{masterDnaBuilding?'Building Master DNA…':'Build Master DNA'}</button>
+            </div>
+            {masterDnaMessage && <p className={'mt-3 text-xs '+subtle} role="status">{masterDnaMessage}</p>}
+            {masterRelationships.length > 0 && <p className={'mt-2 text-[9px] '+muted}>{masterRelationships.length} relationship edge(s) currently stored.</p>}
+          </section>
           <section className={surface+' p-4'}>
             <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Dna size={21}/></span><div><h3 className={'text-sm font-semibold '+primary}>Knowledge DNA</h3><p className={'mt-1 text-xs leading-5 '+subtle}>Structured, sourced knowledge that AI can use to understand and reconstruct this Vyral. Creator-defined facts remain authoritative; AI observations are stored as evidence, not silently promoted to truth.</p></div></div>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{[
