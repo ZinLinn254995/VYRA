@@ -194,3 +194,8 @@ This is a foundational binary identity contract, not yet universal semantic unde
 Extended the DNA-only package service to accept raster DNA v3 and Universal File DNA v1 together. File DNA exports now include lossless raw source-byte chunks after the canonical immutable source version is downloaded and its SHA-256 is rechecked. Imports verify those chunks, restore the original bytes as a new source version, and create a fresh identity-only File DNA record pinned to the imported version. The package parser rejects missing, altered, or undeclared chunks.
 
 The current package-level tests cover binary-only File DNA export, clean ZIP reconstruction, tampering, and refusal to export a hash-only File DNA record as exact. The authenticated Preview and a real mixed-media Vyral have not yet been manually tested. Semantic parsing for audio/video/documents/3D/archive formats is still pending.
+
+
+## 2026-11-07 — AI Chat File DNA inspection
+
+AI Chat now validates Universal File DNA v1 attachments. DNA-only packages are reconstructed from lossless binary chunks; full packages verify their pinned original version bytes against the File DNA digest and size. The chat context receives format/identity metadata while explicitly stating that audio, video, document and 3D semantic contents have not been decoded or sent to Vision. This is integrity-aware attachment understanding, not yet media-content understanding.
