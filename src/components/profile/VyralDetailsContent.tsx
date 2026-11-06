@@ -9,6 +9,7 @@ import { supabase, useAuth } from '../../context/AuthContext';
 import { createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { createVyralDnaV3, type VyralDnaV3Record } from '../../services/vyralDnaV3';
+import { createVyralFileDnaV1 } from '../../services/vyralFileDnaV1';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -1238,18 +1239,36 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           });
           if (dnaError) throw dnaError;
         } else {
+          const fileBytes = new Uint8Array(await file.arrayBuffer());
+          const fileDna = await createVyralFileDnaV1({
+            record_id: crypto.randomUUID(),
+            source: { asset_id: assetId, asset_version_id: version.id },
+            bytes: fileBytes,
+            mime_type: mime || 'application/octet-stream',
+            filename: file.name,
+            include_payload: false,
+          });
+          if (fileDna.record.file.sha256 !== sha256 || fileDna.record.file.size_bytes !== file.size) {
+            throw new Error('Universal File DNA did not match the uploaded source bytes.');
+          }
           const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
             vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
-            schema_version: 1, dna_status: 'evolving', source_kind: 'creator',
+            schema_version: 1, dna_status: 'evolving', source_kind: 'system',
             verification_status: 'observed',
             payload: {
-              identity: { asset_name: file.name, asset_type: kind },
-              source: { original_filename: file.name, mime_type: mime, size_bytes: file.size },
-              integrity: { algorithm: 'SHA-256', value: sha256 },
-              reconstruction: { dna_only_test: 'not_tested', exact_recovery_claim: false },
-              extraction: { dna_v3_status: 'not_supported_for_this_asset_format' },
+              dna_schema_id: 'vyra.asset-file-dna',
+              dna_schema_version: 1,
+              dna_record: fileDna.record,
+              source_version_id: version.id,
+              source_file_sha256: sha256,
+              extraction_kind: 'deterministic_binary_file_identity',
             },
-            reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: false },
+            reconstruction_data: {
+              source_preservation: 'original_binary_retained',
+              reconstruction_ready: false,
+              recovery_level: 'identity-only',
+              encoded_source_bytes_recoverable: false,
+            },
           });
           if (dnaError) throw dnaError;
         }
