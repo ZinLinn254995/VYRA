@@ -448,13 +448,23 @@ export const createVyralDnaOnlyPackage = async (
   await reconstructVyralDnaV3(dnaRecord, payloadByPath);
 
   const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
+  const selectedAsset = portableBase.assets.find((asset) => asset.id === dnaRecord.source.asset_id);
+  if (!selectedAsset) {
+    throw new Error('The selected DNA v3 source asset is missing from the Vyral manifest.');
+  }
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
     exportMode: 'dna-only',
+    folders: [],
     versions: [],
-    assets: portableBase.assets.map((asset) => asset.id === dnaRecord.source.asset_id
-      ? { ...asset, description_provenance: 'creator_declared', description_is_visual_measurement: false }
-      : asset),
+    // A DNA-only package is a portable reconstruction unit for exactly one asset,
+    // not a metadata-only export of the entire collection.
+    assets: [{
+      ...selectedAsset,
+      folder_id: null,
+      description_provenance: 'creator_declared',
+      description_is_visual_measurement: false,
+    }],
     reconstructionCapabilities: {
       decoded_sample_stream_reconstructable: true,
       source_decode_independently_verified: false,
