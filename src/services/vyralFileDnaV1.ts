@@ -120,6 +120,8 @@ const addFact = (facts: VyralFileStructureFact[], key: string, value: string | n
 };
 const readU32LE = (bytes: Uint8Array, offset: number) =>
   offset + 4 <= bytes.length ? new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true) : 0;
+const readU32BE = (bytes: Uint8Array, offset: number) =>
+  offset + 4 <= bytes.length ? new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false) : 0;
 
 export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string, filename?: string | null): VyralFileStructure => {
   const mime = mimeType.toLowerCase();
@@ -158,10 +160,10 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
     addFact(facts, 'major_brand', readAscii(bytes, 8, 4).replace(/[^\x20-\x7e]/g, ''), 'container_header');
     const boxes: string[] = []; let offset = 0;
     while (offset + 8 <= bytes.length && boxes.length < 64) {
-      let size = readU32LE(bytes, offset);
+      let size = readU32BE(bytes, offset);
       const type = readAscii(bytes, offset + 4, 4);
       if (size === 1 && offset + 16 <= bytes.length) {
-        const high = readU32LE(bytes, offset + 8); const low = readU32LE(bytes, offset + 12);
+        const high = readU32BE(bytes, offset + 8); const low = readU32BE(bytes, offset + 12);
         size = high * 0x100000000 + low;
       } else if (size === 0) size = bytes.length - offset;
       if (!Number.isSafeInteger(size) || size < 8 || offset + size > bytes.length) break;
@@ -215,6 +217,9 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
     } catch { notes.push('glTF JSON structure could not be parsed.'); }
   } else if (signature === 'matroska-ebml' || (signature === 'riff-container' && mime.startsWith('video/'))) {
     setSignature('video', 'Video container signature detected; tracks, frames and timing are not decoded.');
+  } else if (signature === 'zip-container' && (['docx','xlsx','pptx'].includes(extension) || mime.includes('openxmlformats'))) {
+    setSignature('document', 'Office Open XML package detected as a ZIP container; document content and embedded objects are not parsed.');
+    addFact(facts, 'container_signature', signature, 'binary_signature');
   } else if (['zip-container','7z','rar','gzip','riff-container','iff-container'].includes(signature)) {
     setSignature('archive', 'Archive/container signature detected; member contents are not unpacked or interpreted.');
     addFact(facts, 'container_signature', signature, 'binary_signature');
