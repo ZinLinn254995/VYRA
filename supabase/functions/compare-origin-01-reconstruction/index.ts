@@ -218,19 +218,6 @@ Deno.serve(async (request: Request) => {
     comparisonUses: 'verified_uploaded_storage_bytes',
     note: 'The verifier compares the actual uploaded bytes against the protected original. It does not claim those bytes are identical to the model-reported output unless their hash and size reconcile.',
   };
-  const modelReport = dnaPayload.model_report && typeof dnaPayload.model_report === 'object'
-    ? dnaPayload.model_report as Record<string, unknown> : {};
-  const uploadReconciliation = dnaPayload.upload_reconciliation && typeof dnaPayload.upload_reconciliation === 'object'
-    ? dnaPayload.upload_reconciliation as Record<string, unknown> : {};
-  const candidateUploadReconciliation = {
-    status: uploadReconciliation.status ?? 'not_recorded',
-    modelReportedSizeBytes: modelReport.reported_size_bytes ?? null,
-    uploadedSizeBytes: candidateVersionResult.data?.size_bytes ?? null,
-    modelReportedSha256Prefix: modelReport.reported_sha256_prefix ?? null,
-    uploadedSha256: dnaUpload.sha256 ?? null,
-    comparisonUses: 'verified_uploaded_storage_bytes',
-    note: 'The verifier compares the actual uploaded bytes against the protected original. It does not claim those bytes are identical to the model-reported output unless their hash and size reconcile.',
-  };
   if (
     dna.source_kind !== 'generation' ||
     dnaProvenance.provider !== selectedCandidate.provider ||
@@ -275,7 +262,6 @@ Deno.serve(async (request: Request) => {
     const report = {
       protocol: 'ORIGIN-01-blind-reconstruction-comparison-v1',
       testedAt,
-      candidateUploadReconciliation,
       candidateUploadReconciliation,
       integrity: {
         original: { expectedSizeBytes: Number(originalVersion.size_bytes), actualSizeBytes: originalBytes.byteLength, expectedSha256: originalVersion.sha256, actualSha256: originalHash, matched: originalIntegrity },
@@ -348,7 +334,6 @@ Deno.serve(async (request: Request) => {
   const report = {
     protocol: 'ORIGIN-01-blind-reconstruction-comparison-v1',
     testedAt,
-      candidateUploadReconciliation,
       candidateUploadReconciliation,
     integrity: {
       original: { expectedSizeBytes: Number(originalVersion.size_bytes), actualSizeBytes: originalBytes.byteLength, expectedSha256: originalVersion.sha256, actualSha256: originalHash, matched: originalIntegrity },
