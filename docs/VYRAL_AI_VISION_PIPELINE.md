@@ -9,7 +9,7 @@ A portable `.vyral` attachment should provide both verifiable reconstruction dat
 1. The browser reads the ZIP package and validates its manifest and archive structure.
 2. Every supported DNA v3 record is reconstructed from its declared raw tiles. Tile hashes and the aggregate decoded-sample digest are verified before the package is accepted.
 3. For the first DNA v3 record, VYRA encodes a PNG derivative from the verified decoded samples.
-4. The browser creates a separate JPEG vision preview. The longest edge is capped at 1,024 pixels and the encoded preview is capped at 900 KiB.
+4. The browser creates a separate JPEG vision preview from the first DNA v3 record in the package. The longest edge is capped at 1,024 pixels and the encoded preview is capped at 900 KiB. Other DNA records are integrity-verified and summarized, but are not yet attached as visual inputs.
 5. The exact decoded-sample DNA and its hashes remain unchanged. The JPEG is only a model-input derivative; it is not written back into the package and is not a replacement for the original asset.
 6. The authenticated chat request sends the JPEG preview and DNA verification summary to the VYRA server. The server validates the MIME type, base64 encoding, size, and file signature before passing it to Gemini as inline image data.
 
