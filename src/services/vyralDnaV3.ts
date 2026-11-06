@@ -36,6 +36,15 @@ export type VyralDnaV3Record = {
     alpha_mode: VyralDnaV3AlphaMode;
     decoder_contract: { name: string; version: string; color_management: string };
     decoded_samples_sha256: string;
+    sample_layout?: {
+      row_order: 'top-to-bottom';
+      pixel_order: 'left-to-right';
+      channel_order: VyralDnaV3ChannelLayout;
+      packing: 'interleaved';
+      row_stride: 'tightly-packed';
+      hash_algorithm: 'SHA-256';
+      hash_scope: 'full-decoded-sample-stream';
+    };
   };
   lossless_payload: {
     encoding: 'raw-tiled-v1';
@@ -177,6 +186,15 @@ export const createVyralDnaV3 = async (input: CreateVyralDnaV3Input): Promise<{ 
       alpha_mode: input.alpha_mode,
       decoder_contract: { ...input.decoder_contract },
       decoded_samples_sha256: await sha256Hex(input.decoded_samples),
+      sample_layout: {
+        row_order: 'top-to-bottom',
+        pixel_order: 'left-to-right',
+        channel_order: input.channel_layout,
+        packing: 'interleaved',
+        row_stride: 'tightly-packed',
+        hash_algorithm: 'SHA-256',
+        hash_scope: 'full-decoded-sample-stream',
+      },
     },
     lossless_payload: { encoding: 'raw-tiled-v1', tile_width: tileWidth, tile_height: tileHeight, tiles },
   };
@@ -202,6 +220,15 @@ export const validateVyralDnaV3Record = (value: unknown): VyralDnaV3Record => {
   if (!isNonEmptyString(decoded.color_space) || typeof decoded.decoded_samples_sha256 !== 'string' ||
       !SHA256_PATTERN.test(decoded.decoded_samples_sha256)) {
     throw new Error('DNA v3 color space or decoded sample digest is invalid.');
+  }
+  if (decoded.sample_layout !== undefined) {
+    const layout = decoded.sample_layout;
+    if (!isObject(layout) || layout.row_order !== 'top-to-bottom' || layout.pixel_order !== 'left-to-right' ||
+        layout.channel_order !== decoded.channel_layout || layout.packing !== 'interleaved' ||
+        layout.row_stride !== 'tightly-packed' || layout.hash_algorithm !== 'SHA-256' ||
+        layout.hash_scope !== 'full-decoded-sample-stream') {
+      throw new Error('DNA v3 canonical decoded-sample layout is invalid or unsupported.');
+    }
   }
   if (decoded.icc_profile_sha256 !== null &&
       (typeof decoded.icc_profile_sha256 !== 'string' || !SHA256_PATTERN.test(decoded.icc_profile_sha256))) {
