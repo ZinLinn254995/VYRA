@@ -356,3 +356,10 @@ Capability metadata is per-media-aware:
 - a mixed package does not claim that every original encoded file is recovered merely because some File DNA records are exact.
 
 This package path has synthetic automated coverage for binary clean-import reconstruction and tamper rejection. It does not yet prove a real-world multi-asset mixed Vyral import/export in the authenticated Preview. Audio/video/document/3D/archive semantic parsing remains a separate layer above exact binary preservation.
+
+
+## 23. AI Chat inspection boundary for Universal File DNA
+
+AI Chat validates File DNA v1 records when a `.vyral` package is attached. For DNA-only packages it reconstructs and verifies the lossless source-byte chunks; for full packages it verifies the pinned source-version bytes against the File DNA size and SHA-256. It passes only verified metadata (asset label, MIME type, conservative format signature, extension, byte length and digest) into the chat context.
+
+This does **not** mean the AI has listened to audio, watched video, parsed a PDF/document, or understood a 3D scene. Those semantic media decoders and corresponding model inputs are separate future work. Raster previews continue through the separate bounded Gemini Vision path; binary File DNA bytes are not sent as arbitrary inline model payloads.
