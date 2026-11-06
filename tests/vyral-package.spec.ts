@@ -511,6 +511,22 @@ test('exports, validates and reconstructs a DNA-only binary File DNA package fro
   const restored = await reconstructVyralFileDnaFromPackage(files, 'portable-file-dna');
   assert.deepEqual(restored, original);
 
+  const mismatchedSource = {
+    ...parsed,
+    dnaRecords: parsed.dnaRecords.map((record) => ({
+      ...record,
+      dna_record: {
+        ...(record.dna_record as Record<string, unknown>),
+        source: { ...((record.dna_record as Record<string, unknown>).source as Record<string, unknown>), asset_id: 'another-asset' },
+      },
+    })),
+  };
+  const mismatchedArchive = createVyralZip([...files.entries()].map(([path, data]) =>
+    path === 'manifest.json' ? { path, data: JSON.stringify(mismatchedSource) } : { path, data }
+  ));
+  const mismatchedFiles = await readVyralZip(mismatchedArchive);
+  await assert.rejects(() => reconstructVyralFileDnaFromPackage(mismatchedFiles, 'portable-file-dna'), /source Asset identity/);
+
   const tampered = new Map(files);
   const chunkPath = fileDna.record.reconstruction.chunks[0].package_path;
   const changed = tampered.get(chunkPath)!.slice();
