@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(23);
+select plan(25);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -239,6 +239,11 @@ select is(
   1,
   'Owner can read their own Master DNA snapshot'
 );
+select is(
+  (select count(*)::integer from public.vyral_master_dna_asset_metadata),
+  2,
+  'Owner can read only their own Asset classification metadata'
+);
 
 reset role;
 set local role authenticated;
@@ -249,6 +254,11 @@ select is(
   (select count(*)::integer from public.vyral_master_dna_revisions),
   0,
   'Other customers cannot read private Master DNA snapshots'
+);
+select is(
+  (select count(*)::integer from public.vyral_master_dna_asset_metadata),
+  1,
+  'Other owners see only their own separate Asset metadata'
 );
 
 select * from finish();
