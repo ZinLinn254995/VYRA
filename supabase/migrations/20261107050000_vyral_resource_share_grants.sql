@@ -96,6 +96,80 @@ create index if not exists vyral_resource_share_audit_grant_idx
 
 -- Pinned grant scope and recipient are immutable. The only owner-side mutation is
 -- active -> revoked through the narrowly scoped RPC below.
+create or replace function public.validate_vyral_resource_share_grant_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  pinned_asset jsonb;
+begin
+  if new.created_by <> new.user_id then
+    raise exception using errcode = '42501',
+      message = 'A resource share grant must be created by its Vyral owner.';
+  end if;
+
+  if new.expires_at is not null and new.expires_at <= now() then
+    raise exception using errcode = '23514',
+      message = 'A resource share grant expiry must be in the future.';
+  end if;
+
+  if new.asset_id is not null then
+    select item into pinned_asset
+    from public.vyral_master_dna_revisions revision
+    cross join lateral jsonb_array_elements(revision.snapshot -> 'assets') as items(item)
+    where revision.id = new.master_dna_revision_id
+      and revision.vyral_id = new.vyral_id
+      and revision.user_id = new.user_id
+      and item ->> 'asset_id' = new.asset_id::text
+      and item ->> 'asset_version_id' = new.asset_version_id::text
+    limit 1;
+
+    if pinned_asset is null then
+      raise exception using errcode = '23514',
+        message = 'The granted Asset version must be present in the pinned Master DNA revision.';
+    end if;
+
+    if not exists (
+      select 1 from public.vyral_asset_versions version
+      where version.id = new.asset_version_id
+        and version.asset_id = new.asset_id
+        and version.vyral_id = new.vyral_id
+        and version.user_id = new.user_id
+    ) then
+      raise exception using errcode = '23514',
+        message = 'The granted Asset version must belong to the same Vyral and owner.';
+    end if;
+  end if;
+
+  return new;
+end;
+$;
+
+revoke all on function public.validate_vyral_resource_share_grant_insert() from public, anon, authenticated;
+drop trigger if exists vyral_resource_share_grant_validate_insert on public.vyral_resource_share_grants;
+create trigger vyral_resource_share_grant_validate_insert
+before insert on public.vyral_resource_share_grants
+for each row execute function public.validate_vyral_resource_share_grant_insert();
+
+create or replace function public.prevent_vyral_resource_share_audit_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $
+begin
+  raise exception using errcode = '55000',
+    message = 'Resource share audit events are immutable.';
+end;
+$;
+
+revoke all on function public.prevent_vyral_resource_share_audit_mutation() from public, anon, authenticated;
+drop trigger if exists vyral_resource_share_audit_immutable on public.vyral_resource_share_audit;
+create trigger vyral_resource_share_audit_immutable
+before update or delete on public.vyral_resource_share_audit
+for each row execute function public.prevent_vyral_resource_share_audit_mutation();
+
 create or replace function public.guard_vyral_resource_share_grant_update()
 returns trigger
 language plpgsql
