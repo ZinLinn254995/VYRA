@@ -525,7 +525,7 @@ test('exports, validates and reconstructs a DNA-only binary File DNA package fro
     path === 'manifest.json' ? { path, data: JSON.stringify(mismatchedSource) } : { path, data }
   ));
   const mismatchedFiles = await readVyralZip(mismatchedArchive);
-  await assert.rejects(() => reconstructVyralFileDnaFromPackage(mismatchedFiles, 'portable-file-dna'), /source Asset identity/);
+  await assert.rejects(() => reconstructVyralFileDnaFromPackage(mismatchedFiles, 'portable-file-dna'), /inconsistent identity metadata|source Asset identity/);
 
   const tampered = new Map(files);
   const chunkPath = fileDna.record.reconstruction.chunks[0].package_path;
