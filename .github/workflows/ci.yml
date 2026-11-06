@@ -58,6 +58,6 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check Master DNA Edge Function
-        run: deno check supabase/functions/build-vyral-master-dna/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts
       - name: Production build
         run: npm run build
