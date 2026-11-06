@@ -5,7 +5,7 @@ import {
   hasValidVyralMasterDnaRevisionBindingV1,
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
-} from '../../../src/services/vyralResourceResolverV1.ts';
+} from './vyralResourceResolverV1.ts';
 
 type Row = Record<string, any>;
 
