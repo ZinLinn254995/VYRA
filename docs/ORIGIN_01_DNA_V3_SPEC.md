@@ -123,3 +123,15 @@ Decoded-sample exactness does not imply original file-byte exactness. To recover
 - Never modify, rename, replace, unlock, or delete the protected ORIGIN-01 original.
 - Create new DNA v3 records and reconstruction outputs additively.
 - Do not change unrelated Workspace or publishing flows.
+
+## 8. Current package integration implementation
+
+The existing VYRAL ZIP service now has an additive DNA v3 package path:
+
+- `createVyralDnaOnlyPackage(...)` creates a `dna-only` package manifest, removes ordinary binary versions, recursively strips URL/storage/preview/thumbnail/derivative reference fields from portable metadata, and includes only the declared DNA v3 tile payload plus manifest.
+- Export validates the complete tile set and reconstructs the decoded sample stream before writing the archive. This checks per-tile and aggregate SHA-256 values.
+- `parseVyralManifest(...)` validates embedded DNA v3 records and requires every declared tile entry to exist.
+- `reconstructVyralDnaV3FromPackage(...)` reconstructs from the package file map without reading the source asset.
+- Package regression tests exercise a synthetic DNA-only round-trip and check that ordinary source media and URL/storage/preview/derivative fields are absent.
+
+This is package-layer integration and synthetic test coverage only. It does not yet extract ORIGIN-01 from protected Development storage, prove the source hash against the protected bytes, or establish ORIGIN-01 exact reconstruction. The acceptance criteria in section 5 remain unchanged and mandatory.
