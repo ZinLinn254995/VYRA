@@ -92,6 +92,20 @@ test('Rejects stale versions, wrong grantees, revoked and expired grants', () =>
   assert.equal(expired.reason, 'expired');
 });
 
+test('Rejects a grant whose effective time is in the future', () => {
+  const result = evaluateVyralLicenseActionV1({
+    action: 'use_asset',
+    actor_ref: 'buyer-1',
+    assets,
+    grants: [grant({ granted_at: '2026-11-08T00:00:00.000Z' })],
+    now,
+  });
+  assert.equal(result.allowed, false);
+  assert.equal(result.basis, 'denied');
+  assert.equal(result.reason, 'expired');
+  assert.deepEqual(result.grant_ids, []);
+});
+
 test('Verified owner bypass is explicit and reports its authorization basis', () => {
   const result = evaluateVyralLicenseActionV1({
     action: 'resell_branch', actor_ref: 'owner-1', assets, grants: [], now, verifiedOwner: true,
