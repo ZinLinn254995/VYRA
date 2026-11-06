@@ -1122,10 +1122,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       (typeof originalIntegrity.actualSha256 === 'string' && typeof candidateIntegrity.actualSha256 === 'string');
     const originalReport = asRecord(reconstructionReport.original);
     const candidateReport = asRecord(reconstructionReport.candidate);
-    const pixelReport = asRecord(asRecord(reconstructionReport.comparison).pixelComparison);
-    const backgroundDelta = reconstructionReport.comparison
-      ? asRecord(reconstructionReport.comparison).backgroundCornerColorEuclideanDelta
-      : null;
+    const comparisonReport = asRecord(reconstructionReport.comparison);
+    const pixelReport = asRecord(comparisonReport.pixelComparison);
+    const geometryReport = asRecord(comparisonReport.redRegionGeometry);
+    const geometrySimilarity = typeof geometryReport.geometrySimilarity === 'number' ? geometryReport.geometrySimilarity : null;
+    const exactDecodedPixelMatch = typeof comparisonReport.exactDecodedPixelMatch === 'boolean'
+      ? comparisonReport.exactDecodedPixelMatch
+      : latestReconstructionTest?.exact_match === true;
+    const backgroundDelta = comparisonReport.backgroundCornerColorEuclideanDelta;
     return (
       <article key={asset.id} className={surface + ' group min-w-0 overflow-hidden'}>
         <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[16/10] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]">
@@ -1136,16 +1140,39 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2'}>
-            <p className={'text-[10px] font-semibold '+primary}>Latest test: {latestReconstructionTest.test_status}{latestReconstructionTest.similarity_score !== null ? ' · '+(Number(latestReconstructionTest.similarity_score)*100).toFixed(2)+'% RGB similarity' : ''}</p>
-            <div className={'mt-1 space-y-1 text-[10px] '+muted}>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2.5'}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={'text-[10px] font-semibold '+primary}>Latest test · {latestReconstructionTest.test_status}</p>
+              <span className={'rounded-full px-2 py-1 text-[9px] font-semibold '+(exactDecodedPixelMatch === true ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-700')}>{exactDecodedPixelMatch === true ? 'Exact decoded pixels' : 'Exact reconstruction not verified'}</span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
+                <p className={'text-[9px] '+muted}>Geometry similarity</p>
+                <p className={'mt-0.5 text-base font-semibold '+primary}>{geometrySimilarity !== null ? (geometrySimilarity*100).toFixed(2)+'%' : '—'}</p>
+                <p className={'text-[9px] '+muted}>Red-region shape, scale and placement · not full-image similarity</p>
+              </div>
+              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
+                <p className={'text-[9px] '+muted}>Background color delta</p>
+                <p className={'mt-0.5 text-base font-semibold '+primary}>{typeof backgroundDelta === 'number' ? Number(backgroundDelta).toFixed(2) : '—'}</p>
+                <p className={'text-[9px] '+muted}>RGB Euclidean distance · lower is closer</p>
+              </div>
+              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
+                <p className={'text-[9px] '+muted}>Exact pixel comparison</p>
+                <p className={'mt-0.5 text-xs font-semibold '+primary}>{exactDecodedPixelMatch === true ? 'Matched' : 'Not matched'}</p>
+                <p className={'text-[9px] '+muted}>{pixelReport.performed === true ? String(pixelReport.exactPixels ?? '—')+' / '+String(pixelReport.pixelCount ?? '—')+' pixels exact' : 'Not performed: dimensions differ'}</p>
+              </div>
+              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
+                <p className={'text-[9px] '+muted}>Upload reconciliation</p>
+                <p className={'mt-0.5 break-words text-[10px] font-semibold '+primary}>{String(claudeUploadMismatch?.status ?? 'Not applicable / not recorded').replaceAll('_',' ')}</p>
+                <p className={'text-[9px] '+muted}>Stored candidate bytes are integrity-checked separately</p>
+              </div>
+            </div>
+            <div className={'mt-2 space-y-1 text-[10px] '+muted}>
               <p>Reconstruction input: {String(packageMode)} package · Original exclusion: {exclusionIsUnverified ? 'creator-attested, not independently verified' : String(reconstructionInput.originalBinaryExposure ?? 'not recorded')}</p>
               <p>Verifier comparison: {verifierDownloadedBoth ? 'Original and candidate files downloaded after generation' : 'comparison input provenance unavailable'}</p>
               <p>Original: {String(originalReport.width ?? '—')} × {String(originalReport.height ?? '—')} · Background RGB ({formatRgb(originalReport.backgroundCornerAverageRgb)})</p>
               <p>Candidate: {String(candidateReport.width ?? '—')} × {String(candidateReport.height ?? '—')} · Background RGB ({formatRgb(candidateReport.backgroundCornerAverageRgb)})</p>
-              {typeof backgroundDelta === 'number' && <p>Background color delta: {backgroundDelta.toFixed(2)}</p>}
-              {pixelReport.performed === true && <p>Exact pixels: {String(pixelReport.exactPixels ?? '—')} / {String(pixelReport.pixelCount ?? '—')} · Different pixels: {String(pixelReport.differentPixels ?? '—')}</p>}
-              {pixelReport.performed === false && <p>Pixel comparison: {String(pixelReport.reason ?? 'Not performed')}</p>}
+              {pixelReport.performed === false && <p>Pixel comparison note: {String(pixelReport.reason ?? 'Not performed')}</p>}
             </div>
           </div>}
           {claudeUploadMismatch && <div className={'mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[10px] text-amber-700'}><p className="font-semibold">Upload reconciliation: {String(claudeUploadMismatch.status ?? 'pending')}</p><p>Reported by Claude: {String(claudeModelReport.reported_size_bytes ?? '—')} bytes · SHA-256 prefix {String(claudeModelReport.reported_sha256_prefix ?? '—')}</p><p>Stored upload: {String(claudeUploadRecord.size_bytes ?? '—')} bytes · SHA-256 {String(claudeUploadRecord.sha256 ?? '—').slice(0, 16)}…</p><p>Comparison uses verified uploaded file bytes only; the reported output bytes have not been reconciled.</p></div>}
