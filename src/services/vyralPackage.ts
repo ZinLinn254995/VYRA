@@ -375,7 +375,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== expectedDecoded ||
         capabilities.source_decode_independently_verified !== false ||
         capabilities.encoded_source_bytes_recoverable !== expectedEncodedSource ||
-        capabilities.binary_source_bytes_reconstructable !== (fileRecords.length > 0) ||
+        (fileRecords.length > 0 ? capabilities.binary_source_bytes_reconstructable !== true : (capabilities.binary_source_bytes_reconstructable !== undefined && capabilities.binary_source_bytes_reconstructable !== false)) ||
         typeof capabilities.color_space_fully_characterized !== 'boolean') {
       throw new Error('DNA-only reconstruction capability boundaries are missing or invalid.');
     }
