@@ -1,4 +1,4 @@
-import { type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
+import { validateVyralMasterDnaV1, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import {
   reconstructVyralDnaV3,
   validateVyralDnaV3Record,
@@ -498,7 +498,8 @@ export const createVyralDnaOnlyPackage = async (
     throw new Error('A whole-Vyral DNA-only export requires a lossless DNA v3 record for every asset.');
   }
   if (portableBase.masterDna) {
-    const masterDna = portableBase.masterDna;
+    const masterDna = await validateVyralMasterDnaV1(portableBase.masterDna);
+    portableBase.masterDna = masterDna;
     const masterAssetIds = new Set(masterDna.assets.map((asset) => asset.asset_id));
     if (masterAssetIds.size !== assetIds.size || [...masterAssetIds].some((id) => !assetIds.has(id))) {
       throw new Error('Master DNA inventory does not match the DNA-only asset reconstruction set.');
