@@ -2,6 +2,7 @@ import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { createVyralMasterDnaV1 } from '../../../src/services/vyralMasterDnaV1.ts';
 import { validateVyralDnaV3Record } from '../../../src/services/vyralDnaV3.ts';
+import { validateVyralFileDnaV1Record } from '../../../src/services/vyralFileDnaV1.ts';
 
 type Row = Record<string, any>;
 
@@ -227,7 +228,28 @@ Deno.serve(async (request: Request) => {
       }
     }
 
-    const semanticDnaAvailable = Boolean(schemaId && Number(dna.schema_version) < 3 && Object.keys(payload).length > 0);
+    if (schemaId === 'vyra.asset-file-dna') {
+      try {
+        const fileDna = validateVyralFileDnaV1Record(nestedDna);
+        if (fileDna.source.asset_version_id !== version.id ||
+            fileDna.file.sha256.toLowerCase() !== version.sha256.toLowerCase() ||
+            fileDna.file.size_bytes !== Number(version.size_bytes) ||
+            fileDna.file.mime_type !== String(version.mime_type || asset.mime_type).toLowerCase()) {
+          throw new Error('Universal File DNA does not match the exact latest source version.');
+        }
+      } catch (error) {
+        return json({
+          error: error instanceof Error ? error.message : 'Universal File DNA validation failed.',
+          status: 'file_dna_invalid',
+          assetId: asset.id,
+        }, 409);
+      }
+    }
+
+    const semanticDnaAvailable = Boolean(
+      schemaId && schemaId !== 'vyra.asset-file-dna' &&
+      Number(dna.schema_version) < 3 && Object.keys(payload).length > 0
+    );
     const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, semanticDnaAvailable);
     claims.push(claim);
     if (assetMetadata.role === 'main') mainAssetIds.push(asset.id);
