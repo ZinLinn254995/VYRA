@@ -374,12 +374,26 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
   for (const version of manifest.versions) {
     if (!files.has(version.package_path)) throw new Error('Package media is missing: ' + version.package_path);
   }
+  const dnaOnlyExpectedPaths = new Set<string>([VYRAL_PACKAGE_MANIFEST]);
   for (const record of manifest.dnaRecords) {
     if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
       const dnaRecord = validateVyralDnaV3Record(record.dna_record);
       for (const tile of dnaRecord.lossless_payload.tiles) {
         if (!files.has(tile.package_path)) throw new Error('DNA v3 package payload is missing: ' + tile.package_path);
+        dnaOnlyExpectedPaths.add(tile.package_path);
       }
+    }
+  }
+  if (manifest.exportMode === 'dna-only') {
+    // A DNA-only archive is a strict portable reconstruction unit: reject any
+    // undeclared file, including source media, previews, derivatives or hidden extras.
+    for (const path of files.keys()) {
+      if (!dnaOnlyExpectedPaths.has(path)) {
+        throw new Error('DNA-only package contains an undeclared file: ' + path);
+      }
+    }
+    if (files.size !== dnaOnlyExpectedPaths.size) {
+      throw new Error('DNA-only package entry count does not match its manifest.');
     }
   }
   return manifest;
