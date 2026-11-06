@@ -16,6 +16,15 @@ test('Vyral chat verifies DNA before creating a separate vision derivative', () 
   assert.match(chat, /lossless DNA remains unchanged/);
 });
 
+test('AI Chat validates Universal File DNA and clearly separates byte identity from semantic inspection', () => {
+  assert.match(chat, /validateVyralFileDnaV1Record/);
+  assert.match(chat, /reconstructVyralFileDnaFromPackage/);
+  assert.match(chat, /full-package original version/);
+  assert.match(chat, /exact source bytes reconstructed from DNA/);
+  assert.match(chat, /semantic file contents were not parsed or attached to Vision/);
+  assert.match(chat, /File DNA binaries are integrity-checked but their audio\/video\/document contents are not decoded or attached to Vision/);
+});
+
 test('up to four labelled Vyral asset previews are forwarded through the authenticated Gemini proxy', () => {
   assert.match(chat, /visionImages/);
   assert.match(chat, /v3Records\.slice\(0, 4\)/);
