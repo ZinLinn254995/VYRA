@@ -640,7 +640,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             version_id: sourceVersion.id,
             sha256: sourceVersion.sha256,
             size_bytes: sourceVersion.bytes.byteLength,
-            mime_type: sourceVersion.source.mime_type || (reconstructedFromDnaV3 ? 'image/png' : mimeType),
+            mime_type: safeMimeType(sourceVersion.source.mime_type, reconstructedFromDnaV3 ? 'image/png' : mimeType),
             tile_storage_paths: tileStoragePaths,
           });
         }
