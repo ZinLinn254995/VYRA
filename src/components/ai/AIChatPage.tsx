@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { getCurrentAccessToken } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage } from '../../services/vyralPackage.ts';
+import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -100,6 +101,10 @@ const inspectVyralAttachment = async (file: File) => {
       bytes: reconstruction.samples.byteLength,
     });
   }
+  const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
+  if (masterDna && masterDna.vyral.vyral_id !== String(manifest.vyral.id)) {
+    throw new Error('Vyral Master DNA identity does not match this package.');
+  }
   const firstV3Record = v3Records[0];
   const visionImage = firstV3Record
     ? await createVyralVisionPreview((await encodeVyralDnaV3PngFromPackage(files, String(firstV3Record.id))).pngBytes)
@@ -110,7 +115,9 @@ const inspectVyralAttachment = async (file: File) => {
   const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
   const lines = [
     `Package: ${String(manifest.vyral.name)} (${mode})`,
-    `Assets: ${manifest.assets.length} · DNA records: ${manifest.dnaRecords.length}`,
+    `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
+    masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
+    ...(masterDna ? [`Vyral purpose: ${masterDna.purpose.summary}`, `Intended uses: ${masterDna.purpose.intended_uses.join(', ')}`, `Main assets: ${masterDna.assets.filter((item) => item.role === 'main').map((item) => `${item.asset_id} (${item.purpose})`).slice(0, 8).join('; ')}`, `Supporting assets: ${masterDna.assets.filter((item) => item.role === 'supporting').map((item) => `${item.asset_id} (${item.purpose})`).slice(0, 12).join('; ')}`, `Asset relationships: ${masterDna.relationships.slice(0, 16).map((item) => `${item.type}: ${item.rationale}`).join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`] : []),
     ...verified.map((item) =>
       `DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
     ),
