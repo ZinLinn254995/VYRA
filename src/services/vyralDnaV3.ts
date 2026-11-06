@@ -88,7 +88,7 @@ const sha256Hex = async (bytes: Uint8Array) => {
 
 const channelCount = (layout: VyralDnaV3ChannelLayout) => layout === 'RGBA' ? 4 : 3;
 
-const validateSource = (value: unknown): asserts value is VyralDnaV3Record['source'] => {
+const validateSource = (value: unknown) => {
   if (!isObject(value) ||
       typeof value.asset_id !== 'string' || !SAFE_ID_PATTERN.test(value.asset_id) ||
       typeof value.asset_version_id !== 'string' || !SAFE_ID_PATTERN.test(value.asset_version_id)) {
