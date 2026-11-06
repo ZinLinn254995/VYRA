@@ -204,3 +204,8 @@ AI Chat now validates Universal File DNA v1 attachments. DNA-only packages are r
 ## 2026-11-07 — Deterministic File Structure Profiles
 
 File DNA v1 now includes optional bounded structural metadata for WAV, ISO-BMFF, common audio signatures, PDF, GLB/glTF, and UTF-8 text/Markdown/JSON. The metadata records container/header facts and simple structural counts, not private source text or inferred meaning. PDF and large text/3D parsing are bounded to 8 MiB. These facts are integrity-adjacent structure hints only; full media decoding, OCR, transcription and semantic interpretation remain separate roadmap work.
+
+
+## 2026-11-07 — Verify File DNA structure against source bytes
+
+AI Chat now re-runs the deterministic File DNA structure analyzer after verifying either the full-package original version or the DNA-only lossless chunks. If the package's stored structural profile differs from the profile derived from the verified bytes, attachment inspection is rejected. Older File DNA records without a stored profile remain readable because Chat can derive a fresh one. This closes the package-metadata trust gap without claiming semantic media decoding.
