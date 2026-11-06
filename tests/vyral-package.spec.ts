@@ -219,6 +219,15 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   assert.equal(parsed.visionObservations.length, 0);
   assert.equal(parsed.lineage.length, 0);
   assert.equal(parsed.reconstructionTests.length, 0);
+  assert.deepEqual(parsed.reconstructionCapabilities, {
+    decoded_sample_stream_reconstructable: true,
+    source_decode_independently_verified: false,
+    encoded_source_bytes_recoverable: false,
+    color_space_fully_characterized: true,
+    verification_note: 'Package-level reconstruction capability only; source verification must be established by a separate trusted verifier.',
+  });
+  assert.equal(parsed.assets[0].description_provenance, 'creator_declared');
+  assert.equal(parsed.assets[0].description_is_visual_measurement, false);
   const portableRecord = parsed.dnaRecords[0].dna_record as {
     decoded_image: { sample_layout: Record<string, unknown> };
   };
