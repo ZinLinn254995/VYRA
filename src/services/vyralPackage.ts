@@ -705,6 +705,17 @@ export const reconstructVyralFileDnaFromPackage = async (files: Map<string, Uint
   );
   if (!entry) throw new Error('The VYRAL package does not contain the requested File DNA v1 record.');
   const fileDna = validateVyralFileDnaV1Record(entry.dna_record);
+  if (fileDna.source.asset_id !== entry.asset_id || !manifest.assets.some((asset) => asset.id === entry.asset_id)) {
+    throw new Error('File DNA source Asset identity does not match the package inventory.');
+  }
+  const sourceVersion = manifest.versions.find((version) => version.id === fileDna.source.asset_version_id);
+  if (manifest.exportMode !== 'dna-only' && (
+      !sourceVersion || sourceVersion.asset_id !== entry.asset_id ||
+      Number(sourceVersion.size_bytes) !== fileDna.file.size_bytes ||
+      String(sourceVersion.sha256 ?? '').toLowerCase() !== fileDna.file.sha256.toLowerCase()
+    )) {
+    throw new Error('File DNA source version does not match the exact package Asset version.');
+  }
   const chunks = new Map(fileDna.reconstruction.chunks.map((chunk) => [chunk.package_path, files.get(chunk.package_path)!]));
   return reconstructVyralFileDnaV1(fileDna, chunks);
 };
