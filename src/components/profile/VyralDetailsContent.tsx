@@ -229,6 +229,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const masterSchemaReady = !masterRootResult.error && !masterEdgesResult.error && Boolean(masterRootResult.data);
     setMasterDnaAvailable(masterSchemaReady);
     if (masterSchemaReady) {
+      setMasterDnaMessage('');
       const masterRoot = masterRootResult.data as Pick<Vyral, 'master_dna_status' | 'master_dna_revision' | 'master_dna_purpose' | 'master_dna_intended_uses'>;
       const masterEdges = (masterEdgesResult.data ?? []) as MasterRelationshipRow[];
       setMasterRelationships(masterEdges);
