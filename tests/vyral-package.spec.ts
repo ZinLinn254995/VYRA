@@ -206,18 +206,31 @@ test('exports and reconstructs a DNA v3-only package without source media or der
     }],
   };
   const archive = await createVyralDnaOnlyPackage(sourceAwareManifest, record, entries);
-  const files = await readVyralZip(archive);
+  const archiveBytes = new Uint8Array(await archive.arrayBuffer());
+
+  // Simulate two independent clean imports: each starts from the portable ZIP
+  // bytes and creates a fresh file map with no source asset or shared state.
+  const files = await readVyralZip(archiveBytes.slice());
   const parsed = parseVyralManifest(files);
   assert.equal(parsed.exportMode, 'dna-only');
   assert.equal(parsed.versions.length, 0);
   assert.equal(files.has('assets/asset-test/versions/1.bin'), false);
   assert.equal([...files.keys()].some((path) => /preview|thumbnail|derivative|original/i.test(path)), false);
+  assert.equal([...files.keys()].every((path) => path === 'manifest.json' || path.startsWith('dna/v3/')), true);
   const serializedManifest = new TextDecoder().decode(files.get('manifest.json'));
   assert.equal(serializedManifest.includes('private.invalid'), false);
   assert.equal(serializedManifest.includes('storage_path'), false);
-  const reconstructed = await reconstructVyralDnaV3FromPackage(files, record.record_id);
-  assert.deepEqual(reconstructed.samples, samples);
-  assert.equal(reconstructed.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
+
+  const cleanImportA = await readVyralZip(archiveBytes.slice());
+  const cleanImportB = await readVyralZip(archiveBytes.slice());
+  const reconstructedA = await reconstructVyralDnaV3FromPackage(cleanImportA, record.record_id);
+  const reconstructedB = await reconstructVyralDnaV3FromPackage(cleanImportB, record.record_id);
+  assert.deepEqual(reconstructedA.samples, samples);
+  assert.deepEqual(reconstructedB.samples, samples);
+  assert.notEqual(reconstructedA.samples, reconstructedB.samples);
+  assert.equal(reconstructedA.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
+  assert.equal(reconstructedB.decoded_samples_sha256, record.decoded_image.decoded_samples_sha256);
+  assert.deepEqual(reconstructedA.samples, reconstructedB.samples);
 });
 
 test('rejects DNA-only export with missing or undeclared DNA tile payloads', async () => {
