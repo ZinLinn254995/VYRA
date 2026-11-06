@@ -25,7 +25,7 @@ type DnaRow = {
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
-type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
+type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void };
@@ -177,6 +177,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   }, [vyral.id, vyral.license_policy]);
 
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
+
+  const originV2LatestTests = useMemo(() => {
+    const providers = ['Anthropic', 'Google Gemini', 'xAI'];
+    return providers.map((provider) => reconstructionTests.find((test) =>
+      test.protocol_version === 'ORIGIN-01-v2' && test.model_provider === provider
+    )).filter((test): test is ReconstructionRow => Boolean(test));
+  }, [reconstructionTests]);
 
   const filteredAssets = useMemo(() => {
     const search = (searchQuery + ' ' + localSearch).trim().toLowerCase();
@@ -1365,8 +1372,51 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.source_kind === 'creator' && ['creator_confirmed', 'disputed'].includes(record.verification_status) && record.payload?.review_source === 'server_creator_review' && record.payload?.vision_observation_review_id === item.id); return review ? <div className="mt-2"><p className={'text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p>{review.verification_status === 'creator_confirmed' && (() => { const promotedFields = dnaRecords.filter((record) => record.source_kind === 'creator' && record.payload?.promotion_source === 'creator_approved_vision_field' && record.payload?.promotion_observation_id === item.id); const availableFields = Object.keys(flattenObservation(item.observation)); return <div className="mt-2"><p className={'text-[10px] '+muted}>{promotedFields.length} field(s) promoted · {availableFields.length} available</p>{promotedFields.map((record)=><p key={record.id} className={'mt-1 break-all text-[10px] text-emerald-500'}>{String(record.payload?.promotion_field_path)} · creator-approved DNA field</p>)}<button type="button" disabled={promotingObservationId !== null || availableFields.length === 0} onClick={()=>void promoteVisionKnowledge(item.id)} className={button+' mt-2'}>{promotingObservationId===item.id?'Promoting…':'Promote one field to DNA'}</button></div>; })()}</div> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
           </section>
           <section className={surface+' p-4'}>
-            <h3 className={'text-sm font-semibold '+primary}>Reconstruction verification</h3><p className={'mt-1 text-xs leading-5 '+subtle}>DNA is not complete because it contains many descriptions. It earns a verified status only after an independent DNA-only reconstruction test, with the original withheld from the reconstruction model.</p>
-            <div className="mt-3 space-y-2">{reconstructionTests.length?reconstructionTests.map((test)=><div key={test.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-3"><div><p className={'text-xs font-semibold '+primary}>{test.model_provider} · {test.model_id}</p><p className={'mt-1 text-[10px] '+muted}>{test.comparison_mode.replaceAll('_',' ')} · {dateLabel(test.created_at)}</p></div><span className={'text-[10px] font-semibold '+(test.test_status==='passed'&&test.exact_match?'text-emerald-500':subtle)}>{test.test_status}{test.exact_match===true?' · Exact match':test.exact_match===false?' · Not exact':''}</span></div>):<div className="rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><FlaskConical size={20} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No reconstruction tests yet</p><p className={'mt-1 text-[10px] '+muted}>The test registry is ready. The actual isolated reconstruction runner and independent verifier still need to be connected.</p></div>}</div>
+            <h3 className={'text-sm font-semibold '+primary}>Reconstruction verification</h3>
+            <p className={'mt-1 text-xs leading-5 '+subtle}>DNA-only blind reconstruction evidence. Visual similarity, geometry, exact pixels and upload provenance are reported separately; none is silently substituted for another.</p>
+            {originV2LatestTests.length > 0 && <div className="mt-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className={'text-xs font-semibold '+primary}>Latest ORIGIN-01 V2 comparison by model</p>
+                <span className={'text-[9px] '+muted}>Latest saved V2 run per provider</span>
+              </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                {originV2LatestTests.map((test) => {
+                  const report = asRecord(test.report);
+                  const comparison = asRecord(report.comparison);
+                  const normalized = asRecord(comparison.normalizedImageComparison);
+                  const geometry = asRecord(comparison.redRegionGeometry);
+                  const pixel = asRecord(comparison.pixelComparison);
+                  const upload = asRecord(report.candidateUploadReconciliation);
+                  const normalizedScore = typeof normalized.normalizedGridRgbSimilarity === 'number' ? normalized.normalizedGridRgbSimilarity : null;
+                  const geometryScore = typeof geometry.geometrySimilarity === 'number' ? geometry.geometrySimilarity : null;
+                  const backgroundDelta = typeof comparison.backgroundCornerColorEuclideanDelta === 'number' ? comparison.backgroundCornerColorEuclideanDelta : null;
+                  const uploadStatus = typeof upload.status === 'string' ? upload.status : 'not recorded';
+                  const normalizedReason = typeof normalized.reason === 'string' ? normalized.reason : '';
+                  return <article key={test.id} className="min-w-0 rounded-lg border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0"><p className={'text-xs font-semibold '+primary}>{test.model_provider}</p><p className={'mt-0.5 text-[9px] '+muted}>{test.model_id} · {dateLabel(test.created_at)}</p></div>
+                      <span className={'shrink-0 rounded px-2 py-1 text-[9px] font-semibold '+(test.test_status === 'passed' && test.exact_match === true ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{test.test_status}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Normalized image</p><p className={'mt-0.5 text-base font-semibold '+primary}>{normalizedScore === null ? 'N/A' : (normalizedScore*100).toFixed(2)+'%'}</p><p className={'text-[9px] '+muted}>{normalized.performed === true ? '256-grid RGB' : 'Not evaluated'}</p></div>
+                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Geometry</p><p className={'mt-0.5 text-base font-semibold '+primary}>{geometryScore === null ? 'N/A' : (geometryScore*100).toFixed(2)+'%'}</p><p className={'text-[9px] '+muted}>Red-region only</p></div>
+                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Background delta</p><p className={'mt-0.5 text-sm font-semibold '+primary}>{backgroundDelta === null ? 'N/A' : backgroundDelta.toFixed(2)}</p><p className={'text-[9px] '+muted}>Lower is closer</p></div>
+                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Exact pixels</p><p className={'mt-0.5 text-sm font-semibold '+primary}>{pixel.performed === true ? (test.exact_match ? 'Matched' : 'Different') : 'Not evaluated'}</p><p className={'text-[9px] '+muted}>{pixel.performed === true ? 'Decoded RGB' : 'Dimensions differ / unavailable'}</p></div>
+                    </div>
+                    <div className="mt-2 border-t border-[var(--vyra-border-subtle)] pt-2">
+                      <p className={'text-[9px] '+muted}>Upload provenance</p>
+                      <p className={'mt-0.5 break-words text-[10px] font-semibold '+(uploadStatus === 'reconciled' ? 'text-emerald-500' : 'text-amber-500')}>{uploadStatus.replaceAll('_',' ')}</p>
+                      {normalizedScore === null && normalizedReason && <p className={'mt-1 text-[9px] '+muted}>{normalizedReason}</p>}
+                      <p className={'mt-1 text-[9px] '+muted}>A high similarity score is not an exact reconstruction pass.</p>
+                    </div>
+                  </article>;
+                })}
+              </div>
+            </div>}
+            <div className="mt-4">
+              <p className={'mb-2 text-xs font-semibold '+primary}>Test history</p>
+              <div className="space-y-2">{reconstructionTests.length ? reconstructionTests.map((test)=><div key={test.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-3"><div><p className={'text-xs font-semibold '+primary}>{test.model_provider} · {test.model_id}</p><p className={'mt-1 text-[10px] '+muted}>{test.protocol_version ?? 'Legacy protocol'} · {test.comparison_mode.replaceAll('_',' ')} · {dateLabel(test.created_at)}</p></div><span className={'text-[10px] font-semibold '+(test.test_status==='passed'&&test.exact_match?'text-emerald-500':subtle)}>{test.test_status}{test.exact_match===true?' · Exact match':test.exact_match===false?' · Not exact':''}</span></div>):<div className="rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><FlaskConical size={20} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No reconstruction tests yet</p><p className={'mt-1 text-[10px] '+muted}>No independent reconstruction comparisons have been saved yet.</p></div>}</div>
+            </div>
           </section>
         </div>
       )}
