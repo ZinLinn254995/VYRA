@@ -389,3 +389,22 @@ The model receives the derived bounded facts and parser limitations, not arbitra
 ### ISO-BMFF track metadata profile extension
 
 The deterministic File DNA analyzer now walks a bounded ISO-BMFF box tree (maximum 4,096 boxes and depth 8), skipping media payload boxes and inspecting metadata containers. Where present it records movie duration/timescale, track handler types, sample-entry codec identifiers, and video dimensions from track headers. Malformed boundaries or safety-limit exhaustion produce a partial result with an explicit note. This is container-level evidence only: it does not decode compressed streams, audio samples, or video frames, and it does not claim scene understanding.
+
+
+## License policy evaluation v1 — explicit grants, exact versions, conservative rights
+
+The initial deterministic evaluator lives in `src/services/vyralLicensePolicyV1.ts`. It encodes the product's three buyer-facing permission tiers without silently granting rights:
+
+| Profile | Use / generate derivatives | Clone branch / edit branch | Resell branch |
+| --- | --- | --- | --- |
+| `basic_use` | Allowed | Not allowed | Not allowed |
+| `clone_branch` | Allowed | Allowed | Not allowed |
+| `modified_branch_resale` | Allowed | Allowed | Allowed |
+
+A grant is scoped to one exact Asset version and one grantee, records a terms version and grant time, and may have an expiry. Multi-Asset operations require a valid grant for every included Asset; the effective permission is the intersection, never the union, of the included grants. A grant for an older Asset version does not silently authorize a newer version. Revoked, expired, wrong-grantee, missing, or insufficient grants deny the action.
+
+The evaluator accepts a verified-owner bypass only as an explicit server-derived boolean. Callers must not accept a client-supplied ownership assertion. The evaluator is a pure policy decision helper, not yet wired into purchase, branch creation, editing, export, resale, or Marketplace APIs. It does not establish copyright ownership, creator identity, legal title, or that the grantor had authority to license the Asset.
+
+**Snapshot integration remains a separate step.** Master DNA should carry immutable references to the effective license grant IDs, terms versions, exact Asset versions, and policy snapshot digest. A license change must create a new Master DNA revision or mark the current one stale; it must not rewrite an older snapshot. Missing license evidence must remain explicitly unknown/restricted rather than being upgraded by inference. Do not populate existing Vyrals with guessed grants or licenses.
+
+Automated tests cover the three tiers, multi-Asset intersection, stale versions, wrong grantees, revoked/expired grants, and explicit verified-owner handling. Runtime enforcement and database persistence are not yet implemented.
