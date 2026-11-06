@@ -1024,21 +1024,36 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               color_management: 'browser-managed-to-sRGB; EXIF orientation disabled; straight-alpha RGBA8 samples',
             },
             decoded_samples: decoded.samples,
+            tile_width: 256,
+            tile_height: 256,
           });
           const tileStoragePaths: string[] = [];
-          for (let index = 0; index < entries.length; index += 1) {
-            const entry = entries[index];
-            const tileStoragePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
-            const tileBuffer = new ArrayBuffer(entry.data.byteLength);
-            new Uint8Array(tileBuffer).set(entry.data);
-            const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
-              tileStoragePath,
-              new Blob([tileBuffer], { type: 'application/octet-stream' }),
-              { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
-            );
-            if (tileUploadError) throw tileUploadError;
-            uploadedDnaTilePaths.push(tileStoragePath);
-            tileStoragePaths.push(tileStoragePath);
+          // Upload a few larger lossless tiles concurrently. This reduces mobile
+          // request count while keeping memory and in-flight work bounded.
+          const tileBatchSize = 3;
+          for (let batchStart = 0; batchStart < entries.length; batchStart += tileBatchSize) {
+            const batch = entries.slice(batchStart, batchStart + tileBatchSize);
+            const outcomes = await Promise.allSettled(batch.map(async (entry, batchIndex) => {
+              const index = batchStart + batchIndex;
+              const tileStoragePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
+              const tileBuffer = new ArrayBuffer(entry.data.byteLength);
+              new Uint8Array(tileBuffer).set(entry.data);
+              const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
+                tileStoragePath,
+                new Blob([tileBuffer], { type: 'application/octet-stream' }),
+                { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
+              );
+              if (tileUploadError) throw new Error('DNA v3 tile ' + (index + 1) + '/' + entries.length + ': ' + tileUploadError.message);
+              return tileStoragePath;
+            }));
+            for (const outcome of outcomes) {
+              if (outcome.status === 'fulfilled') {
+                uploadedDnaTilePaths.push(outcome.value);
+                tileStoragePaths.push(outcome.value);
+              }
+            }
+            const failedTile = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+            if (failedTile) throw failedTile.reason;
           }
           const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
             vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
