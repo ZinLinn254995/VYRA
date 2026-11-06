@@ -36,7 +36,7 @@ export type VyralMasterDnaV1 = {
     evidence_ref?: string | null;
   }>;
   reconstruction_profile: {
-    overall_claim: 'lossless_decoded' | 'source_file_exact' | 'semantic_only' | 'model_reconstructed' | 'mixed' | 'unavailable';
+    overall_claim: 'lossless_decoded' | 'source_file_exact' | 'semantic_only' | 'model_reconstructed' | 'unavailable';
     notes: string[];
     cross_asset_constraints?: Array<{ constraint_id: string; description: string; applies_to_asset_ids?: string[] }>;
   };
@@ -169,9 +169,18 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     if (!connected.has(asset.asset_id)) throw new Error('Every Master DNA asset must have an explicit relationship to an asset or Vyral root.');
   }
   if (!isRecord(value.reconstruction_profile) ||
-      !['lossless_decoded', 'source_file_exact', 'semantic_only', 'model_reconstructed', 'mixed', 'unavailable'].includes(String(value.reconstruction_profile.overall_claim)) ||
+      !['lossless_decoded', 'source_file_exact', 'semantic_only', 'model_reconstructed', 'unavailable'].includes(String(value.reconstruction_profile.overall_claim)) ||
       !Array.isArray(value.reconstruction_profile.notes) || !value.reconstruction_profile.notes.every((item) => typeof item === 'string')) {
     throw new Error('Master DNA reconstruction profile is invalid.');
+  }
+  const claimRank: Record<string, number> = {
+    unavailable: 0, model_reconstructed: 1, semantic_only: 2, lossless_decoded: 3, source_file_exact: 4,
+  };
+  const weakestAssetClaim = [...assetMap.values()].reduce((weakest, asset) =>
+    claimRank[asset.reconstruction_claim] < claimRank[weakest] ? asset.reconstruction_claim : weakest,
+  'source_file_exact' as VyralMasterDnaAsset['reconstruction_claim']);
+  if (value.reconstruction_profile.overall_claim !== weakestAssetClaim) {
+    throw new Error('Master DNA overall reconstruction claim must not exceed the weakest included asset claim.');
   }
   if (!isRecord(value.provenance) || !['verified', 'partially_verified', 'creator_attested', 'unknown'].includes(String(value.provenance.evidence_status)) ||
       !(value.provenance.creator_ref === null || typeof value.provenance.creator_ref === 'string') ||
@@ -183,14 +192,21 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
       !['public_metadata', 'public_assets', 'authenticated_owner', 'no_remote_resolution'].includes(String(value.source_resolution.resolution_policy))) {
     throw new Error('Master DNA source resolution policy is invalid.');
   }
-  if (value.source_resolution.visibility !== 'public' && value.source_resolution.resolution_policy === 'public_assets') {
-    throw new Error('Private or unlisted Vyrals cannot expose public asset resolution.');
+  if (value.source_resolution.visibility !== 'public' &&
+      (value.source_resolution.resolution_policy === 'public_assets' ||
+       value.source_resolution.resolution_policy === 'public_metadata' ||
+       value.source_resolution.canonical_uri !== null)) {
+    throw new Error('Private or unlisted Vyrals cannot expose public metadata, assets, or resolver URIs.');
   }
   if (!isRecord(value.portable_projection) || value.portable_projection.profile !== 'compact' ||
       value.portable_projection.includes_full_reconstruction_payloads !== false ||
       !(value.portable_projection.resolver_uri === null || typeof value.portable_projection.resolver_uri === 'string') ||
       !['no_remote_resolution', 'public_metadata_only', 'authorized_selective_retrieval'].includes(String(value.portable_projection.retrieval_policy))) {
     throw new Error('Master DNA compact portable projection is invalid.');
+  }
+  if (value.source_resolution.visibility !== 'public' &&
+      (value.portable_projection.retrieval_policy === 'public_metadata_only' || value.portable_projection.resolver_uri !== null)) {
+    throw new Error('Private or unlisted compact DNA cannot publish metadata-only resolution or a public resolver URI.');
   }
 }
 
