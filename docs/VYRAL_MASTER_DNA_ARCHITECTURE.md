@@ -1,6 +1,6 @@
 # Vyral Master DNA — Architecture and Product Contract
 
-Status: **Architecture decision / implementation target.** This document defines the intended contract; it does not claim that Master DNA, relationship enforcement, public source resolution, or external-AI reconstruction is already implemented.
+Status: **Architecture decision with an initial validation core implemented.** The Master DNA v1 TypeScript builder/validator and fingerprint tests now exist on the working PR branch. Database persistence, automatic snapshot refresh on asset/relationship changes, compact export integration, and remote selective retrieval remain unimplemented.
 
 ## 1. Core definition
 
@@ -232,3 +232,20 @@ Before this architecture is considered implemented, tests must prove:
 - stale revision, revoked access, missing source, and digest mismatch are explicit outcomes;
 - offline import remains self-describing and never claims exact reconstruction when payloads are absent;
 - an external integration can request, receive, and verify selected source assets without embedding long-lived credentials in the package.
+
+
+## 15. Implementation progress — 2026-11-06
+
+The first executable Master DNA v1 slice is now present in `src/services/vyralMasterDnaV1.ts`:
+
+- Builds a versioned Master DNA snapshot with a deterministic canonical JSON representation.
+- Computes a SHA-256 manifest digest and a domain-separated Vyral fingerprint.
+- Verifies both hashes when validating an imported or stored record.
+- Checks stable Vyral/asset/version references, Main vs Supporting roles, non-empty asset purposes, and explicit relationship coverage.
+- Supports typed relationship endpoints targeting either an Asset/version or the Vyral root.
+- Rejects cross-Vyral references, stale asset-version references, and public-asset resolution for private/unlisted Vyrals.
+- Requires a compact portable projection that excludes full reconstruction payloads.
+
+The JSON Schema now describes the same typed Asset/Vyral relationship endpoints. Automated tests cover snapshot creation, digest tampering, missing purpose/relationships, invalid root/version references, and private visibility policy. The Master DNA test suite is registered in CI.
+
+**Boundary:** this is a deterministic data-contract and integrity core. It does not yet persist Master DNA in Supabase, create new revisions automatically after membership changes, derive a trustworthy reconstruction claim from all child assets, export/import the compact Master DNA through `.vyral`, or implement the VYRA resolver API. Those are the next implementation slices.
