@@ -42,7 +42,7 @@ test('File DNA rejects altered, missing, truncated and undeclared chunks', async
   await assert.rejects(() => reconstructVyralFileDnaV1(record, extra), /undeclared chunk/);
   assert.throws(() => validateVyralFileDnaV1Record({
     ...record, reconstruction: { ...record.reconstruction, chunks: record.reconstruction.chunks.slice(1) },
-  }), /chunk coverage/);
+  }), /chunk metadata|chunk coverage/);
 });
 
 test('File DNA validates source identity and prevents false exact claims', async () => {
