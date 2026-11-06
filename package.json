@@ -22,7 +22,8 @@
     "test:usage-ledger-local-e2e": "node --import tsx --test tests/openrouter-usage-ledger-local-e2e.spec.ts",
     "test:profile-header": "node --import tsx --test tests/profile-subpage-header.spec.ts",
     "test:vyral-package": "node --import tsx --test tests/vyral-package.spec.ts tests/vyral-context-applicability.spec.ts",
-    "test:vyral-context": "node --import tsx --test tests/vyral-context-applicability.spec.ts"
+    "test:vyral-context": "node --import tsx --test tests/vyral-context-applicability.spec.ts",
+    "test:vyral-dna-v3": "node --import tsx --test tests/vyral-dna-v3.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
