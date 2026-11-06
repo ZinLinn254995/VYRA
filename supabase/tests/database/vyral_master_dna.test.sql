@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(20);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -177,10 +177,21 @@ select is(
   'A validated Master DNA revision marks the Vyral ready'
 );
 
+insert into public.vyral_dna_records
+  (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
+values
+  ('24000000-0000-4000-8000-000000000043','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000021','asset',3,'{}'::jsonb,'system');
+
+select is(
+  (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
+  'stale',
+  'Adding a newer Asset DNA record invalidates the previous Master DNA snapshot'
+);
+
 update public.vyral_asset_relationships
 set rationale = 'Updated rationale makes the prior snapshot stale.'
 where vyral_id='24000000-0000-4000-8000-000000000011'
-  and relationship_type='belongs_to';
+  and relationship_type='master_membership';
 
 select is(
   (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
