@@ -153,6 +153,46 @@
         "decoded_samples_sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "sample_layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Canonical byte layout for decoded_samples_sha256. Required in portable DNA-only packages.",
+          "required": [
+            "row_order",
+            "pixel_order",
+            "channel_order",
+            "packing",
+            "row_stride",
+            "hash_algorithm",
+            "hash_scope"
+          ],
+          "properties": {
+            "row_order": {
+              "const": "top-to-bottom"
+            },
+            "pixel_order": {
+              "const": "left-to-right"
+            },
+            "channel_order": {
+              "enum": [
+                "RGB",
+                "RGBA"
+              ]
+            },
+            "packing": {
+              "const": "interleaved"
+            },
+            "row_stride": {
+              "const": "tightly-packed"
+            },
+            "hash_algorithm": {
+              "const": "SHA-256"
+            },
+            "hash_scope": {
+              "const": "full-decoded-sample-stream"
+            }
+          }
         }
       }
     },
