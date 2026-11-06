@@ -158,3 +158,10 @@ The working branch now includes a JWT-protected server builder and a DNA-tab set
 - Remote resolution stays disabled until the VYRA resolver and external connector authorization exist.
 
 The latest app CI and browser run are pending after the newest UI/builder commits. The Development database has not been migrated; no live Edge Function invocation has been verified. Production remains untouched.
+
+
+## 10. Verification and environment boundary — 2026-11-06
+
+The Master DNA builder checks the v3 manifest and confirms all declared private tile objects exist in the canonical Asset storage folder without downloading all lossless DNA payloads. It only claims `lossless_decoded` when an exact decoded-reconstruction test passed for the same pinned Asset version; it only claims `source_file_exact` after a byte-exact test. Storage presence is not treated as reconstruction proof.
+
+Current builder limitation: creator/license references remain unset, remote resolution remains disabled, and compact `.vyral` export/import is not yet connected to Master DNA. The Development project's migration history is behind the working branch (last recorded version `20261105235017`), so the new Master DNA migration must not be applied out of order. Reconcile migration history/schema first. Production is untouched.
