@@ -205,7 +205,7 @@ test('exports and reconstructs a DNA v3-only package without source media or der
       derivative_path: 'private/derived.webp',
     }],
   };
-  const archive = createVyralDnaOnlyPackage(sourceAwareManifest, record, entries);
+  const archive = await createVyralDnaOnlyPackage(sourceAwareManifest, record, entries);
   const files = await readVyralZip(archive);
   const parsed = parseVyralManifest(files);
   assert.equal(parsed.exportMode, 'dna-only');
@@ -243,8 +243,8 @@ test('rejects DNA-only export with missing or undeclared DNA tile payloads', asy
     tile_height: 1,
     decoded_samples: samples,
   });
-  assert.throws(() => createVyralDnaOnlyPackage(manifest, record, entries.slice(1)), /requires every declared v3 tile/);
-  assert.throws(() => createVyralDnaOnlyPackage(manifest, record, [
+  await assert.rejects(() => createVyralDnaOnlyPackage(manifest, record, entries.slice(1)), /requires every declared v3 tile/);
+  await assert.rejects(() => createVyralDnaOnlyPackage(manifest, record, [
     ...entries,
     { path: 'dna/v3/portable-dna-invalid/tiles/extra_0.raw', data: new Uint8Array([1]) },
   ]), /undeclared DNA payload entries/);
