@@ -386,7 +386,10 @@ export const createVyralDnaOnlyPackage = async (
   payloadEntries: VyralDnaV3PackageEntry[],
 ) => {
   const dnaRecord = validateVyralDnaV3Record(dnaRecordValue);
-  if (!Array.isArray(payloadEntries) || payloadEntries.length !== dnaRecord.lossless_payload.tiles.length) {
+  if (!Array.isArray(payloadEntries)) {
+    throw new Error('DNA-only export payload entries must be an array.');
+  }
+  if (payloadEntries.length < dnaRecord.lossless_payload.tiles.length) {
     throw new Error('DNA-only export requires every declared v3 tile payload exactly once.');
   }
   const payloadByPath = new Map<string, Uint8Array>();
