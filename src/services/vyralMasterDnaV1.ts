@@ -162,8 +162,8 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     relationshipIds.add(raw.relationship_id);
     const from = validateEndpoint(raw.from, value.vyral.vyral_id as string, assetMap);
     const to = validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
-    if (from.kind === 'asset') connected.add(from.asset_id);
-    if (to.kind === 'asset') connected.add(to.asset_id);
+    if (from.kind === 'asset' && (to.kind === 'vyral' || to.asset_id !== from.asset_id)) connected.add(from.asset_id);
+    if (to.kind === 'asset' && (from.kind === 'vyral' || from.asset_id !== to.asset_id)) connected.add(to.asset_id);
   }
   for (const asset of assetMap.values()) {
     if (!connected.has(asset.asset_id)) throw new Error('Every Master DNA asset must have an explicit relationship to an asset or Vyral root.');
