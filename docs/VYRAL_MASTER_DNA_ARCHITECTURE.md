@@ -377,3 +377,10 @@ File DNA v1 now carries an optional deterministic `structure` profile alongside 
 - Other containers: conservative signature only.
 
 All parsers are bounded, deterministic and non-generative. A structural profile is not semantic understanding, transcription, OCR, a complete media decode, or a reconstruction proof. Unsupported/ambiguous formats remain explicitly partial, signature-only or unknown. Extractor version is pinned in the record so future parser improvements can create new records rather than silently changing old evidence.
+
+
+## 25. Verified-byte structural re-analysis in AI Chat
+
+AI Chat does not trust a package's optional File DNA structural facts as an authority. After reconstructing File DNA chunks or verifying the pinned full-package source version by size and SHA-256, Chat re-runs the version-pinned deterministic structure analyzer against those exact bytes. If a stored structure profile is present, canonicalized profile data must match the independently derived result or the attachment is rejected. Older records without structure metadata can still be inspected; Chat derives the profile locally from the verified bytes.
+
+The model receives the derived bounded facts and parser limitations, not arbitrary binary bytes. This keeps container metadata tampering separate from actual media understanding.
