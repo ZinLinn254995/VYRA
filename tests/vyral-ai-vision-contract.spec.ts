@@ -22,6 +22,7 @@ test('up to four labelled Vyral asset previews are forwarded through the authent
   assert.match(chat, /assetName/);
   assert.match(service, /request\.visionImages\?\.length/);
   assert.match(service, /visionImages:\s*request\.visionImages/);
+  assert.match(service, /if \(request\.visionImages\?\.length\) \{/);
   assert.match(service, /No text-only preview was substituted/);
   assert.match(server, /if \(\!\(await requireVerifiedVYraSession\(req, res\)\)\) return;/);
   assert.match(server, /visionImages\.length > 4/);
