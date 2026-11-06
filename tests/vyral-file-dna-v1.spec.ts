@@ -78,7 +78,7 @@ test('File DNA detects conservative container signatures for audio, video, 3D an
 });
 
 test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON and GLB assets', async () => {
-  const wav = new Uint8Array(44 + 16);
+  const wav = new Uint8Array(44 + 192000);
   wav.set(new TextEncoder().encode('RIFF'), 0);
   new DataView(wav.buffer).setUint32(4, wav.length - 8, true);
   wav.set(new TextEncoder().encode('WAVEfmt '), 8);
@@ -90,13 +90,13 @@ test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON
   new DataView(wav.buffer).setUint16(32, 4, true);
   new DataView(wav.buffer).setUint16(34, 16, true);
   wav.set(new TextEncoder().encode('data'), 36);
-  new DataView(wav.buffer).setUint32(40, 16, true);
+  new DataView(wav.buffer).setUint32(40, 192000, true);
   const audio = analyzeVyralFileStructureV1(wav, 'audio/wav', 'voice.wav');
   assert.equal(audio.profile, 'audio');
   assert.equal(audio.status, 'parsed');
   assert.equal(audio.facts.find((fact) => fact.key === 'channels')?.value, 2);
   assert.equal(audio.facts.find((fact) => fact.key === 'sample_rate')?.value, 48000);
-  assert.equal(audio.facts.find((fact) => fact.key === 'duration_estimate')?.value, 0.000083);
+  assert.equal(audio.facts.find((fact) => fact.key === 'duration_estimate')?.value, 1);
 
   const pdf = new TextEncoder().encode('%PDF-1.7\\n1 0 obj << /Type /Page >> endobj\\n2 0 obj << /Type /Pages >> endobj');
   const document = analyzeVyralFileStructureV1(pdf, 'application/pdf', 'brief.pdf');
