@@ -6,7 +6,7 @@ import {
 import { Button } from '../ui/Button';
 import { getCurrentAccessToken } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
-import { parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage } from '../../services/vyralPackage.ts';
+import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage } from '../../services/vyralPackage.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -24,6 +24,42 @@ type AIChatPageProps = {
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+type VyralVisionImage = { mimeType: 'image/jpeg'; data: string; width: number; height: number };
+
+const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisionImage> => {
+  const bitmap = await createImageBitmap(new Blob([pngBytes], { type: 'image/png' }));
+  try {
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('Could not prepare a safe Vyral image preview for AI Vision.');
+    context.drawImage(bitmap, 0, 0, width, height);
+
+    const encode = (quality: number) => new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode the Vyral AI Vision preview.')), 'image/jpeg', quality);
+    });
+    let preview = await encode(0.82);
+    if (preview.size > 900 * 1024) preview = await encode(0.68);
+    if (preview.size > 900 * 1024) throw new Error('This image preview is too large to send safely to AI Vision.');
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Could not read the Vyral AI Vision preview.'));
+      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid Vyral AI Vision preview.'));
+      reader.readAsDataURL(preview);
+    });
+    const separator = dataUrl.indexOf(',');
+    if (separator < 0) throw new Error('Invalid Vyral AI Vision preview encoding.');
+    return { mimeType: 'image/jpeg', data: dataUrl.slice(separator + 1), width, height };
+  } finally {
+    bitmap.close();
+  }
+};
 
 const inspectVyralAttachment = async (file: File) => {
   if (file.size > 256 * 1024 * 1024) throw new Error('Vyral package exceeds the 256 MB safety limit.');
@@ -60,6 +96,10 @@ const inspectVyralAttachment = async (file: File) => {
       bytes: reconstruction.samples.byteLength,
     });
   }
+  const firstV3Record = v3Records[0];
+  const visionImage = firstV3Record
+    ? await createVyralVisionPreview((await encodeVyralDnaV3PngFromPackage(files, String(firstV3Record.id))).pngBytes)
+    : null;
   const asset = manifest.assets[0];
   const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
   const lines = [
@@ -71,7 +111,7 @@ const inspectVyralAttachment = async (file: File) => {
     v3Records.length === 0 ? 'No portable DNA v3 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
   ].filter(Boolean);
-  return lines.join('\n');
+  return { context: lines.join('\n'), visionImage };
 };
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired }) => {
@@ -86,6 +126,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
+  const [selectedVyralImage, setSelectedVyralImage] = useState<VyralVisionImage | null>(null);
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,6 +170,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -140,6 +182,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setDraft('');
     setHistoryOpen(false);
@@ -153,6 +196,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       onLoginRequired();
       return;
     }
+    const visionImage = selectedVyralImage;
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
@@ -167,6 +211,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!activeSessionId) setActiveSessionId(makeId());
 
@@ -177,6 +222,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
+        ...(visionImage ? { visionImage: { mimeType: visionImage.mimeType, data: visionImage.data } } : {}),
       });
       setMessages((previous) => [...previous, {
         id: makeId(),
@@ -200,6 +246,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const handleFileSelection = async (file: File | null) => {
     setSelectedFile(file);
     setSelectedVyralContext(null);
+    setSelectedVyralImage(null);
     if (!file) {
       setSelectedFileStatus(null);
       return;
@@ -207,8 +254,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     if (file.name.toLowerCase().endsWith('.vyral')) {
       setSelectedFileStatus('Checking Vyral DNA…');
       try {
-        const summary = await inspectVyralAttachment(file);
-        setSelectedVyralContext(summary);
+        const inspection = await inspectVyralAttachment(file);
+        setSelectedVyralContext(inspection.context);
+        setSelectedVyralImage(inspection.visionImage);
         setSelectedFileStatus('Vyral package validated · DNA v3 checked locally');
       } catch (error) {
         setSelectedFileStatus(error instanceof Error ? error.message : 'Could not validate this Vyral package.');
@@ -356,7 +404,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
               <span className="min-w-0 flex-1 truncate">{selectedFile.name}{selectedFileStatus ? ` · ${selectedFileStatus}` : ''}</span>
-              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
+              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null); setSelectedVyralImage(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
                 <X size={13} />
               </button>
             </div>
