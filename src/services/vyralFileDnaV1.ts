@@ -56,18 +56,38 @@ const sha256 = async (bytes: Uint8Array) => {
 const hex = (bytes: Uint8Array, length = 16) =>
   Array.from(bytes.subarray(0, length), (byte) => byte.toString(16).padStart(2, '0')).join('');
 
+const ascii = (bytes: Uint8Array, start: number, length: number) =>
+  String.fromCharCode(...bytes.subarray(start, start + length));
+
 const detectSignature = (bytes: Uint8Array): string => {
   if (bytes.length >= 8 && hex(bytes, 8) === '89504e470d0a1a0a') return 'png';
   if (bytes.length >= 3 && hex(bytes, 3) === 'ffd8ff') return 'jpeg';
-  if (bytes.length >= 12 && hex(bytes.subarray(0, 4), 4) === '52494646' && hex(bytes.subarray(8, 12), 4) === '57454250') return 'webp';
+  if (bytes.length >= 12 && hex(bytes.subarray(0, 4), 4) === '52494646') {
+    const form = ascii(bytes, 8, 4);
+    if (form === 'WEBP') return 'webp';
+    if (form === 'WAVE') return 'wav';
+    if (form === 'AVI ') return 'avi';
+    return 'riff-container';
+  }
+  if (bytes.length >= 12 && ascii(bytes, 0, 4) === 'FORM') {
+    const form = ascii(bytes, 8, 4);
+    if (form === 'AIFF' || form === 'AIFC') return 'aiff';
+    return 'iff-container';
+  }
   if (bytes.length >= 4 && hex(bytes, 4) === '47494638') return 'gif';
   if (bytes.length >= 4 && hex(bytes, 4) === '25504446') return 'pdf';
   if (bytes.length >= 4 && hex(bytes, 4) === '504b0304') return 'zip-container';
+  if (bytes.length >= 6 && hex(bytes, 6) === '377abcaf271c') return '7z';
+  if (bytes.length >= 7 && ascii(bytes, 0, 7) === 'Rar!\x1a\x07') return 'rar';
   if (bytes.length >= 4 && hex(bytes, 4) === '1f8b0800') return 'gzip';
   if (bytes.length >= 4 && hex(bytes, 4) === '4f676753') return 'ogg-container';
   if (bytes.length >= 4 && hex(bytes, 4) === '664c6143') return 'flac';
-  if (bytes.length >= 4 && hex(bytes, 4) === '52494646') return 'riff-container';
-  if (bytes.length >= 4 && hex(bytes, 4) === '00000018') return 'iso-bmff-family';
+  if (bytes.length >= 3 && ascii(bytes, 0, 3) === 'ID3') return 'mp3-id3';
+  if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return 'mpeg-audio-frame';
+  if (bytes.length >= 8 && ascii(bytes, 4, 4) === 'ftyp') return 'iso-bmff-family';
+  if (bytes.length >= 4 && hex(bytes, 4) === '1a45dfa3') return 'matroska-ebml';
+  if (bytes.length >= 4 && ascii(bytes, 0, 4) === 'glTF') return 'glb';
+  if (bytes.length >= 4 && hex(bytes, 4) === '53514c69') return 'sqlite';
   if (bytes.length >= 4 && hex(bytes, 4) === '2321202f') return 'script-text';
   return 'unknown';
 };
