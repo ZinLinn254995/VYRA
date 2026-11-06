@@ -516,3 +516,103 @@ export const reconstructVyralDnaV3FromPackage = async (
   }
   return reconstructVyralDnaV3(dnaRecord, tileFiles);
 };
+
+const pngUint32 = (value: number) => new Uint8Array([
+  (value >>> 24) & 0xff,
+  (value >>> 16) & 0xff,
+  (value >>> 8) & 0xff,
+  value & 0xff,
+]);
+
+const pngChunk = (type: string, data: Uint8Array) => {
+  const typeBytes = encoder.encode(type);
+  const checksumInput = new Uint8Array(typeBytes.byteLength + data.byteLength);
+  checksumInput.set(typeBytes, 0);
+  checksumInput.set(data, typeBytes.byteLength);
+  const chunk = new Uint8Array(12 + data.byteLength);
+  chunk.set(pngUint32(data.byteLength), 0);
+  chunk.set(typeBytes, 4);
+  chunk.set(data, 8);
+  chunk.set(pngUint32(crc32(checksumInput)), 8 + data.byteLength);
+  return chunk;
+};
+
+/**
+ * Encodes the exact decoded RGB/RGBA samples as a new PNG container.
+ * This deliberately does not claim to recover the original PNG/JPEG bytes.
+ */
+export const encodeVyralDnaV3PngFromPackage = async (
+  files: Map<string, Uint8Array>,
+  recordId: string,
+) => {
+  const reconstruction = await reconstructVyralDnaV3FromPackage(files, recordId);
+  const channels = reconstruction.channel_layout === 'RGBA' ? 4 : 3;
+  const rowBytes = reconstruction.width * channels;
+  const rawLength = reconstruction.height * (rowBytes + 1);
+  if (!Number.isSafeInteger(rawLength) || rawLength > 100 * 1024 * 1024) {
+    throw new Error('DNA v3 PNG reconstruction exceeds the 100 MB output limit.');
+  }
+
+  // PNG filter type 0 preserves each source sample byte without prediction.
+  const scanlines = new Uint8Array(rawLength);
+  for (let y = 0; y < reconstruction.height; y += 1) {
+    const targetStart = y * (rowBytes + 1);
+    scanlines[targetStart] = 0;
+    const sourceStart = y * rowBytes;
+    scanlines.set(reconstruction.samples.subarray(sourceStart, sourceStart + rowBytes), targetStart + 1);
+  }
+
+  // A zlib stream of uncompressed DEFLATE blocks keeps the encoder deterministic
+  // and avoids browser canvas color-management or alpha-premultiplication changes.
+  const deflateParts: Uint8Array[] = [new Uint8Array([0x78, 0x01])];
+  for (let offset = 0; offset < scanlines.byteLength;) {
+    const length = Math.min(65535, scanlines.byteLength - offset);
+    const finalBlock = offset + length === scanlines.byteLength;
+    const header = new Uint8Array([
+      finalBlock ? 1 : 0,
+      length & 0xff,
+      (length >>> 8) & 0xff,
+      (~length) & 0xff,
+      ((~length) >>> 8) & 0xff,
+    ]);
+    deflateParts.push(header, scanlines.subarray(offset, offset + length));
+    offset += length;
+  }
+  let adlerA = 1;
+  let adlerB = 0;
+  for (const value of scanlines) {
+    adlerA = (adlerA + value) % 65521;
+    adlerB = (adlerB + adlerA) % 65521;
+  }
+  deflateParts.push(pngUint32(((adlerB << 16) | adlerA) >>> 0));
+  const zlibLength = deflateParts.reduce((sum, part) => sum + part.byteLength, 0);
+  const zlib = new Uint8Array(zlibLength);
+  let zlibOffset = 0;
+  for (const part of deflateParts) {
+    zlib.set(part, zlibOffset);
+    zlibOffset += part.byteLength;
+  }
+
+  const ihdr = new Uint8Array(13);
+  ihdr.set(pngUint32(reconstruction.width), 0);
+  ihdr.set(pngUint32(reconstruction.height), 4);
+  ihdr[8] = 8;
+  ihdr[9] = channels === 4 ? 6 : 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+  const chunks = [
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', zlib),
+    pngChunk('IEND', new Uint8Array()),
+  ];
+  const pngLength = chunks.reduce((sum, part) => sum + part.byteLength, 0);
+  const pngBytes = new Uint8Array(pngLength);
+  let pngOffset = 0;
+  for (const part of chunks) {
+    pngBytes.set(part, pngOffset);
+    pngOffset += part.byteLength;
+  }
+  return { ...reconstruction, pngBytes };
+};
