@@ -338,6 +338,23 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       }
     }
   }
+  if (manifest.exportMode === 'dna-only') {
+    const capabilities = manifest.reconstructionCapabilities;
+    const v3Records = (manifest.dnaRecords ?? []).filter((record) =>
+      record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3
+    );
+    if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== true ||
+        capabilities.source_decode_independently_verified !== false ||
+        capabilities.encoded_source_bytes_recoverable !== false ||
+        typeof capabilities.color_space_fully_characterized !== 'boolean') {
+      throw new Error('DNA-only reconstruction capability boundaries are missing or invalid.');
+    }
+    if (v3Records.length !== 1 || (manifest.dnaRecords ?? []).length !== 1 ||
+        (manifest.fingerprints ?? []).length !== 0 || (manifest.visionObservations ?? []).length !== 0 ||
+        (manifest.lineage ?? []).length !== 0 || (manifest.reconstructionTests ?? []).length !== 0) {
+      throw new Error('DNA-only packages must isolate one selected v3 record and omit version-bound legacy evidence.');
+    }
+  }
   if (manifest.exportMode !== 'dna-only') {
     for (const assetId of assetIds) {
       if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
