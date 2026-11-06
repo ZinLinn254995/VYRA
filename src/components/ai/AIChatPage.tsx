@@ -112,6 +112,7 @@ const inspectVyralAttachment = async (file: File) => {
     ),
     v3Records.length === 0 ? 'No portable DNA v3 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
+    visionImage ? `AI Vision preview: ${visionImage.width}×${visionImage.height} JPEG derivative; lossless DNA record remains unchanged` : '',
   ].filter(Boolean);
   return { context: lines.join('\n'), visionImage };
 };
@@ -259,7 +260,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const inspection = await inspectVyralAttachment(file);
         setSelectedVyralContext(inspection.context);
         setSelectedVyralImage(inspection.visionImage);
-        setSelectedFileStatus('Vyral package validated · DNA v3 checked locally');
+        setSelectedFileStatus(inspection.visionImage ? 'Vyral package validated · DNA v3 checked · AI Vision preview ready' : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
       } catch (error) {
         setSelectedFileStatus(error instanceof Error ? error.message : 'Could not validate this Vyral package.');
       }
@@ -291,6 +292,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -306,6 +308,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
