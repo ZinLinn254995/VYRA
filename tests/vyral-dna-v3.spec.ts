@@ -61,7 +61,7 @@ test('DNA v3 rejects missing, altered, or truncated tiles', async () => {
 test('DNA v3 rejects wrong dimensions, unsupported schema, and incomplete tile grids', async () => {
   const samples = new Uint8Array(3 * 2 * 4).fill(42);
   const { record } = await createVyralDnaV3(makeInput(samples));
-  await assert.rejects(() => createVyralDnaV3(makeInput(samples.slice(1))), /byte length does not match/);
+  await assert.rejects(() => createVyralDnaV3(makeInput(samples.slice(1)), /byte length does not match/);
   assert.throws(() => validateVyralDnaV3Record({ ...record, schema_version: 2 }), /Unsupported VYRA DNA schema/);
   assert.throws(() => validateVyralDnaV3Record({
     ...record,
@@ -78,4 +78,29 @@ test('DNA v3 rejects a decoded sample stream with an incorrect aggregate digest'
   };
   const files = new Map(entries.map((entry) => [entry.path, entry.data]));
   await assert.rejects(() => reconstructVyralDnaV3(tamperedRecord, files), /decoded-sample digest does not match/);
+});
+
+test('DNA v3 rejects malformed nested metadata without leaking TypeErrors', async () => {
+  const { record } = await createVyralDnaV3(makeInput(new Uint8Array(24).fill(7)));
+  assert.throws(() => validateVyralDnaV3Record({ ...record, source: null }), /source asset and version IDs/);
+  assert.throws(() => validateVyralDnaV3Record({ ...record, decoded_image: null }), /decoded image metadata/);
+  assert.throws(() => validateVyralDnaV3Record({
+    ...record,
+    decoded_image: { ...record.decoded_image, decoder_contract: null },
+  }), /extraction and decoder provenance/);
+  assert.throws(() => validateVyralDnaV3Record({
+    ...record,
+    decoded_image: { ...record.decoded_image, alpha_mode: 'transparent-ish' },
+  }), /alpha mode is unsupported/);
+  assert.throws(() => validateVyralDnaV3Record({
+    ...record,
+    lossless_payload: { ...record.lossless_payload, tiles: [null] },
+  }), /tile metadata is missing or invalid/);
+});
+
+test('DNA v3 reconstruction rejects undeclared tile payloads', async () => {
+  const { record, entries } = await createVyralDnaV3(makeInput(new Uint8Array(24).fill(3)));
+  const files = new Map(entries.map((entry) => [entry.path, entry.data]));
+  files.set('dna/v3/dna-v3-test/tiles/extra_0.raw', new Uint8Array([1]));
+  await assert.rejects(() => reconstructVyralDnaV3(record, files), /undeclared tile/);
 });
