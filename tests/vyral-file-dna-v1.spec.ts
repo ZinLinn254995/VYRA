@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVyralFileDnaV1, reconstructVyralFileDnaV1, validateVyralFileDnaV1Record } from '../src/services/vyralFileDnaV1.ts';
+import { analyzeVyralFileStructureV1, createVyralFileDnaV1, reconstructVyralFileDnaV1, validateVyralFileDnaV1Record } from '../src/services/vyralFileDnaV1.ts';
 
 const source = { asset_id: 'asset-1', asset_version_id: 'version-1' };
 const sample = new Uint8Array([0x50,0x4b,0x03,0x04,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]);
@@ -76,3 +76,58 @@ test('File DNA detects conservative container signatures for audio, video, 3D an
     assert.equal(record.file.format_signature, item.expected);
   }
 });
+
+test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON and GLB assets', async () => {
+  const wav = new Uint8Array(44 + 16);
+  wav.set(new TextEncoder().encode('RIFF'), 0);
+  new DataView(wav.buffer).setUint32(4, wav.length - 8, true);
+  wav.set(new TextEncoder().encode('WAVEfmt '), 8);
+  new DataView(wav.buffer).setUint32(16, 16, true);
+  new DataView(wav.buffer).setUint16(20, 1, true);
+  new DataView(wav.buffer).setUint16(22, 2, true);
+  new DataView(wav.buffer).setUint32(24, 48000, true);
+  new DataView(wav.buffer).setUint32(28, 192000, true);
+  new DataView(wav.buffer).setUint16(32, 4, true);
+  new DataView(wav.buffer).setUint16(34, 16, true);
+  wav.set(new TextEncoder().encode('data'), 36);
+  new DataView(wav.buffer).setUint32(40, 16, true);
+  const audio = analyzeVyralFileStructureV1(wav, 'audio/wav', 'voice.wav');
+  assert.equal(audio.profile, 'audio');
+  assert.equal(audio.status, 'parsed');
+  assert.equal(audio.facts.find((fact) => fact.key === 'channels')?.value, 2);
+  assert.equal(audio.facts.find((fact) => fact.key === 'sample_rate')?.value, 48000);
+  assert.equal(audio.facts.find((fact) => fact.key === 'duration_estimate')?.value, 0.000083);
+
+  const pdf = new TextEncoder().encode('%PDF-1.7\\n1 0 obj << /Type /Page >> endobj\\n2 0 obj << /Type /Pages >> endobj');
+  const document = analyzeVyralFileStructureV1(pdf, 'application/pdf', 'brief.pdf');
+  assert.equal(document.profile, 'document');
+  assert.equal(document.facts.find((fact) => fact.key === 'page_object_markers')?.value, 1);
+  assert.ok(document.notes.some((note) => note.includes('lower-bound')));
+
+  const json = new TextEncoder().encode(JSON.stringify({ nodes: [{ name: 'root' }], meshes: [{ primitives: [] }], materials: [] }));
+  const model = analyzeVyralFileStructureV1(json, 'application/json', 'scene.gltf');
+  assert.equal(model.profile, 'model_3d');
+  assert.equal(model.facts.find((fact) => fact.key === 'nodes_count')?.value, 1);
+  assert.equal(model.facts.find((fact) => fact.key === 'meshes_count')?.value, 1);
+
+  const text = new TextEncoder().encode('# Heading\\nsecond line\\n');
+  const structure = analyzeVyralFileStructureV1(text, 'text/markdown', 'notes.md');
+  assert.equal(structure.profile, 'text');
+  assert.equal(structure.facts.find((fact) => fact.key === 'line_count')?.value, 3);
+  assert.equal(structure.facts.find((fact) => fact.key === 'markdown_heading_count')?.value, 1);
+});
+
+test('File DNA embeds structural metadata but never stores document text or semantic guesses', async () => {
+  const bytes = new TextEncoder().encode('{"title":"private content","items":[1,2,3]}');
+  const { record } = await createVyralFileDnaV1({
+    record_id: 'file-dna-structure', source, bytes, mime_type: 'application/json', filename: 'metadata.json',
+  });
+  assert.equal(record.structure?.profile, 'text');
+  assert.equal(record.structure?.facts.find((fact) => fact.key === 'json_top_level_keys')?.value, 2);
+  assert.equal(JSON.stringify(record.structure).includes('private content'), false);
+  assert.throws(() => validateVyralFileDnaV1Record({
+    ...record,
+    structure: { profile: 'audio', status: 'parsed', extractor_version: '1.0.0', facts: [{ key: 'bad key', value: 1, evidence: 'container_header' }], notes: [] },
+  }), /structural fact is invalid/);
+});
+
