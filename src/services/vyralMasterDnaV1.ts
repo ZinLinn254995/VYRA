@@ -124,7 +124,7 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   if (!isRecord(value.snapshot) || !Number.isSafeInteger(value.snapshot.revision) || Number(value.snapshot.revision) < 1 || !isDate(value.snapshot.created_at)) {
     throw new Error('Master DNA snapshot metadata is invalid.');
   }
-  if (!isRecord(value.purpose) || !isText(value.purpose.summary) || !Array.isArray(value.purpose.intended_uses) ||
+  if (!isRecord(value.purpose) || !isText(value.purpose.summary) || !Array.isArray(value.purpose.intended_uses) || value.purpose.intended_uses.length === 0 ||
       !value.purpose.intended_uses.every(isText) || !Array.isArray(value.main_asset_ids) || !Array.isArray(value.assets) ||
       value.assets.length === 0 || !Array.isArray(value.relationships)) {
     throw new Error('Master DNA purpose, asset inventory, or relationships are invalid.');
