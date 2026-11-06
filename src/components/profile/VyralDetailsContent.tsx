@@ -1113,6 +1113,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!version) { setError('The original asset version is missing; recovery stopped without changing the asset.'); return; }
     setVerifyingAssetId(asset.id); setError(''); setPackageStatus('Recovering DNA from the preserved original file…');
     const newTilePaths: string[] = [];
+    let dnaRecordInserted = false;
     try {
       const { data: existingDna, error: existingDnaError } = await supabase.from('vyral_dna_records').select('id').eq('asset_id', asset.id).limit(1);
       if (existingDnaError) throw existingDnaError;
@@ -1154,12 +1155,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: true, recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false },
       });
       if (insertError) throw insertError;
-      const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', auth.user.id);
+      dnaRecordInserted = true;
+      const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', auth.user.id).select('id').maybeSingle();
       if (readyError) throw readyError;
+      if (!readyAsset) throw new Error('DNA record was saved, but asset status could not be updated. Stored DNA tiles were preserved.');
       setPackageStatus('DNA v3 recovered and saved for ' + asset.name + '. Original file hash and size were verified.'); await loadWorkspace();
     } catch (cause) {
-      if (newTilePaths.length) { const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(newTilePaths); if (cleanupError) setPackageStatus('Recovery stopped; partial recovery tiles need cleanup: ' + cleanupError.message); }
-      setError(cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.');
+      if (!dnaRecordInserted && newTilePaths.length) { const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(newTilePaths); if (cleanupError) setPackageStatus('Recovery stopped; partial recovery tiles need cleanup: ' + cleanupError.message); }
+      setError((cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.') + (dnaRecordInserted ? ' DNA record and tiles were retained; only the ready-state update needs recovery.' : ''));
     } finally { setVerifyingAssetId(null); }
   };
   const verifyAssetIntegrity = async (asset: AssetRow) => {
