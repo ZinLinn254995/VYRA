@@ -12,15 +12,25 @@ alter table public.vyrals
   add column if not exists master_dna_intended_uses jsonb not null default '[]'::jsonb
     check (jsonb_typeof(master_dna_intended_uses) = 'array');
 
-alter table public.vyral_assets
-  add column if not exists master_dna_role text
-    check (master_dna_role is null or master_dna_role in ('main','supporting')),
-  add column if not exists master_dna_purpose text
-    check (master_dna_purpose is null or char_length(btrim(master_dna_purpose)) between 1 and 2000);
+-- Classification metadata is kept separately so protected source Asset rows remain immutable.
+create table if not exists public.vyral_master_dna_asset_metadata (
+  id uuid primary key default gen_random_uuid(),
+  asset_id uuid not null,
+  vyral_id uuid not null,
+  user_id uuid not null,
+  role text not null check (role in ('main','supporting')),
+  purpose text not null check (char_length(btrim(purpose)) between 1 and 2000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vyral_master_dna_asset_metadata_asset_unique unique (asset_id),
+  constraint vyral_master_dna_asset_metadata_scope_unique unique (asset_id,vyral_id,user_id),
+  constraint vyral_master_dna_asset_metadata_asset_fk
+    foreign key (asset_id,vyral_id,user_id)
+    references public.vyral_assets(id,vyral_id,user_id) on delete cascade
+);
 
-create index if not exists vyral_assets_master_dna_classification_idx
-  on public.vyral_assets(vyral_id,user_id,master_dna_role)
-  where master_dna_role is null or master_dna_purpose is null;
+create index if not exists vyral_master_dna_asset_metadata_owner_idx
+  on public.vyral_master_dna_asset_metadata(vyral_id,user_id,role);
 
 create table if not exists public.vyral_asset_relationships (
   id uuid primary key default gen_random_uuid(),
@@ -131,8 +141,10 @@ begin
       and v.master_dna_purpose is not null and btrim(v.master_dna_purpose) <> '')
     or exists (
       select 1 from public.vyral_assets a
+      left join public.vyral_master_dna_asset_metadata meta
+        on meta.asset_id = a.id and meta.vyral_id = a.vyral_id and meta.user_id = a.user_id
       where a.vyral_id = target_vyral_id and a.user_id = target_user_id
-        and (a.master_dna_role is null or a.master_dna_purpose is null or btrim(a.master_dna_purpose) = '')
+        and (meta.asset_id is null or meta.role is null or meta.purpose is null or btrim(meta.purpose) = '')
     )
   ) into has_unclassified_assets;
 
@@ -165,8 +177,10 @@ begin
     new.master_dna_purpose is null or btrim(new.master_dna_purpose) = ''
     or exists (
       select 1 from public.vyral_assets a
+      left join public.vyral_master_dna_asset_metadata meta
+        on meta.asset_id = a.id and meta.vyral_id = a.vyral_id and meta.user_id = a.user_id
       where a.vyral_id = new.id and a.user_id = new.user_id
-        and (a.master_dna_role is null or a.master_dna_purpose is null or btrim(a.master_dna_purpose) = '')
+        and (meta.asset_id is null or meta.role is null or meta.purpose is null or btrim(meta.purpose) = '')
     )
   ) into has_unclassified_assets;
 
@@ -191,6 +205,11 @@ create trigger vyral_assets_mark_master_dna_stale
 after insert or update or delete on public.vyral_assets
 for each row execute function public.mark_vyral_master_dna_stale();
 
+drop trigger if exists vyral_master_dna_asset_metadata_mark_stale on public.vyral_master_dna_asset_metadata;
+create trigger vyral_master_dna_asset_metadata_mark_stale
+after insert or update or delete on public.vyral_master_dna_asset_metadata
+for each row execute function public.mark_vyral_master_dna_stale();
+
 drop trigger if exists vyral_asset_versions_mark_master_dna_stale on public.vyral_asset_versions;
 create trigger vyral_asset_versions_mark_master_dna_stale
 after insert or update or delete on public.vyral_asset_versions
@@ -206,8 +225,17 @@ create trigger vyral_asset_relationships_mark_master_dna_stale
 after insert or update or delete on public.vyral_asset_relationships
 for each row execute function public.mark_vyral_master_dna_stale();
 
+alter table public.vyral_master_dna_asset_metadata enable row level security;
 alter table public.vyral_asset_relationships enable row level security;
 alter table public.vyral_master_dna_revisions enable row level security;
+
+create policy "vyral_master_dna_asset_metadata_select_own"
+  on public.vyral_master_dna_asset_metadata for select to authenticated
+  using (user_id = (select auth.uid()));
+
+revoke all on public.vyral_master_dna_asset_metadata from public, anon, authenticated;
+grant select on public.vyral_master_dna_asset_metadata to authenticated;
+grant select on public.vyral_master_dna_asset_metadata to service_role;
 
 create policy "vyral_asset_relationships_select_own"
   on public.vyral_asset_relationships for select to authenticated
@@ -232,6 +260,8 @@ revoke all on public.vyral_master_dna_revisions from public, anon, authenticated
 grant select on public.vyral_master_dna_revisions to authenticated;
 grant select, insert on public.vyral_master_dna_revisions to service_role;
 
+comment on table public.vyral_master_dna_asset_metadata is
+  'Separate Master DNA role and purpose metadata; canonical Asset source rows remain immutable.';
 comment on table public.vyral_asset_relationships is
   'Typed, rationale-bearing semantic graph edges between assets and their canonical Vyral root.';
 comment on table public.vyral_master_dna_revisions is
@@ -305,8 +335,10 @@ begin
 
   if exists (
     select 1 from public.vyral_assets a
+    left join public.vyral_master_dna_asset_metadata meta
+      on meta.asset_id = a.id and meta.vyral_id = a.vyral_id and meta.user_id = a.user_id
     where a.vyral_id = new.vyral_id and a.user_id = new.user_id
-      and (a.master_dna_role is null or a.master_dna_purpose is null or btrim(a.master_dna_purpose) = '')
+      and (meta.asset_id is null or meta.role is null or meta.purpose is null or btrim(meta.purpose) = '')
   ) then
     raise exception using errcode = '23514', message = 'Every Vyral asset must have a declared Master DNA role and purpose before snapshot creation.';
   end if;
@@ -322,7 +354,7 @@ begin
   end if;
 
   for asset_row in
-    select a.id, a.master_dna_role, a.master_dna_purpose,
+    select a.id, meta.role as master_dna_role, meta.purpose as master_dna_purpose,
       (select av.id from public.vyral_asset_versions av
        where av.asset_id = a.id and av.vyral_id = a.vyral_id and av.user_id = a.user_id
        order by av.version_number desc limit 1) as latest_version_id,
@@ -330,6 +362,8 @@ begin
        where av.asset_id = a.id and av.vyral_id = a.vyral_id and av.user_id = a.user_id
        order by av.version_number desc limit 1) as latest_version_sha256
     from public.vyral_assets a
+    join public.vyral_master_dna_asset_metadata meta
+      on meta.asset_id = a.id and meta.vyral_id = a.vyral_id and meta.user_id = a.user_id
     where a.vyral_id = new.vyral_id and a.user_id = new.user_id
   loop
     select item into snapshot_asset
@@ -460,11 +494,12 @@ begin
     target_kind := 'asset';
   end if;
 
-  update public.vyral_assets
-  set master_dna_role = p_role,
-      master_dna_purpose = btrim(p_purpose),
-      updated_at = now()
-  where id = p_asset_id and vyral_id = target_vyral_id and user_id = caller_id;
+  insert into public.vyral_master_dna_asset_metadata (asset_id,vyral_id,user_id,role,purpose)
+  values (p_asset_id,target_vyral_id,caller_id,p_role,btrim(p_purpose))
+  on conflict (asset_id) do update
+    set role = excluded.role,
+        purpose = excluded.purpose,
+        updated_at = now();
 
   delete from public.vyral_asset_relationships
   where vyral_id = target_vyral_id and user_id = caller_id
