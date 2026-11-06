@@ -6,7 +6,8 @@ import {
 import { Button } from '../ui/Button';
 import { getCurrentAccessToken } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
-import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage } from '../../services/vyralPackage.ts';
+import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
+import { validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
@@ -74,9 +75,14 @@ const inspectVyralAttachment = async (file: File) => {
   const v3Records = manifest.dnaRecords.filter((record) =>
     record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3
   );
-  if (v3Records.length > 32) throw new Error('This Vyral contains too many DNA records for one chat attachment.');
+  const fileRecords = manifest.dnaRecords.filter((record) =>
+    record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1
+  );
+  if (v3Records.length + fileRecords.length > 64) throw new Error('This Vyral contains too many DNA records for one chat attachment.');
   const verified: { width: number; height: number; channels: string; digest: string; bytes: number }[] = [];
+  const verifiedFiles: { assetId: string; assetName: string; mimeType: string; format: string; extension: string | null; bytes: number; digest: string; exactSourceBytes: boolean; verificationSource: string }[] = [];
   let totalDecodedBytes = 0;
+  let totalFileBytes = 0;
   for (const record of v3Records) {
     const dna = record.dna_record as {
       decoded_image?: { width?: number; height?: number; channel_layout?: string };
@@ -102,6 +108,46 @@ const inspectVyralAttachment = async (file: File) => {
       bytes: reconstruction.samples.byteLength,
     });
   }
+  for (const record of fileRecords) {
+    const dna = validateVyralFileDnaV1Record(record.dna_record);
+    const fileBytes = Number(dna.file.size_bytes);
+    if (!Number.isSafeInteger(fileBytes) || fileBytes <= 0 || fileBytes > 128 * 1024 * 1024) {
+      throw new Error('A File DNA asset exceeds the 128 MB chat inspection limit.');
+    }
+    totalFileBytes += fileBytes;
+    if (totalFileBytes > 128 * 1024 * 1024) throw new Error('This Vyral exceeds the 128 MB total File DNA inspection limit.');
+    let verifiedBytes: Uint8Array;
+    let verificationSource: string;
+    let exactSourceBytes = false;
+    if (dna.reconstruction.claim === 'source_file_exact') {
+      verifiedBytes = await reconstructVyralFileDnaFromPackage(files, String(record.id));
+      verificationSource = 'lossless File DNA chunks';
+      exactSourceBytes = true;
+    } else {
+      const sourceVersion = manifest.versions.find((version) => version.id === dna.source.asset_version_id);
+      const packagePath = sourceVersion?.package_path;
+      const sourceBytes = typeof packagePath === 'string' ? files.get(packagePath) : undefined;
+      if (!sourceBytes) throw new Error('A File DNA record has neither exact reconstruction chunks nor its pinned source version.');
+      if (sourceBytes.byteLength !== dna.file.size_bytes) throw new Error('A File DNA source version has a size mismatch.');
+      const digest = await crypto.subtle.digest('SHA-256', sourceBytes.slice().buffer);
+      const sourceSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      if (sourceSha256 !== dna.file.sha256) throw new Error('A File DNA source version failed its SHA-256 identity check.');
+      verifiedBytes = sourceBytes;
+      verificationSource = 'full-package original version';
+    }
+    const recordAsset = manifest.assets.find((item) => item.id === record.asset_id);
+    verifiedFiles.push({
+      assetId: String(record.asset_id),
+      assetName: String(recordAsset?.name ?? record.asset_id),
+      mimeType: dna.file.mime_type,
+      format: dna.file.format_signature,
+      extension: dna.file.extension,
+      bytes: verifiedBytes.byteLength,
+      digest: dna.file.sha256,
+      exactSourceBytes,
+      verificationSource,
+    });
+  }
   const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
   if (masterDna && masterDna.vyral.vyral_id !== String(manifest.vyral.id)) {
     throw new Error('Vyral Master DNA identity does not match this package.');
@@ -122,11 +168,14 @@ const inspectVyralAttachment = async (file: File) => {
     `Package: ${String(manifest.vyral.name)} (${mode})`,
     `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
     masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
-    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose.summary}`, `Intended uses: ${masterDna.purpose.intended_uses.join(', ')}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role}; ${item.media_type}; purpose: ${item.purpose}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${masterDna.relationships.length}): ${masterDna.relationships.slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} DNA v3 asset previews are attached to this Vision request (maximum four); remaining assets are represented by verified Master DNA metadata only.`]; })() : []),
+    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose.summary}`, `Intended uses: ${masterDna.purpose.intended_uses.join(', ')}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role}; ${item.media_type}; purpose: ${item.purpose}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${masterDna.relationships.length}): ${masterDna.relationships.slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} raster DNA v3 asset previews are attached to this Vision request (maximum four); File DNA binaries are integrity-checked but their audio/video/document contents are not decoded or attached to Vision.`]; })() : []),
     ...verified.map((item) =>
-      `DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
+      `Raster DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
     ),
-    v3Records.length === 0 ? 'No portable DNA v3 reconstruction record was found in this package.' : '',
+    ...verifiedFiles.map((item) =>
+      `File DNA v1 verified for ${item.assetName} (${item.assetId}): ${item.mimeType}; format signature ${item.format}; extension ${item.extension ?? 'unknown'}; ${item.bytes.toLocaleString()} bytes; SHA-256 ${item.digest}; verification source: ${item.verificationSource}; exact source bytes reconstructed from DNA: ${item.exactSourceBytes ? 'yes' : 'no'}; semantic file contents were not parsed or attached to Vision`
+    ),
+    v3Records.length === 0 && fileRecords.length === 0 ? 'No supported portable Asset DNA v3 or File DNA v1 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
     ...visionImages.map((item, index) => `AI Vision preview ${index + 1}: ${item.assetName} (${item.assetId}), ${item.width}×${item.height} JPEG derivative; lossless DNA remains unchanged`),
   ].filter(Boolean);
