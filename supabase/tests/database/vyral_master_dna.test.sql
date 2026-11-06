@@ -83,9 +83,9 @@ select set_config('request.jwt.claim.sub','24000000-0000-4000-8000-000000000002'
 select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 
 select lives_ok(
-  $ select public.set_vyral_master_dna_asset_classification(
+  $$ select public.set_vyral_master_dna_asset_classification(
     '24000000-0000-4000-8000-000000000023','main','Protected sample asset.',null,'Protected source remains unchanged; classification is stored separately.'
-  ) $,
+  ) $$,
   'Protected Vyral Assets can receive separate Master DNA metadata without source-row mutation'
 );
 
