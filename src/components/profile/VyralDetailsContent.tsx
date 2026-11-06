@@ -19,7 +19,7 @@ type AssetRow = {
   id: string; vyral_id: string; folder_id: string | null; name: string; original_filename: string;
   asset_type: string; mime_type: string; size_bytes: number; storage_path: string; sha256: string | null;
   processing_status: string; description: string; created_at: string; updated_at: string;
-  master_dna_role?: 'main' | 'supporting' | null; master_dna_purpose?: string | null;
+
 };
 type DnaRow = {
   id: string; asset_id: string | null; scope: string; dna_status: string; source_kind: string;
@@ -202,6 +202,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyral_reconstruction_tests').select('*').eq('vyral_id', vyral.id).order('created_at', { ascending: false }),
       supabase.from('vyrals').select('master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses').eq('id', vyral.id).single(),
       supabase.from('vyral_asset_relationships').select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale').eq('vyral_id', vyral.id).order('created_at', { ascending: true }),
+      supabase.from('vyral_master_dna_asset_metadata').select('asset_id,role,purpose').eq('vyral_id', vyral.id).eq('user_id', user.id),
     ]);
     const failed = results.slice(0, 6).find((item) => item.error);
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
@@ -226,12 +227,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setReconstructionTests((results[5].data ?? []) as ReconstructionRow[]);
     const masterRootResult = results[6];
     const masterEdgesResult = results[7];
-    const masterSchemaReady = !masterRootResult.error && !masterEdgesResult.error && Boolean(masterRootResult.data);
+    const masterMetadataResult = results[8];
+    const masterSchemaReady = !masterRootResult.error && !masterEdgesResult.error && !masterMetadataResult.error && Boolean(masterRootResult.data);
     setMasterDnaAvailable(masterSchemaReady);
     if (masterSchemaReady) {
       setMasterDnaMessage('');
       const masterRoot = masterRootResult.data as Pick<Vyral, 'master_dna_status' | 'master_dna_revision' | 'master_dna_purpose' | 'master_dna_intended_uses'>;
       const masterEdges = (masterEdgesResult.data ?? []) as MasterRelationshipRow[];
+      const masterMetadata = new Map<string, { role: 'main' | 'supporting'; purpose: string }>(
+        (masterMetadataResult.data ?? []).map((item: { asset_id: string; role: 'main' | 'supporting'; purpose: string }) => [item.asset_id, { role: item.role, purpose: item.purpose }]),
+      );
       setMasterRelationships(masterEdges);
       setMasterDnaPurposeDraft(masterRoot.master_dna_purpose ?? '');
       setMasterDnaUsesDraft((masterRoot.master_dna_intended_uses ?? []).join(', '));
@@ -239,9 +244,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setMasterDnaRevision(masterRoot.master_dna_revision ?? 0);
       setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => {
         const edge = masterEdges.find((item) => item.relationship_type === 'master_membership' && item.from_kind === 'asset' && item.from_asset_id === asset.id);
+        const metadata = masterMetadata.get(asset.id);
         return [asset.id, {
-          role: asset.master_dna_role ?? '',
-          purpose: asset.master_dna_purpose ?? '',
+          role: metadata?.role ?? '',
+          purpose: metadata?.purpose ?? '',
           targetAssetId: edge?.to_kind === 'asset' && edge.to_asset_id ? edge.to_asset_id : '__vyral__',
           rationale: edge?.rationale ?? '',
         }];
@@ -253,7 +259,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setMasterDnaStatus('not_available');
       setMasterDnaRevision(0);
       setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => [asset.id, {
-        role: asset.master_dna_role ?? '', purpose: asset.master_dna_purpose ?? '', targetAssetId: '__vyral__', rationale: '',
+        role: '', purpose: '', targetAssetId: '__vyral__', rationale: '',
       }])));
       setMasterDnaMessage('Master DNA database migration is not applied in this environment yet. Existing Vyral tools remain available.');
     }
@@ -1928,9 +1934,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             {assets.length === 0 ? <p className={'mt-3 text-xs '+muted}>Add at least one Asset before building Master DNA.</p> : <div className="mt-4 space-y-3">
               <div><h4 className={'text-xs font-semibold '+primary}>Asset roles, purposes and relationships</h4><p className={'mt-1 text-[10px] '+muted}>Main and Supporting are organizational roles. A relationship may point to the Vyral root or any other Asset, with a clear reason.</p></div>
               {assets.map((asset) => {
-                const draft = masterAssetDrafts[asset.id] ?? { role: asset.master_dna_role ?? '', purpose: asset.master_dna_purpose ?? '', targetAssetId: '__vyral__', rationale: '' };
+                const draft = masterAssetDrafts[asset.id] ?? { role: '', purpose: '', targetAssetId: '__vyral__', rationale: '' };
                 return <article key={asset.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2"><p className={'text-xs font-semibold '+primary}>{asset.name}</p><span className={'text-[9px] '+muted}>{asset.master_dna_role ?? 'role not set'}</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-2"><p className={'text-xs font-semibold '+primary}>{asset.name}</p><span className={'text-[9px] '+muted}>{masterAssetDrafts[asset.id]?.role || 'role not set'}</span></div>
                   <div className="mt-3 grid gap-2 md:grid-cols-2">
                     <label><span className={'mb-1 block text-[10px] '+subtle}>Role</span><select value={draft.role} onChange={(event)=>updateMasterAssetDraft(asset.id,{role:event.target.value as MasterAssetDraft['role']})} className={field}><option value="">Choose role</option><option value="main">Main Asset</option><option value="supporting">Supporting Asset</option></select></label>
                     <label><span className={'mb-1 block text-[10px] '+subtle}>Purpose</span><input value={draft.purpose} onChange={(event)=>updateMasterAssetDraft(asset.id,{purpose:event.target.value})} className={field} maxLength={2000} placeholder="Why does this Asset belong here?"/></label>
