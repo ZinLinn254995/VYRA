@@ -7,11 +7,14 @@ import {
   validateVyralManifest,
   VYRAL_PACKAGE_FORMAT,
   createVyralDnaOnlyPackage,
+  createVyralAssetDnaOnlyPackage,
   reconstructVyralDnaV3FromPackage,
+  reconstructVyralFileDnaFromPackage,
   encodeVyralDnaV3PngFromPackage,
 } from '../src/services/vyralPackage.ts';
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
+import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
 
 const manifest = {
   format: VYRAL_PACKAGE_FORMAT,
@@ -476,4 +479,59 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     const source = sourceRecords.find((item) => item.record_id === record.id)!;
     assert.equal(reconstructed.decoded_samples_sha256, source.decoded_image.decoded_samples_sha256);
   }
+});
+
+
+test('exports, validates and reconstructs a DNA-only binary File DNA package from clean ZIP bytes', async () => {
+  const original = new Uint8Array([0x50,0x4b,0x03,0x04,11,22,33,44,55,66,77,88,99,111,122,133,144,155,166,177,188]);
+  const fileDna = await createVyralFileDnaV1({
+    record_id: 'portable-file-dna',
+    source: { asset_id: 'asset-test', asset_version_id: 'version-test' },
+    bytes: original,
+    mime_type: 'application/zip',
+    filename: 'project.zip',
+    include_payload: true,
+    chunk_size: 8,
+  });
+  const sourceAwareManifest = {
+    ...manifest,
+    assets: [{ id: 'asset-test', name: 'Project archive', asset_type: 'archive', mime_type: 'application/zip' }],
+    versions: [],
+    masterDna: null,
+  };
+  const archive = await createVyralAssetDnaOnlyPackage(sourceAwareManifest, [fileDna.record], fileDna.entries);
+  const files = await readVyralZip(new Uint8Array(await archive.arrayBuffer()));
+  const parsed = parseVyralManifest(files);
+  assert.equal(parsed.exportMode, 'dna-only');
+  assert.equal(parsed.dnaRecords.length, 1);
+  assert.equal(parsed.dnaRecords[0].dna_schema_id, 'vyra.asset-file-dna');
+  assert.equal(parsed.reconstructionCapabilities?.decoded_sample_stream_reconstructable, false);
+  assert.equal(parsed.reconstructionCapabilities?.encoded_source_bytes_recoverable, true);
+  assert.equal(parsed.reconstructionCapabilities?.binary_source_bytes_reconstructable, true);
+  const restored = await reconstructVyralFileDnaFromPackage(files, 'portable-file-dna');
+  assert.deepEqual(restored, original);
+
+  const tampered = new Map(files);
+  const chunkPath = fileDna.record.reconstruction.chunks[0].package_path;
+  const changed = tampered.get(chunkPath)!.slice();
+  changed[0] ^= 0xff;
+  tampered.set(chunkPath, changed);
+  await assert.rejects(() => reconstructVyralFileDnaFromPackage(tampered, 'portable-file-dna'), /failed integrity|SHA-256/);
+  const undeclared = new Map(files);
+  undeclared.set('extra.bin', new Uint8Array([1]));
+  assert.throws(() => parseVyralManifest(undeclared), /undeclared file/);
+});
+
+test('mixed DNA-only export requires exact File DNA payloads and a record for every asset', async () => {
+  const fileDna = await createVyralFileDnaV1({
+    record_id: 'file-only-identity',
+    source: { asset_id: 'asset-test', asset_version_id: 'version-test' },
+    bytes: new Uint8Array([1,2,3,4,5,6]),
+    mime_type: 'application/octet-stream',
+    include_payload: false,
+  });
+  await assert.rejects(() => createVyralAssetDnaOnlyPackage({
+    ...manifest,
+    versions: [],
+  }, [fileDna.record], []), /lossless source-byte chunks/);
 });
