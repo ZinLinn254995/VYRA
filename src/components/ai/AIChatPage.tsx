@@ -32,17 +32,34 @@ const inspectVyralAttachment = async (file: File) => {
   const v3Records = manifest.dnaRecords.filter((record) =>
     record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3
   );
-  const verified = await Promise.all(v3Records.map(async (record) => {
+  if (v3Records.length > 32) throw new Error('This Vyral contains too many DNA records for one chat attachment.');
+  const verified: { width: number; height: number; channels: string; digest: string; bytes: number }[] = [];
+  let totalDecodedBytes = 0;
+  for (const record of v3Records) {
+    const dna = record.dna_record as {
+      decoded_image?: { width?: number; height?: number; channel_layout?: string };
+    };
+    const width = Number(dna.decoded_image?.width);
+    const height = Number(dna.decoded_image?.height);
+    const channels = dna.decoded_image?.channel_layout;
+    const channelCount = channels === 'RGBA' ? 4 : channels === 'RGB' ? 3 : 0;
+    const expectedBytes = width * height * channelCount;
+    if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0 || expectedBytes > 64 * 1024 * 1024) {
+      throw new Error('A DNA image exceeds the 64 MB decoded-sample inspection limit.');
+    }
+    totalDecodedBytes += expectedBytes;
+    if (totalDecodedBytes > 128 * 1024 * 1024) {
+      throw new Error('This Vyral exceeds the 128 MB total DNA inspection limit.');
+    }
     const reconstruction = await reconstructVyralDnaV3FromPackage(files, String(record.id));
-    return {
-      assetId: String(record.asset_id ?? ''),
+    verified.push({
       width: reconstruction.width,
       height: reconstruction.height,
       channels: reconstruction.channel_layout,
       digest: reconstruction.decoded_samples_sha256,
       bytes: reconstruction.samples.byteLength,
-    };
-  }));
+    });
+  }
   const asset = manifest.assets[0];
   const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
   const lines = [
@@ -198,7 +215,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }
       return;
     }
-    setSelectedFileStatus('Attachment ready · AI provider connection is required for model analysis');
+    setSelectedFileStatus('File metadata only · full content parsing is not available for this file type yet');
   };
 
   const shareCurrentChat = async () => {
@@ -348,7 +365,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             ref={fileInputRef}
             type="file"
             className="hidden"
-            accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx"
+            accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.vyral,application/vnd.vyra.vyral+zip,application/zip"
             onChange={(event) => { void handleFileSelection(event.target.files?.[0] ?? null); }}
           />
           <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-end gap-1">
