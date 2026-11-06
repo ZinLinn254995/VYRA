@@ -985,7 +985,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       // A verified Master DNA snapshot is still untrusted provenance on import.
       // Use its role/purpose/relationship declarations to seed owner-scoped
       // canonical metadata, then require a fresh local Master DNA build.
-      if (importedMasterDna) {
+      if (importedMasterDna && masterDnaAvailable) {
         const membershipByAsset = new Map(importedMasterDna.relationships
           .filter((relation) => relation.type === 'master_membership' && relation.from.kind === 'asset')
           .map((relation) => [relation.from.asset_id, relation]));
@@ -1057,7 +1057,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       await loadWorkspace();
       setReconstructedPngDownload(reconstructionDownload);
-      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : ''));
+      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Master DNA roles, purposes and relationships were imported as unverified metadata; build a fresh local Master DNA revision.' : importedMasterDna ? ' Master DNA is preserved in the package, but this destination does not have the Master DNA database migration yet.' : ''));
     } catch (cause) {
       const cleanupFailures: string[] = [];
       if (importPackageId && importUserId) {
