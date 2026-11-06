@@ -322,10 +322,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         assets: assets.map((item) => ownerless(item as unknown as Record<string, unknown>)),
         versions: packageVersions,
         dnaRecords: dnaRecords.map((item) => ownerless(item as unknown as Record<string, unknown>)),
-        fingerprints: fingerprints.map((item) => ownerless(item as unknown as Record<string, unknown>)),
-        visionObservations: observations.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        fingerprints: (dnaOnly ? fingerprints.filter((item) => !item.asset_version_id) : fingerprints).map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        // DNA-only exports omit binary versions, so keep only evidence that is not bound to an omitted version.
+        
+        visionObservations: (dnaOnly ? observations.filter((item) => !item.asset_version_id) : observations).map((item) => ownerless(item as unknown as Record<string, unknown>)), 
         lineage: lineage.map((item) => ownerless(item as unknown as Record<string, unknown>)),
-        reconstructionTests: reconstructionTests.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        reconstructionTests: (dnaOnly ? reconstructionTests.filter((item) => !item.asset_version_id) : reconstructionTests).map((item) => ownerless(item as unknown as Record<string, unknown>)), 
       };
       packageEntries.push({
         path: 'README.txt',
