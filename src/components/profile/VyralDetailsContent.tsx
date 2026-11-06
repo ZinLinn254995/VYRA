@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
-import { createVyralZip, parseVyralManifest, readVyralZip, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralDnaOnlyPackage, createVyralZip, parseVyralManifest, readVyralZip, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -345,7 +345,41 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const manifestJson = JSON.stringify(manifest, null, 2);
       if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
       packageEntries.push({ path: 'manifest.json', data: manifestJson });
-      const archive = createVyralZip(packageEntries);
+      let archive: Blob;
+      if (dnaOnly) {
+        const sourceRow = dnaRecords.find((record) =>
+          record.payload?.dna_schema_id === 'vyra.asset-dna' &&
+          record.payload?.dna_schema_version === 3 &&
+          record.asset_id
+        );
+        if (!sourceRow) throw new Error('No lossless DNA v3 record is stored for this Vyral yet. Extract and verify DNA v3 before exporting a DNA-only package.');
+        const dnaRecord = asRecord(sourceRow.payload.dna_record);
+        const losslessPayload = asRecord(dnaRecord.lossless_payload);
+        const tiles = Array.isArray(losslessPayload.tiles) ? losslessPayload.tiles : [];
+        const storagePaths = sourceRow.payload.tile_storage_paths;
+        if (!tiles.length || !Array.isArray(storagePaths) || storagePaths.length !== tiles.length) {
+          throw new Error('The stored DNA v3 record has an incomplete tile storage map.');
+        }
+        const dnaPayloadEntries: { path: string; data: Uint8Array }[] = [];
+        for (let index = 0; index < tiles.length; index += 1) {
+          const tile = asRecord(tiles[index]);
+          const storagePath = storagePaths[index];
+          if (typeof tile.package_path !== 'string' || typeof storagePath !== 'string') {
+            throw new Error('The stored DNA v3 tile metadata is invalid.');
+          }
+          const { data: tileBlob, error: tileError } = await supabase.storage.from('vyral-assets').download(storagePath);
+          if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile ' + tile.package_path + ': ' + (tileError?.message ?? 'tile missing'));
+          const tileBytes = new Uint8Array(await tileBlob.arrayBuffer());
+          dnaPayloadEntries.push({ path: tile.package_path, data: tileBytes });
+        }
+        archive = await createVyralDnaOnlyPackage(
+          manifest as Parameters<typeof createVyralDnaOnlyPackage>[0],
+          dnaRecord as Parameters<typeof createVyralDnaOnlyPackage>[1],
+          dnaPayloadEntries,
+        );
+      } else {
+        archive = createVyralZip(packageEntries);
+      }
       const url = window.URL.createObjectURL(archive);
       const anchor = document.createElement('a');
       const safeName = vyral.name.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'Vyral';
