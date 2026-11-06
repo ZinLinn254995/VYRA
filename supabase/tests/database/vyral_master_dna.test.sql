@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(16);
+select plan(18);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -38,26 +38,41 @@ set master_dna_purpose = 'A primary character with supporting production resourc
 where id='24000000-0000-4000-8000-000000000011';
 
 
-update public.vyral_assets
-set master_dna_role = case when id='24000000-0000-4000-8000-000000000021' then 'main' else 'supporting' end,
-    master_dna_purpose = case when id='24000000-0000-4000-8000-000000000021' then 'Primary visual identity.' else 'Supporting voice identity.' end
-where vyral_id='24000000-0000-4000-8000-000000000011';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','24000000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 
 select lives_ok(
-  $$ insert into public.vyral_asset_relationships
-     (vyral_id,user_id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale)
-     values ('24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
-       'belongs_to','asset','24000000-0000-4000-8000-000000000021','vyral',null,'The main asset defines this Vyral.') $$,
-  'An asset can explicitly belong to its Vyral root'
+  $ select public.set_vyral_master_dna_asset_classification(
+    '24000000-0000-4000-8000-000000000021','main','Primary visual identity.',null,'The main asset defines this Vyral.'
+  ) $,
+  'Owner can atomically classify a Main Asset and link it to the Vyral root'
 );
 
 select lives_ok(
-  $$ insert into public.vyral_asset_relationships
-     (vyral_id,user_id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale)
-     values ('24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
-       'supports','asset','24000000-0000-4000-8000-000000000022','asset','24000000-0000-4000-8000-000000000021','The support asset belongs to the main asset.') $$,
-  'An asset can be related to another asset in the same Vyral'
+  $ select public.set_vyral_master_dna_asset_classification(
+    '24000000-0000-4000-8000-000000000022','supporting','Supporting voice identity.',
+    '24000000-0000-4000-8000-000000000021','The support asset belongs to the main asset.'
+  ) $,
+  'Owner can atomically classify a Supporting Asset and link it to a Main Asset'
 );
+
+select is(
+  has_function_privilege('authenticated','public.set_vyral_master_dna_asset_classification(uuid,text,text,uuid,text)','EXECUTE'),
+  true,
+  'Authenticated owners can call the scoped classification function'
+);
+
+select is(
+  has_function_privilege('anon','public.set_vyral_master_dna_asset_classification(uuid,text,text,uuid,text)','EXECUTE'),
+  false,
+  'Anonymous users cannot call the classification function'
+);
+
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
 
 select is(
   (select count(*)::integer from public.vyral_asset_relationships where vyral_id='24000000-0000-4000-8000-000000000011'),
