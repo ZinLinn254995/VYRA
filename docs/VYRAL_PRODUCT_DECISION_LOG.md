@@ -107,3 +107,18 @@ Treat this file plus the architecture document and schema as the current project
 - never claim a feature is implemented merely because it is documented.
 
 The user's latest explicit direction takes priority over older assumptions. If a new idea materially conflicts with this decision, surface the conflict briefly and ask only the clarification needed to avoid implementing the wrong direction.
+
+
+## 6. Implementation progress — 2026-11-06
+
+Initial Master DNA v1 code is now committed on the existing working branch:
+- TypeScript builder and validator with deterministic canonicalization.
+- SHA-256 manifest digest and domain-separated Vyral fingerprint.
+- Explicit typed Asset-to-Asset and Asset-to-Vyral-root relationship endpoints.
+- Cross-reference, version pinning, purpose, Main/Supporting, and privacy-policy validation.
+- JSON Schema updated to match the typed endpoint model.
+- Dedicated automated tests registered in GitHub Actions.
+
+The Master DNA CI job passed on commit `ce3c52f2748dca0d28bb2f2990ce9aa24353d123`, including TypeScript check, the new Master DNA tests, existing DNA/package/vision suites, and production build. Browser UI and Database workflow runs were still in progress at the time this entry was written.
+
+This is not full product integration yet. Supabase persistence, immutable revision creation, asset-change synchronization, compact .vyral export/import, selective retrieval, and external AI connector authorization remain pending.
