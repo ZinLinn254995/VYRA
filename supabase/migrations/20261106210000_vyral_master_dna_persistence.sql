@@ -93,7 +93,7 @@ create or replace function public.prevent_vyral_master_dna_revision_update()
 returns trigger
 language plpgsql
 set search_path = ''
-as $$$
+as $$
 begin
   raise exception using
     errcode = '55000',
