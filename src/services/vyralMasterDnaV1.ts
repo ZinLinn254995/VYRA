@@ -153,6 +153,8 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     if ((asset.role === 'main') !== mainIds.has(asset.asset_id)) throw new Error('Master DNA must list every Main Asset exactly once.');
   }
   const connected = new Set<string>();
+  const mainMemberships = new Set<string>();
+  const supportingMemberships = new Set<string>();
   const relationshipIds = new Set<string>();
   for (const raw of value.relationships) {
     if (!isRecord(raw) || !isId(raw.relationship_id) || relationshipIds.has(raw.relationship_id) ||
@@ -164,9 +166,22 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     const to = validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
     if (from.kind === 'asset' && (to.kind === 'vyral' || to.asset_id !== from.asset_id)) connected.add(from.asset_id);
     if (to.kind === 'asset' && (from.kind === 'vyral' || from.asset_id !== to.asset_id)) connected.add(to.asset_id);
+    if (raw.type === 'master_membership' && from.kind === 'asset') {
+      const sourceAsset = assetMap.get(from.asset_id);
+      if (sourceAsset?.role === 'main' && to.kind === 'vyral') mainMemberships.add(from.asset_id);
+      if (sourceAsset?.role === 'supporting' && to.kind === 'asset' && assetMap.get(to.asset_id)?.role === 'main') {
+        supportingMemberships.add(from.asset_id);
+      }
+    }
   }
   for (const asset of assetMap.values()) {
     if (!connected.has(asset.asset_id)) throw new Error('Every Master DNA asset must have an explicit relationship to an asset or Vyral root.');
+    if (asset.role === 'main' && !mainMemberships.has(asset.asset_id)) {
+      throw new Error('Every Main Asset must have a membership edge to the Vyral root.');
+    }
+    if (asset.role === 'supporting' && !supportingMemberships.has(asset.asset_id)) {
+      throw new Error('Every Supporting Asset must have a membership edge to a Main Asset.');
+    }
   }
   if (!isRecord(value.reconstruction_profile) ||
       !['lossless_decoded', 'source_file_exact', 'semantic_only', 'model_reconstructed', 'unavailable'].includes(String(value.reconstruction_profile.overall_claim)) ||
