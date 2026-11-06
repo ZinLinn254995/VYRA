@@ -1,0 +1,58 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createVyralFileDnaV1, reconstructVyralFileDnaV1, validateVyralFileDnaV1Record } from '../src/services/vyralFileDnaV1.ts';
+
+const source = { asset_id: 'asset-1', asset_version_id: 'version-1' };
+const sample = new Uint8Array([0x50,0x4b,0x03,0x04,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]);
+
+test('File DNA records deterministic binary identity and reconstructs exact bytes from lossless chunks', async () => {
+  const { record, entries } = await createVyralFileDnaV1({
+    record_id: 'file-dna-test', source, bytes: sample, mime_type: 'application/zip',
+    filename: 'archive.ZIP', include_payload: true, chunk_size: 8,
+  });
+  assert.equal(record.file.format_signature, 'zip-container');
+  assert.equal(record.file.extension, 'zip');
+  assert.equal(record.reconstruction.claim, 'source_file_exact');
+  assert.equal(entries.length, 3);
+  const restored = await reconstructVyralFileDnaV1(record, new Map(entries.map((entry) => [entry.path, entry.data])));
+  assert.deepEqual(restored, sample);
+});
+
+test('Hash-only File DNA verifies identity metadata but never claims reconstruction', async () => {
+  const { record, entries } = await createVyralFileDnaV1({
+    record_id: 'file-dna-hash', source, bytes: sample, mime_type: 'application/octet-stream',
+  });
+  assert.equal(entries.length, 0);
+  assert.equal(record.reconstruction.claim, 'unavailable');
+  await assert.rejects(() => reconstructVyralFileDnaV1(record, new Map()), /does not contain a source-file reconstruction payload/);
+});
+
+test('File DNA rejects altered, missing, truncated and undeclared chunks', async () => {
+  const { record, entries } = await createVyralFileDnaV1({
+    record_id: 'file-dna-verify', source, bytes: sample, mime_type: 'application/octet-stream',
+    include_payload: true, chunk_size: 8,
+  });
+  const missing = new Map(entries.slice(1).map((entry) => [entry.path, entry.data]));
+  await assert.rejects(() => reconstructVyralFileDnaV1(record, missing), /missing or failed integrity/);
+  const alteredEntries = entries.map((entry) => ({ ...entry, data: entry.data.slice() }));
+  alteredEntries[0].data[0] ^= 0xff;
+  await assert.rejects(() => reconstructVyralFileDnaV1(record, new Map(alteredEntries.map((entry) => [entry.path, entry.data]))), /missing or failed integrity/);
+  const extra = new Map(entries.map((entry) => [entry.path, entry.data]));
+  extra.set('dna/file/v1/file-dna-verify/chunks/extra.bin', new Uint8Array([1]));
+  await assert.rejects(() => reconstructVyralFileDnaV1(record, extra), /undeclared chunk/);
+  assert.throws(() => validateVyralFileDnaV1Record({
+    ...record, reconstruction: { ...record.reconstruction, chunks: record.reconstruction.chunks.slice(1) },
+  }), /chunk coverage/);
+});
+
+test('File DNA validates source identity and prevents false exact claims', async () => {
+  const { record } = await createVyralFileDnaV1({
+    record_id: 'file-dna-claims', source, bytes: sample, mime_type: 'application/octet-stream',
+  });
+  assert.throws(() => validateVyralFileDnaV1Record({
+    ...record, reconstruction: { claim: 'source_file_exact', payload_encoding: 'none', chunk_size: null, chunks: [] },
+  }), /reconstruction claim does not match/);
+  await assert.rejects(() => createVyralFileDnaV1({
+    record_id: 'file-dna-empty', source, bytes: new Uint8Array(), mime_type: 'application/octet-stream',
+  }), /non-empty binary/);
+});
