@@ -135,3 +135,22 @@ The existing VYRAL ZIP service now has an additive DNA v3 package path:
 - Package regression tests exercise a synthetic DNA-only round-trip and check that ordinary source media and URL/storage/preview/derivative fields are absent.
 
 This is package-layer integration and synthetic test coverage only. It does not yet extract ORIGIN-01 from protected Development storage, prove the source hash against the protected bytes, or establish ORIGIN-01 exact reconstruction. The acceptance criteria in section 5 remain unchanged and mandatory.
+
+## 9. Owner-authenticated ORIGIN-01 extraction path
+
+A Development-only Edge Function and protected Vyral UI action now provide the first real-source extraction path:
+
+- The function requires a valid Supabase user JWT and additionally checks the exact ORIGIN-01 owner ID.
+- It reads only the registered protected Vyral, asset and version metadata, then downloads the original from the private `vyral-assets` bucket using the server-side admin client.
+- It verifies the downloaded byte size and SHA-256 against the registered original version before decoding.
+- The initial decoder accepts only 8-bit truecolor RGB/RGBA PNG files and rejects embedded `iCCP` profiles rather than silently discarding or misrepresenting them.
+- It records `sRGB` only when the PNG contains an sRGB chunk; otherwise color space remains `unknown`.
+- It creates 128×128 raw sample tiles, hashes every tile and the aggregate sample stream, and stores the new tile objects under a separate DNA path. It does not write to, rename, replace or delete the original asset or version.
+- It inserts an additive DNA v3 record with `dna_status=evolving` and `verification_status=observed`. Extraction is not reconstruction verification.
+- The UI action is available only inside the protected ORIGIN-01 Vyral and requires explicit confirmation. Existing v3 records are not overwritten.
+
+Current verification boundary:
+- The function is deployed to the Development Supabase project with JWT verification enabled.
+- The function has **not yet been invoked against ORIGIN-01**. Therefore no claim is made that the source has been decoded, that ICC handling is supported, or that a DNA v3 record has been created.
+- If the source PNG contains an embedded ICC profile or uses unsupported PNG encoding, extraction stops without writing DNA.
+- After extraction, the next required step is to read back every stored tile, validate hashes, reconstruct the canonical sample stream in a separate execution, compare the reconstructed digest and dimensions, and only then consider a DNA-only export.
