@@ -186,4 +186,4 @@ Accepted truth rule:
 - hash-only File DNA is identity evidence and has reconstruction claim `unavailable`;
 - only a package that carries all lossless raw source-byte chunks, verifies every chunk digest, and verifies the final original-byte SHA-256 may claim `source_file_exact`.
 
-This is a foundational contract, not yet universal semantic understanding. Audio/video/document/3D/archive-specific parsing, upload-time integration, Supabase persistence, Master DNA builder support, and whole-Vyral package integration remain pending. The existing image DNA v3 pipeline remains separate and unchanged.
+This is a foundational binary identity contract, not yet universal semantic understanding. Non-raster Asset upload now writes an identity-only File DNA v1 record to Supabase, and the Master DNA builder validates the record against the latest immutable version. It remains `unavailable` for reconstruction unless lossless source-byte chunks are present and verified. Audio/video/document/3D/archive-specific parsing and mixed-media whole-Vyral DNA-only package export/import remain pending. The existing image DNA v3 pipeline remains separate and unchanged.
