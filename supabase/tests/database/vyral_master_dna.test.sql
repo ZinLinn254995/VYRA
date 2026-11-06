@@ -43,17 +43,17 @@ select set_config('request.jwt.claim.sub','24000000-0000-4000-8000-000000000001'
 select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 
 select lives_ok(
-  $ select public.set_vyral_master_dna_asset_classification(
+  $$ select public.set_vyral_master_dna_asset_classification(
     '24000000-0000-4000-8000-000000000021','main','Primary visual identity.',null,'The main asset defines this Vyral.'
-  ) $,
+  ) $$,
   'Owner can atomically classify a Main Asset and link it to the Vyral root'
 );
 
 select lives_ok(
-  $ select public.set_vyral_master_dna_asset_classification(
+  $$ select public.set_vyral_master_dna_asset_classification(
     '24000000-0000-4000-8000-000000000022','supporting','Supporting voice identity.',
     '24000000-0000-4000-8000-000000000021','The support asset belongs to the main asset.'
-  ) $,
+  ) $$,
   'Owner can atomically classify a Supporting Asset and link it to a Main Asset'
 );
 
