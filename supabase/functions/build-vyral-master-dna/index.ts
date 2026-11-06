@@ -1,6 +1,7 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { createVyralMasterDnaV1 } from '../../../src/services/vyralMasterDnaV1.ts';
+import { preflightVyralMasterDna } from '../../../src/services/vyralMasterDnaPreflight.ts';
 import { validateVyralDnaV3Record } from '../../../src/services/vyralDnaV3.ts';
 import { validateVyralFileDnaV1Record } from '../../../src/services/vyralFileDnaV1.ts';
 
@@ -141,6 +142,40 @@ Deno.serve(async (request: Request) => {
 
   const relationships = relationshipsResult.data ?? [];
   const reconstructionTests = testsResult.data ?? [];
+  const preflight = preflightVyralMasterDna({
+    vyralPurpose: vyral.master_dna_purpose,
+    intendedUses: vyral.master_dna_intended_uses,
+    assets: (assets as Row[]).map((asset) => {
+      const version = latestVersionByAsset.get(asset.id);
+      const dna = dnaByAsset.get(asset.id);
+      const payload = asRecord(dna?.payload);
+      const nestedDna = asRecord(payload.dna_record);
+      const nestedSource = asRecord(nestedDna.source);
+      const sourceVersionId = typeof nestedSource.asset_version_id === 'string'
+        ? nestedSource.asset_version_id
+        : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
+      const sourceSha = typeof nestedSource.sha256 === 'string'
+        ? nestedSource.sha256
+        : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
+      return {
+        asset_id: asset.id,
+        role: metadataByAsset.get(asset.id)?.role,
+        purpose: metadataByAsset.get(asset.id)?.purpose,
+        has_latest_version: Boolean(version),
+        has_matching_dna: Boolean(version && dna && sourceVersionId === version.id &&
+          typeof version.sha256 === 'string' && sourceSha.toLowerCase() === version.sha256.toLowerCase()),
+      };
+    }),
+    relationships: relationships as Row[],
+  });
+  if (preflight.length) {
+    return json({
+      error: 'Master DNA is not ready yet. Resolve the listed requirements, then build again.',
+      status: 'master_dna_preflight_failed',
+      blockerCount: preflight.length,
+      blockers: preflight,
+    }, 409);
+  }
   const mainAssetIds: string[] = [];
   const claims: Array<'lossless_decoded' | 'source_file_exact' | 'semantic_only' | 'model_reconstructed' | 'unavailable'> = [];
 
