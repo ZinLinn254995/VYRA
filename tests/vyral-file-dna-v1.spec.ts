@@ -103,6 +103,51 @@ test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON
   assert.equal(video.profile, 'video');
   assert.equal(video.facts.find((fact) => fact.key === 'major_brand')?.value, 'isom');
   assert.equal(video.facts.find((fact) => fact.key === 'top_level_boxes')?.value, 'ftyp');
+  const box = (type: string, payload: Uint8Array) => {
+    const result = new Uint8Array(8 + payload.length);
+    new DataView(result.buffer).setUint32(0, result.length, false);
+    result.set(new TextEncoder().encode(type), 4);
+    result.set(payload, 8);
+    return result;
+  };
+  const join = (...parts: Uint8Array[]) => {
+    const result = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+    let offset = 0;
+    for (const part of parts) { result.set(part, offset); offset += part.length; }
+    return result;
+  };
+  const mvhdPayload = new Uint8Array(20);
+  new DataView(mvhdPayload.buffer).setUint32(12, 1000, false);
+  new DataView(mvhdPayload.buffer).setUint32(16, 90000, false);
+  const hdlrPayload = new Uint8Array(12);
+  hdlrPayload.set(new TextEncoder().encode('vide'), 8);
+  const tkhdPayload = new Uint8Array(84);
+  new DataView(tkhdPayload.buffer).setUint32(76, 1920 * 65536, false);
+  new DataView(tkhdPayload.buffer).setUint32(80, 1080 * 65536, false);
+  const stsdPayload = new Uint8Array(16);
+  new DataView(stsdPayload.buffer).setUint32(4, 1, false);
+  new DataView(stsdPayload.buffer).setUint32(8, 8, false);
+  stsdPayload.set(new TextEncoder().encode('avc1'), 12);
+  const nestedMp4 = join(
+    box('ftyp', new TextEncoder().encode('isom\u0000\u0000\u0000\u0000')),
+    box('moov', join(
+      box('mvhd', mvhdPayload),
+      box('trak', join(
+        box('tkhd', tkhdPayload),
+        box('mdia', join(
+          box('hdlr', hdlrPayload),
+          box('minf', box('stbl', box('stsd', stsdPayload))),
+        )),
+      )),
+    )),
+  );
+  const nestedVideo = analyzeVyralFileStructureV1(nestedMp4, 'video/mp4', 'movie.mp4');
+  assert.equal(nestedVideo.facts.find((fact) => fact.key === 'duration')?.value, 90);
+  assert.equal(nestedVideo.facts.find((fact) => fact.key === 'track_handlers')?.value, 'vide');
+  assert.equal(nestedVideo.facts.find((fact) => fact.key === 'sample_entry_codecs')?.value, 'avc1');
+  assert.equal(nestedVideo.facts.find((fact) => fact.key === 'video_width')?.value, 1920);
+  assert.equal(nestedVideo.facts.find((fact) => fact.key === 'video_height')?.value, 1080);
+
   const avi = analyzeVyralFileStructureV1(new Uint8Array([0x52,0x49,0x46,0x46,0,0,0,0,0x41,0x56,0x49,0x20]), 'video/x-msvideo', 'clip.avi');
   assert.equal(avi.profile, 'video');
   assert.equal(avi.status, 'signature_only');
