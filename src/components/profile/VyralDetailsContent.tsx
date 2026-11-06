@@ -5,7 +5,7 @@ import {
   HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck,
   Trash2, Upload, Video, X,
 } from 'lucide-react';
-import { supabase } from '../../context/AuthContext';
+import { supabase, useAuth } from '../../context/AuthContext';
 import { createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 import { createVyralDnaV3 } from '../../services/vyralDnaV3';
 
@@ -130,6 +130,7 @@ const formatRgb = (value: unknown) =>
     : '—';
 
 export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated }) => {
+  const auth = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
