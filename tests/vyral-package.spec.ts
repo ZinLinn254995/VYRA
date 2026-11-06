@@ -193,11 +193,18 @@ test('exports and reconstructs a DNA v3-only package without source media or der
     ...manifest,
     assets: [{
       ...manifest.assets[0],
+      folder_id: 'folder-original',
       preview_url: 'https://private.invalid/preview.png',
       thumbnail: { url: 'https://private.invalid/thumb.png' },
       storage_path: 'private/original.png',
       derivative_path: 'private/derived.webp',
+    }, {
+      id: 'unselected-asset',
+      name: 'Not part of this DNA-only reconstruction',
+      asset_type: 'image',
+      mime_type: 'image/png',
     }],
+    folders: [{ id: 'folder-original', name: 'Original folder', parent_id: null }],
   };
   const archive = await createVyralDnaOnlyPackage(sourceAwareManifest, record, entries);
   const archiveBytes = new Uint8Array(await archive.arrayBuffer());
@@ -208,6 +215,10 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   const parsed = parseVyralManifest(files);
   assert.equal(parsed.exportMode, 'dna-only');
   assert.equal(parsed.versions.length, 0);
+  assert.equal(parsed.assets.length, 1);
+  assert.equal(parsed.assets[0].id, 'asset-test');
+  assert.equal(parsed.assets[0].folder_id, null);
+  assert.equal(parsed.folders.length, 0);
   assert.equal(parsed.dnaRecords.length, 1);
   assert.equal(parsed.fingerprints.length, 0);
   assert.equal(parsed.visionObservations.length, 0);
