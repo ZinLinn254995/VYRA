@@ -52,7 +52,7 @@ const inspectVyralAttachment = async (file: File) => {
     v3Records.length === 0 ? 'No portable DNA v3 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
   ].filter(Boolean);
-  return lines.join('\\n');
+  return lines.join('\n');
 };
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired }) => {
@@ -64,7 +64,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [isMultiline, setIsMultiline] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);\n  const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);\n  const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
+  const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,7 +126,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       return;
     }
     const attachmentText = selectedFile
-      ? `\\n\\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\\n\\n${selectedVyralContext}` : selectedFileStatus ? `\\n${selectedFileStatus}` : ''}`
+      ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
     setMessages((previous) => [...previous, { id: makeId(), role: 'user', content: (text || 'Please inspect this attachment.') + attachmentText }]);
     setDraft('');
@@ -325,7 +327,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               type="submit"
               size="sm"
               className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
-              disabled={(!draft.trim() && !selectedFile) || isLocked || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext && selectedFileStatus !== 'Checking Vyral DNA…')}
+              disabled={(!draft.trim() && !selectedFile) || isLocked || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
               aria-label="Send message"
             >
               <ArrowUp size={17} />
