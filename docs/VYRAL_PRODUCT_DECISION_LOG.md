@@ -122,3 +122,12 @@ Initial Master DNA v1 code is now committed on the existing working branch:
 The Master DNA CI job passed on commit `ce3c52f2748dca0d28bb2f2990ce9aa24353d123`, including TypeScript check, the new Master DNA tests, existing DNA/package/vision suites, and production build. Browser UI and Database workflow runs were still in progress at the time this entry was written.
 
 This is not full product integration yet. Supabase persistence, immutable revision creation, asset-change synchronization, compact .vyral export/import, selective retrieval, and external AI connector authorization remain pending.
+
+
+## 7. Development database inspection and proposed persistence model — 2026-11-06
+
+Read-only inspection confirmed that VYRA already has asset, version, per-asset DNA, legacy Vyral-scope DNA, fingerprint, and generation-lineage tables. The legacy `vyral_dna_records.scope` constraint only permits `asset` and `vyral`; its existing Vyral-scope records are schema v1. Generation lineage does not replace the new semantic relationship graph.
+
+Decision for implementation planning: keep legacy DNA records backward-compatible and introduce a dedicated immutable Master DNA revision store, a typed relationship table, and explicit asset role/purpose metadata. Do not auto-invent purposes for existing assets. New snapshots should only be created after all current member assets are fully classified and have valid DNA references and relationship edges. The snapshot write path must be server-authenticated and owner-checked; clients should not update/delete historical snapshots.
+
+This database inspection was read-only. No Development or Production schema/data was modified in this step. Database design is documented but not yet migrated.
