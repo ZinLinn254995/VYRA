@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { getCurrentAccessToken } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
-import { validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
+import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
@@ -66,6 +66,13 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
   } finally {
     bitmap.close();
   }
+};
+
+const canonicalizeAttachmentJson = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(canonicalizeAttachmentJson).join(',') + ']';
+  const record = value as Record<string, unknown>;
+  return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + canonicalizeAttachmentJson(record[key])).join(',') + '}';
 };
 
 const inspectVyralAttachment = async (file: File) => {
@@ -136,6 +143,14 @@ const inspectVyralAttachment = async (file: File) => {
       verificationSource = 'full-package original version';
     }
     const recordAsset = manifest.assets.find((item) => item.id === record.asset_id);
+    const derivedStructure = analyzeVyralFileStructureV1(
+      verifiedBytes,
+      dna.file.mime_type,
+      String(recordAsset?.original_filename ?? recordAsset?.name ?? ''),
+    );
+    if (dna.structure && canonicalizeAttachmentJson(dna.structure) !== canonicalizeAttachmentJson(derivedStructure)) {
+      throw new Error('A File DNA structural profile does not match the independently re-analyzed source bytes.');
+    }
     verifiedFiles.push({
       assetId: String(record.asset_id),
       assetName: String(recordAsset?.name ?? record.asset_id),
@@ -146,10 +161,10 @@ const inspectVyralAttachment = async (file: File) => {
       digest: dna.file.sha256,
       exactSourceBytes,
       verificationSource,
-      structureProfile: dna.structure?.profile ?? 'unknown',
-      structureStatus: dna.structure?.status ?? 'unknown',
-      structureFacts: (dna.structure?.facts ?? []).slice(0, 32).map((fact) => `${fact.key}=${String(fact.value)}${fact.unit ? ' ' + fact.unit : ''} [${fact.evidence}]`),
-      structureNotes: (dna.structure?.notes ?? []).slice(0, 8),
+      structureProfile: derivedStructure.profile,
+      structureStatus: derivedStructure.status,
+      structureFacts: derivedStructure.facts.slice(0, 32).map((fact) => `${fact.key}=${String(fact.value)}${fact.unit ? ' ' + fact.unit : ''} [${fact.evidence}]`),
+      structureNotes: derivedStructure.notes.slice(0, 8),
     });
   }
   const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
