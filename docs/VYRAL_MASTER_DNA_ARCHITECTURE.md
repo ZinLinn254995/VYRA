@@ -443,3 +443,19 @@ Acceptance gates before enabling external AI access:
 
 - Implicit latest-revision resolution is rejected unless the Vyral's current `master_dna_status` is `ready`. An owner may still request an explicit historical revision; it is returned as that pinned historical snapshot, never substituted for the current head.
 - Resolver policy helpers are unit-tested for exact snapshot membership, revision integrity bindings, strict owner/Asset storage-prefix boundaries, and exact DNA/source-version/fingerprint agreement.
+
+
+## 27. Revision-pinned resource sharing foundation — schema added, external access still disabled
+
+The next sharing layer is now represented in an additive Development migration:
+
+- `vyral_resource_share_grants` stores the owner, canonical Vyral, exact immutable Master DNA revision, recipient kind/reference, allowed scopes, optional exact Asset + Asset Version, expiry, and revocation state.
+- Allowed scopes are narrowly enumerated: `master:read`, `asset_dna:read`, and `asset_source:download`. Asset scopes require both an Asset ID and an exact Asset Version ID. The insert trigger verifies that the exact Asset/version pair exists in the pinned Master DNA snapshot and belongs to the same owner/Vyral.
+- Grant scope, recipient, expiry, and revision are immutable after creation. An owner can only transition an active grant to revoked through `revoke_vyral_resource_share_grant`; a revoked grant cannot be reactivated or edited into a different grant.
+- `vyral_resource_share_tokens` is separate and service-role-only. It stores only a SHA-256 token digest, never a raw bearer token. The token-creation endpoint and token verification path are not implemented yet.
+- `vyral_resource_share_audit` records grant lifecycle events without bearer tokens or signed URLs. Audit rows are immutable; owners can read only their own events.
+- Authenticated clients cannot create, update, or delete grants, cannot read token digests, and cannot forge audit events. The owner revoke RPC is authenticated and owner-scoped.
+
+**Important implementation boundary:** this is a persistence/security foundation, not a functioning share-link or OAuth feature. The resolver remains owner-only with `verify_jwt = true`; it does not yet accept bearer share tokens or non-owner identities. No public/unlisted sharing is enabled. A future trusted server endpoint must create grants and random high-entropy tokens, persist only the SHA-256 digest, write a creation audit event, and return the raw token exactly once. The resolver must then validate token digest, recipient, exact revision, exact Asset version, scope, expiry, revocation, and rate limits before issuing any signed Storage URL. MCP/OAuth integration follows only after those checks and Development runtime tests pass.
+
+The new migration is ordered after the Development project's latest recorded migration version. It has not been applied to the hosted Development database yet. Production remains untouched.
