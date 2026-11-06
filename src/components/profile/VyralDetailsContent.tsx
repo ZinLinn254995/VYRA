@@ -97,6 +97,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
   const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
   const [extractingDnaV3, setExtractingDnaV3] = useState(false);
+  const [verifyingDnaV3, setVerifyingDnaV3] = useState(false);
   const [packageStatus, setPackageStatus] = useState('');
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
@@ -927,6 +928,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
+  const verifyOriginDnaV3 = async () => {
+    if (!supabase || verifyingDnaV3 || extractingDnaV3 || busy || packageBusy || !isProtectedVyral(vyral)) return;
+    const hasExistingV3 = dnaRecords.some((record) => record.asset_id === '2c496cd5-84c4-44b1-b02a-fca4265cc592' && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3);
+    if (!hasExistingV3) { setError('ORIGIN-01 DNA v3 record is not available yet. Extract DNA v3 first.'); return; }
+    if (!window.confirm('Re-read all 100 DNA tiles, verify every tile SHA-256, re-download the protected original, decode it again, and compare reconstructed samples? The original will not be modified.')) return;
+    setVerifyingDnaV3(true); setError(''); setPackageStatus('Re-reading DNA tiles and checking reconstructed samples…');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('verify-origin-01-dna-v3', { body: { dnaRecordId: '761b39c8-be23-4ca7-88c9-16151a0a0c41' } });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') { try { const payload = await response.clone().json(); if (typeof payload?.error === 'string') detail = payload.error; if (typeof payload?.detail === 'string') detail += ' ' + payload.detail; } catch { /* Keep SDK error. */ } }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'passed' || data?.verifiedTiles !== 100 || data?.originalBytesUnchanged !== true) throw new Error('The verifier did not confirm all 100 tiles and exact decoded-sample reconstruction.');
+      setPackageStatus('Decoded-sample reconstruction verified · ' + data.verifiedTiles + ' tiles · ' + data.dimensions.width + '×' + data.dimensions.height + ' ' + data.channelLayout + ' · SHA-256 ' + String(data.reconstructedSha256).slice(0, 16) + '…');
+      await loadWorkspace();
+    } catch (cause) { setPackageStatus(''); setError(cause instanceof Error ? cause.message : 'ORIGIN-01 DNA v3 verification failed.'); }
+    finally { setVerifyingDnaV3(false); }
+  };
   const deleteAsset = async (asset: AssetRow) => {
     if (isProtectedVyral(vyral)) {
       setError('This Vyral is protected. Its original assets and stored versions cannot be deleted.');
@@ -1301,7 +1322,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><div className={'text-[10px] font-semibold uppercase tracking-[0.16em] ' + muted}>VYRAL WORKSPACE</div><p className={'mt-1 text-xs ' + subtle}>Your assets, identity records and evolving knowledge.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><label className={button+' cursor-pointer'}><Upload size={13}/>Import .vyral<input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>void importVyralPackage(event)} disabled={busy || packageBusy}/></label><button type="button" onClick={() => void exportVyralPackage(false)} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Working…':'Export .vyral'}</button><button type="button" onClick={() => void exportVyralPackage(true)} className={button} disabled={busy || packageBusy || extractingDnaV3}><Dna size={13}/>{packageBusy?'Working…':'DNA-only Test'}</button>{isProtectedVyral(vyral) && <button type="button" onClick={() => void extractOriginDnaV3()} className={primaryButton} disabled={busy || packageBusy || extractingDnaV3 || comparingReconstructionAssetId !== null || verifyingAssetId !== null}><Dna size={13}/>{extractingDnaV3?'Extracting DNA…':'Extract ORIGIN-01 DNA v3'}</button>}<button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy || extractingDnaV3}><Clock3 size={13}/> Refresh</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><label className={button+' cursor-pointer'}><Upload size={13}/>Import .vyral<input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>void importVyralPackage(event)} disabled={busy || packageBusy}/></label><button type="button" onClick={() => void exportVyralPackage(false)} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Working…':'Export .vyral'}</button><button type="button" onClick={() => void exportVyralPackage(true)} className={button} disabled={busy || packageBusy || extractingDnaV3}><Dna size={13}/>{packageBusy?'Working…':'DNA-only Test'}</button>{isProtectedVyral(vyral) && <button type="button" onClick={() => void extractOriginDnaV3()} className={primaryButton} disabled={busy || packageBusy || extractingDnaV3 || verifyingDnaV3 || comparingReconstructionAssetId !== null || verifyingAssetId !== null}><Dna size={13}/>{extractingDnaV3?'Extracting DNA…':'Extract ORIGIN-01 DNA v3'}</button>}{isProtectedVyral(vyral) && dnaRecords.some((record) => record.asset_id === '2c496cd5-84c4-44b1-b02a-fca4265cc592' && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) && <button type="button" onClick={() => void verifyOriginDnaV3()} className={primaryButton} disabled={busy || packageBusy || extractingDnaV3 || verifyingDnaV3 || comparingReconstructionAssetId !== null || verifyingAssetId !== null}><Dna size={13}/>{verifyingDnaV3?'Verifying DNA…':'Verify DNA v3 Reconstruction'}</button>}<button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy || extractingDnaV3}><Clock3 size={13}/> Refresh</button></div>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-[var(--vyra-border)] pb-1" aria-label="Vyral sections">
