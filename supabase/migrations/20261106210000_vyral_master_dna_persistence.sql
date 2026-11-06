@@ -325,7 +325,10 @@ begin
     select a.id, a.master_dna_role, a.master_dna_purpose,
       (select av.id from public.vyral_asset_versions av
        where av.asset_id = a.id and av.vyral_id = a.vyral_id and av.user_id = a.user_id
-       order by av.version_number desc limit 1) as latest_version_id
+       order by av.version_number desc limit 1) as latest_version_id,
+      (select av.sha256 from public.vyral_asset_versions av
+       where av.asset_id = a.id and av.vyral_id = a.vyral_id and av.user_id = a.user_id
+       order by av.version_number desc limit 1) as latest_version_sha256
     from public.vyral_assets a
     where a.vyral_id = new.vyral_id and a.user_id = new.user_id
   loop
@@ -335,10 +338,11 @@ begin
     limit 1;
 
     if snapshot_asset is null
-       or snapshot_asset ->> 'role' <> asset_row.master_dna_role
-       or snapshot_asset ->> 'purpose' <> asset_row.master_dna_purpose
+       or snapshot_asset ->> 'role' is distinct from asset_row.master_dna_role
+       or snapshot_asset ->> 'purpose' is distinct from asset_row.master_dna_purpose
        or asset_row.latest_version_id is null
-       or snapshot_asset ->> 'asset_version_id' <> asset_row.latest_version_id::text
+       or snapshot_asset ->> 'asset_version_id' is distinct from asset_row.latest_version_id::text
+       or snapshot_asset ->> 'asset_fingerprint' is distinct from lower(asset_row.latest_version_sha256)
        or not exists (
          select 1 from public.vyral_dna_records d
          where d.id::text = snapshot_asset -> 'dna_ref' ->> 'record_id'
@@ -346,6 +350,9 @@ begin
            and d.vyral_id = new.vyral_id
            and d.user_id = new.user_id
            and d.scope = 'asset'
+           and d.schema_version = (snapshot_asset -> 'dna_ref' ->> 'schema_version')::integer
+           and coalesce(d.payload -> 'dna_record' -> 'source' ->> 'asset_version_id', d.payload ->> 'source_version_id') = asset_row.latest_version_id::text
+           and lower(coalesce(d.payload -> 'dna_record' -> 'source' ->> 'sha256', d.payload ->> 'source_file_sha256')) = lower(asset_row.latest_version_sha256)
        ) then
       raise exception using errcode = '23514', message = 'Master DNA snapshot contains a missing, stale, or mismatched asset version or DNA reference.';
     end if;
