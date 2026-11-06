@@ -114,7 +114,7 @@ const validateEndpoint = (endpoint: unknown, vyralId: string, assetMap: Map<stri
   return { kind: 'asset' as const, asset_id: asset.asset_id, ...(endpoint.asset_version_id == null ? {} : { asset_version_id: asset.asset_version_id }) };
 };
 
-const validateStructure = (value: unknown): asserts value is VyralMasterDnaV1 => {
+function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   if (!isRecord(value) || value.schema_id !== VYRAL_MASTER_DNA_SCHEMA_ID || value.schema_version !== VYRAL_MASTER_DNA_SCHEMA_VERSION) {
     throw new Error('Unsupported or malformed Vyral Master DNA schema.');
   }
@@ -192,7 +192,7 @@ const validateStructure = (value: unknown): asserts value is VyralMasterDnaV1 =>
       !['no_remote_resolution', 'public_metadata_only', 'authorized_selective_retrieval'].includes(String(value.portable_projection.retrieval_policy))) {
     throw new Error('Master DNA compact portable projection is invalid.');
   }
-};
+}
 
 export const createVyralMasterDnaV1 = async (input: CreateVyralMasterDnaInput): Promise<VyralMasterDnaV1> => {
   const unsigned = {
