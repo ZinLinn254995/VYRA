@@ -1124,6 +1124,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const candidateReport = asRecord(reconstructionReport.candidate);
     const comparisonReport = asRecord(reconstructionReport.comparison);
     const pixelReport = asRecord(comparisonReport.pixelComparison);
+    const normalizedImageReport = asRecord(comparisonReport.normalizedImageComparison);
     const geometryReport = asRecord(comparisonReport.redRegionGeometry);
     const geometrySimilarity = typeof geometryReport.geometrySimilarity === 'number' ? geometryReport.geometrySimilarity : null;
     const exactDecodedPixelMatch = typeof comparisonReport.exactDecodedPixelMatch === 'boolean'
@@ -1150,6 +1151,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 <p className={'text-[9px] '+muted}>Geometry similarity</p>
                 <p className={'mt-0.5 text-base font-semibold '+primary}>{geometrySimilarity !== null ? (geometrySimilarity*100).toFixed(2)+'%' : '—'}</p>
                 <p className={'text-[9px] '+muted}>Red-region shape, scale and placement · not full-image similarity</p>
+              </div>
+              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
+                <p className={'text-[9px] '+muted}>Normalized full-image similarity</p>
+                <p className={'mt-0.5 text-base font-semibold '+primary}>{normalizedImageReport.performed === true && typeof normalizedImageReport.normalizedGridRgbSimilarity === 'number' ? (Number(normalizedImageReport.normalizedGridRgbSimilarity)*100).toFixed(2)+'%' : '—'}</p>
+                <p className={'text-[9px] '+muted}>{normalizedImageReport.performed === true ? '256-grid RGB sample · resized-coordinate comparison' : String(normalizedImageReport.reason ?? 'Not available')}</p>
               </div>
               <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
                 <p className={'text-[9px] '+muted}>Background color delta</p>
