@@ -363,3 +363,17 @@ This package path has synthetic automated coverage for binary clean-import recon
 AI Chat validates File DNA v1 records when a `.vyral` package is attached. For DNA-only packages it reconstructs and verifies the lossless source-byte chunks; for full packages it verifies the pinned source-version bytes against the File DNA size and SHA-256. It passes only verified metadata (asset label, MIME type, conservative format signature, extension, byte length and digest) into the chat context.
 
 This does **not** mean the AI has listened to audio, watched video, parsed a PDF/document, or understood a 3D scene. Those semantic media decoders and corresponding model inputs are separate future work. Raster previews continue through the separate bounded Gemini Vision path; binary File DNA bytes are not sent as arbitrary inline model payloads.
+
+
+## 24. Deterministic Universal File Structure Profiles
+
+File DNA v1 now carries an optional deterministic `structure` profile alongside its cryptographic file identity. The first bounded parsers record conservative structural facts:
+- WAV: format code, channel count, sample rate, bit depth, data bytes and an estimated duration from the declared byte rate.
+- ISO-BMFF audio/video: major brand and top-level box inventory, without claiming codec, track or duration decoding.
+- MP3/FLAC/Ogg: conservative audio signature and ID3 tag-size hint where present.
+- PDF: header and lower-bound page-object markers from a scan capped at 8 MiB; compressed object streams may hide pages.
+- GLB/glTF: declared version/length and bounded JSON scene counts (nodes, meshes, materials, scenes, animations).
+- UTF-8 text/Markdown/JSON: bounded character/line/word counts, Markdown heading count, and JSON top-level item/key count; source text is not copied into the DNA profile.
+- Other containers: conservative signature only.
+
+All parsers are bounded, deterministic and non-generative. A structural profile is not semantic understanding, transcription, OCR, a complete media decode, or a reconstruction proof. Unsupported/ambiguous formats remain explicitly partial, signature-only or unknown. Extractor version is pinned in the record so future parser improvements can create new records rather than silently changing old evidence.
