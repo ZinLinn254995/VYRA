@@ -650,8 +650,16 @@ export const createVyralAssetDnaOnlyPackage = async (
   if (normalized.length > 1 && selectedAssets.length !== portableBase.assets.length) throw new Error('A whole-Vyral DNA-only export requires a reconstruction record for every Asset.');
   if (portableBase.masterDna) {
     portableBase.masterDna = await validateVyralMasterDnaV1(portableBase.masterDna);
-    const masterIds = new Set(portableBase.masterDna.assets.map((asset) => asset.asset_id));
+    const masterAssetsById = new Map(portableBase.masterDna.assets.map((asset) => [asset.asset_id, asset]));
+    const masterIds = new Set(masterAssetsById.keys());
     if (masterIds.size !== assetIds.size || [...masterIds].some((id) => !assetIds.has(id))) throw new Error('Master DNA inventory does not match the DNA-only Asset set.');
+    for (const item of normalized) {
+      const masterAsset = masterAssetsById.get(item.assetId);
+      if (!masterAsset || masterAsset.dna_ref.record_id !== item.recordId ||
+          masterAsset.dna_ref.schema_id !== item.schemaId || masterAsset.dna_ref.schema_version !== item.schemaVersion) {
+        throw new Error('Master DNA does not reference the exact portable DNA record for Asset ' + item.assetId + '.');
+      }
+    }
   } else if (normalized.length > 1) {
     throw new Error('A whole-Vyral DNA-only export requires a verified Master DNA snapshot.');
   }
