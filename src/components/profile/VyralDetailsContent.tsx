@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
-import { createVyralDnaOnlyPackage, createVyralZip, parseVyralManifest, readVyralZip, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralDnaOnlyPackage, createVyralZip, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -88,6 +88,34 @@ const formatRgb = (value: unknown) =>
   Array.isArray(value) && value.length >= 3
     ? value.slice(0, 3).map((channel) => Number(channel).toFixed(0)).join(', ')
     : '—';
+
+const encodeDecodedSamplesAsPng = async (
+  samples: Uint8Array,
+  width: number,
+  height: number,
+  channelLayout: 'RGB' | 'RGBA',
+): Promise<Blob> => {
+  const channels = channelLayout === 'RGBA' ? 4 : 3;
+  if (samples.byteLength !== width * height * channels) {
+    throw new Error('DNA v3 reconstructed sample length does not match its image dimensions.');
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('This browser cannot encode the reconstructed DNA image.');
+  const imageData = context.createImageData(width, height);
+  for (let source = 0, target = 0; source < samples.length; source += channels, target += 4) {
+    imageData.data[target] = samples[source];
+    imageData.data[target + 1] = samples[source + 1];
+    imageData.data[target + 2] = samples[source + 2];
+    imageData.data[target + 3] = channels === 4 ? samples[source + 3] : 255;
+  }
+  context.putImageData(imageData, 0, 0);
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('The browser could not encode the reconstructed PNG.')), 'image/png');
+  });
+};
 
 export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated }) => {
   const [tab, setTab] = useState<Tab>('overview');
@@ -423,6 +451,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
       importPackageId = manifest.packageId;
+      if (manifest.exportMode === 'dna-only') {
+        if (manifest.assets.length !== 1 || manifest.dnaRecords.length !== 1) {
+          throw new Error('A DNA-only package must contain exactly one asset and one DNA v3 record.');
+        }
+        const dnaEntry = manifest.dnaRecords[0];
+        if (dnaEntry.dna_schema_id !== 'vyra.asset-dna' || dnaEntry.dna_schema_version !== 3) {
+          throw new Error('The DNA-only package does not contain a supported DNA v3 reconstruction record.');
+        }
+        setPackageStatus('Verifying DNA v3 tiles and decoded-sample digest…');
+        await reconstructVyralDnaV3FromPackage(archiveFiles, String(dnaEntry.id));
+      }
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
       const assetCount = manifest.assets.length;
       const folderCount = manifest.folders.length;
@@ -504,7 +543,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const assetId = crypto.randomUUID();
         assetMap.set(oldAssetId, assetId);
         const sourceVersions = [...(versionsByAsset.get(oldAssetId) ?? [])].sort((a, b) => Number(a.version_number) - Number(b.version_number));
-        if (!sourceVersions.length) throw new Error('Asset "' + stringValue(sourceAsset.name, oldAssetId) + '" has no media version in the package.');
         const preparedVersions: {
           source: (typeof sourceVersions)[number];
           bytes: Uint8Array;
@@ -513,32 +551,76 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           storagePath: string;
           versionNumber: number;
         }[] = [];
+        let reconstructedFromDnaV3 = false;
+        let reconstructedSourceSha256: string | null = null;
 
-        for (const sourceVersion of sourceVersions) {
-          const packagePath = sourceVersion.package_path;
-          const bytes = typeof packagePath === 'string' ? archiveFiles.get(packagePath) : undefined;
-          if (!bytes) throw new Error('A media version is missing from the package archive.');
-          if (bytes.byteLength > 100 * 1024 * 1024) throw new Error('An asset version exceeds the 100 MB storage limit.');
-          const importDigestBuffer = new ArrayBuffer(bytes.byteLength);
-          new Uint8Array(importDigestBuffer).set(bytes);
-          const digest = await crypto.subtle.digest('SHA-256', importDigestBuffer);
+        if (!sourceVersions.length && manifest.exportMode === 'dna-only') {
+          const dnaEntry = manifest.dnaRecords.find((record) =>
+            record.dna_schema_id === 'vyra.asset-dna' &&
+            record.dna_schema_version === 3 &&
+            record.asset_id === oldAssetId
+          );
+          if (!dnaEntry) throw new Error('The DNA-only package has no v3 record for its selected asset.');
+          const reconstruction = await reconstructVyralDnaV3FromPackage(archiveFiles, String(dnaEntry.id));
+          const pngBlob = await encodeDecodedSamplesAsPng(
+            reconstruction.samples,
+            reconstruction.width,
+            reconstruction.height,
+            reconstruction.channel_layout,
+          );
+          const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+          const digest = await crypto.subtle.digest('SHA-256', pngBytes.slice().buffer);
           const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-          if (typeof sourceVersion.sha256 === 'string' && sourceVersion.sha256.toLowerCase() !== sha256) {
-            throw new Error('Integrity verification failed for "' + stringValue(sourceAsset.name, oldAssetId) + '". The package media does not match its SHA-256 record.');
+          const versionId = crypto.randomUUID();
+          const filenameBase = safeName(sourceAsset.original_filename ?? sourceAsset.name, 'reconstructed-image', 120).replace(/\.[^.]+$/, '');
+          const filename = filenameBase + '.reconstructed.png';
+          const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v1/' + versionId + '-' + encodeURIComponent(filename);
+          const syntheticSource = {
+            id: versionId,
+            asset_id: oldAssetId,
+            version_number: 1,
+            mime_type: 'image/png',
+            source_kind: 'restored',
+            metadata: {
+              reconstruction_method: 'vyra-dna-v3-raw-tiled-v1',
+              decoded_samples_sha256: reconstruction.decoded_samples_sha256,
+              original_encoded_source_sha256: asRecord(dnaEntry.dna_record).source && asRecord(asRecord(dnaEntry.dna_record).source).sha256,
+              original_encoded_source_bytes_recovered: false,
+            },
+          } as (typeof sourceVersions)[number];
+          preparedVersions.push({ source: syntheticSource, bytes: pngBytes, sha256, id: versionId, storagePath, versionNumber: 1 });
+          reconstructedFromDnaV3 = true;
+          reconstructedSourceSha256 = String(asRecord(asRecord(dnaEntry.dna_record).source).sha256 ?? '');
+        } else {
+          if (!sourceVersions.length) throw new Error('Asset "' + stringValue(sourceAsset.name, oldAssetId) + '" has no media version in the package.');
+          for (const sourceVersion of sourceVersions) {
+            const packagePath = sourceVersion.package_path;
+            const bytes = typeof packagePath === 'string' ? archiveFiles.get(packagePath) : undefined;
+            if (!bytes) throw new Error('A media version is missing from the package archive.');
+            if (bytes.byteLength > 100 * 1024 * 1024) throw new Error('An asset version exceeds the 100 MB storage limit.');
+            const importDigestBuffer = new ArrayBuffer(bytes.byteLength);
+            new Uint8Array(importDigestBuffer).set(bytes);
+            const digest = await crypto.subtle.digest('SHA-256', importDigestBuffer);
+            const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+            if (typeof sourceVersion.sha256 === 'string' && sourceVersion.sha256.toLowerCase() !== sha256) {
+              throw new Error('Integrity verification failed for "' + stringValue(sourceAsset.name, oldAssetId) + '". The package media does not match its SHA-256 record.');
+            }
+            const versionNumber = Math.max(1, Math.floor(Number(sourceVersion.version_number) || 1));
+            const versionId = versionMap.get(String(sourceVersion.id)) ?? crypto.randomUUID();
+            const filename = safeName(sourceAsset.original_filename ?? sourceAsset.name, 'asset.bin', 120);
+            const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v' + versionNumber + '/' + versionId + '-' + encodeURIComponent(filename);
+            preparedVersions.push({ source: sourceVersion, bytes, sha256, id: versionId, storagePath, versionNumber });
           }
-          const versionNumber = Math.max(1, Math.floor(Number(sourceVersion.version_number) || 1));
-          const versionId = versionMap.get(String(sourceVersion.id)) ?? crypto.randomUUID();
-          const filename = safeName(sourceAsset.original_filename ?? sourceAsset.name, 'asset.bin', 120);
-          const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v' + versionNumber + '/' + versionId + '-' + encodeURIComponent(filename);
-          preparedVersions.push({ source: sourceVersion, bytes, sha256, id: versionId, storagePath, versionNumber });
         }
 
         const latest = preparedVersions[preparedVersions.length - 1];
         const assetName = safeName(sourceAsset.name, 'Imported asset', 180);
-        const originalFilename = safeName(sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
-        const assetTypeValue = stringValue(sourceAsset.asset_type, 'other');
+        const originalFilename = reconstructedFromDnaV3
+          ? safeName(sourceAsset.original_filename ?? sourceAsset.name, 'reconstructed-image', 120).replace(/\.[^.]+$/, '') + '.reconstructed.png'
+          : safeName(sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
+        const assetTypeValue = reconstructedFromDnaV3 ? 'image' : stringValue(sourceAsset.asset_type, 'other');
         const assetTypeValueSafe = allowedAssetTypes.includes(assetTypeValue) ? assetTypeValue : 'other';
-        const mimeType = safeMimeType(sourceAsset.mime_type, 'application/octet-stream');
+        const mimeType = reconstructedFromDnaV3 ? 'image/png' : safeMimeType(sourceAsset.mime_type, 'application/octet-stream');
         const { error: assetError } = await supabase.from('vyral_assets').insert({
           id: assetId,
           vyral_id: vyral.id,
@@ -554,7 +636,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           processing_status: 'uploading',
           description: stringValue(sourceAsset.description).slice(0, 2000),
           license_override: objectValue(sourceAsset.license_override),
-          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null },
+          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}) },
         });
         if (assetError) throw assetError;
         createdAssetIds.push(assetId);
@@ -582,7 +664,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             sha256: item.sha256,
             source_kind: allowedVersionSources.includes(String(item.source.source_kind)) ? item.source.source_kind : 'restored',
             parent_version_id: item.source.parent_version_id ? versionMap.get(String(item.source.parent_version_id)) ?? null : null,
-            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId, imported_original_created_at: item.source.created_at ?? null },
+            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId, imported_original_created_at: item.source.created_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}) },
           });
           fingerprintRows.push({
             asset_id: assetId,
@@ -609,13 +691,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
 
       const dnaRows: Record<string, unknown>[] = [];
-      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>, reconstructionData: Record<string, unknown> = {}) => {
+      const addImportedEvidence = (sourceKind: string, assetId: string | null, payload: Record<string, unknown>, reconstructionData: Record<string, unknown> = {}, schemaVersion = 1) => {
         dnaRows.push({
           vyral_id: vyral.id,
           user_id: userId,
           asset_id: assetId,
           scope: assetId ? 'asset' : 'vyral',
-          schema_version: 1,
+          schema_version: schemaVersion,
           dna_status: 'evolving',
           source_kind: allowedDnaSources.includes(sourceKind) ? sourceKind : 'system',
           verification_status: 'unverified',
@@ -627,7 +709,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       for (const sourceRecord of manifest.dnaRecords) {
         const oldAssetId = sourceRecord.asset_id ? String(sourceRecord.asset_id) : '';
         const assetId = oldAssetId ? assetMap.get(oldAssetId) ?? null : null;
-        const originalPayload = objectValue(sourceRecord.payload);
+        const isDnaV3Record = sourceRecord.dna_schema_id === 'vyra.asset-dna' && sourceRecord.dna_schema_version === 3;
+        const originalPayload = isDnaV3Record
+          ? { dna_schema_id: sourceRecord.dna_schema_id, dna_schema_version: sourceRecord.dna_schema_version, dna_record: sourceRecord.dna_record, recovery_level: sourceRecord.recovery_level }
+          : objectValue(sourceRecord.payload);
         addImportedEvidence(stringValue(sourceRecord.source_kind, 'system'), assetId, {
           ...originalPayload,
           imported_provenance: {
@@ -639,7 +724,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             original_created_at: sourceRecord.created_at ?? null,
             trust: 'unverified_imported_evidence',
           },
-        }, objectValue(sourceRecord.reconstruction_data));
+        }, objectValue(sourceRecord.reconstruction_data), isDnaV3Record ? 3 : 1);
       }
 
       for (const sourceFingerprint of manifest.fingerprints) {
