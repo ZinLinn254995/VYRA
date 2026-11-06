@@ -58,7 +58,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: vyral, error: vyralError } = await context.supabase
     .from('vyrals')
-    .select('id,user_id,name,visibility,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses')
+    .select('id,user_id,name,created_at,visibility,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses')
     .eq('id', body.vyralId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -90,7 +90,7 @@ Deno.serve(async (request: Request) => {
     context.supabase.from('vyral_reconstruction_tests')
       .select('asset_id,asset_version_id,comparison_mode,test_status,exact_match,tested_at')
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId)
-      .order('tested_at', { ascending: false }),
+      .order('created_at', { ascending: false }),
     context.supabase.from('vyral_master_dna_revisions')
       .select('id,revision,manifest_sha256,vyral_fingerprint')
       .eq('vyral_id', vyral.id).eq('user_id', userId)
@@ -108,7 +108,8 @@ Deno.serve(async (request: Request) => {
 
   const dnaByAsset = new Map<string, Row>();
   for (const record of dnaResult.data ?? []) {
-    if (!dnaByAsset.has(record.asset_id)) dnaByAsset.set(record.asset_id, record);
+    const current = dnaByAsset.get(record.asset_id);
+    if (!current || (Number(record.schema_version) === 3 && Number(current.schema_version) !== 3)) dnaByAsset.set(record.asset_id, record);
   }
 
   const relationships = relationshipsResult.data ?? [];
@@ -220,7 +221,7 @@ Deno.serve(async (request: Request) => {
   try {
     masterDna = await createVyralMasterDnaV1({
       master_dna_id: crypto.randomUUID(),
-      vyral: { vyral_id: vyral.id, name: vyral.name, owner_ref: null, created_at: createdAt },
+      vyral: { vyral_id: vyral.id, name: vyral.name, owner_ref: null, created_at: vyral.created_at },
       snapshot: { revision: currentRevision + 1, created_at: createdAt, parent_master_dna_id: latest?.id ?? null },
       purpose: {
         summary: vyral.master_dna_purpose.trim(),
