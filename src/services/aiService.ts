@@ -18,7 +18,7 @@ export interface AIServiceRequest {
   /** Stable per-generation request ID used only for server-side idempotency. */
   idempotencyKey?: string;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
-  visionImage?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string };
+  visionImages?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[];
   context?: {
     category?: ContentCategory;
     targetFormat?: 'short_form' | 'long_form';
@@ -129,7 +129,7 @@ class ModularAIService implements AIServiceProvider {
       // Storage may be unavailable in private browsing; continue to the Gemini path.
     }
 
-    if (openRouterKey && openRouterModel && !request.visionImage) {
+    if (openRouterKey && openRouterModel && !request.visionImages?.length) {
       try {
         const response = await fetch('/api/providers/openrouter/chat', {
           method: 'POST',
@@ -205,7 +205,7 @@ class ModularAIService implements AIServiceProvider {
           Authorization: 'Bearer ' + request.accessToken,
         },
         // Keep the bearer token and idempotency key out of the JSON request body.
-        body: JSON.stringify({ messages: request.messages, context: request.context, ...(request.visionImage ? { visionImage: request.visionImage } : {}) }),
+        body: JSON.stringify({ messages: request.messages, context: request.context, ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}) }),
       });
 
       if (response.ok) {
@@ -218,7 +218,7 @@ class ModularAIService implements AIServiceProvider {
           modelName: this.model,
         };
       }
-      if (request.visionImage) {
+      if (request.visionImages?.length) {
         const data = await response.json().catch(() => ({})) as { error?: string };
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error
