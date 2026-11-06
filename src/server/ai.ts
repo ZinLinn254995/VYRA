@@ -1029,7 +1029,10 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const contents = visionImages.length
-      ? [{ role: 'user' as const, parts: [{ text: prompt }, ...visionImages.map((item) => ({ text: `Asset preview: ${item.assetName ?? item.assetId ?? 'Unlabelled asset'}` })), ...visionImages.map((item) => ({ inlineData: { mimeType: item.mimeType, data: item.data } }))] }]
+      ? [{ role: 'user' as const, parts: [{ text: prompt }, ...visionImages.flatMap((item) => [
+          { text: `Asset preview: ${item.assetName ?? item.assetId ?? 'Unlabelled asset'} (asset ID: ${item.assetId ?? 'not supplied'})` },
+          { inlineData: { mimeType: item.mimeType, data: item.data } },
+        ])] }]
       : prompt;
     const generated = await genAI.models.generateContent({
       model: MODEL_NAME,
