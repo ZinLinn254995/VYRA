@@ -20,6 +20,8 @@ test('AI Chat validates Universal File DNA and clearly separates byte identity f
   assert.match(chat, /validateVyralFileDnaV1Record/);
   assert.match(chat, /reconstructVyralFileDnaFromPackage/);
   assert.match(chat, /analyzeVyralFileStructureV1/);
+  assert.match(chat, /File DNA record references a different Asset/);
+  assert.match(chat, /pinned to a different Asset version/);
   assert.match(chat, /independently re-analyzed source bytes/);
   assert.match(chat, /full-package original version/);
   assert.match(chat, /exact source bytes reconstructed from DNA/);
