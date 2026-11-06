@@ -239,12 +239,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         rationale: edge?.rationale ?? '',
       }];
     })));
-    onVyralUpdated({
-      master_dna_status: masterRoot.master_dna_status ?? 'not_started',
-      master_dna_revision: masterRoot.master_dna_revision ?? 0,
-      master_dna_purpose: masterRoot.master_dna_purpose ?? null,
-      master_dna_intended_uses: masterRoot.master_dna_intended_uses ?? [],
-    });
     const policy = (vyral.license_policy ?? {}) as Record<string, unknown>;
     setLicenseDraft({
       allow_ai_analysis: policy.allow_ai_analysis !== false,
