@@ -739,7 +739,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         let reconstructedFromFileDna = false;
         let reconstructedSourceSha256: string | null = null;
 
-        if (!sourceVersions.length && manifest.exportMode === 'dna-only') {
+        if (!sourceVersions.length && manifest.exportMode === 'dna-only' && sourceDnaEntry) {
           const dnaEntry = sourceDnaEntry;
           if (!dnaEntry) throw new Error('The DNA-only package has no v3 record for its selected asset.');
           const reconstruction = await encodeVyralDnaV3PngFromPackage(archiveFiles, String(dnaEntry.id));
@@ -844,7 +844,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             source: { asset_id: assetId, asset_version_id: sourceVersion.id },
             bytes: sourceVersion.bytes,
             mime_type: sourceVersion.source.mime_type || mimeType,
-            filename: originalFilename,
+            filename: safeName(sourceAsset.original_filename ?? sourceAsset.name, 'Imported asset', 255),
             include_payload: false,
           }) : null;
           importedDnaSources.set(oldAssetId, {
