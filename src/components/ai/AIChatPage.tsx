@@ -80,7 +80,7 @@ const inspectVyralAttachment = async (file: File) => {
   );
   if (v3Records.length + fileRecords.length > 64) throw new Error('This Vyral contains too many DNA records for one chat attachment.');
   const verified: { width: number; height: number; channels: string; digest: string; bytes: number }[] = [];
-  const verifiedFiles: { assetId: string; assetName: string; mimeType: string; format: string; extension: string | null; bytes: number; digest: string; exactSourceBytes: boolean; verificationSource: string }[] = [];
+  const verifiedFiles: { assetId: string; assetName: string; mimeType: string; format: string; extension: string | null; bytes: number; digest: string; exactSourceBytes: boolean; verificationSource: string; structureProfile: string; structureStatus: string; structureFacts: string[]; structureNotes: string[] }[] = [];
   let totalDecodedBytes = 0;
   let totalFileBytes = 0;
   for (const record of v3Records) {
@@ -146,6 +146,10 @@ const inspectVyralAttachment = async (file: File) => {
       digest: dna.file.sha256,
       exactSourceBytes,
       verificationSource,
+      structureProfile: dna.structure?.profile ?? 'unknown',
+      structureStatus: dna.structure?.status ?? 'unknown',
+      structureFacts: (dna.structure?.facts ?? []).slice(0, 32).map((fact) => `${fact.key}=${String(fact.value)}${fact.unit ? ' ' + fact.unit : ''} [${fact.evidence}]`),
+      structureNotes: (dna.structure?.notes ?? []).slice(0, 8),
     });
   }
   const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
@@ -174,7 +178,7 @@ const inspectVyralAttachment = async (file: File) => {
       `Raster DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
     ),
     ...verifiedFiles.map((item) =>
-      `File DNA v1 verified for ${item.assetName} (${item.assetId}): ${item.mimeType}; format signature ${item.format}; extension ${item.extension ?? 'unknown'}; ${item.bytes.toLocaleString()} bytes; SHA-256 ${item.digest}; verification source: ${item.verificationSource}; exact source bytes reconstructed from DNA: ${item.exactSourceBytes ? 'yes' : 'no'}; semantic file contents were not parsed or attached to Vision`
+      `File DNA v1 verified for ${item.assetName} (${item.assetId}): ${item.mimeType}; format signature ${item.format}; extension ${item.extension ?? 'unknown'}; ${item.bytes.toLocaleString()} bytes; SHA-256 ${item.digest}; verification source: ${item.verificationSource}; exact source bytes reconstructed from DNA: ${item.exactSourceBytes ? 'yes' : 'no'}; structural profile: ${item.structureProfile} (${item.structureStatus}); structural facts: ${item.structureFacts.join(', ') || 'none'}; parser notes: ${item.structureNotes.join('; ') || 'none'}; semantic content was not inferred or attached to Vision`
     ),
     v3Records.length === 0 && fileRecords.length === 0 ? 'No supported portable Asset DNA v3 or File DNA v1 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
