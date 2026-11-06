@@ -11,6 +11,7 @@ import {
   encodeVyralDnaV3PngFromPackage,
 } from '../src/services/vyralPackage.ts';
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
+import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 
 const manifest = {
   format: VYRAL_PACKAGE_FORMAT,
@@ -383,4 +384,88 @@ test('rejects DNA-only export with missing or undeclared DNA tile payloads', asy
     ...entries,
     { path: 'dna/v3/portable-dna-invalid/tiles/extra_0.raw', data: new Uint8Array([1]) },
   ]), /undeclared DNA payload entries/);
+});
+
+
+test('exports and reconstructs every asset in a whole-Vyral DNA-only package', async () => {
+  const sourceRecords = [];
+  const payloadEntries: { path: string; data: Uint8Array }[] = [];
+  const assets = [
+    { id: 'asset-main', name: 'Main image' },
+    { id: 'asset-support', name: 'Supporting image' },
+  ];
+  for (const [index, asset] of assets.entries()) {
+    const samples = new Uint8Array([
+      255, index * 20, 0, 255,
+      0, 255, index * 30, 255,
+    ]);
+    const result = await createVyralDnaV3({
+      record_id: 'dna-record-' + index,
+      source: {
+        asset_id: asset.id,
+        asset_version_id: 'version-' + index,
+        sha256: String(index + 1).repeat(64),
+        size_bytes: 128,
+        mime_type: 'image/png',
+      },
+      extractor: { name: 'test-decoder', version: '1.0.0' },
+      width: 2,
+      height: 1,
+      channel_layout: 'RGBA',
+      color_space: 'sRGB',
+      icc_profile_sha256: null,
+      alpha_mode: 'straight',
+      decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+      tile_width: 1,
+      tile_height: 1,
+      decoded_samples: samples,
+    });
+    sourceRecords.push(result.record);
+    payloadEntries.push(...result.entries);
+  }
+  const masterDna = await createVyralMasterDnaV1({
+    master_dna_id: 'master-dna-test',
+    vyral: { vyral_id: 'vyral-test', name: 'Test Vyral' },
+    snapshot: { revision: 1, created_at: '2026-11-06T00:00:00.000Z' },
+    purpose: { summary: 'A main visual with a supporting visual.', intended_uses: ['storyboarding'] },
+    main_asset_ids: ['asset-main'],
+    assets: [
+      {
+        asset_id: 'asset-main', asset_version_id: 'version-0', role: 'main', purpose: 'Primary subject',
+        media_type: 'image/png', dna_ref: { record_id: 'dna-record-0', schema_id: 'vyra.asset-dna', schema_version: 3 },
+        asset_fingerprint: 'a'.repeat(64), reconstruction_claim: 'lossless_decoded',
+      },
+      {
+        asset_id: 'asset-support', asset_version_id: 'version-1', role: 'supporting', purpose: 'Supporting detail',
+        media_type: 'image/png', dna_ref: { record_id: 'dna-record-1', schema_id: 'vyra.asset-dna', schema_version: 3 },
+        asset_fingerprint: 'b'.repeat(64), reconstruction_claim: 'lossless_decoded',
+      },
+    ],
+    relationships: [{
+      relationship_id: 'relationship-1', type: 'supports', rationale: 'The supporting visual complements the main subject.',
+      from: { kind: 'asset', asset_id: 'asset-support' }, to: { kind: 'asset', asset_id: 'asset-main' },
+    }],
+    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['Each asset has its own exact decoded-sample stream.'] },
+    provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
+    source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
+    portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
+  });
+  const base = {
+    ...manifest,
+    assets,
+    versions: [],
+    masterDna,
+  };
+  const archive = await createVyralDnaOnlyPackage(base, sourceRecords, payloadEntries);
+  const files = await readVyralZip(archive);
+  const parsed = parseVyralManifest(files);
+  assert.equal(parsed.assets.length, 2);
+  assert.equal(parsed.dnaRecords.length, 2);
+  assert.equal(parsed.masterDna?.assets.length, 2);
+  assert.equal(parsed.exportMode, 'dna-only');
+  for (const record of parsed.dnaRecords) {
+    const reconstructed = await reconstructVyralDnaV3FromPackage(files, String(record.id));
+    const source = sourceRecords.find((item) => item.record_id === record.id)!;
+    assert.equal(reconstructed.decoded_samples_sha256, source.decoded_image.decoded_samples_sha256);
+  }
 });
