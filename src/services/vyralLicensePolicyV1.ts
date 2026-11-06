@@ -70,6 +70,7 @@ export const evaluateVyralLicenseActionV1 = (input: {
     };
   }
 
+  const nowMs = Date.parse(input.now);
   const seen = new Set<string>();
   const selected: string[] = [];
   for (const asset of input.assets) {
@@ -91,15 +92,17 @@ export const evaluateVyralLicenseActionV1 = (input: {
 
     const valid = active.find((grant) =>
       isDate(grant.granted_at) &&
+      Date.parse(grant.granted_at) <= nowMs &&
       Boolean(grant.terms_version.trim()) &&
       (grant.expires_at === null || (
-        isDate(grant.expires_at) && Date.parse(grant.expires_at) > Date.parse(input.now)
+        isDate(grant.expires_at) && Date.parse(grant.expires_at) > nowMs
       )) &&
       PROFILE_ACTIONS[grant.profile]?.includes(input.action)
     );
     if (!valid) {
       const expired = active.some((grant) =>
-        grant.expires_at !== null && isDate(grant.expires_at) && Date.parse(grant.expires_at) <= Date.parse(input.now)
+        (grant.expires_at !== null && isDate(grant.expires_at) && Date.parse(grant.expires_at) <= nowMs) ||
+        (isDate(grant.granted_at) && Date.parse(grant.granted_at) > nowMs)
       );
       return denied(expired ? 'expired' : 'invalid_grant', asset.asset_id);
     }
