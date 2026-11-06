@@ -19,7 +19,7 @@ export interface AIServiceRequest {
   idempotencyKey?: string;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
   visionImage?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string };
-  context? {
+  context?: {
     category?: ContentCategory;
     targetFormat?: 'short_form' | 'long_form';
     aspectRatio?: '9:16' | '16:9' | '1:1';
