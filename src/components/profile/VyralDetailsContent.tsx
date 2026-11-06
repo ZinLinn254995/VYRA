@@ -614,6 +614,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
 
         const latest = preparedVersions[preparedVersions.length - 1];
+        const mimeType = reconstructedFromDnaV3 ? 'image/png' : safeMimeType(sourceAsset.mime_type, 'application/octet-stream');
+        const pendingDnaTileUploads: { storagePath: string; bytes: Uint8Array }[] = [];
         if (sourceDnaEntry) {
           const sourceDnaRecord = asRecord(sourceDnaEntry.dna_record);
           const sourceDnaRecordSource = asRecord(sourceDnaRecord.source);
@@ -631,15 +633,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const tileFilename = packagePath.split('/').pop() ?? ('tile-' + index + '.raw');
             const tileStoragePath = userId + '/' + vyral.id + '/' + assetId + '/dna/v3/' +
               encodeURIComponent(String(sourceDnaRecord.record_id)) + '/' + index + '-' + encodeURIComponent(tileFilename);
-            const tileBuffer = new ArrayBuffer(tileBytes.byteLength);
-            new Uint8Array(tileBuffer).set(tileBytes);
-            const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
-              tileStoragePath,
-              new Blob([tileBuffer], { type: 'application/octet-stream' }),
-              { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
-            );
-            if (tileUploadError) throw tileUploadError;
-            uploadedPaths.push(tileStoragePath);
+            pendingDnaTileUploads.push({ storagePath: tileStoragePath, bytes: tileBytes });
             tileStoragePaths.push(tileStoragePath);
           }
           importedDnaSources.set(oldAssetId, {
@@ -656,7 +650,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           : safeName(sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
         const assetTypeValue = reconstructedFromDnaV3 ? 'image' : stringValue(sourceAsset.asset_type, 'other');
         const assetTypeValueSafe = allowedAssetTypes.includes(assetTypeValue) ? assetTypeValue : 'other';
-        const mimeType = reconstructedFromDnaV3 ? 'image/png' : safeMimeType(sourceAsset.mime_type, 'application/octet-stream');
         const { error: assetError } = await supabase.from('vyral_assets').insert({
           id: assetId,
           vyral_id: vyral.id,
@@ -676,6 +669,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         });
         if (assetError) throw assetError;
         createdAssetIds.push(assetId);
+        for (const tileUpload of pendingDnaTileUploads) {
+          const tileBuffer = new ArrayBuffer(tileUpload.bytes.byteLength);
+          new Uint8Array(tileBuffer).set(tileUpload.bytes);
+          const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
+            tileUpload.storagePath,
+            new Blob([tileBuffer], { type: 'application/octet-stream' }),
+            { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
+          );
+          if (tileUploadError) throw tileUploadError;
+          uploadedPaths.push(tileUpload.storagePath);
+        }
 
         const versionRows: Record<string, unknown>[] = [];
         const fingerprintRows: Record<string, unknown>[] = [];
