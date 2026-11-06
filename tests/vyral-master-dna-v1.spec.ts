@@ -26,7 +26,7 @@ const input = {
     { relationship_id: 'edge-1', type: 'belongs_to', from: { kind: 'asset' as const, asset_id: 'character', asset_version_id: 'character-v1' }, to: { kind: 'vyral' as const, vyral_id: 'vyral-1' }, rationale: 'The character is the primary subject of this Vyral.' },
     { relationship_id: 'edge-2', type: 'audio_for', from: { kind: 'asset' as const, asset_id: 'voice' }, to: { kind: 'asset' as const, asset_id: 'character' }, rationale: 'This voice profile belongs to the character.' },
   ],
-  reconstruction_profile: { overall_claim: 'mixed' as const, notes: ['Image samples are losslessly decoded; voice is semantic only.'] },
+  reconstruction_profile: { overall_claim: 'semantic_only' as const, notes: ['Image samples are losslessly decoded; voice is semantic only.'] },
   provenance: { creator_ref: null, license_ref: null, evidence_status: 'creator_attested' as const },
   source_resolution: { visibility: 'private' as const, canonical_uri: null, resolution_policy: 'authenticated_owner' as const },
   portable_projection: { profile: 'compact' as const, includes_full_reconstruction_payloads: false as const, resolver_uri: null, retrieval_policy: 'authorized_selective_retrieval' as const, max_assets_per_request: 4 },
@@ -62,4 +62,22 @@ test('rejects cross-Vyral links, stale asset versions, and private public-asset 
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, relationships: input.relationships.map((edge, i) => i === 0 ? { ...edge, to: { kind: 'vyral' as const, vyral_id: 'other-vyral' } } : edge) }), /different Vyral root/);
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, relationships: input.relationships.map((edge, i) => i === 0 ? { ...edge, from: { kind: 'asset' as const, asset_id: 'character', asset_version_id: 'old-version' } } : edge) }), /asset version outside/);
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, source_resolution: { ...input.source_resolution, resolution_policy: 'public_assets' as const } }), /cannot expose public asset resolution/);
+});
+
+test('rejects an overall reconstruction claim stronger than the weakest asset', async () => {
+  await assert.rejects(
+    () => createVyralMasterDnaV1({ ...input, reconstruction_profile: { ...input.reconstruction_profile, overall_claim: 'lossless_decoded' as const } }),
+    /must not exceed the weakest included asset claim/,
+  );
+});
+
+test('private and unlisted Vyrals cannot expose public resolver metadata', async () => {
+  await assert.rejects(
+    () => createVyralMasterDnaV1({ ...input, source_resolution: { ...input.source_resolution, canonical_uri: 'https://example.invalid/vyral' } }),
+    /cannot expose public metadata/,
+  );
+  await assert.rejects(
+    () => createVyralMasterDnaV1({ ...input, portable_projection: { ...input.portable_projection, retrieval_policy: 'public_metadata_only' as const } }),
+    /cannot publish metadata-only resolution/,
+  );
 });
