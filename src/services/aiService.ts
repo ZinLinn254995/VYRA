@@ -17,7 +17,9 @@ export interface AIServiceRequest {
   accessToken?: string;
   /** Stable per-generation request ID used only for server-side idempotency. */
   idempotencyKey?: string;
-  context?: {
+  /** Small, derived image preview from a locally verified Vyral DNA package. */
+  visionImage?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string };
+  context? {
     category?: ContentCategory;
     targetFormat?: 'short_form' | 'long_form';
     aspectRatio?: '9:16' | '16:9' | '1:1';
@@ -127,7 +129,7 @@ class ModularAIService implements AIServiceProvider {
       // Storage may be unavailable in private browsing; continue to the Gemini path.
     }
 
-    if (openRouterKey && openRouterModel) {
+    if (openRouterKey && openRouterModel && !request.visionImage) {
       try {
         const response = await fetch('/api/providers/openrouter/chat', {
           method: 'POST',
@@ -203,7 +205,7 @@ class ModularAIService implements AIServiceProvider {
           Authorization: 'Bearer ' + request.accessToken,
         },
         // Keep the bearer token and idempotency key out of the JSON request body.
-        body: JSON.stringify({ messages: request.messages, context: request.context }),
+        body: JSON.stringify({ messages: request.messages, context: request.context, ...(request.visionImage ? { visionImage: request.visionImage } : {}) }),
       });
 
       if (response.ok) {
@@ -216,7 +218,18 @@ class ModularAIService implements AIServiceProvider {
           modelName: this.model,
         };
       }
+      if (request.visionImage) {
+        const data = await response.json().catch(() => ({})) as { error?: string };
+        const message = typeof data.error === 'string' && data.error.trim()
+          ? data.error
+          : 'VYRA AI Vision could not inspect this Vyral image. Please retry when the live vision service is available.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
+      }
     } catch {
+      if (request.visionImage) {
+        const message = 'VYRA AI Vision could not reach the live Gemini service. No text-only preview was substituted.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
+      }
       // Endpoint not active; fall through to preview mode response
     }
 
