@@ -61,7 +61,7 @@ test('DNA v3 rejects missing, altered, or truncated tiles', async () => {
 test('DNA v3 rejects wrong dimensions, unsupported schema, and incomplete tile grids', async () => {
   const samples = new Uint8Array(3 * 2 * 4).fill(42);
   const { record } = await createVyralDnaV3(makeInput(samples));
-  assert.throws(() => createVyralDnaV3(makeInput(samples.slice(1))), /byte length does not match/);
+  await assert.rejects(() => createVyralDnaV3(makeInput(samples.slice(1))), /byte length does not match/);
   assert.throws(() => validateVyralDnaV3Record({ ...record, schema_version: 2 }), /Unsupported VYRA DNA schema/);
   assert.throws(() => validateVyralDnaV3Record({
     ...record,
