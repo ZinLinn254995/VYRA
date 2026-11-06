@@ -26,7 +26,8 @@
     "test:vyral-dna-v3": "node --import tsx --test tests/vyral-dna-v3.spec.ts",
     "test:vyral-ai-vision": "node --import tsx --test tests/vyral-ai-vision-contract.spec.ts",
     "test:vyral-master-dna": "node --import tsx --test tests/vyral-master-dna-v1.spec.ts",
-    "test:vyral-file-dna": "node --import tsx --test tests/vyral-file-dna-v1.spec.ts"
+    "test:vyral-file-dna": "node --import tsx --test tests/vyral-file-dna-v1.spec.ts",
+    "test:vyral-license": "node --import tsx --test tests/vyral-license-policy-v1.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
