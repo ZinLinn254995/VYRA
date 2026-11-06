@@ -467,10 +467,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'Format: ' + VYRAL_PACKAGE_FORMAT,
           'Version: ' + VYRAL_PACKAGE_VERSION,
           dnaOnly
-            ? 'DNA-ONLY RECONSTRUCTION TEST EXPORT. Original asset binaries, previews and thumbnails are intentionally excluded.'
+            ? 'DNA-ONLY RECONSTRUCTION PACKAGE. Original version entries, previews and thumbnails are excluded; lossless raster sample tiles and non-raster File DNA source-byte chunks are included.'
             : 'This archive contains the Vyral manifest, identity records and original asset-version media.',
           dnaOnly
-            ? 'Asset records are retained as metadata; no original media bytes are included.'
+            ? 'Asset records are retained as metadata and original media-version entries are omitted. File DNA v1 chunks preserve exact non-raster source bytes; raster DNA v3 preserves decoded samples, not original encoded image bytes.'
             : 'SHA-256 values were recalculated from the downloaded media during export.',
           dnaOnly
             ? 'Raster assets use canonical decoded samples: top-to-bottom rows, left-to-right pixels, interleaved RGB/RGBA channels. Non-raster assets use lossless raw source-byte chunks with per-chunk and aggregate SHA-256 verification.'
