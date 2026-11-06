@@ -546,7 +546,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const { data: sourceBlob, error: sourceError } = await supabase.storage.from('vyral-assets').download(sourceVersion.storage_path);
             if (sourceError || !sourceBlob) throw new Error('Could not read the original binary for ' + asset.name + ': ' + (sourceError?.message ?? 'source missing'));
             const fileDna = await createVyralFileDnaV1({
-              record_id: String(sourceRow.id),
+              record_id: String(identityRecord.record_id),
               source: { asset_id: asset.id, asset_version_id: sourceVersion.id },
               bytes: new Uint8Array(await sourceBlob.arrayBuffer()),
               mime_type: sourceVersion.mime_type || asset.mime_type || 'application/octet-stream',
@@ -1329,6 +1329,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             throw new Error('Universal File DNA did not match the uploaded source bytes.');
           }
           const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
+            id: fileDna.record.record_id,
             vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
             schema_version: 1, dna_status: 'evolving', source_kind: 'system',
             verification_status: 'observed',
