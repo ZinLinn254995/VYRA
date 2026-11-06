@@ -191,7 +191,7 @@ Deno.serve(async (request: Request) => {
         }
         const directory = firstPath.slice(0, firstPath.lastIndexOf('/'));
         const requiredNames = tilePaths.map((path) => {
-          if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix) || path.includes('\\\\') ||
+          if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix) || path.includes('\\') ||
               path.split('/').some((part) => part === '.' || part === '..') ||
               path.slice(0, path.lastIndexOf('/')) !== directory) {
             throw new Error('DNA tile storage paths must remain in one canonical private Asset folder.');
