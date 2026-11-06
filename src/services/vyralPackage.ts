@@ -1,3 +1,4 @@
+import { type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import {
   reconstructVyralDnaV3,
   validateVyralDnaV3Record,
@@ -27,6 +28,7 @@ export type VyralPackageManifest = {
   visionObservations: Record<string, unknown>[];
   lineage: Record<string, unknown>[];
   reconstructionTests: Record<string, unknown>[];
+  masterDna?: VyralMasterDnaV1 | null;
 };
 
 const encoder = new TextEncoder();
@@ -223,6 +225,12 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   if (manifest.formatVersion !== VYRAL_PACKAGE_VERSION) throw new Error('Unsupported VYRAL package version: ' + String(manifest.formatVersion));
   if (typeof manifest.packageId !== 'string' || !manifest.packageId.trim() || manifest.packageId.length > 128 || typeof manifest.exportedAt !== 'string' || !Number.isFinite(Date.parse(manifest.exportedAt))) throw new Error('VYRAL package identity metadata is missing or invalid.');
   if (!manifest.vyral || typeof manifest.vyral !== 'object' || typeof manifest.vyral.name !== 'string' || !manifest.vyral.name.trim()) throw new Error('VYRAL collection metadata is invalid.');
+  if (manifest.masterDna !== undefined && manifest.masterDna !== null) {
+    if (typeof manifest.masterDna !== 'object' || Array.isArray(manifest.masterDna) ||
+        (manifest.masterDna as VyralMasterDnaV1).vyral?.vyral_id !== manifest.vyral.id) {
+      throw new Error('VYRAL Master DNA identity does not match the package Vyral.');
+    }
+  }
   for (const key of ['folders','assets','versions','dnaRecords','fingerprints','visionObservations','lineage','reconstructionTests'] as const) {
     if (!Array.isArray(manifest[key])) throw new Error('VYRAL manifest section is missing or invalid: ' + key);
   }
