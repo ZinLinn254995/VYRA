@@ -5,124 +5,512 @@
   "description": "Machine-readable snapshot of a Vyral's identity, asset membership, purpose, relationships, source policy and integrity bindings. Architecture target; implementation status is tracked separately.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_id", "schema_version", "master_dna_id", "vyral", "snapshot", "purpose", "main_asset_ids", "assets", "relationships", "reconstruction_profile", "provenance", "source_resolution", "integrity"],
+  "required": [
+    "schema_id",
+    "schema_version",
+    "master_dna_id",
+    "vyral",
+    "snapshot",
+    "purpose",
+    "main_asset_ids",
+    "assets",
+    "relationships",
+    "reconstruction_profile",
+    "provenance",
+    "source_resolution",
+    "integrity",
+    "portable_projection"
+  ],
   "properties": {
-    "schema_id": { "const": "vyra.vyral-master-dna" },
-    "schema_version": { "const": 1 },
-    "master_dna_id": { "$ref": "#/$defs/id" },
+    "schema_id": {
+      "const": "vyra.vyral-master-dna"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "master_dna_id": {
+      "$ref": "#/$defs/id"
+    },
     "vyral": {
-      "type": "object", "additionalProperties": false, "required": ["vyral_id", "name"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vyral_id",
+        "name"
+      ],
       "properties": {
-        "vyral_id": { "$ref": "#/$defs/id" },
-        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "owner_ref": { "type": ["string", "null"], "maxLength": 256 },
-        "created_at": { "type": ["string", "null"], "format": "date-time" }
+        "vyral_id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "owner_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
       }
     },
     "snapshot": {
-      "type": "object", "additionalProperties": false, "required": ["revision", "created_at"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "created_at"
+      ],
       "properties": {
-        "revision": { "type": "integer", "minimum": 1 },
-        "created_at": { "type": "string", "format": "date-time" },
-        "parent_master_dna_id": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] }
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parent_master_dna_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       }
     },
     "purpose": {
-      "type": "object", "additionalProperties": false, "required": ["summary", "intended_uses"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "intended_uses"
+      ],
       "properties": {
-        "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
-        "intended_uses": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 }, "uniqueItems": true },
-        "constraints": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 1000 } }
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "intended_uses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
       }
     },
-    "main_asset_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
-    "assets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/asset" } },
-    "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+    "main_asset_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/asset"
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relationship"
+      }
+    },
     "reconstruction_profile": {
-      "type": "object", "additionalProperties": false, "required": ["overall_claim", "notes"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall_claim",
+        "notes"
+      ],
       "properties": {
-        "overall_claim": { "enum": ["lossless_decoded", "source_file_exact", "semantic_only", "model_reconstructed", "mixed", "unavailable"] },
-        "notes": { "type": "array", "items": { "type": "string", "maxLength": 2000 } },
+        "overall_claim": {
+          "enum": [
+            "lossless_decoded",
+            "source_file_exact",
+            "semantic_only",
+            "model_reconstructed",
+            "mixed",
+            "unavailable"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
         "cross_asset_constraints": {
           "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false, "required": ["constraint_id", "description"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "constraint_id",
+              "description"
+            ],
             "properties": {
-              "constraint_id": { "$ref": "#/$defs/id" },
-              "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
-              "applies_to_asset_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+              "constraint_id": {
+                "$ref": "#/$defs/id"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "applies_to_asset_ids": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/id"
+                }
+              }
             }
           }
         }
       }
     },
     "provenance": {
-      "type": "object", "additionalProperties": false, "required": ["creator_ref", "license_ref", "evidence_status"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "creator_ref",
+        "license_ref",
+        "evidence_status"
+      ],
       "properties": {
-        "creator_ref": { "type": ["string", "null"], "maxLength": 256 },
-        "license_ref": { "type": ["string", "null"], "maxLength": 512 },
-        "evidence_status": { "enum": ["verified", "partially_verified", "creator_attested", "unknown"] },
-        "lineage_refs": { "type": "array", "items": { "type": "string", "maxLength": 512 } }
+        "creator_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "license_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "evidence_status": {
+          "enum": [
+            "verified",
+            "partially_verified",
+            "creator_attested",
+            "unknown"
+          ]
+        },
+        "lineage_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
       }
     },
     "source_resolution": {
-      "type": "object", "additionalProperties": false, "required": ["visibility", "canonical_uri", "resolution_policy"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visibility",
+        "canonical_uri",
+        "resolution_policy"
+      ],
       "properties": {
-        "visibility": { "enum": ["public", "unlisted", "private"] },
-        "canonical_uri": { "type": ["string", "null"], "format": "uri" },
-        "resolution_policy": { "enum": ["public_metadata", "public_assets", "authenticated_owner", "no_remote_resolution"] },
-        "public_revision": { "type": ["integer", "null"], "minimum": 1 }
+        "visibility": {
+          "enum": [
+            "public",
+            "unlisted",
+            "private"
+          ]
+        },
+        "canonical_uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uri"
+        },
+        "resolution_policy": {
+          "enum": [
+            "public_metadata",
+            "public_assets",
+            "authenticated_owner",
+            "no_remote_resolution"
+          ]
+        },
+        "public_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
       }
     },
     "integrity": {
-      "type": "object", "additionalProperties": false, "required": ["canonicalization", "hash_algorithm", "manifest_sha256", "vyral_fingerprint"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalization",
+        "hash_algorithm",
+        "manifest_sha256",
+        "vyral_fingerprint"
+      ],
       "properties": {
-        "canonicalization": { "type": "string", "minLength": 1, "maxLength": 100 },
-        "hash_algorithm": { "const": "SHA-256" },
-        "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "vyral_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "fingerprint_version": { "type": "integer", "minimum": 1 }
+        "canonicalization": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "hash_algorithm": {
+          "const": "SHA-256"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "vyral_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "fingerprint_version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "portable_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "includes_full_reconstruction_payloads",
+        "resolver_uri",
+        "retrieval_policy"
+      ],
+      "properties": {
+        "profile": {
+          "const": "compact"
+        },
+        "includes_full_reconstruction_payloads": {
+          "const": false
+        },
+        "resolver_uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uri"
+        },
+        "retrieval_policy": {
+          "enum": [
+            "no_remote_resolution",
+            "public_metadata_only",
+            "authorized_selective_retrieval"
+          ]
+        },
+        "max_assets_per_request": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
       }
     }
   },
   "$defs": {
-    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
     "asset": {
-      "type": "object", "additionalProperties": false,
-      "required": ["asset_id", "asset_version_id", "role", "purpose", "media_type", "dna_ref", "asset_fingerprint", "reconstruction_claim"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_id",
+        "asset_version_id",
+        "role",
+        "purpose",
+        "media_type",
+        "dna_ref",
+        "asset_fingerprint",
+        "reconstruction_claim"
+      ],
       "properties": {
-        "asset_id": { "$ref": "#/$defs/id" },
-        "asset_version_id": { "$ref": "#/$defs/id" },
-        "role": { "enum": ["main", "supporting"] },
-        "purpose": { "type": "string", "minLength": 1, "maxLength": 2000 },
-        "media_type": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "asset_id": {
+          "$ref": "#/$defs/id"
+        },
+        "asset_version_id": {
+          "$ref": "#/$defs/id"
+        },
+        "role": {
+          "enum": [
+            "main",
+            "supporting"
+          ]
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
         "dna_ref": {
-          "type": "object", "additionalProperties": false, "required": ["record_id", "schema_id", "schema_version"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record_id",
+            "schema_id",
+            "schema_version"
+          ],
           "properties": {
-            "record_id": { "$ref": "#/$defs/id" },
-            "schema_id": { "type": "string", "minLength": 1 },
-            "schema_version": { "type": "integer", "minimum": 1 },
-            "package_prefix": { "type": ["string", "null"], "maxLength": 512 }
+            "record_id": {
+              "$ref": "#/$defs/id"
+            },
+            "schema_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "schema_version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "package_prefix": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 512
+            }
           }
         },
-        "asset_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "reconstruction_claim": { "enum": ["lossless_decoded", "source_file_exact", "semantic_only", "model_reconstructed", "unavailable"] },
-        "provenance_ref": { "type": ["string", "null"], "maxLength": 512 },
-        "license_ref": { "type": ["string", "null"], "maxLength": 512 }
+        "asset_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reconstruction_claim": {
+          "enum": [
+            "lossless_decoded",
+            "source_file_exact",
+            "semantic_only",
+            "model_reconstructed",
+            "unavailable"
+          ]
+        },
+        "provenance_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "license_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
       }
     },
     "relationship": {
-      "type": "object", "additionalProperties": false,
-      "required": ["relationship_id", "type", "from_asset_id", "to_asset_id", "rationale"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relationship_id",
+        "type",
+        "from_asset_id",
+        "to_asset_id",
+        "rationale"
+      ],
       "properties": {
-        "relationship_id": { "$ref": "#/$defs/id" },
-        "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
-        "from_asset_id": { "$ref": "#/$defs/id" },
-        "to_asset_id": { "$ref": "#/$defs/id" },
-        "from_asset_version_id": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
-        "to_asset_version_id": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 2000 },
-        "evidence_ref": { "type": ["string", "null"], "maxLength": 512 }
+        "relationship_id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$"
+        },
+        "from_asset_id": {
+          "$ref": "#/$defs/id"
+        },
+        "to_asset_id": {
+          "$ref": "#/$defs/id"
+        },
+        "from_asset_version_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to_asset_version_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "evidence_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
       }
     }
   }
