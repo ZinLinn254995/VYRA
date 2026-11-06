@@ -109,6 +109,24 @@ Deno.serve(async (request: Request) => {
     if (result.error) return json({ error: 'Could not load all Master DNA source records.' }, 500);
   }
 
+  const latest = latestResult.data as Row | null;
+  const currentRevision = Number(vyral.master_dna_revision ?? 0);
+  if (vyral.master_dna_status === 'ready' && latest && latest.revision === currentRevision) {
+    return json({
+      status: 'ready',
+      vyralId: vyral.id,
+      masterDnaRevisionId: latest.id,
+      revision: latest.revision,
+      manifestSha256: latest.manifest_sha256,
+      vyralFingerprint: latest.vyral_fingerprint,
+      unchanged: true,
+    }, 200);
+  }
+  if (!Number.isSafeInteger(currentRevision) || currentRevision < 0 ||
+      (latest ? latest.revision !== currentRevision : currentRevision !== 0)) {
+    return json({ error: 'Master DNA revision head is inconsistent; an administrator review is required.', status: 'revision_head_mismatch' }, 409);
+  }
+
   const latestVersionByAsset = new Map<string, Row>();
   for (const version of versionsResult.data ?? []) {
     if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
@@ -257,24 +275,6 @@ Deno.serve(async (request: Request) => {
     rationale: relationship.rationale,
     evidence_ref: relationship.evidence_ref ?? null,
   }));
-
-  const latest = latestResult.data as Row | null;
-  const currentRevision = Number(vyral.master_dna_revision ?? 0);
-  if (vyral.master_dna_status === 'ready' && latest && latest.revision === currentRevision) {
-    return json({
-      status: 'ready',
-      vyralId: vyral.id,
-      masterDnaRevisionId: latest.id,
-      revision: latest.revision,
-      manifestSha256: latest.manifest_sha256,
-      vyralFingerprint: latest.vyral_fingerprint,
-      unchanged: true,
-    }, 200);
-  }
-  if (!Number.isSafeInteger(currentRevision) || currentRevision < 0 ||
-      (latest ? latest.revision !== currentRevision : currentRevision !== 0)) {
-    return json({ error: 'Master DNA revision head is inconsistent; an administrator review is required.', status: 'revision_head_mismatch' }, 409);
-  }
 
   const createdAt = new Date().toISOString();
   let masterDna;
