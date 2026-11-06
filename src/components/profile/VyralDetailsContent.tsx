@@ -45,6 +45,11 @@ const prettyBytes = (bytes: number) => {
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1) + ' ' + units[index];
 };
+const storageObjectFilename = (assetId: string, file: File) => {
+  // Keep arbitrary Unicode filenames in metadata, not in Storage object keys.
+  const extension = file.name.match(/\\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
+  return assetId + '.' + extension;
+};
 const assetType = (file: File) => {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   if (file.type.startsWith('image/')) return 'image';
@@ -973,7 +978,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const digest = await crypto.subtle.digest('SHA-256', sourceBuffer);
         const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
         assetId = crypto.randomUUID();
-        storagePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/' + encodeURIComponent(file.name);
+        storagePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/' + storageObjectFilename(assetId, file);
         const kind = assetType(file);
         const mime = file.type || 'application/octet-stream';
         const { error: assetError } = await supabase.from('vyral_assets').insert({
