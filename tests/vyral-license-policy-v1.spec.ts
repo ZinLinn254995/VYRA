@@ -102,7 +102,7 @@ test('Rejects a grant whose effective time is in the future', () => {
   });
   assert.equal(result.allowed, false);
   assert.equal(result.basis, 'denied');
-  assert.equal(result.reason, 'expired');
+  assert.equal(result.reason, 'not_yet_valid');
   assert.deepEqual(result.grant_ids, []);
 });
 
