@@ -241,9 +241,23 @@ Deno.serve(async (request: Request) => {
   const payload = asRecord(dnaRow.payload);
   const nestedDna = asRecord(payload.dna_record);
   const tilePaths = Array.isArray(payload.tile_storage_paths) ? payload.tile_storage_paths : [];
+  const snapshotDnaRef = asRecord(asRecord(snapshotAsset).dna_ref);
+  const nestedSource = asRecord(nestedDna.source);
+  const dnaRecordId = typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dnaRow.id;
+  if (snapshotDnaRef.record_id !== dnaRecordId ||
+      Number(snapshotDnaRef.schema_version) !== Number(dnaRow.schema_version) ||
+      String(asRecord(snapshotAsset).asset_fingerprint).toLowerCase() !== String(version.sha256).toLowerCase() ||
+      nestedSource.asset_id !== asset.id || nestedSource.asset_version_id !== version.id ||
+      String(nestedSource.sha256).toLowerCase() !== String(version.sha256).toLowerCase()) {
+    return json({ error: 'Asset DNA, immutable source version, and pinned Master DNA inventory do not agree.' }, 409);
+  }
 
   if (Number(dnaRow.schema_version) === 3) {
-    if (tilePaths.length === 0 || tilePaths.length > MAX_DNA_TILES_PER_REQUEST) {
+    const declaredTiles = Array.isArray(asRecord(nestedDna.lossless_payload).tiles)
+      ? asRecord(nestedDna.lossless_payload).tiles as Row[]
+      : [];
+    if (tilePaths.length === 0 || tilePaths.length > MAX_DNA_TILES_PER_REQUEST ||
+        declaredTiles.length !== tilePaths.length || new Set(tilePaths).size !== tilePaths.length) {
       return json({ error: 'DNA v3 tile manifest is empty or exceeds the resolver safety limit.' }, 409);
     }
     const firstPath = tilePaths[0];
@@ -284,7 +298,7 @@ Deno.serve(async (request: Request) => {
         createdAt: dnaRow.created_at,
         record: nestedDna,
         tilePayloads: signedTiles.map((item: Row, index: number) => ({
-          packagePath: asRecord(nestedDna).lossless_payload?.tiles?.[index]?.package_path ?? null,
+          packagePath: declaredTiles[index]?.package_path ?? null,
           signedUrl: item.signedUrl,
           expiresInSeconds: SIGNED_URL_TTL_SECONDS,
         })),
