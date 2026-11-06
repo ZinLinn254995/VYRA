@@ -99,6 +99,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [extractingDnaV3, setExtractingDnaV3] = useState(false);
   const [verifyingDnaV3, setVerifyingDnaV3] = useState(false);
   const [packageStatus, setPackageStatus] = useState('');
+  const [reconstructedPngDownload, setReconstructedPngDownload] = useState<{ blob: Blob; filename: string } | null>(null);
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);
@@ -412,12 +413,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
     setPackageBusy(true);
     setPackageStatus('Reading package…');
+    setReconstructedPngDownload(null);
     setError('');
     const createdFolderIds: string[] = [];
     const createdAssetIds: string[] = [];
     const uploadedPaths: string[] = [];
     let importPackageId = '';
     let importUserId = '';
+    let reconstructionDownload: { blob: Blob; filename: string } | null = null;
     const importRunId = crypto.randomUUID();
     try {
       const archiveFiles = await readVyralZip(file);
@@ -543,6 +546,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const versionId = crypto.randomUUID();
           const filenameBase = safeName(sourceAsset.original_filename ?? sourceAsset.name, 'reconstructed-image', 120).replace(/\.[^.]+$/, '');
           const filename = filenameBase + '.reconstructed.png';
+          const pngBuffer = new ArrayBuffer(pngBytes.byteLength);
+          new Uint8Array(pngBuffer).set(pngBytes);
+          reconstructionDownload = { blob: new Blob([pngBuffer], { type: 'image/png' }), filename };
           const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v1/' + versionId + '-' + encodeURIComponent(filename);
           const syntheticSource = {
             id: versionId,
@@ -785,7 +791,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
 
       await loadWorkspace();
-      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.');
+      setReconstructedPngDownload(reconstructionDownload);
+      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : ''));
     } catch (cause) {
       const cleanupFailures: string[] = [];
       if (importPackageId && importUserId) {
@@ -809,6 +816,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       await loadWorkspace();
       const primaryError = cause instanceof Error ? cause.message : 'VYRAL package import failed.';
       setError(primaryError + (cleanupFailures.length ? ' Cleanup needs attention: ' + cleanupFailures.join(' · ') : ' Newly created package records were rolled back.'));
+      setReconstructedPngDownload(null);
       setPackageStatus('');
     } finally {
       setPackageBusy(false);
@@ -1412,6 +1420,19 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   return (
     <div className="space-y-5">
       {packageStatus && <p className={'text-[10px] '+muted} role="status">{packageStatus}</p>}
+      {reconstructedPngDownload && <div className={surface+' flex flex-wrap items-center justify-between gap-3 p-3'}>
+        <p className={'text-xs '+subtle}>DNA v3 reconstruction is stored in this Vyral as a new PNG.</p>
+        <button type="button" className={button} onClick={() => {
+          const url = window.URL.createObjectURL(reconstructedPngDownload.blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = reconstructedPngDownload.filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+        }}><Download size={13}/>Download reconstructed PNG</button>
+      </div>}
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><div className={'text-[10px] font-semibold uppercase tracking-[0.16em] ' + muted}>VYRAL WORKSPACE</div><p className={'mt-1 text-xs ' + subtle}>Your assets, identity records and evolving knowledge.</p></div>
