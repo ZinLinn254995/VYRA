@@ -408,3 +408,35 @@ The evaluator accepts a verified-owner bypass only as an explicit server-derived
 **Snapshot integration remains a separate step.** Master DNA should carry immutable references to the effective license grant IDs, terms versions, exact Asset versions, and policy snapshot digest. A license change must create a new Master DNA revision or mark the current one stale; it must not rewrite an older snapshot. Missing license evidence must remain explicitly unknown/restricted rather than being upgraded by inference. Do not populate existing Vyrals with guessed grants or licenses.
 
 Automated tests cover the three tiers, multi-Asset intersection, stale versions, wrong grantees, revoked/expired grants, and explicit verified-owner handling. Runtime enforcement and database persistence are not yet implemented.
+
+## 26. First authenticated VYRA Resource Resolver — implementation added, runtime acceptance pending
+
+The working branch now includes a JWT-protected Supabase Edge Function at `resolve-vyral-resource`. It is the first executable remote-resolution path and deliberately starts with a narrow owner-authenticated contract.
+
+Supported POST actions:
+
+- `master`: resolve one exact immutable Master DNA revision (or the latest revision when no revision is supplied), returning its stored snapshot and integrity bindings.
+- `asset_dna`: resolve one Asset DNA record only when the exact Asset ID and Asset Version ID are present in the selected Master DNA snapshot. For raster DNA v3, the function validates that the stored DNA record is bound to the same source Asset/version/hash as the Master DNA inventory, then issues short-lived signed URLs for every private tile object.
+- `asset_source`: issue a short-lived signed download URL for the exact original Asset version pinned by the selected Master DNA snapshot.
+
+Security boundaries in this first phase:
+
+- Every request requires a valid Supabase user JWT; the function resolves the user identity from the verified session and never accepts a caller-supplied owner ID.
+- Only the authenticated owner can resolve their Vyral in this phase. Public and unlisted sharing, third-party OAuth grants, and external AI client credentials are not enabled.
+- Asset/version membership must match the selected immutable Master DNA snapshot. A caller cannot substitute a different Asset version.
+- Storage paths are checked against the authenticated owner's Vyral/Asset prefix; private paths are not returned as API data.
+- Tile/source access uses signed URLs with a 60-second lifetime. The resolver does not return a partial tile URL list if signing any tile fails.
+- Responses are marked private/no-store and include no public caching directive.
+- DNA v3 responses preserve the distinction between exact decoded-sample reconstruction and recovery of the original encoded PNG/JPEG bytes. File DNA identity-only records are not described as reconstructable.
+
+The function is registered in `supabase/config.toml` with `verify_jwt = true`.
+
+**Not yet implemented:** deployment to the Development Supabase project, live authenticated endpoint tests, public/unlisted read policies, persistent third-party grants, OAuth authorization/consent, MCP Server adapter, rate-limit/audit persistence, and cross-platform ChatGPT/Gemini/Claude connector tests. This implementation must not be described as a public resolver or as an already-working third-party AI integration. The current Development migration-history drift must be reconciled before deploying the function; do not apply migrations out of order. Production remains untouched.
+
+Acceptance gates before enabling external AI access:
+
+1. Apply/reconcile the required schema on Development only.
+2. Test owner access, non-owner denial, missing JWT denial, invalid IDs, wrong Vyral, wrong Asset version, stale DNA, missing tile, and expired signed URL.
+3. Add explicit share/grant records and revocation before any non-owner retrieval.
+4. Add OAuth consent/scopes and an MCP adapter that calls this same resolver rather than duplicating authorization logic.
+5. Test clean-session retrieval from at least one external AI client and verify every downloaded tile/source hash.
