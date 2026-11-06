@@ -184,10 +184,12 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
     const scanLimit = Math.min(bytes.length, 8 * 1024 * 1024);
     let pages = 0;
     for (let index = 0; index + 10 < scanLimit; index += 1) {
-      if (readAscii(bytes, index, 5) !== '/Type') continue;
+      if (bytes[index] !== 0x2f || bytes[index + 1] !== 0x54 || bytes[index + 2] !== 0x79 ||
+          bytes[index + 3] !== 0x70 || bytes[index + 4] !== 0x65) continue;
       let cursor = index + 5;
       while (cursor < scanLimit && (bytes[cursor] === 0x20 || bytes[cursor] === 0x09 || bytes[cursor] === 0x0a || bytes[cursor] === 0x0d)) cursor += 1;
-      if (readAscii(bytes, cursor, 5) === '/Page' && bytes[cursor + 5] !== 0x73) pages += 1;
+      if (bytes[cursor] === 0x2f && bytes[cursor + 1] === 0x50 && bytes[cursor + 2] === 0x61 &&
+          bytes[cursor + 3] === 0x67 && bytes[cursor + 4] === 0x65 && bytes[cursor + 5] !== 0x73) pages += 1;
     }
     if (pages) addFact(facts, 'page_object_markers', pages, 'container_index', 'markers');
     if (bytes.length > scanLimit) notes.push('PDF structural scan was limited to the first 8 MiB.');
