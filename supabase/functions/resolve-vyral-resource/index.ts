@@ -1,5 +1,11 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import {
+  findVyralMasterDnaSnapshotAssetV1,
+  hasValidVyralMasterDnaRevisionBindingV1,
+  isSafeVyralStoragePathV1,
+  isVyralAssetDnaPinnedToVersionV1,
+} from '../../../src/services/vyralResourceResolverV1.ts';
 
 type Row = Record<string, any>;
 
@@ -33,12 +39,6 @@ const sourceVersionIdOf = (payload: Row) => {
     : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
 };
 
-const safeStoragePath = (path: unknown, prefix: string): path is string =>
-  typeof path === 'string' &&
-  path.startsWith(prefix) &&
-  !path.split('/').some((part) => part === '.' || part === '..') &&
-  !path.includes('\\');
-
 const getPinnedRevision = async (
   context: any,
   userId: string,
@@ -64,15 +64,6 @@ const getPinnedRevision = async (
   if (error) return { data: null, error: 'Could not resolve the requested Master DNA revision.' };
   if (!data) return { data: null, error: 'Master DNA revision not found.' };
   return { data, error: null };
-};
-
-const findSnapshotAsset = (snapshot: Row, assetId: string, versionId: string) => {
-  const master = asRecord(snapshot);
-  const assets = Array.isArray(master.assets) ? master.assets : [];
-  return assets.find((item: unknown) => {
-    const asset = asRecord(item);
-    return asset.asset_id === assetId && asset.asset_version_id === versionId;
-  }) ?? null;
 };
 
 Deno.serve(async (request: Request) => {
@@ -129,10 +120,7 @@ Deno.serve(async (request: Request) => {
   const revision = revisionResult.data as Row;
   const snapshot = asRecord(revision.snapshot);
 
-  if (snapshot.schema_id !== 'vyra.vyral-master-dna' ||
-      Number(snapshot.schema_version) !== 1 ||
-      asRecord(snapshot.integrity).manifest_sha256 !== revision.manifest_sha256 ||
-      asRecord(snapshot.integrity).vyral_fingerprint !== revision.vyral_fingerprint) {
+  if (!hasValidVyralMasterDnaRevisionBindingV1(revision)) {
     return json({ error: 'Stored Master DNA snapshot failed its database integrity binding.' }, 409);
   }
 
@@ -164,7 +152,7 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Valid assetId and assetVersionId are required.' }, 400);
   }
 
-  const snapshotAsset = findSnapshotAsset(snapshot, body.assetId, body.assetVersionId);
+  const snapshotAsset = findVyralMasterDnaSnapshotAssetV1(snapshot, body.assetId, body.assetVersionId);
   if (!snapshotAsset) {
     return json({ error: 'The requested Asset version is not part of this pinned Master DNA revision.' }, 404);
   }
@@ -191,7 +179,7 @@ Deno.serve(async (request: Request) => {
   if (!version) return json({ error: 'Asset version not found or access denied.' }, 404);
 
   const storagePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
-  if (!safeStoragePath(version.storage_path, storagePrefix)) {
+  if (!isSafeVyralStoragePathV1(version.storage_path, storagePrefix)) {
     return json({ error: 'Canonical Asset storage reference failed its ownership/path check.' }, 409);
   }
 
@@ -241,14 +229,17 @@ Deno.serve(async (request: Request) => {
   const payload = asRecord(dnaRow.payload);
   const nestedDna = asRecord(payload.dna_record);
   const tilePaths = Array.isArray(payload.tile_storage_paths) ? payload.tile_storage_paths : [];
-  const snapshotDnaRef = asRecord(asRecord(snapshotAsset).dna_ref);
   const nestedSource = asRecord(nestedDna.source);
   const dnaRecordId = typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dnaRow.id;
-  if (snapshotDnaRef.record_id !== dnaRecordId ||
-      Number(snapshotDnaRef.schema_version) !== Number(dnaRow.schema_version) ||
-      String(asRecord(snapshotAsset).asset_fingerprint).toLowerCase() !== String(version.sha256).toLowerCase() ||
-      nestedSource.asset_id !== asset.id || nestedSource.asset_version_id !== version.id ||
-      String(nestedSource.sha256).toLowerCase() !== String(version.sha256).toLowerCase()) {
+  if (!isVyralAssetDnaPinnedToVersionV1({
+    snapshotAsset,
+    dnaRecordId,
+    dnaSchemaVersion: Number(dnaRow.schema_version),
+    assetId: asset.id,
+    assetVersionId: version.id,
+    assetSha256: version.sha256,
+    dnaSource: nestedSource,
+  })) {
     return json({ error: 'Asset DNA, immutable source version, and pinned Master DNA inventory do not agree.' }, 409);
   }
 
@@ -261,12 +252,12 @@ Deno.serve(async (request: Request) => {
       return json({ error: 'DNA v3 tile manifest is empty or exceeds the resolver safety limit.' }, 409);
     }
     const firstPath = tilePaths[0];
-    if (!safeStoragePath(firstPath, storagePrefix)) {
+    if (!isSafeVyralStoragePathV1(firstPath, storagePrefix)) {
       return json({ error: 'DNA tile storage reference failed its ownership/path check.' }, 409);
     }
     const directory = firstPath.slice(0, firstPath.lastIndexOf('/'));
     if (tilePaths.some((path: unknown) =>
-      !safeStoragePath(path, storagePrefix) ||
+      !isSafeVyralStoragePathV1(path, storagePrefix) ||
       path.slice(0, path.lastIndexOf('/')) !== directory
     )) {
       return json({ error: 'DNA tile references must remain in the same private Asset folder.' }, 409);
