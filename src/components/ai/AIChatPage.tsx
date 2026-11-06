@@ -105,10 +105,14 @@ const inspectVyralAttachment = async (file: File) => {
   if (masterDna && masterDna.vyral.vyral_id !== String(manifest.vyral.id)) {
     throw new Error('Vyral Master DNA identity does not match this package.');
   }
+  const visionImages: (VyralVisionImage & { assetId: string; assetName: string })[] = [];
+  for (const record of v3Records.slice(0, 4)) {
+    const png = await encodeVyralDnaV3PngFromPackage(files, String(record.id));
+    const preview = await createVyralVisionPreview(png.pngBytes);
+    const recordAsset = manifest.assets.find((item) => item.id === record.asset_id) ?? manifest.assets[0];
+    visionImages.push({ ...preview, assetId: String(record.asset_id), assetName: String(recordAsset?.name ?? record.asset_id) });
+  }
   const firstV3Record = v3Records[0];
-  const visionImage = firstV3Record
-    ? await createVyralVisionPreview((await encodeVyralDnaV3PngFromPackage(files, String(firstV3Record.id))).pngBytes)
-    : null;
   const asset = firstV3Record
     ? manifest.assets.find((item) => item.id === firstV3Record.asset_id) ?? manifest.assets[0]
     : manifest.assets[0];
@@ -117,15 +121,15 @@ const inspectVyralAttachment = async (file: File) => {
     `Package: ${String(manifest.vyral.name)} (${mode})`,
     `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
     masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
-    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose.summary}`, `Intended uses: ${masterDna.purpose.intended_uses.join(', ')}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role}; ${item.media_type}; purpose: ${item.purpose}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${masterDna.relationships.length}): ${masterDna.relationships.slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, 'Visual access boundary: only the first DNA v3 asset preview is attached to this Vision request; other assets are represented by their verified Master DNA metadata, not by attached images.']; })() : []),
+    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose.summary}`, `Intended uses: ${masterDna.purpose.intended_uses.join(', ')}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role}; ${item.media_type}; purpose: ${item.purpose}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${masterDna.relationships.length}): ${masterDna.relationships.slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} DNA v3 asset previews are attached to this Vision request (maximum four); remaining assets are represented by verified Master DNA metadata only.`]; })() : []),
     ...verified.map((item) =>
       `DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
     ),
     v3Records.length === 0 ? 'No portable DNA v3 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
-    visionImage ? `AI Vision preview: first of ${v3Records.length} DNA v3 record(s), ${visionImage.width}×${visionImage.height} JPEG derivative; lossless DNA remains unchanged` : '',
+    ...visionImages.map((item, index) => `AI Vision preview ${index + 1}: ${item.assetName} (${item.assetId}), ${item.width}×${item.height} JPEG derivative; lossless DNA remains unchanged`),
   ].filter(Boolean);
-  return { context: lines.join('\n'), visionImage };
+  return { context: lines.join('\n'), visionImages };
 };
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired }) => {
@@ -140,7 +144,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
-  const [selectedVyralImage, setSelectedVyralImage] = useState<VyralVisionImage | null>(null);
+  const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -184,7 +188,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
-    setSelectedVyralImage(null);
+    setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -196,7 +200,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
-    setSelectedVyralImage(null);
+    setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setDraft('');
     setHistoryOpen(false);
@@ -210,7 +214,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       onLoginRequired();
       return;
     }
-    const visionImage = selectedVyralImage;
+    const visionImages = selectedVyralImages;
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
@@ -225,7 +229,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
-    setSelectedVyralImage(null);
+    setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!activeSessionId) setActiveSessionId(makeId());
 
@@ -236,7 +240,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
-        ...(visionImage ? { visionImage: { mimeType: visionImage.mimeType, data: visionImage.data } } : {}),
+        ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
       });
       setMessages((previous) => [...previous, {
         id: makeId(),
@@ -260,7 +264,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const handleFileSelection = async (file: File | null) => {
     setSelectedFile(file);
     setSelectedVyralContext(null);
-    setSelectedVyralImage(null);
+    setSelectedVyralImages([]);
     if (!file) {
       setSelectedFileStatus(null);
       return;
@@ -270,8 +274,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       try {
         const inspection = await inspectVyralAttachment(file);
         setSelectedVyralContext(inspection.context);
-        setSelectedVyralImage(inspection.visionImage);
-        setSelectedFileStatus(inspection.visionImage ? 'Vyral package validated · DNA v3 checked · first AI Vision preview ready' : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
+        setSelectedVyralImages(inspection.visionImages);
+        setSelectedFileStatus(inspection.visionImages.length ? `Vyral package validated · DNA v3 checked · ${inspection.visionImages.length} AI Vision previews ready` : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
       } catch (error) {
         setSelectedFileStatus(error instanceof Error ? error.message : 'Could not validate this Vyral package.');
       }
@@ -303,7 +307,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
-    setSelectedVyralImage(null);
+    setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -319,7 +323,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
-    setSelectedVyralImage(null);
+    setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -420,7 +424,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
               <span className="min-w-0 flex-1 truncate">{selectedFile.name}{selectedFileStatus ? ` · ${selectedFileStatus}` : ''}</span>
-              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null); setSelectedVyralImage(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
+              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null); setSelectedVyralImages([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
                 <X size={13} />
               </button>
             </div>
