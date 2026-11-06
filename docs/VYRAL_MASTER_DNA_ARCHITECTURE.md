@@ -257,7 +257,7 @@ A read-only inspection of the VYRA Development database on 2026-11-06 found the 
 
 **Do not overload the legacy collection-scope DNA record as the new immutable Master DNA revision store.** The proposed persistence model is:
 
-1. Keep `vyral_assets` as canonical asset membership and add explicit Main/Supporting role plus purpose fields. Existing assets remain unclassified until a creator supplies truthful values; never infer purpose from filename.
+1. Keep `vyral_assets` and its immutable source versions untouched. Store Main/Supporting role and creator-declared purpose in a separate `vyral_master_dna_asset_metadata` table keyed to the exact Asset/Vyral/owner tuple. Existing assets remain unclassified until a creator supplies truthful values; never infer purpose from filename.
 2. Add a dedicated `vyral_asset_relationships` table for typed, directed, rationale-bearing edges. Endpoints must be constrained to assets in the same Vyral or the Vyral root. Keep generation lineage distinct.
 3. Add append-only `vyral_master_dna_revisions` snapshots containing the canonical Master DNA JSON, revision number, parent revision, manifest digest, Vyral fingerprint, owner, and creation time. Enforce one revision number per Vyral and prevent client-side update/delete.
 4. RLS read access is owner-scoped. Snapshot writes and revision creation are performed only by an authenticated server-side operation after it verifies the owner, all asset/version references, purposes, relationships, licensing, and current asset membership.
@@ -272,7 +272,7 @@ The current Development database inspection was read-only. No tables, rows, poli
 
 The additive Development-first migration `20261106210000_vyral_master_dna_persistence.sql` introduces:
 
-- Explicit Vyral-level purpose and intended uses, plus per-asset Main/Supporting role and purpose. Legacy rows remain nullable and are not auto-classified.
+- Explicit Vyral-level purpose and intended uses, plus per-asset Main/Supporting role and purpose in a separate metadata table. Canonical source Asset rows and versions are not updated or re-written, preserving protected assets such as ORIGIN-01.
 - Typed, rationale-bearing relationship edges with database-enforced same-Vyral ownership, valid asset endpoints, and rejection of self/root-to-root edges.
 - Append-only Master DNA revision rows with unique revision numbers/fingerprints, owner-scoped reads, and no authenticated-client insert/update/delete permissions.
 - Database checks before a revision can be accepted: current revision ancestry, Vyral identity, manifest/fingerprint metadata, declared Vyral purpose, full current asset membership, exact latest asset versions, per-asset DNA record references, asset purposes/roles, and relationship coverage.
