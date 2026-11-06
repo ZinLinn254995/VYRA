@@ -281,3 +281,17 @@ The additive Development-first migration `20261106210000_vyral_master_dna_persis
 The pgTAP suite `supabase/tests/database/vyral_master_dna.test.sql` covers relationship constraints, owner isolation, revision immutability, classification gates, snapshot acceptance, and stale-state invalidation.
 
 **Current boundary:** this migration and test are committed on the working PR branch. They have not been applied to the hosted Development project. The local GitHub Actions database suite is the acceptance gate; a first run exposed a test quoting defect, which was fixed. A later run is checking the corrected suite. No Production resources were changed.
+
+
+## 18. First authenticated builder workflow — code added, runtime acceptance pending
+
+The working branch now includes:
+
+- A JWT-protected `build-vyral-master-dna` Supabase Edge Function. It resolves the signed-in owner, reads the canonical Vyral inventory, pins each Asset to its latest immutable version and matching Asset DNA record, reads typed relationships, and derives reconstruction claims only from passing exact tests for that exact version.
+- The function builds the canonical Master DNA through the shared TypeScript validator, then inserts an immutable revision using the service-role client. The database trigger independently checks current membership, latest versions, DNA references, declared purposes, and relationship coverage before setting the Vyral to `ready`.
+- Repeated build requests return the current ready revision instead of creating unnecessary duplicate revisions.
+- The Vyral DNA tab now provides controls for Vyral purpose/intended uses, each Asset's Main/Supporting role and purpose, a relationship target (Vyral root or another Asset), and a rationale. Asset classification is saved atomically through an owner-scoped database function.
+
+The builder deliberately sets remote resolution to `no_remote_resolution`; a public resolver/connector is not implemented. Private/unlisted packages do not receive public resolver URIs. Assets without a matching version-pinned DNA record, purpose, relationship, or declared reconstruction evidence cannot be overstated.
+
+**Verification boundary:** the app CI/browser checks have passed on earlier commits; a fresh CI run is in progress after the latest builder/UI updates. The local Database Tests workflow is still starting its Supabase services. The hosted Development database has not been migrated and the Edge Function has not been invoked against it. Production remains untouched.
