@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(20);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -25,7 +25,8 @@ insert into public.vyral_assets (
   id,vyral_id,user_id,name,original_filename,asset_type,mime_type,size_bytes,storage_path
 ) values
   ('24000000-0000-4000-8000-000000000021','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Main','main.png','image','image/png',100,'master-dna-test/a/main.png'),
-  ('24000000-0000-4000-8000-000000000022','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Support','support.png','image','image/png',100,'master-dna-test/a/support.png');
+  ('24000000-0000-4000-8000-000000000022','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Support','support.png','image','image/png',100,'master-dna-test/a/support.png'),
+  ('24000000-0000-4000-8000-000000000023','24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Other Owner Asset','other.png','image','image/png',100,'master-dna-test/b/other.png');
 
 select is(
   (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
@@ -67,6 +68,15 @@ select is(
   has_function_privilege('anon','public.set_vyral_master_dna_asset_classification(uuid,text,text,uuid,text)','EXECUTE'),
   false,
   'Anonymous users cannot call the classification function'
+);
+
+select throws_ok(
+  $ select public.set_vyral_master_dna_asset_classification(
+    '24000000-0000-4000-8000-000000000023','main','Other owner asset',null,'Attempted cross-owner edit.'
+  ) $,
+  'P0002',
+  'Asset not found in the signed-in owner scope.',
+  'A signed-in owner cannot classify another customer Asset'
 );
 
 reset role;
