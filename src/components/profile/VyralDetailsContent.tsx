@@ -576,6 +576,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     try {
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
+      const importedMasterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
+      if (importedMasterDna) {
+        const masterAssetIds = new Set(importedMasterDna.assets.map((asset) => asset.asset_id));
+        if (masterAssetIds.size !== manifest.assets.length || manifest.assets.some((asset) => !masterAssetIds.has(String(asset.id)))) {
+          throw new Error('The package Master DNA inventory does not match its Asset manifest.');
+        }
+      }
       importPackageId = manifest.packageId;
       if (manifest.exportMode === 'dna-only') {
         const dnaEntries = manifest.dnaRecords.filter((entry) => entry.dna_schema_id === 'vyra.asset-dna' && entry.dna_schema_version === 3);
@@ -973,6 +980,61 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       for (let index = 0; index < dnaRows.length; index += 100) {
         const { error: dnaError } = await supabase.from('vyral_dna_records').insert(dnaRows.slice(index, index + 100));
         if (dnaError) throw dnaError;
+      }
+
+      // A verified Master DNA snapshot is still untrusted provenance on import.
+      // Use its role/purpose/relationship declarations to seed owner-scoped
+      // canonical metadata, then require a fresh local Master DNA build.
+      if (importedMasterDna) {
+        const membershipByAsset = new Map(importedMasterDna.relationships
+          .filter((relation) => relation.type === 'master_membership' && relation.from.kind === 'asset')
+          .map((relation) => [relation.from.asset_id, relation]));
+        for (const sourceAsset of importedMasterDna.assets) {
+          const importedAssetId = assetMap.get(sourceAsset.asset_id);
+          const membership = membershipByAsset.get(sourceAsset.asset_id);
+          if (!importedAssetId || !membership) {
+            throw new Error('Imported Master DNA is missing a valid membership relationship for an Asset.');
+          }
+          const targetAssetId = membership.to.kind === 'asset'
+            ? assetMap.get(membership.to.asset_id) ?? null
+            : null;
+          if (membership.to.kind === 'asset' && !targetAssetId) {
+            throw new Error('Imported Master DNA references a relationship target outside its Asset inventory.');
+          }
+          const { error: classificationError } = await supabase.rpc('set_vyral_master_dna_asset_classification', {
+            p_asset_id: importedAssetId,
+            p_role: sourceAsset.role,
+            p_purpose: sourceAsset.purpose,
+            p_target_asset_id: targetAssetId,
+            p_rationale: membership.rationale,
+          });
+          if (classificationError) throw classificationError;
+        }
+        const additionalRelationships = importedMasterDna.relationships
+          .filter((relation) => relation.type !== 'master_membership')
+          .map((relation) => {
+            const fromAssetId = relation.from.kind === 'asset' ? assetMap.get(relation.from.asset_id) : null;
+            const toAssetId = relation.to.kind === 'asset' ? assetMap.get(relation.to.asset_id) : null;
+            if ((relation.from.kind === 'asset' && !fromAssetId) || (relation.to.kind === 'asset' && !toAssetId)) {
+              throw new Error('An imported Master DNA relationship references an Asset outside its inventory.');
+            }
+            return {
+              vyral_id: vyral.id,
+              user_id: userId,
+              relationship_type: relation.type,
+              from_kind: relation.from.kind,
+              from_asset_id: fromAssetId,
+              to_kind: relation.to.kind,
+              to_asset_id: toAssetId,
+              rationale: relation.rationale,
+              evidence_ref: relation.evidence_ref ?? null,
+              metadata: { imported_from_package: manifest.packageId, imported_relationship_id: relation.relationship_id, trust: 'unverified_imported_evidence' },
+            };
+          });
+        for (let index = 0; index < additionalRelationships.length; index += 100) {
+          const { error: relationshipError } = await supabase.from('vyral_asset_relationships').insert(additionalRelationships.slice(index, index + 100));
+          if (relationshipError) throw relationshipError;
+        }
       }
 
       const lineageRows = manifest.lineage.flatMap((item) => {
