@@ -455,62 +455,22 @@
         }
       }
     },
+    "endpoint": {
+      "oneOf": [
+        {"type":"object","additionalProperties":false,"required":["kind","asset_id"],"properties":{"kind":{"const":"asset"},"asset_id":{"$ref":"#/$defs/id"},"asset_version_id":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]}}},
+        {"type":"object","additionalProperties":false,"required":["kind","vyral_id"],"properties":{"kind":{"const":"vyral"},"vyral_id":{"$ref":"#/$defs/id"}}}
+      ]
+    },
     "relationship": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "relationship_id",
-        "type",
-        "from_asset_id",
-        "to_asset_id",
-        "rationale"
-      ],
-      "properties": {
-        "relationship_id": {
-          "$ref": "#/$defs/id"
-        },
-        "type": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]{1,63}$"
-        },
-        "from_asset_id": {
-          "$ref": "#/$defs/id"
-        },
-        "to_asset_id": {
-          "$ref": "#/$defs/id"
-        },
-        "from_asset_version_id": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/id"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "to_asset_version_id": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/id"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "rationale": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 2000
-        },
-        "evidence_ref": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "maxLength": 512
-        }
+      "type":"object","additionalProperties":false,
+      "required":["relationship_id","type","from","to","rationale"],
+      "properties":{
+        "relationship_id":{"$ref":"#/$defs/id"},
+        "type":{"type":"string","pattern":"^[a-z][a-z0-9_]{1,63}$"},
+        "from":{"$ref":"#/$defs/endpoint"},
+        "to":{"$ref":"#/$defs/endpoint"},
+        "rationale":{"type":"string","minLength":1,"maxLength":2000},
+        "evidence_ref":{"type":["string","null"],"maxLength":512}
       }
     }
   }
