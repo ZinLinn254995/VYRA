@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(21);
+select plan(23);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -16,10 +16,10 @@ set local role service_role;
 select set_config('request.jwt.claim.role','service_role',true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 
-insert into public.vyrals (id,user_id,name)
+insert into public.vyrals (id,user_id,name,metadata)
 values
-  ('24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Master DNA Test A'),
-  ('24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Master DNA Test B');
+  ('24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Master DNA Test A','{}'::jsonb),
+  ('24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Master DNA Test B','{"protected":true}'::jsonb);
 
 insert into public.vyral_assets (
   id,vyral_id,user_id,name,original_filename,asset_type,mime_type,size_bytes,storage_path
@@ -71,12 +71,28 @@ select is(
 );
 
 select throws_ok(
-  $ select public.set_vyral_master_dna_asset_classification(
+  $$ select public.set_vyral_master_dna_asset_classification(
     '24000000-0000-4000-8000-000000000023','main','Other owner asset',null,'Attempted cross-owner edit.'
-  ) $,
+  ) $$,
   'P0002',
   'Asset not found in the signed-in owner scope.',
   'A signed-in owner cannot classify another customer Asset'
+);
+
+select set_config('request.jwt.claim.sub','24000000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+
+select lives_ok(
+  $ select public.set_vyral_master_dna_asset_classification(
+    '24000000-0000-4000-8000-000000000023','main','Protected sample asset.',null,'Protected source remains unchanged; classification is stored separately.'
+  ) $,
+  'Protected Vyral Assets can receive separate Master DNA metadata without source-row mutation'
+);
+
+select is(
+  (select storage_path from public.vyral_assets where id='24000000-0000-4000-8000-000000000023'),
+  'master-dna-test/b/other.png',
+  'Protected source Asset storage path remains unchanged after classification'
 );
 
 reset role;
