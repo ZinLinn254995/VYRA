@@ -301,6 +301,22 @@ The builder deliberately sets remote resolution to `no_remote_resolution`; a pub
 
 The builder validates the DNA v3 manifest and confirms that every declared private tile object exists in the canonical Asset storage folder. It does not download every raw tile just to build the compact Master DNA. An Asset is labelled `lossless_decoded` only when a passing exact decoded-reconstruction test is pinned to that exact Asset version; a passing byte-exact test is required for `source_file_exact`. Storage presence alone is not a reconstruction proof.
 
-The first builder currently leaves creator/license references null and sets remote resolution to `no_remote_resolution`. License-policy projection, compact `.vyral` export/import integration, and the authorized VYRA resolver/connector are separate pending work. The database readiness gate still prevents snapshots with missing Asset DNA records, roles, purposes, versions, or relationships.
+The first builder currently leaves creator/license references null and sets remote resolution to `no_remote_resolution`. License-policy projection and the authorized VYRA resolver/connector remain pending. Compact `.vyral` export/import now carries a verified Master DNA snapshot; DNA-only packages support a whole collection when every Asset has one lossless DNA v3 record. Import validates the snapshot, restores each Asset from its own DNA payload, and (when the destination schema is available) seeds role/purpose/membership and additional typed relationships as unverified imported metadata. A fresh local Master DNA build is still required after import. The database readiness gate prevents snapshots with missing Asset DNA records, roles, purposes, versions, or relationships.
 
 The hosted Development project's migration history currently ends at `20261105235017`, while this branch contains later migration files. The history/schema drift must be reconciled before applying the new Master DNA migration or deploying the Edge Function to Development. This is intentional: do not apply the new migration out of order. Production remains untouched.
+
+
+## 20. Whole-Vyral DNA-only portability and AI Chat integration — code added, runtime acceptance pending
+
+The portable package path now supports two scopes:
+
+- A single-Asset DNA-only reconstruction unit for isolated experiments.
+- A whole-Vyral DNA-only package containing every Asset metadata entry, one lossless Asset DNA v3 record per Asset, all corresponding raw tile payloads, and the verified compact Master DNA snapshot. A multi-Asset export is rejected unless the Master DNA inventory exactly matches the complete Asset set.
+
+The package builder validates every record, checks exact tile coverage and byte lengths, reconstructs every decoded sample stream before writing the ZIP, rejects undeclared payload paths, and validates the Master DNA fingerprint and inventory. Original media binaries, private Storage paths, previews, thumbnails, and version-bound legacy evidence remain excluded from DNA-only packages. Encoded source-file bytes are not claimed to be recoverable.
+
+Import now accepts whole-Vyral DNA-only packages, verifies every Asset DNA record before writing, reconstructs each Asset into a new PNG version, remaps each DNA record to the newly created local Asset/version identities, and stores the exact raw tiles separately. When the destination Master DNA schema is available, the importer also maps Main/Supporting roles, purposes, membership edges, and additional typed relationships into the destination Vyral. Imported claims remain unverified and a new local Master DNA revision must be built. When the migration is unavailable, the package can still be imported without attempting writes to missing tables; the UI reports that Master DNA reconstruction is pending.
+
+AI Chat now validates the compact Master DNA fingerprint and inventory and passes the Vyral purpose, asset roles/purposes, relationship graph, reconstruction claims, and cross-asset constraints as structured context. The current Vision request still attaches only the first Asset's image preview; other Assets are described by verified Master DNA metadata, not visually attached. Multi-image Vision and authenticated remote source resolution are not yet implemented.
+
+**Verification boundary:** the VYRA CI run for the current package changes passed TypeScript, all unit suites including whole-Vyral DNA-only export/reconstruction, Deno type-check, and Production Build. Browser UI and Database workflow runs are still being checked. No hosted Development migration or Edge Function deployment has occurred; Production remains untouched.
