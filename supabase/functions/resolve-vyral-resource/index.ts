@@ -113,6 +113,15 @@ Deno.serve(async (request: Request) => {
   if (vyralError) return json({ error: 'Could not resolve the canonical Vyral.' }, 500);
   if (!vyral) return json({ error: 'Vyral not found or access denied.' }, 404);
 
+  // An implicit "latest" lookup must never silently serve an out-of-date Master DNA head.
+  // Explicit revision lookups remain available to the owner as historical snapshots.
+  if ((body.revision === undefined || body.revision === null) && vyral.master_dna_status !== 'ready') {
+    return json({
+      error: 'The current Master DNA is not ready. Rebuild it before resolving the latest Vyral state.',
+      status: vyral.master_dna_status ?? 'not_ready',
+    }, 409);
+  }
+
   const revisionResult = await getPinnedRevision(context, userId, vyral.id, body.revision);
   if (revisionResult.error || !revisionResult.data) {
     return json({ error: revisionResult.error ?? 'Master DNA revision not found.' }, 404);
