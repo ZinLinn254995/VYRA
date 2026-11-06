@@ -384,3 +384,8 @@ All parsers are bounded, deterministic and non-generative. A structural profile 
 AI Chat does not trust a package's optional File DNA structural facts as an authority. After reconstructing File DNA chunks or verifying the pinned full-package source version by size and SHA-256, Chat re-runs the version-pinned deterministic structure analyzer against those exact bytes. If a stored structure profile is present, canonicalized profile data must match the independently derived result or the attachment is rejected. Older records without structure metadata can still be inspected; Chat derives the profile locally from the verified bytes.
 
 The model receives the derived bounded facts and parser limitations, not arbitrary binary bytes. This keeps container metadata tampering separate from actual media understanding.
+
+
+### ISO-BMFF track metadata profile extension
+
+The deterministic File DNA analyzer now walks a bounded ISO-BMFF box tree (maximum 4,096 boxes and depth 8), skipping media payload boxes and inspecting metadata containers. Where present it records movie duration/timescale, track handler types, sample-entry codec identifiers, and video dimensions from track headers. Malformed boundaries or safety-limit exhaustion produce a partial result with an explicit note. This is container-level evidence only: it does not decode compressed streams, audio samples, or video frames, and it does not claim scene understanding.
