@@ -74,7 +74,7 @@ test('accepts case-insensitive SHA-256 hex and validates package timestamps', ()
   assert.throws(() => validateVyralManifest({ ...manifest, packageId: 'x'.repeat(129) }), /identity metadata is missing or invalid/);
 });
 
-test('accepts DNA-only test packages with asset metadata and no binary versions', () => {
+test('rejects ambiguous DNA-only manifests without v3 capability boundaries', () => {
   const dnaOnlyManifest = {
     ...manifest,
     exportMode: 'dna-only' as const,
@@ -82,10 +82,7 @@ test('accepts DNA-only test packages with asset metadata and no binary versions'
     dnaRecords: [{ id: 'dna-master', scope: 'vyral' }],
     fingerprints: [{ id: 'fingerprint-asset', asset_id: 'asset-test' }],
   };
-  const validated = validateVyralManifest(dnaOnlyManifest);
-  assert.equal(validated.exportMode, 'dna-only');
-  assert.equal(validated.assets.length, 1);
-  assert.equal(validated.versions.length, 0);
+  assert.throws(() => validateVyralManifest(dnaOnlyManifest), /capability boundaries are missing or invalid/);
 });
 
 test('rejects missing asset versions and circular folder trees', () => {
@@ -127,7 +124,7 @@ test('rejects ZIP entries without the VYRAL UTF-8 flag and multi-disk metadata',
   await assert.rejects(() => readVyralZip(multiDisk), /Multi-disk and ZIP64/);
 });
 
-test('accepts DNA-only test packages with asset metadata and no binary versions', () => {
+test('rejects ambiguous DNA-only manifests without v3 capability boundaries', () => {
   const dnaOnlyManifest = {
     ...manifest,
     exportMode: 'dna-only' as const,
@@ -135,10 +132,7 @@ test('accepts DNA-only test packages with asset metadata and no binary versions'
     dnaRecords: [{ id: 'dna-master', scope: 'vyral' }],
     fingerprints: [{ id: 'fingerprint-asset', asset_id: 'asset-test' }],
   };
-  const validated = validateVyralManifest(dnaOnlyManifest);
-  assert.equal(validated.exportMode, 'dna-only');
-  assert.equal(validated.assets.length, 1);
-  assert.equal(validated.versions.length, 0);
+  assert.throws(() => validateVyralManifest(dnaOnlyManifest), /capability boundaries are missing or invalid/);
 });
 
 test('rejects invalid DNA, fingerprint, vision, lineage and reconstruction references', () => {
