@@ -21,7 +21,10 @@ test('AI Chat validates Universal File DNA and clearly separates byte identity f
   assert.match(chat, /reconstructVyralFileDnaFromPackage/);
   assert.match(chat, /full-package original version/);
   assert.match(chat, /exact source bytes reconstructed from DNA/);
-  assert.match(chat, /structural profile/);
+  assert.match(chat, /structureProfile/);
+  assert.match(chat, /structureFacts/);
+  assert.match(chat, /structureNotes/);
+  assert.match(chat, /semantic content was not inferred or attached to Vision/);
   assert.match(chat, /File DNA binaries are integrity-checked but their audio\/video\/document contents are not decoded or attached to Vision/);
 });
 
