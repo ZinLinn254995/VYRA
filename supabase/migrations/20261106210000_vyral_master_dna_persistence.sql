@@ -196,6 +196,11 @@ create trigger vyral_asset_versions_mark_master_dna_stale
 after insert or update or delete on public.vyral_asset_versions
 for each row execute function public.mark_vyral_master_dna_stale();
 
+drop trigger if exists vyral_dna_records_mark_master_dna_stale on public.vyral_dna_records;
+create trigger vyral_dna_records_mark_master_dna_stale
+after insert or update or delete on public.vyral_dna_records
+for each row execute function public.mark_vyral_master_dna_stale();
+
 drop trigger if exists vyral_asset_relationships_mark_master_dna_stale on public.vyral_asset_relationships;
 create trigger vyral_asset_relationships_mark_master_dna_stale
 after insert or update or delete on public.vyral_asset_relationships
