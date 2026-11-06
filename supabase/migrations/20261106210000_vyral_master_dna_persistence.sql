@@ -397,3 +397,82 @@ drop trigger if exists vyral_master_dna_revision_set_ready on public.vyral_maste
 create trigger vyral_master_dna_revision_set_ready
 after insert on public.vyral_master_dna_revisions
 for each row execute function public.set_vyral_master_dna_revision_ready();
+
+
+create or replace function public.set_vyral_master_dna_asset_classification(
+  p_asset_id uuid,
+  p_role text,
+  p_purpose text,
+  p_target_asset_id uuid,
+  p_rationale text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller_id uuid := auth.uid();
+  target_vyral_id uuid;
+  target_kind text;
+  relation_id uuid;
+begin
+  if caller_id is null then
+    raise exception using errcode = '42501', message = 'A signed-in owner is required.';
+  end if;
+  if p_role not in ('main','supporting')
+     or p_purpose is null or char_length(btrim(p_purpose)) not between 1 and 2000
+     or p_rationale is null or char_length(btrim(p_rationale)) not between 1 and 2000 then
+    raise exception using errcode = '22023', message = 'A valid role, purpose, and relationship rationale are required.';
+  end if;
+
+  select a.vyral_id into target_vyral_id
+  from public.vyral_assets a
+  where a.id = p_asset_id and a.user_id = caller_id
+  for update;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'Asset not found in the signed-in owner scope.';
+  end if;
+
+  if p_role = 'main' then
+    if p_target_asset_id is not null then
+      raise exception using errcode = '22023', message = 'A Main Asset must be linked directly to its Vyral root.';
+    end if;
+    target_kind := 'vyral';
+  else
+    if p_target_asset_id is null or p_target_asset_id = p_asset_id or not exists (
+      select 1 from public.vyral_assets target
+      where target.id = p_target_asset_id
+        and target.vyral_id = target_vyral_id
+        and target.user_id = caller_id
+        and target.master_dna_role = 'main'
+    ) then
+      raise exception using errcode = '22023', message = 'A Supporting Asset must link to a different Main Asset in the same Vyral.';
+    end if;
+    target_kind := 'asset';
+  end if;
+
+  update public.vyral_assets
+  set master_dna_role = p_role,
+      master_dna_purpose = btrim(p_purpose),
+      updated_at = now()
+  where id = p_asset_id and vyral_id = target_vyral_id and user_id = caller_id;
+
+  delete from public.vyral_asset_relationships
+  where vyral_id = target_vyral_id and user_id = caller_id
+    and relationship_type = 'master_membership'
+    and from_kind = 'asset' and from_asset_id = p_asset_id;
+
+  insert into public.vyral_asset_relationships (
+    vyral_id,user_id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale
+  ) values (
+    target_vyral_id,caller_id,'master_membership','asset',p_asset_id,target_kind,
+    case when target_kind = 'asset' then p_target_asset_id else null end,btrim(p_rationale)
+  ) returning id into relation_id;
+
+  return relation_id;
+end;
+$$;
+
+revoke all on function public.set_vyral_master_dna_asset_classification(uuid,text,text,uuid,text) from public, anon;
+grant execute on function public.set_vyral_master_dna_asset_classification(uuid,text,text,uuid,text) to authenticated;
