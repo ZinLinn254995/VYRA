@@ -220,9 +220,6 @@ export const validateVyralDnaV3Record = (value: unknown): VyralDnaV3Record => {
   if (!Array.isArray(payload.tiles) || payload.tiles.length === 0) throw new Error('DNA v3 must contain at least one lossless tile.');
   const channels = channelCount(decoded.channel_layout);
   const expectedTileCount = Math.ceil(decoded.width / payload.tile_width) * Math.ceil(decoded.height / payload.tile_height);
-  if (!Number.isSafeInteger(expectedTileCount) || payload.tiles.length !== expectedTileCount) {
-    throw new Error('DNA v3 tile count does not cover the declared image grid.');
-  }
   const seen = new Set<string>();
   for (const tileValue of payload.tiles as unknown[]) {
     if (!isObject(tileValue)) throw new Error('DNA v3 tile metadata is missing or invalid.');
@@ -248,6 +245,9 @@ export const validateVyralDnaV3Record = (value: unknown): VyralDnaV3Record => {
     if (tile.package_path !== expectedPath) throw new Error('DNA v3 tile package path is invalid.');
     if (seen.has(tile.package_path)) throw new Error('DNA v3 contains a duplicate tile path.');
     seen.add(tile.package_path);
+  }
+  if (!Number.isSafeInteger(expectedTileCount) || payload.tiles.length !== expectedTileCount) {
+    throw new Error('DNA v3 tile count does not cover the declared image grid.');
   }
   return record;
 };
