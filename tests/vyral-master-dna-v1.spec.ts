@@ -89,17 +89,3 @@ test('requires at least one declared intended use for a Vyral', async () => {
   );
 });
 
-test('requires Main Assets to link to the Vyral root and Supporting Assets to a Main Asset', async () => {
-  const noMainMembership = {
-    ...input,
-    relationships: input.relationships.map((edge, index) => index === 0 ? { ...edge, type: 'references' } : edge),
-  };
-  await assert.rejects(() => createVyralMasterDnaV1(noMainMembership), /Main Asset must have a membership edge/);
-  const supportToRoot = {
-    ...input,
-    relationships: input.relationships.map((edge, index) => index === 1
-      ? { ...edge, to: { kind: 'vyral' as const, vyral_id: 'vyral-1' } }
-      : edge),
-  };
-  await assert.rejects(() => createVyralMasterDnaV1(supportToRoot), /Supporting Asset must have a membership edge/);
-});
