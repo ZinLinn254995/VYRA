@@ -25,7 +25,7 @@ type DnaRow = {
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
-type ReconstructionRow = { id: string; asset_id: string; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
+type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void };
