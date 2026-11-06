@@ -322,7 +322,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         folders: folders.map((item) => ownerless(item as unknown as Record<string, unknown>)),
         assets: assets.map((item) => ownerless(item as unknown as Record<string, unknown>)),
         versions: packageVersions,
-        dnaRecords: dnaRecords.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        dnaRecords: dnaRecords.map((item) => {
+          const safeRecord = ownerless(item as unknown as Record<string, unknown>);
+          const safePayload = { ...asRecord(safeRecord.payload) };
+          delete safePayload.tile_storage_paths;
+          return { ...safeRecord, payload: safePayload };
+        }),
         fingerprints: (dnaOnly ? fingerprints.filter((item) => !item.asset_version_id) : fingerprints).map((item) => ownerless(item as unknown as Record<string, unknown>)),
         // DNA-only exports omit binary versions, so keep only evidence that is not bound to an omitted version.
         
@@ -355,6 +360,28 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
       packageEntries.push({ path: 'manifest.json', data: manifestJson });
       let archive: Blob;
+      if (!dnaOnly) {
+        for (const sourceRow of dnaRecords.filter((record) =>
+          record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3
+        )) {
+          const dnaRecord = asRecord(sourceRow.payload.dna_record);
+          const losslessPayload = asRecord(dnaRecord.lossless_payload);
+          const tiles = Array.isArray(losslessPayload.tiles) ? losslessPayload.tiles : [];
+          const storagePaths = sourceRow.payload.tile_storage_paths;
+          if (!tiles.length || !Array.isArray(storagePaths) || storagePaths.length !== tiles.length) {
+            throw new Error('A stored DNA v3 record has an incomplete tile storage map and cannot be exported.');
+          }
+          for (let index = 0; index < tiles.length; index += 1) {
+            const tile = asRecord(tiles[index]);
+            const packagePath = typeof tile.package_path === 'string' ? tile.package_path : '';
+            const storagePath = storagePaths[index];
+            if (!packagePath || typeof storagePath !== 'string') throw new Error('A stored DNA v3 tile mapping is invalid.');
+            const { data: tileBlob, error: tileError } = await supabase.storage.from('vyral-assets').download(storagePath);
+            if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile ' + packagePath + ': ' + (tileError?.message ?? 'tile missing'));
+            packageEntries.push({ path: packagePath, data: new Uint8Array(await tileBlob.arrayBuffer()) });
+          }
+        }
+      }
       if (dnaOnly) {
         const sourceRow = dnaRecords.find((record) =>
           record.payload?.dna_schema_id === 'vyra.asset-dna' &&
