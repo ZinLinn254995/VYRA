@@ -165,3 +165,14 @@ The latest app CI and browser run are pending after the newest UI/builder commit
 The Master DNA builder checks the v3 manifest and confirms all declared private tile objects exist in the canonical Asset storage folder without downloading all lossless DNA payloads. It only claims `lossless_decoded` when an exact decoded-reconstruction test passed for the same pinned Asset version; it only claims `source_file_exact` after a byte-exact test. Storage presence is not treated as reconstruction proof.
 
 Current builder limitation: creator/license references remain unset, remote resolution remains disabled, and compact `.vyral` export/import is not yet connected to Master DNA. The Development project's migration history is behind the working branch (last recorded version `20261105235017`), so the new Master DNA migration must not be applied out of order. Reconcile migration history/schema first. Production is untouched.
+
+
+## 2026-11-06 — Whole-Vyral DNA-only package and AI Chat Master DNA context
+
+**Decision / implementation direction:** DNA-only portability must represent a complete Vyral, not silently export only its first Asset. Whole-Vyral DNA-only export is therefore gated on one lossless DNA v3 record for every Asset and a verified Master DNA snapshot whose Asset inventory exactly matches the package. Each Asset's tile payloads are verified and reconstructed before the archive is created. Single-Asset DNA-only packages remain supported for isolated reconstruction tests.
+
+**Import behavior:** Every included Asset is reconstructed from its own DNA v3 payload into a new PNG version; original encoded source bytes are explicitly not claimed to be recovered. DNA records are remapped to local Asset/version identities. When the destination Master DNA schema is installed, imported roles, purposes, membership edges, and additional typed relationships are stored as unverified imported metadata. A new local Master DNA revision must be built before the destination Vyral can be considered ready. If the migration is unavailable, import avoids writing to missing Master DNA tables and reports the limitation.
+
+**AI Chat behavior:** AI Chat validates the portable Master DNA fingerprint and inventory, then supplies Vyral purpose, asset roles/purposes, relationship graph, reconstruction claims, and cross-asset constraints to the model. Current Vision still receives only the first Asset image preview; the remaining Asset visuals are not yet attached. Multi-image Vision and authenticated remote source resolution remain future work.
+
+**Verification status:** CI passed TypeScript, unit suites (including multi-Asset DNA-only export and per-Asset reconstruction), Deno type-check, and Production Build for the implementation commit. Browser UI and Database runs were still being checked at the time of this entry. No hosted Development migration/deployment or Production changes are authorized by this implementation.
