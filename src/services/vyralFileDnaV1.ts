@@ -179,9 +179,16 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
   } else if (signature === 'pdf' || mime === 'application/pdf' || extension === 'pdf') {
     profile = 'document'; status = 'partial';
     addFact(facts, 'pdf_header', readAscii(bytes, 0, Math.min(8, bytes.length)), 'container_header');
-    const latin = readAscii(bytes, 0, bytes.length);
-    const pages = (latin.match(/\/Type\s*\/Page(?!s)\b/g) ?? []).length;
+    const scanLimit = Math.min(bytes.length, 8 * 1024 * 1024);
+    let pages = 0;
+    for (let index = 0; index + 10 < scanLimit; index += 1) {
+      if (readAscii(bytes, index, 5) !== '/Type') continue;
+      let cursor = index + 5;
+      while (cursor < scanLimit && (bytes[cursor] === 0x20 || bytes[cursor] === 0x09 || bytes[cursor] === 0x0a || bytes[cursor] === 0x0d)) cursor += 1;
+      if (readAscii(bytes, cursor, 5) === '/Page' && bytes[cursor + 5] !== 0x73) pages += 1;
+    }
     if (pages) addFact(facts, 'page_object_markers', pages, 'container_index', 'markers');
+    if (bytes.length > scanLimit) notes.push('PDF structural scan was limited to the first 8 MiB.');
     notes.push('PDF page markers can be hidden in compressed object streams; this count is a lower-bound structural hint, not a guaranteed page count.');
   } else if (signature === 'glb' && bytes.length >= 20) {
     profile = 'model_3d'; status = 'partial';
@@ -213,14 +220,16 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
   } else if (mime.startsWith('text/') || ['txt','md','csv','json','xml','yaml','yml','html','css','js','ts'].includes(extension)) {
     profile = 'text'; status = 'partial';
     try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const scanLimit = Math.min(bytes.length, 8 * 1024 * 1024);
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, scanLimit));
       const lines = text.split(/\r?\n/);
+      if (bytes.length > scanLimit) notes.push('Text structure scan was limited to the first 8 MiB; counts are partial.');
       addFact(facts, 'character_count', Array.from(text).length, 'text_structure');
       addFact(facts, 'line_count', lines.length, 'text_structure');
       addFact(facts, 'word_count', (text.match(/\S+/g) ?? []).length, 'text_structure');
       if (extension === 'md') addFact(facts, 'markdown_heading_count', (text.match(/^\s{0,3}#{1,6}\s+/gm) ?? []).length, 'text_structure');
       if (extension === 'json') {
-        try { const parsed = JSON.parse(text) as unknown; if (Array.isArray(parsed)) addFact(facts, 'json_top_level_items', parsed.length, 'text_structure'); else if (parsed && typeof parsed === 'object') addFact(facts, 'json_top_level_keys', Object.keys(parsed as object).length, 'text_structure'); status = 'parsed'; }
+        try { const parsed = JSON.parse(text) as unknown; if (Array.isArray(parsed)) addFact(facts, 'json_top_level_items', parsed.length, 'text_structure'); else if (parsed && typeof parsed === 'object') addFact(facts, 'json_top_level_keys', Object.keys(parsed as object).length, 'text_structure'); status = bytes.length > scanLimit ? 'partial' : 'parsed'; }
         catch { notes.push('The file is UTF-8 text but does not contain valid JSON.'); }
       } else status = 'parsed';
     } catch { notes.push('Text MIME or extension was supplied, but the bytes are not valid UTF-8; content was not decoded.'); }
