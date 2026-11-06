@@ -1159,11 +1159,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (failedTile) throw failedTile.reason;
       }
       const { error: insertError } = await supabase.from('vyral_dna_records').insert({
-        vyral_id: vyral.id, user_id: userId, asset_id: asset.id, scope: 'asset', schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
+        id: recordId, vyral_id: vyral.id, user_id: userId, asset_id: asset.id, scope: 'asset', schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
         payload: { dna_schema_id: 'vyra.asset-dna', dna_schema_version: 3, dna_record: record, tile_storage_paths: tileStoragePaths, extraction_kind: 'deterministic_decoded_raster_samples', source_file_sha256: sourceSha256, recovery_run: true },
         reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: true, recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false },
       });
-      if (insertError) throw insertError;
+      if (insertError) {
+        // A lost response can make a committed INSERT look like a failure. Reconcile by the deterministic row id before cleaning tiles.
+        const { data: committedRecord } = await supabase.from('vyral_dna_records').select('id,payload').eq('id', recordId).maybeSingle();
+        dnaRecordInserted = asRecord(committedRecord?.payload).recovery_run === true;
+        throw insertError;
+      }
       dnaRecordInserted = true;
       const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
       if (readyError) throw readyError;
