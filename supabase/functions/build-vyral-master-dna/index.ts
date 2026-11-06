@@ -186,12 +186,12 @@ Deno.serve(async (request: Request) => {
         validateVyralDnaV3Record(nestedDna);
         const assetStoragePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
         const firstPath = tilePaths[0];
-        if (typeof firstPath !== 'string' || !firstPath.startsWith(assetStoragePrefix) || firstPath.includes('\\\\')) {
+        if (typeof firstPath !== 'string' || !firstPath.startsWith(assetStoragePrefix)) {
           throw new Error('DNA tile storage path escaped its canonical Asset prefix.');
         }
         const directory = firstPath.slice(0, firstPath.lastIndexOf('/'));
         const requiredNames = tilePaths.map((path) => {
-          if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix) || path.includes('\\') ||
+          if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix) ||
               path.split('/').some((part) => part === '.' || part === '..') ||
               path.slice(0, path.lastIndexOf('/')) !== directory) {
             throw new Error('DNA tile storage paths must remain in one canonical private Asset folder.');
