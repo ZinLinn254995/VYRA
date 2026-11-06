@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Clapperboard, Film, Plus, X } from 'lucide-react';
+import { ChevronRight, Clapperboard, Film, Images, Plus, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
+import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string };
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void };
+type LibraryPage = 'my-vyrals' | 'my-media-library';
+type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -26,39 +28,19 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
     if (localStorage.getItem(markerKey) === '1') return existing;
     const now = new Date().toISOString();
     const samples: Storyboard[] = [
-      {
-        id: 'demo-myanmar-folktale',
-        title: 'Myanmar Folktale — The Golden Peacock',
-        topic: 'A cinematic retelling of a Myanmar folktale, with a clear beginning, a magical journey and a meaningful ending.',
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: 'demo-product-promotion',
-        title: 'Product Promotion — Smart Bottle',
-        topic: 'A short product video introducing the key features, everyday benefits and a memorable call to action.',
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: 'demo-science-explainer',
-        title: 'Science Explainer — Black Holes',
-        topic: 'An easy-to-follow visual explanation of black holes, gravity and how light behaves near the event horizon.',
-        createdAt: now,
-        updatedAt: now,
-      },
+      { id: 'demo-myanmar-folktale', title: 'Myanmar Folktale — The Golden Peacock', topic: 'A cinematic retelling of a Myanmar folktale, with a clear beginning, a magical journey and a meaningful ending.', createdAt: now, updatedAt: now },
+      { id: 'demo-product-promotion', title: 'Product Promotion — Smart Bottle', topic: 'A short product video introducing the key features, everyday benefits and a memorable call to action.', createdAt: now, updatedAt: now },
+      { id: 'demo-science-explainer', title: 'Science Explainer — Black Holes', topic: 'An easy-to-follow visual explanation of black holes, gravity and how light behaves near the event horizon.', createdAt: now, updatedAt: now },
     ];
     localStorage.setItem(markerKey, '1');
     localStorage.setItem(key, JSON.stringify(samples));
     return samples;
-  } catch {
-    return existing;
-  }
+  } catch { return existing; }
 };
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -76,10 +58,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     event.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
-    if (!isAuthenticated) {
-      onLoginRequired();
-      return;
-    }
+    if (!isAuthenticated) { onLoginRequired(); return; }
     const now = new Date().toISOString();
     const next: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
@@ -95,7 +74,19 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         <div className="mb-5">
           <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
           <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Workspace</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your storyboards, organized in one place.</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Manage your Vyrals, media library and storyboards in one place.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={21} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Vyrals</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative assets and Vyral collections</span></span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+          </button>
+          <button type="button" onClick={() => onOpenLibraryPage('my-media-library')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Images size={19} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Media Library</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your images, videos, audio and files</span></span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+          </button>
         </div>
       </section>
 
@@ -139,18 +130,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Give your new storyboard a name and a short description.</p>
               </div>
-
               <form onSubmit={createStoryboard} className="space-y-4">
                 <div className="min-w-0 space-y-2.5">
                   <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="ml-1 text-[var(--vyra-danger)]" aria-hidden="true">*</span></label>
                   <input id="vyra-storyboard-name" type="text" required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. The Last City" className={inputClass} />
                 </div>
-
                 <div className="min-w-0 space-y-2.5">
                   <label htmlFor="vyra-storyboard-description" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label>
                   <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="What is this story about?" className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
                 </div>
-
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={!title.trim()}>Create Storyboard</Button>
