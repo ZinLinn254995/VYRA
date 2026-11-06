@@ -25,7 +25,7 @@ export type VyralLicenseDecisionV1 = {
   action: VyralLicenseActionV1;
   basis: 'verified_owner' | 'explicit_grant' | 'denied';
   reason: 'owner_rights' | 'all_assets_covered' | 'missing_asset' | 'version_mismatch' |
-    'wrong_grantee' | 'revoked' | 'expired' | 'invalid_grant';
+    'wrong_grantee' | 'revoked' | 'expired' | 'not_yet_valid' | 'invalid_grant';
   blocking_asset_id?: string;
   grant_ids: string[];
 };
@@ -100,9 +100,12 @@ export const evaluateVyralLicenseActionV1 = (input: {
       PROFILE_ACTIONS[grant.profile]?.includes(input.action)
     );
     if (!valid) {
+      const notYetValid = active.some((grant) =>
+        isDate(grant.granted_at) && Date.parse(grant.granted_at) > nowMs
+      );
+      if (notYetValid) return denied('not_yet_valid', asset.asset_id);
       const expired = active.some((grant) =>
-        (grant.expires_at !== null && isDate(grant.expires_at) && Date.parse(grant.expires_at) <= nowMs) ||
-        (isDate(grant.granted_at) && Date.parse(grant.granted_at) > nowMs)
+        grant.expires_at !== null && isDate(grant.expires_at) && Date.parse(grant.expires_at) <= nowMs
       );
       return denied(expired ? 'expired' : 'invalid_grant', asset.asset_id);
     }
