@@ -986,9 +986,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       // Use its role/purpose/relationship declarations to seed owner-scoped
       // canonical metadata, then require a fresh local Master DNA build.
       if (importedMasterDna && masterDnaAvailable) {
-        const membershipByAsset = new Map(importedMasterDna.relationships
-          .filter((relation) => relation.type === 'master_membership' && relation.from.kind === 'asset')
-          .map((relation) => [relation.from.asset_id, relation]));
+        const membershipByAsset = new Map<string, (typeof importedMasterDna.relationships)[number]>();
+        for (const relation of importedMasterDna.relationships) {
+          if (relation.type === 'master_membership' && relation.from.kind === 'asset') {
+            membershipByAsset.set(relation.from.asset_id, relation);
+          }
+        }
         for (const sourceAsset of importedMasterDna.assets) {
           const importedAssetId = assetMap.get(sourceAsset.asset_id);
           const membership = membershipByAsset.get(sourceAsset.asset_id);
