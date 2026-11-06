@@ -23,6 +23,7 @@ export type VyralFileDnaRecord = {
     format_signature: string;
     sha256: string;
   };
+  structure?: VyralFileStructure;
   extractor: { name: string; version: string };
   reconstruction: {
     claim: 'source_file_exact' | 'unavailable';
@@ -32,6 +33,19 @@ export type VyralFileDnaRecord = {
   };
 };
 
+export type VyralFileStructureFact = {
+  key: string;
+  value: string | number | boolean;
+  unit?: string;
+  evidence: 'container_header' | 'container_index' | 'text_structure' | 'binary_signature';
+};
+export type VyralFileStructure = {
+  profile: 'audio' | 'video' | 'document' | 'model_3d' | 'archive' | 'text' | 'unknown';
+  status: 'parsed' | 'partial' | 'signature_only' | 'unknown';
+  extractor_version: '1.0.0';
+  facts: VyralFileStructureFact[];
+  notes: string[];
+};
 export type VyralFileDnaEntry = { path: string; data: Uint8Array };
 
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -99,6 +113,126 @@ const validateSource = (source: unknown) => {
   }
 };
 
+const readAscii = (bytes: Uint8Array, offset: number, length: number) =>
+  Array.from(bytes.subarray(offset, offset + length), (byte) => String.fromCharCode(byte)).join('');
+const addFact = (facts: VyralFileStructureFact[], key: string, value: string | number | boolean, evidence: VyralFileStructureFact['evidence'], unit?: string) => {
+  facts.push({ key, value, evidence, ...(unit ? { unit } : {}) });
+};
+const readU32LE = (bytes: Uint8Array, offset: number) =>
+  offset + 4 <= bytes.length ? new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true) : 0;
+
+export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string, filename?: string | null): VyralFileStructure => {
+  const mime = mimeType.toLowerCase();
+  const extension = filename?.match(/\.([a-zA-Z0-9]{1,16})$/)?.[1]?.toLowerCase() ?? '';
+  const signature = detectSignature(bytes);
+  const facts: VyralFileStructureFact[] = [];
+  const notes: string[] = [];
+  let profile: VyralFileStructure['profile'] = 'unknown';
+  let status: VyralFileStructure['status'] = 'unknown';
+  const setSignature = (kind: VyralFileStructure['profile'], note: string) => {
+    profile = kind; status = 'signature_only'; notes.push(note);
+  };
+
+  if (signature === 'wav' && bytes.length >= 44) {
+    profile = 'audio'; status = 'parsed';
+    let offset = 12; let byteRate = 0; let dataBytes = 0;
+    while (offset + 8 <= bytes.length) {
+      const id = readAscii(bytes, offset, 4); const size = readU32LE(bytes, offset + 4);
+      const body = offset + 8;
+      if (body + size > bytes.length) { status = 'partial'; notes.push('A RIFF chunk extends beyond the available file bytes.'); break; }
+      if (id === 'fmt ' && size >= 16) {
+        const view = new DataView(bytes.buffer, bytes.byteOffset + body, size);
+        addFact(facts, 'codec_format_code', view.getUint16(0, true), 'container_header');
+        addFact(facts, 'channels', view.getUint16(2, true), 'container_header');
+        addFact(facts, 'sample_rate', view.getUint32(4, true), 'container_header', 'Hz');
+        byteRate = view.getUint32(8, true);
+        addFact(facts, 'bits_per_sample', view.getUint16(14, true), 'container_header', 'bits');
+      } else if (id === 'data') dataBytes += size;
+      offset = body + size + (size % 2);
+    }
+    if (dataBytes) addFact(facts, 'audio_data_bytes', dataBytes, 'container_index', 'bytes');
+    if (byteRate > 0 && dataBytes > 0) addFact(facts, 'duration_estimate', Number((dataBytes / byteRate).toFixed(3)), 'container_index', 'seconds');
+    if (!facts.some((fact) => fact.key === 'sample_rate')) { status = 'partial'; notes.push('WAV header was present but its format chunk could not be fully read.'); }
+  } else if (signature === 'iso-bmff-family' && bytes.length >= 16) {
+    profile = mime.startsWith('audio/') ? 'audio' : 'video'; status = 'partial';
+    addFact(facts, 'major_brand', readAscii(bytes, 8, 4).replace(/[^\x20-\x7e]/g, ''), 'container_header');
+    const boxes: string[] = []; let offset = 0;
+    while (offset + 8 <= bytes.length && boxes.length < 64) {
+      let size = readU32LE(bytes, offset);
+      const type = readAscii(bytes, offset + 4, 4);
+      if (size === 1 && offset + 16 <= bytes.length) {
+        const high = readU32LE(bytes, offset + 8); const low = readU32LE(bytes, offset + 12);
+        size = high * 0x100000000 + low;
+      } else if (size === 0) size = bytes.length - offset;
+      if (!Number.isSafeInteger(size) || size < 8 || offset + size > bytes.length) break;
+      boxes.push(type); offset += size;
+    }
+    addFact(facts, 'top_level_boxes', boxes.join(','), 'container_index');
+    notes.push('ISO-BMFF box inventory is a structural scan; codecs, tracks and duration are not decoded.');
+  } else if (signature === 'mp3-id3' || signature === 'mpeg-audio-frame' || signature === 'flac' || signature === 'ogg-container') {
+    setSignature('audio', 'Audio container signature detected; codec frames and duration are not fully decoded.');
+    addFact(facts, 'audio_container', signature, 'binary_signature');
+    if (signature === 'mp3-id3' && bytes.length >= 10) {
+      const size = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
+      addFact(facts, 'id3_tag_bytes', size + 10, 'container_header', 'bytes');
+    }
+  } else if (signature === 'pdf' || mime === 'application/pdf' || extension === 'pdf') {
+    profile = 'document'; status = 'partial';
+    addFact(facts, 'pdf_header', readAscii(bytes, 0, Math.min(8, bytes.length)), 'container_header');
+    const latin = readAscii(bytes, 0, bytes.length);
+    const pages = (latin.match(/\/Type\s*\/Page(?!s)\b/g) ?? []).length;
+    if (pages) addFact(facts, 'page_object_markers', pages, 'container_index', 'markers');
+    notes.push('PDF page markers can be hidden in compressed object streams; this count is a lower-bound structural hint, not a guaranteed page count.');
+  } else if (signature === 'glb' && bytes.length >= 20) {
+    profile = 'model_3d'; status = 'partial';
+    const version = readU32LE(bytes, 4); const declaredLength = readU32LE(bytes, 8);
+    addFact(facts, 'glb_version', version, 'container_header');
+    addFact(facts, 'declared_file_bytes', declaredLength, 'container_header', 'bytes');
+    if (declaredLength === bytes.length) {
+      const chunkLength = readU32LE(bytes, 12); const chunkType = readAscii(bytes, 16, 4);
+      if (chunkType === 'JSON' && chunkLength <= bytes.length - 20) {
+        try {
+          const json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(20, 20 + chunkLength))) as Record<string, unknown>;
+          for (const key of ['nodes','meshes','materials','scenes','animations']) if (Array.isArray(json[key])) addFact(facts, key + '_count', (json[key] as unknown[]).length, 'container_index');
+          status = 'parsed';
+        } catch { notes.push('The GLB JSON chunk could not be parsed; only its container header was inspected.'); }
+      }
+    } else notes.push('GLB declared length does not match available bytes.');
+  } else if (extension === 'gltf' || mime.includes('gltf+json')) {
+    profile = 'model_3d'; status = 'partial';
+    try {
+      const json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as Record<string, unknown>;
+      for (const key of ['nodes','meshes','materials','scenes','animations']) if (Array.isArray(json[key])) addFact(facts, key + '_count', (json[key] as unknown[]).length, 'text_structure');
+      status = 'parsed';
+    } catch { notes.push('glTF JSON structure could not be parsed.'); }
+  } else if (signature === 'iso-bmff-family' || signature === 'matroska-ebml') {
+    setSignature('video', 'Video container signature detected; tracks, frames and timing are not decoded.');
+  } else if (['zip-container','7z','rar','gzip','riff-container','iff-container'].includes(signature)) {
+    setSignature('archive', 'Archive/container signature detected; member contents are not unpacked or interpreted.');
+    addFact(facts, 'container_signature', signature, 'binary_signature');
+  } else if (mime.startsWith('text/') || ['txt','md','csv','json','xml','yaml','yml','html','css','js','ts'].includes(extension)) {
+    profile = 'text'; status = 'partial';
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const lines = text.split(/\r?\n/);
+      addFact(facts, 'character_count', Array.from(text).length, 'text_structure');
+      addFact(facts, 'line_count', lines.length, 'text_structure');
+      addFact(facts, 'word_count', (text.match(/\S+/g) ?? []).length, 'text_structure');
+      if (extension === 'md') addFact(facts, 'markdown_heading_count', (text.match(/^\s{0,3}#{1,6}\s+/gm) ?? []).length, 'text_structure');
+      if (extension === 'json') {
+        try { const parsed = JSON.parse(text) as unknown; if (Array.isArray(parsed)) addFact(facts, 'json_top_level_items', parsed.length, 'text_structure'); else if (parsed && typeof parsed === 'object') addFact(facts, 'json_top_level_keys', Object.keys(parsed as object).length, 'text_structure'); status = 'parsed'; }
+        catch { notes.push('The file is UTF-8 text but does not contain valid JSON.'); }
+      } else status = 'parsed';
+    } catch { notes.push('Text MIME or extension was supplied, but the bytes are not valid UTF-8; content was not decoded.'); }
+  } else {
+    status = signature === 'unknown' ? 'unknown' : 'signature_only';
+    notes.push('Only conservative binary identity and signature information is available for this format.');
+  }
+  if (!facts.length && signature !== 'unknown') addFact(facts, 'format_signature', signature, 'binary_signature');
+  if (!notes.length) notes.push('Only deterministic structural facts are recorded; no semantic interpretation or inferred asset purpose is included.');
+  return { profile, status, extractor_version: '1.0.0', facts, notes };
+};
+
 export const createVyralFileDnaV1 = async (input: {
   record_id: string;
   source: VyralFileDnaRecord['source'];
@@ -146,6 +280,7 @@ export const createVyralFileDnaV1 = async (input: {
       format_signature: detectSignature(input.bytes),
       sha256: await sha256(input.bytes),
     },
+    structure: analyzeVyralFileStructureV1(input.bytes, input.mime_type, input.filename),
     extractor: { ...extractor },
     reconstruction: {
       claim: input.include_payload ? 'source_file_exact' : 'unavailable',
@@ -174,6 +309,24 @@ export const validateVyralFileDnaV1Record = (value: unknown): VyralFileDnaRecord
     throw new Error('File DNA integrity and format metadata is invalid.');
   }
   if (!isObject(extractor) || !isText(extractor.name) || !isText(extractor.version)) throw new Error('File DNA extractor metadata is invalid.');
+  if (value.structure !== undefined) {
+    const structure = value.structure;
+    if (!isObject(structure) || !['audio','video','document','model_3d','archive','text','unknown'].includes(String(structure.profile)) ||
+        !['parsed','partial','signature_only','unknown'].includes(String(structure.status)) ||
+        structure.extractor_version !== '1.0.0' || !Array.isArray(structure.facts) || structure.facts.length > 128 ||
+        !Array.isArray(structure.notes) || structure.notes.length > 32 ||
+        !structure.notes.every((note) => typeof note === 'string' && note.length <= 500)) {
+      throw new Error('File DNA structural profile is invalid.');
+    }
+    for (const fact of structure.facts) {
+      if (!isObject(fact) || !/^[a-z][a-z0-9_]{1,63}$/.test(String(fact.key)) ||
+          !(typeof fact.value === 'string' || typeof fact.value === 'number' && Number.isFinite(fact.value) || typeof fact.value === 'boolean') ||
+          !['container_header','container_index','text_structure','binary_signature'].includes(String(fact.evidence)) ||
+          (fact.unit !== undefined && (typeof fact.unit !== 'string' || fact.unit.length > 32))) {
+        throw new Error('File DNA structural fact is invalid.');
+      }
+    }
+  }
   if (!isObject(reconstruction) || !Array.isArray(reconstruction.chunks)) throw new Error('File DNA reconstruction metadata is invalid.');
   if (reconstruction.claim === 'unavailable' && reconstruction.payload_encoding === 'none' &&
       reconstruction.chunk_size === null && reconstruction.chunks.length === 0) return value as unknown as VyralFileDnaRecord;
