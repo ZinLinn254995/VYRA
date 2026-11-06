@@ -70,6 +70,10 @@ create index if not exists vyral_asset_relationships_from_idx
 create index if not exists vyral_asset_relationships_to_idx
   on public.vyral_asset_relationships(vyral_id,to_asset_id,relationship_type);
 
+create unique index if not exists vyral_asset_relationships_master_membership_unique
+  on public.vyral_asset_relationships(vyral_id,user_id,from_asset_id)
+  where relationship_type = 'master_membership' and from_kind = 'asset';
+
 create table if not exists public.vyral_master_dna_revisions (
   id uuid primary key default gen_random_uuid(),
   vyral_id uuid not null,
