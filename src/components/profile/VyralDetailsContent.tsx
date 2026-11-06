@@ -552,6 +552,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             id: versionId,
             asset_id: oldAssetId,
             version_number: 1,
+            package_path: '',
             mime_type: 'image/png',
             source_kind: 'restored',
             metadata: {
