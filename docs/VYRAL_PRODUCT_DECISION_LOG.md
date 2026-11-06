@@ -145,3 +145,16 @@ Implementation direction is now encoded in an additive Development-first migrati
 The TypeScript validator now requires the Vyral-wide reconstruction claim to equal the weakest included Asset claim. Private/unlisted Master DNA cannot expose public metadata policies or resolver URIs. Tests cover overclaim and privacy rejection.
 
 The migration and pgTAP suite are on PR #117. Local GitHub Actions surfaced one malformed dollar-quoted test statement; that was corrected. The corrected database run is pending. The hosted Development database has not been migrated, and Production remains untouched.
+
+
+## 9. Master DNA builder and setup workflow — 2026-11-06
+
+The working branch now includes a JWT-protected server builder and a DNA-tab setup interface:
+- Owners explicitly set the Vyral purpose and intended uses.
+- Every active Asset is assigned a Main/Supporting role, its own purpose, a relationship target (the Vyral root or another Asset), and a rationale.
+- The database classification function derives the caller from `auth.uid()`, checks same-Vyral ownership, and atomically updates the Asset role/purpose plus its membership edge.
+- The server builder pins each Asset to its latest immutable version and matching Asset DNA record, computes the Master DNA fingerprint through the shared validator, and appends a revision through the service role. The database independently validates the snapshot before setting readiness.
+- Reconstruction claims are derived only from passing exact tests pinned to the included version. Otherwise the claim stays `unavailable`.
+- Remote resolution stays disabled until the VYRA resolver and external connector authorization exist.
+
+The latest app CI and browser run are pending after the newest UI/builder commits. The Development database has not been migrated; no live Edge Function invocation has been verified. Production remains untouched.
