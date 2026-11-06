@@ -374,7 +374,7 @@ const removeNonPortableReferences = (value: unknown): unknown => {
   if (!value || typeof value !== 'object') return value;
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (/(url|preview|thumbnail|derivative|storage.?path|file.?path|download|signed)/i.test(key)) continue;
+    if (/(url|preview|thumbnail|derivative|storage.?(path|prefix)|file.?path|download|signed)/i.test(key)) continue;
     result[key] = removeNonPortableReferences(child);
   }
   return result;
