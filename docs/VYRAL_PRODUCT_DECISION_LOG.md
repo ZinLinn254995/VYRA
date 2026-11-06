@@ -131,3 +131,17 @@ Read-only inspection confirmed that VYRA already has asset, version, per-asset D
 Decision for implementation planning: keep legacy DNA records backward-compatible and introduce a dedicated immutable Master DNA revision store, a typed relationship table, and explicit asset role/purpose metadata. Do not auto-invent purposes for existing assets. New snapshots should only be created after all current member assets are fully classified and have valid DNA references and relationship edges. The snapshot write path must be server-authenticated and owner-checked; clients should not update/delete historical snapshots.
 
 This database inspection was read-only. No Development or Production schema/data was modified in this step. Database design is documented but not yet migrated.
+
+
+## 8. Master DNA persistence and conservative claims — 2026-11-06
+
+Implementation direction is now encoded in an additive Development-first migration:
+- Vyral purpose and intended uses are explicit declarations, not inferred from a description or filename.
+- Every Asset has a creator-declared Main/Supporting role and purpose before a Master DNA snapshot can be accepted.
+- A typed semantic relationship graph stores Asset-to-Asset and Asset-to-Vyral-root edges with rationale; same-Vyral foreign keys prevent cross-collection links.
+- Master DNA revisions are append-only and client writes are denied. Snapshot acceptance checks exact current membership, latest asset versions, DNA record references, purposes, and relationship coverage.
+- Asset, version, purpose, or relationship changes invalidate the current ready state. Only a validated new revision can restore `ready`.
+
+The TypeScript validator now requires the Vyral-wide reconstruction claim to equal the weakest included Asset claim. Private/unlisted Master DNA cannot expose public metadata policies or resolver URIs. Tests cover overclaim and privacy rejection.
+
+The migration and pgTAP suite are on PR #117. Local GitHub Actions surfaced one malformed dollar-quoted test statement; that was corrected. The corrected database run is pending. The hosted Development database has not been migrated, and Production remains untouched.
