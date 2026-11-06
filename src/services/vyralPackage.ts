@@ -325,6 +325,9 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   for (const record of manifest.dnaRecords ?? []) {
     if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
       const dnaRecord = validateVyralDnaV3Record(record.dna_record);
+      if (manifest.exportMode === 'dna-only' && !dnaRecord.decoded_image.sample_layout) {
+        throw new Error('DNA-only packages must declare the canonical decoded-sample byte layout.');
+      }
       if (record.id !== dnaRecord.record_id || record.asset_id !== dnaRecord.source.asset_id ||
           record.recovery_level !== 'decoded-samples-exact' || !assetIds.has(dnaRecord.source.asset_id)) {
         throw new Error('A VYRA DNA v3 package record has inconsistent identity or recovery metadata.');
@@ -385,7 +388,24 @@ export const createVyralDnaOnlyPackage = async (
   dnaRecordValue: VyralDnaV3Record,
   payloadEntries: VyralDnaV3PackageEntry[],
 ) => {
-  const dnaRecord = validateVyralDnaV3Record(dnaRecordValue);
+  const validatedRecord = validateVyralDnaV3Record(dnaRecordValue);
+  // Older stored v3 rows predate the explicit byte-layout contract. The package
+  // layer adds the deterministic contract implemented by the v3 tile assembler.
+  const dnaRecord: VyralDnaV3Record = {
+    ...validatedRecord,
+    decoded_image: {
+      ...validatedRecord.decoded_image,
+      sample_layout: {
+        row_order: 'top-to-bottom',
+        pixel_order: 'left-to-right',
+        channel_order: validatedRecord.decoded_image.channel_layout,
+        packing: 'interleaved',
+        row_stride: 'tightly-packed',
+        hash_algorithm: 'SHA-256',
+        hash_scope: 'full-decoded-sample-stream',
+      },
+    },
+  };
   if (!Array.isArray(payloadEntries)) {
     throw new Error('DNA-only export payload entries must be an array.');
   }
@@ -415,7 +435,6 @@ export const createVyralDnaOnlyPackage = async (
     exportMode: 'dna-only',
     versions: [],
     dnaRecords: [
-      ...portableBase.dnaRecords.filter((record) => record.id !== dnaRecord.record_id),
       {
         id: dnaRecord.record_id,
         scope: 'asset',
@@ -426,6 +445,12 @@ export const createVyralDnaOnlyPackage = async (
         dna_record: dnaRecord,
       },
     ],
+    // A DNA-only export omits all asset versions. Version-bound legacy evidence
+    // is intentionally quarantined rather than detached from its source version.
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
   };
   validateVyralManifest(dnaOnlyManifest);
   const entries: VyralPackageEntry[] = [
