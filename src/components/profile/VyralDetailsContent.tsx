@@ -1136,13 +1136,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const tileStoragePaths: string[] = [];
       for (let start = 0; start < entries.length; start += 3) {
         const batch = entries.slice(start, start + 3);
-        const results = await Promise.all(batch.map(async (entry, offset) => {
+        const results = await Promise.allSettled(batch.map(async (entry, offset) => {
           const index = start + offset; const path = auth.user.id + '/' + vyral.id + '/' + asset.id + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
           const buffer = new ArrayBuffer(entry.data.byteLength); new Uint8Array(buffer).set(entry.data);
           const { error } = await supabase!.storage.from('vyral-assets').upload(path, new Blob([buffer], { type: 'application/octet-stream' }), { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' });
           if (error) throw new Error('DNA tile ' + (index + 1) + '/' + entries.length + ': ' + error.message); return path;
         }));
-        newTilePaths.push(...results); tileStoragePaths.push(...results);
+        for (const result of results) {
+          if (result.status === 'fulfilled') { newTilePaths.push(result.value); tileStoragePaths.push(result.value); }
+        }
+        const failedTile = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+        if (failedTile) throw failedTile.reason;
       }
       const { error: insertError } = await supabase.from('vyral_dna_records').insert({
         vyral_id: vyral.id, user_id: auth.user.id, asset_id: asset.id, scope: 'asset', schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
