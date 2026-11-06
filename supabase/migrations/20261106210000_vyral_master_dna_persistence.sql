@@ -157,7 +157,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   has_unclassified_assets boolean;
 begin
