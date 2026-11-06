@@ -709,15 +709,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         } : null;
         addImportedEvidence(stringValue(sourceRecord.source_kind, 'system'), assetId, {
           ...originalPayload,
-          ...(isDnaV3Record ? {
-            dna_record: remappedDnaRecord,
-            imported_provenance: {
-              original_dna_record_id: sourceRecord.id ?? null,
-              original_source: originalDnaSource,
-              reconstructed_asset_sha256: importedDnaSource?.sha256 ?? null,
-              original_encoded_source_bytes_recovered: false,
-            },
-          } : {}),
+          ...(isDnaV3Record ? { dna_record: remappedDnaRecord } : {}),
           imported_provenance: {
             ...(isDnaV3Record ? {
               original_dna_record_id: sourceRecord.id ?? null,
