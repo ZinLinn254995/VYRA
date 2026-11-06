@@ -990,7 +990,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       }
       const imageBytes = Buffer.from(data, 'base64');
       totalImageBytes += imageBytes.byteLength;
-      if (!imageBytes.length || imageBytes.byteLength > 900 * 1024 || totalImageBytes > 3 * 1024 * 1024 || imageBytes.toString('base64') !== data) {
+      if (!imageBytes.length || imageBytes.byteLength > 600 * 1024 || totalImageBytes > 2_400 * 1024 || imageBytes.toString('base64') !== data) {
         return res.status(413).json({ error: 'Vyral Vision images exceed the allowed payload size.' });
       }
       const isJpeg = mimeType === 'image/jpeg' && imageBytes[0] === 0xff && imageBytes[1] === 0xd8 && imageBytes[2] === 0xff;
