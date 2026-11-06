@@ -266,3 +266,18 @@ A read-only inspection of the VYRA Development database on 2026-11-06 found the 
 The current Development database inspection was read-only. No tables, rows, policies, storage objects, or Production resources were changed by this design step.
 
 **Supabase platform note:** new public-schema tables are no longer automatically exposed through the Data API; any future table exposure must be deliberate and paired with least-privilege grants and RLS. The hosted Supabase CLI v3 also changed hosted-command defaults; future migrations must target Development explicitly and be reviewed before execution.
+
+
+## 17. Persistence and readiness contract — implementation added, verification pending
+
+The additive Development-first migration `20261106210000_vyral_master_dna_persistence.sql` introduces:
+
+- Explicit Vyral-level purpose and intended uses, plus per-asset Main/Supporting role and purpose. Legacy rows remain nullable and are not auto-classified.
+- Typed, rationale-bearing relationship edges with database-enforced same-Vyral ownership, valid asset endpoints, and rejection of self/root-to-root edges.
+- Append-only Master DNA revision rows with unique revision numbers/fingerprints, owner-scoped reads, and no authenticated-client insert/update/delete permissions.
+- Database checks before a revision can be accepted: current revision ancestry, Vyral identity, manifest/fingerprint metadata, declared Vyral purpose, full current asset membership, exact latest asset versions, per-asset DNA record references, asset purposes/roles, and relationship coverage.
+- Automatic readiness invalidation. Changes to Vyral purpose, asset membership/metadata, asset versions, or relationships mark the collection `needs_classification` or `stale`. A successfully validated new revision marks it `ready`.
+
+The pgTAP suite `supabase/tests/database/vyral_master_dna.test.sql` covers relationship constraints, owner isolation, revision immutability, classification gates, snapshot acceptance, and stale-state invalidation.
+
+**Current boundary:** this migration and test are committed on the working PR branch. They have not been applied to the hosted Development project. The local GitHub Actions database suite is the acceptance gate; a first run exposed a test quoting defect, which was fixed. A later run is checking the corrected suite. No Production resources were changed.
