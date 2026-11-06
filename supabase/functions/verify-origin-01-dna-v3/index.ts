@@ -76,11 +76,16 @@ Deno.serve(async (request: Request) => {
   const tiles = dna?.lossless_payload?.tiles;
   const paths = recordRow.payload?.tile_storage_paths;
   const prefix = recordRow.payload?.storage_prefix;
+  const expectedPrefix = ORIGIN.ownerId + '/' + ORIGIN.vyralId + '/' + ORIGIN.assetId + '/dna/v3/' + recordRow.id + '/tiles/';
   if (!decoded || !source || !Array.isArray(tiles) || !Array.isArray(paths) ||
       tiles.length !== 100 || paths.length !== tiles.length || typeof prefix !== 'string') {
     return json({ error: 'DNA record is missing the expected 100-tile manifest or storage mapping.' }, 409);
   }
-  if (source.asset_id !== ORIGIN.assetId || source.asset_version_id !== ORIGIN.versionId ||
+  if (prefix !== expectedPrefix || dna.record_id !== recordRow.id || dna.schema_id !== 'vyra.asset-dna' ||
+      dna.schema_version !== 3 || decoded.sample_format !== 'uint8' || decoded.color_space !== 'unknown' ||
+      decoded.decoder_contract?.name !== 'ImageMagick WASM' || decoded.decoder_contract?.version !== '0.0.30' ||
+      source.asset_id !== ORIGIN.assetId || source.asset_version_id !== ORIGIN.versionId ||
+      source.mime_type !== 'image/png' || Number(source.size_bytes) !== 1046585 ||
       source.sha256 !== '3529e592f9caebff28aca52ef1e5f827e6905fde1519171a18a390a9d347d1b0') {
     return json({ error: 'DNA source identity does not match protected ORIGIN-01.' }, 409);
   }
@@ -93,6 +98,7 @@ Deno.serve(async (request: Request) => {
     .eq('id', ORIGIN.versionId).eq('asset_id', ORIGIN.assetId).eq('user_id', userId).maybeSingle();
   if (assetError || versionError || !asset || !version) return json({ error: 'Could not validate protected original metadata.' }, 500);
   if (asset.storage_path !== version.storage_path || asset.sha256 !== version.sha256 ||
+      Number(asset.size_bytes) !== Number(version.size_bytes) || asset.mime_type !== 'image/png' ||
       asset.processing_status !== 'ready' || version.mime_type !== 'image/png') {
     return json({ error: 'Protected source metadata mismatch.' }, 409);
   }
@@ -168,16 +174,21 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Tile manifest contains missing or undeclared storage paths.' }, 409);
   }
 
+  let byteMismatchAt = -1;
+  for (let index = 0; index < reconstructed.length; index += 1) {
+    if (reconstructed[index] !== independentlyDecoded[index]) { byteMismatchAt = index; break; }
+  }
   const reconstructedSha = await sha256Hex(reconstructed);
   const freshDecodeSha = await sha256Hex(independentlyDecoded);
   const expectedSamplesSha = String(decoded.decoded_samples_sha256).toLowerCase();
-  if (reconstructedSha !== expectedSamplesSha || freshDecodeSha !== expectedSamplesSha) {
+  if (byteMismatchAt !== -1 || reconstructedSha !== expectedSamplesSha || freshDecodeSha !== expectedSamplesSha) {
     return json({
       status: 'failed',
       verifiedTiles,
       reconstructedSha256: reconstructedSha,
       freshDecodeSha256: freshDecodeSha,
       expectedSamplesSha256: expectedSamplesSha,
+      firstByteMismatchAt: byteMismatchAt === -1 ? null : byteMismatchAt,
       error: 'Reconstructed tiles do not match a fresh decode of the protected original.',
     }, 409);
   }
@@ -193,6 +204,7 @@ Deno.serve(async (request: Request) => {
     tile_count: verifiedTiles,
     tile_bytes_total: totalTileBytes,
     all_tile_hashes_verified: true,
+    byte_for_byte_sample_comparison: true,
     original_bytes_unchanged: true,
     comparison_scope: 'decoded_exact',
     decoder: { name: 'ImageMagick WASM', version: '0.0.30' },
