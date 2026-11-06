@@ -51,6 +51,8 @@ jobs:
         run: npm run test:vyral-dna-v3
       - name: Vyral Master DNA v1 validation and fingerprint tests
         run: npm run test:vyral-master-dna
+      - name: Vyral Universal File DNA v1 exact binary tests
+        run: npm run test:vyral-file-dna
       - name: Vyral AI Vision safety contract tests
         run: npm run test:vyral-ai-vision
       - name: Set up Deno
