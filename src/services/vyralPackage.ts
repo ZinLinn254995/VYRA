@@ -421,8 +421,6 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
         if (!files.has(chunk.package_path)) throw new Error('File DNA package payload is missing: ' + chunk.package_path);
         dnaOnlyExpectedPaths.add(chunk.package_path);
       }
-      const filePayload = new Map(fileDna.reconstruction.chunks.map((chunk) => [chunk.package_path, files.get(chunk.package_path)!]));
-      await reconstructVyralFileDnaV1(fileDna, filePayload);
     }
   }
   if (manifest.exportMode === 'dna-only') {
