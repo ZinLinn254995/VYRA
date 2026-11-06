@@ -21,5 +21,13 @@
   "observability": {
     "enabled": true
   },
-  "previews": {}
+  "previews": {
+    "vars": {
+      "NODE_ENV": "preview",
+      "SUPABASE_URL": "https://wbqheogfoahnjvgkwhxe.supabase.co",
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndicWhlb2dmb2Fobmp2Z2t3aHhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NDg2NzksImV4cCI6MjEwOTIyNDY3OX0.soaCdEAJd9E54GyCDoKMEA5XHxASkyhTggAOcD-Z-z0",
+      "VITE_SUPABASE_URL": "https://wbqheogfoahnjvgkwhxe.supabase.co",
+      "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndicWhlb2dmb2Fobmp2Z2t3aHhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NDg2NzksImV4cCI6MjEwOTIyNDY3OX0.soaCdEAJd9E54GyCDoKMEA5XHxASkyhTggAOcD-Z-z0"
+    }
+  }
 }
