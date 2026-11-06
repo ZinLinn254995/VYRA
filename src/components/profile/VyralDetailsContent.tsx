@@ -968,8 +968,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       let assetId = '';
       const uploadedDnaTilePaths: string[] = [];
       try {
-        const sourceBytes = new Uint8Array(await file.arrayBuffer());
-        const digest = await crypto.subtle.digest('SHA-256', sourceBytes.slice().buffer);
+        const sourceBuffer = await file.arrayBuffer();
+        const sourceBytes = new Uint8Array(sourceBuffer);
+        const digest = await crypto.subtle.digest('SHA-256', sourceBuffer);
         const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
         assetId = crypto.randomUUID();
         storagePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/' + encodeURIComponent(file.name);
@@ -1023,9 +1024,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           for (let index = 0; index < entries.length; index += 1) {
             const entry = entries[index];
             const tileStoragePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
+            const tileBuffer = new ArrayBuffer(entry.data.byteLength);
+            new Uint8Array(tileBuffer).set(entry.data);
             const { error: tileUploadError } = await supabase.storage.from('vyral-assets').upload(
               tileStoragePath,
-              new Blob([entry.data.slice().buffer], { type: 'application/octet-stream' }),
+              new Blob([tileBuffer], { type: 'application/octet-stream' }),
               { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
             );
             if (tileUploadError) throw tileUploadError;
