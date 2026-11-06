@@ -8,7 +8,7 @@ import {
 import { supabase, useAuth } from '../../context/AuthContext';
 import { createVyralDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
-import { createVyralDnaV3 } from '../../services/vyralDnaV3';
+import { createVyralDnaV3, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -511,7 +511,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (rowsByAsset.size !== assets.length || assets.some((asset) => !rowsByAsset.has(asset.id))) {
           throw new Error('Every Vyral asset needs a verified lossless DNA v3 record before whole-Vyral DNA-only export.');
         }
-        const dnaRecordsForExport = [];
+        const dnaRecordsForExport: VyralDnaV3Record[] = [];
         const dnaPayloadEntries: { path: string; data: Uint8Array }[] = [];
         for (const asset of assets) {
           const sourceRow = rowsByAsset.get(asset.id)!;
@@ -532,7 +532,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile for ' + asset.name + ': ' + (tileError?.message ?? 'tile missing'));
             dnaPayloadEntries.push({ path: tile.package_path, data: new Uint8Array(await tileBlob.arrayBuffer()) });
           }
-          dnaRecordsForExport.push(dnaRecord as Parameters<typeof createVyralDnaOnlyPackage>[1] extends (infer T)[] ? T : never);
+          dnaRecordsForExport.push(dnaRecord as unknown as VyralDnaV3Record);
         }
         archive = await createVyralDnaOnlyPackage(
           manifest as unknown as Parameters<typeof createVyralDnaOnlyPackage>[0],
