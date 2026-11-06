@@ -226,7 +226,7 @@ class ModularAIService implements AIServiceProvider {
         return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
       }
     } catch {
-      if (request.visionImage) {
+      if (request.visionImages?.length) {
         const message = 'VYRA AI Vision could not reach the live Gemini service. No text-only preview was substituted.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
       }
