@@ -40,6 +40,8 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
     canvas.height = height;
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) throw new Error('Could not prepare a safe Vyral image preview for AI Vision.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, width, height);
     context.drawImage(bitmap, 0, 0, width, height);
 
     const encode = (quality: number) => new Promise<Blob>((resolve, reject) => {
@@ -102,7 +104,9 @@ const inspectVyralAttachment = async (file: File) => {
   const visionImage = firstV3Record
     ? await createVyralVisionPreview((await encodeVyralDnaV3PngFromPackage(files, String(firstV3Record.id))).pngBytes)
     : null;
-  const asset = manifest.assets[0];
+  const asset = firstV3Record
+    ? manifest.assets.find((item) => item.id === firstV3Record.asset_id) ?? manifest.assets[0]
+    : manifest.assets[0];
   const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
   const lines = [
     `Package: ${String(manifest.vyral.name)} (${mode})`,
@@ -112,7 +116,7 @@ const inspectVyralAttachment = async (file: File) => {
     ),
     v3Records.length === 0 ? 'No portable DNA v3 reconstruction record was found in this package.' : '',
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
-    visionImage ? `AI Vision preview: ${visionImage.width}×${visionImage.height} JPEG derivative; lossless DNA record remains unchanged` : '',
+    visionImage ? `AI Vision preview: first of ${v3Records.length} DNA v3 record(s), ${visionImage.width}×${visionImage.height} JPEG derivative; lossless DNA remains unchanged` : '',
   ].filter(Boolean);
   return { context: lines.join('\n'), visionImage };
 };
@@ -260,7 +264,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const inspection = await inspectVyralAttachment(file);
         setSelectedVyralContext(inspection.context);
         setSelectedVyralImage(inspection.visionImage);
-        setSelectedFileStatus(inspection.visionImage ? 'Vyral package validated · DNA v3 checked · AI Vision preview ready' : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
+        setSelectedFileStatus(inspection.visionImage ? 'Vyral package validated · DNA v3 checked · first AI Vision preview ready' : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
       } catch (error) {
         setSelectedFileStatus(error instanceof Error ? error.message : 'Could not validate this Vyral package.');
       }
