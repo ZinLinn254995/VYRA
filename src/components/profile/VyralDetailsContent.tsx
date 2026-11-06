@@ -802,7 +802,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       ? { versionId: 'b23dafc8-f5b8-447b-b06b-77553c590a08', dnaId: '8856e567-0221-4011-b9c2-22c228faa449' }
       : asset.id === 'a63edc73-0247-4477-84b9-f942080de694'
         ? { versionId: '273ecd4f-4045-490d-8616-993995a3bec4', dnaId: '95b1ca66-01f5-4ecd-a679-bd891c8549ad' }
-        : null;
+        : asset.id === '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'
+          ? { versionId: '07e940be-b5c2-4163-b45b-34ad9c66e318', dnaId: '5460940d-4343-44bc-a109-a0141e5a17d4' }
+          : null;
     const candidateVersion = config && versions.find((version) => version.asset_id === asset.id && version.id === config.versionId && version.storage_path === asset.storage_path);
     if (!config || !candidateVersion) { setError('The registered blind reconstruction candidate version is not available.'); return; }
     setComparingReconstructionAssetId(asset.id); setError('');
@@ -1093,14 +1095,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const renderAssetCard = (asset: AssetRow) => {
     const Icon = typeIcon(asset.asset_type);
-    const latestReconstructionTest = asset.id === 'a40f067c-0ed1-4b93-814f-4f2f925ff320'
+    const isOriginReconstructionCandidate = ['a40f067c-0ed1-4b93-814f-4f2f925ff320', 'a63edc73-0247-4477-84b9-f942080de694', '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id);
+    const latestReconstructionTest = isOriginReconstructionCandidate
       ? reconstructionTests.filter((test) => test.asset_id === asset.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
       : undefined;
     const reconstructionReport = asRecord(latestReconstructionTest?.report);
     const reportProvenance = asRecord(reconstructionReport.provenance);
     const reconstructionInput = asRecord(reportProvenance.reconstructionInput);
     const comparisonInput = asRecord(reportProvenance.comparisonInput);
-    const candidateDnaRecord = dnaRecords.find((record) => record.id === '8856e567-0221-4011-b9c2-22c228faa449');
+    const candidateDnaId = asset.id === '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23' ? '5460940d-4343-44bc-a109-a0141e5a17d4' : asset.id === 'a63edc73-0247-4477-84b9-f942080de694' ? '95b1ca66-01f5-4ecd-a679-bd891c8549ad' : '8856e567-0221-4011-b9c2-22c228faa449';
+    const candidateDnaRecord = dnaRecords.find((record) => record.id === candidateDnaId);
     const recordedDnaProvenance = asRecord(asRecord(candidateDnaRecord?.payload).provenance);
     const integrityReport = asRecord(reconstructionReport.integrity);
     const originalIntegrity = asRecord(integrityReport.original);
@@ -1127,7 +1131,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2'}>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2'}>
             <p className={'text-[10px] font-semibold '+primary}>Latest test: {latestReconstructionTest.test_status}{latestReconstructionTest.similarity_score !== null ? ' · '+(Number(latestReconstructionTest.similarity_score)*100).toFixed(2)+'% RGB similarity' : ''}</p>
             <div className={'mt-1 space-y-1 text-[10px] '+muted}>
               <p>Reconstruction input: {String(packageMode)} package · Original exclusion: {exclusionIsUnverified ? 'creator-attested, not independently verified' : String(reconstructionInput.originalBinaryExposure ?? 'not recorded')}</p>
