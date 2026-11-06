@@ -535,3 +535,60 @@ test('mixed DNA-only export requires exact File DNA payloads and a record for ev
     versions: [],
   }, [fileDna.record], []), /lossless source-byte chunks/);
 });
+
+
+test('exports a single mixed-media Vyral with raster and exact binary DNA records', async () => {
+  const samples = new Uint8Array([255,0,0,255,0,255,0,255]);
+  const raster = await createVyralDnaV3({
+    record_id: 'mixed-raster-dna',
+    source: { asset_id: 'asset-image', asset_version_id: 'version-image', sha256: 'a'.repeat(64), size_bytes: 1024, mime_type: 'image/png' },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 2, height: 1, channel_layout: 'RGBA', color_space: 'sRGB', icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const originalAudio = new Uint8Array([0x49,0x44,0x33,1,2,3,4,5,6,7,8,9]);
+  const binary = await createVyralFileDnaV1({
+    record_id: 'mixed-audio-dna',
+    source: { asset_id: 'asset-audio', asset_version_id: 'version-audio' },
+    bytes: originalAudio, mime_type: 'audio/mpeg', filename: 'voice.mp3', include_payload: true, chunk_size: 5,
+  });
+  const masterDna = await createVyralMasterDnaV1({
+    master_dna_id: 'mixed-master-dna',
+    vyral: { vyral_id: 'vyral-test', name: 'Mixed Test Vyral' },
+    snapshot: { revision: 1, created_at: '2026-11-07T00:00:00.000Z' },
+    purpose: { summary: 'A visual reference paired with a voice recording.', intended_uses: ['storyboarding'] },
+    main_asset_ids: ['asset-image'],
+    assets: [
+      { asset_id: 'asset-image', asset_version_id: 'version-image', role: 'main', purpose: 'Primary visual reference', media_type: 'image/png', dna_ref: { record_id: 'mixed-raster-dna', schema_id: 'vyra.asset-dna', schema_version: 3 }, asset_fingerprint: 'a'.repeat(64), reconstruction_claim: 'lossless_decoded' },
+      { asset_id: 'asset-audio', asset_version_id: 'version-audio', role: 'supporting', purpose: 'Narration paired with the visual', media_type: 'audio/mpeg', dna_ref: { record_id: 'mixed-audio-dna', schema_id: 'vyra.asset-file-dna', schema_version: 1 }, asset_fingerprint: binary.record.file.sha256, reconstruction_claim: 'source_file_exact' },
+    ],
+    relationships: [{ relationship_id: 'mixed-supports', type: 'supports', rationale: 'The voice recording narrates the primary visual.', from: { kind: 'asset', asset_id: 'asset-audio' }, to: { kind: 'asset', asset_id: 'asset-image' } }],
+    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['Raster samples and original binary source bytes are independently verified.'] },
+    provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
+    source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
+    portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
+  });
+  const base = {
+    ...manifest,
+    assets: [
+      { id: 'asset-image', name: 'Visual', asset_type: 'image', mime_type: 'image/png' },
+      { id: 'asset-audio', name: 'Voice', asset_type: 'audio', mime_type: 'audio/mpeg' },
+    ],
+    versions: [],
+    masterDna,
+  };
+  const archive = await createVyralAssetDnaOnlyPackage(base, [raster.record, binary.record], [...raster.entries, ...binary.entries]);
+  const files = await readVyralZip(new Uint8Array(await archive.arrayBuffer()));
+  const parsed = parseVyralManifest(files);
+  assert.equal(parsed.assets.length, 2);
+  assert.equal(parsed.dnaRecords.length, 2);
+  assert.equal(parsed.reconstructionCapabilities?.decoded_sample_stream_reconstructable, true);
+  assert.equal(parsed.reconstructionCapabilities?.encoded_source_bytes_recoverable, false);
+  assert.equal(parsed.reconstructionCapabilities?.binary_source_bytes_reconstructable, true);
+  const restoredBinary = await reconstructVyralFileDnaFromPackage(files, 'mixed-audio-dna');
+  assert.deepEqual(restoredBinary, originalAudio);
+  const restoredRaster = await reconstructVyralDnaV3FromPackage(files, 'mixed-raster-dna');
+  assert.equal(restoredRaster.decoded_samples_sha256, raster.record.decoded_image.decoded_samples_sha256);
+});
