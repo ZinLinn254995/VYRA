@@ -1325,7 +1325,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           });
           if (dnaError) throw dnaError;
         } else {
-          const fileBytes = new Uint8Array(await file.arrayBuffer());
+          const fileBytes = sourceBytes;
           const fileDna = await createVyralFileDnaV1({
             record_id: crypto.randomUUID(),
             source: { asset_id: assetId, asset_version_id: version.id },
