@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(15);
+select plan(16);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -152,8 +152,19 @@ select is(
 
 select is(
   (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
+  'ready',
+  'A validated Master DNA revision marks the Vyral ready'
+);
+
+update public.vyral_asset_relationships
+set rationale = 'Updated rationale makes the prior snapshot stale.'
+where vyral_id='24000000-0000-4000-8000-000000000011'
+  and relationship_type='belongs_to';
+
+select is(
+  (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
   'stale',
-  'Adding or editing relationships invalidates the previous Master DNA snapshot'
+  'Changing a relationship invalidates the previous Master DNA snapshot'
 );
 
 set local role authenticated;
