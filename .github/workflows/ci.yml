@@ -53,5 +53,11 @@ jobs:
         run: npm run test:vyral-master-dna
       - name: Vyral AI Vision safety contract tests
         run: npm run test:vyral-ai-vision
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check Master DNA Edge Function
+        run: deno check supabase/functions/build-vyral-master-dna/index.ts
       - name: Production build
         run: npm run build
