@@ -842,7 +842,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const importedFileDna = isFileDna ? await createVyralFileDnaV1({
             record_id: crypto.randomUUID(),
             source: { asset_id: assetId, asset_version_id: sourceVersion.id },
-            bytes: latest.bytes,
+            bytes: sourceVersion.bytes,
             mime_type: sourceVersion.source.mime_type || mimeType,
             filename: originalFilename,
             include_payload: false,
@@ -877,7 +877,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           processing_status: 'uploading',
           description: stringValue(sourceAsset.description).slice(0, 2000),
           license_override: objectValue(sourceAsset.license_override),
-          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}) },
+          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}), ...(reconstructedFromFileDna ? { reconstructed_from_file_dna_v1: true, original_source_sha256: reconstructedSourceSha256, original_source_bytes_recovered: true } : {}) },
         });
         if (assetError) throw assetError;
         createdAssetIds.push(assetId);
