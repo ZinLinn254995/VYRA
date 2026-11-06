@@ -17,6 +17,7 @@ export type VyralPackageManifest = {
   packageId: string;
   exportedAt: string;
   exportMode?: 'full' | 'dna-only';
+  reconstructionCapabilities?: Record<string, unknown>;
   vyral: Record<string, unknown>;
   folders: Record<string, unknown>[];
   assets: Record<string, unknown>[];
@@ -434,6 +435,16 @@ export const createVyralDnaOnlyPackage = async (
     ...portableBase,
     exportMode: 'dna-only',
     versions: [],
+    assets: portableBase.assets.map((asset) => asset.id === dnaRecord.source.asset_id
+      ? { ...asset, description_provenance: 'creator_declared', description_is_visual_measurement: false }
+      : asset),
+    reconstructionCapabilities: {
+      decoded_sample_stream_reconstructable: true,
+      source_decode_independently_verified: false,
+      encoded_source_bytes_recoverable: false,
+      color_space_fully_characterized: dnaRecord.decoded_image.color_space !== 'unknown',
+      verification_note: 'Package-level reconstruction capability only; source verification must be established by a separate trusted verifier.',
+    },
     dnaRecords: [
       {
         id: dnaRecord.record_id,
