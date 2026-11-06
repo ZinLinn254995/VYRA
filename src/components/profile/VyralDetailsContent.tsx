@@ -182,6 +182,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterDnaUsesDraft, setMasterDnaUsesDraft] = useState((vyral.master_dna_intended_uses ?? []).join(', '));
   const [masterDnaStatus, setMasterDnaStatus] = useState(vyral.master_dna_status ?? 'not_started');
   const [masterDnaRevision, setMasterDnaRevision] = useState(vyral.master_dna_revision ?? 0);
+  const [masterDnaAvailable, setMasterDnaAvailable] = useState(false);
   const [masterDnaSaving, setMasterDnaSaving] = useState(false);
   const [masterDnaBuilding, setMasterDnaBuilding] = useState(false);
   const [masterDnaMessage, setMasterDnaMessage] = useState('');
@@ -202,7 +203,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyrals').select('master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses').eq('id', vyral.id).single(),
       supabase.from('vyral_asset_relationships').select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale').eq('vyral_id', vyral.id).order('created_at', { ascending: true }),
     ]);
-    const failed = results.find((item) => item.error);
+    const failed = results.slice(0, 6).find((item) => item.error);
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
     const assetRows = (results[1].data ?? []) as AssetRow[];
     const assetIds = assetRows.map((item) => item.id);
@@ -223,22 +224,38 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setObservations((observationResult.data ?? []) as ObservationRow[]);
     setLineage((results[4].data ?? []) as LineageRow[]);
     setReconstructionTests((results[5].data ?? []) as ReconstructionRow[]);
-    const masterRoot = results[6].data as Pick<Vyral, 'master_dna_status' | 'master_dna_revision' | 'master_dna_purpose' | 'master_dna_intended_uses'>;
-    const masterEdges = (results[7].data ?? []) as MasterRelationshipRow[];
-    setMasterRelationships(masterEdges);
-    setMasterDnaPurposeDraft(masterRoot.master_dna_purpose ?? '');
-    setMasterDnaUsesDraft((masterRoot.master_dna_intended_uses ?? []).join(', '));
-    setMasterDnaStatus(masterRoot.master_dna_status ?? 'not_started');
-    setMasterDnaRevision(masterRoot.master_dna_revision ?? 0);
-    setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => {
-      const edge = masterEdges.find((item) => item.relationship_type === 'master_membership' && item.from_kind === 'asset' && item.from_asset_id === asset.id);
-      return [asset.id, {
-        role: asset.master_dna_role ?? '',
-        purpose: asset.master_dna_purpose ?? '',
-        targetAssetId: edge?.to_kind === 'asset' && edge.to_asset_id ? edge.to_asset_id : '__vyral__',
-        rationale: edge?.rationale ?? '',
-      }];
-    })));
+    const masterRootResult = results[6];
+    const masterEdgesResult = results[7];
+    const masterSchemaReady = !masterRootResult.error && !masterEdgesResult.error && Boolean(masterRootResult.data);
+    setMasterDnaAvailable(masterSchemaReady);
+    if (masterSchemaReady) {
+      const masterRoot = masterRootResult.data as Pick<Vyral, 'master_dna_status' | 'master_dna_revision' | 'master_dna_purpose' | 'master_dna_intended_uses'>;
+      const masterEdges = (masterEdgesResult.data ?? []) as MasterRelationshipRow[];
+      setMasterRelationships(masterEdges);
+      setMasterDnaPurposeDraft(masterRoot.master_dna_purpose ?? '');
+      setMasterDnaUsesDraft((masterRoot.master_dna_intended_uses ?? []).join(', '));
+      setMasterDnaStatus(masterRoot.master_dna_status ?? 'not_started');
+      setMasterDnaRevision(masterRoot.master_dna_revision ?? 0);
+      setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => {
+        const edge = masterEdges.find((item) => item.relationship_type === 'master_membership' && item.from_kind === 'asset' && item.from_asset_id === asset.id);
+        return [asset.id, {
+          role: asset.master_dna_role ?? '',
+          purpose: asset.master_dna_purpose ?? '',
+          targetAssetId: edge?.to_kind === 'asset' && edge.to_asset_id ? edge.to_asset_id : '__vyral__',
+          rationale: edge?.rationale ?? '',
+        }];
+      })));
+    } else {
+      setMasterRelationships([]);
+      setMasterDnaPurposeDraft('');
+      setMasterDnaUsesDraft('');
+      setMasterDnaStatus('not_available');
+      setMasterDnaRevision(0);
+      setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => [asset.id, {
+        role: asset.master_dna_role ?? '', purpose: asset.master_dna_purpose ?? '', targetAssetId: '__vyral__', rationale: '',
+      }])));
+      setMasterDnaMessage('Master DNA database migration is not applied in this environment yet. Existing Vyral tools remain available.');
+    }
     const policy = (vyral.license_policy ?? {}) as Record<string, unknown>;
     setLicenseDraft({
       allow_ai_analysis: policy.allow_ai_analysis !== false,
@@ -1625,7 +1642,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const saveMasterDnaPurpose = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!supabase) return;
+    if (!supabase || !masterDnaAvailable) return;
     const intendedUses = masterDnaUsesDraft.split(',').map((item) => item.trim()).filter(Boolean);
     if (!masterDnaPurposeDraft.trim() || !intendedUses.length) {
       setError('Add a Vyral purpose and at least one intended use.');
@@ -1646,7 +1663,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
 
   const saveMasterAssetClassification = async (asset: AssetRow) => {
-    if (!supabase) return;
+    if (!supabase || !masterDnaAvailable) return;
     const draft = masterAssetDrafts[asset.id];
     if (!draft || !draft.role || !draft.purpose.trim() || !draft.rationale.trim()) {
       setError('Choose an Asset role and enter its purpose and relationship rationale.');
@@ -1669,7 +1686,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
 
   const buildMasterDna = async () => {
-    if (!supabase) return;
+    if (!supabase || !masterDnaAvailable) return;
     setMasterDnaBuilding(true); setError(''); setMasterDnaMessage('');
     const { data, error: buildError } = await supabase.functions.invoke('build-vyral-master-dna', {
       body: { vyralId: vyral.id },
@@ -1905,7 +1922,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <form onSubmit={(event)=>void saveMasterDnaPurpose(event)} className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="block md:col-span-2"><span className={'mb-1 block text-[10px] font-semibold '+subtle}>What is this Vyral for?</span><textarea value={masterDnaPurposeDraft} onChange={(event)=>setMasterDnaPurposeDraft(event.target.value)} rows={2} maxLength={2000} className={field+' py-2'} placeholder="Describe the Vyral's overall purpose and identity."/></label>
               <label className="block"><span className={'mb-1 block text-[10px] font-semibold '+subtle}>Intended uses (comma-separated)</span><input value={masterDnaUsesDraft} onChange={(event)=>setMasterDnaUsesDraft(event.target.value)} className={field} placeholder="storyboarding, video_generation"/></label>
-              <div className="flex items-end"><button type="submit" className={button} disabled={masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Vyral purpose'}</button></div>
+              <div className="flex items-end"><button type="submit" className={button} disabled={!masterDnaAvailable || masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Vyral purpose'}</button></div>
             </form>
             {assets.length === 0 ? <p className={'mt-3 text-xs '+muted}>Add at least one Asset before building Master DNA.</p> : <div className="mt-4 space-y-3">
               <div><h4 className={'text-xs font-semibold '+primary}>Asset roles, purposes and relationships</h4><p className={'mt-1 text-[10px] '+muted}>Main and Supporting are organizational roles. A relationship may point to the Vyral root or any other Asset, with a clear reason.</p></div>
@@ -1919,13 +1936,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     <label><span className={'mb-1 block text-[10px] '+subtle}>Related to</span><select value={draft.targetAssetId} onChange={(event)=>updateMasterAssetDraft(asset.id,{targetAssetId:event.target.value})} className={field}><option value="__vyral__">Vyral root</option>{assets.filter((candidate)=>candidate.id!==asset.id).map((candidate)=><option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
                     <label><span className={'mb-1 block text-[10px] '+subtle}>Relationship reason</span><input value={draft.rationale} onChange={(event)=>updateMasterAssetDraft(asset.id,{rationale:event.target.value})} className={field} maxLength={2000} placeholder="How does it relate?"/></label>
                   </div>
-                  <div className="mt-3 flex justify-end"><button type="button" className={button} onClick={()=>void saveMasterAssetClassification(asset)} disabled={masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Asset DNA structure'}</button></div>
+                  <div className="mt-3 flex justify-end"><button type="button" className={button} onClick={()=>void saveMasterAssetClassification(asset)} disabled={!masterDnaAvailable || masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Asset DNA structure'}</button></div>
                 </article>;
               })}
             </div>}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--vyra-border-subtle)] pt-3">
               <p className={'text-[10px] '+muted}>Master DNA is a compact snapshot. Full Asset DNA and original media stay in this Vyral.</p>
-              <button type="button" className={primaryButton} onClick={()=>void buildMasterDna()} disabled={masterDnaBuilding || masterDnaSaving || !assets.length}><Dna size={13}/>{masterDnaBuilding?'Building Master DNA…':'Build Master DNA'}</button>
+              <button type="button" className={primaryButton} onClick={()=>void buildMasterDna()} disabled={!masterDnaAvailable || masterDnaBuilding || masterDnaSaving || !assets.length}><Dna size={13}/>{masterDnaBuilding?'Building Master DNA…':'Build Master DNA'}</button>
             </div>
             {masterDnaMessage && <p className={'mt-3 text-xs '+subtle} role="status">{masterDnaMessage}</p>}
             {masterRelationships.length > 0 && <p className={'mt-2 text-[9px] '+muted}>{masterRelationships.length} relationship edge(s) currently stored.</p>}
