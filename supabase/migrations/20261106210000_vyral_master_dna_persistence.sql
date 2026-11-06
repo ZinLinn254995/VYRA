@@ -6,7 +6,11 @@ alter table public.vyrals
   add column if not exists master_dna_status text not null default 'not_started'
     check (master_dna_status in ('not_started','needs_classification','stale','ready')),
   add column if not exists master_dna_revision integer not null default 0
-    check (master_dna_revision >= 0);
+    check (master_dna_revision >= 0),
+  add column if not exists master_dna_purpose text
+    check (master_dna_purpose is null or char_length(btrim(master_dna_purpose)) between 1 and 2000),
+  add column if not exists master_dna_intended_uses jsonb not null default '[]'::jsonb
+    check (jsonb_typeof(master_dna_intended_uses) = 'array');
 
 alter table public.vyral_assets
   add column if not exists master_dna_role text
@@ -122,12 +126,14 @@ begin
     target_user_id := new.user_id;
   end if;
 
-  select exists (
-    select 1
-    from public.vyral_assets a
-    where a.vyral_id = target_vyral_id
-      and a.user_id = target_user_id
-      and (a.master_dna_role is null or a.master_dna_purpose is null or btrim(a.master_dna_purpose) = '')
+  select (
+    not exists (select 1 from public.vyrals v where v.id = target_vyral_id and v.user_id = target_user_id
+      and v.master_dna_purpose is not null and btrim(v.master_dna_purpose) <> '')
+    or exists (
+      select 1 from public.vyral_assets a
+      where a.vyral_id = target_vyral_id and a.user_id = target_user_id
+        and (a.master_dna_role is null or a.master_dna_purpose is null or btrim(a.master_dna_purpose) = '')
+    )
   ) into has_unclassified_assets;
 
   update public.vyrals v
@@ -145,6 +151,40 @@ end;
 $$;
 
 revoke all on function public.mark_vyral_master_dna_stale() from public, anon, authenticated;
+
+create or replace function public.mark_vyral_master_dna_root_stale()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  has_unclassified_assets boolean;
+begin
+  select (
+    new.master_dna_purpose is null or btrim(new.master_dna_purpose) = ''
+    or exists (
+      select 1 from public.vyral_assets a
+      where a.vyral_id = new.id and a.user_id = new.user_id
+        and (a.master_dna_role is null or a.master_dna_purpose is null or btrim(a.master_dna_purpose) = '')
+    )
+  ) into has_unclassified_assets;
+
+  update public.vyrals v
+  set master_dna_status = case when has_unclassified_assets then 'needs_classification' else 'stale' end,
+      updated_at = now()
+  where v.id = new.id and v.user_id = new.user_id;
+
+  return new;
+end;
+$;
+
+revoke all on function public.mark_vyral_master_dna_root_stale() from public, anon, authenticated;
+drop trigger if exists vyrals_mark_master_dna_stale on public.vyrals;
+create trigger vyrals_mark_master_dna_stale
+after update of master_dna_purpose, master_dna_intended_uses on public.vyrals
+for each row execute function public.mark_vyral_master_dna_root_stale();
+
 
 drop trigger if exists vyral_assets_mark_master_dna_stale on public.vyral_assets;
 create trigger vyral_assets_mark_master_dna_stale
@@ -232,6 +272,13 @@ begin
     raise exception using errcode = '23514', message = 'Master DNA revision must extend the current immutable revision head.';
   end if;
 
+  if new.snapshot -> 'purpose' ->> 'summary' is distinct from
+       (select v.master_dna_purpose from public.vyrals v where v.id = new.vyral_id and v.user_id = new.user_id)
+     or new.snapshot -> 'purpose' -> 'intended_uses' is distinct from
+       (select v.master_dna_intended_uses from public.vyrals v where v.id = new.vyral_id and v.user_id = new.user_id) then
+    raise exception using errcode = '23514', message = 'Master DNA purpose does not match the declared Vyral purpose.';
+  end if;
+
   if new.snapshot ->> 'schema_id' is distinct from new.schema_id
      or new.snapshot ->> 'schema_version' is distinct from new.schema_version::text
      or new.snapshot -> 'vyral' ->> 'vyral_id' is distinct from new.vyral_id::text
@@ -239,6 +286,15 @@ begin
      or new.snapshot -> 'integrity' ->> 'manifest_sha256' is distinct from new.manifest_sha256
      or new.snapshot -> 'integrity' ->> 'vyral_fingerprint' is distinct from new.vyral_fingerprint then
     raise exception using errcode = '23514', message = 'Master DNA snapshot identity or integrity metadata does not match its revision row.';
+  end if;
+
+  if not exists (
+    select 1 from public.vyrals v
+    where v.id = new.vyral_id and v.user_id = new.user_id
+      and v.master_dna_purpose is not null and btrim(v.master_dna_purpose) <> ''
+      and jsonb_typeof(v.master_dna_intended_uses) = 'array'
+  ) then
+    raise exception using errcode = '23514', message = 'Vyral purpose and intended uses must be explicitly declared before Master DNA snapshot creation.';
   end if;
 
   if exists (
