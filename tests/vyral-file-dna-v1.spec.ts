@@ -110,6 +110,15 @@ test('File DNA records bounded deterministic structural facts for WAV, PDF, JSON
   assert.equal(office.profile, 'document');
   assert.equal(office.status, 'signature_only');
 
+  const mp3 = new Uint8Array(1024);
+  mp3.set([0x49,0x44,0x33,3,0,0,0,0,0,0], 0);
+  mp3.set([0xff,0xfb,0x90,0x64], 10);
+  const mp3Structure = analyzeVyralFileStructureV1(mp3, 'audio/mpeg', 'voice.mp3');
+  assert.equal(mp3Structure.profile, 'audio');
+  assert.equal(mp3Structure.facts.find((fact) => fact.key === 'bitrate')?.value, 128);
+  assert.equal(mp3Structure.facts.find((fact) => fact.key === 'sample_rate')?.value, 44100);
+  assert.equal(mp3Structure.facts.find((fact) => fact.key === 'channel_mode')?.value, 'joint_stereo');
+
   const pdf = new TextEncoder().encode('%PDF-1.7\n1 0 obj << /Type /Page >> endobj\n2 0 obj << /Type /Pages >> endobj');
   const document = analyzeVyralFileStructureV1(pdf, 'application/pdf', 'brief.pdf');
   assert.equal(document.profile, 'document');
