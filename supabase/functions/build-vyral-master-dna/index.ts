@@ -69,7 +69,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: assets, error: assetsError } = await context.supabase
     .from('vyral_assets')
-    .select('id,vyral_id,user_id,name,asset_type,mime_type,size_bytes,sha256,master_dna_role,master_dna_purpose,license_override')
+    .select('id,vyral_id,user_id,name,asset_type,mime_type,size_bytes,sha256,license_override')
     .eq('vyral_id', vyral.id)
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
@@ -77,7 +77,7 @@ Deno.serve(async (request: Request) => {
   if (!assets?.length) return json({ error: 'A Vyral needs at least one Asset before Master DNA can be created.', status: 'empty_vyral' }, 409);
 
   const assetIds = assets.map((asset: Row) => asset.id);
-  const [versionsResult, dnaResult, relationshipsResult, testsResult, latestResult] = await Promise.all([
+  const [versionsResult, dnaResult, relationshipsResult, testsResult, latestResult, metadataResult] = await Promise.all([
     context.supabase.from('vyral_asset_versions')
       .select('id,asset_id,vyral_id,user_id,version_number,storage_path,mime_type,size_bytes,sha256')
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId)
@@ -97,9 +97,12 @@ Deno.serve(async (request: Request) => {
       .select('id,revision,manifest_sha256,vyral_fingerprint')
       .eq('vyral_id', vyral.id).eq('user_id', userId)
       .order('revision', { ascending: false }).limit(1).maybeSingle(),
+    context.supabase.from('vyral_master_dna_asset_metadata')
+      .select('asset_id,role,purpose')
+      .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId),
   ]);
 
-  for (const result of [versionsResult, dnaResult, relationshipsResult, testsResult, latestResult]) {
+  for (const result of [versionsResult, dnaResult, relationshipsResult, testsResult, latestResult, metadataResult]) {
     if (result.error) return json({ error: 'Could not load all Master DNA source records.' }, 500);
   }
 
@@ -126,6 +129,9 @@ Deno.serve(async (request: Request) => {
     if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
   }
 
+  const metadataByAsset = new Map<string, Row>();
+  for (const item of metadataResult.data ?? []) metadataByAsset.set(item.asset_id, item);
+
   const dnaByAsset = new Map<string, Row>();
   for (const record of dnaResult.data ?? []) {
     const current = dnaByAsset.get(record.asset_id);
@@ -139,8 +145,9 @@ Deno.serve(async (request: Request) => {
 
   const masterAssets = [];
   for (const asset of assets as Row[]) {
-    if (!['main', 'supporting'].includes(asset.master_dna_role) ||
-        typeof asset.master_dna_purpose !== 'string' || !asset.master_dna_purpose.trim()) {
+    const assetMetadata = metadataByAsset.get(asset.id);
+    if (!assetMetadata || !['main', 'supporting'].includes(assetMetadata.role) ||
+        typeof assetMetadata.purpose !== 'string' || !assetMetadata.purpose.trim()) {
       return json({
         error: 'Every Asset needs an explicit Main/Supporting role and a non-empty purpose before Master DNA can be created.',
         status: 'needs_classification',
@@ -223,13 +230,13 @@ Deno.serve(async (request: Request) => {
     const semanticDnaAvailable = Boolean(schemaId && Number(dna.schema_version) < 3 && Object.keys(payload).length > 0);
     const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, semanticDnaAvailable);
     claims.push(claim);
-    if (asset.master_dna_role === 'main') mainAssetIds.push(asset.id);
+    if (assetMetadata.role === 'main') mainAssetIds.push(asset.id);
 
     masterAssets.push({
       asset_id: asset.id,
       asset_version_id: version.id,
-      role: asset.master_dna_role,
-      purpose: asset.master_dna_purpose.trim(),
+      role: assetMetadata.role,
+      purpose: assetMetadata.purpose.trim(),
       media_type: asset.mime_type || version.mime_type,
       dna_ref: {
         record_id: dna.id,
