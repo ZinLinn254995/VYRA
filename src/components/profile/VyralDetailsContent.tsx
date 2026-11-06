@@ -578,15 +578,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const manifest = parseVyralManifest(archiveFiles);
       importPackageId = manifest.packageId;
       if (manifest.exportMode === 'dna-only') {
-        if (manifest.assets.length !== 1 || manifest.dnaRecords.length !== 1) {
-          throw new Error(`Invalid DNA-only package cardinality: expected 1 asset and 1 DNA v3 record; found assets=${manifest.assets.length}, dnaRecords=${manifest.dnaRecords.length}.`);
+        const dnaEntries = manifest.dnaRecords.filter((entry) => entry.dna_schema_id === 'vyra.asset-dna' && entry.dna_schema_version === 3);
+        const dnaAssetIds = new Set(dnaEntries.map((entry) => String(entry.asset_id)));
+        if (!dnaEntries.length || dnaEntries.length !== manifest.assets.length || dnaAssetIds.size !== manifest.assets.length ||
+            manifest.assets.some((asset) => !dnaAssetIds.has(String(asset.id)))) {
+          throw new Error('Invalid whole-Vyral DNA-only package: every asset must have exactly one lossless DNA v3 record.');
         }
-        const dnaEntry = manifest.dnaRecords[0];
-        if (dnaEntry.dna_schema_id !== 'vyra.asset-dna' || dnaEntry.dna_schema_version !== 3) {
-          throw new Error('The DNA-only package does not contain a supported DNA v3 reconstruction record.');
+        if (manifest.assets.length > 1 && !manifest.masterDna) {
+          throw new Error('A multi-asset DNA-only package must include its Master DNA snapshot.');
         }
-        setPackageStatus('Verifying DNA v3 tiles and decoded-sample digest…');
-        await reconstructVyralDnaV3FromPackage(archiveFiles, String(dnaEntry.id));
+        if (manifest.masterDna) {
+          const masterDna = await validateVyralMasterDnaV1(manifest.masterDna);
+          const masterAssetIds = new Set(masterDna.assets.map((asset) => asset.asset_id));
+          if (masterAssetIds.size !== manifest.assets.length || manifest.assets.some((asset) => !masterAssetIds.has(String(asset.id)))) {
+            throw new Error('The Master DNA inventory does not match the DNA-only package assets.');
+          }
+        }
+        setPackageStatus('Verifying all asset DNA v3 tiles and decoded-sample digests…');
+        for (const dnaEntry of dnaEntries) {
+          await reconstructVyralDnaV3FromPackage(archiveFiles, String(dnaEntry.id));
+        }
       }
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
       const assetCount = manifest.assets.length;
@@ -698,7 +709,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const filename = filenameBase + '.reconstructed.png';
           const pngBuffer = new ArrayBuffer(pngBytes.byteLength);
           new Uint8Array(pngBuffer).set(pngBytes);
-          reconstructionDownload = { blob: new Blob([pngBuffer], { type: 'image/png' }), filename };
+          if (manifest.assets.length === 1) reconstructionDownload = { blob: new Blob([pngBuffer], { type: 'image/png' }), filename };
           const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v1/' + versionId + '-' + encodeURIComponent(filename);
           const syntheticSource = {
             id: versionId,
