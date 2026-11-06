@@ -63,3 +63,6 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts
       - name: Production build
         run: npm run build
+
+      - name: Vyral license policy v1 tests
+        run: npm run test:vyral-license
