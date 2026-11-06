@@ -293,6 +293,7 @@ begin
     where v.id = new.vyral_id and v.user_id = new.user_id
       and v.master_dna_purpose is not null and btrim(v.master_dna_purpose) <> ''
       and jsonb_typeof(v.master_dna_intended_uses) = 'array'
+      and jsonb_array_length(v.master_dna_intended_uses) > 0
   ) then
     raise exception using errcode = '23514', message = 'Vyral purpose and intended uses must be explicitly declared before Master DNA snapshot creation.';
   end if;
