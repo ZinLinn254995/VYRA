@@ -109,7 +109,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   pinned_asset jsonb;
 begin
@@ -165,7 +165,7 @@ create or replace function public.prevent_vyral_resource_share_audit_mutation()
 returns trigger
 language plpgsql
 set search_path = ''
-as $
+as $$
 begin
   raise exception using errcode = '55000',
     message = 'Resource share audit events are immutable.';
