@@ -440,3 +440,6 @@ Acceptance gates before enabling external AI access:
 3. Add explicit share/grant records and revocation before any non-owner retrieval.
 4. Add OAuth consent/scopes and an MCP adapter that calls this same resolver rather than duplicating authorization logic.
 5. Test clean-session retrieval from at least one external AI client and verify every downloaded tile/source hash.
+
+- Implicit latest-revision resolution is rejected unless the Vyral's current `master_dna_status` is `ready`. An owner may still request an explicit historical revision; it is returned as that pinned historical snapshot, never substituted for the current head.
+- Resolver policy helpers are unit-tested for exact snapshot membership, revision integrity bindings, strict owner/Asset storage-prefix boundaries, and exact DNA/source-version/fingerprint agreement.
