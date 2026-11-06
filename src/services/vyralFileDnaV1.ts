@@ -174,9 +174,46 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
   } else if (signature === 'mp3-id3' || signature === 'mpeg-audio-frame' || signature === 'flac' || signature === 'ogg-container' || signature === 'aiff') {
     setSignature('audio', 'Audio container signature detected; codec frames and duration are not fully decoded.');
     addFact(facts, 'audio_container', signature, 'binary_signature');
+    let audioOffset = 0;
     if (signature === 'mp3-id3' && bytes.length >= 10) {
       const size = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
-      addFact(facts, 'id3_tag_bytes', size + 10, 'container_header', 'bytes');
+      audioOffset = Math.min(bytes.length, 10 + size + ((bytes[5] & 0x10) ? 10 : 0));
+      addFact(facts, 'id3_tag_bytes', audioOffset, 'container_header', 'bytes');
+    }
+    if (signature === 'mp3-id3' || signature === 'mpeg-audio-frame') {
+      let frameOffset = -1;
+      for (let offset = audioOffset; offset + 4 <= Math.min(bytes.length, audioOffset + 65536); offset += 1) {
+        if (bytes[offset] === 0xff && (bytes[offset + 1] & 0xe0) === 0xe0) { frameOffset = offset; break; }
+      }
+      if (frameOffset >= 0) {
+        const b1 = bytes[frameOffset + 1]; const b2 = bytes[frameOffset + 2]; const b3 = bytes[frameOffset + 3];
+        const versionBits = (b1 >> 3) & 3; const layerBits = (b1 >> 1) & 3;
+        const bitrateIndex = (b2 >> 4) & 15; const sampleIndex = (b2 >> 2) & 3;
+        const versionName = versionBits === 3 ? 'MPEG-1' : versionBits === 2 ? 'MPEG-2' : versionBits === 0 ? 'MPEG-2.5' : 'reserved';
+        const layerName = layerBits === 3 ? 'Layer I' : layerBits === 2 ? 'Layer II' : layerBits === 1 ? 'Layer III' : 'reserved';
+        const mpeg1Bitrates = layerBits === 3
+          ? [0,32,64,96,128,160,192,224,256,288,320,352,384,416,448,0]
+          : layerBits === 2 ? [0,32,48,56,64,80,96,112,128,160,192,224,256,320,384,0]
+          : [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320,0];
+        const mpeg2Bitrates = layerBits === 3
+          ? [0,32,48,56,64,80,96,112,128,144,160,176,192,224,256,0]
+          : [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0];
+        const bitrate = (versionBits === 3 ? mpeg1Bitrates : mpeg2Bitrates)[bitrateIndex];
+        const baseRates = [44100,48000,32000];
+        const sampleRate = baseRates[sampleIndex] ? baseRates[sampleIndex] / (versionBits === 3 ? 1 : versionBits === 2 ? 2 : 4) : 0;
+        const channelMode = ['stereo','joint_stereo','dual_channel','mono'][(b3 >> 6) & 3];
+        if (versionBits !== 1 && layerBits !== 0 && bitrate > 0 && sampleRate > 0) {
+          addFact(facts, 'mpeg_version', versionName, 'container_header');
+          addFact(facts, 'mpeg_layer', layerName, 'container_header');
+          addFact(facts, 'bitrate', bitrate, 'container_header', 'kbps');
+          addFact(facts, 'sample_rate', sampleRate, 'container_header', 'Hz');
+          addFact(facts, 'channel_mode', channelMode, 'container_header');
+          const audioBytes = bytes.length - frameOffset;
+          addFact(facts, 'duration_estimate', Number((audioBytes * 8 / (bitrate * 1000)).toFixed(3)), 'container_index', 'seconds');
+          notes.push('MP3 duration is an approximate constant-bitrate estimate; variable-bitrate files may differ.');
+          status = 'partial';
+        }
+      } else notes.push('No valid MPEG audio frame header was found in the first 64 KiB after the ID3 tag.');
     }
   } else if (signature === 'pdf' || mime === 'application/pdf' || extension === 'pdf') {
     profile = 'document'; status = 'partial';
