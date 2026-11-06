@@ -1110,6 +1110,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const originalIntegrity = asRecord(integrityReport.original);
     const candidateIntegrity = asRecord(integrityReport.candidate);
     const packageMode = reconstructionInput.packageMode ?? recordedDnaProvenance.input_package_mode ?? 'Unknown';
+    const claudeUploadMismatch = asset.id === '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'
+      ? asRecord(asRecord(candidateDnaRecord?.payload).upload_reconciliation)
+      : null;
     const exclusionIsUnverified = reconstructionInput.exposureIndependentlyVerifiedByComparator === false ||
       (!reconstructionInput.originalBinaryExposure && recordedDnaProvenance.source_binary_provided_to_model === false);
     const verifierDownloadedBoth = comparisonInput.originalBinaryDownloadedByVerifier === true &&
@@ -1143,6 +1146,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               {pixelReport.performed === false && <p>Pixel comparison: {String(pixelReport.reason ?? 'Not performed')}</p>}
             </div>
           </div>}
+          {claudeUploadMismatch && <p className={'mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[10px] text-amber-700'}>Upload reconciliation: {String(claudeUploadMismatch.status ?? 'pending')}. Comparison will use the verified uploaded file bytes, not Claude’s unverified reported output bytes.</p>}
         </div>
       </article>
     );
