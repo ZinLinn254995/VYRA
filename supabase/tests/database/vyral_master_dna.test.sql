@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(20);
+select plan(21);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -88,6 +88,11 @@ select is(
   (select count(*)::integer from public.vyral_asset_relationships where vyral_id='24000000-0000-4000-8000-000000000011'),
   2,
   'Both semantic graph edges are stored'
+);
+select is(
+  (select storage_path from public.vyral_assets where id='24000000-0000-4000-8000-000000000021'),
+  'master-dna-test/a/main.png',
+  'Master DNA classification leaves the canonical source Asset row untouched'
 );
 
 select throws_ok(
