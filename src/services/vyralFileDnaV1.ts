@@ -197,7 +197,7 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
     addFact(facts, 'declared_file_bytes', declaredLength, 'container_header', 'bytes');
     if (declaredLength === bytes.length) {
       const chunkLength = readU32LE(bytes, 12); const chunkType = readAscii(bytes, 16, 4);
-      if (chunkType === 'JSON' && chunkLength <= bytes.length - 20) {
+      if (chunkType === 'JSON' && chunkLength <= bytes.length - 20 && chunkLength <= 8 * 1024 * 1024) {
         try {
           const json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(20, 20 + chunkLength))) as Record<string, unknown>;
           for (const key of ['nodes','meshes','materials','scenes','animations']) if (Array.isArray(json[key])) addFact(facts, key + '_count', (json[key] as unknown[]).length, 'container_index');
@@ -208,11 +208,12 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
   } else if (extension === 'gltf' || mime.includes('gltf+json')) {
     profile = 'model_3d'; status = 'partial';
     try {
+      if (bytes.length > 8 * 1024 * 1024) throw new Error('glTF JSON exceeds the structural scan limit.');
       const json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as Record<string, unknown>;
       for (const key of ['nodes','meshes','materials','scenes','animations']) if (Array.isArray(json[key])) addFact(facts, key + '_count', (json[key] as unknown[]).length, 'text_structure');
       status = 'parsed';
     } catch { notes.push('glTF JSON structure could not be parsed.'); }
-  } else if (signature === 'iso-bmff-family' || signature === 'matroska-ebml') {
+  } else if (signature === 'matroska-ebml' || (signature === 'riff-container' && mime.startsWith('video/'))) {
     setSignature('video', 'Video container signature detected; tracks, frames and timing are not decoded.');
   } else if (['zip-container','7z','rar','gzip','riff-container','iff-container'].includes(signature)) {
     setSignature('archive', 'Archive/container signature detected; member contents are not unpacked or interpreted.');
