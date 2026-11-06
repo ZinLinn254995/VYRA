@@ -88,7 +88,7 @@ Deno.serve(async (request: Request) => {
       .select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,evidence_ref')
       .eq('vyral_id', vyral.id).eq('user_id', userId),
     context.supabase.from('vyral_reconstruction_tests')
-      .select('asset_id,asset_version_id,comparison_mode,test_status,exact_match,tested_at')
+      .select('asset_id,asset_version_id,comparison_mode,test_status,exact_match,created_at')
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId)
       .order('created_at', { ascending: false }),
     context.supabase.from('vyral_master_dna_revisions')
