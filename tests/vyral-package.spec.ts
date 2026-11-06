@@ -234,7 +234,7 @@ test('exports and reconstructs a DNA v3-only package without source media or der
     source_decode_independently_verified: false,
     encoded_source_bytes_recoverable: false,
     color_space_fully_characterized: true,
-    verification_note: 'Package-level reconstruction capability only; source verification must be established by a separate trusted verifier.',
+    verification_note: 'Package-level reconstruction capability only; source verification must be established by a separate trusted verifier. Each asset has its own decoded-sample digest.',
   });
   assert.equal(parsed.assets[0].description_provenance, 'creator_declared');
   assert.equal(parsed.assets[0].description_is_visual_measurement, false);
@@ -379,7 +379,7 @@ test('rejects DNA-only export with missing or undeclared DNA tile payloads', asy
     tile_height: 1,
     decoded_samples: samples,
   });
-  await assert.rejects(() => createVyralDnaOnlyPackage(manifest, record, entries.slice(1)), /requires every declared v3 tile/);
+  await assert.rejects(() => createVyralDnaOnlyPackage(manifest, record, entries.slice(1)), /missing a correctly sized tile/);
   await assert.rejects(() => createVyralDnaOnlyPackage(manifest, record, [
     ...entries,
     { path: 'dna/v3/portable-dna-invalid/tiles/extra_0.raw', data: new Uint8Array([1]) },
