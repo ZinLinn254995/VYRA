@@ -217,7 +217,7 @@ export const analyzeVyralFileStructureV1 = (bytes: Uint8Array, mimeType: string,
       for (const key of ['nodes','meshes','materials','scenes','animations']) if (Array.isArray(json[key])) addFact(facts, key + '_count', (json[key] as unknown[]).length, 'text_structure');
       status = 'parsed';
     } catch { notes.push('glTF JSON structure could not be parsed.'); }
-  } else if (signature === 'matroska-ebml' || signature === 'avi ' || (signature === 'riff-container' && mime.startsWith('video/'))) {
+  } else if (signature === 'matroska-ebml' || signature === 'avi' || (signature === 'riff-container' && mime.startsWith('video/'))) {
     setSignature('video', 'Video container signature detected; tracks, frames and timing are not decoded.');
   } else if (signature === 'zip-container' && (['docx','xlsx','pptx'].includes(extension) || mime.includes('openxmlformats'))) {
     setSignature('document', 'Office Open XML package detected as a ZIP container; document content and embedded objects are not parsed.');
