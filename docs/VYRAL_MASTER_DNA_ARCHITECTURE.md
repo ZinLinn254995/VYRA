@@ -320,3 +320,23 @@ Import now accepts whole-Vyral DNA-only packages, verifies every Asset DNA recor
 AI Chat now validates the compact Master DNA fingerprint and inventory and passes the Vyral purpose, asset roles/purposes, relationship graph, reconstruction claims, and cross-asset constraints as structured context. The current Vision request still attaches only the first Asset's image preview; other Assets are described by verified Master DNA metadata, not visually attached. Multi-image Vision and authenticated remote source resolution are not yet implemented.
 
 **Verification boundary:** the VYRA CI run for the current package changes passed TypeScript, all unit suites including whole-Vyral DNA-only export/reconstruction, Deno type-check, and Production Build. Browser UI and Database workflow runs are still being checked. No hosted Development migration or Edge Function deployment has occurred; Production remains untouched.
+
+
+## 21. Universal binary File DNA v1 — core added, application integration pending
+
+The working branch now contains `src/services/vyralFileDnaV1.ts` and a JSON Schema for `vyra.asset-file-dna` v1. This is the binary identity/reconstruction layer for assets that are not handled by the image-specific decoded-sample DNA v3 path.
+
+The record pins to an Asset and immutable Asset Version and stores:
+- exact source byte length and SHA-256;
+- declared MIME type and normalized filename extension (descriptive metadata only);
+- a conservative file-signature hint derived from leading magic bytes, not a full semantic parser;
+- extractor identity/version;
+- an explicit reconstruction declaration.
+
+Two honest modes are supported:
+1. **Identity-only:** hash/size/format metadata, with reconstruction claim `unavailable`. This can verify a candidate file but cannot recreate it.
+2. **Lossless source-byte payload:** ordered raw chunks, each with length and SHA-256, plus an aggregate source SHA-256. Only this mode may claim `source_file_exact`; reconstruction validates every chunk and the final byte stream.
+
+This generic layer does not yet parse audio codecs, video tracks/timelines, document structures, 3D scene graphs, or archive contents. Magic-byte detection is only a format hint. It also is not yet wired into the Asset upload pipeline, Supabase DNA record persistence, Master DNA builder, or whole-Vyral package export/import. Those integrations must follow without weakening existing image DNA v3 behavior.
+
+Automated tests cover exact byte round-trip, hash-only non-reconstruction, altered/missing/undeclared chunks, malformed chunk coverage, and false exact-claim rejection. CI now runs this suite. A passing CI run is required before describing the implementation as verified.
