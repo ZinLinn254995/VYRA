@@ -249,3 +249,20 @@ The first executable Master DNA v1 slice is now present in `src/services/vyralMa
 The JSON Schema now describes the same typed Asset/Vyral relationship endpoints. Automated tests cover snapshot creation, digest tampering, missing purpose/relationships, invalid root/version references, and private visibility policy. The Master DNA test suite is registered in CI.
 
 **Boundary:** this is a deterministic data-contract and integrity core. It does not yet persist Master DNA in Supabase, create new revisions automatically after membership changes, derive a trustworthy reconstruction claim from all child assets, export/import the compact Master DNA through `.vyral`, or implement the VYRA resolver API. Those are the next implementation slices.
+
+
+## 16. Database persistence mapping — design proposal, not yet migrated
+
+A read-only inspection of the VYRA Development database on 2026-11-06 found the existing canonical tables `vyrals`, `vyral_assets`, `vyral_asset_versions`, `vyral_dna_records`, `vyral_fingerprints`, and `vyral_lineage`. The current `vyral_dna_records.scope` check permits only `asset` and `vyral`; existing collection-scope rows are legacy schema-version-1 records. The existing `vyral_lineage` table is generation lineage, not the complete semantic relationship graph.
+
+**Do not overload the legacy collection-scope DNA record as the new immutable Master DNA revision store.** The proposed persistence model is:
+
+1. Keep `vyral_assets` as canonical asset membership and add explicit Main/Supporting role plus purpose fields. Existing assets remain unclassified until a creator supplies truthful values; never infer purpose from filename.
+2. Add a dedicated `vyral_asset_relationships` table for typed, directed, rationale-bearing edges. Endpoints must be constrained to assets in the same Vyral or the Vyral root. Keep generation lineage distinct.
+3. Add append-only `vyral_master_dna_revisions` snapshots containing the canonical Master DNA JSON, revision number, parent revision, manifest digest, Vyral fingerprint, owner, and creation time. Enforce one revision number per Vyral and prevent client-side update/delete.
+4. RLS read access is owner-scoped. Snapshot writes and revision creation are performed only by an authenticated server-side operation after it verifies the owner, all asset/version references, purposes, relationships, licensing, and current asset membership.
+5. A Vyral is not Master-DNA-ready while any included asset lacks a declared role, purpose, valid Asset DNA reference, or explicit relationship. Existing assets are not silently assigned defaults.
+
+The current Development database inspection was read-only. No tables, rows, policies, storage objects, or Production resources were changed by this design step.
+
+**Supabase platform note:** new public-schema tables are no longer automatically exposed through the Data API; any future table exposure must be deliberate and paired with least-privilege grants and RLS. The hosted Supabase CLI v3 also changed hosted-command defaults; future migrations must target Development explicitly and be reviewed before execution.
