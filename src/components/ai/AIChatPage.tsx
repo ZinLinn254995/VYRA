@@ -49,8 +49,9 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
       canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode the Vyral AI Vision preview.')), 'image/jpeg', quality);
     });
     let preview = await encode(0.82);
-    if (preview.size > 900 * 1024) preview = await encode(0.68);
-    if (preview.size > 900 * 1024) throw new Error('This image preview is too large to send safely to AI Vision.');
+    if (preview.size > 600 * 1024) preview = await encode(0.68);
+    if (preview.size > 600 * 1024) preview = await encode(0.5);
+    if (preview.size > 600 * 1024) throw new Error('This image preview is too large to send safely to AI Vision.');
 
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
