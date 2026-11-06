@@ -151,6 +151,26 @@ A Development-only Edge Function and protected Vyral UI action now provide the f
 
 Current verification boundary:
 - The function is deployed to the Development Supabase project with JWT verification enabled.
-- The function has **not yet been invoked against ORIGIN-01**. Therefore no claim is made that the source has been decoded, that ICC handling is supported, or that a DNA v3 record has been created.
-- If the source PNG contains an embedded ICC profile or uses unsupported PNG encoding, extraction stops without writing DNA.
-- After extraction, the next required step is to read back every stored tile, validate hashes, reconstruct the canonical sample stream in a separate execution, compare the reconstructed digest and dimensions, and only then consider a DNA-only export.
+- The owner invoked the function against ORIGIN-01 on 2026-11-06. A Development DNA v3 record was subsequently confirmed by a read-only database query.
+- The source PNG contains no embedded iCCP profile; the recorded color space is `unknown`, not assumed sRGB.
+- The recorded DNA record contains 100 tile metadata entries and 100 private storage paths. This confirms extraction metadata exists, not that the tile objects have yet passed a complete read-back reconstruction test.
+- The next required step is the second-pass readback verifier described in section 10. No exact reconstruction claim is made until that verifier passes.
+
+
+## 10. ORIGIN-01 second-pass readback verifier
+
+The owner-authenticated Development Edge Function `verify-origin-01-dna-v3` is deployed with JWT verification enabled. It is restricted to the registered ORIGIN-01 owner, asset, version and DNA record.
+
+Before reporting a pass, it:
+- Reads the exact DNA v3 record and checks its source binding, schema, decoder contract, dimensions and expected private storage prefix.
+- Re-reads the protected original from private storage and checks its byte size and SHA-256 against the protected version metadata.
+- Decodes the original again using the pinned ImageMagick WASM 0.0.30 decoder contract.
+- Reads each of the 100 raw tile objects from private storage, validates geometry, exact byte length and per-tile SHA-256, and rejects missing, duplicate or undeclared paths.
+- Reassembles the full row-major RGB sample stream and compares every byte directly with the fresh decoded sample stream. It also compares both SHA-256 digests with the DNA record's aggregate digest.
+- Records a `decoded_exact` verification test report only after all checks pass. It does not update or promote the immutable DNA record status.
+
+Verification boundary:
+- This is a second-pass storage readback plus a fresh decode using the same pinned decoder implementation. It is independent of the tile upload/readback operation, but it is not a second decoder implementation.
+- A successful result establishes byte-for-byte equality of decoded sample streams under the recorded decoder contract. It does not establish byte-exact reconstruction of the encoded PNG file.
+- The verifier's successful execution against ORIGIN-01 is still pending until the owner invokes it through the Workspace UI and a passing test row is confirmed in Development.
+- DNA-only package export/import and clean-context reconstruction remain separate acceptance gates.
