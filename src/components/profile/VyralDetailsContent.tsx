@@ -553,7 +553,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               filename: asset.original_filename || asset.name,
               include_payload: true,
             });
-            if (fileDna.record.file.sha256 !== String(source.sha256 ?? identityRecord.file?.sha256 ?? '').toLowerCase()) {
+            if (fileDna.record.file.sha256 !== String(source.sha256 ?? asRecord(identityRecord.file).sha256 ?? '').toLowerCase()) {
               throw new Error('The original binary for ' + asset.name + ' no longer matches its File DNA fingerprint.');
             }
             dnaPayloadEntries.push(...fileDna.entries);
@@ -843,7 +843,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             record_id: crypto.randomUUID(),
             source: { asset_id: assetId, asset_version_id: sourceVersion.id },
             bytes: sourceVersion.bytes,
-            mime_type: sourceVersion.source.mime_type || mimeType,
+            mime_type: typeof sourceVersion.source.mime_type === 'string' ? sourceVersion.source.mime_type : mimeType,
             filename: safeName(sourceAsset.original_filename ?? sourceAsset.name, 'Imported asset', 255),
             include_payload: false,
           }) : null;
