@@ -1115,9 +1115,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const newTilePaths: string[] = [];
     let dnaRecordInserted = false;
     try {
-      const { data: existingDna, error: existingDnaError } = await supabase.from('vyral_dna_records').select('id').eq('asset_id', asset.id).limit(1);
+      const { data: existingDna, error: existingDnaError } = await supabase.from('vyral_dna_records').select('id,payload').eq('asset_id', asset.id).limit(1);
       if (existingDnaError) throw existingDnaError;
-      if (existingDna?.length) throw new Error('A DNA record already exists. Refresh the workspace before retrying.');
+      if (existingDna?.length) {
+        if (asRecord(existingDna[0].payload).recovery_run !== true) throw new Error('A DNA record already exists. Refresh the workspace before retrying.');
+        const { data: finalizedAsset, error: finalizeError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', auth.user.id).select('id').maybeSingle();
+        if (finalizeError) throw finalizeError;
+        if (!finalizedAsset) throw new Error('The recovered DNA exists, but asset finalization is still blocked by permissions.');
+        setPackageStatus('Previously recovered DNA finalized for ' + asset.name + '.');
+        await loadWorkspace();
+        return;
+      }
       const { data: sourceFile, error: downloadError } = await supabase.storage.from('vyral-assets').download(asset.storage_path);
       if (downloadError || !sourceFile) throw downloadError ?? new Error('The preserved original file could not be downloaded.');
       const sourceBuffer = await sourceFile.arrayBuffer();
