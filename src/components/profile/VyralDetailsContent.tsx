@@ -188,6 +188,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterDnaSaving, setMasterDnaSaving] = useState(false);
   const [masterDnaBuilding, setMasterDnaBuilding] = useState(false);
   const [masterDnaMessage, setMasterDnaMessage] = useState('');
+  const [masterDnaBlockers, setMasterDnaBlockers] = useState<Array<{ code: string; asset_id?: string; message: string }>>([]);
   const [masterAssetDrafts, setMasterAssetDrafts] = useState<Record<string, MasterAssetDraft>>({});
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
 
@@ -1906,13 +1907,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const buildMasterDna = async () => {
     if (!supabase || !masterDnaAvailable) return;
-    setMasterDnaBuilding(true); setError(''); setMasterDnaMessage('');
+    setMasterDnaBuilding(true); setError(''); setMasterDnaMessage(''); setMasterDnaBlockers([]);
     const { data, error: buildError } = await supabase.functions.invoke('build-vyral-master-dna', {
       body: { vyralId: vyral.id },
     });
     if (buildError || data?.error) {
       setError(data?.error ?? buildError?.message ?? 'Master DNA could not be created.');
+      setMasterDnaBlockers(Array.isArray(data?.blockers) ? data.blockers : []);
     } else {
+      setMasterDnaBlockers([]);
       setMasterDnaStatus('ready');
       setMasterDnaRevision(Number(data?.revision ?? masterDnaRevision));
       setMasterDnaMessage(data?.unchanged
@@ -2164,6 +2167,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <button type="button" className={primaryButton} onClick={()=>void buildMasterDna()} disabled={!masterDnaAvailable || masterDnaBuilding || masterDnaSaving || !assets.length}><Dna size={13}/>{masterDnaBuilding?'Building Master DNA…':'Build Master DNA'}</button>
             </div>
             {masterDnaMessage && <p className={'mt-3 text-xs '+subtle} role="status">{masterDnaMessage}</p>}
+            {masterDnaBlockers.length > 0 && <div className="mt-3 rounded-lg border border-[var(--vyra-border)] p-3" role="status"><div className="flex items-center justify-between gap-2"><p className={'text-xs font-semibold '+primary}>Master DNA requirements</p><span className={'text-[10px] '+muted}>{masterDnaBlockers.length} item(s) to resolve</span></div><ul className="mt-2 space-y-2">{masterDnaBlockers.map((blocker,index)=><li key={blocker.code+'-'+(blocker.asset_id??'root')+'-'+index} className="flex gap-2 text-xs"><span className={'mt-0.5 '+muted}>•</span><span className={subtle}>{blocker.asset_id ? (assets.find((asset)=>asset.id===blocker.asset_id)?.name ?? 'Asset')+': ' : ''}{blocker.message}</span></li>)}</ul></div>}
             {masterRelationships.length > 0 && <p className={'mt-2 text-[9px] '+muted}>{masterRelationships.length} relationship edge(s) currently stored.</p>}
           </section>
           <section className={surface+' p-4'}>
