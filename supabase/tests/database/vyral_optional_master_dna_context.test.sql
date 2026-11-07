@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(3);
+select plan(4);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -86,6 +86,16 @@ select is(
   (select count(*)::integer from public.vyral_asset_relationships where vyral_id='25000000-0000-4000-8000-000000000011'),
   0,
   'No synthetic relationship is created for an independent Asset'
+);
+
+update public.vyrals
+set name = 'Renamed Single Asset Vyral'
+where id='25000000-0000-4000-8000-000000000011';
+
+select is(
+  (select master_dna_status from public.vyrals where id='25000000-0000-4000-8000-000000000011'),
+  'stale',
+  'Changing collection identity invalidates the derived Vyral DNA snapshot'
 );
 
 select * from finish();
