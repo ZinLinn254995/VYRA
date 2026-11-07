@@ -1067,60 +1067,48 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (dnaError) throw dnaError;
       }
 
-      // A verified Master DNA snapshot is still untrusted provenance on import.
-      // Use its role/purpose/relationship declarations to seed owner-scoped
-      // canonical metadata, then require a fresh local Master DNA build.
+      // Optional creator context is preserved when present. It never determines
+      // whether an Asset or Vyral is valid, and no synthetic membership edge is created.
       if (importedMasterDna && masterDnaAvailable) {
-        const membershipByAsset = new Map<string, (typeof importedMasterDna.relationships)[number]>();
-        for (const relation of importedMasterDna.relationships) {
-          if (relation.type === 'master_membership' && relation.from.kind === 'asset') {
-            membershipByAsset.set(relation.from.asset_id, relation);
-          }
-        }
         for (const sourceAsset of importedMasterDna.assets) {
           const importedAssetId = assetMap.get(sourceAsset.asset_id);
-          const membership = membershipByAsset.get(sourceAsset.asset_id);
-          if (!importedAssetId || !membership) {
-            throw new Error('Imported Master DNA is missing a valid membership relationship for an Asset.');
+          if (!importedAssetId) {
+            throw new Error('Imported Master DNA references an Asset outside its inventory.');
           }
-          const targetAssetId = membership.to.kind === 'asset'
-            ? assetMap.get(membership.to.asset_id) ?? null
-            : null;
-          if (membership.to.kind === 'asset' && !targetAssetId) {
-            throw new Error('Imported Master DNA references a relationship target outside its Asset inventory.');
+          const role = sourceAsset.role ?? null;
+          const purpose = sourceAsset.purpose ?? null;
+          if (role !== null || purpose !== null) {
+            const { error: contextError } = await supabase.rpc('set_vyral_master_dna_asset_context', {
+              p_asset_id: importedAssetId,
+              p_role: role,
+              p_purpose: purpose,
+            });
+            if (contextError) throw contextError;
           }
-          const { error: classificationError } = await supabase.rpc('set_vyral_master_dna_asset_classification', {
-            p_asset_id: importedAssetId,
-            p_role: sourceAsset.role,
-            p_purpose: sourceAsset.purpose,
-            p_target_asset_id: targetAssetId,
-            p_rationale: membership.rationale,
-          });
-          if (classificationError) throw classificationError;
         }
-        const additionalRelationships = importedMasterDna.relationships
-          .filter((relation) => relation.type !== 'master_membership')
-          .map((relation) => {
-            const fromAssetId = relation.from.kind === 'asset' ? assetMap.get(relation.from.asset_id) : null;
-            const toAssetId = relation.to.kind === 'asset' ? assetMap.get(relation.to.asset_id) : null;
-            if ((relation.from.kind === 'asset' && !fromAssetId) || (relation.to.kind === 'asset' && !toAssetId)) {
-              throw new Error('An imported Master DNA relationship references an Asset outside its inventory.');
-            }
-            return {
-              vyral_id: vyral.id,
-              user_id: userId,
-              relationship_type: relation.type,
-              from_kind: relation.from.kind,
-              from_asset_id: fromAssetId,
-              to_kind: relation.to.kind,
-              to_asset_id: toAssetId,
-              rationale: relation.rationale,
-              evidence_ref: relation.evidence_ref ?? null,
-              metadata: { imported_from_package: manifest.packageId, imported_relationship_id: relation.relationship_id, trust: 'unverified_imported_evidence' },
-            };
-          });
-        for (let index = 0; index < additionalRelationships.length; index += 100) {
-          const { error: relationshipError } = await supabase.from('vyral_asset_relationships').insert(additionalRelationships.slice(index, index + 100));
+
+        const importedRelationships = importedMasterDna.relationships ?? [];
+        const relationshipRows = importedRelationships.map((relation) => {
+          const fromAssetId = relation.from.kind === 'asset' ? assetMap.get(relation.from.asset_id) : null;
+          const toAssetId = relation.to.kind === 'asset' ? assetMap.get(relation.to.asset_id) : null;
+          if ((relation.from.kind === 'asset' && !fromAssetId) || (relation.to.kind === 'asset' && !toAssetId)) {
+            throw new Error('An imported Master DNA relationship references an Asset outside its inventory.');
+          }
+          return {
+            vyral_id: vyral.id,
+            user_id: userId,
+            relationship_type: relation.type,
+            from_kind: relation.from.kind,
+            from_asset_id: fromAssetId,
+            to_kind: relation.to.kind,
+            to_asset_id: toAssetId,
+            rationale: relation.rationale,
+            evidence_ref: relation.evidence_ref ?? null,
+            metadata: { imported_from_package: manifest.packageId, imported_relationship_id: relation.relationship_id, trust: 'unverified_imported_evidence' },
+          };
+        });
+        for (let index = 0; index < relationshipRows.length; index += 100) {
+          const { error: relationshipError } = await supabase.from('vyral_asset_relationships').insert(relationshipRows.slice(index, index + 100));
           if (relationshipError) throw relationshipError;
         }
       }
@@ -1145,7 +1133,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       await loadWorkspace();
       setReconstructedPngDownload(reconstructionDownload);
-      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Master DNA roles, purposes and relationships were imported as unverified metadata; build a fresh local Master DNA revision.' : importedMasterDna ? ' Master DNA is preserved in the package, but this destination does not have the Master DNA database migration yet.' : ''));
+      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Optional creator context was preserved where supplied.' : importedMasterDna ? ' Collection context is preserved in the package; this destination does not have the latest context migration yet.' : ''));
     } catch (cause) {
       const cleanupFailures: string[] = [];
       if (importPackageId && importUserId) {
