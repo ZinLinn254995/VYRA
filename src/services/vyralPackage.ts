@@ -395,9 +395,9 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     }
   }
   if (manifest.exportMode === 'compact-only') {
-    if (manifest.versions.length || manifest.dnaRecords.length || !manifest.masterDna ||
-        manifest.folders.length || manifest.fingerprints.length || manifest.visionObservations.length ||
-        manifest.lineage.length || manifest.reconstructionTests.length || manifest.reconstructionCapabilities !== undefined) {
+    if ((manifest.versions?.length ?? 0) || (manifest.dnaRecords?.length ?? 0) || !manifest.masterDna ||
+        (manifest.folders?.length ?? 0) || (manifest.fingerprints?.length ?? 0) || (manifest.visionObservations?.length ?? 0) ||
+        (manifest.lineage?.length ?? 0) || (manifest.reconstructionTests?.length ?? 0) || manifest.reconstructionCapabilities !== undefined) {
       throw new Error('A compact-only package must contain only the collection reference and Asset inventory.');
     }
   }
