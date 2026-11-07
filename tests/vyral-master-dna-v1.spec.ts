@@ -172,5 +172,5 @@ test('publishes only a canonical public resolver URI and never exposes one for p
       resolver_uri: resolverUri,
       retrieval_policy: 'authorized_selective_retrieval',
     },
-  }), /A public resolver URI requires public visibility/
+  }), /A public resolver URI requires public visibility/);
 });
