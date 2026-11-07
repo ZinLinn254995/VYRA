@@ -351,13 +351,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async (dnaOnly = false) => {
+  const exportVyralPackage = async (dnaOnly = false, selectedAssetId?: string) => {
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
     setError('');
     try {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) throw new Error('Please sign in again before exporting this Vyral.');
+      const packageAssets = selectedAssetId ? assets.filter((asset) => asset.id === selectedAssetId) : assets;
+      if (selectedAssetId && packageAssets.length !== 1) throw new Error('The selected Asset is no longer available in this Vyral.');
       const packageEntries: { path: string; data: Uint8Array | string }[] = [];
       const packageVersions: Record<string, unknown>[] = [];
       let portableMasterDna: Awaited<ReturnType<typeof validateVyralMasterDnaV1>> | null = null;
@@ -436,11 +438,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dna_status: vyral.dna_status,
           license_policy: vyral.license_policy ?? {},
         },
-        ...(portableMasterDna ? { masterDna: portableMasterDna } : {}),
+        ...(!selectedAssetId && portableMasterDna ? { masterDna: portableMasterDna } : {}),
         folders: folders.map((item) => ownerless(item as unknown as Record<string, unknown>)),
-        assets: assets.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        assets: packageAssets.map((item) => ownerless(item as unknown as Record<string, unknown>)), 
         versions: packageVersions,
-        dnaRecords: dnaRecords.map((item) => {
+        dnaRecords: dnaRecords.filter((item) => !dnaOnly || !selectedAssetId || item.asset_id === selectedAssetId).map((item) => {
           const safeRecord = ownerless(item as unknown as Record<string, unknown>);
           const safePayload = { ...asRecord(safeRecord.payload) };
           delete safePayload.tile_storage_paths;
@@ -509,21 +511,21 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
       if (dnaOnly) {
-        if (!portableMasterDna || vyral.master_dna_status !== 'ready') {
+        if (!selectedAssetId && (!portableMasterDna || vyral.master_dna_status !== 'ready')) {
           throw new Error('Build and verify the current Master DNA before exporting the whole Vyral as DNA-only.');
         }
         const supportedRows = dnaRecords.filter((record) =>
-          record.asset_id &&
+          (!selectedAssetId || record.asset_id === selectedAssetId) && record.asset_id &&
           ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) ||
            (record.payload?.dna_schema_id === 'vyra.asset-file-dna' && record.payload?.dna_schema_version === 1))
         );
         const rowsByAsset = new Map(supportedRows.map((row) => [String(row.asset_id), row]));
-        if (rowsByAsset.size !== assets.length || assets.some((asset) => !rowsByAsset.has(asset.id))) {
+        if (rowsByAsset.size !== packageAssets.length || packageAssets.some((asset) => !rowsByAsset.has(asset.id))) {
           throw new Error('Every Vyral asset needs a supported, version-matched DNA record before DNA-only export.');
         }
         const dnaRecordsForExport: (VyralDnaV3Record | VyralFileDnaRecord)[] = [];
         const dnaPayloadEntries: { path: string; data: Uint8Array }[] = [];
-        for (const asset of assets) {
+        for (const asset of packageAssets) {
           const sourceRow = rowsByAsset.get(asset.id)!;
           const dnaRecord = asRecord(sourceRow.payload.dna_record);
           if (sourceRow.payload.dna_schema_id === 'vyra.asset-dna') {
@@ -1994,7 +1996,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">{asset.processing_status === 'uploading' && asset.asset_type === 'image' && <button type='button' onClick={() => void recoverAssetDna(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} className='text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50'>{verifyingAssetId===asset.id?'Recovering DNA…':'Recover DNA'}</button>}{(asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral')) && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50">Import .vyral</button>}<button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2.5'}>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">{asset.processing_status === 'uploading' && asset.asset_type === 'image' && <button type='button' onClick={() => void recoverAssetDna(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} className='text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50'>{verifyingAssetId===asset.id?'Recovering DNA…':'Recover DNA'}</button>}{(asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral')) && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50">Import .vyral</button>}<button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{dnaRecords.some((record) => record.asset_id === asset.id && ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) || (record.payload?.dna_schema_id === 'vyra.asset-file-dna' && record.payload?.dna_schema_version === 1))) && <button type="button" onClick={() => void exportVyralPackage(true, asset.id)} disabled={busy || packageBusy || verifyingAssetId !== null || comparingReconstructionAssetId !== null} title="Export this Asset's lossless DNA without requiring whole-Vyral Master DNA" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{packageBusy?'Exporting…':'Export DNA-only'}</button>}{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2.5'}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className={'text-[10px] font-semibold '+primary}>Latest test · {latestReconstructionTest.test_status}</p>
               <span className={'rounded-full px-2 py-1 text-[9px] font-semibold '+(exactDecodedPixelMatch === true ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-700')}>{exactDecodedPixelMatch === true ? 'Exact decoded pixels' : 'Exact reconstruction not verified'}</span>
