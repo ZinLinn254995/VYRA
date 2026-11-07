@@ -99,7 +99,7 @@ def encode_png(width, height, channels, samples):
         scanlines.extend(samples[start:start + row_bytes])
     header = struct.pack(">IIBBBBB", width, height, 8, color_type, 0, 0, 0)
     return (
-        b"\\x89PNG\\r\\n\\x1a\\n"
+        b"\x89PNG\r\n\x1a\n"
         + png_chunk(b"IHDR", header)
         + png_chunk(b"IDAT", zlib.compress(bytes(scanlines), 9))
         + png_chunk(b"IEND", b"")
@@ -137,7 +137,7 @@ def reconstruct_raster(archive, record, asset, output_dir):
             coverage_end = coverage_start + tile_width
             if any(coverage[coverage_start:coverage_end]):
                 raise ValueError("Raster tiles overlap")
-            coverage[coverage_start:coverage_end] = b"\\x01" * tile_width
+            coverage[coverage_start:coverage_end] = b"\x01" * tile_width
 
     if not all(coverage):
         raise ValueError("Raster tiles do not cover the complete image")
