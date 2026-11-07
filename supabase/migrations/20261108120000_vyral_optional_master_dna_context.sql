@@ -51,6 +51,17 @@ begin
 end;
 $;
 
+drop policy if exists "vyral_master_dna_asset_metadata_insert_own" on public.vyral_master_dna_asset_metadata;
+create policy "vyral_master_dna_asset_metadata_insert_own"
+  on public.vyral_master_dna_asset_metadata for insert to authenticated
+  with check (user_id = (select auth.uid()));
+drop policy if exists "vyral_master_dna_asset_metadata_update_own" on public.vyral_master_dna_asset_metadata;
+create policy "vyral_master_dna_asset_metadata_update_own"
+  on public.vyral_master_dna_asset_metadata for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+grant select, insert, update on public.vyral_master_dna_asset_metadata to authenticated;
+
 revoke all on function public.set_vyral_master_dna_asset_context(uuid,text,text) from public, anon;
 grant execute on function public.set_vyral_master_dna_asset_context(uuid,text,text) to authenticated;
 
