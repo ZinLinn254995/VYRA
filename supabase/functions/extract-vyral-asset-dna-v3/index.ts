@@ -3,9 +3,9 @@ import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
 
 const BUCKET = 'vyral-assets';
-const MAX_BYTES = 100 * 1024 * 1024;
-const MAX_PIXELS = 20_000_000;
-const TILE = 128;
+const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_PIXELS = 8_000_000;
+const TILE = 256;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const wasm = await Deno.readFile(new URL('magick.wasm', import.meta.resolve('npm:@imagemagick/magick-wasm@0.0.30')));
 await initializeImageMagick(wasm);
@@ -51,7 +51,7 @@ Deno.serve(async (request: Request) => {
   const prefix = userId + '/' + asset.vyral_id + '/' + assetId + '/';
   if (typeof version.storage_path !== 'string' || !version.storage_path.startsWith(prefix)) return reply({ error: 'Private Storage path failed owner-prefix validation.' }, 409);
   const size = Number(version.size_bytes);
-  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return reply({ error: 'Image exceeds the 100 MB extraction limit.' }, 413);
+  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return reply({ error: 'Image exceeds the 20 MB extraction limit.' }, 413);
 
   const { data: blob, error: downloadError } = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
   if (downloadError || !blob) return reply({ error: 'Could not retrieve the original from private Storage.' }, 502);
@@ -66,7 +66,7 @@ Deno.serve(async (request: Request) => {
     samples = await ImageMagick.read(original, (image) => {
       width = image.width; height = image.height;
       const pixels = width * height;
-      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) throw new Error('Image exceeds the 20-megapixel DNA v3 limit.');
+      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) throw new Error('Image exceeds the 8-megapixel DNA v3 limit.');
       const rgba = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgba')?.slice() ?? null);
       if (!rgba || rgba.byteLength !== pixels * 4) throw new Error('Pinned decoder did not return a complete RGBA8 sample stream.');
       return rgba;
@@ -80,26 +80,49 @@ Deno.serve(async (request: Request) => {
   const tileMetadata: Record<string, unknown>[] = [];
   const uploaded: string[] = [];
   const rowBytes = width * 4;
-  for (let y = 0; y < height; y += TILE) {
-    for (let x = 0; x < width; x += TILE) {
-      const w = Math.min(TILE, width - x), h = Math.min(TILE, height - y);
-      const bytes = new Uint8Array(w * h * 4);
-      for (let row = 0; row < h; row++) {
-        const start = (y + row) * rowBytes + x * 4;
-        bytes.set(samples.subarray(start, start + w * 4), row * w * 4);
-      }
-      const path = storagePrefix + x + '_' + y + '.raw';
-      const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(path, new Blob([bytes], { type: 'application/octet-stream' }), {
-        contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0',
-      });
-      if (error) {
-        if (uploaded.length) await ctx.supabaseAdmin.storage.from(BUCKET).remove(uploaded);
-        return reply({ error: 'DNA tile upload failed; no DNA record was created.', detail: error.message }, 500);
-      }
-      uploaded.push(path);
-      tileMetadata.push({ x, y, width: w, height: h, byte_length: bytes.byteLength, sha256: await sha256(bytes),
-        package_path: 'dna/v3/' + recordId + '/tiles/' + x + '_' + y + '.raw', storage_path: path });
+  const pending: Array<{ x: number; y: number; width: number; height: number; bytes: Uint8Array; path: string }> = [];
+  const persistBatch = async () => {
+    const batch = pending.splice(0, pending.length);
+    const outcomes = await Promise.allSettled(batch.map(async (tile) => {
+      const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(
+        tile.path, new Blob([tile.bytes], { type: 'application/octet-stream' }),
+        { contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0' },
+      );
+      if (error) throw new Error(error.message);
+      return tile;
+    }));
+    let failure = '';
+    for (const outcome of outcomes) {
+      if (outcome.status === 'fulfilled') {
+        const tile = outcome.value;
+        uploaded.push(tile.path);
+        tileMetadata.push({
+          x: tile.x, y: tile.y, width: tile.width, height: tile.height,
+          byte_length: tile.bytes.byteLength, sha256: await sha256(tile.bytes),
+          package_path: 'dna/v3/' + recordId + '/tiles/' + tile.x + '_' + tile.y + '.raw',
+          storage_path: tile.path,
+        });
+      } else if (!failure) failure = outcome.reason instanceof Error ? outcome.reason.message : 'Unknown Storage upload error.';
     }
+    if (failure) throw new Error('DNA tile batch failed: ' + failure);
+  };
+  try {
+    for (let y = 0; y < height; y += TILE) {
+      for (let x = 0; x < width; x += TILE) {
+        const tileWidth = Math.min(TILE, width - x), tileHeight = Math.min(TILE, height - y);
+        const bytes = new Uint8Array(tileWidth * tileHeight * 4);
+        for (let row = 0; row < tileHeight; row++) {
+          const offset = (y + row) * rowBytes + x * 4;
+          bytes.set(samples.subarray(offset, offset + tileWidth * 4), row * tileWidth * 4);
+        }
+        pending.push({ x, y, width: tileWidth, height: tileHeight, bytes, path: storagePrefix + x + '_' + y + '.raw' });
+        if (pending.length >= 4) await persistBatch();
+      }
+    }
+    if (pending.length) await persistBatch();
+  } catch (error) {
+    if (uploaded.length) await ctx.supabaseAdmin.storage.from(BUCKET).remove(uploaded);
+    return reply({ error: 'DNA tile upload failed; uploaded tiles were rolled back.', detail: error instanceof Error ? error.message : 'Unknown tile error.' }, 500);
   }
 
   const decodedHash = await sha256(samples);
