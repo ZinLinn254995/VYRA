@@ -2,6 +2,7 @@ import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
   findVyralMasterDnaSnapshotAssetV1,
+  isPublicVyralAssetVisibilityAllowedV1,
   hasValidVyralMasterDnaRevisionBindingV1,
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
@@ -189,7 +190,7 @@ Deno.serve(async (request: Request) => {
   if (assetError) return json({ error: 'Could not resolve the requested Asset.' }, 500);
   if (!asset) return json({ error: 'Asset not found or access denied.' }, 404);
   const assetMetadata = asRecord(asset.metadata);
-  if (assetMetadata.visibility !== 'public') {
+  if (!isPublicVyralAssetVisibilityAllowedV1(vyral.visibility, assetMetadata.visibility)) {
     return json({ error: 'The creator has not made this Asset public.' }, 403);
   }
   if (!isPublicVyralResourceAllowedV1({
