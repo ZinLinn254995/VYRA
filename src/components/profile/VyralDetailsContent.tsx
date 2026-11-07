@@ -10,6 +10,7 @@ import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFrom
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
+import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -500,6 +501,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'ZIP entries use the standard Store method (no compression) for broad compatibility.'
         ].join('\n'),
       });
+      if (components.fullDna || components.compactDna) {
+        packageEntries.push({ path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE });
+      }
+      if (components.fullDna) {
+        packageEntries.push({ path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT });
+      }
       const manifestJson = JSON.stringify(manifest, null, 2);
       if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
       packageEntries.push({ path: 'manifest.json', data: manifestJson });
