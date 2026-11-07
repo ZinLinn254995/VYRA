@@ -38,7 +38,8 @@ export type VyralPackageManifest = {
   formatVersion: number;
   packageId: string;
   exportedAt: string;
-  exportMode?: 'full' | 'dna-only';
+  exportMode?: 'full' | 'dna-only' | 'compact-only';
+  exportComponents?: { assets: boolean; fullDna: boolean; compactDna: boolean };
   reconstructionCapabilities?: Record<string, unknown>;
   vyral: Record<string, unknown>;
   folders: Record<string, unknown>[];
@@ -362,7 +363,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
           record.recovery_level !== 'decoded-samples-exact' || !assetIds.has(dnaRecord.source.asset_id)) {
         throw new Error('A VYRA DNA v3 package record has inconsistent identity or recovery metadata.');
       }
-      if (manifest.exportMode !== 'dna-only' && !versionById.has(dnaRecord.source.asset_version_id)) {
+      if (manifest.exportMode !== 'dna-only' && manifest.exportMode !== 'compact-only' && !versionById.has(dnaRecord.source.asset_version_id)) {
         throw new Error('A VYRA DNA v3 record references a source version missing from the package.');
       }
     } else if (record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1) {
@@ -375,9 +376,16 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
           (fileDna.reconstruction.claim !== 'source_file_exact' || record.recovery_level !== 'source-file-exact')) {
         throw new Error('DNA-only packages require lossless source-byte payloads for every non-raster Asset.');
       }
-      if (manifest.exportMode !== 'dna-only' && !versionById.has(fileDna.source.asset_version_id)) {
+      if (manifest.exportMode !== 'dna-only' && manifest.exportMode !== 'compact-only' && !versionById.has(fileDna.source.asset_version_id)) {
         throw new Error('A VYRA File DNA record references a source version missing from the package.');
       }
+    }
+  }
+  if (manifest.exportMode === 'compact-only') {
+    if (manifest.versions.length || manifest.dnaRecords.length || !manifest.masterDna ||
+        manifest.folders.length || manifest.fingerprints.length || manifest.visionObservations.length ||
+        manifest.lineage.length || manifest.reconstructionTests.length) {
+      throw new Error('A compact-only package must contain only the collection reference and Asset inventory.');
     }
   }
   if (manifest.exportMode === 'dna-only') {
@@ -435,7 +443,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       );
     }
   }
-  if (manifest.exportMode !== 'dna-only') {
+  if (manifest.exportMode !== 'dna-only' && manifest.exportMode !== 'compact-only') {
     for (const assetId of assetIds) {
       if (!versionsByAsset.has(assetId)) throw new Error('Every VYRAL asset must include at least one binary version.');
     }
@@ -519,6 +527,14 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
       }
     }
   }
+  if (manifest.exportMode === 'compact-only') {
+    for (const path of files.keys()) {
+      if (path !== VYRAL_PACKAGE_MANIFEST && path !== 'README.txt') {
+        throw new Error('Compact-only package contains an undeclared file: ' + path);
+      }
+    }
+    if (!manifest.masterDna) throw new Error('Compact-only package is missing collection reference data.');
+  }
   if (manifest.exportMode === 'dna-only') {
     // A DNA-only archive is a strict portable reconstruction unit: reject any
     // undeclared file, including source media, previews, derivatives or hidden extras.
@@ -539,6 +555,81 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
  * omitted; the lossless DNA tiles are retained as first-class package payload.
  * URL/storage/preview/derivative fields are removed recursively from exported metadata.
  */
+export type VyralExportComponents = {
+  assets: boolean;
+  fullDna: boolean;
+  compactDna: boolean;
+};
+
+/**
+ * Projects a validated full package onto the exact components selected by the
+ * creator. Asset binaries, full per-Asset reconstruction DNA, and compact
+ * collection DNA are independent package components.
+ */
+export const selectVyralPackageComponents = async (
+  archive: Blob,
+  components: VyralExportComponents,
+): Promise<Blob> => {
+  if (!components.assets && !components.fullDna && !components.compactDna) {
+    throw new Error('Choose at least one item to include in the Vyral export.');
+  }
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  if (components.compactDna && !manifest.masterDna) {
+    throw new Error('Compact collection data is not available yet. Update the Vyral collection data and try again.');
+  }
+  const retained = new Set<string>([VYRAL_PACKAGE_MANIFEST]);
+  if (files.has('README.txt')) retained.add('README.txt');
+
+  if (components.assets) {
+    for (const version of manifest.versions) retained.add(version.package_path);
+  }
+  if (components.fullDna) {
+    for (const record of manifest.dnaRecords) {
+      if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
+        const dna = validateVyralDnaV3Record(record.dna_record);
+        for (const tile of dna.lossless_payload.tiles) retained.add(tile.package_path);
+      } else if (record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1) {
+        const dna = validateVyralFileDnaV1Record(record.dna_record);
+        for (const chunk of dna.reconstruction.chunks) retained.add(chunk.package_path);
+      }
+    }
+  }
+
+  const projected: VyralPackageManifest = {
+    ...manifest,
+    exportMode: components.assets ? 'full' : components.fullDna ? 'dna-only' : 'compact-only',
+    exportComponents: { ...components },
+    folders: components.assets ? manifest.folders : [],
+    versions: components.assets ? manifest.versions : [],
+    dnaRecords: components.fullDna ? manifest.dnaRecords : [],
+    fingerprints: components.fullDna ? manifest.fingerprints : [],
+    visionObservations: components.fullDna ? manifest.visionObservations : [],
+    lineage: components.fullDna ? manifest.lineage : [],
+    reconstructionTests: components.fullDna ? manifest.reconstructionTests : [],
+    ...(components.compactDna ? {} : { masterDna: null }),
+    ...(!components.fullDna ? { reconstructionCapabilities: undefined } : {}),
+  };
+
+  if (!components.assets && !components.fullDna && !components.compactDna) {
+    throw new Error('The Vyral export has no selected components.');
+  }
+  if (!components.assets && !components.fullDna && !projected.masterDna) {
+    throw new Error('A compact-only export requires collection reference data.');
+  }
+  const entries: VyralPackageEntry[] = [];
+  for (const [path, data] of files) {
+    if (path === VYRAL_PACKAGE_MANIFEST) continue;
+    if (retained.has(path)) entries.push({ path, data });
+  }
+  entries.push({ path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(projected) });
+  const output = createVyralZip(entries);
+  // Validate the projected manifest and ZIP structure before returning it.
+  const projectedFiles = await readVyralZip(output);
+  parseVyralManifest(projectedFiles);
+  return output;
+};
+
 const removeNonPortableReferences = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(removeNonPortableReferences);
   if (!value || typeof value !== 'object') return value;
