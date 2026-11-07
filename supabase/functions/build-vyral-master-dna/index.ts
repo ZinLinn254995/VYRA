@@ -108,7 +108,7 @@ Deno.serve(async (request: Request) => {
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId)
       .order('created_at', { ascending: false }),
     context.supabase.from('vyral_master_dna_revisions')
-      .select('id,revision,manifest_sha256,vyral_fingerprint')
+      .select('id,revision,manifest_sha256,vyral_fingerprint,snapshot')
       .eq('vyral_id', vyral.id).eq('user_id', userId)
       .order('revision', { ascending: false }).limit(1).maybeSingle(),
     context.supabase.from('vyral_master_dna_asset_metadata')
@@ -122,7 +122,14 @@ Deno.serve(async (request: Request) => {
 
   const latest = latestResult.data as Row | null;
   const currentRevision = Number(vyral.master_dna_revision ?? 0);
-  if (vyral.master_dna_status === 'ready' && latest && latest.revision === currentRevision) {
+  const licensePolicy = asRecord(vyral.license_policy);
+  const publicResolverUri = vyral.visibility === 'public' && licensePolicy.allow_ai_analysis !== false
+    ? getPublicResolverUri()
+    : null;
+  const latestSnapshot = asRecord(latest?.snapshot);
+  const latestProjection = asRecord(latestSnapshot.portable_projection);
+  const resolverProjectionStale = (typeof latestProjection.resolver_uri === 'string' ? latestProjection.resolver_uri : null) !== publicResolverUri;
+  if (vyral.master_dna_status === 'ready' && latest && latest.revision === currentRevision && !resolverProjectionStale) {
     return json({
       status: 'ready',
       vyralId: vyral.id,
