@@ -1417,6 +1417,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       // Carry source collection details into an empty/default destination only.
       // Existing destination creator choices always take precedence; the merged inventory is re-analyzed below.
       const sourceVyral = objectValue(manifest.vyral);
+      const hasCollectionMetadata = Object.prototype.hasOwnProperty.call(sourceVyral, 'metadata');
       const sourceVyralMetadata = objectValue(sourceVyral.metadata);
       const targetVyralMetadata = objectValue(vyral.metadata);
       const sourceAiDetails = objectValue(sourceVyralMetadata.ai_details);
@@ -1430,7 +1431,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         ? String(sourceVyralMetadata.identity_name_origin) : 'creator_confirmed';
       const sourceDescriptionOrigin = ['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(sourceVyralMetadata.identity_description_origin))
         ? String(sourceVyralMetadata.identity_description_origin) : (sourceDescription ? 'creator_confirmed' : 'system_default');
-      if ((!assets.length && !targetHasAiDetails && hasSourceAiDetails) || (targetNameIsDefault && sourceName) || (targetDescriptionIsDefault && sourceDescription)) {
+      if ((!assets.length && !targetHasAiDetails && hasSourceAiDetails) || (hasCollectionMetadata && targetNameIsDefault && sourceName) || (hasCollectionMetadata && targetDescriptionIsDefault && sourceDescription)) {
         const nextVyralMetadata = {
           ...targetVyralMetadata,
           ...(!assets.length && !targetHasAiDetails && hasSourceAiDetails ? {
@@ -1438,12 +1439,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             ai_details_status: 'pending',
             ai_details_imported_from_package: manifest.packageId,
           } : {}),
-          ...(targetNameIsDefault && sourceName ? { identity_name_origin: sourceNameOrigin } : {}),
-          ...(targetDescriptionIsDefault && sourceDescription ? { identity_description_origin: sourceDescriptionOrigin } : {}),
+          ...(hasCollectionMetadata && targetNameIsDefault && sourceName ? { identity_name_origin: sourceNameOrigin } : {}),
+          ...(hasCollectionMetadata && targetDescriptionIsDefault && sourceDescription ? { identity_description_origin: sourceDescriptionOrigin } : {}),
         };
         const { error: collectionIdentityError } = await supabase.from('vyrals').update({
-          ...(targetNameIsDefault && sourceName ? { name: sourceName } : {}),
-          ...(targetDescriptionIsDefault && sourceDescription ? { description: sourceDescription } : {}),
+          ...(hasCollectionMetadata && targetNameIsDefault && sourceName ? { name: sourceName } : {}),
+          ...(hasCollectionMetadata && targetDescriptionIsDefault && sourceDescription ? { description: sourceDescription } : {}),
           metadata: nextVyralMetadata,
         }).eq('id', vyral.id).eq('user_id', userId);
         if (collectionIdentityError) throw collectionIdentityError;
