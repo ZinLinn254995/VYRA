@@ -529,6 +529,12 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     const source = sourceRecords.find((item) => item.record_id === record.id)!;
     assert.equal(reconstructed.decoded_samples_sha256, source.decoded_image.decoded_samples_sha256);
   }
+
+  const withoutCollectionSnapshot = await createVyralDnaOnlyPackage({ ...base, masterDna: null }, sourceRecords, payloadEntries);
+  const withoutSnapshotFiles = await readVyralZip(withoutCollectionSnapshot);
+  const withoutSnapshotManifest = parseVyralManifest(withoutSnapshotFiles);
+  assert.equal(withoutSnapshotManifest.assets.length, 2);
+  assert.equal(withoutSnapshotManifest.masterDna, null);
 });
 
 
@@ -657,6 +663,12 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
   assert.deepEqual(restoredBinary, originalAudio);
   const restoredRaster = await reconstructVyralDnaV3FromPackage(files, 'mixed-raster-dna');
   assert.equal(restoredRaster.decoded_samples_sha256, raster.record.decoded_image.decoded_samples_sha256);
+
+  const withoutCollectionSnapshot = await createVyralAssetDnaOnlyPackage({ ...base, masterDna: null }, [raster.record, binary.record], [...raster.entries, ...binary.entries]);
+  const withoutSnapshotFiles = await readVyralZip(new Uint8Array(await withoutCollectionSnapshot.arrayBuffer()));
+  const withoutSnapshotManifest = parseVyralManifest(withoutSnapshotFiles);
+  assert.equal(withoutSnapshotManifest.assets.length, 2);
+  assert.equal(withoutSnapshotManifest.masterDna, null);
 });
 
 test('exports and reconstructs a single raster Asset DNA-only package without Master DNA', async () => {
