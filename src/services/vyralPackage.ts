@@ -379,13 +379,40 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
         typeof capabilities.color_space_fully_characterized !== 'boolean') {
       throw new Error('DNA-only reconstruction capability boundaries are missing or invalid.');
     }
-    const recordAssetIds = new Set(supportedRecords.map((record) => String(record.asset_id)));
+    const recordCountsByAsset = new Map<string, number>();
+    for (const record of supportedRecords) {
+      const assetId = String(record.asset_id);
+      recordCountsByAsset.set(assetId, (recordCountsByAsset.get(assetId) ?? 0) + 1);
+    }
+    const recordAssetIds = new Set(recordCountsByAsset.keys());
+    const assetsNeedingDna = assets
+      .filter((asset) => (recordCountsByAsset.get(String(asset.id)) ?? 0) !== 1)
+      .map((asset) => {
+        const count = recordCountsByAsset.get(String(asset.id)) ?? 0;
+        return String(asset.name || asset.id) + (count > 1 ? ' (' + count + ' records)' : ' (DNA missing)');
+      });
+    const unsupportedRecordCount = dnaRecords.length - supportedRecords.length;
+    const hasLegacyEvidence =
+      (manifest.fingerprints ?? []).length !== 0 || (manifest.visionObservations ?? []).length !== 0 ||
+      (manifest.lineage ?? []).length !== 0 || (manifest.reconstructionTests ?? []).length !== 0;
     if (supportedRecords.length === 0 || supportedRecords.length !== dnaRecords.length ||
         recordAssetIds.size !== supportedRecords.length || recordAssetIds.size !== assetIds.size ||
-        [...assetIds].some((assetId) => !recordAssetIds.has(assetId)) ||
-        (manifest.fingerprints ?? []).length !== 0 || (manifest.visionObservations ?? []).length !== 0 ||
-        (manifest.lineage ?? []).length !== 0 || (manifest.reconstructionTests ?? []).length !== 0) {
-      throw new Error('DNA-only packages require one exact reconstruction record per Asset and omit version-bound legacy evidence.');
+        [...assetIds].some((assetId) => !recordAssetIds.has(assetId)) || hasLegacyEvidence) {
+      const inventory = assetsNeedingDna.length
+        ? ' Assets needing exactly one supported DNA record: ' + assetsNeedingDna.join(', ') + '.'
+        : '';
+      const unsupported = unsupportedRecordCount > 0
+        ? ' Unsupported or legacy DNA records: ' + unsupportedRecordCount + '.'
+        : '';
+      const evidence = hasLegacyEvidence
+        ? ' Version-bound legacy evidence must be omitted.'
+        : '';
+      throw new Error(
+        'DNA-only package is incomplete: ' + supportedRecords.length + ' supported exact reconstruction record(s) for ' +
+        assetIds.size + ' Asset(s). Every Asset needs exactly one supported DNA v3 or File DNA v1 record.' +
+        inventory + unsupported + evidence +
+        ' Export a single supported Asset, or create current-version DNA for every Asset before exporting the whole Vyral.',
+      );
     }
   }
   if (manifest.exportMode !== 'dna-only') {
