@@ -9,6 +9,9 @@ enable_anonymous_sign_ins = true
 [functions.extract-origin-01-dna-v3]
 verify_jwt = true
 
+[functions.extract-vyral-asset-dna-v3]
+verify_jwt = true
+
 [functions.verify-origin-01-dna-v3]
 verify_jwt = true
 
