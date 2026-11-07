@@ -196,3 +196,35 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 ---
 
 **Core principle:** Every Asset owns its own DNA. Vyral DNA is automatically composed from the Vyral's Asset DNA inventory. Assets are creator-defined and independent by default; relationships and consistency are optional. VYRA preserves the originals, while exports let creators choose Asset, Full DNA, and Compact DNA independently or together.
+
+
+## 12. Asset selection, AI context, and per-Asset visibility
+
+### Multi-selection
+- The Asset library supports selecting one or many Assets. Selection is a temporary working set, not a change to the Asset or its permissions.
+- The same selection supports multiple actions: attach as explicit context to AI Chat, organize/move, export, and other eligible bulk management actions.
+- The UI must make selected Assets visually obvious and show the selected count. Provide clear Select all / Clear selection behavior within the current filtered folder/list scope.
+- Opening an Asset remains distinct from selecting it. Preserve a simple default browsing interaction; selection mode should not make ordinary opening cumbersome.
+- When a selection is handed to AI Chat, show the selected Asset chips/cards directly above the composer. The user can remove individual Assets or clear the whole selection before sending.
+- The AI request must receive only the selected Asset IDs, exact current versions, permitted DNA/context, and any explicitly attached media required for the task. Unselected Assets must never be silently included.
+- Selection does not grant access. The server must re-check ownership, Vyral membership, current version, visibility, and AI-analysis permission before reading or sending any Asset content to a model.
+- A private Asset may be selected by its owner for their own AI Chat. That does not make it public and does not grant an external person or model an independent VYRA retrieval right.
+
+### Per-Asset visibility
+- Each Asset has its own simple `private` or `public` visibility setting. The user can change it for one Asset or for a selected group.
+- New Assets default to private. Changing a Vyral's visibility does not silently overwrite each Asset's explicit visibility.
+- Effective public availability requires both the containing Vyral and the individual Asset to be public. A private/unlisted Vyral never exposes an Asset through the public resolver, even if that Asset is marked public.
+- Asset-level license overrides remain separate from visibility. Public does not automatically mean AI analysis, generation, remixing, commercial use, or redistribution is allowed.
+- Public resolver and Compact-DNA retrieval must enforce both Vyral-level and Asset-level visibility and the relevant license permissions server-side. UI state alone is never authorization.
+- Bulk visibility changes require a clear confirmation summary and must apply only to the selected Assets. Protected foundational Assets remain protected from destructive management actions; visibility changes must not weaken their protection.
+
+### Acceptance tests
+1. Select one Asset and confirm only that Asset is attached to AI Chat.
+2. Select multiple Assets across the current library view and confirm each appears as a distinct removable context chip.
+3. Remove one selected Asset and verify it is excluded from the outgoing AI request.
+4. Clear selection and verify no Asset context is sent.
+5. Select private Assets as the owner and confirm owner-authorized AI Chat works without changing their visibility.
+6. Change one Asset to public and verify it is still inaccessible through public resolution while its Vyral is private or unlisted.
+7. Change a selected group to public/private and verify only those Asset rows change.
+8. Verify server-side resolver denies private Assets and any Asset whose Vyral or license policy disallows the requested operation.
+9. Verify new uploads default to private and imported packages preserve declared visibility only when the importer is authorized; otherwise default safely to private.
