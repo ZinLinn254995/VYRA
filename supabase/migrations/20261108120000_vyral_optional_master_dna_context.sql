@@ -3,6 +3,57 @@
 -- This migration preserves existing metadata and historical snapshots; it only removes
 -- those fields as mandatory validity gates.
 
+alter table public.vyral_master_dna_asset_metadata
+  alter column role drop not null,
+  alter column purpose drop not null;
+
+create or replace function public.set_vyral_master_dna_asset_context(
+  p_asset_id uuid,
+  p_role text default null,
+  p_purpose text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  caller_id uuid := auth.uid();
+  target_vyral_id uuid;
+begin
+  if caller_id is null then
+    raise exception using errcode = '42501', message = 'A signed-in owner is required.';
+  end if;
+  if p_role is not null and p_role not in ('main','supporting') then
+    raise exception using errcode = '22023', message = 'Asset role must be Main or Supporting when supplied.';
+  end if;
+  if p_purpose is not null and char_length(btrim(p_purpose)) not between 1 and 2000 then
+    raise exception using errcode = '22023', message = 'Asset purpose must contain 1 to 2000 characters when supplied.';
+  end if;
+  if p_role is null and p_purpose is null then
+    raise exception using errcode = '22023', message = 'At least one optional Asset context field must be supplied.';
+  end if;
+
+  select a.vyral_id into target_vyral_id
+  from public.vyral_assets a
+  where a.id = p_asset_id and a.user_id = caller_id
+  for update;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'Asset not found in the signed-in owner scope.';
+  end if;
+
+  insert into public.vyral_master_dna_asset_metadata (asset_id,vyral_id,user_id,role,purpose)
+  values (p_asset_id,target_vyral_id,caller_id,p_role,case when p_purpose is null then null else btrim(p_purpose) end)
+  on conflict (asset_id) do update
+    set role = excluded.role,
+        purpose = excluded.purpose,
+        updated_at = now();
+end;
+$;
+
+revoke all on function public.set_vyral_master_dna_asset_context(uuid,text,text) from public, anon;
+grant execute on function public.set_vyral_master_dna_asset_context(uuid,text,text) to authenticated;
+
 create or replace function public.mark_vyral_master_dna_stale()
 returns trigger
 language plpgsql
@@ -160,6 +211,8 @@ begin
 end;
 $$;
 
+comment on function public.set_vyral_master_dna_asset_context(uuid,text,text) is
+  'Owner-scoped writer for optional Asset role and purpose metadata; no relationship is created.';
 comment on column public.vyrals.master_dna_status is
   'Derived snapshot state: not_started, stale, or ready. Optional creator context never blocks Vyral validity.';
 comment on table public.vyral_master_dna_asset_metadata is
