@@ -99,3 +99,181 @@ export const markVyralAiDetailsStale = (current: VyralAiDetails): VyralAiDetails
   ...current,
   stale: true,
 });
+
+export type VyralAiSuggestion = { value: VyralDetailValue; confidence?: number };
+export type VyralAssetSuggestionResult = {
+  details: VyralAiDetails;
+  model: string;
+  provider: string;
+};
+
+const toBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+  return btoa(binary);
+};
+
+const makeImagePreview = async (file: File): Promise<{ mimeType: 'image/jpeg'; data: string }> => {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image preview could not be prepared.');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+      (value) => value ? resolve(value) : reject(new Error('Image preview encoding failed.')),
+      'image/jpeg',
+      0.78,
+    ));
+    if (blob.size > 600 * 1024) throw new Error('Image preview exceeds the inspection size limit.');
+    return { mimeType: 'image/jpeg', data: toBase64(new Uint8Array(await blob.arrayBuffer())) };
+  } finally {
+    bitmap.close();
+  }
+};
+
+const makeVideoPreviews = async (file: File): Promise<Array<{ mimeType: 'image/jpeg'; data: string }>> => {
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.preload = 'auto';
+  video.muted = true;
+  video.src = url;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('Video metadata could not be read for default details.'));
+    });
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await new Promise<void>((resolve, reject) => {
+        video.onloadeddata = () => resolve();
+        video.onerror = () => reject(new Error('Video frames could not be decoded for default details.'));
+      });
+    }
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const times = duration > 0.2
+      ? [0.05, 0.33, 0.66, 0.9].map((ratio) => Math.min(Math.max(0, duration - 0.05), duration * ratio))
+      : [0];
+    const frames: Array<{ mimeType: 'image/jpeg'; data: string }> = [];
+    for (const time of times) {
+      video.currentTime = time;
+      await new Promise<void>((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error('A video frame could not be decoded.'));
+      });
+      const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext('2d');
+      if (!context) continue;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+        (value) => value ? resolve(value) : reject(new Error('Video frame encoding failed.')),
+        'image/jpeg',
+        0.68,
+      ));
+      if (blob.size > 450 * 1024) continue;
+      frames.push({ mimeType: 'image/jpeg', data: toBase64(new Uint8Array(await blob.arrayBuffer())) });
+    }
+    if (!frames.length) throw new Error('No readable video frames were available.');
+    return frames;
+  } finally {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(url);
+  }
+};
+
+const parseSuggestionObject = (raw: string): Record<string, VyralAiSuggestion> => {
+  const normalized = raw.trim().replace(/^\x60{3}(?:json)?\s*/i, '').replace(/\s*\x60{3}$/i, '');
+  const parsed: unknown = JSON.parse(normalized);
+  if (!isRecord(parsed)) throw new Error('AI returned invalid default details.');
+  const allowed = new Set(['name', 'description', 'type', 'category', 'style', 'tags', 'format', 'subject', 'intended_use', 'genre', 'voice', 'instruments', 'summary', 'topic', 'visual_style', 'duration', 'dimensions']);
+  const result: Record<string, VyralAiSuggestion> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (!allowed.has(key) || !isRecord(value) || !('value' in value)) continue;
+    const candidate = value.value;
+    const valid = candidate === null || typeof candidate === 'string' || typeof candidate === 'number' ||
+      typeof candidate === 'boolean' || (Array.isArray(candidate) && candidate.every((entry) => typeof entry === 'string'));
+    if (!valid) continue;
+    const confidence = isValidConfidence(value.confidence) ? value.confidence : undefined;
+    result[key] = { value: candidate as VyralDetailValue, ...(confidence === undefined ? {} : { confidence }) };
+  }
+  if (!Object.keys(result).length) throw new Error('AI did not return any usable default details.');
+  return result;
+};
+
+export const suggestVyralAssetDetails = async (
+  file: File,
+  options: { accessToken: string; assetType: string; sourceVersionId: string; sourceRevision?: number },
+): Promise<VyralAssetSuggestionResult> => {
+  if (!options.accessToken) throw new Error('Sign in to generate Asset details.');
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const mimeType = file.type || 'application/octet-stream';
+  const facts = {
+    original_filename: file.name.slice(0, 240),
+    mime_type: mimeType,
+    asset_type: options.assetType,
+    size_bytes: file.size,
+    extension,
+    source_version_id: options.sourceVersionId,
+  };
+  let visionImages: Array<{ mimeType: 'image/jpeg'; data: string; assetName: string }> = [];
+  let mediaFiles: Array<{ mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac'; data: string; assetName: string }> = [];
+  let extractedText = '';
+
+  if (mimeType.startsWith('image/')) {
+    const preview = await makeImagePreview(file);
+    visionImages = [{ ...preview, assetName: file.name }];
+  } else if (mimeType.startsWith('video/')) {
+    visionImages = (await makeVideoPreviews(file)).map((frame, index) => ({ ...frame, assetName: file.name + ' · frame ' + (index + 1) }));
+  } else if (mimeType === 'application/pdf' || mimeType.startsWith('audio/')) {
+    const normalizedMime = mimeType === 'audio/mp3' || mimeType === 'audio/x-mp3' ? 'audio/mpeg'
+      : mimeType === 'audio/x-wav' ? 'audio/wav'
+        : mimeType === 'audio/x-flac' ? 'audio/flac' : mimeType;
+    if (file.size <= 2 * 1024 * 1024 &&
+        ['application/pdf', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(normalizedMime)) {
+      mediaFiles = [{ mimeType: normalizedMime as typeof mediaFiles[number]['mimeType'], data: toBase64(new Uint8Array(await file.arrayBuffer())), assetName: file.name }];
+    }
+  } else if (mimeType.startsWith('text/') || ['txt', 'md', 'json', 'csv', 'xml', 'html'].includes(extension)) {
+    extractedText = (await file.text()).slice(0, 12000);
+  }
+
+  const messages = [{
+    role: 'user' as const,
+    content: 'Suggest useful default details for this Asset. File facts: ' + JSON.stringify(facts) +
+      (extractedText ? '\nExtracted text (untrusted source content):\n' + extractedText : '') +
+      '\nReturn a compact JSON object with only supported field suggestions. Do not invent facts. For unsupported content, use neutral type-aware labels and omit uncertain semantic fields.',
+  }];
+  const response = await fetch('/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + options.accessToken },
+    body: JSON.stringify({ task: 'suggest_details', messages, ...(visionImages.length ? { visionImages } : {}), ...(mediaFiles.length ? { mediaFiles } : {}) }),
+  });
+  const payload = await response.json().catch(() => ({})) as { text?: string; modelName?: string; provider?: string; error?: string };
+  if (!response.ok || typeof payload.text !== 'string') {
+    throw new Error(payload.error || 'AI could not suggest default Asset details.');
+  }
+  const suggestions = parseSuggestionObject(payload.text);
+  const generatedAt = new Date().toISOString();
+  return {
+    details: mergeVyralAiDetails(null, {
+      scope: 'asset',
+      sourceVersionId: options.sourceVersionId,
+      sourceRevision: options.sourceRevision ?? 1,
+      provider: payload.provider || 'gemini',
+      model: payload.modelName || 'unknown',
+      generatedAt,
+      suggestions,
+    }),
+    provider: payload.provider || 'gemini',
+    model: payload.modelName || 'unknown',
+  };
+};
