@@ -12,7 +12,7 @@ import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
-import { mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails, type VyralDetailValue } from '../../services/vyralAiDetails';
+import { markVyralAiDetailsStale, mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails, type VyralDetailValue } from '../../services/vyralAiDetails';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -1200,7 +1200,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const importedMetadata = importedAsset?.metadata && typeof importedAsset.metadata === 'object' && !Array.isArray(importedAsset.metadata)
               ? importedAsset.metadata as Record<string, unknown> : {};
             await supabase.from('vyral_assets').update({
-              metadata: { ...importedMetadata, ai_details_status: 'unavailable', visibility: 'private' },
+              metadata: { ...importedMetadata, ...(importedMetadata.ai_details && typeof importedMetadata.ai_details === 'object' ? { ai_details: markVyralAiDetailsStale(importedMetadata.ai_details as VyralAiDetails) } : {}), ai_details_status: 'unavailable', visibility: 'private' },
             }).eq('id', assetId).eq('user_id', userId);
           }
         } catch (metadataCause) {
@@ -1208,7 +1208,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const { data: currentAsset } = await supabase.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
           const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
             ? currentAsset.metadata as Record<string, unknown> : {};
-          await supabase.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+          await supabase.from('vyral_assets').update({ metadata: { ...currentMetadata, ...(currentMetadata.ai_details && typeof currentMetadata.ai_details === 'object' ? { ai_details: markVyralAiDetailsStale(currentMetadata.ai_details as VyralAiDetails) } : {}), ai_details_status: 'unavailable' } })
             .eq('id', assetId).eq('user_id', userId);
         }
         completedAssets += 1;
