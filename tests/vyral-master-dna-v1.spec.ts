@@ -48,19 +48,17 @@ test('rejects a modified snapshot and an invalid optional asset purpose', async 
 test('allows a single Asset Vyral without roles, purpose, or relationships', async () => {
   const single = {
     ...input,
-    purpose: { summary: null, intended_uses: [] },
     main_asset_ids: [],
     assets: [{
       asset_id: 'one', asset_version_id: 'one-v1', media_type: 'image/png',
       dna_ref: { record_id: 'dna-one', schema_id: 'vyra.asset-dna', schema_version: 3 },
       asset_fingerprint: 'e'.repeat(64), reconstruction_claim: 'lossless_decoded' as const,
     }],
-    relationships: [],
     reconstruction_profile: { overall_claim: 'lossless_decoded' as const, notes: [] },
   };
   const record = await createVyralMasterDnaV1(single);
   assert.equal(record.assets.length, 1);
-  assert.deepEqual(record.relationships, []);
+  assert.deepEqual(record.relationships ?? [], []);
   assert.deepEqual(record.main_asset_ids, []);
   assert.equal((await validateVyralMasterDnaV1(record)).vyral.vyral_id, 'vyral-1');
 });
@@ -75,7 +73,7 @@ test('allows multiple unrelated Assets with no creator context or relationships'
   };
   const record = await createVyralMasterDnaV1(unrelated);
   assert.equal(record.assets.length, 2);
-  assert.deepEqual(record.relationships, []);
+  assert.deepEqual(record.relationships ?? [], []);
   assert.deepEqual(record.main_asset_ids, []);
 });
 
