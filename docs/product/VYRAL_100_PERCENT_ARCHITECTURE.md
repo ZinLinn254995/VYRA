@@ -119,6 +119,27 @@ Never label approximate similarity as exact. Every reconstruction result must st
 - A package that intentionally contains an Asset file as an Asset must remain distinguishable from a package-import action.
 - Export must be deterministic for the same authoritative records and selected components, except for explicitly documented non-deterministic metadata.
 
+### Seven supported component combinations
+
+The Vyral detail page exposes one simple Export menu. It must offer these seven non-empty combinations without exposing internal schema names:
+
+| User-facing label | Original Asset files | Full per-Asset DNA | Compact collection DNA |
+|---|---:|---:|---:|
+| Assets only | Yes | No | No |
+| Rebuild data only | No | Yes | No |
+| AI reference only | No | No | Yes |
+| Assets + rebuild data | Yes | Yes | No |
+| Assets + AI reference | Yes | No | Yes |
+| Rebuild + AI reference | No | Yes | Yes |
+| Everything | Yes | Yes | Yes |
+
+- Full per-Asset DNA includes the supported record and its declared reconstruction payload for every selected Asset. A whole-Vyral Full-DNA-only export is valid only when every Asset has exactly one supported current-version reconstruction record.
+- Compact collection DNA is a derived inventory/reference snapshot. It does not include original binaries or full reconstruction payloads and does not grant access to private Assets. Retrieval requires a separately authorized integration.
+- Assets-only packages must not silently include reconstruction records or collection reference data. Each combination must contain only the selected components, with an explicit component declaration in the manifest.
+- A compact-only package contains the collection reference and Asset inventory only. It must not contain original media, full DNA records, or hidden derivatives.
+- A Full-DNA-only package may include compact collection DNA only when the creator selects both components. Full-DNA-only must not silently inherit compact reference data.
+- Every package must retain enough manifest identity and inventory metadata to describe which Vyral and Assets the selected components belong to.
+
 ## 8. User experience constraints
 
 The ordinary user flow stays simple:
