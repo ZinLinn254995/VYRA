@@ -164,8 +164,8 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
       throw new Error('Master DNA relationship entry is invalid.');
     }
     relationshipIds.add(raw.relationship_id);
-    const from = validateEndpoint(raw.from, value.vyral.vyral_id as string, assetMap);
-    const to = validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
+    validateEndpoint(raw.from, value.vyral.vyral_id as string, assetMap);
+    validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
   }
   if (!isRecord(value.reconstruction_profile) ||
       !['lossless_decoded', 'source_file_exact', 'semantic_only', 'model_reconstructed', 'unavailable'].includes(String(value.reconstruction_profile.overall_claim)) ||
