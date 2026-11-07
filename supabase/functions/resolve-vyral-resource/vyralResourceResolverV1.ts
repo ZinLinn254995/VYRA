@@ -39,7 +39,7 @@ export const isSafePublicVyralResolverUriV1 = (value: unknown): value is string 
   try {
     const url = new URL(value);
     return url.protocol === 'https:' &&
-      /^[a-z0-9-]+\\.supabase\\.co$/i.test(url.hostname) &&
+      /^[a-z0-9-]+\.supabase\.co$/i.test(url.hostname) &&
       url.port === '' && url.username === '' && url.password === '' &&
       url.pathname === '/functions/v1/resolve-public-vyral-resource' &&
       url.search === '' && url.hash === '';
