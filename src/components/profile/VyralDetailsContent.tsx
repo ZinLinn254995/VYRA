@@ -12,7 +12,7 @@ import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
-import { setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails } from '../../services/vyralAiDetails';
+import { mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails } from '../../services/vyralAiDetails';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -325,14 +325,28 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }),
           currentDetails,
         });
-        const fields = suggested.fields;
-        const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
-        const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
-        const updateName = Boolean(suggestedName) && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default'));
-        const updateDescription = Boolean(suggestedDescription) && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default'));
+        // Re-read after model generation so creator edits made while AI was working remain authoritative.
+        const { data: latestVyral, error: latestReadError } = await supabase.from('vyrals')
+          .select('name,description,metadata').eq('id', vyral.id).maybeSingle();
+        if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Vyral was not found.');
+        const latestMetadata = latestVyral.metadata && typeof latestVyral.metadata === 'object' && !Array.isArray(latestVyral.metadata)
+          ? latestVyral.metadata as Record<string, unknown> : {};
+        const aiSuggestions = Object.fromEntries(Object.entries(suggested.fields)
+          .filter(([, field]) => field.origin === 'ai_suggested')
+          .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
+        const mergedDetails = mergeVyralAiDetails(latestMetadata.ai_details, {
+          scope: 'vyral', sourceRevision: revision, provider: suggested.provider, model: suggested.model,
+          generatedAt: suggested.generated_at, suggestions: aiSuggestions,
+        });
+        const latestNameOrigin = latestMetadata.identity_name_origin ?? 'system_default';
+        const latestDescriptionOrigin = latestMetadata.identity_description_origin ?? 'system_default';
+        const suggestedName = typeof mergedDetails.fields.name?.value === 'string' ? mergedDetails.fields.name.value.trim().slice(0, 100) : '';
+        const suggestedDescription = typeof mergedDetails.fields.description?.value === 'string' ? mergedDetails.fields.description.value.trim().slice(0, 1000) : '';
+        const updateName = Boolean(suggestedName) && ['system_default', 'ai_suggested'].includes(String(latestNameOrigin));
+        const updateDescription = Boolean(suggestedDescription) && ['system_default', 'ai_suggested'].includes(String(latestDescriptionOrigin));
         const nextMetadata = {
-          ...currentMetadata,
-          ai_details: suggested,
+          ...latestMetadata,
+          ai_details: mergedDetails,
           ai_details_status: 'ready',
           ai_details_source_revision: revision,
           ai_details_inventory_signature: inventorySignature,
