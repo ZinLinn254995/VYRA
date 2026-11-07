@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(4);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -50,10 +50,6 @@ insert into public.vyral_dna_records (
   'system'
 );
 
-select public.set_vyral_master_dna_asset_context(
-  '25000000-0000-4000-8000-000000000021', null, 'Creator-supplied context'
-);
-
 select is(
   (select master_dna_status from public.vyrals where id='25000000-0000-4000-8000-000000000011'),
   'ready',
@@ -80,11 +76,8 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"25000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 
-select lives_ok(
-  $ select public.set_vyral_master_dna_asset_context(
-    '25000000-0000-4000-8000-000000000021', null, 'Creator-supplied context'
-  ) $,
-  'An owner can save optional Asset context without selecting a role'
+select public.set_vyral_master_dna_asset_context(
+  '25000000-0000-4000-8000-000000000021', null, 'Creator-supplied context'
 );
 
 select is(
