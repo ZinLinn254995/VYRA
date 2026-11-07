@@ -157,7 +157,6 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     if (asset.role === 'main' && !mainIds.has(asset.asset_id)) throw new Error('Master DNA must list every declared Main Asset exactly once.');
     if (asset.role !== 'main' && mainIds.has(asset.asset_id)) throw new Error('Master DNA main asset list includes an Asset not declared Main.');
   }
-  const connected = new Set<string>();
   const relationshipIds = new Set<string>();
   for (const raw of value.relationships) {
     if (!isRecord(raw) || !isId(raw.relationship_id) || relationshipIds.has(raw.relationship_id) ||
@@ -167,8 +166,6 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     relationshipIds.add(raw.relationship_id);
     const from = validateEndpoint(raw.from, value.vyral.vyral_id as string, assetMap);
     const to = validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
-    if (from.kind === 'asset' && (to.kind === 'vyral' || to.asset_id !== from.asset_id)) connected.add(from.asset_id);
-    if (to.kind === 'asset' && (from.kind === 'vyral' || from.asset_id !== to.asset_id)) connected.add(to.asset_id);
   }
   if (!isRecord(value.reconstruction_profile) ||
       !['lossless_decoded', 'source_file_exact', 'semantic_only', 'model_reconstructed', 'unavailable'].includes(String(value.reconstruction_profile.overall_claim)) ||
