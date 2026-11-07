@@ -1026,46 +1026,46 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
-        // AI metadata is an optional enhancement: never roll back a valid upload or DNA
-        // record when the provider is unavailable.
+        // Re-analyze imported media when possible, preserving creator-authored details from the package.
+        // Metadata is optional and must never block a valid import or DNA restoration.
         try {
           const accessToken = await getCurrentAccessToken();
           if (accessToken) {
-            const suggestion = await suggestVyralAssetDetails(file, {
-              accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
+            const importedFile = new File([latest.bytes], originalFilename, { type: mimeType });
+            const sourceMetadata = objectValue(sourceAsset.metadata);
+            const suggestion = await suggestVyralAssetDetails(importedFile, {
+              accessToken, assetType: assetTypeValueSafe, sourceVersionId: latest.id, sourceRevision: latest.versionNumber,
+              currentDetails: sourceMetadata.ai_details,
             });
             const fields = suggestion.details.fields;
             const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
             const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
-            const { data: currentAsset } = await db.from('vyral_assets').select('metadata,name,description').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+            const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
             const { error: metadataError } = await db.from('vyral_assets').update({
-              ...(suggestedName ? { name: suggestedName } : {}),
-              ...(suggestedDescription ? { description: suggestedDescription } : {}),
+              ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { name: suggestedName } : {}),
+              ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { description: suggestedDescription } : {}),
               metadata: {
-                ...currentMetadata,
-                ai_details: suggestion.details,
-                ai_details_status: 'ready',
-                ai_details_source_version_id: version.id,
-                ...(suggestedName ? { identity_name_origin: 'ai_suggested' } : {}),
-                ...(suggestedDescription ? { identity_description_origin: 'ai_suggested' } : {}),
+                ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
+                ai_details_source_version_id: latest.id,
+                ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { identity_name_origin: 'ai_suggested' } : {}),
+                ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { identity_description_origin: 'ai_suggested' } : {}),
               },
-            }).eq('id', assetId).eq('user_id', auth.user.id);
-            if (metadataError) console.warn('[vyral-ai-details] Could not save AI suggestions for uploaded Asset.');
+            }).eq('id', assetId).eq('user_id', userId);
+            if (metadataError) console.warn('[vyral-ai-details] Could not save imported Asset suggestions.');
           } else {
             await db.from('vyral_assets').update({
-              metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending', identity_name_origin: 'system_default', identity_description_origin: 'system_default' },
-            }).eq('id', assetId).eq('user_id', auth.user.id);
+              metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, ai_details_status: 'pending', visibility: 'private' },
+            }).eq('id', assetId).eq('user_id', userId);
           }
         } catch (metadataCause) {
-          console.warn('[vyral-ai-details] Default details were unavailable for this Asset.', metadataCause);
-          const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+          console.warn('[vyral-ai-details] Imported Asset suggestions were unavailable.', metadataCause);
+          const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
           const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
             ? currentAsset.metadata as Record<string, unknown> : {};
-          await db.from('vyral_assets').update({
-            metadata: { ...currentMetadata, ai_details_status: 'unavailable' },
-          }).eq('id', assetId).eq('user_id', auth.user.id);
+          await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+            .eq('id', assetId).eq('user_id', userId);
         }
         completedAssets += 1;
         setPackageStatus('Restoring assets ' + completedAssets + ' / ' + importAssets.length + '…');
@@ -1472,6 +1472,39 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
+        // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
+        try {
+          const accessToken = await getCurrentAccessToken();
+          if (accessToken) {
+            const suggestion = await suggestVyralAssetDetails(file, {
+              accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
+            });
+            const fields = suggestion.details.fields;
+            const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
+            const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
+            const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+            const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+              ? currentAsset.metadata as Record<string, unknown> : {};
+            const { error: metadataError } = await db.from('vyral_assets').update({
+              ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { name: suggestedName } : {}),
+              ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { description: suggestedDescription } : {}),
+              metadata: {
+                ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
+                ai_details_source_version_id: version.id,
+                ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { identity_name_origin: 'ai_suggested' } : {}),
+                ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { identity_description_origin: 'ai_suggested' } : {}),
+              },
+            }).eq('id', assetId).eq('user_id', auth.user.id);
+            if (metadataError) console.warn('[vyral-ai-details] Could not save uploaded Asset suggestions.');
+          }
+        } catch (metadataCause) {
+          console.warn('[vyral-ai-details] Uploaded Asset suggestions were unavailable.', metadataCause);
+          const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+          const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+            ? currentAsset.metadata as Record<string, unknown> : {};
+          await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+            .eq('id', assetId).eq('user_id', auth.user.id);
+        }
       } catch (cause) {
         let preserveCommittedAsset = dnaCommitted;
         if (assetId && !preserveCommittedAsset) {
