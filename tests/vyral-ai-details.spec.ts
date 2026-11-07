@@ -83,10 +83,12 @@ test('AI detail parser accepts safe custom type-specific fields and structured v
     name: { value: 'Blue Heron' },
     visual_characteristics: { value: { dominant_colors: ['blue', 'grey'], pose: 'standing' }, confidence: 0.88 },
     production_notes: { value: ['soft light', 'wide framing'] },
+    visualStyle: { value: 'cinematic' },
   }));
   assert.equal(parsed.name.value, 'Blue Heron');
   assert.deepEqual(parsed.visual_characteristics.value, { dominant_colors: ['blue', 'grey'], pose: 'standing' });
   assert.deepEqual(parsed.production_notes.value, ['soft light', 'wide framing']);
+  assert.equal(parsed.visual_style.value, 'cinematic');
 });
 
 test('AI detail parser rejects unsafe or unsupported structured values', () => {
