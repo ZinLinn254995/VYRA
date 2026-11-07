@@ -123,3 +123,23 @@ test('AI suggestions may replace system defaults but never creator-authored valu
   assert.equal(replaced.fields.title.value, 'Suggested title');
   assert.equal(replaced.fields.title.origin, 'ai_suggested');
 });
+
+
+test('source changes discard stale AI guesses while retaining creator edits', () => {
+  const original = mergeVyralAiDetails(null, {
+    scope: 'asset', sourceVersionId: 'version-old', provider: 'gemini', model: 'vision', generatedAt,
+    suggestions: {
+      name: { value: 'AI name' },
+      category: { value: 'Old category' },
+    },
+  });
+  const edited = setVyralAiDetailField(original, 'name', 'Creator name', 'creator_edited', generatedAt);
+  const refreshed = mergeVyralAiDetails(edited, {
+    scope: 'asset', sourceVersionId: 'version-new', provider: 'gemini', model: 'vision', generatedAt,
+    suggestions: { style: { value: 'New style' } },
+  });
+  assert.equal(refreshed.fields.name.value, 'Creator name');
+  assert.equal(refreshed.fields.category, undefined);
+  assert.equal(refreshed.fields.style.value, 'New style');
+  assert.equal(refreshed.source_version_id, 'version-new');
+});
