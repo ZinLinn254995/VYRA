@@ -74,6 +74,16 @@ test('Asset DNA must match the pinned record, schema, source version, and source
   assert.equal(isVyralAssetDnaPinnedToVersionV1({ ...input, assetVersionId: 'version-2' }), false);
   assert.equal(isVyralAssetDnaPinnedToVersionV1({ ...input, dnaRecordId: 'dna-2' }), false);
   assert.equal(isVyralAssetDnaPinnedToVersionV1({ ...input, assetSha256: 'd'.repeat(64) }), false);
+  assert.equal(isVyralAssetDnaPinnedToVersionV1({
+    ...input,
+    dnaSource: { asset_id: 'asset-1', asset_version_id: 'version-1' },
+    dnaFileSha256: digest,
+  }), true);
+  assert.equal(isVyralAssetDnaPinnedToVersionV1({
+    ...input,
+    dnaSource: { asset_id: 'asset-1', asset_version_id: 'version-1' },
+    dnaFileSha256: 'f'.repeat(64),
+  }), false);
 });
 
 
