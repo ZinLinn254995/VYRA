@@ -383,7 +383,7 @@ Deno.serve(async (request: Request) => {
     vyralFingerprint: saved.vyral_fingerprint,
     reconstructionClaim: masterDna.reconstruction_profile.overall_claim,
     assetCount: masterDna.assets.length,
-    relationshipCount: masterDna.relationships.length,
+    relationshipCount: (masterDna.relationships ?? []).length,
     createdAt: saved.created_at,
   }, 201);
 });
