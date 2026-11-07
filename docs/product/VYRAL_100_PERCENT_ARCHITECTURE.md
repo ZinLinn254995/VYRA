@@ -239,3 +239,45 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Video is sampled into a small number of frames from the current version. Frame inspection does not imply that the video's audio track was transcribed or understood; communicate that limitation.
 - If a request containing image, PDF, audio, or video evidence fails, return an explicit media-inspection error. Never silently downgrade it to text-only Preview Mode or claim that the media was inspected.
 - Acceptance tests must cover latest-version resolution, private owner-authorized access, license denial, MIME/signature mismatch, oversized files, PDF/audio inspection, sampled video frames, and fail-closed behavior when the multimodal provider is unavailable.
+
+## 14. AI-generated default details with creator editing
+
+### Product behavior
+
+- On Asset upload/generation, Vyral creation/import, and creation of supported structured content (including Storyboards), VYRA should prepare useful default details based on the detected content type and available evidence.
+- Suggested details may include a clear name/title, short description, type, category, tags, style, format, subject/topic, intended use, and other fields relevant to that specific type.
+- Storyboards may additionally receive a suggested title, concept, format, visual style, scene/shot summaries, sequence, and other storyboard-specific details when the source content supports them.
+- Different content types use different detail templates. Do not show irrelevant fields just because they exist in a universal schema.
+- AI suggestions should appear as useful defaults without requiring the user to answer a form or understand classification terminology. Users can edit individual fields manually, accept defaults, or leave uncertain fields blank.
+- Manual edits are authoritative creator input and must not be silently overwritten by later AI analysis. A later AI refresh may suggest changes separately, but must preserve the creator's saved values unless the creator explicitly accepts replacements.
+- Users may correct name, category, type, style, description, tags, and any other editable details at any time.
+- The same principle applies at Asset and Vyral level, but Vyral-level details describe the collection as a whole while Asset-level details describe only that Asset.
+
+### Evidence and provenance
+
+- Deterministic file facts (MIME type, dimensions, duration, byte size, file structure, timestamps where reliable, and cryptographic fingerprints) are extracted by software, not invented by AI.
+- AI may infer semantic details from actual content and creator-provided context. It must not infer unsupported facts from a filename alone when content is available for inspection.
+- Store AI-generated values with provenance such as provider/model, generated time, source Asset/version or source inventory revision, confidence where meaningful, and review status.
+- Distinguish ai_suggested, creator_confirmed, and creator_edited values or equivalent field-level provenance. Do not present low-confidence guesses as confirmed facts.
+- If content cannot be inspected or evidence is insufficient, return a minimal safe suggestion (for example a neutral filename-based title) and leave uncertain categories/styles blank or explicitly marked as suggestions.
+- AI-generated details are descriptive metadata only. They are not Asset DNA, do not replace deterministic fingerprints or reconstruction payloads, and are never required for a Vyral to be valid or exported/imported.
+- Suggested type/category/style labels must remain extensible. Unknown, custom, mixed, and user-defined categories are valid; the taxonomy must not constrain what creators can store.
+
+### Editing and UX
+
+- Show the generated name and the most useful few details by default. Keep advanced/less relevant details tucked away until the user chooses to edit or view more.
+- Each field should be independently editable. A single edit must not force the user to regenerate or re-enter all other details.
+- Provide a simple way to correct an AI suggestion and, where useful, request a fresh suggestion. Never require accepting AI metadata to upload, create, use, share, or export an Asset/Vyral.
+- Preserve creator descriptions and edits across re-analysis, version changes, import, and export. When source content changes, mark AI suggestions tied to an older version as stale rather than silently applying them to the new version.
+- Avoid a mandatory metadata wizard. Auto-fill first; let the user edit only what they care about.
+
+### Acceptance tests
+
+1. Upload representative image, video, audio, document, prompt, and other supported Asset types; confirm type-appropriate default details are generated when evidence is available.
+2. Create a Vyral with one Asset and with multiple unrelated Assets; confirm Vyral-level suggestions summarize the collection without inventing relationships or a storyline.
+3. Create a Storyboard; confirm storyboard-specific fields are suggested only when applicable and scene order is preserved from the source.
+4. Edit generated name, description, category, and style manually; run another analysis and confirm creator edits remain unchanged.
+5. Change an Asset source version; confirm version-bound AI suggestions become stale and do not overwrite creator-confirmed details.
+6. Test uncertain, mixed, unknown, and custom categories; confirm the system does not force a false classification.
+7. Disable or fail the AI provider; confirm upload, Vyral creation, DNA generation, import/export, and ordinary use still work with safe minimal metadata.
+8. Verify AI details remain separate from deterministic Asset DNA, Fingerprints, and Vyral DNA integrity claims.
