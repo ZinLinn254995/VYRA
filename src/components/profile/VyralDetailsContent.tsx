@@ -282,7 +282,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   useEffect(() => {
     if (!supabase || assets.length === 0) return;
     const inventorySignature = assets
-      .map((asset) => [asset.id, asset.updated_at, asset.sha256 ?? '', asset.description ?? ''].join(':'))
+      .map((asset) => [
+        asset.id, asset.name, asset.asset_type, asset.mime_type, asset.updated_at, asset.sha256 ?? '',
+        asset.description ?? '', JSON.stringify(asset.metadata?.ai_details ?? {}),
+      ].join(':'))
       .sort()
       .join('|');
     let revision = 2166136261;
