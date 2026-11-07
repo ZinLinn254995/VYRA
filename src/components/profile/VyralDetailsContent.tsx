@@ -419,7 +419,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       } catch (cause) {
         console.warn('[vyral-ai-details] Collection suggestions were unavailable.', cause);
         const { data: latestFailureState } = await supabase.from('vyrals').select('metadata').eq('id', vyral.id).maybeSingle();
-        const latestFailureMetadata = latestFailureState?.metadata && typeof latestFailureState.metadata === 'object' && !Array.isArray(latestFailureState.metadata)
+        if (latestFailureState) {
+        const latestFailureMetadata = latestFailureState.metadata && typeof latestFailureState.metadata === 'object' && !Array.isArray(latestFailureState.metadata)
           ? latestFailureState.metadata as Record<string, unknown> : {};
         const latestFailureDetails = latestFailureMetadata.ai_details as VyralAiDetails | undefined;
         const latestDetailsAreCurrent = Boolean(latestFailureDetails && latestFailureDetails.source_revision === revision && !latestFailureDetails.stale);
@@ -430,6 +431,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         };
         const { error: statusError } = await supabase.from('vyrals').update({ metadata: unavailableMetadata }).eq('id', vyral.id);
         if (!statusError) onVyralUpdated({ metadata: unavailableMetadata });
+        }
       }
     })();
   }, [assets, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
@@ -1225,19 +1227,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (metadataError) console.warn('[vyral-ai-details] Could not save imported Asset suggestions.');
           } else {
             const { data: importedAsset } = await supabase.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
-            const importedMetadata = importedAsset?.metadata && typeof importedAsset.metadata === 'object' && !Array.isArray(importedAsset.metadata)
-              ? importedAsset.metadata as Record<string, unknown> : {};
-            await supabase.from('vyral_assets').update({
-              metadata: { ...importedMetadata, ...(importedMetadata.ai_details && typeof importedMetadata.ai_details === 'object' ? { ai_details: markVyralAiDetailsStale(importedMetadata.ai_details as VyralAiDetails) } : {}), ai_details_status: 'unavailable', visibility: 'private' },
-            }).eq('id', assetId).eq('user_id', userId);
+            if (importedAsset) {
+              const importedMetadata = importedAsset.metadata && typeof importedAsset.metadata === 'object' && !Array.isArray(importedAsset.metadata)
+                ? importedAsset.metadata as Record<string, unknown> : {};
+              await supabase.from('vyral_assets').update({
+                metadata: { ...importedMetadata, ...(importedMetadata.ai_details && typeof importedMetadata.ai_details === 'object' ? { ai_details: markVyralAiDetailsStale(importedMetadata.ai_details as VyralAiDetails) } : {}), ai_details_status: 'unavailable', visibility: 'private' },
+              }).eq('id', assetId).eq('user_id', userId);
+            }
           }
         } catch (metadataCause) {
           console.warn('[vyral-ai-details] Imported Asset suggestions were unavailable.', metadataCause);
           const { data: currentAsset } = await supabase.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
-          const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
-            ? currentAsset.metadata as Record<string, unknown> : {};
-          await supabase.from('vyral_assets').update({ metadata: { ...currentMetadata, ...(currentMetadata.ai_details && typeof currentMetadata.ai_details === 'object' ? { ai_details: markVyralAiDetailsStale(currentMetadata.ai_details as VyralAiDetails) } : {}), ai_details_status: 'unavailable' } })
-            .eq('id', assetId).eq('user_id', userId);
+          if (currentAsset) {
+            const currentMetadata = currentAsset.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+              ? currentAsset.metadata as Record<string, unknown> : {};
+            await supabase.from('vyral_assets').update({ metadata: { ...currentMetadata, ...(currentMetadata.ai_details && typeof currentMetadata.ai_details === 'object' ? { ai_details: markVyralAiDetailsStale(currentMetadata.ai_details as VyralAiDetails) } : {}), ai_details_status: 'unavailable' } })
+              .eq('id', assetId).eq('user_id', userId);
+          }
         }
         completedAssets += 1;
         setPackageStatus('Restoring assets ' + completedAssets + ' / ' + importAssets.length + '…');
@@ -1711,18 +1717,22 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (metadataError) console.warn('[vyral-ai-details] Could not save uploaded Asset suggestions.');
           } else {
             const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
-            const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
-              ? currentAsset.metadata as Record<string, unknown> : {};
-            await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
-              .eq('id', assetId).eq('user_id', auth.user.id);
+            if (currentAsset) {
+              const currentMetadata = currentAsset.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+                ? currentAsset.metadata as Record<string, unknown> : {};
+              await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+                .eq('id', assetId).eq('user_id', auth.user.id);
+            }
           }
         } catch (metadataCause) {
           console.warn('[vyral-ai-details] Uploaded Asset suggestions were unavailable.', metadataCause);
           const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
-          const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
-            ? currentAsset.metadata as Record<string, unknown> : {};
-          await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
-            .eq('id', assetId).eq('user_id', auth.user.id);
+          if (currentAsset) {
+            const currentMetadata = currentAsset.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+              ? currentAsset.metadata as Record<string, unknown> : {};
+            await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+              .eq('id', assetId).eq('user_id', auth.user.id);
+          }
         }
       } catch (cause) {
         let preserveCommittedAsset = dnaCommitted;
