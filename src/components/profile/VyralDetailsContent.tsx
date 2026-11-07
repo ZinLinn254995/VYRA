@@ -2104,8 +2104,21 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const currentMetadata = vyral.metadata ?? {};
       const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
       const generatedAt = new Date().toISOString();
+      const inventorySignature = assets
+        .map((asset) => [
+          asset.id, asset.name, asset.asset_type, asset.mime_type, asset.updated_at, asset.sha256 ?? '',
+          asset.description ?? '', JSON.stringify(asset.metadata?.ai_details ?? {}),
+        ].join(':'))
+        .sort()
+        .join('|');
+      let sourceRevision = 2166136261;
+      for (let index = 0; index < inventorySignature.length; index += 1) {
+        sourceRevision ^= inventorySignature.charCodeAt(index);
+        sourceRevision = Math.imul(sourceRevision, 16777619);
+      }
+      sourceRevision >>>= 0;
       const baseDetails: VyralAiDetails = currentDetails ?? {
-        schema_version: 1, scope: 'vyral', source_version_id: null, source_revision: assets.length,
+        schema_version: 1, scope: 'vyral', source_version_id: null, source_revision: sourceRevision,
         provider: 'creator', model: 'manual', generated_at: generatedAt, stale: false, fields: {},
       };
       let updatedDetails = setVyralAiDetailField(baseDetails, 'name', collectionDraft.name.trim(), 'creator_edited', generatedAt);
@@ -2113,8 +2126,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       updatedDetails = setVyralAiDetailField(updatedDetails, 'category', collectionDraft.category.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'style', collectionDraft.style.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', collectionDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      updatedDetails = { ...updatedDetails, source_revision: sourceRevision, stale: false };
       const nextMetadata = {
         ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
+        ai_details_source_revision: sourceRevision, ai_details_inventory_signature: inventorySignature,
         identity_name_origin: 'creator_edited', identity_description_origin: 'creator_edited',
       };
       const { error: updateError } = await supabase.from('vyrals').update({
