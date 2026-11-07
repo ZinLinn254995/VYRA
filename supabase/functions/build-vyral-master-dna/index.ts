@@ -22,7 +22,7 @@ const getPublicResolverUri = (): string | null => {
   if (!projectUrl) return null;
   try {
     const url = new URL(projectUrl);
-    if (url.protocol !== 'https:' || !/^[a-z0-9-]+\\.supabase\\.co$/i.test(url.hostname)) return null;
+    if (url.protocol !== 'https:' || !/^[a-z0-9-]+\.supabase\.co$/i.test(url.hostname)) return null;
     return url.origin + '/functions/v1/resolve-public-vyral-resource';
   } catch {
     return null;
