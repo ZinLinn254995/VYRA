@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
@@ -107,6 +107,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
   const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
   const [extractingDnaV3, setExtractingDnaV3] = useState(false);
@@ -337,7 +338,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async (dnaOnly = false, selectedAssetId?: string) => {
+  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string) => {
+    const dnaOnly = !components.assets && components.fullDna;
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
     setError('');
@@ -378,13 +380,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       }
+      if (components.compactDna && !portableMasterDna) throw new Error('Collection reference data is not ready yet. Please try again after the Vyral finishes updating.');
       let totalMediaBytes = 0;
       const ownerless = <T extends Record<string, unknown>>(record: T) => {
         const { user_id: _userId, vyral_id: _vyralId, storage_path: _storagePath, ...safe } = record;
         return safe;
       };
 
-      for (const asset of (dnaOnly ? [] : assets)) {
+      for (const asset of (components.assets ? assets : [])) {
         const savedVersions = versions.filter((version) => version.asset_id === asset.id);
         const sourceVersions = savedVersions.length ? savedVersions : [{
           id: 'current-' + asset.id,
@@ -423,7 +426,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
 
       const manifest = {
-        exportMode: dnaOnly ? 'dna-only' : 'full',
+        exportMode: dnaOnly ? 'dna-only' : (!components.assets && !components.fullDna ? 'compact-only' : 'full'),
+        exportComponents: { ...components },
         format: VYRAL_PACKAGE_FORMAT,
         formatVersion: VYRAL_PACKAGE_VERSION,
         packageId: crypto.randomUUID(),
@@ -436,11 +440,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dna_status: vyral.dna_status,
           license_policy: vyral.license_policy ?? {},
         },
-        ...(!selectedAssetId && portableMasterDna ? { masterDna: portableMasterDna } : {}),
-        folders: folders.map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        ...(!selectedAssetId && components.compactDna && portableMasterDna ? { masterDna: portableMasterDna } : {}),
+        folders: components.assets ? folders.map((item) => ownerless(item as unknown as Record<string, unknown>)) : [],
         assets: packageAssets.map((item) => ownerless(item as unknown as Record<string, unknown>)), 
         versions: packageVersions,
-        dnaRecords: dnaRecords.filter((item) => !dnaOnly || !selectedAssetId || item.asset_id === selectedAssetId).map((item) => {
+        dnaRecords: (components.fullDna ? dnaRecords.filter((item) => !dnaOnly || !selectedAssetId || item.asset_id === selectedAssetId) : []).map((item) => {
           const safeRecord = ownerless(item as unknown as Record<string, unknown>);
           const safePayload = { ...asRecord(safeRecord.payload) };
           delete safePayload.tile_storage_paths;
@@ -454,12 +458,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             payload: safePayload,
           };
         }),
-        fingerprints: (dnaOnly ? fingerprints.filter((item) => !item.asset_version_id) : fingerprints).map((item) => ownerless(item as unknown as Record<string, unknown>)),
+        fingerprints: (components.fullDna ? (dnaOnly ? fingerprints.filter((item) => !item.asset_version_id) : fingerprints) : []).map((item) => ownerless(item as unknown as Record<string, unknown>)),
         // DNA-only exports omit binary versions, so keep only evidence that is not bound to an omitted version.
         
-        visionObservations: (dnaOnly ? observations.filter((item) => !item.asset_version_id) : observations).map((item) => ownerless(item as unknown as Record<string, unknown>)), 
-        lineage: lineage.map((item) => ownerless(item as unknown as Record<string, unknown>)),
-        reconstructionTests: (dnaOnly ? reconstructionTests.filter((item) => !item.asset_version_id) : reconstructionTests).map((item) => ownerless(item as unknown as Record<string, unknown>)), 
+        visionObservations: (components.fullDna ? (dnaOnly ? observations.filter((item) => !item.asset_version_id) : observations) : []).map((item) => ownerless(item as unknown as Record<string, unknown>)), 
+        lineage: components.fullDna ? lineage.map((item) => ownerless(item as unknown as Record<string, unknown>)) : [],
+        reconstructionTests: (components.fullDna ? (dnaOnly ? reconstructionTests.filter((item) => !item.asset_version_id) : reconstructionTests) : []).map((item) => ownerless(item as unknown as Record<string, unknown>)), 
       };
       packageEntries.push({
         path: 'README.txt',
@@ -486,7 +490,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       if (new TextEncoder().encode(manifestJson).byteLength > 32 * 1024 * 1024) throw new Error('VYRAL manifest exceeds the 32 MB package limit. Reduce the number of large AI evidence records before exporting.');
       packageEntries.push({ path: 'manifest.json', data: manifestJson });
       let archive: Blob;
-      if (!dnaOnly) {
+      if (components.assets && components.fullDna) {
         for (const sourceRow of dnaRecords.filter((record) =>
           record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3
         )) {
@@ -592,12 +596,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         );
       } else {
         archive = createVyralZip(packageEntries);
+        archive = await selectVyralPackageComponents(archive, components);
       }
       const url = window.URL.createObjectURL(archive);
       const anchor = document.createElement('a');
       const safeName = vyral.name.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'Vyral';
       anchor.href = url;
-      anchor.download = safeName + (dnaOnly ? '-DNA-ONLY-TEST' : '') + '.vyral';
+      anchor.download = safeName + '.vyral';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
