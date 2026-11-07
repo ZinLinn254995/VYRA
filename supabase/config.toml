@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.resolve-vyral-resource]
 verify_jwt = true
+
+[functions.resolve-public-vyral-resource]
+verify_jwt = false
