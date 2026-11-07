@@ -30,6 +30,16 @@ For each \`vyra.asset-file-dna\` v1 record with \`source_file_exact\`:
 4. Verify the final byte length and SHA-256 against \`dna_record.file\`.
 5. Save the exact original bytes using the Asset's original filename when available.
 
+## Public retrieval
+
+If `manifest.json` contains `masterDna.portable_projection.resolver_uri`, the creator has enabled the canonical public resolver for this public Vyral:
+
+- POST `{"action":"master","vyralId":"..." }` to retrieve the current collection snapshot.
+- POST `{"action":"asset_dna","vyralId":"...","assetId":"...","assetVersionId":"..." }` to retrieve one selected Asset's DNA and short-lived tile URLs.
+- POST `{"action":"asset_source","vyralId":"...","assetId":"...","assetVersionId":"..." }` only when the creator also allows redistribution of the original Asset.
+
+The resolver independently checks current public visibility, the creator's AI-analysis permission, exact Asset/version membership, snapshot integrity, and source fingerprints. Do not append tokens or credentials to the resolver URL. Private and unlisted Vyrals do not publish this resolver; reconstruct those from the Full DNA payload included in the package.
+
 ## Selection and trust
 
 - Reconstruct only the Asset IDs requested by the user. Unselected Assets must not influence the result.
