@@ -5,6 +5,7 @@ import { AIChatPage } from './components/ai/AIChatPage';
 import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
+import type { VyralChatAssetContext } from './types/vyralChat';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -19,6 +20,7 @@ function MarketplaceApp() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
+  const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
   const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -112,9 +114,10 @@ function MarketplaceApp() {
               backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
               onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
               onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage}
+              onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
             />
           ) : activeSection === 'ai-chat' ? (
-            <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} />
+            <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} />
           ) : activeSection === 'workspace' ? (
             <WorkspacePage
               storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
