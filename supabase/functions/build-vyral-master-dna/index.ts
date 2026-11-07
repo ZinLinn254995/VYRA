@@ -17,6 +17,18 @@ const isUuid = (value: unknown): value is string =>
   typeof value === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
+const getPublicResolverUri = (): string | null => {
+  const projectUrl = Deno.env.get('SUPABASE_URL');
+  if (!projectUrl) return null;
+  try {
+    const url = new URL(projectUrl);
+    if (url.protocol !== 'https:' || !/^[a-z0-9-]+\\.supabase\\.co$/i.test(url.hostname)) return null;
+    return url.origin + '/functions/v1/resolve-public-vyral-resource';
+  } catch {
+    return null;
+  }
+};
+
 const isSha256 = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
 
@@ -62,7 +74,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: vyral, error: vyralError } = await context.supabase
     .from('vyrals')
-    .select('id,user_id,name,created_at,updated_at,visibility,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses')
+    .select('id,user_id,name,created_at,updated_at,visibility,license_policy,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses')
     .eq('id', body.vyralId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -142,6 +154,10 @@ Deno.serve(async (request: Request) => {
 
   const relationships = relationshipsResult.data ?? [];
   const reconstructionTests = testsResult.data ?? [];
+  const licensePolicy = asRecord(vyral.license_policy);
+  const publicResolverUri = vyral.visibility === 'public' && licensePolicy.allow_ai_analysis !== false
+    ? getPublicResolverUri()
+    : null;
   const preflight = preflightVyralMasterDna({
     assets: (assets as Row[]).map((asset) => {
       const version = latestVersionByAsset.get(asset.id);
@@ -333,14 +349,16 @@ Deno.serve(async (request: Request) => {
       source_resolution: {
         visibility: vyral.visibility,
         canonical_uri: null,
-        resolution_policy: 'no_remote_resolution',
+        resolution_policy: publicResolverUri ? 'public_assets' : 'no_remote_resolution',
       },
       portable_projection: {
         profile: 'compact',
         includes_full_reconstruction_payloads: false,
-        resolver_uri: null,
-        retrieval_policy: 'no_remote_resolution',
-        notes: ['This revision is self-describing. Remote source resolution is not enabled in this release.'],
+        resolver_uri: publicResolverUri,
+        retrieval_policy: publicResolverUri ? 'authorized_selective_retrieval' : 'no_remote_resolution',
+        notes: [publicResolverUri
+          ? 'Public Asset retrieval uses the canonical resolver and is limited by the creator license policy.'
+          : 'Remote retrieval is disabled for this visibility or AI-analysis permission setting.'],
       },
     });
   } catch (error) {
