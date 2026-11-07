@@ -92,6 +92,80 @@ const createSelectedAssetVisionPreview = async (source: Blob): Promise<VyralVisi
   } finally { bitmap.close(); }
 };
 
+const readBlobAsBase64 = async (blob: Blob): Promise<string> => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the selected media file.'));
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid media file encoding.'));
+    reader.readAsDataURL(blob);
+  });
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) throw new Error('Invalid media file encoding.');
+  return dataUrl.slice(comma + 1);
+};
+
+const extractSelectedVideoFrames = async (
+  source: Blob,
+  assetId: string,
+  assetName: string,
+  maxFrames: number,
+): Promise<(VyralVisionImage & { assetId: string; assetName: string })[]> => {
+  if (maxFrames <= 0) return [];
+  const objectUrl = URL.createObjectURL(source);
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = objectUrl;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('This video format could not be opened for frame inspection.'));
+    });
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error('This video has no readable duration.');
+    const frameCount = Math.min(4, maxFrames);
+    const timestamps = Array.from({ length: frameCount }, (_, index) =>
+      frameCount === 1 ? 0 : Math.min(Math.max(0, duration - 0.05), duration * index / frameCount)
+    ).filter((time, index, all) => all.indexOf(time) === index);
+    const frames: (VyralVisionImage & { assetId: string; assetName: string })[] = [];
+    for (const time of timestamps) {
+      if (Math.abs(video.currentTime - time) > 0.02) {
+        await new Promise<void>((resolve, reject) => {
+          const onSeeked = () => { cleanup(); resolve(); };
+          const onError = () => { cleanup(); reject(new Error('A video frame could not be decoded.')); };
+          const cleanup = () => { video.removeEventListener('seeked', onSeeked); video.removeEventListener('error', onError); };
+          video.addEventListener('seeked', onSeeked, { once: true });
+          video.addEventListener('error', onError, { once: true });
+          video.currentTime = time;
+        });
+      }
+      const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Could not prepare a video frame for AI Vision.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frameBlob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode a video frame.')), 'image/jpeg', 0.78)
+      );
+      const preview = await createSelectedAssetVisionPreview(frameBlob);
+      const minutes = Math.floor(time / 60).toString().padStart(2, '0');
+      const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+      frames.push({ ...preview, assetId, assetName: `${assetName} · ${minutes}:${seconds}` });
+    }
+    return frames;
+  } finally {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
 const canonicalizeAttachmentJson = (value: unknown): string => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
   if (Array.isArray(value)) return '[' + value.map(canonicalizeAttachmentJson).join(',') + ']';
@@ -316,6 +390,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       return;
     }
     let visionImages = [...selectedVyralImages];
+    const mediaFiles: {
+      mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac';
+      data: string;
+      assetId?: string;
+      assetName?: string;
+    }[] = [];
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
@@ -371,33 +451,58 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           if (version.vyral_id !== asset.vyral_id) throw new Error('A selected Asset version no longer belongs to its Vyral: ' + asset.name);
           const mimeType = String(version.mime_type || asset.mime_type || '').toLowerCase();
           const filename = String(asset.name || '').toLowerCase();
-          const needsSource = mimeType.startsWith('image/') ||
-            mimeType.startsWith('text/') ||
+          const extension = filename.split('.').pop() || '';
+          const isTextLike = mimeType.startsWith('text/') ||
             ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
             /\.(txt|md|csv|json|xml|log)$/i.test(filename);
+          const isPdf = mimeType === 'application/pdf' || extension === 'pdf';
+          const audioMime = (mimeType === 'audio/mp3' || mimeType === 'audio/x-mp3') ? 'audio/mpeg'
+            : mimeType === 'audio/x-wav' ? 'audio/wav'
+              : mimeType === 'audio/x-flac' ? 'audio/flac' : mimeType;
+          const isAudio = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(audioMime) ||
+            ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(extension);
+          const isVideo = mimeType.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v'].includes(extension);
+          const needsSource = mimeType.startsWith('image/') || isTextLike || isPdf || isAudio || isVideo;
           if (!needsSource) continue;
-          if (Number(version.size_bytes) > 20 * 1024 * 1024) throw new Error('Selected Asset is too large to inspect safely: ' + asset.name);
+          const sourceLimit = isPdf || isAudio ? 2 * 1024 * 1024 : 20 * 1024 * 1024;
+          if (Number(version.size_bytes) > sourceLimit) throw new Error(`Selected Asset exceeds the ${isPdf || isAudio ? '2 MB document/audio' : '20 MB media'} inspection limit: ${asset.name}`);
           const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60);
           if (signedError || !signed?.signedUrl) throw new Error('Could not securely open the current version of selected Asset: ' + asset.name);
           const response = await fetch(signed.signedUrl);
           if (!response.ok) throw new Error('Could not load the current version of selected Asset: ' + asset.name);
           const blob = await response.blob();
-          if (blob.size > 20 * 1024 * 1024) throw new Error('Selected Asset is too large to inspect safely: ' + asset.name);
+          if (blob.size > sourceLimit) throw new Error('Selected Asset exceeds its safe inspection limit: ' + asset.name);
           if (mimeType.startsWith('image/')) {
-            if (visionImages.length >= 4) continue;
-            const preview = await createSelectedAssetVisionPreview(blob);
-            visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
-          } else {
-            const textLike = mimeType.startsWith('text/') ||
-              ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
-              /\.(txt|md|csv|json|xml|log)$/i.test(filename);
-            if (textLike) {
-              const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
-              const bounded = decoded.slice(0, 24000);
-              const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
-              const currentMessage = nextMessages[nextMessages.length - 1];
-              currentMessage.content += `\n\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\n${bounded}${marker}`;
+            if (visionImages.length < 4) {
+              const preview = await createSelectedAssetVisionPreview(blob);
+              visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
             }
+          } else if (isTextLike) {
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
+            const bounded = decoded.slice(0, 24000);
+            const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
+            const currentMessage = nextMessages[nextMessages.length - 1];
+            currentMessage.content += `\n\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\n${bounded}${marker}`;
+          } else if (isPdf || isAudio) {
+            if (mediaFiles.length >= 4) throw new Error('Select no more than four PDF/audio files for one AI request.');
+            const mediaMime = isPdf ? 'application/pdf' : audioMime;
+            if (!['application/pdf', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(mediaMime)) {
+              throw new Error('This audio format is not supported for direct AI inspection: ' + asset.name);
+            }
+            mediaFiles.push({
+              mimeType: mediaMime as typeof mediaFiles[number]['mimeType'],
+              data: await readBlobAsBase64(blob),
+              assetId: asset.id,
+              assetName: asset.name,
+            });
+            const currentMessage = nextMessages[nextMessages.length - 1];
+            currentMessage.content += `\n\nAttached source for direct AI inspection: ${asset.name} (${isPdf ? 'PDF document' : 'audio'}; current version ${version.version_number}).`;
+          } else if (isVideo) {
+            const remaining = Math.max(0, 4 - visionImages.length);
+            const frames = await extractSelectedVideoFrames(blob, asset.id, asset.name, remaining);
+            visionImages.push(...frames);
+            const currentMessage = nextMessages[nextMessages.length - 1];
+            currentMessage.content += `\n\nVideo frames attached for visual inspection: ${asset.name}; ${frames.length} sampled frames from the current version (${version.version_number}). Audio track transcription is not included.`;
           }
         }
       }
@@ -407,6 +512,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
+        ...(mediaFiles.length ? { mediaFiles } : {}),
       });
       setMessages((previous) => [...previous, {
         id: makeId(),
