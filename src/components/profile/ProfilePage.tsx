@@ -9,6 +9,7 @@ import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
+import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type ProfilePageProps = {
   userEmail: string;
@@ -22,6 +23,7 @@ type ProfilePageProps = {
   onSignOut: () => void;
   onLoginRequired: () => void;
   initialPage?: 'my-vyrals' | 'my-media-library' | null;
+  onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void;
 };
 
 type PageKey =
@@ -129,7 +131,7 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null, onSendAssetsToChat,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
   const [pageSearch, setPageSearch] = useState('');
@@ -197,7 +199,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </>
       ) : activePage === 'my-vyrals' ? (
-        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} />
+        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} onSendAssetsToChat={onSendAssetsToChat} />
       ) : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <ProfileSubpageHeader
