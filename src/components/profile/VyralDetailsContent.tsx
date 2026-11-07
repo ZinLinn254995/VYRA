@@ -1152,8 +1152,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
             const { error: metadataError } = await supabase.from('vyral_assets').update({
-              ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { name: suggestedName } : {}),
-              ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { description: suggestedDescription } : {}),
+              ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'creator_confirmed')) ? { name: suggestedName } : {}),
+              ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'creator_confirmed')) ? { description: suggestedDescription } : {}),
               metadata: {
                 ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
                 ai_details_source_version_id: latest.id,
