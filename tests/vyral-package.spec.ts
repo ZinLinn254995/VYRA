@@ -688,14 +688,30 @@ test('imports legacy DNA-only packages after dropping version-bound evidence whi
   }, [fileDna.record], fileDna.entries);
   const cleanFiles = await readVyralZip(new Uint8Array(await cleanArchive.arrayBuffer()));
   const cleanManifest = JSON.parse(new TextDecoder().decode(cleanFiles.get('manifest.json')!));
-  cleanManifest.dnaRecords.push({
-    id: 'legacy-file-dna-v1',
+  const portableFileRecord = cleanManifest.dnaRecords[0];
+  // Historical exports stored the schema identity and DNA body inside the
+  // database row's payload instead of at the portable manifest record root.
+  cleanManifest.dnaRecords = [{
+    id: 'legacy-database-row-id',
     scope: 'asset',
     asset_id: 'asset-test',
-    dna_schema_id: 'vyra.asset-file-dna',
-    dna_schema_version: 0,
-    dna_record: { legacy: true },
-  });
+    source_kind: 'creator',
+    payload: {
+      dna_schema_id: portableFileRecord.dna_schema_id,
+      dna_schema_version: portableFileRecord.dna_schema_version,
+      dna_record: portableFileRecord.dna_record,
+      recovery_level: portableFileRecord.recovery_level,
+    },
+  }, {
+    id: 'legacy-unsupported-file-dna',
+    scope: 'asset',
+    asset_id: 'asset-test',
+    payload: {
+      dna_schema_id: 'vyra.asset-file-dna',
+      dna_schema_version: 0,
+      dna_record: { legacy: true },
+    },
+  }];
   cleanManifest.fingerprints = [{ id: 'old-fingerprint', asset_id: 'asset-test', asset_version_id: 'omitted-version' }];
   cleanManifest.visionObservations = [{ id: 'old-observation', asset_id: 'asset-test', asset_version_id: 'omitted-version' }];
   cleanManifest.lineage = [{ id: 'old-lineage', parent_asset_id: 'asset-test', child_asset_id: 'asset-test' }];
