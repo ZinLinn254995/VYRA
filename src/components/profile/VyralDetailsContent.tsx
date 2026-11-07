@@ -8,7 +8,7 @@ import {
 import { supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
-import { createVyralDnaV3, type VyralDnaV3Record } from '../../services/vyralDnaV3';
+import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 
 type Vyral = {
@@ -65,40 +65,6 @@ const assetType = (file: File) => {
   if (['zip','rar','7z','tar','gz'].includes(ext)) return 'archive';
   if (file.type.startsWith('text/') || file.type === 'application/pdf' || file.type.includes('document') || ['doc','docx','xls','xlsx','ppt','pptx','pdf','txt','md','json'].includes(ext)) return 'document';
   return 'other';
-};
-const decodeRasterImageForDnaV3 = async (file: File) => {
-  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type.toLowerCase())) {
-    throw new Error('Automatic lossless DNA v3 extraction currently supports PNG, JPEG and WebP images only.');
-  }
-  if (typeof createImageBitmap !== 'function') throw new Error('This browser does not support the required image decoder for DNA v3.');
-  const bitmap = await createImageBitmap(file, {
-    imageOrientation: 'none',
-    premultiplyAlpha: 'none',
-    colorSpaceConversion: 'default',
-  });
-  try {
-    const pixelCount = bitmap.width * bitmap.height;
-    if (!Number.isSafeInteger(pixelCount) || pixelCount <= 0 || pixelCount > 20_000_000) {
-      throw new Error('Image exceeds the 20-megapixel automatic DNA v3 extraction limit.');
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) throw new Error('Could not initialize the browser canvas decoder for DNA v3.');
-    context.drawImage(bitmap, 0, 0);
-    const imageData = context.getImageData(0, 0, bitmap.width, bitmap.height);
-    const samples = new Uint8Array(imageData.data.length);
-    samples.set(imageData.data);
-    return {
-      width: bitmap.width,
-      height: bitmap.height,
-      samples,
-      decoderVersion: (navigator.userAgent || 'unknown-browser').slice(0, 256),
-    };
-  } finally {
-    bitmap.close();
-  }
 };
 const typeIcon = (type: string) => {
   if (type === 'image') return ImageIcon;
@@ -1223,7 +1189,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       let storagePath = '';
       let assetId = '';
       let dnaCommitted = false;
-      const uploadedDnaTilePaths: string[] = [];
       try {
         const sourceBuffer = await file.arrayBuffer();
         const sourceBytes = new Uint8Array(sourceBuffer);
@@ -1324,10 +1289,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             ' DNA evidence or its commit state was preserved. Refresh the Asset and use Recover DNA to finish the ready state.');
         } else {
           const cleanupErrors: string[] = [];
-          if (uploadedDnaTilePaths.length) {
-            const { error: tileCleanupError } = await supabase.storage.from('vyral-assets').remove(uploadedDnaTilePaths);
-            if (tileCleanupError) cleanupErrors.push('DNA tile cleanup: ' + tileCleanupError.message);
-          }
           if (storagePath) {
             const { error: sourceCleanupError } = await supabase.storage.from('vyral-assets').remove([storagePath]);
             if (sourceCleanupError) cleanupErrors.push('Source file cleanup: ' + sourceCleanupError.message);
@@ -1355,13 +1316,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || !userId || busy || packageBusy || verifyingAssetId || asset.processing_status !== 'uploading') return;
     const version = versions.find((item) => item.asset_id === asset.id && item.storage_path === asset.storage_path) ?? [...versions].filter((item) => item.asset_id === asset.id).sort((a, b) => b.version_number - a.version_number)[0];
     if (!version) { setError('The original asset version is missing; recovery stopped without changing the asset.'); return; }
-    setVerifyingAssetId(asset.id); setError(''); setPackageStatus('Recovering DNA from the preserved original file…');
-    const newTilePaths: string[] = [];
-    let dnaRecordInserted = false;
-    let preserveRecoveryTiles = false;
-    let recoveryOutcomeUncertain = false;
+    setVerifyingAssetId(asset.id);
+    setError('');
+    setPackageStatus('Checking saved DNA and recovery state…');
     try {
-      const { data: existingDna, error: existingDnaError } = await supabase.from('vyral_dna_records').select('id,payload').eq('asset_id', asset.id).limit(10);
+      const { data: existingDna, error: existingDnaError } = await supabase
+        .from('vyral_dna_records').select('id,payload').eq('asset_id', asset.id).limit(10);
       if (existingDnaError) throw existingDnaError;
       const existingSupportedDna = (existingDna ?? []).find((row) => {
         const payload = asRecord(row.payload);
@@ -1372,7 +1332,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           (source.asset_version_id === version.id || payload.source_version_id === version.id));
       });
       if (existingSupportedDna) {
-        const { data: finalizedAsset, error: finalizeError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
+        const { data: finalizedAsset, error: finalizeError } = await supabase.from('vyral_assets')
+          .update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
         if (finalizeError) throw finalizeError;
         if (!finalizedAsset) throw new Error('The saved DNA exists, but asset finalization is still blocked by permissions.');
         setPackageStatus('Previously saved DNA finalized for ' + asset.name + '.');
@@ -1381,68 +1342,38 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
       if (existingDna?.length) throw new Error('An unsupported or version-mismatched DNA record already exists. Refresh and inspect it before retrying.');
       if (asset.asset_type !== 'image' || !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase())) {
-        throw new Error('Automatic DNA extraction without an existing record currently supports PNG, JPEG and WebP images only.');
+        throw new Error('Automatic DNA recovery without an existing record currently supports PNG, JPEG and WebP images only.');
       }
-      const { data: sourceFile, error: downloadError } = await supabase.storage.from('vyral-assets').download(asset.storage_path);
-      if (downloadError || !sourceFile) throw downloadError ?? new Error('The preserved original file could not be downloaded.');
-      const sourceBuffer = await sourceFile.arrayBuffer();
-      if (sourceBuffer.byteLength !== Number(asset.size_bytes)) throw new Error('Original file size mismatch; recovery was stopped.');
-      const digest = await crypto.subtle.digest('SHA-256', sourceBuffer);
-      const sourceSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-      if (asset.sha256 && sourceSha256 !== asset.sha256) throw new Error('Original file SHA-256 mismatch; recovery was stopped.');
-      const decoded = await decodeRasterImageForDnaV3(new File([sourceBuffer], asset.original_filename || asset.name, { type: asset.mime_type }));
-      const recordId = crypto.randomUUID();
-      const { record, entries } = await createVyralDnaV3({
-        record_id: recordId, source: { asset_id: asset.id, asset_version_id: version.id, sha256: sourceSha256, size_bytes: sourceBuffer.byteLength, mime_type: asset.mime_type },
-        extractor: { name: 'vyra-browser-raster-dna-v3', version: '1.0.0' }, width: decoded.width, height: decoded.height,
-        channel_layout: 'RGBA', color_space: 'sRGB', icc_profile_sha256: null, alpha_mode: 'straight',
-        decoder_contract: { name: 'createImageBitmap+Canvas2D.getImageData', version: decoded.decoderVersion, color_management: 'browser-managed-to-sRGB; EXIF orientation disabled; straight-alpha RGBA8 samples' },
-        decoded_samples: decoded.samples, tile_width: 256, tile_height: 256,
+
+      // Always use the pinned server-side decoder. Browser canvas decoding can
+      // vary by device/browser and must not silently create a different DNA.
+      const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
+        body: { assetId: asset.id, versionId: version.id },
       });
-      const tileStoragePaths: string[] = [];
-      for (let start = 0; start < entries.length; start += 3) {
-        const batch = entries.slice(start, start + 3);
-        const results = await Promise.allSettled(batch.map(async (entry, offset) => {
-          const index = start + offset; const path = userId + '/' + vyral.id + '/' + asset.id + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
-          const buffer = new ArrayBuffer(entry.data.byteLength); new Uint8Array(buffer).set(entry.data);
-          const { error } = await supabase!.storage.from('vyral-assets').upload(path, new Blob([buffer], { type: 'application/octet-stream' }), { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' });
-          if (error) throw new Error('DNA tile ' + (index + 1) + '/' + entries.length + ': ' + error.message); return path;
-        }));
-        for (const result of results) {
-          if (result.status === 'fulfilled') { newTilePaths.push(result.value); tileStoragePaths.push(result.value); }
+      if (extractionError || extraction?.status !== 'extracted') {
+        const response = (extractionError as unknown as { context?: Response } | null)?.context;
+        let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json();
+            if (typeof payload?.error === 'string') detail = payload.error;
+          } catch { /* Keep the SDK error when the response is not JSON. */ }
         }
-        const failedTile = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
-        if (failedTile) throw failedTile.reason;
+        throw new Error(detail);
       }
-      const { error: insertError } = await supabase.from('vyral_dna_records').insert({
-        id: recordId, vyral_id: vyral.id, user_id: userId, asset_id: asset.id, scope: 'asset', schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
-        payload: { dna_schema_id: 'vyra.asset-dna', dna_schema_version: 3, dna_record: record, tile_storage_paths: tileStoragePaths, extraction_kind: 'deterministic_decoded_raster_samples', source_file_sha256: sourceSha256, recovery_run: true },
-        reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: true, recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false },
-      });
-      if (insertError) {
-        // A lost response can make a committed INSERT look like a failure. Reconcile by deterministic row id before cleaning tiles.
-        const { data: committedRecord, error: reconcileError } = await supabase.from('vyral_dna_records').select('id,payload').eq('id', recordId).maybeSingle();
-        if (reconcileError) {
-          // If reconciliation itself is unavailable, preserve tiles: deleting them could corrupt a committed DNA record.
-          preserveRecoveryTiles = true;
-          recoveryOutcomeUncertain = true;
-          throw new Error(insertError.message + ' The insert result could not be confirmed (' + reconcileError.message + '); recovery tiles were preserved. Retry Recover DNA after refreshing.');
-        }
-        dnaRecordInserted = asRecord(committedRecord?.payload).recovery_run === true;
-        preserveRecoveryTiles = dnaRecordInserted;
-        throw insertError;
-      }
-      dnaRecordInserted = true;
-      preserveRecoveryTiles = true;
-      const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
+
+      const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets')
+        .update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
       if (readyError) throw readyError;
-      if (!readyAsset) throw new Error('DNA record was saved, but asset status could not be updated. Stored DNA tiles were preserved.');
-      setPackageStatus('DNA v3 recovered and saved for ' + asset.name + '. Original file hash and size were verified.'); await loadWorkspace();
+      if (!readyAsset) throw new Error('DNA v3 was saved, but the Asset ready state could not be updated. Retry Recover DNA to finalize safely.');
+      setPackageStatus('Pinned server-side DNA v3 recovered and saved for ' + asset.name + '.');
+      await loadWorkspace();
     } catch (cause) {
-      if (!preserveRecoveryTiles && newTilePaths.length) { const { error: cleanupError } = await supabase.storage.from('vyral-assets').remove(newTilePaths); if (cleanupError) setPackageStatus('Recovery stopped; partial recovery tiles need cleanup: ' + cleanupError.message); }
-      const recoveryNote = recoveryOutcomeUncertain ? ' Recovery outcome is uncertain; uploaded tiles were deliberately preserved. Refresh and retry Recover DNA to reconcile safely.' : dnaRecordInserted ? ' DNA record and tiles were retained; only the ready-state update needs recovery.' : '';
-      setError((cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.') + recoveryNote);
-    } finally { setVerifyingAssetId(null); }
+      setError(cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.');
+      setPackageStatus('');
+    } finally {
+      setVerifyingAssetId(null);
+    }
   };
   const verifyAssetIntegrity = async (asset: AssetRow) => {
     if (!supabase || verifyingAssetId || busy || packageBusy) return;
