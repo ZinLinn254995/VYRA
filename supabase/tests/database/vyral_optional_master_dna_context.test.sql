@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(8);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -108,6 +108,38 @@ select is(
   (select master_dna_status from public.vyrals where id='25000000-0000-4000-8000-000000000011'),
   'stale',
   'Changing collection identity invalidates the derived Vyral DNA snapshot'
+);
+
+update public.vyrals set master_dna_status = 'ready'
+where id='25000000-0000-4000-8000-000000000011';
+update public.vyrals set visibility = 'public'
+where id='25000000-0000-4000-8000-000000000011';
+select is(
+  (select master_dna_status from public.vyrals where id='25000000-0000-4000-8000-000000000011'),
+  'stale',
+  'Changing public visibility refreshes the derived resolver projection'
+);
+
+update public.vyrals set master_dna_status = 'ready'
+where id='25000000-0000-4000-8000-000000000011';
+update public.vyrals
+set license_policy = coalesce(license_policy, '{}'::jsonb) || '{"allow_ai_analysis":false}'::jsonb
+where id='25000000-0000-4000-8000-000000000011';
+select is(
+  (select master_dna_status from public.vyrals where id='25000000-0000-4000-8000-000000000011'),
+  'stale',
+  'Changing Vyral AI permissions refreshes the derived resolver projection'
+);
+
+update public.vyrals set master_dna_status = 'ready'
+where id='25000000-0000-4000-8000-000000000011';
+update public.vyral_assets
+set license_override = '{"allow_ai_analysis":false}'::jsonb
+where id='25000000-0000-4000-8000-000000000021';
+select is(
+  (select master_dna_status from public.vyrals where id='25000000-0000-4000-8000-000000000011'),
+  'stale',
+  'Changing Asset-level permissions refreshes the derived resolver projection'
 );
 
 reset role;
