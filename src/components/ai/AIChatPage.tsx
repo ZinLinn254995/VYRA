@@ -4,7 +4,7 @@ import {
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { getCurrentAccessToken } from '../../context/AuthContext';
+import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
@@ -69,6 +69,27 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
   } finally {
     bitmap.close();
   }
+};
+
+
+const createSelectedAssetVisionPreview = async (source: Blob): Promise<VyralVisionImage> => {
+  const bitmap = await createImageBitmap(source);
+  try {
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('Could not prepare the selected Asset for AI Vision.');
+    context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); context.drawImage(bitmap, 0, 0, width, height);
+    let preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode selected Asset preview.')), 'image/jpeg', 0.82));
+    if (preview.size > 600 * 1024) preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not compress selected Asset preview.')), 'image/jpeg', 0.55));
+    if (preview.size > 600 * 1024) throw new Error('A selected image preview exceeds the AI Vision size limit.');
+    const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('Could not read selected Asset preview.')); reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid selected Asset preview.')); reader.readAsDataURL(preview); });
+    const separator = dataUrl.indexOf(',');
+    if (separator < 0) throw new Error('Invalid selected Asset preview encoding.');
+    return { mimeType: 'image/jpeg', data: dataUrl.slice(separator + 1), width, height };
+  } finally { bitmap.close(); }
 };
 
 const canonicalizeAttachmentJson = (value: unknown): string => {
@@ -294,7 +315,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       onLoginRequired();
       return;
     }
-    const visionImages = selectedVyralImages;
+    let visionImages = [...selectedVyralImages];
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
@@ -316,6 +337,27 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+      if (selectedAssets.length && supabase) {
+        const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
+        const { data: assetRows, error: assetError } = await supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id));
+        if (assetError) throw new Error('Could not verify selected Asset access: ' + assetError.message);
+        if ((assetRows ?? []).length !== selectedAssets.length) throw new Error('One or more selected Assets are no longer accessible. Please select them again.');
+        for (const asset of assetRows ?? []) {
+          if (!uniqueVyrals.includes(asset.vyral_id)) throw new Error('A selected Asset does not belong to its declared Vyral.');
+          const license = asset.license_override && typeof asset.license_override === 'object' ? asset.license_override as Record<string, unknown> : {};
+          if (license.allow_ai_analysis === false) throw new Error('AI analysis is not permitted for selected Asset: ' + asset.name);
+          if (String(asset.mime_type ?? '').startsWith('image/') && visionImages.length < 4) {
+            const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storage_path, 60);
+            if (signedError || !signed?.signedUrl) throw new Error('Could not securely open selected image: ' + asset.name);
+            const response = await fetch(signed.signedUrl);
+            if (!response.ok) throw new Error('Could not load selected image: ' + asset.name);
+            const blob = await response.blob();
+            if (blob.size > 20 * 1024 * 1024) throw new Error('Selected image is too large for AI Vision: ' + asset.name);
+            const preview = await createSelectedAssetVisionPreview(blob);
+            visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
+          }
+        }
+      }
       const accessToken = await getCurrentAccessToken();
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
