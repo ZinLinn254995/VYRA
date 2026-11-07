@@ -5,9 +5,9 @@ export {
   isVyralAssetDnaPinnedToVersionV1,
   isPublicVyralResourceAllowedV1,
   isSafePublicVyralResolverUriV1,
-} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
+} from '../../supabase/functions/_shared/vyralResourceResolverV1.ts';
 export type {
   VyralResolverSnapshotAssetV1,
   VyralResolverRevisionBindingV1,
   VyralPublicResolverActionV1,
-} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
+} from '../../supabase/functions/_shared/vyralResourceResolverV1.ts';
