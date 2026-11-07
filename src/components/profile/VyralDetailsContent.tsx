@@ -367,10 +367,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       } catch (cause) {
         console.warn('[vyral-ai-details] Collection suggestions were unavailable.', cause);
         if (!currentDetails) {
-          const { error: statusError } = await supabase.from('vyrals').update({
-            metadata: { ...currentMetadata, ai_details_status: 'unavailable' },
-          }).eq('id', vyral.id);
-          if (!statusError) onVyralUpdated({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } });
+          const { data: latestFailureState } = await supabase.from('vyrals').select('metadata').eq('id', vyral.id).maybeSingle();
+          const latestFailureMetadata = latestFailureState?.metadata && typeof latestFailureState.metadata === 'object' && !Array.isArray(latestFailureState.metadata)
+            ? latestFailureState.metadata as Record<string, unknown> : {};
+          if (!latestFailureMetadata.ai_details) {
+            const unavailableMetadata = { ...latestFailureMetadata, ai_details_status: 'unavailable' };
+            const { error: statusError } = await supabase.from('vyrals').update({ metadata: unavailableMetadata }).eq('id', vyral.id);
+            if (!statusError) onVyralUpdated({ metadata: unavailableMetadata });
+          }
         }
       }
     })();
