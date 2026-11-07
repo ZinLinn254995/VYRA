@@ -1,4 +1,4 @@
-export const VYRAL_AI_RECONSTRUCTION_GUIDE = String.raw\`# VYRAL Portable Reconstruction Guide
+export const VYRAL_AI_RECONSTRUCTION_GUIDE = String.raw`# VYRAL Portable Reconstruction Guide
 
 This package is self-describing. Read \`manifest.json\` and use the included \`tools/reconstruct_vyral.py\` when code execution is available.
 
@@ -47,9 +47,9 @@ python3 tools/reconstruct_vyral.py package.vyral --output reconstructed
 \`\`\`
 
 The decoder uses only the Python standard library. It verifies payload hashes before writing outputs and prints a per-Asset recovery report.
-\`;
+`;
 
-export const VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT = String.raw\`#!/usr/bin/env python3
+export const VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT = String.raw`#!/usr/bin/env python3
 """Reconstruct verified VYRAL DNA payloads using only the Python standard library."""
 
 import argparse
@@ -260,4 +260,4 @@ if __name__ == "__main__":
     except Exception as error:
         print("VYRAL reconstruction failed: " + str(error), file=sys.stderr)
         sys.exit(1)
-\`;
+`;
