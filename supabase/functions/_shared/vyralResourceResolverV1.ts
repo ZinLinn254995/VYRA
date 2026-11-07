@@ -22,6 +22,9 @@ const SHA256 = /^[a-f0-9]{64}$/i;
 
 export type VyralPublicResolverActionV1 = 'master' | 'asset_dna' | 'asset_source';
 
+export const isPublicVyralAssetVisibilityAllowedV1 = (vyralVisibility: unknown, assetVisibility: unknown): boolean =>
+  vyralVisibility === 'public' && assetVisibility === 'public';
+
 export const isPublicVyralResourceAllowedV1 = (input: {
   visibility: unknown;
   action: unknown;
