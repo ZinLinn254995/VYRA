@@ -648,7 +648,7 @@ export const createVyralDnaOnlyPackage = async (
       throw new Error('Master DNA inventory does not match the DNA-only asset reconstruction set.');
     }
     const packageClaims = new Map<string, VyralMasterDnaAsset['reconstruction_claim']>(
-      records.map((record) => [record.source.asset_id, 'lossless_decoded']),
+      records.map((record) => [record.source.asset_id, 'lossless_decoded'] as const),
     );
     portableBase.masterDna = await updateMasterDnaClaimsForPackage(masterDna, packageClaims);
   }
