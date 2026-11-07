@@ -161,10 +161,6 @@ Deno.serve(async (request: Request) => {
 
   const relationships = relationshipsResult.data ?? [];
   const reconstructionTests = testsResult.data ?? [];
-  const licensePolicy = asRecord(vyral.license_policy);
-  const publicResolverUri = vyral.visibility === 'public' && licensePolicy.allow_ai_analysis !== false
-    ? getPublicResolverUri()
-    : null;
   const preflight = preflightVyralMasterDna({
     assets: (assets as Row[]).map((asset) => {
       const version = latestVersionByAsset.get(asset.id);
