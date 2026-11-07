@@ -26,12 +26,15 @@ export const isPublicVyralResourceAllowedV1 = (input: {
   visibility: unknown;
   action: unknown;
   licensePolicy: unknown;
+  assetPolicy?: unknown;
 }): boolean => {
   if (input.visibility !== 'public') return false;
   const policy = asRecord(input.licensePolicy);
-  if (policy.allow_ai_analysis === false) return false;
+  const assetPolicy = asRecord(input.assetPolicy);
+  if (policy.allow_ai_analysis === false || assetPolicy.allow_ai_analysis === false) return false;
   if (input.action === 'master' || input.action === 'asset_dna') return true;
-  return input.action === 'asset_source' && policy.allow_redistribution === true;
+  return input.action === 'asset_source' &&
+    policy.allow_redistribution === true && assetPolicy.allow_redistribution !== false;
 };
 
 export const isSafePublicVyralResolverUriV1 = (value: unknown): value is string => {
