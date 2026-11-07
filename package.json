@@ -28,7 +28,8 @@
     "test:vyral-master-dna": "node --import tsx --test tests/vyral-master-dna-v1.spec.ts",
     "test:vyral-file-dna": "node --import tsx --test tests/vyral-file-dna-v1.spec.ts",
     "test:vyral-license": "node --import tsx --test tests/vyral-license-policy-v1.spec.ts",
-    "test:vyral-resource-resolver": "node --import tsx --test tests/vyral-resource-resolver-v1.spec.ts"
+    "test:vyral-resource-resolver": "node --import tsx --test tests/vyral-resource-resolver-v1.spec.ts",
+    "test:seo": "node --import tsx --test tests/seo-discovery-contract.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
