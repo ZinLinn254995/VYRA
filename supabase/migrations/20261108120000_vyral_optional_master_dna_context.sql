@@ -14,9 +14,9 @@ create or replace function public.set_vyral_master_dna_asset_context(
 )
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
-as $
+as $function$
 declare
   caller_id uuid := auth.uid();
   target_vyral_id uuid;
@@ -49,7 +49,7 @@ begin
         purpose = excluded.purpose,
         updated_at = now();
 end;
-$;
+$function$;
 
 drop policy if exists "vyral_master_dna_asset_metadata_insert_own" on public.vyral_master_dna_asset_metadata;
 create policy "vyral_master_dna_asset_metadata_insert_own"
