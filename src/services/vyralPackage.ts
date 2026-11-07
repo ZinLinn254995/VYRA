@@ -1,3 +1,4 @@
+import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from './vyralPortableReconstruction.ts';
 import { createVyralMasterDnaV1, validateVyralMasterDnaV1, type VyralMasterDnaAsset, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import { reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1.ts';
 import {
@@ -525,6 +526,9 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
     if (!files.has(version.package_path)) throw new Error('Package media is missing: ' + version.package_path);
   }
   const dnaOnlyExpectedPaths = new Set<string>([VYRAL_PACKAGE_MANIFEST]);
+  for (const staticPath of ['README.txt', 'AI_RECONSTRUCTION_GUIDE.md', 'tools/reconstruct_vyral.py']) {
+    if (files.has(staticPath)) dnaOnlyExpectedPaths.add(staticPath);
+  }
   for (const record of manifest.dnaRecords) {
     if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
       const dnaRecord = validateVyralDnaV3Record(record.dna_record);
@@ -542,7 +546,7 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
   }
   if (manifest.exportMode === 'compact-only') {
     for (const path of files.keys()) {
-      if (path !== VYRAL_PACKAGE_MANIFEST && path !== 'README.txt') {
+      if (path !== VYRAL_PACKAGE_MANIFEST && path !== 'README.txt' && path !== 'AI_RECONSTRUCTION_GUIDE.md') {
         throw new Error('Compact-only package contains an undeclared file: ' + path);
       }
     }
@@ -599,6 +603,8 @@ export const selectVyralPackageComponents = async (
   }
   const retained = new Set<string>([VYRAL_PACKAGE_MANIFEST]);
   if (files.has('README.txt')) retained.add('README.txt');
+  if ((components.fullDna || components.compactDna) && files.has('AI_RECONSTRUCTION_GUIDE.md')) retained.add('AI_RECONSTRUCTION_GUIDE.md');
+  if (components.fullDna && files.has('tools/reconstruct_vyral.py')) retained.add('tools/reconstruct_vyral.py');
 
   if (components.assets) {
     for (const version of manifest.versions) retained.add(version.package_path);
@@ -818,6 +824,9 @@ export const createVyralDnaOnlyPackage = async (
   validateVyralManifest(dnaOnlyManifest);
   const entries: VyralPackageEntry[] = [
     ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
+    { path: 'README.txt', data: 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
+    { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
+    { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
     { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
   ];
   return createVyralZip(entries);
@@ -944,6 +953,9 @@ export const createVyralAssetDnaOnlyPackage = async (
   validateVyralManifest(dnaOnlyManifest);
   return createVyralZip([
     ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
+    { path: 'README.txt', data: 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
+    { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
+    { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
     { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
   ]);
 };
