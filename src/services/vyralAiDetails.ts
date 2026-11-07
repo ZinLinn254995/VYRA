@@ -234,7 +234,7 @@ export const parseVyralAiSuggestions = (raw: string): Record<string, VyralAiSugg
 
 export const suggestVyralAssetDetails = async (
   file: File,
-  options: { accessToken: string; assetType: string; sourceVersionId: string; sourceRevision?: number },
+  options: { accessToken: string; assetType: string; sourceVersionId: string; sourceRevision?: number; currentDetails?: unknown },
 ): Promise<VyralAssetSuggestionResult> => {
   if (!options.accessToken) throw new Error('Sign in to generate Asset details.');
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -294,6 +294,7 @@ export const suggestVyralAssetDetails = async (
       model: payload.modelName || 'unknown',
       generatedAt,
       suggestions,
+      currentDetails: options.currentDetails,
     }),
     provider: payload.provider || 'gemini',
     model: payload.modelName || 'unknown',
