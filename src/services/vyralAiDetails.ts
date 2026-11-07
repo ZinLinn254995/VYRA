@@ -1,4 +1,4 @@
-export type VyralDetailValue = string | number | boolean | string[] | Record<string, unknown> | null;
+export type VyralDetailValue = string | number | boolean | VyralDetailValue[] | { [key: string]: VyralDetailValue } | null;
 export type VyralDetailOrigin = 'system_default' | 'ai_suggested' | 'creator_confirmed' | 'creator_edited';
 
 export type VyralAiDetailField = {
@@ -204,7 +204,7 @@ const normalizeSuggestedValue = (value: unknown, depth = 0): VyralDetailValue | 
   if (isRecord(value) && depth < 3) {
     const entries = Object.entries(value).slice(0, 30);
     if (entries.some(([key]) => !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key))) return undefined;
-    const normalized: Record<string, unknown> = {};
+    const normalized: Record<string, VyralDetailValue> = {};
     for (const [key, item] of entries) {
       const next = normalizeSuggestedValue(item, depth + 1);
       if (next === undefined) return undefined;
