@@ -143,8 +143,6 @@ Deno.serve(async (request: Request) => {
   const relationships = relationshipsResult.data ?? [];
   const reconstructionTests = testsResult.data ?? [];
   const preflight = preflightVyralMasterDna({
-    vyralPurpose: vyral.master_dna_purpose,
-    intendedUses: vyral.master_dna_intended_uses,
     assets: (assets as Row[]).map((asset) => {
       const version = latestVersionByAsset.get(asset.id);
       const dna = dnaByAsset.get(asset.id);
@@ -159,8 +157,6 @@ Deno.serve(async (request: Request) => {
         : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
       return {
         asset_id: asset.id,
-        role: metadataByAsset.get(asset.id)?.role,
-        purpose: metadataByAsset.get(asset.id)?.purpose,
         has_latest_version: Boolean(version),
         has_matching_dna: Boolean(version && dna && sourceVersionId === version.id &&
           typeof version.sha256 === 'string' && sourceSha.toLowerCase() === version.sha256.toLowerCase()),
@@ -187,15 +183,6 @@ Deno.serve(async (request: Request) => {
   const masterAssets = [];
   for (const asset of assets as Row[]) {
     const assetMetadata = metadataByAsset.get(asset.id);
-    if (!assetMetadata || !['main', 'supporting'].includes(assetMetadata.role) ||
-        typeof assetMetadata.purpose !== 'string' || !assetMetadata.purpose.trim()) {
-      return json({
-        error: 'Every Asset needs an explicit Main/Supporting role and a non-empty purpose before Master DNA can be created.',
-        status: 'needs_classification',
-        assetId: asset.id,
-      }, 409);
-    }
-
     const version = latestVersionByAsset.get(asset.id);
     if (!version) return json({ error: 'An Asset has no immutable source version.', status: 'missing_asset_version', assetId: asset.id }, 409);
     const expectedStoragePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
@@ -292,13 +279,13 @@ Deno.serve(async (request: Request) => {
     );
     const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, semanticDnaAvailable);
     claims.push(claim);
-    if (assetMetadata.role === 'main') mainAssetIds.push(asset.id);
+    if (assetMetadata?.role === 'main') mainAssetIds.push(asset.id);
 
     masterAssets.push({
       asset_id: asset.id,
       asset_version_id: version.id,
-      role: assetMetadata.role,
-      purpose: assetMetadata.purpose.trim(),
+      ...(assetMetadata?.role === 'main' || assetMetadata?.role === 'supporting' ? { role: assetMetadata.role } : {}),
+      ...(typeof assetMetadata?.purpose === 'string' && assetMetadata.purpose.trim() ? { purpose: assetMetadata.purpose.trim() } : {}),
       media_type: asset.mime_type || version.mime_type,
       dna_ref: {
         record_id: typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dna.id,
@@ -310,15 +297,6 @@ Deno.serve(async (request: Request) => {
       provenance_ref: null,
       license_ref: null,
     });
-  }
-
-  if (!mainAssetIds.length) return json({ error: 'At least one Asset must be explicitly designated as Main.', status: 'missing_main_asset' }, 409);
-  if (!Array.isArray(vyral.master_dna_intended_uses) || vyral.master_dna_intended_uses.length === 0 ||
-      !vyral.master_dna_intended_uses.every((item: unknown) => typeof item === 'string' && item.trim())) {
-    return json({ error: 'Declare the Vyral intended uses before creating Master DNA.', status: 'missing_intended_uses' }, 409);
-  }
-  if (typeof vyral.master_dna_purpose !== 'string' || !vyral.master_dna_purpose.trim()) {
-    return json({ error: 'Declare the Vyral purpose before creating Master DNA.', status: 'missing_vyral_purpose' }, 409);
   }
 
   const masterRelationships = relationships.map((relationship: Row) => ({
@@ -342,8 +320,11 @@ Deno.serve(async (request: Request) => {
       vyral: { vyral_id: vyral.id, name: vyral.name, owner_ref: null, created_at: vyral.created_at },
       snapshot: { revision: currentRevision + 1, created_at: createdAt, parent_master_dna_id: latest?.id ?? null },
       purpose: {
-        summary: vyral.master_dna_purpose.trim(),
-        intended_uses: vyral.master_dna_intended_uses.map((item: string) => item.trim()),
+        summary: typeof vyral.master_dna_purpose === 'string' && vyral.master_dna_purpose.trim()
+          ? vyral.master_dna_purpose.trim() : null,
+        intended_uses: Array.isArray(vyral.master_dna_intended_uses)
+          ? vyral.master_dna_intended_uses.filter((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim())).map((item: string) => item.trim())
+          : [],
       },
       main_asset_ids: mainAssetIds,
       assets: masterAssets,
