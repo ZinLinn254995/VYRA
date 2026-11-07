@@ -158,7 +158,6 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
 
   const createVyral = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
     if (!isAuthenticated) { onLoginRequired(); return; }
     if (!supabase) { setError('Cloud storage is not configured for this environment.'); return; }
     const { data: auth } = await supabase.auth.getUser();
