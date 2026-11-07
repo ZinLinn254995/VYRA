@@ -653,7 +653,7 @@ test('exports and reconstructs a single raster Asset DNA-only package without Ma
   assert.equal(parsed.versions.length, 0);
   assert.equal(parsed.dnaRecords.length, 1);
   assert.equal(parsed.dnaRecords[0].id, 'single-asset-dna-v3');
-  assert.equal(parsed.masterDna, undefined);
+  assert.equal(parsed.masterDna, null);
   assert.equal(parsed.reconstructionCapabilities?.decoded_sample_stream_reconstructable, true);
 
   const reconstructed = await reconstructVyralDnaV3FromPackage(files, 'single-asset-dna-v3');
