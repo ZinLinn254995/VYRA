@@ -349,17 +349,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const packageEntries: { path: string; data: Uint8Array | string }[] = [];
       const packageVersions: Record<string, unknown>[] = [];
       let portableMasterDna: Awaited<ReturnType<typeof validateVyralMasterDnaV1>> | null = null;
-      let currentMasterRoot: { master_dna_status: string; master_dna_revision: number } | null = null;
       if (masterDnaAvailable) {
-        const { data: rootRow, error: currentMasterRootError } = await supabase
+        const { data: rootRow, error: rootError } = await supabase
           .from('vyrals')
           .select('master_dna_status,master_dna_revision')
           .eq('id', vyral.id)
           .eq('user_id', auth.user.id)
           .single();
-        if (currentMasterRootError || !rootRow) throw new Error('Could not check the latest Vyral collection state for export.');
-        currentMasterRoot = rootRow;
-        if (currentMasterRoot.master_dna_status === 'ready') {
+        if (!rootError && rootRow?.master_dna_status === 'ready') {
           const { data: revisionRow, error: revisionError } = await supabase
             .from('vyral_master_dna_revisions')
             .select('snapshot,revision')
@@ -368,11 +365,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             .order('revision', { ascending: false })
             .limit(1)
             .maybeSingle();
-          if (revisionError) throw new Error('Could not load the current Vyral collection snapshot for export.');
-          if (revisionRow?.snapshot) {
-            portableMasterDna = await validateVyralMasterDnaV1(revisionRow.snapshot);
-            if (portableMasterDna.snapshot.revision !== Number(currentMasterRoot.master_dna_revision)) {
-              throw new Error('The Vyral collection snapshot is not current yet. Wait a moment and try exporting again.');
+          if (!revisionError && revisionRow?.snapshot) {
+            try {
+              const candidate = await validateVyralMasterDnaV1(revisionRow.snapshot);
+              if (candidate.snapshot.revision === Number(rootRow.master_dna_revision)) {
+                portableMasterDna = candidate;
+              }
+            } catch {
+              // The collection snapshot is a derived convenience. Per-Asset DNA
+              // remains authoritative, so a missing/stale snapshot never blocks export.
             }
           }
         }
