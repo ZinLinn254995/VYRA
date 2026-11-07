@@ -8,6 +8,9 @@ export type VyralMasterDnaEndpoint =
 export type VyralMasterDnaAsset = {
   asset_id: string;
   asset_version_id: string;
+  name?: string;
+  asset_type?: string;
+  updated_at?: string | null;
   role?: 'main' | 'supporting';
   purpose?: string;
   media_type: string;
@@ -137,6 +140,9 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   const versionIds = new Set<string>();
   for (const raw of value.assets) {
     if (!isRecord(raw) || !isId(raw.asset_id) || !isId(raw.asset_version_id) ||
+        (raw.name !== undefined && !isText(raw.name)) ||
+        (raw.asset_type !== undefined && !isText(raw.asset_type)) ||
+        (raw.updated_at !== undefined && raw.updated_at !== null && !isDate(raw.updated_at)) ||
         (raw.role !== undefined && !['main', 'supporting'].includes(String(raw.role))) ||
         (raw.purpose !== undefined && !isText(raw.purpose)) || !isText(raw.media_type) ||
         !isRecord(raw.dna_ref) || !isId(raw.dna_ref.record_id) || !isText(raw.dna_ref.schema_id) ||
