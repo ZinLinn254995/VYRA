@@ -73,6 +73,9 @@ Do not claim that descriptive/semantic DNA alone can recreate every arbitrary or
 Compact DNA is a compact reference/manifest, not a magical access credential. External AI systems can retrieve Original DNA or Assets from VYRA only through an explicitly supported integration such as an authorized API, MCP/connector, scoped share endpoint, or other user-approved access flow.
 
 - Public assets may be retrieved subject to the creator's published permissions.
+- Public Compact DNA may include only the canonical HTTPS resolver URI when Vyral visibility is public and AI analysis is permitted. The resolver pins requests to the current ready Master DNA revision and exact Asset/version membership.
+- Public Master DNA and Asset DNA retrieval require the Vyral-level and Asset-level AI-analysis permissions. Original source downloads additionally require Vyral-level redistribution permission and must not be denied by the Asset override.
+- Private and unlisted Vyrals never publish a public resolver URI. External users reconstruct from Full DNA payloads or need a separate explicit authorization system; the public resolver must return no private source data.
 - Private assets must not be exposed to an external AI/person without authorization.
 - Never place secrets, long-lived bearer tokens, or private credentials inside a portable DNA package.
 - If retrieval integration is unavailable, Compact DNA must still be interpretable as a reference/manifest, but must not pretend the external AI has accessed the original.
