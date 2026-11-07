@@ -849,6 +849,15 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
   assert.equal(parsed.reconstructionCapabilities?.binary_source_bytes_reconstructable, true);
   assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
   assert.equal(parsed.masterDna?.assets.find((asset) => asset.asset_id === 'asset-audio')?.reconstruction_claim, 'source_file_exact');
+  assert.deepEqual(parsed.exportComponents, { assets: false, fullDna: true, compactDna: true });
+  const fullDnaOnlyArchive = await createVyralAssetDnaOnlyPackage(
+    base, [raster.record, binary.record], [...raster.entries, ...binary.entries], false,
+  );
+  const fullDnaOnlyFiles = await readVyralZip(new Uint8Array(await fullDnaOnlyArchive.arrayBuffer()));
+  const fullDnaOnlyManifest = parseVyralManifest(fullDnaOnlyFiles);
+  assert.equal(fullDnaOnlyManifest.dnaRecords.length, 2);
+  assert.equal(fullDnaOnlyManifest.masterDna, null);
+  assert.deepEqual(fullDnaOnlyManifest.exportComponents, { assets: false, fullDna: true, compactDna: false });
   const restoredBinary = await reconstructVyralFileDnaFromPackage(files, 'mixed-audio-dna');
   assert.deepEqual(restoredBinary, originalAudio);
   const restoredRaster = await reconstructVyralDnaV3FromPackage(files, 'mixed-raster-dna');
