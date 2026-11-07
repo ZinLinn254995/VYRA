@@ -30,10 +30,6 @@ begin
   if p_purpose is not null and char_length(btrim(p_purpose)) not between 1 and 2000 then
     raise exception using errcode = '22023', message = 'Asset purpose must contain 1 to 2000 characters when supplied.';
   end if;
-  if p_role is null and p_purpose is null then
-    raise exception using errcode = '22023', message = 'At least one optional Asset context field must be supplied.';
-  end if;
-
   select a.vyral_id into target_vyral_id
   from public.vyral_assets a
   where a.id = p_asset_id and a.user_id = caller_id
