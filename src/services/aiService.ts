@@ -220,7 +220,7 @@ class ModularAIService implements AIServiceProvider {
           modelName: this.model,
         };
       }
-      if (request.visionImages?.length) {
+      if (request.visionImages?.length || request.mediaFiles?.length) {
         const data = await response.json().catch(() => ({})) as { error?: string };
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error
