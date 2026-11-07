@@ -68,7 +68,7 @@ export const CreateVideoView: React.FC = () => {
     title: '', description: '', videoType: '', visualStyleDescription: '', audioDirection: '',
     mood: '', pacing: '', tags: '',
   });
-  const [storyboardDetailOrigins, setStoryboardDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_edited'>>({});
+  const [storyboardDetailOrigins, setStoryboardDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_confirmed' | 'creator_edited'>>({});
   const updateStoryboardDetail = (key: keyof typeof storyboardDetails, value: string) => {
     setStoryboardDetails((current) => ({ ...current, [key]: value }));
     setStoryboardDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
@@ -202,7 +202,7 @@ export const CreateVideoView: React.FC = () => {
         tags: suggestedTags,
       });
       setStoryboardDetailOrigins({
-        title: workingTitle.trim() ? 'creator_edited' : 'ai_suggested',
+        title: workingTitle.trim() ? 'creator_edited' : (suggestedTitle ? 'ai_suggested' : 'creator_confirmed'),
         description: 'ai_suggested', videoType: 'ai_suggested', visualStyleDescription: 'ai_suggested',
         audioDirection: 'ai_suggested', mood: 'ai_suggested', pacing: 'ai_suggested', tags: 'ai_suggested',
       });
