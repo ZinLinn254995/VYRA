@@ -141,3 +141,36 @@ test('preflight blocks only missing source versions or matching Asset DNA', () =
   });
   assert.deepEqual(blockers.map((item) => item.code), ['missing_asset_version', 'missing_asset_dna']);
 });
+
+
+test('publishes only a canonical public resolver URI and never exposes one for private Vyrals', async () => {
+  const resolverUri = 'https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource';
+  const publicRecord = await createVyralMasterDnaV1({
+    ...input,
+    source_resolution: { visibility: 'public', canonical_uri: null, resolution_policy: 'public_assets' },
+    portable_projection: {
+      profile: 'compact',
+      includes_full_reconstruction_payloads: false,
+      resolver_uri: resolverUri,
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
+  });
+  assert.equal(publicRecord.portable_projection.resolver_uri, resolverUri);
+  await assert.rejects(() => createVyralMasterDnaV1({
+    ...input,
+    source_resolution: { visibility: 'public', canonical_uri: null, resolution_policy: 'public_assets' },
+    portable_projection: {
+      ...input.portable_projection,
+      resolver_uri: 'https://attacker.example/collect',
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
+  }), /unsafe resolver URI/);
+  await assert.rejects(() => createVyralMasterDnaV1({
+    ...input,
+    portable_projection: {
+      ...input.portable_projection,
+      resolver_uri: resolverUri,
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
+  }), /Private or unlisted compact DNA cannot publish/);
+});
