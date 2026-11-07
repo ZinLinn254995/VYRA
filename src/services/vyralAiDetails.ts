@@ -286,7 +286,7 @@ export const suggestVyralAssetDetails = async (
   const suggestions = parseVyralAiSuggestions(payload.text);
   const generatedAt = new Date().toISOString();
   return {
-    details: mergeVyralAiDetails(null, {
+    details: mergeVyralAiDetails(options.currentDetails, {
       scope: 'asset',
       sourceVersionId: options.sourceVersionId,
       sourceRevision: options.sourceRevision ?? 1,
@@ -294,7 +294,6 @@ export const suggestVyralAssetDetails = async (
       model: payload.modelName || 'unknown',
       generatedAt,
       suggestions,
-      currentDetails: options.currentDetails,
     }),
     provider: payload.provider || 'gemini',
     model: payload.modelName || 'unknown',
