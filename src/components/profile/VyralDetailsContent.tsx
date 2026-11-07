@@ -406,7 +406,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           ai_details: mergedDetails,
           ai_details_status: 'ready',
           ai_details_source_revision: revision,
-          ai_details_inventory_signature: inventorySignature,
+          ai_details_inventory_signature: String(revision),
           ...(updateName ? { identity_name_origin: 'ai_suggested' } : {}),
           ...(updateDescription ? { identity_description_origin: 'ai_suggested' } : {}),
         };
@@ -2256,7 +2256,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       updatedDetails = { ...updatedDetails, source_revision: sourceRevision, stale: false };
       const nextMetadata = {
         ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
-        ai_details_source_revision: sourceRevision, ai_details_inventory_signature: inventorySignature,
+        ai_details_source_revision: sourceRevision, ai_details_inventory_signature: String(sourceRevision),
         identity_name_origin: 'creator_edited', identity_description_origin: 'creator_edited',
       };
       const { error: updateError } = await supabase.from('vyrals').update({
