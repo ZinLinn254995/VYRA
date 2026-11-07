@@ -2142,9 +2142,36 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <Upload size={13}/> Import
             <input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>{const file=event.target.files?.[0];event.target.value='';if(file)void importVyralPackage(file);}} disabled={busy || packageBusy}/>
           </label>
-          <button type="button" onClick={() => void exportVyralPackage(false)} className={primaryButton} disabled={busy || packageBusy}>
-            <Archive size={13}/>{packageBusy ? 'Working…' : 'Export'}
-          </button>
+          <details className="relative">
+            <summary className={primaryButton + ' cursor-pointer list-none'}>
+              <Archive size={13}/>{packageBusy ? 'Working…' : 'Export'}
+            </summary>
+            <div className={'absolute right-0 z-30 mt-2 w-60 rounded-xl border p-2 shadow-xl ' + surface}>
+              <p className={'px-2 py-1.5 text-[10px] ' + subtle}>Choose what to include</p>
+              {([
+                { label: 'Assets only', components: { assets: true, fullDna: false, compactDna: false } },
+                { label: 'Rebuild data only', components: { assets: false, fullDna: true, compactDna: false } },
+                { label: 'Collection reference only', components: { assets: false, fullDna: false, compactDna: true } },
+                { label: 'Assets + rebuild data', components: { assets: true, fullDna: true, compactDna: false } },
+                { label: 'Assets + collection reference', components: { assets: true, fullDna: false, compactDna: true } },
+                { label: 'Rebuild + collection reference', components: { assets: false, fullDna: true, compactDna: true } },
+                { label: 'Everything', components: { assets: true, fullDna: true, compactDna: true } },
+              ] satisfies Array<{ label: string; components: VyralExportComponents }>).map(({ label, components }) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={busy || packageBusy}
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    void exportVyralPackage(components);
+                  }}
+                  className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
       </div>
 
