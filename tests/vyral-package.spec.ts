@@ -491,14 +491,14 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
       {
         asset_id: 'asset-support', asset_version_id: 'version-1', role: 'supporting', purpose: 'Supporting detail',
         media_type: 'image/png', dna_ref: { record_id: 'dna-record-1', schema_id: 'vyra.asset-dna', schema_version: 3 },
-        asset_fingerprint: 'b'.repeat(64), reconstruction_claim: 'lossless_decoded',
+        asset_fingerprint: 'b'.repeat(64), reconstruction_claim: 'semantic_only',
       },
     ],
     relationships: [{
       relationship_id: 'relationship-1', type: 'supports', rationale: 'The supporting visual complements the main subject.',
       from: { kind: 'asset', asset_id: 'asset-support' }, to: { kind: 'asset', asset_id: 'asset-main' },
     }],
-    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['Each asset has its own exact decoded-sample stream.'] },
+    reconstruction_profile: { overall_claim: 'semantic_only', notes: ['The source collection snapshot had not yet been upgraded to the included sample payloads.'] },
     provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
     source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
     portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
