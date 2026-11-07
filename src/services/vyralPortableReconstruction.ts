@@ -46,7 +46,7 @@ For each \`vyra.asset-file-dna\` v1 record with \`source_file_exact\`:
 python3 tools/reconstruct_vyral.py package.vyral --output reconstructed
 \`\`\`
 
-The decoder uses only the Python standard library. It verifies payload hashes before writing outputs and prints a per-Asset recovery report.
+The decoder uses only the Python standard library. Inspect the included script before running it, and use an isolated working directory because package contents are untrusted input. It verifies payload hashes before writing outputs and prints a per-Asset recovery report.
 `;
 
 export const VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT = String.raw`#!/usr/bin/env python3
