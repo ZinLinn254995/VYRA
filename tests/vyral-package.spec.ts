@@ -59,7 +59,26 @@ test('rejects unsupported manifest versions and malformed manifests', () => {
   assert.throws(() => validateVyralManifest({ ...manifest, versions: 'not-an-array' }), /versions/);
 });
 
-test('explains which Assets are missing exact DNA in an incomplete DNA-only package', () => {
+test('explains which Assets are missing exact DNA in an incomplete DNA-only package', async () => {
+  const { record } = await createVyralDnaV3({
+    record_id: 'supported-record',
+    source: {
+      asset_id: 'asset-test',
+      asset_version_id: 'version-test',
+      sha256: 'a'.repeat(64),
+      size_bytes: 3,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1,
+    height: 1,
+    channel_layout: 'RGB',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'none',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    decoded_samples: new Uint8Array([255, 0, 0]),
+  });
   const incomplete = {
     ...manifest,
     exportMode: 'dna-only',
@@ -69,12 +88,12 @@ test('explains which Assets are missing exact DNA in an incomplete DNA-only pack
     ],
     versions: [],
     dnaRecords: [{
-      id: 'supported-record',
+      id: record.record_id,
       scope: 'asset',
       asset_id: 'asset-test',
       dna_schema_id: 'vyra.asset-dna',
       dna_schema_version: 3,
-      dna_record: {},
+      dna_record: record,
     }],
     reconstructionCapabilities: {
       decoded_sample_stream_reconstructable: true,
@@ -85,7 +104,7 @@ test('explains which Assets are missing exact DNA in an incomplete DNA-only pack
   };
   assert.throws(
     () => validateVyralManifest(incomplete),
-    /1 supported exact reconstruction record\(s\) for 2 Asset\(s\).*Missing audio \(DNA missing\)/,
+    /1 supported exact reconstruction record\\(s\\) for 2 Asset\\(s\\).*Missing audio \\(DNA missing\\)/,
   );
 });
 
