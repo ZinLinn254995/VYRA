@@ -93,6 +93,7 @@ test('explains which Assets are missing exact DNA in an incomplete DNA-only pack
       asset_id: 'asset-test',
       dna_schema_id: 'vyra.asset-dna',
       dna_schema_version: 3,
+      recovery_level: 'decoded-samples-exact',
       dna_record: record,
     }],
     reconstructionCapabilities: {
