@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(4);
+select plan(5);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -48,6 +48,44 @@ insert into public.vyral_dna_records (
     ))
   ),
   'system'
+);
+
+select lives_ok(
+  $$ insert into public.vyral_master_dna_revisions (
+    vyral_id,user_id,revision,schema_id,schema_version,manifest_sha256,vyral_fingerprint,snapshot,created_by
+  ) values (
+    '25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001',
+    1,'vyra.vyral-master-dna',1,repeat('a',64),repeat('b',64),
+    jsonb_build_object(
+      'schema_id','vyra.vyral-master-dna',
+      'schema_version',1,
+      'master_dna_id','25000000-0000-4000-8000-000000000011',
+      'vyral',jsonb_build_object(
+        'vyral_id','25000000-0000-4000-8000-000000000011',
+        'name','Single Asset Vyral',
+        'created_at',(select created_at from public.vyrals where id='25000000-0000-4000-8000-000000000011')
+      ),
+      'snapshot',jsonb_build_object(
+        'revision',1,
+        'created_at',(select updated_at from public.vyrals where id='25000000-0000-4000-8000-000000000011')
+      ),
+      'purpose',jsonb_build_object('summary',null,'intended_uses','[]'::jsonb),
+      'assets',jsonb_build_array(jsonb_build_object(
+        'asset_id','25000000-0000-4000-8000-000000000021',
+        'asset_version_id','25000000-0000-4000-8000-000000000031',
+        'name','Independent Image',
+        'asset_type','image',
+        'updated_at',(select updated_at from public.vyral_assets where id='25000000-0000-4000-8000-000000000021'),
+        'asset_fingerprint',repeat('e',64),
+        'dna_ref',jsonb_build_object('record_id','25000000-0000-4000-8000-000000000041','schema_version',3)
+      )),
+      'relationships','[]'::jsonb,
+      'source_resolution',jsonb_build_object('visibility','private'),
+      'integrity',jsonb_build_object('manifest_sha256',repeat('a',64),'vyral_fingerprint',repeat('b',64))
+    ),
+    '25000000-0000-4000-8000-000000000001'
+  ) $$,
+  'A single Asset snapshot is accepted without purpose, role, or relationships'
 );
 
 select is(
