@@ -2105,8 +2105,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase) return;
     setBusy(true); setError('');
     const { error: updateError } = await supabase.from('vyrals').update({ license_policy: licenseDraft }).eq('id', vyral.id);
-    if (updateError) setError(updateError.message);
-    else onVyralUpdated({ license_policy: licenseDraft });
+    if (updateError) {
+      setError(updateError.message);
+    } else {
+      onVyralUpdated({ license_policy: licenseDraft });
+      // Refresh the derived collection snapshot when its public AI-resolution policy changes.
+      try {
+        await supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: vyral.id } });
+      } catch {
+        // Saving the creator's policy remains successful; a later Asset update can retry the snapshot refresh.
+      }
+      await loadWorkspace();
+    }
     setBusy(false);
   };
 
