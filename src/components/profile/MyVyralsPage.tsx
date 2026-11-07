@@ -5,6 +5,7 @@ import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { VyralDetailsContent } from './VyralDetailsContent';
 import { supabase } from '../../context/AuthContext';
+import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type VyralFolder = { id: string; name: string; parentId: string | null; createdAt: string };
 type LegacyVyral = { id: string; name: string; description: string; visibility: 'private' | 'public'; createdAt: string; updatedAt: string; folders: VyralFolder[] };
@@ -13,7 +14,7 @@ type VyralRecord = {
   dna_status: string; license_policy: Record<string, unknown>; created_at: string; updated_at: string;
   assetCount: number; folderCount: number; metadata?: Record<string, unknown>;
 };
-type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string };
+type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 const STORAGE_KEY = 'vyra:my-vyrals:v1';
 const MIGRATION_KEY = 'vyra:my-vyrals:cloud-migrated:v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -60,7 +61,7 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
 
 const fieldClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
 
-export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired, onBack, backLabel }) => {
+export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired, onBack, backLabel, onSendAssetsToChat }) => {
   const [vyrals, setVyrals] = useState<VyralRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -232,7 +233,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
       <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
-        <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} />
+        <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} onSendAssetsToChat={onSendAssetsToChat} />
       </div>
     </section></div>
   );
