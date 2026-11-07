@@ -1389,32 +1389,91 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         return;
       }
       if (existingDna?.length) throw new Error('An unsupported or version-mismatched DNA record already exists. Refresh and inspect it before retrying.');
-      if (asset.asset_type !== 'image' || !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase())) {
-        throw new Error('Automatic DNA recovery without an existing record currently supports PNG, JPEG and WebP images only.');
-      }
-
-      // Always use the pinned server-side decoder. Browser canvas decoding can
-      // vary by device/browser and must not silently create a different DNA.
-      const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
-        body: { assetId: asset.id, versionId: version.id },
-      });
-      if (extractionError || extraction?.status !== 'extracted') {
-        const response = (extractionError as unknown as { context?: Response } | null)?.context;
-        let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
-        if (response && typeof response.clone === 'function') {
-          try {
-            const payload = await response.clone().json();
-            if (typeof payload?.error === 'string') detail = payload.error;
-          } catch { /* Keep the SDK error when the response is not JSON. */ }
+      const isRasterImage = asset.asset_type === 'image' &&
+        ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase());
+      if (isRasterImage) {
+        // Always use the pinned server-side decoder. Browser canvas decoding can
+        // vary by device/browser and must not silently create a different DNA.
+        const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
+          body: { assetId: asset.id, versionId: version.id },
+        });
+        if (extractionError || extraction?.status !== 'extracted') {
+          const response = (extractionError as unknown as { context?: Response } | null)?.context;
+          let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
+          if (response && typeof response.clone === 'function') {
+            try {
+              const payload = await response.clone().json();
+              if (typeof payload?.error === 'string') detail = payload.error;
+            } catch { /* Keep the SDK error when the response is not JSON. */ }
+          }
+          throw new Error(detail);
         }
-        throw new Error(detail);
+      } else {
+        // Non-raster uploads use deterministic File DNA. Verify the stored
+        // source bytes against both immutable Asset and Version fingerprints
+        // before writing any recovery record or changing the Asset state.
+        const { data: sourceBlob, error: sourceError } = await supabase.storage
+          .from('vyral-assets').download(version.storage_path);
+        if (sourceError || !sourceBlob) throw new Error('Could not read the original binary for recovery: ' + (sourceError?.message ?? 'source missing.'));
+        const sourceBytes = new Uint8Array(await sourceBlob.arrayBuffer());
+        if (sourceBytes.byteLength !== Number(version.size_bytes) ||
+            sourceBytes.byteLength !== Number(asset.size_bytes)) {
+          throw new Error('The stored source size does not match the immutable Asset and Version records. Recovery stopped without changing the source.');
+        }
+        const digestBuffer = new ArrayBuffer(sourceBytes.byteLength);
+        new Uint8Array(digestBuffer).set(sourceBytes);
+        const digest = await crypto.subtle.digest('SHA-256', digestBuffer);
+        const actualSha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        if (!version.sha256 || actualSha256 !== version.sha256.toLowerCase() ||
+            (asset.sha256 && actualSha256 !== asset.sha256.toLowerCase())) {
+          throw new Error('The stored binary failed its immutable SHA-256 check. Recovery stopped without changing the source.');
+        }
+        const fileDna = await createVyralFileDnaV1({
+          record_id: crypto.randomUUID(),
+          source: { asset_id: asset.id, asset_version_id: version.id },
+          bytes: sourceBytes,
+          mime_type: version.mime_type || asset.mime_type || 'application/octet-stream',
+          filename: asset.original_filename || asset.name,
+          include_payload: false,
+        });
+        if (fileDna.record.file.sha256 !== actualSha256 ||
+            fileDna.record.file.size_bytes !== sourceBytes.byteLength) {
+          throw new Error('Universal File DNA did not match the verified original binary.');
+        }
+        const { error: dnaInsertError } = await supabase.from('vyral_dna_records').insert({
+          id: fileDna.record.record_id,
+          vyral_id: vyral.id,
+          user_id: userId,
+          asset_id: asset.id,
+          scope: 'asset',
+          schema_version: 1,
+          dna_status: 'evolving',
+          source_kind: 'system',
+          verification_status: 'observed',
+          payload: {
+            dna_schema_id: 'vyra.asset-file-dna',
+            dna_schema_version: 1,
+            dna_record: fileDna.record,
+            source_version_id: version.id,
+            source_file_sha256: actualSha256,
+            extraction_kind: 'deterministic_binary_file_identity',
+          },
+          reconstruction_data: {
+            source_preservation: 'original_binary_retained',
+            reconstruction_ready: false,
+            recovery_level: 'identity-only',
+            encoded_source_bytes_recoverable: false,
+          },
+        });
+        if (dnaInsertError) throw dnaInsertError;
       }
 
       const { data: readyAsset, error: readyError } = await supabase.from('vyral_assets')
         .update({ processing_status: 'ready' }).eq('id', asset.id).eq('user_id', userId).select('id').maybeSingle();
       if (readyError) throw readyError;
-      if (!readyAsset) throw new Error('DNA v3 was saved, but the Asset ready state could not be updated. Retry Recover DNA to finalize safely.');
-      setPackageStatus('Pinned server-side DNA v3 recovered and saved for ' + asset.name + '.');
+      if (!readyAsset) throw new Error('DNA was saved, but the Asset ready state could not be updated. Retry Recover DNA to finalize safely.');
+      setPackageStatus((isRasterImage ? 'Pinned server-side DNA v3' : 'Deterministic File DNA v1') +
+        ' recovered and saved for ' + asset.name + '.');
       await loadWorkspace();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'DNA recovery failed. The original asset was preserved.');
@@ -2013,7 +2072,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
             {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">{asset.processing_status === 'uploading' && (asset.asset_type === 'image' || dnaRecords.some((record) => record.asset_id === asset.id && ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) || (record.payload?.dna_schema_id === 'vyra.asset-file-dna' && record.payload?.dna_schema_version === 1))) ) && <button type='button' onClick={() => void recoverAssetDna(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} className='text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50'>{verifyingAssetId===asset.id?'Recovering DNA…':'Recover DNA'}</button>}{(asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral')) && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50">Import .vyral</button>}<button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{asset.processing_status === 'ready' && asset.asset_type === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase()) && !dnaRecords.some((record) => record.asset_id === asset.id && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) && <button type="button" onClick={() => void extractAssetDnaV3(asset)} disabled={verifyingAssetId !== null || busy || packageBusy || extractingDnaV3} title="Create immutable lossless decoded-sample DNA v3 from this verified source version" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{verifyingAssetId===asset.id?'Extracting…':'Create DNA v3'}</button>}{dnaRecords.some((record) => record.asset_id === asset.id && ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) || (record.payload?.dna_schema_id === 'vyra.asset-file-dna' && record.payload?.dna_schema_version === 1))) && <button type="button" onClick={() => void exportVyralPackage(true, asset.id)} disabled={busy || packageBusy || verifyingAssetId !== null || comparingReconstructionAssetId !== null} title="Export this Asset's lossless DNA without requiring whole-Vyral Master DNA" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{packageBusy?'Exporting…':'Export DNA-only'}</button>}{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2.5'}>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">{asset.processing_status === 'uploading' && <button type='button' onClick={() => void recoverAssetDna(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} className='text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50'>{verifyingAssetId===asset.id?'Recovering DNA…':'Recover DNA'}</button>}{(asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral')) && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50">Import .vyral</button>}<button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{asset.processing_status === 'ready' && asset.asset_type === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase()) && !dnaRecords.some((record) => record.asset_id === asset.id && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) && <button type="button" onClick={() => void extractAssetDnaV3(asset)} disabled={verifyingAssetId !== null || busy || packageBusy || extractingDnaV3} title="Create immutable lossless decoded-sample DNA v3 from this verified source version" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{verifyingAssetId===asset.id?'Extracting…':'Create DNA v3'}</button>}{dnaRecords.some((record) => record.asset_id === asset.id && ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) || (record.payload?.dna_schema_id === 'vyra.asset-file-dna' && record.payload?.dna_schema_version === 1))) && <button type="button" onClick={() => void exportVyralPackage(true, asset.id)} disabled={busy || packageBusy || verifyingAssetId !== null || comparingReconstructionAssetId !== null} title="Export this Asset's lossless DNA without requiring whole-Vyral Master DNA" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{packageBusy?'Exporting…':'Export DNA-only'}</button>}{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2.5'}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className={'text-[10px] font-semibold '+primary}>Latest test · {latestReconstructionTest.test_status}</p>
               <span className={'rounded-full px-2 py-1 text-[9px] font-semibold '+(exactDecodedPixelMatch === true ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-700')}>{exactDecodedPixelMatch === true ? 'Exact decoded pixels' : 'Exact reconstruction not verified'}</span>
