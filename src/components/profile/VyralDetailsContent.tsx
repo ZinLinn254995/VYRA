@@ -325,6 +325,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }),
           currentDetails,
         });
+        // A newer inventory analysis supersedes this request; never write stale collection suggestions.
+        if (collectionAiAttemptRef.current !== attemptKey) return;
         // Re-read after model generation so creator edits made while AI was working remain authoritative.
         const { data: latestVyral, error: latestReadError } = await supabase.from('vyrals')
           .select('name,description,metadata').eq('id', vyral.id).maybeSingle();
@@ -344,6 +346,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const suggestedDescription = typeof mergedDetails.fields.description?.value === 'string' ? mergedDetails.fields.description.value.trim().slice(0, 1000) : '';
         const updateName = Boolean(suggestedName) && ['system_default', 'ai_suggested'].includes(String(latestNameOrigin));
         const updateDescription = Boolean(suggestedDescription) && ['system_default', 'ai_suggested'].includes(String(latestDescriptionOrigin));
+        if (collectionAiAttemptRef.current !== attemptKey) return;
         const nextMetadata = {
           ...latestMetadata,
           ai_details: mergedDetails,
