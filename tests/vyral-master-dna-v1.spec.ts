@@ -29,7 +29,7 @@ const input = {
   reconstruction_profile: { overall_claim: 'semantic_only' as const, notes: ['Image samples are losslessly decoded; voice is semantic only.'] },
   provenance: { creator_ref: null, license_ref: null, evidence_status: 'creator_attested' as const },
   source_resolution: { visibility: 'private' as const, canonical_uri: null, resolution_policy: 'authenticated_owner' as const },
-  portable_projection: { profile: 'compact' as const, includes_full_reconstruction_payloads: false as const, resolver_uri: null, retrieval_policy: 'authorized_selective_retrieval' as const, max_assets_per_request: 4 },
+  portable_projection: { profile: 'compact' as const, includes_full_reconstruction_payloads: false as const, resolver_uri: null, retrieval_policy: 'no_remote_resolution' as const, max_assets_per_request: 4 },
 };
 
 test('creates and verifies a canonical Master DNA snapshot and Vyral fingerprint', async () => {
