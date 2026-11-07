@@ -68,7 +68,7 @@ export const CreateVideoView: React.FC = () => {
     title: '', description: '', videoType: '', visualStyleDescription: '', audioDirection: '',
     mood: '', pacing: '', tags: '',
   });
-  const [storyboardDetailOrigins, setStoryboardDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_confirmed' | 'creator_edited'>>({});
+  const [storyboardDetailOrigins, setStoryboardDetailOrigins] = useState<Record<string, 'system_default' | 'ai_suggested' | 'creator_confirmed' | 'creator_edited'>>({});
   const updateStoryboardDetail = (key: keyof typeof storyboardDetails, value: string) => {
     setStoryboardDetails((current) => ({ ...current, [key]: value }));
     setStoryboardDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
