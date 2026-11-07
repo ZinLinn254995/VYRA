@@ -1,4 +1,4 @@
-import { validateVyralMasterDnaV1, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
+import { createVyralMasterDnaV1, validateVyralMasterDnaV1, type VyralMasterDnaAsset, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import { reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1.ts';
 import {
   reconstructVyralDnaV3,
@@ -528,6 +528,46 @@ const removeNonPortableReferences = (value: unknown): unknown => {
     result[key] = removeNonPortableReferences(child);
   }
   return result;
+};
+
+const packageClaimRank: Record<VyralMasterDnaAsset['reconstruction_claim'], number> = {
+  unavailable: 0,
+  model_reconstructed: 1,
+  semantic_only: 2,
+  lossless_decoded: 3,
+  source_file_exact: 4,
+};
+
+const updateMasterDnaClaimsForPackage = async (
+  value: VyralMasterDnaV1,
+  claimsByAsset: Map<string, VyralMasterDnaAsset['reconstruction_claim']>,
+): Promise<VyralMasterDnaV1> => {
+  const validated = await validateVyralMasterDnaV1(value);
+  const { schema_id, schema_version, integrity, ...unsigned } = validated;
+  void schema_id;
+  void schema_version;
+  void integrity;
+  const assets = unsigned.assets.map((asset) => {
+    const claim = claimsByAsset.get(asset.asset_id);
+    if (!claim) throw new Error('A DNA-only package is missing the reconstruction claim for Asset ' + asset.asset_id + '.');
+    return { ...asset, reconstruction_claim: claim };
+  });
+  const overallClaim = assets.reduce((weakest, asset) =>
+    packageClaimRank[asset.reconstruction_claim] < packageClaimRank[weakest]
+      ? asset.reconstruction_claim : weakest,
+  'source_file_exact' as VyralMasterDnaAsset['reconstruction_claim']);
+  return createVyralMasterDnaV1({
+    ...unsigned,
+    assets,
+    reconstruction_profile: {
+      ...unsigned.reconstruction_profile,
+      overall_claim: overallClaim,
+      notes: [
+        ...unsigned.reconstruction_profile.notes,
+        'Reconstruction claims reflect only the exact payloads included in this DNA-only package.',
+      ],
+    },
+  });
 };
 
 export const createVyralDnaOnlyPackage = async (
