@@ -19,7 +19,7 @@ const PORT = Number(process.env.PORT || 3000);
 const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'dist');
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '4mb' }));
+app.use(express.json({ limit: '8mb' }));
 app.use('/api/tiktok', createTikTokRouter());
 app.use('/api/auth', createSupabaseAuthRouter());
 app.use('/api', createCustomerProjectsRouter());
