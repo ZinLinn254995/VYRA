@@ -55,6 +55,8 @@ jobs:
         run: npm run test:vyral-file-dna
       - name: Vyral AI Vision safety contract tests
         run: npm run test:vyral-ai-vision
+      - name: Vyral AI-generated details and creator-edit preservation tests
+        run: npm run test:vyral-ai-details
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
