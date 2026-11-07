@@ -11,6 +11,13 @@ export const VYRAL_PACKAGE_FORMAT = 'application/vnd.vyra.vyral+zip';
 export const VYRAL_PACKAGE_VERSION = 1;
 export const VYRAL_PACKAGE_MANIFEST = 'manifest.json';
 
+/** Exclude the exact .vyral Asset used as the import container, when that Asset
+ * is also listed inside its own exported collection manifest. */
+export const getVyralPackageAssetsForImport = <T extends { id?: string }>(
+  assets: T[],
+  containerAssetId?: string,
+): T[] => assets.filter((asset) => !containerAssetId || asset.id !== containerAssetId);
+
 export type VyralPackageEntry = { path: string; data: Uint8Array | string };
 
 export type VyralPackageManifest = {
