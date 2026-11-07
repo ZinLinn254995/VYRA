@@ -271,7 +271,7 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Show the generated name and the most useful few details by default. Keep advanced/less relevant details tucked away until the user chooses to edit or view more.
 - Each field should be independently editable. A single edit must not force the user to regenerate or re-enter all other details.
 - Provide a simple way to correct an AI suggestion and, where useful, request a fresh suggestion. Never require accepting AI metadata to upload, create, use, share, or export an Asset/Vyral.
-- Preserve creator descriptions and edits across re-analysis, version changes, import, and export. When source content changes, mark AI suggestions tied to an older version as stale rather than silently applying them to the new version.
+- Preserve creator descriptions and edits across re-analysis, version changes, import, and export. Whole-Vyral packages carry collection-level descriptive metadata and field provenance; importing into an empty/default destination may seed those details, but never overwrite destination creator choices. Re-analyze the combined inventory afterward. Single-Asset exports must not leak unrelated collection-level metadata. When source content changes, mark AI suggestions tied to an older version as stale rather than silently applying them to the new version.
 - Avoid a mandatory metadata wizard. Auto-fill first; let the user edit only what they care about.
 
 ### Acceptance tests
