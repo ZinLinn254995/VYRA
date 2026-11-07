@@ -108,7 +108,7 @@ test('private and unlisted Vyrals cannot expose public resolver metadata', async
   );
   await assert.rejects(
     () => createVyralMasterDnaV1({ ...input, portable_projection: { ...input.portable_projection, retrieval_policy: 'public_metadata_only' as const } }),
-    /cannot publish metadata-only resolution/,
+    /Private or unlisted compact DNA cannot publish/,
   );
 });
 
@@ -172,5 +172,5 @@ test('publishes only a canonical public resolver URI and never exposes one for p
       resolver_uri: resolverUri,
       retrieval_policy: 'authorized_selective_retrieval',
     },
-  }), /Private or unlisted compact DNA cannot publish/);
+  }), /A public resolver URI requires public visibility/
 });
