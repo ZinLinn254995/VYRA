@@ -523,6 +523,8 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   assert.equal(parsed.assets.length, 2);
   assert.equal(parsed.dnaRecords.length, 2);
   assert.equal(parsed.masterDna?.assets.length, 2);
+  assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
+  assert.ok(parsed.masterDna?.assets.every((asset) => asset.reconstruction_claim === 'lossless_decoded'));
   assert.equal(parsed.exportMode, 'dna-only');
   for (const record of parsed.dnaRecords) {
     const reconstructed = await reconstructVyralDnaV3FromPackage(files, String(record.id));
@@ -634,10 +636,10 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
     main_asset_ids: ['asset-image'],
     assets: [
       { asset_id: 'asset-image', asset_version_id: 'version-image', role: 'main', purpose: 'Primary visual reference', media_type: 'image/png', dna_ref: { record_id: 'mixed-raster-dna', schema_id: 'vyra.asset-dna', schema_version: 3 }, asset_fingerprint: 'a'.repeat(64), reconstruction_claim: 'lossless_decoded' },
-      { asset_id: 'asset-audio', asset_version_id: 'version-audio', role: 'supporting', purpose: 'Narration paired with the visual', media_type: 'audio/mpeg', dna_ref: { record_id: 'mixed-audio-dna', schema_id: 'vyra.asset-file-dna', schema_version: 1 }, asset_fingerprint: binary.record.file.sha256, reconstruction_claim: 'source_file_exact' },
+      { asset_id: 'asset-audio', asset_version_id: 'version-audio', role: 'supporting', purpose: 'Narration paired with the visual', media_type: 'audio/mpeg', dna_ref: { record_id: 'mixed-audio-dna', schema_id: 'vyra.asset-file-dna', schema_version: 1 }, asset_fingerprint: binary.record.file.sha256, reconstruction_claim: 'unavailable' },
     ],
     relationships: [{ relationship_id: 'mixed-supports', type: 'supports', rationale: 'The voice recording narrates the primary visual.', from: { kind: 'asset', asset_id: 'asset-audio' }, to: { kind: 'asset', asset_id: 'asset-image' } }],
-    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['Raster samples and original binary source bytes are independently verified.'] },
+    reconstruction_profile: { overall_claim: 'unavailable', notes: ['The source DNA snapshot did not yet contain reconstruction payloads.'] },
     provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
     source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
     portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
@@ -659,6 +661,8 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
   assert.equal(parsed.reconstructionCapabilities?.decoded_sample_stream_reconstructable, true);
   assert.equal(parsed.reconstructionCapabilities?.encoded_source_bytes_recoverable, false);
   assert.equal(parsed.reconstructionCapabilities?.binary_source_bytes_reconstructable, true);
+  assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
+  assert.equal(parsed.masterDna?.assets.find((asset) => asset.asset_id === 'asset-audio')?.reconstruction_claim, 'source_file_exact');
   const restoredBinary = await reconstructVyralFileDnaFromPackage(files, 'mixed-audio-dna');
   assert.deepEqual(restoredBinary, originalAudio);
   const restoredRaster = await reconstructVyralDnaV3FromPackage(files, 'mixed-raster-dna');
