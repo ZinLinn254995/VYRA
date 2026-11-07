@@ -50,7 +50,7 @@ const getPinnedRevision = async (
     .from('vyral_master_dna_revisions')
     .select('id,vyral_id,user_id,revision,schema_id,schema_version,manifest_sha256,vyral_fingerprint,snapshot,created_at')
     .eq('vyral_id', vyralId)
-    .eq('user_id', ownerId);
+    .eq('user_id', userId);
 
   if (revision !== undefined && revision !== null) {
     if (!Number.isSafeInteger(revision) || Number(revision) < 1) {
