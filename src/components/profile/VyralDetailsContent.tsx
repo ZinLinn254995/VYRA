@@ -1537,8 +1537,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               currentDetails: currentMetadata.ai_details,
             });
             const nextMetadata = { ...currentMetadata, ai_details: aiDetails, ai_details_status: 'ready', ai_details_inventory_count: summaries.length };
-            const { error: collectionUpdateError } = await db.from('vyrals').update({ metadata: nextMetadata }).eq('id', vyral.id).eq('user_id', auth.user.id);
-            if (!collectionUpdateError) onVyralUpdated({ metadata: nextMetadata });
+            const suggestedName = typeof aiDetails.fields.name?.value === 'string' ? aiDetails.fields.name.value.trim().slice(0, 100) : '';
+            const suggestedDescription = typeof aiDetails.fields.description?.value === 'string' ? aiDetails.fields.description.value.trim().slice(0, 1000) : '';
+            const applySuggestedName = currentMetadata.identity_name_origin === 'system_default' && Boolean(suggestedName);
+            const applySuggestedDescription = currentMetadata.identity_description_origin === 'system_default' && Boolean(suggestedDescription);
+            if (applySuggestedName) nextMetadata.identity_name_origin = 'ai_suggested';
+            if (applySuggestedDescription) nextMetadata.identity_description_origin = 'ai_suggested';
+            const collectionPatch = {
+              metadata: nextMetadata,
+              ...(applySuggestedName ? { name: suggestedName } : {}),
+              ...(applySuggestedDescription ? { description: suggestedDescription } : {}),
+            };
+            const { error: collectionUpdateError } = await db.from('vyrals').update(collectionPatch).eq('id', vyral.id).eq('user_id', auth.user.id);
+            if (!collectionUpdateError) onVyralUpdated({
+              metadata: nextMetadata,
+              ...(applySuggestedName ? { name: suggestedName } : {}),
+              ...(applySuggestedDescription ? { description: suggestedDescription } : {}),
+            });
           }
         }
       } catch (metadataCause) {
