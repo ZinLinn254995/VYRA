@@ -247,6 +247,15 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   if (manifest.formatVersion !== VYRAL_PACKAGE_VERSION) throw new Error('Unsupported VYRAL package version: ' + String(manifest.formatVersion));
   if (typeof manifest.packageId !== 'string' || !manifest.packageId.trim() || manifest.packageId.length > 128 || typeof manifest.exportedAt !== 'string' || !Number.isFinite(Date.parse(manifest.exportedAt))) throw new Error('VYRAL package identity metadata is missing or invalid.');
   if (!manifest.vyral || typeof manifest.vyral !== 'object' || typeof manifest.vyral.name !== 'string' || !manifest.vyral.name.trim()) throw new Error('VYRAL collection metadata is invalid.');
+  if (manifest.exportComponents !== undefined) {
+    const components = manifest.exportComponents;
+    if (!components || typeof components !== 'object' ||
+        typeof components.assets !== 'boolean' || typeof components.fullDna !== 'boolean' ||
+        typeof components.compactDna !== 'boolean' ||
+        (!components.assets && !components.fullDna && !components.compactDna)) {
+      throw new Error('VYRAL export component selection is invalid.');
+    }
+  }
   if (manifest.masterDna !== undefined && manifest.masterDna !== null) {
     if (typeof manifest.masterDna !== 'object' || Array.isArray(manifest.masterDna) ||
         (manifest.masterDna as VyralMasterDnaV1).vyral?.vyral_id !== manifest.vyral.id) {
@@ -384,7 +393,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   if (manifest.exportMode === 'compact-only') {
     if (manifest.versions.length || manifest.dnaRecords.length || !manifest.masterDna ||
         manifest.folders.length || manifest.fingerprints.length || manifest.visionObservations.length ||
-        manifest.lineage.length || manifest.reconstructionTests.length) {
+        manifest.lineage.length || manifest.reconstructionTests.length || manifest.reconstructionCapabilities !== undefined) {
       throw new Error('A compact-only package must contain only the collection reference and Asset inventory.');
     }
   }
@@ -575,6 +584,9 @@ export const selectVyralPackageComponents = async (
   }
   const files = await readVyralZip(archive);
   const manifest = parseVyralManifest(files);
+  if (!components.assets && components.fullDna) {
+    throw new Error('Full reconstruction data without original Assets must use the dedicated DNA-only export builder.');
+  }
   if (components.compactDna && !manifest.masterDna) {
     throw new Error('Compact collection data is not available yet. Update the Vyral collection data and try again.');
   }
