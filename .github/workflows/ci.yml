@@ -3,7 +3,7 @@ name: VYRA CI
 on:
   pull_request:
   push:
-    branches: [main, 'rebuild/**']
+    branches: [main, 'rebuild/**', 'feat/vyral-100-percent-acceptance']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
