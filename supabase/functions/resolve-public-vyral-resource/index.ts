@@ -206,6 +206,12 @@ Deno.serve(async (request: Request) => {
   }
 
   if (body.action === 'asset_source') {
+    if (typeof snapshotAsset.asset_fingerprint !== 'string' ||
+        !/^[a-f0-9]{64}$/i.test(snapshotAsset.asset_fingerprint) ||
+        typeof version.sha256 !== 'string' ||
+        snapshotAsset.asset_fingerprint.toLowerCase() !== version.sha256.toLowerCase()) {
+      return json({ error: 'The source version fingerprint does not match the pinned Vyral snapshot.' }, 409);
+    }
     if (Number(version.size_bytes) > 100 * 1024 * 1024) {
       return json({ error: 'The requested public Asset exceeds the 100 MB retrieval limit.' }, 413);
     }
