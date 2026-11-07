@@ -93,8 +93,12 @@ export const isVyralAssetDnaPinnedToVersionV1 = (input: {
   assetVersionId: string;
   assetSha256: string;
   dnaSource: { asset_id?: unknown; asset_version_id?: unknown; sha256?: unknown };
+  dnaFileSha256?: unknown;
 }): boolean => {
   const ref = asRecord(input.snapshotAsset.dna_ref);
+  const dnaSourceSha256 = typeof input.dnaSource.sha256 === 'string'
+    ? input.dnaSource.sha256
+    : input.dnaFileSha256;
   return ref.record_id === input.dnaRecordId &&
     Number(ref.schema_version) === input.dnaSchemaVersion &&
     typeof input.snapshotAsset.asset_fingerprint === 'string' &&
@@ -102,6 +106,6 @@ export const isVyralAssetDnaPinnedToVersionV1 = (input: {
     input.snapshotAsset.asset_fingerprint.toLowerCase() === input.assetSha256.toLowerCase() &&
     input.dnaSource.asset_id === input.assetId &&
     input.dnaSource.asset_version_id === input.assetVersionId &&
-    typeof input.dnaSource.sha256 === 'string' &&
-    input.dnaSource.sha256.toLowerCase() === input.assetSha256.toLowerCase();
+    typeof dnaSourceSha256 === 'string' &&
+    dnaSourceSha256.toLowerCase() === input.assetSha256.toLowerCase();
 };
