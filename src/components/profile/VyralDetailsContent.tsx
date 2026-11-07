@@ -1031,7 +1031,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         try {
           const accessToken = await getCurrentAccessToken();
           if (accessToken) {
-            const importedFile = new File([latest.bytes], originalFilename, { type: mimeType });
+            const importedBuffer = new ArrayBuffer(latest.bytes.byteLength);
+            new Uint8Array(importedBuffer).set(latest.bytes);
+            const importedFile = new File([importedBuffer], originalFilename, { type: mimeType });
             const sourceMetadata = objectValue(sourceAsset.metadata);
             const suggestion = await suggestVyralAssetDetails(importedFile, {
               accessToken, assetType: assetTypeValueSafe, sourceVersionId: latest.id, sourceRevision: latest.versionNumber,
