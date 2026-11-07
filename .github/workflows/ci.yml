@@ -60,7 +60,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check Supabase Edge Functions
-        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts
       - name: SEO discovery and canonical contract tests
         run: npm run test:seo
       - name: Production build
