@@ -334,7 +334,7 @@ export const suggestVyralCollectionDetails = async (
   });
   const payload = await response.json().catch(() => ({})) as { text?: string; modelName?: string; provider?: string; error?: string };
   if (!response.ok || typeof payload.text !== 'string') throw new Error(payload.error || 'AI could not suggest Vyral details.');
-  const suggestions = parseSuggestionObject(payload.text);
+  const suggestions = parseVyralAiSuggestions(payload.text);
   return mergeVyralAiDetails(input.currentDetails, {
     scope: 'vyral',
     sourceRevision: input.sourceRevision,
@@ -342,5 +342,6 @@ export const suggestVyralCollectionDetails = async (
     model: payload.modelName || 'unknown',
     generatedAt: new Date().toISOString(),
     suggestions,
+    currentDetails: input.currentDetails,
   });
 };
