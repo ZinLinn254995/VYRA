@@ -643,11 +643,14 @@ export const createVyralDnaOnlyPackage = async (
   }
   if (portableBase.masterDna) {
     const masterDna = await validateVyralMasterDnaV1(portableBase.masterDna);
-    portableBase.masterDna = masterDna;
     const masterAssetIds = new Set(masterDna.assets.map((asset) => asset.asset_id));
     if (masterAssetIds.size !== assetIds.size || [...masterAssetIds].some((id) => !assetIds.has(id))) {
       throw new Error('Master DNA inventory does not match the DNA-only asset reconstruction set.');
     }
+    const packageClaims = new Map<string, VyralMasterDnaAsset['reconstruction_claim']>(
+      records.map((record) => [record.source.asset_id, 'lossless_decoded']),
+    );
+    portableBase.masterDna = await updateMasterDnaClaimsForPackage(masterDna, packageClaims);
   }
 
   const dnaOnlyManifest: VyralPackageManifest = {
@@ -763,8 +766,8 @@ export const createVyralAssetDnaOnlyPackage = async (
   if (selectedAssets.length !== normalized.length) throw new Error('Every DNA-only record must map to exactly one Asset in the Vyral manifest.');
   if (normalized.length > 1 && selectedAssets.length !== portableBase.assets.length) throw new Error('A whole-Vyral DNA-only export requires a reconstruction record for every Asset.');
   if (portableBase.masterDna) {
-    portableBase.masterDna = await validateVyralMasterDnaV1(portableBase.masterDna);
-    const masterAssetsById = new Map(portableBase.masterDna.assets.map((asset) => [asset.asset_id, asset]));
+    const masterDna = await validateVyralMasterDnaV1(portableBase.masterDna);
+    const masterAssetsById = new Map(masterDna.assets.map((asset) => [asset.asset_id, asset]));
     const masterIds = new Set(masterAssetsById.keys());
     if (masterIds.size !== assetIds.size || [...masterIds].some((id) => !assetIds.has(id))) throw new Error('Master DNA inventory does not match the DNA-only Asset set.');
     for (const item of normalized) {
@@ -774,6 +777,11 @@ export const createVyralAssetDnaOnlyPackage = async (
         throw new Error('Master DNA does not reference the exact portable DNA record for Asset ' + item.assetId + '.');
       }
     }
+    const packageClaims = new Map<string, VyralMasterDnaAsset['reconstruction_claim']>();
+    for (const item of normalized) {
+      packageClaims.set(item.assetId, item.schemaId === 'vyra.asset-file-dna' ? 'source_file_exact' : 'lossless_decoded');
+    }
+    portableBase.masterDna = await updateMasterDnaClaimsForPackage(masterDna, packageClaims);
   }
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
