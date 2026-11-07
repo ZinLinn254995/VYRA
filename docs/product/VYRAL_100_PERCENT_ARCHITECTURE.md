@@ -139,6 +139,8 @@ The Vyral detail page exposes one simple Export menu. It must offer these seven 
 - A compact-only package contains the collection reference and Asset inventory only. It must not contain original media, full DNA records, or hidden derivatives.
 - A Full-DNA-only package may include compact collection DNA only when the creator selects both components. Full-DNA-only must not silently inherit compact reference data.
 - Every package must retain enough manifest identity and inventory metadata to describe which Vyral and Assets the selected components belong to.
+- Portable Full DNA packages include an interpretation guide and a standard-library Python decoder. The decoder verifies per-tile/per-chunk hashes and aggregate sample/file hashes before writing reconstructed outputs. It is an aid for external tools, not a trust shortcut: inspect packaged code before execution and use an isolated working directory.
+- Raster DNA v3 reconstruction writes the exact decoded RGB/RGBA sample stream plus a viewable PNG and metadata sidecar. The PNG is a new encoding, not the original encoded source file. File DNA v1 can reproduce original source bytes exactly when its complete chunk set verifies.
 
 ## 8. User experience constraints
 
