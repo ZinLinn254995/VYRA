@@ -70,6 +70,7 @@ test('explains which Assets are missing exact DNA in an incomplete DNA-only pack
     versions: [],
     dnaRecords: [{
       id: 'supported-record',
+      scope: 'asset',
       asset_id: 'asset-test',
       dna_schema_id: 'vyra.asset-dna',
       dna_schema_version: 3,
