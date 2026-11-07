@@ -597,7 +597,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const importVyralPackage = async (file: File) => {
     if (!file || !supabase || packageBusy) return;
-    if (file.size > 512 * 1024 * 1024) { setError('VYRAL package exceeds the 512 MB import limit.'); return; }
+    if (file.size > 256 * 1024 * 1024) { setError('VYRAL package exceeds the 256 MB import limit.'); return; }
 
     setPackageBusy(true);
     setPackageStatus('Reading package…');
