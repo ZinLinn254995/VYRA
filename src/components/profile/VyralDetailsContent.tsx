@@ -1289,23 +1289,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         });
         if (fingerprintError) throw fingerprintError;
 
-        if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
-          const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
-            body: { assetId, versionId: version.id },
-          });
-          if (extractionError || extraction?.status !== 'extracted') {
-            const response = (extractionError as unknown as { context?: Response } | null)?.context;
-            let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
-            if (response && typeof response.clone === 'function') {
-              try {
-                const payload = await response.clone().json();
-                if (typeof payload?.error === 'string') detail = payload.error;
-              } catch { /* Keep the SDK error when the response is not JSON. */ }
-            }
-            throw new Error(detail);
-          }
-          dnaCommitted = true;
-        } else {
+        const saveFileDnaIdentity = async (fallbackReason?: string) => {
           const fileDna = await createVyralFileDnaV1({
             record_id: crypto.randomUUID(),
             source: { asset_id: assetId, asset_version_id: version.id },
@@ -1328,7 +1312,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               dna_record: fileDna.record,
               source_version_id: version.id,
               source_file_sha256: sha256,
-              extraction_kind: 'deterministic_binary_file_identity',
+              extraction_kind: fallbackReason ? 'deterministic_binary_file_identity_fallback' : 'deterministic_binary_file_identity',
+              ...(fallbackReason ? { image_dna_v3_fallback_reason: fallbackReason.slice(0, 500) } : {}),
             },
             reconstruction_data: {
               source_preservation: 'original_binary_retained',
@@ -1339,6 +1324,37 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           });
           if (dnaError) throw dnaError;
           dnaCommitted = true;
+        };
+
+        if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
+          const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
+            body: { assetId, versionId: version.id },
+          });
+          if (extractionError || extraction?.status !== 'extracted') {
+            const response = (extractionError as unknown as { context?: Response } | null)?.context;
+            let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
+            if (response && typeof response.clone === 'function') {
+              try {
+                const payload = await response.clone().json();
+                if (typeof payload?.error === 'string') detail = payload.error;
+              } catch { /* Keep the SDK error when the response is not JSON. */ }
+            }
+            const { data: committedDna, error: reconcileError } = await supabase
+              .from('vyral_dna_records')
+              .select('id')
+              .eq('asset_id', assetId)
+              .eq('user_id', auth.user.id)
+              .limit(10);
+            if (reconcileError) throw reconcileError;
+            if ((committedDna?.length ?? 0) > 0) {
+              throw new Error('Image DNA extraction may already have committed. Refresh the Asset before retrying.');
+            }
+            await saveFileDnaIdentity(detail);
+          } else {
+            dnaCommitted = true;
+          }
+        } else {
+          await saveFileDnaIdentity();
         }
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
