@@ -403,7 +403,10 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   });
   assert.equal(files.has('assets/asset-test/versions/1.bin'), false);
   assert.equal([...files.keys()].some((path) => /preview|thumbnail|derivative|original/i.test(path)), false);
-  assert.equal([...files.keys()].every((path) => path === 'manifest.json' || path.startsWith('dna/v3/')), true);
+  assert.equal([...files.keys()].every((path) =>
+    path === 'manifest.json' || path === 'README.txt' || path === 'AI_RECONSTRUCTION_GUIDE.md' ||
+    path === 'tools/reconstruct_vyral.py' || path.startsWith('dna/v3/')
+  ), true);
   const serializedManifest = new TextDecoder().decode(files.get('manifest.json'));
   assert.equal(serializedManifest.includes('private.invalid'), false);
   assert.equal(serializedManifest.includes('storage_path'), false);
