@@ -4,6 +4,7 @@ export {
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
   isPublicVyralResourceAllowedV1,
+  isPublicVyralAssetVisibilityAllowedV1,
   isSafePublicVyralResolverUriV1,
 } from '../../supabase/functions/_shared/vyralResourceResolverV1.ts';
 export type {
