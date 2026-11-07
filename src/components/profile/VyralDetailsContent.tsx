@@ -1430,10 +1430,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         ? String(sourceVyralMetadata.identity_name_origin) : 'creator_confirmed';
       const sourceDescriptionOrigin = ['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(sourceVyralMetadata.identity_description_origin))
         ? String(sourceVyralMetadata.identity_description_origin) : (sourceDescription ? 'creator_confirmed' : 'system_default');
-      if ((!targetHasAiDetails && hasSourceAiDetails) || (targetNameIsDefault && sourceName) || (targetDescriptionIsDefault && sourceDescription)) {
+      if ((!assets.length && !targetHasAiDetails && hasSourceAiDetails) || (targetNameIsDefault && sourceName) || (targetDescriptionIsDefault && sourceDescription)) {
         const nextVyralMetadata = {
           ...targetVyralMetadata,
-          ...(!targetHasAiDetails && hasSourceAiDetails ? {
+          ...(!assets.length && !targetHasAiDetails && hasSourceAiDetails ? {
             ai_details: { ...sourceAiDetails, stale: true },
             ai_details_status: 'pending',
             ai_details_imported_from_package: manifest.packageId,
