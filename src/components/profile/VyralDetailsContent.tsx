@@ -471,18 +471,32 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           'VYRAL PORTABLE PACKAGE',
           'Format: ' + VYRAL_PACKAGE_FORMAT,
           'Version: ' + VYRAL_PACKAGE_VERSION,
-          dnaOnly
-            ? 'DNA-ONLY RECONSTRUCTION PACKAGE. Original version entries, previews and thumbnails are excluded; lossless raster sample tiles and non-raster File DNA source-byte chunks are included.'
-            : 'This archive contains the Vyral manifest, identity records and original asset-version media.',
-          dnaOnly
-            ? 'Asset records are retained as metadata and original media-version entries are omitted. File DNA v1 chunks preserve exact non-raster source bytes; raster DNA v3 preserves decoded samples, not original encoded image bytes.'
-            : 'SHA-256 values were recalculated from the downloaded media during export.',
-          dnaOnly
-            ? 'Raster assets use canonical decoded samples: top-to-bottom rows, left-to-right pixels, interleaved RGB/RGBA channels. Non-raster assets use lossless raw source-byte chunks with per-chunk and aggregate SHA-256 verification.'
-            : 'DNA verification and reconstruction claims are evidence records; importing a package must not automatically trust them.',
-          dnaOnly
-            ? 'Raster DNA v3 does not recover original PNG/JPEG encoded bytes and does not independently verify the source decoder or unknown color space. File DNA v1 can recover exact original non-raster source bytes only when all declared lossless chunks pass verification. Legacy fingerprints, observations and version-bound evidence are excluded.'
-            : 'Importing a package must not automatically trust its verification claims.',
+          components.assets && components.fullDna && components.compactDna
+            ? 'Complete Vyral package: original Asset files, full per-Asset reconstruction data, and compact collection reference.'
+            : components.assets && components.fullDna
+              ? 'Original Asset files and full per-Asset reconstruction data. Compact collection reference is excluded.'
+              : components.assets && components.compactDna
+                ? 'Original Asset files and compact collection reference. Full per-Asset reconstruction data is excluded.'
+                : components.assets
+                  ? 'Original Asset files and collection inventory only. Reconstruction data is excluded.'
+                  : components.fullDna
+                    ? 'Full per-Asset reconstruction data only. Original Asset files are excluded.'
+                    : 'Compact collection reference only. Original Asset files and full reconstruction data are excluded.',
+          components.assets
+            ? 'Original media files are included with SHA-256 values recalculated during export.'
+            : components.fullDna
+              ? 'Raster DNA v3 preserves decoded samples, not original encoded image bytes. File DNA v1 includes exact source bytes only when all declared chunks pass verification.'
+              : 'This reference package contains no original media files or full reconstruction payloads.',
+          components.fullDna
+            ? 'Raster assets use canonical decoded samples; non-raster assets use lossless raw source-byte chunks with per-chunk and aggregate SHA-256 verification.'
+            : components.compactDna
+              ? 'Compact collection data identifies the Vyral inventory and points to per-Asset records. It does not grant access to private source files or include credentials.'
+              : 'Only original Asset files and their collection inventory are included.',
+          components.fullDna
+            ? 'Raster DNA v3 does not recover original PNG/JPEG encoded bytes and does not independently verify the source decoder or unknown color space. Imported evidence is not automatically trusted.'
+            : components.compactDna
+              ? 'External retrieval requires an authorized integration or scoped share. Private Assets remain inaccessible without permission.'
+              : 'No reconstruction or collection-reference claims are included.',
           'ZIP entries use the standard Store method (no compression) for broad compatibility.'
         ].join('\n'),
       });
@@ -2146,7 +2160,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <summary className={primaryButton + ' cursor-pointer list-none'}>
               <Archive size={13}/>{packageBusy ? 'Working…' : 'Export'}
             </summary>
-            <div className={'absolute right-0 z-30 mt-2 w-60 rounded-xl border p-2 shadow-xl ' + surface}>
+            <div className={'absolute right-0 z-30 mt-2 w-60 rounded-xl border p-2 ' + surface}>
               <p className={'px-2 py-1.5 text-[10px] ' + subtle}>Choose what to include</p>
               {([
                 { label: 'Assets only', components: { assets: true, fullDna: false, compactDna: false } },
