@@ -525,6 +525,15 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   assert.equal(parsed.masterDna?.assets.length, 2);
   assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
   assert.ok(parsed.masterDna?.assets.every((asset) => asset.reconstruction_claim === 'lossless_decoded'));
+  const repeatedArchive = await createVyralDnaOnlyPackage(
+    { ...base, masterDna: parsed.masterDna },
+    sourceRecords,
+    payloadEntries,
+  );
+  const repeatedFiles = await readVyralZip(repeatedArchive);
+  const repeatedManifest = parseVyralManifest(repeatedFiles);
+  assert.equal(repeatedManifest.masterDna?.integrity.manifest_sha256, parsed.masterDna?.integrity.manifest_sha256);
+  assert.equal(repeatedManifest.masterDna?.reconstruction_profile.notes.length, parsed.masterDna?.reconstruction_profile.notes.length);
   assert.equal(parsed.exportMode, 'dna-only');
   for (const record of parsed.dnaRecords) {
     const reconstructed = await reconstructVyralDnaV3FromPackage(files, String(record.id));
