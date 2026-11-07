@@ -75,6 +75,25 @@ test('robots and sitemap agree on the canonical public origin and list real page
   }
   assert.ok(urls.some((url) => url.pathname === '/'));
   assert.ok(urls.some((url) => url.pathname === '/discover-vyra.html'));
+  assert.ok(urls.some((url) => url.pathname === '/vyral-dna.html'));
+});
+
+test('VYRAL DNA technical page declares accurate capabilities and matching structured data', async () => {
+  const html = await readProjectFile('public/vyral-dna.html');
+  const homepage = await readProjectFile('index.html');
+  const origin = canonicalUrl(homepage).origin;
+  const canonical = canonicalUrl(html);
+  assert.equal(canonical.origin, origin);
+  assert.equal(canonical.pathname, '/vyral-dna.html');
+  assert.match(html, /<title>VYRAL DNA/);
+  assert.match(html, /<meta\\s+name=["']description["']/i);
+  assert.match(html, /<meta\\s+name=["']robots["']\\s+content=["']index,follow["']/i);
+  const structured = jsonLd(html);
+  assert.equal(structured['@type'], 'TechArticle');
+  assert.equal(structured.mainEntityOfPage, canonical.href);
+  assert.match(html, /does not recover the original PNG or JPEG file bytes/i);
+  assert.match(html, /original binary bytes can be reconstructed exactly/i);
+  assert.doesNotMatch(html, /workers\\.dev|localhost|127\\.0\\.0\\.1/i);
 });
 
 test('discovery landing page has matching canonical metadata and WebPage JSON-LD', async () => {
