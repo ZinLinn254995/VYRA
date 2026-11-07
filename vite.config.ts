@@ -1,3 +1,4 @@
+import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -7,8 +8,12 @@ import { defineConfig } from 'vite';
 const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => {
+  const cloudflarePlugins = process.env.CLOUDFLARE_BUILD === 'true' ? [cloudflare()] : [];
+
   return {
-    plugins: [react(), tailwindcss()],
+    // Keep the existing Codespaces/Express Vite middleware workflow unchanged.
+    // Workers Builds opts into the Cloudflare runtime explicitly.
+    plugins: [react(), tailwindcss(), ...cloudflarePlugins],
     resolve: {
       alias: {
         '@': path.resolve(configDir, '.'),

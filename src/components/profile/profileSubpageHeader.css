@@ -1,0 +1,210 @@
+/* The header remains pinned while its contents ease into a compact top row. */
+.profile-collapse-shell { display: contents; }
+.profile-collapse-header {
+  --profile-header-expanded: 148px;
+  --profile-header-collapse-distance: 44px;
+  position: relative; z-index: 3;
+  flex: 0 0 var(--profile-header-height, var(--profile-header-expanded));
+  height: var(--profile-header-height, 156px);
+  min-height: var(--profile-header-height, 156px);
+  box-sizing: border-box; overflow: hidden; overflow-anchor: none; isolation: isolate;
+  background: var(--vyra-bg-surface);
+  border-top-left-radius: 1rem; border-top-right-radius: 1rem;
+  border-bottom: 1px solid var(--vyra-border-subtle);
+  transition: height 180ms ease-out, flex-basis 180ms ease-out, min-height 180ms ease-out;
+}
+.profile-collapse-header--search {
+  --profile-header-expanded: 204px;
+  --profile-header-collapse-distance: 80px;
+}
+.profile-collapse-back, .profile-collapse-icon, .profile-collapse-title,
+.profile-collapse-description, .profile-collapse-action { position: absolute; z-index: 2; }
+.profile-collapse-back {
+  top: 12px; left: 24px; display: inline-flex; align-items: center; gap: 7px;
+  width: 210px; max-width: calc(100% - 24px); box-sizing: border-box;
+  overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
+  color: var(--vyra-text-secondary); font-size: 14px; font-weight: 500;
+}
+.profile-collapse-back:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
+.profile-collapse-back svg { flex: 0 0 16px; }
+.profile-collapse-back span {
+  min-width: 0; overflow: hidden; white-space: nowrap;
+  opacity: var(--profile-back-label-opacity, 1);
+  transition: opacity 70ms linear;
+}
+.profile-collapse-icon {
+  top: calc(58px - var(--profile-header-shift-y, 0px));
+  left: calc(24px + var(--profile-header-shift-x, 0px));
+  display: grid; width: var(--profile-header-icon-size, 44px); height: var(--profile-header-icon-size, 44px);
+  place-items: center; border-radius: 12px; background: var(--vyra-bg-subtle);
+  color: var(--vyra-accent-primary);
+  transform: rotate(var(--profile-header-icon-rotation, 0deg));
+  transform-origin: center center;
+  backface-visibility: hidden;
+  will-change: transform;
+  transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out, transform 180ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+.profile-collapse-icon > * { width: 22px; height: 22px; }
+.profile-collapse-title {
+  top: calc(56px - var(--profile-header-title-shift-y, 0px));
+  left: calc(84px + var(--profile-header-title-shift-x, 0px)); right: 24px;
+  overflow: hidden; color: var(--vyra-text-primary); font-size: var(--profile-header-title-size, 24px);
+  font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap;
+  transition: top 180ms ease-out, left 180ms ease-out, right 180ms ease-out, font-size 180ms ease-out;
+}
+.profile-collapse-header:has(.profile-collapse-action) .profile-collapse-title { right: 180px; }
+.profile-collapse-description {
+  top: 96px; left: 84px; right: 16px; overflow: hidden; margin: 0;
+  color: var(--vyra-text-secondary); font-size: 14px; line-height: 20px;
+  white-space: nowrap; text-overflow: ellipsis;
+  opacity: calc(1 - var(--profile-header-progress, 0));
+  transform: translateY(var(--profile-description-shift, 0px));
+  transition: opacity 140ms ease-out, transform 180ms ease-out;
+}
+.profile-collapse-action {
+  top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
+  transition: top 180ms ease-out, right 180ms ease-out;
+}
+/* Keep one real button: fixed icon/text spacing, right edge anchored during collapse. */
+.profile-create-button {
+  box-sizing: border-box;
+  width: var(--profile-create-button-width, 148px);
+  min-width: 0;
+  height: 32px;
+  min-height: 32px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+  gap: 6px !important;
+  justify-content: flex-start !important;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: width 180ms ease-out !important;
+}
+.profile-create-button > svg {
+  display: block;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px;
+  flex: 0 0 14px !important;
+  stroke-width: 2;
+}
+.profile-create-copy {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.profile-create-label { display: inline-block; flex: 0 0 auto; }
+.profile-create-extra {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: var(--profile-create-extra-width, 100px);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: var(--profile-create-extra-opacity, 1);
+  transform: translateX(var(--profile-create-extra-shift, 0px));
+  transition: max-width 180ms ease-out, opacity 140ms ease-out, transform 180ms ease-out;
+}
+/* The wrapper does not clip or scroll. The Card itself defines the visible edge,
+   while only its content region scrolls beneath the stationary header. */
+.profile-subpage-viewport {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.profile-subpage-card {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+  overflow-anchor: none;
+}
+/* Bottom corners emerge gradually as the final content approaches the scroll edge. */
+.profile-subpage-card {
+  border-bottom-left-radius: var(--profile-card-bottom-radius, 0px) !important;
+  border-bottom-right-radius: var(--profile-card-bottom-radius, 0px) !important;
+  transition: border-bottom-left-radius 180ms ease-out, border-bottom-right-radius 180ms ease-out;
+}
+.profile-subpage-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+.profile-page-main:has(.profile-subpage-viewport) {
+  display: flex;
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  /* The subpage card should extend to the available screen bottom,
+     rather than inheriting the profile page's decorative bottom padding. */
+  padding-bottom: 0;
+}
+.profile-page-main:has(.profile-subpage-viewport) > .profile-subpage-viewport,
+.profile-page-main:has(.profile-subpage-viewport) .profile-subpage-viewport {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+}
+
+/* The main Profile landing page scrolls inside the fixed app viewport. */
+.profile-page-main:not(:has(.profile-subpage-viewport)) {
+  display: block;
+  flex: 1 1 0%;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The search field is part of the card header and remains visible in compact mode. */
+.profile-collapse-search {
+  position: absolute;
+  z-index: 3;
+  left: 20px;
+  right: 20px;
+  bottom: 12px;
+}
+.profile-collapse-search > * { width: 100%; }
+@media (max-width: 639px) {
+  .profile-collapse-header { --profile-header-expanded: 142px; }
+  .profile-collapse-header--search { --profile-header-expanded: 198px; }
+  .profile-collapse-search { left: 12px; right: 12px; bottom: 10px; }
+  .profile-collapse-back { left: 12px; width: 190px; }
+  .profile-collapse-icon { left: calc(12px + var(--profile-header-shift-x, 0px)); }
+  .profile-collapse-title {
+    left: calc(64px + var(--profile-header-title-shift-x, 0px)); right: 12px;
+    font-size: var(--profile-header-title-size, 21px);
+  }
+  .profile-collapse-header:has(.profile-collapse-action) .profile-collapse-title { right: 116px; }
+  .profile-collapse-description { left: 64px; }
+  .profile-collapse-action { right: 12px; }
+}

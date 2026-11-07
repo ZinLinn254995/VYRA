@@ -19,7 +19,17 @@
     "test:credit-ledger": "node --import tsx --test tests/credit-ledger-service.spec.ts",
     "test:usage-ledger-recorder": "node --import tsx --test tests/usage-ledger-recorder.spec.ts tests/openrouter-usage-ledger-api.spec.ts",
     "test:pricing-auth": "node --import tsx --test tests/pricing-auth.spec.ts",
-    "test:usage-ledger-local-e2e": "node --import tsx --test tests/openrouter-usage-ledger-local-e2e.spec.ts"
+    "test:usage-ledger-local-e2e": "node --import tsx --test tests/openrouter-usage-ledger-local-e2e.spec.ts",
+    "test:profile-header": "node --import tsx --test tests/profile-subpage-header.spec.ts",
+    "test:vyral-package": "node --import tsx --test tests/vyral-package.spec.ts tests/vyral-context-applicability.spec.ts",
+    "test:vyral-context": "node --import tsx --test tests/vyral-context-applicability.spec.ts",
+    "test:vyral-dna-v3": "node --import tsx --test tests/vyral-dna-v3.spec.ts",
+    "test:vyral-ai-vision": "node --import tsx --test tests/vyral-ai-vision-contract.spec.ts",
+    "test:vyral-master-dna": "node --import tsx --test tests/vyral-master-dna-v1.spec.ts",
+    "test:vyral-file-dna": "node --import tsx --test tests/vyral-file-dna-v1.spec.ts",
+    "test:vyral-license": "node --import tsx --test tests/vyral-license-policy-v1.spec.ts",
+    "test:vyral-resource-resolver": "node --import tsx --test tests/vyral-resource-resolver-v1.spec.ts",
+    "test:seo": "node --import tsx --test tests/seo-discovery-contract.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -43,6 +53,11 @@
     "tailwindcss": "4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "@types/express": "^4.17.21",
+    "@cloudflare/vite-plugin": "1.67.0",
+    "wrangler": "4.156.1"
+  },
+  "overrides": {
+    "electron-to-chromium": "1.5.477"
   }
 }

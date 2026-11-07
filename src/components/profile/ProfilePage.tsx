@@ -1,0 +1,272 @@
+import React, { useState } from 'react';
+import {
+  Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images, Search,
+  CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
+  LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
+  Users, Wallet, type LucideIcon,
+} from 'lucide-react';
+import { Button } from '../ui/Button';
+import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { MyVyralsPage } from './MyVyralsPage';
+import { ProfileSubpageHeader } from './ProfileSubpageHeader';
+
+type ProfilePageProps = {
+  userEmail: string;
+  creditBalance: string | null;
+  creditLoading: boolean;
+  themeMode: 'system' | 'light' | 'dark';
+  resolvedTheme: 'light' | 'dark';
+  onThemeModeChange: (mode: 'system' | 'light' | 'dark') => void;
+  onBack: () => void;
+  backLabel: string;
+  onSignOut: () => void;
+  onLoginRequired: () => void;
+  initialPage?: 'my-vyrals' | 'my-media-library' | null;
+};
+
+type PageKey =
+  | 'home' | 'public-profile' | 'my-vyrals' | 'my-media-library' | 'saved' | 'purchased'
+  | 'collections' | 'following' | 'creator-dashboard' | 'notifications'
+  | 'settings' | 'setting-account' | 'setting-security' | 'setting-appearance'
+  | 'setting-notifications' | 'setting-billing' | 'setting-ai' | 'setting-legal'
+  | 'setting-about' | 'help';
+
+type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
+type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponent };
+
+const groups: { title: string; items: NavItem[] }[] = [
+  { title: 'My Space', items: [
+    { key: 'public-profile', label: 'My Public Profile', detail: 'Your creator identity and public showcase', icon: UserRound },
+    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage drafts and published creative assets', icon: VyralIdentityIcon },
+    { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded images, videos, audio and files', icon: Images },
+  ] },
+  { title: 'My Library', items: [
+    { key: 'saved', label: 'Saved', detail: 'Vyrals you bookmarked for later', icon: Bookmark },
+    { key: 'purchased', label: 'Purchased', detail: 'Your purchases, licenses and usage rights', icon: ShoppingBag },
+    { key: 'collections', label: 'My Collections', detail: 'Organize Vyrals into personal collections', icon: FolderHeart },
+  ] },
+  { title: 'Community', items: [
+    { key: 'following', label: 'Following', detail: 'Creators you follow', icon: Users },
+    { key: 'notifications', label: 'Notifications', detail: 'Updates, activity and important alerts', icon: Bell },
+  ] },
+  { title: 'Creator Tools', items: [
+    { key: 'creator-dashboard', label: 'Creator Dashboard', detail: 'Views, uses, sales and earnings', icon: ChartNoAxesCombined },
+  ] },
+  { title: 'Account', items: [
+    { key: 'settings', label: 'Settings', detail: 'Account, security, preferences and privacy', icon: Settings2 },
+    { key: 'help', label: 'Help & Support', detail: 'Guides, FAQs and contact support', icon: CircleHelp },
+  ] },
+];
+
+const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
+  'public-profile': { title: 'My Public Profile', description: 'Manage the creator profile other people can visit.', icon: UserRound, note: 'Your public creator page and profile editor will appear here.' },
+  'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: VyralIdentityIcon, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
+  'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded images, videos, audio and files.', icon: Images, note: 'Your uploaded images, videos, audio and documents will appear here.' },
+  saved: { title: 'Saved', description: 'Keep interesting Vyrals together for later.', icon: Bookmark, note: 'Vyrals you save from the Marketplace will appear here. Saved items are private by default.' },
+  purchased: { title: 'Purchased', description: 'Access your purchased Vyrals and their license details.', icon: ShoppingBag, note: 'Your purchases, receipts, license terms and available updates will appear here. A purchase does not automatically grant resale rights.' },
+  collections: { title: 'My Collections', description: 'Group Vyrals into collections that match your creative interests.', icon: FolderHeart, note: 'Create and manage private or public collections here.' },
+  following: { title: 'Following', description: 'Keep up with creators whose work you enjoy.', icon: Users, note: 'Creators you follow will appear here. Your following list can be made private in Settings.' },
+  'creator-dashboard': { title: 'Creator Dashboard', description: 'Understand how your published Vyrals are performing.', icon: ChartNoAxesCombined, note: 'Creator analytics for views, uses, sales and earnings will appear here.' },
+  notifications: { title: 'Notifications', description: 'Stay informed about activity on your VYRA account.', icon: Bell, note: 'Follow alerts, purchases, Vyral updates and system notifications will appear here.' },
+  settings: { title: 'Settings', description: 'Control your account and VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
+  'setting-account': { title: 'Account & Profile', description: 'Manage your email, personal details and public profile.', icon: UserRound, note: 'Account and profile controls are coming soon.' },
+  'setting-security': { title: 'Security & Privacy', description: 'Manage password, active sessions and privacy controls.', icon: ShieldCheck, note: 'Security and privacy controls are coming soon.' },
+  'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Language preferences are coming soon.' },
+  'setting-notifications': { title: 'Notifications', description: 'Choose which alerts and updates you receive.', icon: Bell, note: 'Notification preferences are coming soon.' },
+  'setting-billing': { title: 'Plans & Billing', description: 'Manage your subscription, credits, payments and invoices.', icon: CreditCard, note: 'Plans and billing controls are coming soon.' },
+  'setting-ai': { title: 'AI Providers & API Keys', description: 'Manage connected AI providers and API keys.', icon: KeyRound, note: 'AI provider and API key management is coming soon.' },
+  'setting-legal': { title: 'Terms & Legal', description: 'Review VYRA terms of service and privacy information.', icon: LockKeyhole, note: 'Legal documents are coming soon.' },
+  'setting-about': { title: 'About VYRA', description: 'Platform information, version and product details.', icon: Monitor, note: 'VYRA platform information is coming soon.' },
+  help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
+};
+
+const updateProfileCardBottomRadius = (content: HTMLElement) => {
+  const card = content.closest<HTMLElement>('.profile-subpage-card');
+  if (!card) return;
+  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
+  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
+  const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
+  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
+  const header = card.querySelector<HTMLElement>('.profile-collapse-header');
+  if (header) {
+    const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
+    header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
+    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
+    header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
+    header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
+    header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+    header.style.setProperty('--profile-full-action-events', headerProgress < 0.5 ? 'auto' : 'none');
+    header.style.setProperty('--profile-compact-action-events', headerProgress >= 0.5 ? 'auto' : 'none');
+    const fullAction = header.querySelector<HTMLElement>('.profile-collapse-action-full');
+    const compactAction = header.querySelector<HTMLElement>('.profile-collapse-action-compact');
+    const compactMode = headerProgress >= 0.5;
+    fullAction?.toggleAttribute('inert', compactMode);
+    fullAction?.setAttribute('aria-hidden', String(compactMode));
+    compactAction?.toggleAttribute('inert', !compactMode);
+    compactAction?.setAttribute('aria-hidden', String(!compactMode));
+  }
+};
+
+const searchableProfilePages = new Set<PageKey>(['my-media-library', 'saved', 'purchased', 'collections', 'following', 'notifications', 'settings', 'help']);
+
+const settingsItems: { key: PageKey; label: string; detail: string; icon: LucideIcon }[] = [
+  { key: 'setting-account', label: 'Account & Profile', detail: 'Email, personal details and public profile', icon: UserRound },
+  { key: 'setting-security', label: 'Security & Privacy', detail: 'Password, sessions and visibility controls', icon: ShieldCheck },
+  { key: 'setting-appearance', label: 'Language & Appearance', detail: 'Language, theme and display preferences', icon: Globe2 },
+  { key: 'setting-notifications', label: 'Notifications', detail: 'Choose which alerts you receive', icon: Bell },
+  { key: 'setting-billing', label: 'Plans & Billing', detail: 'Subscription, credits, payments and invoices', icon: CreditCard },
+  { key: 'setting-ai', label: 'AI Providers & API Keys', detail: 'Manage connected AI services and keys', icon: KeyRound },
+  { key: 'setting-legal', label: 'Terms & Legal', detail: 'Terms of service and privacy policy', icon: LockKeyhole },
+  { key: 'setting-about', label: 'About VYRA', detail: 'Platform information and version', icon: Monitor },
+];
+
+export const ProfilePage: React.FC<ProfilePageProps> = ({
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null,
+}) => {
+  const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
+  const [pageSearch, setPageSearch] = useState('');
+  React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
+  React.useEffect(() => { setPageSearch(''); }, [activePage]);
+  React.useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activePage]);
+  React.useLayoutEffect(() => {
+    const content = document.querySelector<HTMLElement>('.profile-subpage-content');
+    if (content) updateProfileCardBottomRadius(content);
+  }, [activePage]);
+  const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
+
+  const goHome = () => setActivePage('home');
+
+  return (
+    <main className="profile-page-main mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
+      {activePage === 'home' ? (
+        <>
+          <section className="mb-7">
+            <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><UserRound size={14} /> PROFILE</p>
+            <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Profile</h1>
+            <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Manage your creator identity, library, account and preferences.</p>
+          </section>
+          <section className="mb-6 flex flex-col gap-4 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><UserRound size={22} /></div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">VYRA Account</h2>
+                <p className="mt-1 truncate text-sm text-[var(--vyra-text-secondary)]">{userEmail}</p>
+                <button type="button" onClick={() => setActivePage('public-profile')} className="mt-1 text-xs font-semibold text-[var(--vyra-accent-primary)] hover:underline">View my public profile</button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--vyra-bg-subtle)] px-4 py-3 sm:min-w-40 sm:justify-start">
+              <span className="flex items-center gap-2 text-xs text-[var(--vyra-text-secondary)]"><Wallet size={15} /> Available credits</span>
+              <strong className="text-sm tabular-nums text-[var(--vyra-text-primary)]">{balance}</strong>
+            </div>
+          </section>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            {groups.map((group) => (
+              <section key={group.title} className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+                <div className="border-b border-[var(--vyra-border-subtle)] px-4 py-3.5">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">{group.title}</h2>
+                </div>
+                <div className="divide-y divide-[var(--vyra-border-subtle)]">
+                  {group.items.map(({ key, label, detail, icon: Icon }) => (
+                    <button key={key} type="button" onClick={() => setActivePage(key)} className="group flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-secondary)] group-hover:text-[var(--vyra-accent-primary)]"><Icon size={17} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-[var(--vyra-text-primary)]">{label}</span>
+                        <span className="mt-0.5 block text-xs text-[var(--vyra-text-muted)]">{detail}</span>
+                      </span>
+                      <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-start">
+            <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
+          </div>
+        </>
+      ) : activePage === 'my-vyrals' ? (
+        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} />
+      ) : (
+        <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+          <ProfileSubpageHeader
+            onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
+            backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
+            icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
+            title={pageInfo[activePage].title}
+            description={pageInfo[activePage].description}
+            search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
+          />
+          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
+            {activePage === 'settings' ? (
+              <div className="divide-y divide-[var(--vyra-border-subtle)]">
+                {settingsItems.map(({ key, label, detail, icon: Icon }) => (
+                  <button key={key} type="button" onClick={() => setActivePage(key)} className="group flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--vyra-bg-hover)] first:pt-0 last:pb-0">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-secondary)] group-hover:text-[var(--vyra-accent-primary)]"><Icon size={17} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-[var(--vyra-text-primary)]">{label}</span>
+                      <span className="mt-0.5 block text-xs text-[var(--vyra-text-muted)]">{detail}</span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+                  </button>
+                ))}
+              </div>
+            ) : activePage === 'setting-appearance' ? (
+              <div className="max-w-xl">
+                <div className="mb-5">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Display theme</h2>
+                  <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Choose how VYRA looks on this device.</p>
+                </div>
+                <div className="mb-3 text-xs font-medium text-[var(--vyra-text-secondary)]">
+                  {themeMode === 'system' ? `System theme · currently ${resolvedTheme}` : `${themeMode === 'light' ? 'Light' : 'Dark'} theme selected`}
+                </div>
+                <div role="group" aria-label="Display theme" className="grid grid-cols-3 gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1.5">
+                  {([
+                    { value: 'light', label: 'Light', Icon: Sun },
+                    { value: 'dark', label: 'Dark', Icon: Moon },
+                    { value: 'system', label: 'System', Icon: Monitor },
+                  ] as const).map(({ value, label, Icon }) => (
+                    <button key={value} type="button" aria-pressed={themeMode === value} onClick={() => onThemeModeChange(value)} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold transition-colors ${themeMode === value ? 'bg-[var(--vyra-accent-primary)] text-slate-950' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>
+                      <Icon size={15} />{label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-6 border-t border-[var(--vyra-border-subtle)] pt-5">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Language</h2>
+                  <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Interface language preferences.</p>
+                  <div className="mt-3 rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-5 text-center">
+                    <span className="text-xs font-medium text-[var(--vyra-text-muted)]">Coming soon</span>
+                    <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Language selection will be available here.</p>
+                  </div>
+                </div>
+              </div>
+            ) : activePage.startsWith('setting-') ? (
+              <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
+                <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
+                <p className="mx-auto max-w-md text-sm text-[var(--vyra-text-secondary)]">{pageInfo[activePage].note}</p>
+                <span className="mt-3 inline-flex rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-muted)]">Coming soon</span>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
+                <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
+                <p className="mx-auto max-w-md text-sm text-[var(--vyra-text-secondary)]">{pageInfo[activePage].note}</p>
+                <p className="mt-2 text-xs text-[var(--vyra-text-muted)]">This section is part of the Profile navigation foundation; its data and actions are not connected yet.</p>
+              </div>
+            )}
+          </div>
+        </section></div>
+      )}
+    </main>
+  );
+};
