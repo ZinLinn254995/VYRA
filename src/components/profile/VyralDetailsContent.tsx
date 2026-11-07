@@ -670,11 +670,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
       const assetCount = importAssets.length;
       const folderCount = manifest.folders.length;
+      const importedVersionCount = manifest.versions.filter((version) => importAssetIds.has(String(version.asset_id))).length;
       const skippedNestedPackageCount = manifest.assets.length - importAssets.length;
       const skippedPackageNote = skippedNestedPackageCount
         ? '\n\n' + skippedNestedPackageCount + ' nested Vyral package file(s) will be skipped to avoid duplicates.'
         : '';
-      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions' + skippedPackageNote + '\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
+      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + importedVersionCount + ' versions' + skippedPackageNote + '\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
         setPackageStatus('');
         setPackageBusy(false);
         return;
