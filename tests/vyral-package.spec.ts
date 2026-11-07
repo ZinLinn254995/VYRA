@@ -59,6 +59,35 @@ test('rejects unsupported manifest versions and malformed manifests', () => {
   assert.throws(() => validateVyralManifest({ ...manifest, versions: 'not-an-array' }), /versions/);
 });
 
+test('explains which Assets are missing exact DNA in an incomplete DNA-only package', () => {
+  const incomplete = {
+    ...manifest,
+    exportMode: 'dna-only',
+    assets: [
+      { id: 'asset-test', name: 'Supported image' },
+      { id: 'asset-missing', name: 'Missing audio' },
+    ],
+    versions: [],
+    dnaRecords: [{
+      id: 'supported-record',
+      asset_id: 'asset-test',
+      dna_schema_id: 'vyra.asset-dna',
+      dna_schema_version: 3,
+      dna_record: {},
+    }],
+    reconstructionCapabilities: {
+      decoded_sample_stream_reconstructable: true,
+      source_decode_independently_verified: false,
+      encoded_source_bytes_recoverable: false,
+      color_space_fully_characterized: true,
+    },
+  };
+  assert.throws(
+    () => validateVyralManifest(incomplete),
+    /1 supported exact reconstruction record\(s\) for 2 Asset\(s\).*Missing audio \(DNA missing\)/,
+  );
+});
+
 test('rejects ZIP payload corruption using CRC32', async () => {
   const archive = createVyralZip([
     { path: 'manifest.json', data: JSON.stringify(manifest) },
