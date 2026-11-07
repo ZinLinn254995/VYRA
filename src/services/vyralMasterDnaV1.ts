@@ -1,3 +1,4 @@
+import { isSafePublicVyralResolverUriV1 } from './vyralResourceResolverV1.ts';
 export const VYRAL_MASTER_DNA_SCHEMA_ID = 'vyra.vyral-master-dna' as const;
 export const VYRAL_MASTER_DNA_SCHEMA_VERSION = 1 as const;
 
@@ -206,13 +207,22 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   }
   if (!isRecord(value.portable_projection) || value.portable_projection.profile !== 'compact' ||
       value.portable_projection.includes_full_reconstruction_payloads !== false ||
-      !(value.portable_projection.resolver_uri === null || typeof value.portable_projection.resolver_uri === 'string') ||
+      !(value.portable_projection.resolver_uri === null || isSafePublicVyralResolverUriV1(value.portable_projection.resolver_uri)) ||
       !['no_remote_resolution', 'public_metadata_only', 'authorized_selective_retrieval'].includes(String(value.portable_projection.retrieval_policy))) {
-    throw new Error('Master DNA compact portable projection is invalid.');
+    throw new Error('Master DNA compact portable projection is invalid or contains an unsafe resolver URI.');
+  }
+  if (value.portable_projection.resolver_uri !== null &&
+      (value.source_resolution.visibility !== 'public' ||
+       value.portable_projection.retrieval_policy !== 'authorized_selective_retrieval')) {
+    throw new Error('A public resolver URI requires public visibility and selective retrieval policy.');
+  }
+  if (value.portable_projection.retrieval_policy === 'authorized_selective_retrieval' &&
+      (value.source_resolution.visibility !== 'public' || value.portable_projection.resolver_uri === null)) {
+    throw new Error('Selective remote retrieval requires a valid public resolver URI.');
   }
   if (value.source_resolution.visibility !== 'public' &&
-      (value.portable_projection.retrieval_policy === 'public_metadata_only' || value.portable_projection.resolver_uri !== null)) {
-    throw new Error('Private or unlisted compact DNA cannot publish metadata-only resolution or a public resolver URI.');
+      (value.portable_projection.retrieval_policy !== 'no_remote_resolution' || value.portable_projection.resolver_uri !== null)) {
+    throw new Error('Private or unlisted compact DNA cannot publish a public resolver or remote retrieval policy.');
   }
 }
 
