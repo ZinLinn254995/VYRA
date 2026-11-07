@@ -12,13 +12,13 @@ async function readProjectFile(path: string) {
 }
 
 function canonicalUrl(html: string) {
-  const match = html.match(/<link\\s+rel=["']canonical["']\\s+href=["']([^"']+)["']/i);
+  const match = html.match(/<link\s+rel=["']canonical["']\s+href=["']([^"']+)["']/i);
   assert.ok(match?.[1], 'page must declare an absolute canonical URL');
   return new URL(match[1]);
 }
 
 function jsonLd(html: string) {
-  const match = html.match(/<script\\s+type=["']application\\/ld\\+json["']\\s*>([\\s\\S]*?)<\\/script>/i);
+  const match = html.match(/<script\s+type=["']application\/ld\+json["']\s*>([\s\S]*?)<\/script>/i);
   assert.ok(match?.[1], 'page must contain JSON-LD structured data');
   return JSON.parse(match[1]) as Record<string, unknown>;
 }
@@ -28,9 +28,9 @@ test('homepage exposes canonical metadata and valid discovery structured data', 
   const canonical = canonicalUrl(html);
   assert.equal(canonical.protocol, 'https:');
   assert.equal(canonical.pathname, '/');
-  assert.match(html, /<title>VYRA\\s+—/i);
-  assert.match(html, /<meta\\s+name=["']description["']\\s+content=["'][^"']{50,300}["']/i);
-  assert.match(html, /<meta\\s+name=["']robots["']\\s+content=["']index,follow/i);
+  assert.match(html, /<title>VYRA\s+—/i);
+  assert.match(html, /<meta\s+name=["']description["']\s+content=["'][^"']{50,300}["']/i);
+  assert.match(html, /<meta\s+name=["']robots["']\s+content=["']index,follow/i);
   assert.match(html, /property=["']og:title["']/i);
   assert.match(html, /name=["']twitter:card["']/i);
 
@@ -54,22 +54,22 @@ test('robots and sitemap agree on the canonical public origin and list real page
   const robots = await readProjectFile('public/robots.txt');
   const sitemap = await readProjectFile('public/sitemap.xml');
 
-  assert.match(robots, /^User-agent:\\s*\\*/m);
-  assert.match(robots, /^Allow:\\s*\\/$/m);
-  assert.match(robots, /^Disallow:\\s*\\/api\\//m);
-  const sitemapDirective = robots.match(/^Sitemap:\\s*(\\S+)\\s*$/m)?.[1];
+  assert.match(robots, /^User-agent:\s*\*/m);
+  assert.match(robots, /^Allow:\s*\/$/m);
+  assert.match(robots, /^Disallow:\s*\/api\//m);
+  const sitemapDirective = robots.match(/^Sitemap:\s*(\S+)\s*$/m)?.[1];
   assert.ok(sitemapDirective, 'robots.txt must point crawlers to the sitemap');
   assert.equal(new URL(sitemapDirective).origin, origin);
   assert.equal(sitemapDirective, `${origin}/sitemap.xml`);
 
-  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\\/loc>/g)].map((match) => new URL(match[1]));
+  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => new URL(match[1]));
   assert.ok(urls.length >= 2, 'sitemap should include the homepage and discovery page');
   assert.equal(new Set(urls.map((url) => url.href)).size, urls.length, 'sitemap URLs must be unique');
   for (const url of urls) {
     assert.equal(url.origin, origin, 'sitemap must not expose preview or unrelated hosts');
     assert.equal(url.search, '');
     assert.equal(url.hash, '');
-    const relativePath = decodeURIComponent(url.pathname).replace(/^\\//, '');
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\//, '');
     const filePath = url.pathname === '/' ? resolve(root, 'index.html') : resolve(publicDir, relativePath);
     await access(filePath);
   }
@@ -85,14 +85,14 @@ test('discovery landing page has matching canonical metadata and WebPage JSON-LD
 
   assert.equal(canonical.origin, homepageOrigin);
   assert.equal(canonical.pathname, '/discover-vyra.html');
-  assert.match(html, /<title>VYRA\\s+—/i);
-  assert.match(html, /<meta\\s+name=["']description["']/i);
-  assert.match(html, /<meta\\s+name=["']robots["']\\s+content=["']index,follow["']/i);
+  assert.match(html, /<title>VYRA\s+—/i);
+  assert.match(html, /<meta\s+name=["']description["']/i);
+  assert.match(html, /<meta\s+name=["']robots["']\s+content=["']index,follow["']/i);
 
   const structured = jsonLd(html);
   assert.equal(structured['@context'], 'https://schema.org');
   assert.equal(structured['@type'], 'WebPage');
   assert.equal(structured.url, canonical.href);
   assert.equal((structured.isPartOf as Record<string, unknown>).url, `${homepageOrigin}/`);
-  assert.doesNotMatch(html, /workers\\.dev|localhost|127\\.0\\.0\\.1/i);
+  assert.doesNotMatch(html, /workers\.dev|localhost|127\.0\.0\.1/i);
 });
