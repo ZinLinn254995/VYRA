@@ -341,6 +341,5 @@ export const suggestVyralCollectionDetails = async (
     model: payload.modelName || 'unknown',
     generatedAt: new Date().toISOString(),
     suggestions,
-    currentDetails: input.currentDetails,
   });
 };
