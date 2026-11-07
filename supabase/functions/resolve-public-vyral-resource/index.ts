@@ -6,7 +6,7 @@ import {
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
   isPublicVyralResourceAllowedV1,
-} from '../resolve-vyral-resource/vyralResourceResolverV1.ts';
+} from '../_shared/vyralResourceResolverV1.ts';
 
 type Row = Record<string, any>;
 
