@@ -1015,7 +1015,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             original_created_at: sourceRecord.created_at ?? null,
             trust: 'unverified_imported_evidence',
           },
-        }, objectValue(sourceRecord.reconstruction_data), isDnaV3Record ? 3 : 1, remappedDnaRecordId);
+        }, isFileDnaRecord ? {
+          source_preservation: 'original_binary_retained',
+          reconstruction_ready: false,
+          recovery_level: 'identity-only',
+          encoded_source_bytes_recoverable: false,
+        } : objectValue(sourceRecord.reconstruction_data), isDnaV3Record ? 3 : 1, remappedDnaRecordId);
       }
 
       for (const sourceFingerprint of manifest.fingerprints) {
