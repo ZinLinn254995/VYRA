@@ -181,13 +181,21 @@ Deno.serve(async (request: Request) => {
 
   const { data: asset, error: assetError } = await context.supabaseAdmin
     .from('vyral_assets')
-    .select('id,vyral_id,user_id,name,mime_type')
+    .select('id,vyral_id,user_id,name,mime_type,license_override')
     .eq('id', body.assetId)
     .eq('vyral_id', vyral.id)
     .eq('user_id', ownerId)
     .maybeSingle();
   if (assetError) return json({ error: 'Could not resolve the requested Asset.' }, 500);
   if (!asset) return json({ error: 'Asset not found or access denied.' }, 404);
+  if (!isPublicVyralResourceAllowedV1({
+    visibility: vyral.visibility,
+    action: body.action,
+    licensePolicy,
+    assetPolicy: asset.license_override,
+  })) {
+    return json({ error: 'The creator has not permitted access to this Asset.' }, 403);
+  }
 
   const { data: version, error: versionError } = await context.supabaseAdmin
     .from('vyral_asset_versions')
