@@ -82,12 +82,7 @@ test('AI detail parser accepts safe custom type-specific fields and structured v
 });
 
 test('AI detail parser rejects unsafe or unsupported structured values', () => {
-  const parsed = parseVyralAiSuggestions(JSON.stringify({
-    constructor: { value: 'unsafe' },
-    '__proto__': { value: 'unsafe' },
-    malformed: { value: { nested: { too: { deep: 'not accepted' } } } },
-    usable: { value: 'still accepted' },
-  }));
+  const parsed = parseVyralAiSuggestions('{"constructor":{"value":"unsafe"},"__proto__":{"value":"unsafe"},"malformed":{"value":{"nested":{"too":{"deep":"not accepted"}}}},"usable":{"value":"still accepted"}}');
   assert.equal(parsed.usable.value, 'still accepted');
   assert.equal('constructor' in parsed, false);
   assert.equal('__proto__' in parsed, false);
