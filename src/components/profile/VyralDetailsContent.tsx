@@ -1961,7 +1961,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       updatedDetails = setVyralAiDetailField(updatedDetails, 'category', collectionDraft.category.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'style', collectionDraft.style.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', collectionDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
-      const nextMetadata = { ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready' };
+      const nextMetadata = {
+        ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
+        identity_name_origin: 'creator_edited', identity_description_origin: 'creator_edited',
+      };
       const { error: updateError } = await supabase.from('vyrals').update({
         name: collectionDraft.name.trim().slice(0, 100),
         description: collectionDraft.description.trim().slice(0, 1000),
@@ -2349,6 +2352,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           <div className="min-w-0">
             <h4 className={'truncate text-sm font-semibold ' + primary}>{asset.name}</h4>
             <p className={'mt-1 text-[11px] capitalize ' + muted}>{asset.asset_type.replaceAll('_', ' ')}</p>
+            {(() => {
+              const fields = (asset.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
+              const category = typeof fields.category?.value === 'string' ? fields.category.value : '';
+              const style = typeof fields.style?.value === 'string' ? fields.style.value : '';
+              const tags = Array.isArray(fields.tags?.value) ? fields.tags.value.filter((tag): tag is string => typeof tag === 'string').slice(0, 3) : [];
+              const values = [category, style, ...tags].filter(Boolean);
+              return values.length ? <div className="mt-2 flex flex-wrap gap-1">{values.map((value,index)=><span key={value+index} className="max-w-full truncate rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-0.5 text-[9px] text-[var(--vyra-text-secondary)]">{value}</span>)}</div> : null;
+            })()}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => void openPreview(asset)} className={button}>Open</button>
