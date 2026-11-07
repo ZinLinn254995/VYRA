@@ -9,6 +9,7 @@ import {
   createVyralDnaOnlyPackage,
   createVyralAssetDnaOnlyPackage,
   getVyralPackageAssetsForImport,
+  selectVyralPackageComponents,
   reconstructVyralDnaV3FromPackage,
   reconstructVyralFileDnaFromPackage,
   encodeVyralDnaV3PngFromPackage,
@@ -520,7 +521,71 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     assets,
     versions: [],
     masterDna,
+    exportComponents: { assets: false, fullDna: true, compactDna: true },
   };
+
+  const sourceMedia = assets.map((asset, index) => ({
+    path: 'assets/' + asset.id + '/versions/1.bin',
+    data: new Uint8Array([index + 1, 7, 9]),
+  }));
+  const fullRecords = sourceRecords.map((record) => ({
+    id: record.record_id,
+    scope: 'asset',
+    asset_id: record.source.asset_id,
+    dna_schema_id: 'vyra.asset-dna',
+    dna_schema_version: 3,
+    recovery_level: 'decoded-samples-exact',
+    dna_record: record,
+  }));
+  const fullArchive = createVyralZip([
+    ...sourceMedia,
+    ...payloadEntries,
+    {
+      path: 'manifest.json',
+      data: JSON.stringify({
+        ...base,
+        exportMode: 'full',
+        exportComponents: { assets: true, fullDna: true, compactDna: true },
+        versions: assets.map((asset, index) => ({
+          id: 'version-' + index,
+          asset_id: asset.id,
+          version_number: 1,
+          sha256: String(index + 1).repeat(64),
+          size_bytes: 3,
+          mime_type: 'image/png',
+          package_path: sourceMedia[index].path,
+        })),
+        dnaRecords: fullRecords,
+      }),
+    },
+  ]);
+  const assetExportCases = [
+    { assets: true, fullDna: false, compactDna: false },
+    { assets: true, fullDna: true, compactDna: false },
+    { assets: true, fullDna: false, compactDna: true },
+    { assets: true, fullDna: true, compactDna: true },
+  ] as const;
+  for (const components of assetExportCases) {
+    const selectedArchive = await selectVyralPackageComponents(fullArchive, components);
+    const selectedFiles = await readVyralZip(selectedArchive);
+    const selectedManifest = parseVyralManifest(selectedFiles);
+    assert.deepEqual(selectedManifest.exportComponents, components);
+    assert.equal(selectedManifest.versions.length, components.assets ? 2 : 0);
+    assert.equal(selectedManifest.dnaRecords.length, components.fullDna ? 2 : 0);
+    assert.equal(Boolean(selectedManifest.masterDna), components.compactDna);
+    assert.equal(sourceMedia.every((entry) => selectedFiles.has(entry.path)) , true);
+    assert.equal(payloadEntries.every((entry) => selectedFiles.has(entry.path)), components.fullDna);
+  }
+  const compactOnlyArchive = await selectVyralPackageComponents(fullArchive, {
+    assets: false, fullDna: false, compactDna: true,
+  });
+  const compactOnlyFiles = await readVyralZip(compactOnlyArchive);
+  const compactOnlyManifest = parseVyralManifest(compactOnlyFiles);
+  assert.equal(compactOnlyManifest.exportMode, 'compact-only');
+  assert.equal(compactOnlyManifest.versions.length, 0);
+  assert.equal(compactOnlyManifest.dnaRecords.length, 0);
+  assert.ok(compactOnlyManifest.masterDna);
+  assert.equal(compactOnlyFiles.size, 2);
   const tamperedMasterDna = {
     ...masterDna,
     integrity: { ...masterDna.integrity, vyral_fingerprint: '0'.repeat(64) },
