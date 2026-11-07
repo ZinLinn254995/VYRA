@@ -600,11 +600,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           visibility: vyral.visibility,
           dna_status: vyral.dna_status,
           license_policy: vyral.license_policy ?? {},
-          metadata: {
-            ai_details: (vyral.metadata ?? {}).ai_details ?? null,
-            identity_name_origin: (vyral.metadata ?? {}).identity_name_origin ?? 'creator_confirmed',
-            identity_description_origin: (vyral.metadata ?? {}).identity_description_origin ?? (vyral.description ? 'creator_confirmed' : 'system_default'),
-          },
+          ...(!selectedAssetId ? {
+            metadata: {
+              ai_details: (vyral.metadata ?? {}).ai_details ?? null,
+              identity_name_origin: (vyral.metadata ?? {}).identity_name_origin ?? 'creator_confirmed',
+              identity_description_origin: (vyral.metadata ?? {}).identity_description_origin ?? (vyral.description ? 'creator_confirmed' : 'system_default'),
+            },
+          } : {}),
         },
         ...(!selectedAssetId && components.compactDna && portableMasterDna ? { masterDna: portableMasterDna } : {}),
         folders: components.assets ? folders.map((item) => ownerless(item as unknown as Record<string, unknown>)) : [],
