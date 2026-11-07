@@ -1159,8 +1159,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             }).eq('id', assetId).eq('user_id', userId);
             if (metadataError) console.warn('[vyral-ai-details] Could not save imported Asset suggestions.');
           } else {
+            const { data: importedAsset } = await supabase.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
+            const importedMetadata = importedAsset?.metadata && typeof importedAsset.metadata === 'object' && !Array.isArray(importedAsset.metadata)
+              ? importedAsset.metadata as Record<string, unknown> : {};
             await supabase.from('vyral_assets').update({
-              metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, ai_details_status: 'unavailable', visibility: 'private' },
+              metadata: { ...importedMetadata, ai_details_status: 'unavailable', visibility: 'private' },
             }).eq('id', assetId).eq('user_id', userId);
           }
         } catch (metadataCause) {
