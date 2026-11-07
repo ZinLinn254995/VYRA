@@ -1043,13 +1043,19 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           trust: 'unverified_imported_evidence',
         });
       }
-      addImportedEvidence('system', null, {
-        imported_collection_identity: manifest.vyral,
-        package_id: manifest.packageId,
-        import_run_id: importRunId,
-        exported_at: manifest.exportedAt,
-        trust: 'unverified_imported_evidence',
-      });
+      // DNA-only packages are strict Asset reconstruction units. Do not add a
+      // synthetic Vyral-scope evidence row to the same import run: it is not an
+      // Asset reconstruction record and can violate the one-record-per-Asset
+      // import contract enforced by downstream package validation.
+      if (manifest.exportMode !== 'dna-only') {
+        addImportedEvidence('system', null, {
+          imported_collection_identity: manifest.vyral,
+          package_id: manifest.packageId,
+          import_run_id: importRunId,
+          exported_at: manifest.exportedAt,
+          trust: 'unverified_imported_evidence',
+        });
+      }
 
       for (let index = 0; index < dnaRows.length; index += 100) {
         const { error: dnaError } = await supabase.from('vyral_dna_records').insert(dnaRows.slice(index, index + 100));
