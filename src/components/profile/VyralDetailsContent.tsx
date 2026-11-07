@@ -167,6 +167,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterAssetDrafts, setMasterAssetDrafts] = useState<Record<string, MasterAssetDraft>>({});
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
   const masterDnaAutoBuildRef = useRef(false);
+  const collectionAnalysisKeyRef = useRef<string>('');
+
 
   const loadWorkspace = useCallback(async () => {
     if (!supabase) { setError('Cloud storage is not configured for this environment.'); setLoading(false); return; }
@@ -272,6 +274,72 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       });
     }
   }, [vyral.id, vyral.license_policy]);
+
+  useEffect(() => {
+    if (loading || !assets.length || !supabase) return;
+    const inventoryRevision = assets.map((asset) => [asset.id, asset.updated_at, asset.sha256 ?? ''].join(':')).sort().join('|');
+    const analysisKey = vyral.id + ':' + inventoryRevision;
+    if (collectionAnalysisKeyRef.current === analysisKey) return;
+    const currentMetadata = vyral.metadata ?? {};
+    const existingDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
+    const existingRevision = typeof existingDetails?.source_revision === 'number' ? existingDetails.source_revision : -1;
+    if (existingDetails && !existingDetails.stale && existingRevision === assets.length) {
+      collectionAnalysisKeyRef.current = analysisKey;
+      return;
+    }
+    collectionAnalysisKeyRef.current = analysisKey;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const accessToken = await getCurrentAccessToken();
+        if (!accessToken) return;
+        const assetSummaries = assets.slice(0, 80).map((asset) => {
+          const fields = (asset.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
+          const tags = Array.isArray(fields.tags?.value) ? fields.tags.value.filter((tag): tag is string => typeof tag === 'string') : [];
+          return {
+            name: asset.name, assetType: asset.asset_type, mimeType: asset.mime_type,
+            description: asset.description ?? (typeof fields.description?.value === 'string' ? fields.description.value : ''),
+            tags,
+          };
+        });
+        const suggestion = await suggestVyralCollectionDetails({
+          accessToken, vyralId: vyral.id, currentName: vyral.name, currentDescription: vyral.description ?? '',
+          sourceRevision: assets.length, assets: assetSummaries, currentDetails: existingDetails,
+        });
+        if (cancelled) return;
+        const latest = await supabase.from('vyrals').select('name,description,metadata').eq('id', vyral.id).eq('user_id', auth.user?.id ?? '').maybeSingle();
+        if (latest.error || !latest.data) return;
+        const latestMetadata = latest.data.metadata && typeof latest.data.metadata === 'object' && !Array.isArray(latest.data.metadata)
+          ? latest.data.metadata as Record<string, unknown> : {};
+        const merged = mergeVyralAiDetails(latestMetadata.ai_details, {
+          scope: 'vyral', sourceRevision: assets.length, sourceVersionId: null,
+          provider: suggestion.provider, model: suggestion.model, generatedAt: new Date().toISOString(),
+          suggestions: Object.fromEntries(Object.entries(suggestion.fields).map(([key, field]) => [key, { value: field.value, confidence: field.confidence }])),
+        });
+        const fields = merged.fields;
+        const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
+        const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
+        const canSuggestName = latestMetadata.identity_name_origin === 'system_default';
+        const canSuggestDescription = latestMetadata.identity_description_origin === 'system_default';
+        const nextMetadata = { ...latestMetadata, ai_details: merged, ai_details_status: 'ready', ai_details_inventory_revision: inventoryRevision };
+        const { error: saveError } = await supabase.from('vyrals').update({
+          ...(suggestedName && canSuggestName ? { name: suggestedName, metadata: { ...nextMetadata, identity_name_origin: 'ai_suggested' } } : {}),
+          ...(suggestedDescription && canSuggestDescription ? { description: suggestedDescription, metadata: { ...nextMetadata, ...(suggestedName && canSuggestName ? { identity_name_origin: 'ai_suggested' } : {}), identity_description_origin: 'ai_suggested' } } : {}),
+          ...(!(suggestedName && canSuggestName) && !(suggestedDescription && canSuggestDescription) ? { metadata: nextMetadata } : {}),
+        }).eq('id', vyral.id).eq('user_id', auth.user?.id ?? '');
+        if (!saveError && !cancelled) {
+          onVyralUpdated({
+            ...(suggestedName && canSuggestName ? { name: suggestedName } : {}),
+            ...(suggestedDescription && canSuggestDescription ? { description: suggestedDescription } : {}),
+            metadata: nextMetadata,
+          });
+        }
+      } catch (cause) {
+        console.warn('[vyral-ai-details] Collection suggestions were unavailable.', cause);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loading, assets, vyral.id, vyral.name, vyral.description, vyral.metadata, auth.user?.id, onVyralUpdated]);
 
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
 
