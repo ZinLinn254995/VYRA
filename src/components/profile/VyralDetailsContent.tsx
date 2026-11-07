@@ -600,6 +600,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           visibility: vyral.visibility,
           dna_status: vyral.dna_status,
           license_policy: vyral.license_policy ?? {},
+          metadata: {
+            ai_details: (vyral.metadata ?? {}).ai_details ?? null,
+            identity_name_origin: (vyral.metadata ?? {}).identity_name_origin ?? 'creator_confirmed',
+            identity_description_origin: (vyral.metadata ?? {}).identity_description_origin ?? (vyral.description ? 'creator_confirmed' : 'system_default'),
+          },
         },
         ...(!selectedAssetId && components.compactDna && portableMasterDna ? { masterDna: portableMasterDna } : {}),
         folders: components.assets ? folders.map((item) => ownerless(item as unknown as Record<string, unknown>)) : [],
@@ -1405,6 +1410,46 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       for (let index = 0; index < lineageRows.length; index += 100) {
         const { error: lineageError } = await supabase.from('vyral_lineage').insert(lineageRows.slice(index, index + 100));
         if (lineageError) throw lineageError;
+      }
+
+      // Carry source collection details into an empty/default destination only.
+      // Existing destination creator choices always take precedence; the merged inventory is re-analyzed below.
+      const sourceVyral = objectValue(manifest.vyral);
+      const sourceVyralMetadata = objectValue(sourceVyral.metadata);
+      const targetVyralMetadata = objectValue(vyral.metadata);
+      const sourceAiDetails = objectValue(sourceVyralMetadata.ai_details);
+      const hasSourceAiDetails = sourceAiDetails.schema_version === 1 && objectValue(sourceAiDetails.fields);
+      const targetHasAiDetails = Boolean(targetVyralMetadata.ai_details);
+      const sourceName = safeName(sourceVyral.name, '', 100);
+      const sourceDescription = stringValue(sourceVyral.description).trim().slice(0, 1000);
+      const targetNameIsDefault = targetVyralMetadata.identity_name_origin === 'system_default';
+      const targetDescriptionIsDefault = targetVyralMetadata.identity_description_origin === 'system_default';
+      const sourceNameOrigin = ['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(sourceVyralMetadata.identity_name_origin))
+        ? String(sourceVyralMetadata.identity_name_origin) : 'creator_confirmed';
+      const sourceDescriptionOrigin = ['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(sourceVyralMetadata.identity_description_origin))
+        ? String(sourceVyralMetadata.identity_description_origin) : (sourceDescription ? 'creator_confirmed' : 'system_default');
+      if ((!targetHasAiDetails && hasSourceAiDetails) || (targetNameIsDefault && sourceName) || (targetDescriptionIsDefault && sourceDescription)) {
+        const nextVyralMetadata = {
+          ...targetVyralMetadata,
+          ...(!targetHasAiDetails && hasSourceAiDetails ? {
+            ai_details: { ...sourceAiDetails, stale: true },
+            ai_details_status: 'pending',
+            ai_details_imported_from_package: manifest.packageId,
+          } : {}),
+          ...(targetNameIsDefault && sourceName ? { identity_name_origin: sourceNameOrigin } : {}),
+          ...(targetDescriptionIsDefault && sourceDescription ? { identity_description_origin: sourceDescriptionOrigin } : {}),
+        };
+        const { error: collectionIdentityError } = await supabase.from('vyrals').update({
+          ...(targetNameIsDefault && sourceName ? { name: sourceName } : {}),
+          ...(targetDescriptionIsDefault && sourceDescription ? { description: sourceDescription } : {}),
+          metadata: nextVyralMetadata,
+        }).eq('id', vyral.id).eq('user_id', userId);
+        if (collectionIdentityError) throw collectionIdentityError;
+        onVyralUpdated({
+          ...(targetNameIsDefault && sourceName ? { name: sourceName } : {}),
+          ...(targetDescriptionIsDefault && sourceDescription ? { description: sourceDescription } : {}),
+          metadata: nextVyralMetadata,
+        });
       }
 
       await loadWorkspace();
