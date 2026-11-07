@@ -1051,7 +1051,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           processing_status: 'uploading',
           description: stringValue(sourceAsset.description).slice(0, 2000),
           license_override: objectValue(sourceAsset.license_override),
-          metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}), ...(reconstructedFromFileDna ? { reconstructed_from_file_dna_v1: true, original_source_sha256: reconstructedSourceSha256, original_source_bytes_recovered: true } : {}) },
+          metadata: { ...objectValue(sourceAsset.metadata), visibility: 'private', identity_name_origin: objectValue(sourceAsset.metadata).identity_name_origin ?? 'system_default', identity_description_origin: objectValue(sourceAsset.metadata).identity_description_origin ?? 'system_default', imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}), ...(reconstructedFromFileDna ? { reconstructed_from_file_dna_v1: true, original_source_sha256: reconstructedSourceSha256, original_source_bytes_recovered: true } : {}) },
         });
         if (assetError) throw assetError;
         createdAssetIds.push(assetId);
@@ -1132,13 +1132,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
             const { error: metadataError } = await supabase.from('vyral_assets').update({
-              ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { name: suggestedName } : {}),
-              ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { description: suggestedDescription } : {}),
+              ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { name: suggestedName } : {}),
+              ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { description: suggestedDescription } : {}),
               metadata: {
                 ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
                 ai_details_source_version_id: latest.id,
-                ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { identity_name_origin: 'ai_suggested' } : {}),
-                ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { identity_description_origin: 'ai_suggested' } : {}),
+                ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { identity_name_origin: 'ai_suggested' } : {}),
+                ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { identity_description_origin: 'ai_suggested' } : {}),
               },
             }).eq('id', assetId).eq('user_id', userId);
             if (metadataError) console.warn('[vyral-ai-details] Could not save imported Asset suggestions.');
@@ -1574,13 +1574,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
             const { error: metadataError } = await db.from('vyral_assets').update({
-              ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { name: suggestedName } : {}),
-              ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { description: suggestedDescription } : {}),
+              ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { name: suggestedName } : {}),
+              ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { description: suggestedDescription } : {}),
               metadata: {
                 ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
                 ai_details_source_version_id: version.id,
-                ...(suggestedName && currentMetadata.identity_name_origin === 'system_default' ? { identity_name_origin: 'ai_suggested' } : {}),
-                ...(suggestedDescription && currentMetadata.identity_description_origin === 'system_default' ? { identity_description_origin: 'ai_suggested' } : {}),
+                ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { identity_name_origin: 'ai_suggested' } : {}),
+                ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { identity_description_origin: 'ai_suggested' } : {}),
               },
             }).eq('id', assetId).eq('user_id', auth.user.id);
             if (metadataError) console.warn('[vyral-ai-details] Could not save uploaded Asset suggestions.');
