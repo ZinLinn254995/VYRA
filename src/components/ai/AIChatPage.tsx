@@ -358,7 +358,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           .in('asset_id', selectedIds)
           .order('version_number', { ascending: false });
         if (versionError) throw new Error('Could not resolve current selected Asset versions: ' + versionError.message);
-        const latestVersionByAsset = new Map<string, typeof versionRows[number]>();
+        const latestVersionByAsset = new Map<string, { vyral_id: string; storage_path: string; mime_type: string | null; size_bytes: number; version_number: number }>();
         for (const version of versionRows ?? []) {
           if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
         }
