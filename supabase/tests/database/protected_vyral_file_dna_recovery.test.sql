@@ -49,10 +49,15 @@ select lives_ok(
   'The exact ORIGIN-01 File DNA test upload can finalize after recovery'
 );
 
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+
 select throws_ok(
-  $$ update public.vyral_assets
+  $ update public.vyral_assets
      set storage_path='tampered/origin-file-dna.vyral'
-     where id='d2985616-36f4-4369-ab52-1ee5b63b027b' $$,
+     where id='d2985616-36f4-4369-ab52-1ee5b63b027b' $,
   '55000',
   'This Vyral is protected. Its original asset and version records are immutable.',
   'The recovery exception does not permit changing the original source path'
