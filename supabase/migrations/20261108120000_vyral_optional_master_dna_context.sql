@@ -37,7 +37,7 @@ begin
   select a.vyral_id into target_vyral_id
   from public.vyral_assets a
   where a.id = p_asset_id and a.user_id = caller_id
-  for update;
+  ;
   if not found then
     raise exception using errcode = 'P0002', message = 'Asset not found in the signed-in owner scope.';
   end if;
