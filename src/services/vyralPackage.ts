@@ -13,10 +13,23 @@ export const VYRAL_PACKAGE_MANIFEST = 'manifest.json';
 
 /** Exclude the exact .vyral Asset used as the import container, when that Asset
  * is also listed inside its own exported collection manifest. */
-export const getVyralPackageAssetsForImport = <T extends { id?: string }>(
+export const getVyralPackageAssetsForImport = <T extends {
+  id?: string;
+  name?: string;
+  original_filename?: string;
+  mime_type?: string;
+}>(
   assets: T[],
   containerAssetId?: string,
-): T[] => assets.filter((asset) => !containerAssetId || asset.id !== containerAssetId);
+  excludeNestedPackages = Boolean(containerAssetId),
+): T[] => assets.filter((asset) => {
+  if (containerAssetId && asset.id === containerAssetId) return false;
+  if (!excludeNestedPackages) return true;
+  const filenames = [asset.name, asset.original_filename].filter((value): value is string => typeof value === 'string');
+  const isNestedPackage = asset.mime_type?.toLowerCase() === VYRAL_PACKAGE_FORMAT ||
+    filenames.some((filename) => filename.toLowerCase().endsWith('.vyral'));
+  return !isNestedPackage;
+});
 
 export type VyralPackageEntry = { path: string; data: Uint8Array | string };
 
