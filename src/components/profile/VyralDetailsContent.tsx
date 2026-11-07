@@ -363,8 +363,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           scope: 'vyral', sourceRevision: revision, provider: suggested.provider, model: suggested.model,
           generatedAt: suggested.generated_at, suggestions: aiSuggestions,
         });
-        const latestNameOrigin = latestMetadata.identity_name_origin ?? 'system_default';
-        const latestDescriptionOrigin = latestMetadata.identity_description_origin ?? 'system_default';
+        const latestNameOrigin = latestMetadata.identity_name_origin ?? 'creator_confirmed';
+        const latestDescriptionOrigin = latestMetadata.identity_description_origin ?? 'creator_confirmed';
         const suggestedName = typeof mergedDetails.fields.name?.value === 'string' ? mergedDetails.fields.name.value.trim().slice(0, 100) : '';
         const suggestedDescription = typeof mergedDetails.fields.description?.value === 'string' ? mergedDetails.fields.description.value.trim().slice(0, 1000) : '';
         const updateName = Boolean(suggestedName) && ['system_default', 'ai_suggested'].includes(String(latestNameOrigin));
