@@ -1257,82 +1257,25 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (fingerprintError) throw fingerprintError;
 
         if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
-          const decoded = await decodeRasterImageForDnaV3(file);
-          const recordId = crypto.randomUUID();
-          const { record, entries } = await createVyralDnaV3({
-            record_id: recordId,
-            source: { asset_id: assetId, asset_version_id: version.id, sha256, size_bytes: file.size, mime_type: mime },
-            extractor: { name: 'vyra-browser-raster-dna-v3', version: '1.0.0' },
-            width: decoded.width,
-            height: decoded.height,
-            channel_layout: 'RGBA',
-            color_space: 'sRGB',
-            icc_profile_sha256: null,
-            alpha_mode: 'straight',
-            decoder_contract: {
-              name: 'createImageBitmap+Canvas2D.getImageData',
-              version: decoded.decoderVersion,
-              color_management: 'browser-managed-to-sRGB; EXIF orientation disabled; straight-alpha RGBA8 samples',
-            },
-            decoded_samples: decoded.samples,
-            tile_width: 256,
-            tile_height: 256,
+          const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
+            body: { assetId, versionId: version.id },
           });
-          const tileStoragePaths: string[] = [];
-          // Upload a few larger lossless tiles concurrently. This reduces mobile
-          // request count while keeping memory and in-flight work bounded.
-          const tileBatchSize = 3;
-          for (let batchStart = 0; batchStart < entries.length; batchStart += tileBatchSize) {
-            const batch = entries.slice(batchStart, batchStart + tileBatchSize);
-            const outcomes = await Promise.allSettled(batch.map(async (entry, batchIndex) => {
-              const index = batchStart + batchIndex;
-              const tileStoragePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/dna-v3/' + recordId + '/' + index + '.raw';
-              const tileBuffer = new ArrayBuffer(entry.data.byteLength);
-              new Uint8Array(tileBuffer).set(entry.data);
-              const { error: tileUploadError } = await supabase!.storage.from('vyral-assets').upload(
-                tileStoragePath,
-                new Blob([tileBuffer], { type: 'application/octet-stream' }),
-                { contentType: 'application/octet-stream', upsert: false, cacheControl: '3600' },
-              );
-              if (tileUploadError) throw new Error('DNA v3 tile ' + (index + 1) + '/' + entries.length + ': ' + tileUploadError.message);
-              return tileStoragePath;
-            }));
-            for (const outcome of outcomes) {
-              if (outcome.status === 'fulfilled') {
-                uploadedDnaTilePaths.push(outcome.value);
-                tileStoragePaths.push(outcome.value);
-              }
+          if (extractionError || extraction?.status !== 'extracted') {
+            const response = (extractionError as unknown as { context?: Response } | null)?.context;
+            let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
+            if (response && typeof response.clone === 'function') {
+              try {
+                const payload = await response.clone().json();
+                if (typeof payload?.error === 'string') detail = payload.error;
+              } catch { /* Keep the SDK error when the response is not JSON. */ }
             }
-            const failedTile = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
-            if (failedTile) throw failedTile.reason;
+            throw new Error(detail);
           }
-          const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
-            id: recordId,
-            vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
-            schema_version: 3, dna_status: 'evolving', source_kind: 'system',
-            verification_status: 'observed',
-            payload: {
-              dna_schema_id: 'vyra.asset-dna',
-              dna_schema_version: 3,
-              dna_record: record,
-              tile_storage_paths: tileStoragePaths,
-              extraction_kind: 'deterministic_decoded_raster_samples',
-              source_file_sha256: sha256,
-            },
-            reconstruction_data: {
-              source_preservation: 'original_binary_retained',
-              reconstruction_ready: true,
-              recovery_level: 'decoded-samples-exact',
-              encoded_source_bytes_recoverable: false,
-            },
-          });
-          if (dnaError) throw dnaError;
         } else {
-          const fileBytes = sourceBytes;
           const fileDna = await createVyralFileDnaV1({
             record_id: crypto.randomUUID(),
             source: { asset_id: assetId, asset_version_id: version.id },
-            bytes: fileBytes,
+            bytes: sourceBytes,
             mime_type: mime || 'application/octet-stream',
             filename: file.name,
             include_payload: false,
