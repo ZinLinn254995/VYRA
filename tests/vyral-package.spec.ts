@@ -667,3 +667,52 @@ test('exports and reconstructs a single raster Asset DNA-only package without Ma
   assert.equal(view.getUint32(20), 1);
 });
 
+
+
+test('imports legacy DNA-only packages after dropping version-bound evidence while preserving exact Asset DNA', async () => {
+  const sourceBytes = new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3, 4, 5, 6]);
+  const fileDna = await createVyralFileDnaV1({
+    record_id: 'portable-file-dna-legacy-compat',
+    source: { asset_id: 'asset-test', asset_version_id: 'version-test' },
+    bytes: sourceBytes,
+    mime_type: 'audio/mpeg',
+    filename: 'voice.mp3',
+    include_payload: true,
+    chunk_size: 4,
+  });
+  const cleanArchive = await createVyralAssetDnaOnlyPackage({
+    ...manifest,
+    assets: [{ id: 'asset-test', name: 'Voice', asset_type: 'audio', mime_type: 'audio/mpeg' }],
+    versions: [],
+    masterDna: null,
+  }, [fileDna.record], fileDna.entries);
+  const cleanFiles = await readVyralZip(new Uint8Array(await cleanArchive.arrayBuffer()));
+  const cleanManifest = JSON.parse(new TextDecoder().decode(cleanFiles.get('manifest.json')!));
+  cleanManifest.dnaRecords.push({
+    id: 'legacy-file-dna-v1',
+    scope: 'asset',
+    asset_id: 'asset-test',
+    dna_schema_id: 'vyra.asset-file-dna',
+    dna_schema_version: 0,
+    dna_record: { legacy: true },
+  });
+  cleanManifest.fingerprints = [{ id: 'old-fingerprint', asset_id: 'asset-test', asset_version_id: 'omitted-version' }];
+  cleanManifest.visionObservations = [{ id: 'old-observation', asset_id: 'asset-test', asset_version_id: 'omitted-version' }];
+  cleanManifest.lineage = [{ id: 'old-lineage', parent_asset_id: 'asset-test', child_asset_id: 'asset-test' }];
+  cleanManifest.reconstructionTests = [{ id: 'old-test', asset_id: 'asset-test', asset_version_id: 'omitted-version' }];
+  const legacyArchive = createVyralZip([
+    ...Array.from(cleanFiles.entries())
+      .filter(([path]) => path !== 'manifest.json')
+      .map(([path, data]) => ({ path, data })),
+    { path: 'manifest.json', data: JSON.stringify(cleanManifest) },
+  ]);
+  const legacyFiles = await readVyralZip(new Uint8Array(await legacyArchive.arrayBuffer()));
+  const imported = parseVyralManifest(legacyFiles);
+  assert.equal(imported.dnaRecords.length, 1);
+  assert.equal(imported.dnaRecords[0].dna_schema_version, 1);
+  assert.deepEqual(imported.fingerprints, []);
+  assert.deepEqual(imported.visionObservations, []);
+  assert.deepEqual(imported.lineage, []);
+  assert.deepEqual(imported.reconstructionTests, []);
+  assert.deepEqual(await reconstructVyralFileDnaFromPackage(legacyFiles, 'portable-file-dna-legacy-compat'), sourceBytes);
+});
