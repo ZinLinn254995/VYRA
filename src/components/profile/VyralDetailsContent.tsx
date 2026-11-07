@@ -258,7 +258,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           setMasterDnaRevision(Number(data.revision ?? 0));
           setMasterDnaMessage('');
         }
-      }).finally(() => {
+      }).catch(() => undefined).finally(() => {
         masterDnaAutoBuildRef.current = false;
       });
     }
