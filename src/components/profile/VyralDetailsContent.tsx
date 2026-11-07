@@ -508,9 +508,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
       if (dnaOnly) {
-        if (!selectedAssetId && (!portableMasterDna || currentMasterRoot?.master_dna_status !== 'ready')) {
-          throw new Error('The collection is still being prepared. Wait a moment, then export again.');
-        }
         const supportedRows = dnaRecords.filter((record) =>
           (!selectedAssetId || record.asset_id === selectedAssetId) && record.asset_id &&
           ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) ||
@@ -646,9 +643,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (!dnaEntries.length || dnaEntries.length !== manifest.assets.length || dnaAssetIds.size !== manifest.assets.length ||
             manifest.assets.some((asset) => !dnaAssetIds.has(String(asset.id)))) {
           throw new Error('Invalid whole-Vyral DNA-only package: every asset must have exactly one supported exact-reconstruction DNA record.');
-        }
-        if (manifest.assets.length > 1 && !manifest.masterDna) {
-          throw new Error('A multi-asset DNA-only package must include its Master DNA snapshot.');
         }
         if (manifest.masterDna) {
           const masterDna = await validateVyralMasterDnaV1(manifest.masterDna);
