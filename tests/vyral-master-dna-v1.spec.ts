@@ -45,6 +45,16 @@ test('rejects a modified snapshot and an invalid optional asset purpose', async 
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, assets: input.assets.map((asset, i) => i === 0 ? { ...asset, purpose: '  ' } : asset) }), /asset entry is invalid/);
 });
 
+test('keeps collection identity stable while inventory labels affect the snapshot fingerprint', async () => {
+  const first = await createVyralMasterDnaV1(input);
+  const renamed = await createVyralMasterDnaV1({
+    ...input,
+    assets: input.assets.map((asset, index) => index === 0 ? { ...asset, name: 'Renamed character' } : asset),
+  });
+  assert.equal(renamed.master_dna_id, first.master_dna_id);
+  assert.notEqual(renamed.integrity.manifest_sha256, first.integrity.manifest_sha256);
+});
+
 test('allows a single Asset Vyral without roles, purpose, or relationships', async () => {
   const single = {
     ...input,
