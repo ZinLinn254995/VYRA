@@ -191,20 +191,42 @@ const makeVideoPreviews = async (file: File): Promise<Array<{ mimeType: 'image/j
   }
 };
 
-const parseSuggestionObject = (raw: string): Record<string, VyralAiSuggestion> => {
+const normalizeSuggestedValue = (value: unknown, depth = 0): VyralDetailValue | undefined => {
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  if (typeof value === 'string') return value.trim().slice(0, 2000);
+  if (Array.isArray(value)) {
+    if (value.length > 50) return undefined;
+    const normalized = value.map((item) => normalizeSuggestedValue(item, depth + 1));
+    if (normalized.some((item) => item === undefined)) return undefined;
+    return normalized as VyralDetailValue[];
+  }
+  if (isRecord(value) && depth < 3) {
+    const entries = Object.entries(value).slice(0, 30);
+    if (entries.some(([key]) => !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key))) return undefined;
+    const normalized: Record<string, unknown> = {};
+    for (const [key, item] of entries) {
+      const next = normalizeSuggestedValue(item, depth + 1);
+      if (next === undefined) return undefined;
+      normalized[key] = next;
+    }
+    return normalized;
+  }
+  return undefined;
+};
+
+export const parseVyralAiSuggestions = (raw: string): Record<string, VyralAiSuggestion> => {
   const normalized = raw.trim().replace(/^\x60{3}(?:json)?\s*/i, '').replace(/\s*\x60{3}$/i, '');
   const parsed: unknown = JSON.parse(normalized);
   if (!isRecord(parsed)) throw new Error('AI returned invalid default details.');
-  const allowed = new Set(['name', 'description', 'type', 'category', 'style', 'tags', 'format', 'subject', 'intended_use', 'genre', 'voice', 'instruments', 'summary', 'topic', 'visual_style', 'duration', 'dimensions']);
   const result: Record<string, VyralAiSuggestion> = {};
   for (const [key, value] of Object.entries(parsed)) {
-    if (!allowed.has(key) || !isRecord(value) || !('value' in value)) continue;
-    const candidate = value.value;
-    const valid = candidate === null || typeof candidate === 'string' || typeof candidate === 'number' ||
-      typeof candidate === 'boolean' || (Array.isArray(candidate) && candidate.every((entry) => typeof entry === 'string'));
-    if (!valid) continue;
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(key) || !isRecord(value) || !('value' in value)) continue;
+    if (['__proto__', 'prototype', 'constructor'].includes(key)) continue;
+    const candidate = normalizeSuggestedValue(value.value);
+    if (candidate === undefined) continue;
     const confidence = isValidConfidence(value.confidence) ? value.confidence : undefined;
-    result[key] = { value: candidate as VyralDetailValue, ...(confidence === undefined ? {} : { confidence }) };
+    result[key] = { value: candidate, ...(confidence === undefined ? {} : { confidence }) };
   }
   if (!Object.keys(result).length) throw new Error('AI did not return any usable default details.');
   return result;
@@ -261,7 +283,7 @@ export const suggestVyralAssetDetails = async (
   if (!response.ok || typeof payload.text !== 'string') {
     throw new Error(payload.error || 'AI could not suggest default Asset details.');
   }
-  const suggestions = parseSuggestionObject(payload.text);
+  const suggestions = parseVyralAiSuggestions(payload.text);
   const generatedAt = new Date().toISOString();
   return {
     details: mergeVyralAiDetails(null, {
