@@ -343,6 +343,89 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
 
+  // Keep collection-level suggestions synchronized with its Asset inventory.
+  // Creator-edited fields are preserved by mergeVyralAiDetails; AI is optional.
+  const collectionAiAttemptRef = useRef('');
+  useEffect(() => {
+    if (!supabase || assets.length === 0) return;
+    const inventorySignature = assets
+      .map((asset) => [asset.id, asset.updated_at, asset.sha256 ?? '', asset.description ?? ''].join(':'))
+      .sort()
+      .join('|');
+    let revision = 2166136261;
+    for (let index = 0; index < inventorySignature.length; index += 1) {
+      revision ^= inventorySignature.charCodeAt(index);
+      revision = Math.imul(revision, 16777619);
+    }
+    revision >>>= 0;
+    const attemptKey = vyral.id + ':' + revision;
+    const currentMetadata = vyral.metadata ?? {};
+    const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
+    if (collectionAiAttemptRef.current === attemptKey) return;
+    if (currentDetails && currentDetails.source_revision === revision && !currentDetails.stale &&
+        currentMetadata.ai_details_status === 'ready') {
+      collectionAiAttemptRef.current = attemptKey;
+      return;
+    }
+    collectionAiAttemptRef.current = attemptKey;
+    void (async () => {
+      try {
+        const accessToken = await getCurrentAccessToken();
+        if (!accessToken) throw new Error('AI details are unavailable without an active session.');
+        const suggested = await suggestVyralCollectionDetails({
+          accessToken,
+          vyralId: vyral.id,
+          currentName: vyral.name,
+          currentDescription: vyral.description ?? '',
+          sourceRevision: revision,
+          assets: assets.slice(0, 80).map((asset) => {
+            const detailFields = (asset.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
+            const tags = Array.isArray(detailFields.tags?.value)
+              ? detailFields.tags.value.filter((tag): tag is string => typeof tag === 'string').slice(0, 10) : [];
+            return {
+              name: asset.name, assetType: asset.asset_type, mimeType: asset.mime_type,
+              description: asset.description ?? '', tags,
+            };
+          }),
+          currentDetails,
+        });
+        const fields = suggested.fields;
+        const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
+        const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
+        const updateName = Boolean(suggestedName) && currentMetadata.identity_name_origin === 'system_default';
+        const updateDescription = Boolean(suggestedDescription) && currentMetadata.identity_description_origin === 'system_default';
+        const nextMetadata = {
+          ...currentMetadata,
+          ai_details: suggested,
+          ai_details_status: 'ready',
+          ai_details_source_revision: revision,
+          ...(updateName ? { identity_name_origin: 'ai_suggested' } : {}),
+          ...(updateDescription ? { identity_description_origin: 'ai_suggested' } : {}),
+        };
+        const { error: saveError } = await supabase.from('vyrals').update({
+          ...(updateName ? { name: suggestedName } : {}),
+          ...(updateDescription ? { description: suggestedDescription } : {}),
+          metadata: nextMetadata,
+        }).eq('id', vyral.id);
+        if (saveError) throw saveError;
+        onVyralUpdated({
+          ...(updateName ? { name: suggestedName } : {}),
+          ...(updateDescription ? { description: suggestedDescription } : {}),
+          metadata: nextMetadata,
+        });
+      } catch (cause) {
+        console.warn('[vyral-ai-details] Collection suggestions were unavailable.', cause);
+        if (!currentDetails) {
+          const { error: statusError } = await supabase.from('vyrals').update({
+            metadata: { ...currentMetadata, ai_details_status: 'unavailable' },
+          }).eq('id', vyral.id);
+          if (!statusError) onVyralUpdated({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } });
+        }
+      }
+    })();
+  }, [assets, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
+
+
   const originV2LatestTests = useMemo(() => {
     const providers = ['Anthropic', 'Google Gemini', 'xAI'];
     return providers.map((provider) => reconstructionTests.find((test) =>
