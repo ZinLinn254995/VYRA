@@ -275,77 +275,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   }, [vyral.id, vyral.license_policy]);
 
-  useEffect(() => {
-    if (loading || !assets.length || !supabase) return;
-    const inventoryRevision = assets.map((asset) => [asset.id, asset.updated_at, asset.sha256 ?? ''].join(':')).sort().join('|');
-    const analysisKey = vyral.id + ':' + inventoryRevision;
-    if (collectionAnalysisKeyRef.current === analysisKey) return;
-    const currentMetadata = vyral.metadata ?? {};
-    const existingDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
-    const analyzedInventoryRevision = typeof currentMetadata.ai_details_inventory_revision === 'string'
-      ? currentMetadata.ai_details_inventory_revision : '';
-    if (existingDetails && !existingDetails.stale && analyzedInventoryRevision === inventoryRevision) {
-      collectionAnalysisKeyRef.current = analysisKey;
-      return;
-    }
-    collectionAnalysisKeyRef.current = analysisKey;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const accessToken = await getCurrentAccessToken();
-        if (!accessToken) return;
-        const assetSummaries = assets.slice(0, 80).map((asset) => {
-          const fields = (asset.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
-          const tags = Array.isArray(fields.tags?.value) ? fields.tags.value.filter((tag): tag is string => typeof tag === 'string') : [];
-          return {
-            name: asset.name, assetType: asset.asset_type, mimeType: asset.mime_type,
-            description: asset.description ?? (typeof fields.description?.value === 'string' ? fields.description.value : ''),
-            tags,
-          };
-        });
-        const suggestion = await suggestVyralCollectionDetails({
-          accessToken, vyralId: vyral.id, currentName: vyral.name, currentDescription: vyral.description ?? '',
-          sourceRevision: assets.length, assets: assetSummaries, currentDetails: existingDetails,
-        });
-        if (cancelled) return;
-        const latest = await supabase.from('vyrals').select('name,description,metadata').eq('id', vyral.id).eq('user_id', auth.user?.id ?? '').maybeSingle();
-        if (latest.error || !latest.data) return;
-        const latestMetadata = latest.data.metadata && typeof latest.data.metadata === 'object' && !Array.isArray(latest.data.metadata)
-          ? latest.data.metadata as Record<string, unknown> : {};
-        const merged = mergeVyralAiDetails(latestMetadata.ai_details, {
-          scope: 'vyral', sourceRevision: assets.length, sourceVersionId: null,
-          provider: suggestion.provider, model: suggestion.model, generatedAt: new Date().toISOString(),
-          suggestions: Object.fromEntries(Object.entries(suggestion.fields).map(([key, field]) => [key, { value: field.value, confidence: field.confidence }])),
-        });
-        const fields = merged.fields;
-        const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
-        const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
-        const canSuggestName = ['system_default', 'ai_suggested'].includes(String(latestMetadata.identity_name_origin ?? 'system_default'));
-        const canSuggestDescription = ['system_default', 'ai_suggested'].includes(String(latestMetadata.identity_description_origin ?? 'system_default'));
-        const nextMetadata = {
-          ...latestMetadata, ai_details: merged, ai_details_status: 'ready', ai_details_inventory_revision: inventoryRevision,
-          ...(suggestedName && canSuggestName ? { identity_name_origin: 'ai_suggested' } : {}),
-          ...(suggestedDescription && canSuggestDescription ? { identity_description_origin: 'ai_suggested' } : {}),
-        };
-        const { error: saveError } = await supabase.from('vyrals').update({
-          ...(suggestedName && canSuggestName ? { name: suggestedName } : {}),
-          ...(suggestedDescription && canSuggestDescription ? { description: suggestedDescription } : {}),
-          metadata: nextMetadata,
-        }).eq('id', vyral.id).eq('user_id', auth.user?.id ?? '');
-        if (!saveError && !cancelled) {
-          onVyralUpdated({
-            ...(suggestedName && canSuggestName ? { name: suggestedName } : {}),
-            ...(suggestedDescription && canSuggestDescription ? { description: suggestedDescription } : {}),
-            metadata: nextMetadata,
-          });
-        }
-      } catch (cause) {
-        console.warn('[vyral-ai-details] Collection suggestions were unavailable.', cause);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [loading, assets, vyral.id, vyral.name, vyral.description, vyral.metadata, auth.user?.id, onVyralUpdated]);
-
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
 
   // Keep collection-level suggestions synchronized with its Asset inventory.
@@ -397,13 +326,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const fields = suggested.fields;
         const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
         const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
-        const updateName = Boolean(suggestedName) && currentMetadata.identity_name_origin === 'system_default';
-        const updateDescription = Boolean(suggestedDescription) && currentMetadata.identity_description_origin === 'system_default';
+        const updateName = Boolean(suggestedName) && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default'));
+        const updateDescription = Boolean(suggestedDescription) && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default'));
         const nextMetadata = {
           ...currentMetadata,
           ai_details: suggested,
           ai_details_status: 'ready',
           ai_details_source_revision: revision,
+          ai_details_inventory_signature: inventorySignature,
           ...(updateName ? { identity_name_origin: 'ai_suggested' } : {}),
           ...(updateDescription ? { identity_description_origin: 'ai_suggested' } : {}),
         };
