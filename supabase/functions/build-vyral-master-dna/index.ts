@@ -62,7 +62,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: vyral, error: vyralError } = await context.supabase
     .from('vyrals')
-    .select('id,user_id,name,created_at,visibility,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses')
+    .select('id,user_id,name,created_at,updated_at,visibility,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses')
     .eq('id', body.vyralId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -71,7 +71,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: assets, error: assetsError } = await context.supabase
     .from('vyral_assets')
-    .select('id,vyral_id,user_id,name,asset_type,mime_type,size_bytes,sha256,license_override')
+    .select('id,vyral_id,user_id,name,asset_type,mime_type,size_bytes,sha256,license_override,created_at,updated_at')
     .eq('vyral_id', vyral.id)
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
@@ -278,6 +278,9 @@ Deno.serve(async (request: Request) => {
     masterAssets.push({
       asset_id: asset.id,
       asset_version_id: version.id,
+      name: asset.name,
+      asset_type: asset.asset_type,
+      updated_at: asset.updated_at ?? asset.created_at ?? null,
       ...(assetMetadata?.role === 'main' || assetMetadata?.role === 'supporting' ? { role: assetMetadata.role } : {}),
       ...(typeof assetMetadata?.purpose === 'string' && assetMetadata.purpose.trim() ? { purpose: assetMetadata.purpose.trim() } : {}),
       media_type: asset.mime_type || version.mime_type,
@@ -306,13 +309,12 @@ Deno.serve(async (request: Request) => {
     evidence_ref: relationship.evidence_ref ?? null,
   }));
 
-  const createdAt = new Date().toISOString();
   let masterDna;
   try {
     masterDna = await createVyralMasterDnaV1({
-      master_dna_id: crypto.randomUUID(),
+      master_dna_id: vyral.id,
       vyral: { vyral_id: vyral.id, name: vyral.name, owner_ref: null, created_at: vyral.created_at },
-      snapshot: { revision: currentRevision + 1, created_at: createdAt, parent_master_dna_id: latest?.id ?? null },
+      snapshot: { revision: currentRevision + 1, created_at: vyral.updated_at ?? vyral.created_at, parent_master_dna_id: latest?.id ?? null },
       purpose: {
         summary: typeof vyral.master_dna_purpose === 'string' && vyral.master_dna_purpose.trim()
           ? vyral.master_dna_purpose.trim() : null,
