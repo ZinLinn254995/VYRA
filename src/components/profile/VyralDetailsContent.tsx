@@ -1361,7 +1361,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const recoverAssetDna = async (asset: AssetRow) => {
     const userId = auth.user?.id;
-    if (!supabase || !userId || busy || packageBusy || verifyingAssetId || asset.processing_status !== 'uploading') return;
+    if (!supabase) {
+      setError('Cloud storage is not configured here. DNA recovery did not start.');
+      return;
+    }
+    if (!userId) {
+      setError('Your sign-in session is unavailable. Sign in again, then retry Recover DNA.');
+      return;
+    }
+    if (busy || packageBusy || verifyingAssetId) {
+      setError('Another Asset operation is still running. Wait for it to finish, then retry Recover DNA.');
+      return;
+    }
+    if (asset.processing_status !== 'uploading') {
+      setError('This Asset is no longer marked as uploading. Refresh the workspace before retrying.');
+      await loadWorkspace();
+      return;
+    }
     const version = versions.find((item) => item.asset_id === asset.id && item.storage_path === asset.storage_path) ?? [...versions].filter((item) => item.asset_id === asset.id).sort((a, b) => b.version_number - a.version_number)[0];
     if (!version) { setError('The original asset version is missing; recovery stopped without changing the asset.'); return; }
     setVerifyingAssetId(asset.id);
