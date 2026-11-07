@@ -349,27 +349,31 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const packageEntries: { path: string; data: Uint8Array | string }[] = [];
       const packageVersions: Record<string, unknown>[] = [];
       let portableMasterDna: Awaited<ReturnType<typeof validateVyralMasterDnaV1>> | null = null;
-      const { data: currentMasterRoot, error: currentMasterRootError } = await supabase
-        .from('vyrals')
-        .select('master_dna_status,master_dna_revision')
-        .eq('id', vyral.id)
-        .eq('user_id', auth.user.id)
-        .single();
-      if (currentMasterRootError || !currentMasterRoot) throw new Error('Could not check the latest Vyral collection state for export.');
-      if (currentMasterRoot.master_dna_status === 'ready') {
-        const { data: revisionRow, error: revisionError } = await supabase
-          .from('vyral_master_dna_revisions')
-          .select('snapshot,revision')
-          .eq('vyral_id', vyral.id)
+      let currentMasterRoot: { master_dna_status: string; master_dna_revision: number } | null = null;
+      if (masterDnaAvailable) {
+        const { data: rootRow, error: currentMasterRootError } = await supabase
+          .from('vyrals')
+          .select('master_dna_status,master_dna_revision')
+          .eq('id', vyral.id)
           .eq('user_id', auth.user.id)
-          .order('revision', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (revisionError) throw new Error('Could not load the current Vyral collection snapshot for export.');
-        if (revisionRow?.snapshot) {
-          portableMasterDna = await validateVyralMasterDnaV1(revisionRow.snapshot);
-          if (portableMasterDna.snapshot.revision !== Number(currentMasterRoot.master_dna_revision)) {
-            throw new Error('The Vyral collection snapshot is not current yet. Wait a moment and try exporting again.');
+          .single();
+        if (currentMasterRootError || !rootRow) throw new Error('Could not check the latest Vyral collection state for export.');
+        currentMasterRoot = rootRow;
+        if (currentMasterRoot.master_dna_status === 'ready') {
+          const { data: revisionRow, error: revisionError } = await supabase
+            .from('vyral_master_dna_revisions')
+            .select('snapshot,revision')
+            .eq('vyral_id', vyral.id)
+            .eq('user_id', auth.user.id)
+            .order('revision', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (revisionError) throw new Error('Could not load the current Vyral collection snapshot for export.');
+          if (revisionRow?.snapshot) {
+            portableMasterDna = await validateVyralMasterDnaV1(revisionRow.snapshot);
+            if (portableMasterDna.snapshot.revision !== Number(currentMasterRoot.master_dna_revision)) {
+              throw new Error('The Vyral collection snapshot is not current yet. Wait a moment and try exporting again.');
+            }
           }
         }
       }
@@ -504,7 +508,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
       if (dnaOnly) {
-        if (!selectedAssetId && (!portableMasterDna || currentMasterRoot.master_dna_status !== 'ready')) {
+        if (!selectedAssetId && (!portableMasterDna || currentMasterRoot?.master_dna_status !== 'ready')) {
           throw new Error('The collection is still being prepared. Wait a moment, then export again.');
         }
         const supportedRows = dnaRecords.filter((record) =>
