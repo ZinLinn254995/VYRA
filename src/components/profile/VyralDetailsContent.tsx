@@ -628,6 +628,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
       const importAssets = getVyralPackageAssetsForImport(manifest.assets, containerAssetId);
+      const importAssetIds = new Set(importAssets.map((asset) => String(asset.id)));
+      const manifestAssetIds = new Set(manifest.assets.map((asset) => String(asset.id)));
       if (!importAssets.length) {
         throw new Error('This package contains no other Assets to import. The .vyral file used to open it was not duplicated.');
       }
@@ -991,7 +993,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       for (const sourceRecord of manifest.dnaRecords) {
         const oldAssetId = sourceRecord.asset_id ? String(sourceRecord.asset_id) : '';
-        if (oldAssetId && oldAssetId === containerAssetId) continue;
+        if (oldAssetId && !importAssetIds.has(oldAssetId)) continue;
         const assetId = oldAssetId ? assetMap.get(oldAssetId) ?? null : null;
         if (oldAssetId && !assetId) throw new Error('Package DNA evidence references an Asset outside the import inventory.');
         const isDnaV3Record = sourceRecord.dna_schema_id === 'vyra.asset-dna' && sourceRecord.dna_schema_version === 3;
@@ -1107,7 +1109,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       // whether an Asset or Vyral is valid, and no synthetic membership edge is created.
       if (importedMasterDna && masterDnaAvailable) {
         for (const sourceAsset of importedMasterDna.assets) {
-          if (sourceAsset.asset_id === containerAssetId) continue;
+          if (!importAssetIds.has(sourceAsset.asset_id)) continue;
           const importedAssetId = assetMap.get(sourceAsset.asset_id);
           if (!importedAssetId) {
             throw new Error('Imported Master DNA references an Asset outside its inventory.');
@@ -1126,8 +1128,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
         const importedRelationships = importedMasterDna.relationships ?? [];
         const relationshipRows = importedRelationships.flatMap((relation) => {
-          if ((relation.from.kind === 'asset' && relation.from.asset_id === containerAssetId) ||
-              (relation.to.kind === 'asset' && relation.to.asset_id === containerAssetId)) return [];
+          const fromExcluded = relation.from.kind === 'asset' && manifestAssetIds.has(relation.from.asset_id) && !importAssetIds.has(relation.from.asset_id);
+          const toExcluded = relation.to.kind === 'asset' && manifestAssetIds.has(relation.to.asset_id) && !importAssetIds.has(relation.to.asset_id);
+          if (fromExcluded || toExcluded) return [];
           const fromAssetId = relation.from.kind === 'asset' ? assetMap.get(relation.from.asset_id) : null;
           const toAssetId = relation.to.kind === 'asset' ? assetMap.get(relation.to.asset_id) : null;
           if ((relation.from.kind === 'asset' && !fromAssetId) || (relation.to.kind === 'asset' && !toAssetId)) {
