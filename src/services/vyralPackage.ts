@@ -662,7 +662,7 @@ const removeNonPortableReferences = (value: unknown): unknown => {
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     if (key === 'resolver_uri') {
-      if (isSafePublicVyralResolverUriV1(child)) result[key] = child;
+      if (child === null || isSafePublicVyralResolverUriV1(child)) result[key] = child;
       continue;
     }
     if (/(url|preview|thumbnail|derivative|storage.?(path|prefix)|file.?path|download|signed)/i.test(key)) continue;
