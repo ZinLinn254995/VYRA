@@ -1,0 +1,10 @@
+export {
+  findVyralMasterDnaSnapshotAssetV1,
+  hasValidVyralMasterDnaRevisionBindingV1,
+  isSafeVyralStoragePathV1,
+  isVyralAssetDnaPinnedToVersionV1,
+} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
+export type {
+  VyralResolverSnapshotAssetV1,
+  VyralResolverRevisionBindingV1,
+} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';

@@ -3,7 +3,11 @@ name: VYRA CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'rebuild/**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
@@ -18,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Install browser test dependency
-        run: npm install --no-save @playwright/test
+        run: npm install --no-save @playwright/test@1.56.1
       - name: TypeScript check
         run: npm run lint
       - name: Supabase auth verification tests
@@ -41,5 +45,28 @@ jobs:
         run: npm run test:consistency
       - name: Audio export validation and runtime tests
         run: npm run test:audio-export
+      - name: VYRAL package archive tests
+        run: npm run test:vyral-package
+      - name: VYRA DNA v3 lossless reconstruction tests
+        run: npm run test:vyral-dna-v3
+      - name: Vyral Master DNA v1 validation and fingerprint tests
+        run: npm run test:vyral-master-dna
+      - name: Vyral Universal File DNA v1 exact binary tests
+        run: npm run test:vyral-file-dna
+      - name: Vyral AI Vision safety contract tests
+        run: npm run test:vyral-ai-vision
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check Supabase Edge Functions
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts
+      - name: SEO discovery and canonical contract tests
+        run: npm run test:seo
       - name: Production build
         run: npm run build
+
+      - name: Vyral license policy v1 tests
+        run: npm run test:vyral-license
+      - name: Vyral resource resolver security policy tests
+        run: npm run test:vyral-resource-resolver

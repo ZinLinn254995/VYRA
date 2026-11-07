@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "vyra",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-06",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env"
+  ],
+  "vars": {
+    "NODE_ENV": "production"
+  },
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "previews": {
+    "vars": {
+      "NODE_ENV": "preview",
+      "SUPABASE_URL": "https://wbqheogfoahnjvgkwhxe.supabase.co",
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndicWhlb2dmb2Fobmp2Z2t3aHhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NDg2NzksImV4cCI6MjEwOTIyNDY3OX0.soaCdEAJd9E54GyCDoKMEA5XHxASkyhTggAOcD-Z-z0",
+      "VITE_SUPABASE_URL": "https://wbqheogfoahnjvgkwhxe.supabase.co",
+      "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndicWhlb2dmb2Fobmp2Z2t3aHhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NDg2NzksImV4cCI6MjEwOTIyNDY3OX0.soaCdEAJd9E54GyCDoKMEA5XHxASkyhTggAOcD-Z-z0"
+    }
+  }
+}

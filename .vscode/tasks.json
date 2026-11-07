@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "VYRA Git Auto Sync",
+      "type": "shell",
+      "command": "git fetch origin && if [ -z \"$(git status --porcelain)\" ]; then git pull --ff-only origin \"$(git branch --show-current)\"; else echo 'Auto Pull skipped: local changes detected; keeping your work safe.'; fi",
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "VYRA Dev Server",
+      "type": "shell",
+      "command": "npm run dev",
+      "isBackground": true,
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "problemMatcher": [
+        {
+          "pattern": [
+            {
+              "regexp": "^(.*)$",
+              "message": 1
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "VYRA server listening|Local:|ready in"
+          }
+        }
+      ],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

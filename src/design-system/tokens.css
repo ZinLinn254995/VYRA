@@ -48,6 +48,7 @@
 
   --vyra-content-width: 80rem;
   --vyra-header-height: 4rem;
+  --vyra-global-header-height: 65px;
   --vyra-sidebar-width: 16.25rem;
   --vyra-sidebar-collapsed-width: 4.5rem;
 }
@@ -59,4 +60,10 @@
 :focus-visible {
   outline: 2px solid var(--vyra-accent-primary);
   outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  :root {
+    --vyra-global-header-height: 101px;
+  }
 }

@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vyra.app/schemas/asset-file-dna-v1.schema.json",
+  "title": "VYRA Asset File DNA v1",
+  "description": "Deterministic binary identity metadata with optional bounded structural facts and optional lossless source-byte chunks. Hash-only records never claim source-file reconstruction; structural facts do not imply semantic understanding.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "record_id",
+    "source",
+    "file",
+    "extractor",
+    "reconstruction"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "vyra.asset-file-dna"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_id",
+        "asset_version_id"
+      ],
+      "properties": {
+        "asset_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "asset_version_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "size_bytes",
+        "mime_type",
+        "extension",
+        "format_signature",
+        "sha256"
+      ],
+      "properties": {
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mime_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "extension": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9]{1,16}$"
+        },
+        "format_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "extractor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reconstruction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim",
+        "payload_encoding",
+        "chunk_size",
+        "chunks"
+      ],
+      "properties": {
+        "claim": {
+          "enum": [
+            "source_file_exact",
+            "unavailable"
+          ]
+        },
+        "payload_encoding": {
+          "enum": [
+            "raw-chunks-v1",
+            "none"
+          ]
+        },
+        "chunk_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "chunks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "byte_length",
+              "sha256",
+              "package_path"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "byte_length": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "package_path": {
+                "type": "string",
+                "pattern": "^dna/file/v1/[A-Za-z0-9_-]{1,128}/chunks/[0-9]{8}\\.bin$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "structure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "extractor_version",
+        "facts",
+        "notes"
+      ],
+      "properties": {
+        "profile": {
+          "enum": [
+            "audio",
+            "video",
+            "document",
+            "model_3d",
+            "archive",
+            "text",
+            "unknown"
+          ]
+        },
+        "status": {
+          "enum": [
+            "parsed",
+            "partial",
+            "signature_only",
+            "unknown"
+          ]
+        },
+        "extractor_version": {
+          "const": "1.0.0"
+        },
+        "facts": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "value",
+              "evidence"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{1,63}$"
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "unit": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "evidence": {
+                "enum": [
+                  "container_header",
+                  "container_index",
+                  "text_structure",
+                  "binary_signature"
+                ]
+              }
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "reconstruction": {
+            "properties": {
+              "claim": {
+                "const": "unavailable"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reconstruction": {
+            "properties": {
+              "payload_encoding": {
+                "const": "none"
+              },
+              "chunk_size": {
+                "type": "null"
+              },
+              "chunks": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "reconstruction": {
+            "properties": {
+              "claim": {
+                "const": "source_file_exact"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reconstruction": {
+            "properties": {
+              "payload_encoding": {
+                "const": "raw-chunks-v1"
+              },
+              "chunk_size": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "chunks": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

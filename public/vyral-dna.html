@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VYRAL DNA — Portable Creative Asset Identity | VYRA</title>
+  <meta name="description" content="Learn how VYRA's VYRAL format records reusable creative asset identity, verifies integrity with SHA-256 fingerprints, and reconstructs supported source data.">
+  <link rel="canonical" href="https://vyra-nine-theta.vercel.app/vyral-dna.html">
+  <meta name="robots" content="index,follow">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="VYRA">
+  <meta property="og:title" content="VYRAL DNA — Portable Creative Asset Identity">
+  <meta property="og:description" content="A technical introduction to portable VYRAL packages, deterministic asset DNA, integrity fingerprints and reconstruction boundaries.">
+  <meta property="og:url" content="https://vyra-nine-theta.vercel.app/vyral-dna.html">
+  <meta property="og:image" content="https://vyra-nine-theta.vercel.app/vyra-icon.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="VYRAL DNA — Portable Creative Asset Identity">
+  <meta name="twitter:description" content="Understand how VYRA packages reusable assets with identity records, fingerprints and verifiable reconstruction data.">
+  <link rel="icon" type="image/svg+xml" href="/vyra-icon.svg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "VYRAL DNA — Portable Creative Asset Identity",
+    "description": "A technical introduction to VYRA's portable VYRAL package format, asset DNA, fingerprints and reconstruction boundaries.",
+    "mainEntityOfPage": "https://vyra-nine-theta.vercel.app/vyral-dna.html",
+    "publisher": {
+      "@type": "Organization",
+      "name": "VYRA",
+      "url": "https://vyra-nine-theta.vercel.app/"
+    },
+    "inLanguage": "en"
+  }
+  </script>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #09090b; color: #f4f4f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(ellipse at 50% -20%, #202044 0, #09090b 55%); }
+    main { width: min(860px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0; }
+    .brand { color: #67e8f9; font-size: 13px; font-weight: 800; letter-spacing: .22em; }
+    h1 { margin: 24px 0 16px; font-size: clamp(36px, 7vw, 60px); line-height: 1.06; letter-spacing: -.05em; }
+    h2 { margin: 38px 0 10px; font-size: 23px; }
+    h3 { margin: 22px 0 8px; font-size: 17px; }
+    p, li { color: #c4c4ce; font-size: 16px; line-height: 1.75; }
+    .lead { font-size: 19px; }
+    .note { border-left: 3px solid #67e8f9; padding: 12px 16px; background: #15151b; border-radius: 0 12px 12px 0; }
+    code { color: #a5f3fc; }
+    a { color: #67e8f9; }
+    footer { margin-top: 48px; border-top: 1px solid #30303a; padding-top: 18px; color: #8d8d99; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">VYRA · TECHNICAL OVERVIEW</div>
+    <h1>VYRAL DNA: portable identity for creative assets.</h1>
+    <p class="lead">A Vyral is a reusable collection of creative assets and their identity records. The <code>.vyral</code> package is designed to carry those records between workspaces, while DNA and fingerprints serve different purposes: reconstruction and verification.</p>
+
+    <h2>What does VYRAL DNA describe?</h2>
+    <p>Asset DNA records the data needed to identify and recover supported asset content. A VYRAL package can include a manifest, asset metadata, DNA records and the lossless payload required by the supported reconstruction method. It is not just a text description or a prompt.</p>
+
+    <h2>Two reconstruction paths</h2>
+    <h3>Raster images: exact decoded samples</h3>
+    <p>For supported PNG, JPEG and WebP uploads, VYRA uses a pinned server-side ImageMagick WASM decoder to produce a canonical row-major RGBA8 sample stream. The stream is stored in lossless tiles. Tile SHA-256 values and an aggregate decoded-sample SHA-256 digest are checked during reconstruction.</p>
+    <p class="note"><strong>Important boundary:</strong> this path can recover the decoded pixel samples exactly under the recorded decoder contract and encode them into a new PNG. It does not recover the original PNG or JPEG file bytes, original compression choices, or every original metadata chunk.</p>
+
+    <h3>Other files: exact source bytes</h3>
+    <p>For supported non-raster files, File DNA v1 records the source file's SHA-256 identity and can carry lossless source-byte chunks in a DNA-only package. When every chunk and the aggregate digest pass verification, the original binary bytes can be reconstructed exactly.</p>
+
+    <h2>DNA and fingerprints are not the same</h2>
+    <ul>
+      <li><strong>DNA</strong> describes the supported structure or content needed for reconstruction.</li>
+      <li><strong>Fingerprint</strong> checks whether bytes or decoded samples match a recorded identity.</li>
+      <li><strong>Provenance</strong> records where an asset or observation came from and whether its claims are trusted.</li>
+    </ul>
+    <p>A matching fingerprint is evidence of identity for the data that was hashed. It does not, by itself, prove authorship, ownership, copyright or a license grant.</p>
+
+    <h2>Can an AI assistant use a VYRAL package?</h2>
+    <p>The portable ZIP-compatible <code>.vyral</code> format is intended to make asset identity records inspectable by compatible tools. An AI assistant can only reconstruct what is actually present in the package and what its tools support. Descriptive text alone cannot recreate missing source bytes or guarantee an identical image.</p>
+    <p>Third-party access to private VYRA assets requires explicit, permission-controlled access. Exporting a package and granting an external service ongoing access are separate actions; a package does not silently grant account access.</p>
+
+    <h2>Current capability and limitations</h2>
+    <p>VYRA's asset DNA and package workflows are evolving. Current raster extraction supports PNG, JPEG and WebP within configured upload and image-size limits. Other file types use deterministic file identity records; exact reconstruction requires a DNA-only package containing the lossless byte payload. Imported verification claims are treated as unverified evidence until checked again in the destination workspace.</p>
+
+    <h2>Explore VYRA</h2>
+    <p>Learn about the <a href="/discover-vyra.html">VYRA creative workspace</a>, or <a href="/">open the VYRA application</a>.</p>
+    <footer>VYRA — Reusable creative assets, portable identity records and verifiable reconstruction.</footer>
+  </main>
+</body>
+</html>

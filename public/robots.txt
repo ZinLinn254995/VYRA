@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://vyra-nine-theta.vercel.app/sitemap.xml
