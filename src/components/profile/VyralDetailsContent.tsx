@@ -282,8 +282,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (collectionAnalysisKeyRef.current === analysisKey) return;
     const currentMetadata = vyral.metadata ?? {};
     const existingDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
-    const existingRevision = typeof existingDetails?.source_revision === 'number' ? existingDetails.source_revision : -1;
-    if (existingDetails && !existingDetails.stale && existingRevision === assets.length) {
+    const analyzedInventoryRevision = typeof currentMetadata.ai_details_inventory_revision === 'string'
+      ? currentMetadata.ai_details_inventory_revision : '';
+    if (existingDetails && !existingDetails.stale && analyzedInventoryRevision === inventoryRevision) {
       collectionAnalysisKeyRef.current = analysisKey;
       return;
     }
@@ -319,13 +320,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const fields = merged.fields;
         const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
         const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
-        const canSuggestName = latestMetadata.identity_name_origin === 'system_default';
-        const canSuggestDescription = latestMetadata.identity_description_origin === 'system_default';
-        const nextMetadata = { ...latestMetadata, ai_details: merged, ai_details_status: 'ready', ai_details_inventory_revision: inventoryRevision };
+        const canSuggestName = ['system_default', 'ai_suggested'].includes(String(latestMetadata.identity_name_origin ?? 'system_default'));
+        const canSuggestDescription = ['system_default', 'ai_suggested'].includes(String(latestMetadata.identity_description_origin ?? 'system_default'));
+        const nextMetadata = {
+          ...latestMetadata, ai_details: merged, ai_details_status: 'ready', ai_details_inventory_revision: inventoryRevision,
+          ...(suggestedName && canSuggestName ? { identity_name_origin: 'ai_suggested' } : {}),
+          ...(suggestedDescription && canSuggestDescription ? { identity_description_origin: 'ai_suggested' } : {}),
+        };
         const { error: saveError } = await supabase.from('vyrals').update({
-          ...(suggestedName && canSuggestName ? { name: suggestedName, metadata: { ...nextMetadata, identity_name_origin: 'ai_suggested' } } : {}),
-          ...(suggestedDescription && canSuggestDescription ? { description: suggestedDescription, metadata: { ...nextMetadata, ...(suggestedName && canSuggestName ? { identity_name_origin: 'ai_suggested' } : {}), identity_description_origin: 'ai_suggested' } } : {}),
-          ...(!(suggestedName && canSuggestName) && !(suggestedDescription && canSuggestDescription) ? { metadata: nextMetadata } : {}),
+          ...(suggestedName && canSuggestName ? { name: suggestedName } : {}),
+          ...(suggestedDescription && canSuggestDescription ? { description: suggestedDescription } : {}),
+          metadata: nextMetadata,
         }).eq('id', vyral.id).eq('user_id', auth.user?.id ?? '');
         if (!saveError && !cancelled) {
           onVyralUpdated({
