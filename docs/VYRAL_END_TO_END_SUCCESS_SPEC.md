@@ -4,23 +4,25 @@ Status: implementation contract; capabilities are not considered complete until 
 
 ## Product outcome
 
-A Vyral is one coherent, reusable collection of creative assets and the knowledge that connects them. It may contain characters, images, video, audio, voice references, scripts, captions, prompts, rules, locations, props, 3D models, documents, and other supported files. These are assets inside one Vyral, not separate Vyral product types.
+A Vyral is a creator-defined collection/container for assets. It may contain exactly one Asset or many Assets. The creator decides what belongs together. Assets may be related, unrelated, loosely grouped, or intentionally random. A Vyral does not require a story, script, character, world, timeline, relationship graph, shared style, or any minimum level of organization. VYRA must not judge whether a Vyral is well-designed or meaningful.
 
-The user experience must remain simple:
+The user experience remains simple:
 1. Upload existing files or create content through VYRA Chat.
-2. VYRA organizes the assets and builds/updates their identity and relationships automatically.
-3. The user can preview, organize, and share/export the Vyral without configuring technical records.
-4. An external AI can read a compact `.vyral` package and use the supported bridge or DNA-only workflow.
+2. VYRA stores each Asset and automatically builds its available DNA in the background.
+3. The creator may organize the collection however they wish, or leave it as-is.
+4. When a Vyral is later used for a task, its DNA can help an AI selectively retrieve and recreate the requested Asset(s), preserving consistency where the creator wants it.
+5. The creator can export/share a compact `.vyral` package for compatible external AI tools.
 
-DNA, fingerprints, indexing, classification, relationship inference, extraction, and verification are background systems. They must not be required user tasks or exposed as technical setup screens.
+DNA, fingerprints, extraction, indexing, and verification are background systems. They are not required user tasks and must not appear as technical setup screens.
 
 ## Core model
 
-- **Asset DNA** describes one asset: its identity, modality, source/version, reproducible properties, semantic traits, and the evidence or extraction method behind each claim.
-- **Vyral DNA** describes the collection: its purpose, asset inventory, relationships, shared constraints, consistency rules, and references to each Asset DNA.
+- **Asset DNA** describes one Asset: identity, modality, source/version, recoverable properties, semantic traits, and the evidence/extraction method behind each claim. Every Asset should have its own DNA, regardless of whether it relates to any other Asset.
+- **Vyral DNA** describes the collection identity and inventory, and points to the DNA of its Assets. It may include optional creator-provided or evidence-backed grouping/context, but it must not require a purpose, story, relationships, shared rules, or a main/supporting hierarchy.
 - **Fingerprint** verifies identity or detects a change. It is not a substitute for descriptive or generative DNA.
-- **Knowledge/observations** may be added over time. New observations must retain provenance, confidence, and uncertainty; they must not silently overwrite creator-approved facts.
-- **Selective retrieval** resolves only the assets and DNA sections required for a task. A consumer must not need to load every original asset for every request.
+- **Optional context** such as character links, voice links, story order, visual style, or world rules may be captured when the creator supplies it or the system has reliable evidence. Absence of this context is valid and must never block a Vyral from being created, exported, or used.
+- **Selective retrieval** resolves only the Asset DNA and source/reference material needed for the current task. A consumer must not need to load every original Asset for every request.
+- **Consistency is a usage capability, not a collection validity rule.** When the creator asks to reuse or recreate Assets consistently, the system uses available DNA and optional relationships to preserve relevant traits. It must not force unrelated Assets to become related or invent a story/relationship.
 
 ## Asset ingestion contract
 
@@ -41,19 +43,21 @@ Every successful upload or VYRA-generated asset must automatically:
 
 A file identity record alone must never be presented as semantic understanding or as a generative reconstruction recipe. Unsupported modalities must be labelled internally as not yet semantically supported.
 
-## Consistency contract
+## Consistency-on-use contract
 
-The Vyral-level index must connect relevant assets and preserve:
-- character identity and visual traits;
-- voice identity and approved voice characteristics;
-- style, palette, setting, props, and world rules;
-- scripts, captions, scene order, and timestamps;
-- relationships between source assets and derived/generated assets;
-- approved creator constraints and unresolved uncertainty.
+Consistency is applied when a Vyral is used for a creative task, not imposed when the Vyral is created.
 
-Relationship inference must be evidence-based. When the system is unsure, it records an unknown or candidate relationship with confidence rather than fabricating a fact. Creator corrections take precedence and remain traceable.
+When the creator asks for a new image, voice, video, scene, character, or other output based on selected Assets, VYRA should:
+- identify which selected Assets and DNA records are relevant to that request;
+- retrieve only the required DNA sections and, when permitted and useful, original/reference Assets;
+- preserve the traits that matter to the requested output (for example character appearance, voice characteristics, visual style, motion, or an explicitly supplied relationship);
+- respect creator-provided constraints and distinguish them from AI-inferred observations;
+- avoid applying unrelated Assets or unrelated collection content to the task;
+- record which source Assets and DNA revisions informed the generated result.
 
-For generation, the system should retrieve only the compact Vyral summary and the relevant Asset DNA/reference assets. Generated outputs must be linked to their source assets and the exact DNA/revision used.
+If a Vyral contains one Asset, the system must still be able to use that Asset's DNA independently. If a Vyral contains many unrelated Assets, the system must allow the creator or AI task to select only the relevant ones. If there are no relationships, story rules, or shared constraints, that is a valid state—not an error.
+
+Relationship inference is optional. When useful, it must be evidence-based; uncertainty remains explicitly unknown rather than fabricated. Creator corrections take precedence and remain traceable.
 
 ## Reconstruction claims
 
@@ -99,15 +103,17 @@ Advanced diagnostics may exist in a developer-only area, but they must not be pa
 
 A Vyral release is not considered successful until automated tests and a real Development-environment end-to-end test demonstrate all of the following:
 
-1. **Upload path:** representative image, audio, video, document, and 3D files are uploaded; original hashes and versions are preserved; supported DNA extraction runs automatically; unsupported extractors are honestly reported.
-2. **Chat creation path:** a Chat-approved generation is saved as an Asset in the selected Vyral, receives the same automatic ingestion pipeline, and records its prompt/model/source provenance.
-3. **Collection consistency:** multiple related assets produce a Vyral-level DNA index with evidence-backed relationships and shared constraints; selective queries return only relevant records.
-4. **Exact recovery:** every supported exact-recovery fixture is restored byte-for-byte and SHA-256 matches the original.
-5. **DNA-only reconstruction:** a clean external test session receives only the `.vyral` DNA package, with no hidden source files or conversation context, and attempts reconstruction. Results are scored using documented modality-specific criteria.
-6. **Public bridge:** an authorized external test can retrieve only selected public assets; private assets and unrelated Vyrals remain inaccessible; revoked/expired grants fail.
-7. **Private mode:** the same external test cannot retrieve original assets and can only use package-contained DNA.
-8. **Import/export:** export → import into a different Vyral → export again preserves package validity, source integrity, identity/provenance, and supported reconstruction records without accidental duplication.
-9. **Simple UX:** a normal user completes upload/create, preview, visibility selection, export, and import without seeing or configuring DNA internals.
+1. **Single-Asset Vyral:** create a Vyral containing one Asset; automatic Asset DNA, fingerprint, export, import, and supported recovery all work without requiring purpose, role, story, or relationship metadata.
+2. **Unrelated multi-Asset Vyral:** add several unrelated Assets of mixed supported types; each receives its own DNA. The collection remains valid with no forced links, hierarchy, or shared narrative.
+3. **Upload path:** representative image, audio, video, document, and 3D files are uploaded; original hashes and versions are preserved; supported DNA extraction runs automatically; unsupported extractors are honestly reported.
+4. **Chat creation path:** a Chat-approved generation is saved as an Asset in the selected Vyral, receives the same automatic ingestion pipeline, and records its prompt/model/source provenance.
+5. **Selective use and consistency:** a task selecting one or more Assets retrieves only relevant DNA/reference data. If consistency is requested, the output preserves measurable relevant traits; if no relationship data exists, the system does not invent it.
+6. **Exact recovery:** every supported exact-recovery fixture is restored byte-for-byte and SHA-256 matches the original.
+7. **DNA-only reconstruction:** a clean external test session receives only the `.vyral` DNA package, with no hidden source files or conversation context, and attempts reconstruction. Results are scored using documented modality-specific criteria.
+8. **Public bridge:** an authorized external test can retrieve only selected public Assets; private Assets and unrelated Vyrals remain inaccessible; revoked/expired grants fail.
+9. **Private mode:** the same external test cannot retrieve original Assets and can only use package-contained DNA.
+10. **Import/export:** export → import into a different Vyral → export again preserves package validity, source integrity, identity/provenance, and supported reconstruction records without accidental duplication.
+11. **Simple UX:** a normal user completes upload/create, preview, visibility selection, export, and import without seeing or configuring DNA internals.
 
 A green unit-test suite alone is not sufficient. Release status must distinguish automated unit tests, browser tests, Development integration tests, and external-AI blind reconstruction tests.
 
@@ -115,9 +121,12 @@ A green unit-test suite alone is not sufficient. Release status must distinguish
 
 The current foundation includes Vyral asset/version storage, fingerprints, DNA v3 lossless decoded-sample extraction for PNG/JPEG/WebP, File DNA v1 identity and chunk-based exact-file packaging, Master DNA schema/build foundations, and `.vyral` archive export/import foundations.
 
+undefined
+
 Known gaps to close before claiming this specification is met:
 - semantic and consistency-aware DNA for audio, video, documents, 3D, and other supported modalities;
-- automatic evidence-backed Vyral-level indexing and relationship maintenance without manual user classification;
+- automatic Asset DNA ingestion and a lightweight Vyral inventory/index that works for one Asset or many unrelated Assets, without requiring role, purpose, hierarchy, or relationships;
+- optional, evidence-backed context/relationship capture when it helps a later consistency task, without making it a creation prerequisite;
 - automatic ingestion of VYRA Chat-generated media into the same Asset/DNA pipeline;
 - selective retrieval and a secure Public bridge with Private isolation;
 - external-AI blind tests for compact DNA reconstruction;
