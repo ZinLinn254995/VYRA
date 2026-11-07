@@ -122,6 +122,12 @@ const extractSelectedVideoFrames = async (
       video.onloadedmetadata = () => resolve();
       video.onerror = () => reject(new Error('This video format could not be opened for frame inspection.'));
     });
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await new Promise<void>((resolve, reject) => {
+        video.onloadeddata = () => resolve();
+        video.onerror = () => reject(new Error('The first video frame could not be decoded.'));
+      });
+    }
     const duration = video.duration;
     if (!Number.isFinite(duration) || duration <= 0) throw new Error('This video has no readable duration.');
     const frameCount = Math.min(4, maxFrames);
@@ -458,7 +464,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           const isPdf = mimeType === 'application/pdf' || extension === 'pdf';
           const audioMime = (mimeType === 'audio/mp3' || mimeType === 'audio/x-mp3') ? 'audio/mpeg'
             : mimeType === 'audio/x-wav' ? 'audio/wav'
-              : mimeType === 'audio/x-flac' ? 'audio/flac' : mimeType;
+              : mimeType === 'audio/x-flac' ? 'audio/flac'
+                : mimeType.startsWith('audio/') ? mimeType
+                  : ({ mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac', aac: 'audio/aac' } as Record<string, string>)[extension] ?? mimeType;
           const isAudio = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(audioMime) ||
             ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(extension);
           const isVideo = mimeType.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v'].includes(extension);
