@@ -147,6 +147,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [detailsAsset, setDetailsAsset] = useState<AssetRow | null>(null);
   const [detailsDraft, setDetailsDraft] = useState({ name: '', description: '', category: '', style: '', tags: '' });
+  const [collectionDetailsOpen, setCollectionDetailsOpen] = useState(false);
+  const [collectionDraft, setCollectionDraft] = useState({ name: vyral.name, description: vyral.description ?? '', category: '', style: '', tags: '' });
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -1915,6 +1917,49 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     });
   };
 
+  const openCollectionDetails = () => {
+    const details = vyral.metadata?.ai_details as VyralAiDetails | undefined;
+    const fields = details?.fields ?? {};
+    setCollectionDraft({
+      name: vyral.name,
+      description: vyral.description ?? '',
+      category: typeof fields.category?.value === 'string' ? fields.category.value : '',
+      style: typeof fields.style?.value === 'string' ? fields.style.value : '',
+      tags: Array.isArray(fields.tags?.value) ? fields.tags.value.join(', ') : '',
+    });
+    setCollectionDetailsOpen(true);
+  };
+
+  const saveCollectionDetails = async () => {
+    if (!supabase || busy || !collectionDraft.name.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const currentMetadata = vyral.metadata ?? {};
+      const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
+      const generatedAt = new Date().toISOString();
+      const baseDetails: VyralAiDetails = currentDetails ?? {
+        schema_version: 1, scope: 'vyral', source_version_id: null, source_revision: assets.length,
+        provider: 'creator', model: 'manual', generated_at: generatedAt, stale: false, fields: {},
+      };
+      let updatedDetails = setVyralAiDetailField(baseDetails, 'name', collectionDraft.name.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'description', collectionDraft.description.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'category', collectionDraft.category.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'style', collectionDraft.style.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', collectionDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      const nextMetadata = { ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready' };
+      const { error: updateError } = await supabase.from('vyrals').update({
+        name: collectionDraft.name.trim().slice(0, 100),
+        description: collectionDraft.description.trim().slice(0, 1000),
+        metadata: nextMetadata,
+      }).eq('id', vyral.id);
+      if (updateError) throw updateError;
+      onVyralUpdated({ name: collectionDraft.name.trim(), description: collectionDraft.description.trim(), metadata: nextMetadata });
+      setCollectionDetailsOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save Vyral details.');
+    } finally { setBusy(false); }
+  };
+
   const saveAssetDetails = async () => {
     if (!supabase || !detailsAsset || busy) return;
     if (!detailsDraft.name.trim()) { setError('Asset name cannot be empty.'); return; }
@@ -2356,6 +2401,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {tab === 'overview' && (
         <div className="space-y-4">
+          <section className={surface+' p-4'}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className={'text-sm font-semibold '+primary}>About this Vyral</h3>
+                <p className={'mt-1 text-xs '+subtle}>{vyral.description || 'A creative collection. Add Assets and VYRA will suggest useful details automatically.'}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(() => {
+                    const fields = (vyral.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
+                    const values = [
+                      typeof fields.category?.value === 'string' ? fields.category.value : '',
+                      typeof fields.style?.value === 'string' ? fields.style.value : '',
+                      ...(Array.isArray(fields.tags?.value) ? fields.tags.value.filter((tag): tag is string => typeof tag === 'string') : []),
+                    ].filter(Boolean).slice(0, 8);
+                    return values.map((value, index) => <span key={value+index} className="rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] text-[var(--vyra-text-secondary)]">{value}</span>);
+                  })()}
+                </div>
+              </div>
+              <button type="button" onClick={openCollectionDetails} className={button}>Edit details</button>
+            </div>
+          </section>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {[
               {label:'Assets',value:assets.length,icon:Folder},
@@ -2620,6 +2685,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {folderDialog && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/65 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setFolderDialog(false);}}><section role="dialog" aria-modal="true" aria-labelledby="vyral-folder-title" className="w-full max-w-sm rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]"><div className="flex items-center justify-between"><h3 id="vyral-folder-title" className={'text-base font-bold '+primary}>New folder</h3><button type="button" onClick={()=>setFolderDialog(false)} aria-label="Close" className={muted}><X size={17}/></button></div><form onSubmit={(event)=>void createFolder(event)} className="mt-4 space-y-3"><input autoFocus required maxLength={100} value={folderName} onChange={(event)=>setFolderName(event.target.value)} placeholder="Folder name" className={field}/><div className="flex justify-end gap-2"><button type="button" onClick={()=>setFolderDialog(false)} className={button}>Cancel</button><button type="submit" disabled={busy||!folderName.trim()} className={primaryButton}>Create folder</button></div></form></section></div>}
 
+      {collectionDetailsOpen && <div className="fixed inset-0 z-[97] flex items-center justify-center bg-slate-950/75 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setCollectionDetailsOpen(false);}}><section role="dialog" aria-modal="true" aria-label="Edit Vyral details" className="w-full max-w-lg rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5"><div className="flex items-center justify-between gap-3"><div><h3 className={'text-sm font-semibold '+primary}>Vyral details</h3><p className={'mt-1 text-xs '+muted}>AI suggestions are defaults. You control every field.</p></div><button type="button" onClick={()=>setCollectionDetailsOpen(false)} className={button} aria-label="Close"><X size={15}/></button></div><div className="mt-4 space-y-3"><label className={'block space-y-1 text-xs '+subtle}><span>Name</span><input className={field} maxLength={100} value={collectionDraft.name} onChange={(event)=>setCollectionDraft((current)=>({...current,name:event.target.value}))}/></label><label className={'block space-y-1 text-xs '+subtle}><span>Description</span><textarea className={field+' min-h-20 py-2'} rows={3} maxLength={1000} value={collectionDraft.description} onChange={(event)=>setCollectionDraft((current)=>({...current,description:event.target.value}))}/></label><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className={'block space-y-1 text-xs '+subtle}><span>Category</span><input className={field} value={collectionDraft.category} onChange={(event)=>setCollectionDraft((current)=>({...current,category:event.target.value}))}/></label><label className={'block space-y-1 text-xs '+subtle}><span>Style</span><input className={field} value={collectionDraft.style} onChange={(event)=>setCollectionDraft((current)=>({...current,style:event.target.value}))}/></label></div><label className={'block space-y-1 text-xs '+subtle}><span>Tags</span><input className={field} value={collectionDraft.tags} onChange={(event)=>setCollectionDraft((current)=>({...current,tags:event.target.value}))} placeholder="Comma-separated tags"/></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" className={button} onClick={()=>setCollectionDetailsOpen(false)}>Cancel</button><button type="button" className={primaryButton} disabled={busy||!collectionDraft.name.trim()} onClick={()=>void saveCollectionDetails()}>{busy?'Saving…':'Save details'}</button></div></section></div>}
       {detailsAsset && <div className="fixed inset-0 z-[96] flex items-center justify-center bg-slate-950/75 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDetailsAsset(null);}}><section role="dialog" aria-modal="true" aria-label="Edit Asset details" className="w-full max-w-lg rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5"><div className="flex items-center justify-between gap-3"><div><h3 className={'text-sm font-semibold '+primary}>Asset details</h3><p className={'mt-1 text-xs '+muted}>Edit any field. Your changes stay yours.</p></div><button type="button" onClick={()=>setDetailsAsset(null)} className={button} aria-label="Close"><X size={15}/></button></div><div className="mt-4 space-y-3"><label className={'block space-y-1 text-xs '+subtle}><span>Name</span><input className={field} maxLength={100} value={detailsDraft.name} onChange={(event)=>setDetailsDraft((current)=>({...current,name:event.target.value}))}/></label><label className={'block space-y-1 text-xs '+subtle}><span>Description</span><textarea className={field+' min-h-20 py-2'} rows={3} maxLength={1000} value={detailsDraft.description} onChange={(event)=>setDetailsDraft((current)=>({...current,description:event.target.value}))}/></label><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className={'block space-y-1 text-xs '+subtle}><span>Category</span><input className={field} value={detailsDraft.category} onChange={(event)=>setDetailsDraft((current)=>({...current,category:event.target.value}))}/></label><label className={'block space-y-1 text-xs '+subtle}><span>Style</span><input className={field} value={detailsDraft.style} onChange={(event)=>setDetailsDraft((current)=>({...current,style:event.target.value}))}/></label></div><label className={'block space-y-1 text-xs '+subtle}><span>Tags</span><input className={field} value={detailsDraft.tags} onChange={(event)=>setDetailsDraft((current)=>({...current,tags:event.target.value}))} placeholder="Comma-separated tags"/></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" className={button} onClick={()=>setDetailsAsset(null)}>Cancel</button><button type="button" className={primaryButton} disabled={busy||!detailsDraft.name.trim()} onClick={()=>void saveAssetDetails()}>{busy?'Saving…':'Save details'}</button></div></section></div>}
       {previewAsset && <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget){setPreviewAsset(null);setPreviewUrl('');}}}><section role="dialog" aria-modal="true" aria-label={previewAsset.name} className="max-h-[90svh] w-full max-w-3xl overflow-auto rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><h3 className={'truncate text-sm font-semibold '+primary}>{previewAsset.name}</h3><p className={'mt-1 text-[10px] '+muted}>{previewAsset.asset_type.replace('_',' ')} · {prettyBytes(Number(previewAsset.size_bytes))}</p></div><button type="button" onClick={()=>{setPreviewAsset(null);setPreviewUrl('');}} aria-label="Close preview" className={button}><X size={15}/></button></div><div className="mt-4 flex min-h-48 items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)] p-2">{!previewUrl?<span className={'text-xs '+muted}>Preparing secure preview…</span>:previewAsset.asset_type==='image'?<img src={previewUrl} alt={previewAsset.name} className="max-h-[65svh] max-w-full object-contain"/>:previewAsset.asset_type==='video'?<video src={previewUrl} controls className="max-h-[65svh] max-w-full"/>:previewAsset.asset_type==='audio'?<audio src={previewUrl} controls className="w-full"/>:<div className="p-8 text-center"><FileText size={32} className={'mx-auto '+muted}/><p className={'mt-3 text-xs '+subtle}>Preview is not available for this file type.</p><a href={previewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[var(--vyra-accent-primary)]"><Download size={13}/> Open or download file</a></div>}</div></section></div>}
     </div>
