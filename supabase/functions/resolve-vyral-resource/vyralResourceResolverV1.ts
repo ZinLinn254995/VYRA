@@ -20,6 +20,34 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 const SHA256 = /^[a-f0-9]{64}$/i;
 
+export type VyralPublicResolverActionV1 = 'master' | 'asset_dna' | 'asset_source';
+
+export const isPublicVyralResourceAllowedV1 = (input: {
+  visibility: unknown;
+  action: unknown;
+  licensePolicy: unknown;
+}): boolean => {
+  if (input.visibility !== 'public') return false;
+  const policy = asRecord(input.licensePolicy);
+  if (policy.allow_ai_analysis === false) return false;
+  if (input.action === 'master' || input.action === 'asset_dna') return true;
+  return input.action === 'asset_source' && policy.allow_redistribution === true;
+};
+
+export const isSafePublicVyralResolverUriV1 = (value: unknown): value is string => {
+  if (typeof value !== 'string' || value.length > 512) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      /^[a-z0-9-]+\\.supabase\\.co$/i.test(url.hostname) &&
+      url.port === '' && url.username === '' && url.password === '' &&
+      url.pathname === '/functions/v1/resolve-public-vyral-resource' &&
+      url.search === '' && url.hash === '';
+  } catch {
+    return false;
+  }
+};
+
 /** Requires a canonical, owner-scoped object prefix ending in '/'. */
 export const isSafeVyralStoragePathV1 = (path: unknown, prefix: string): path is string => {
   if (typeof path !== 'string' || !prefix.endsWith('/') || !path.startsWith(prefix)) return false;
