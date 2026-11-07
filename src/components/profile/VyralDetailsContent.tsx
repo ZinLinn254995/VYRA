@@ -614,6 +614,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           manifest as unknown as Parameters<typeof createVyralAssetDnaOnlyPackage>[0],
           dnaRecordsForExport,
           dnaPayloadEntries,
+          components.compactDna,
         );
       } else {
         archive = createVyralZip(packageEntries);
