@@ -48,7 +48,7 @@ export const CreateVideoView: React.FC = () => {
   ]);
 
   // Step 2: Content & Topic
-  const [workingTitle, setWorkingTitle] = useState<string>('Neural Horizons: The Synthetic Frontier');
+  const [workingTitle, setWorkingTitle] = useState<string>('');
   const [topic, setTopic] = useState<string>(
     'How photonic neural processors and autonomous robotic logistics will reshape manufacturing in 2030'
   );
@@ -65,7 +65,7 @@ export const CreateVideoView: React.FC = () => {
   const [isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
   const [generatedScenes, setGeneratedScenes] = useState<Scene[]>([]);
   const [storyboardDetails, setStoryboardDetails] = useState({
-    description: '', videoType: '', visualStyleDescription: '', audioDirection: '',
+    title: '', description: '', videoType: '', visualStyleDescription: '', audioDirection: '',
     mood: '', pacing: '', tags: '',
   });
   const [storyboardDetailOrigins, setStoryboardDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_edited'>>({});
@@ -94,7 +94,6 @@ export const CreateVideoView: React.FC = () => {
 
   const handleNextToStep3 = () => {
     const errs: Record<string, string> = {};
-    if (!workingTitle.trim()) errs.title = 'Please enter a working title';
     if (!topic.trim()) errs.topic = 'Please describe the core video topic';
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -118,11 +117,11 @@ export const CreateVideoView: React.FC = () => {
       if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Text model in Settings before generating a storyboard.');
       const prompt = [
         'Create a production-ready storyboard for the following video.',
-        'Return ONLY valid JSON with this shape: {"metadata":{"description":"...","videoType":"...","visualStyleDescription":"...","audioDirection":"...","mood":"...","pacing":"...","tags":["..."]},"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}',
+        'Return ONLY valid JSON with this shape: {"metadata":{"title":"...","description":"...","videoType":"...","visualStyleDescription":"...","audioDirection":"...","mood":"...","pacing":"...","tags":["..."]},"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}',
         'Do not wrap JSON in Markdown fences. Do not include media URLs or claim any media has been rendered.',
         'Use 3 to 8 scenes. Scene durations must be positive integers and add up as closely as possible to the target duration.',
         'Write narration in clear, natural English. Make each visual prompt specific and visually distinct. Suggest concise metadata that describes this storyboard; do not invent unsupported facts or relationships.',
-        'Video title: ' + workingTitle,
+        'Working title (optional; suggest one if blank): ' + workingTitle,
         'Topic: ' + topic,
         'Category: ' + category,
         'Audience: ' + targetAudience,
@@ -191,7 +190,9 @@ export const CreateVideoView: React.FC = () => {
       const suggested = parsed.metadata ?? {};
       const toText = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 2000) : '';
       const suggestedTags = Array.isArray(suggested.tags) ? suggested.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 20).join(', ') : '';
+      const suggestedTitle = toText(suggested.title);
       setStoryboardDetails({
+        title: workingTitle.trim() || suggestedTitle || topic.trim().slice(0, 100),
         description: toText(suggested.description),
         videoType: toText(suggested.videoType),
         visualStyleDescription: toText(suggested.visualStyleDescription),
@@ -201,6 +202,7 @@ export const CreateVideoView: React.FC = () => {
         tags: suggestedTags,
       });
       setStoryboardDetailOrigins({
+        title: workingTitle.trim() ? 'creator_edited' : 'ai_suggested',
         description: 'ai_suggested', videoType: 'ai_suggested', visualStyleDescription: 'ai_suggested',
         audioDirection: 'ai_suggested', mood: 'ai_suggested', pacing: 'ai_suggested', tags: 'ai_suggested',
       });
@@ -221,7 +223,7 @@ export const CreateVideoView: React.FC = () => {
         : heroCyberCity);
 
     const projectId = createProject({
-      title: workingTitle,
+      title: (storyboardDetails.title || workingTitle || topic).trim().slice(0, 120),
       topic,
       category,
       format,
@@ -251,7 +253,7 @@ export const CreateVideoView: React.FC = () => {
       targetDuration,
       targetPlatforms: selectedPlatforms,
       coverImage: cover,
-      publishingCaption: `${workingTitle} — ${topic.slice(0, 120)}... #FutureTech #Innovation #VYRAStudio`,
+      publishingCaption: `${(storyboardDetails.title || workingTitle || topic).trim()} — ${topic.slice(0, 120)}... #FutureTech #Innovation #VYRAStudio`,
       selectedPlatformsForPublishing: selectedPlatforms.map((p) =>
         p.toLowerCase().includes('youtube')
           ? 'youtube'
@@ -469,7 +471,7 @@ export const CreateVideoView: React.FC = () => {
           {/* Working Title */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 light:text-slate-700">
-              Working Title <span className="text-red-400">*</span>
+              Working Title <span className="font-normal text-slate-400 light:text-slate-500">(optional — AI can suggest one)</span>
             </label>
             <input
               type="text"
@@ -729,6 +731,7 @@ export const CreateVideoView: React.FC = () => {
             <div className="space-y-4">
               <section className="rounded-xl border border-[#2B3058] light:border-slate-200 bg-[#090B18]/70 light:bg-slate-50 p-4 space-y-3">
                 <div><h3 className="text-sm font-semibold text-white light:text-slate-900">Suggested storyboard details</h3><p className="mt-1 text-[11px] text-slate-400 light:text-slate-500">VYRA filled these from your topic and scenes. Edit any field you want.</p></div>
+                <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Storyboard title</span><input value={storyboardDetails.title} onChange={(event)=>updateStoryboardDetail('title',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
                 <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Description</span><textarea rows={2} value={storyboardDetails.description} onChange={(event)=>updateStoryboardDetail('description',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Video type</span><input value={storyboardDetails.videoType} onChange={(event)=>updateStoryboardDetail('videoType',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
