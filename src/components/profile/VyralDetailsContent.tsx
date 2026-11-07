@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, Archive, Box, ChevronRight, Clock3, Dna,
   Download, File as FileIcon, FileText, Fingerprint, FlaskConical, Folder, FolderPlus, GitBranch,
@@ -157,6 +157,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterDnaBlockers, setMasterDnaBlockers] = useState<Array<{ code: string; asset_id?: string; message: string }>>([]);
   const [masterAssetDrafts, setMasterAssetDrafts] = useState<Record<string, MasterAssetDraft>>({});
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
+  const masterDnaAutoBuildRef = useRef(false);
 
   const loadWorkspace = useCallback(async () => {
     if (!supabase) { setError('Cloud storage is not configured for this environment.'); setLoading(false); return; }
@@ -242,6 +243,25 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       require_attribution: policy.require_attribution !== false,
     });
     setLoading(false);
+
+    // Keep the collection snapshot synchronized in the background. The builder
+    // only requires each Asset's own current version and matching DNA; optional
+    // creator context and semantic relationships never block this process.
+    const masterRoot = masterRootResult.data as Pick<Vyral, 'master_dna_status'> | null;
+    if (masterSchemaReady && assetRows.length > 0 && masterRoot?.master_dna_status !== 'ready' && !masterDnaAutoBuildRef.current) {
+      masterDnaAutoBuildRef.current = true;
+      void supabase.functions.invoke('build-vyral-master-dna', {
+        body: { vyralId: vyral.id },
+      }).then(({ data, error: buildError }) => {
+        if (!buildError && data?.status === 'ready') {
+          setMasterDnaStatus('ready');
+          setMasterDnaRevision(Number(data.revision ?? 0));
+          setMasterDnaMessage('');
+        }
+      }).finally(() => {
+        masterDnaAutoBuildRef.current = false;
+      });
+    }
   }, [vyral.id, vyral.license_policy]);
 
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
