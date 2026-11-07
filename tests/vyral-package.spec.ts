@@ -105,7 +105,7 @@ test('explains which Assets are missing exact DNA in an incomplete DNA-only pack
   };
   assert.throws(
     () => validateVyralManifest(incomplete),
-    /1 supported exact reconstruction record\\(s\\) for 2 Asset\\(s\\).*Missing audio \\(DNA missing\\)/,
+    /1 supported exact reconstruction record\(s\) for 2 Asset\(s\).*Missing audio \(DNA missing\)/,
   );
 });
 
