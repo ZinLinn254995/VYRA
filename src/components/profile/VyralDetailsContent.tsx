@@ -422,10 +422,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const latestFailureMetadata = latestFailureState?.metadata && typeof latestFailureState.metadata === 'object' && !Array.isArray(latestFailureState.metadata)
           ? latestFailureState.metadata as Record<string, unknown> : {};
         const latestFailureDetails = latestFailureMetadata.ai_details as VyralAiDetails | undefined;
+        const latestDetailsAreCurrent = Boolean(latestFailureDetails && latestFailureDetails.source_revision === revision && !latestFailureDetails.stale);
         const unavailableMetadata = {
           ...latestFailureMetadata,
-          ...(latestFailureDetails ? { ai_details: markVyralAiDetailsStale(latestFailureDetails) } : {}),
-          ai_details_status: 'unavailable',
+          ...(latestFailureDetails && !latestDetailsAreCurrent ? { ai_details: markVyralAiDetailsStale(latestFailureDetails) } : {}),
+          ai_details_status: latestDetailsAreCurrent ? 'ready' : 'unavailable',
         };
         const { error: statusError } = await supabase.from('vyrals').update({ metadata: unavailableMetadata }).eq('id', vyral.id);
         if (!statusError) onVyralUpdated({ metadata: unavailableMetadata });
