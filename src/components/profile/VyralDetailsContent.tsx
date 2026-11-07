@@ -21,7 +21,7 @@ type FolderRow = { id: string; vyral_id: string; parent_id: string | null; name:
 type AssetRow = {
   id: string; vyral_id: string; folder_id: string | null; name: string; original_filename: string;
   asset_type: string; mime_type: string; size_bytes: number; storage_path: string; sha256: string | null;
-  processing_status: string; description: string; created_at: string; updated_at: string;
+  processing_status: string; description: string; created_at: string; updated_at: string; metadata?: Record<string, unknown>;
 
 };
 type DnaRow = {
@@ -143,6 +143,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [promotingObservationId, setPromotingObservationId] = useState<string | null>(null);
   const [resolvingConflictKey, setResolvingConflictKey] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
     allow_ai_analysis: true, allow_ai_generation: true, allow_remix: false,
@@ -282,6 +283,27 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       .filter((asset) => !search || (asset.name + ' ' + asset.original_filename + ' ' + asset.description).toLowerCase().includes(search));
   }, [assets, activeFolderId, assetFilter, searchQuery, localSearch]);
   const visibleFolders = folders.filter((folder) => folder.parent_id === activeFolderId);
+  const selectedAssets = assets.filter((asset) => selectedAssetIds.includes(asset.id));
+  const toggleAssetSelection = (assetId: string) => setSelectedAssetIds((current) => current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId]);
+  const updateAssetVisibility = async (targetIds: string[], visibility: 'private' | 'public') => {
+    if (!supabase || !targetIds.length || busy) return;
+    if (visibility === 'public' && vyral.visibility !== 'public') {
+      setError('Make this Vyral public first. A public Asset inside a private Vyral remains private.');
+      return;
+    }
+    setBusy(true); setError('');
+    try {
+      for (const id of targetIds) {
+        const asset = assets.find((item) => item.id === id);
+        if (!asset) continue;
+        const { error: updateError } = await supabase.from('vyral_assets').update({ metadata: { ...(asset.metadata ?? {}), visibility } }).eq('id', id).eq('vyral_id', vyral.id);
+        if (updateError) throw updateError;
+      }
+      setSelectedAssetIds((current) => current.filter((id) => !targetIds.includes(id)));
+      await loadWorkspace();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update Asset visibility.'); }
+    finally { setBusy(false); }
+  };
   const folderPath = useMemo(() => {
     const result: FolderRow[] = [];
     let current = folders.find((folder) => folder.id === activeFolderId);
@@ -2134,12 +2156,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const Icon = typeIcon(asset.asset_type);
     const protectedAsset = isProtectedVyral(vyral);
     const isPackage = asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral');
+    const selected = selectedAssetIds.includes(asset.id);
+    const visibility = asset.metadata?.visibility === 'public' ? 'public' : 'private';
     return (
-      <article key={asset.id} className={surface + ' min-w-0 overflow-hidden'}>
+      <article key={asset.id} className={surface + ' min-w-0 overflow-hidden ' + (selected ? 'ring-2 ring-[var(--vyra-accent-primary)]' : '')}>
         <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[4/3] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]" aria-label={'Open ' + asset.name}>
           <Icon size={36} strokeWidth={1.5} />
         </button>
         <div className="space-y-3 p-3">
+          <div className="flex items-center justify-between gap-2"><label className="inline-flex items-center gap-2 text-[11px] font-medium text-[var(--vyra-text-secondary)]"><input type="checkbox" checked={selected} onChange={() => toggleAssetSelection(asset.id)} aria-label={'Select '+asset.name} className="size-4 accent-[var(--vyra-accent-primary)]"/> Select</label><span className={'inline-flex items-center gap-1 text-[10px] '+(visibility === 'public' ? 'text-[var(--vyra-accent-primary)]' : muted)}>{visibility === 'public' ? 'Public' : 'Private'}</span></div>
           <div className="min-w-0">
             <h4 className={'truncate text-sm font-semibold ' + primary}>{asset.name}</h4>
             <p className={'mt-1 text-[11px] capitalize ' + muted}>{asset.asset_type.replaceAll('_', ' ')}</p>
@@ -2147,6 +2172,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => void openPreview(asset)} className={button}>Open</button>
             <button type="button" onClick={() => void renameAsset(asset)} className={button}>Rename</button>
+            <button type="button" onClick={() => void updateAssetVisibility([asset.id], visibility === 'public' ? 'private' : 'public')} disabled={busy} className={button}>{visibility === 'public' ? 'Make private' : 'Make public'}</button>
             {isPackage && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className={button}>Import</button>}
             {protectedAsset
               ? <span className={'ml-auto text-[10px] ' + muted}>Protected</span>
@@ -2260,6 +2286,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </div>
           <div className="flex flex-wrap items-center gap-1 text-xs"><button type="button" onClick={()=>setActiveFolderId(null)} className={activeFolderId===null?'font-semibold text-[var(--vyra-accent-primary)]':subtle}>Root</button>{folderPath.map((folder)=><React.Fragment key={folder.id}><ChevronRight size={12} className={muted}/><button type="button" onClick={()=>setActiveFolderId(folder.id)} className={folder.id===activeFolderId?'font-semibold text-[var(--vyra-accent-primary)]':subtle}>{folder.name}</button></React.Fragment>)}</div>
           {visibleFolders.length>0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{visibleFolders.map((folder)=><div key={folder.id} className={surface+' flex min-w-0 items-center gap-2 p-3'}><button type="button" onClick={()=>setActiveFolderId(folder.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left"><Folder size={18} className="shrink-0 text-[var(--vyra-accent-primary)]"/><span className={'truncate text-xs font-medium '+primary}>{folder.name}</span></button><button type="button" onClick={()=>void deleteFolder(folder)} aria-label={'Delete '+folder.name} className={muted}><Trash2 size={13}/></button></div>)}</div>}
+          {filteredAssets.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--vyra-border)] px-3 py-2"><label className={'inline-flex items-center gap-2 text-xs '+subtle}><input type="checkbox" checked={filteredAssets.length > 0 && filteredAssets.every((asset) => selectedAssetIds.includes(asset.id))} onChange={(event) => setSelectedAssetIds((current) => event.target.checked ? [...new Set([...current, ...filteredAssets.map((asset) => asset.id)])] : current.filter((id) => !filteredAssets.some((asset) => asset.id === id)))} className="size-4 accent-[var(--vyra-accent-primary)]"/> Select all in this view</label><span className={'text-xs '+muted}>{selectedAssets.length} selected</span>{selectedAssets.length > 0 && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateAssetVisibility(selectedAssetIds, 'private')} disabled={busy} className={button}>Make private</button><button type="button" onClick={() => void updateAssetVisibility(selectedAssetIds, 'public')} disabled={busy || vyral.visibility !== 'public'} title={vyral.visibility !== 'public' ? 'Make this Vyral public first' : undefined} className={button}>Make public</button><button type="button" onClick={() => setSelectedAssetIds([])} className={button}>Clear</button></div>}</div>}
           {filteredAssets.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{filteredAssets.map(renderAssetCard)}</div> : <div className="rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-12 text-center"><Folder size={25} className={'mx-auto '+muted}/><p className={'mt-3 text-sm font-semibold '+primary}>{assets.length?'No matching assets in this folder':'This folder is empty'}</p><p className={'mt-1 text-xs '+muted}>Add files or create folders to organize this Vyral.</p></div>}
           <p className={'text-[10px] '+muted}>{assets.length} items</p>
         </div>
