@@ -5,13 +5,14 @@ import {
   HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck,
   Trash2, Upload, Video, X,
 } from 'lucide-react';
-import { supabase, useAuth } from '../../context/AuthContext';
+import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
+import { setVyralAiDetailField, suggestVyralAssetDetails, type VyralAiDetails } from '../../services/vyralAiDetails';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -144,6 +145,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [promotingObservationId, setPromotingObservationId] = useState<string | null>(null);
   const [resolvingConflictKey, setResolvingConflictKey] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
+  const [detailsAsset, setDetailsAsset] = useState<AssetRow | null>(null);
+  const [detailsDraft, setDetailsDraft] = useState({ name: '', description: '', category: '', style: '', tags: '' });
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -1021,6 +1024,45 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
+        // AI metadata is an optional enhancement: never roll back a valid upload or DNA
+        // record when the provider is unavailable.
+        try {
+          const accessToken = await getCurrentAccessToken();
+          if (accessToken) {
+            const suggestion = await suggestVyralAssetDetails(file, {
+              accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
+            });
+            const fields = suggestion.details.fields;
+            const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
+            const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
+            const { data: currentAsset } = await db.from('vyral_assets').select('metadata,name,description').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+            const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+              ? currentAsset.metadata as Record<string, unknown> : {};
+            const { error: metadataError } = await db.from('vyral_assets').update({
+              ...(suggestedName ? { name: suggestedName } : {}),
+              ...(suggestedDescription ? { description: suggestedDescription } : {}),
+              metadata: {
+                ...currentMetadata,
+                ai_details: suggestion.details,
+                ai_details_status: 'ready',
+                ai_details_source_version_id: version.id,
+              },
+            }).eq('id', assetId).eq('user_id', auth.user.id);
+            if (metadataError) console.warn('[vyral-ai-details] Could not save AI suggestions for uploaded Asset.');
+          } else {
+            await db.from('vyral_assets').update({
+              metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending' },
+            }).eq('id', assetId).eq('user_id', auth.user.id);
+          }
+        } catch (metadataCause) {
+          console.warn('[vyral-ai-details] Default details were unavailable for this Asset.', metadataCause);
+          const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+          const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+            ? currentAsset.metadata as Record<string, unknown> : {};
+          await db.from('vyral_assets').update({
+            metadata: { ...currentMetadata, ai_details_status: 'unavailable' },
+          }).eq('id', assetId).eq('user_id', auth.user.id);
+        }
         completedAssets += 1;
         setPackageStatus('Restoring assets ' + completedAssets + ' / ' + importAssets.length + '…');
       }
@@ -1816,13 +1858,47 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setBusy(false);
   };
 
-  const renameAsset = async (asset: AssetRow) => {
-    if (!supabase) return;
-    const nextName = window.prompt('Asset name', asset.name)?.trim();
-    if (!nextName || nextName === asset.name) return;
-    const { error: updateError } = await supabase.from('vyral_assets').update({ name: nextName }).eq('id', asset.id);
-    if (updateError) setError(updateError.message);
-    else await loadWorkspace();
+  const openAssetDetails = (asset: AssetRow) => {
+    const aiDetails = asset.metadata?.ai_details as VyralAiDetails | undefined;
+    const fields = aiDetails?.fields ?? {};
+    setDetailsAsset(asset);
+    setDetailsDraft({
+      name: asset.name ?? '',
+      description: asset.description ?? '',
+      category: typeof fields.category?.value === 'string' ? fields.category.value : '',
+      style: typeof fields.style?.value === 'string' ? fields.style.value : '',
+      tags: Array.isArray(fields.tags?.value) ? fields.tags.value.join(', ') : '',
+    });
+  };
+
+  const saveAssetDetails = async () => {
+    if (!supabase || !detailsAsset || busy) return;
+    if (!detailsDraft.name.trim()) { setError('Asset name cannot be empty.'); return; }
+    setBusy(true); setError('');
+    try {
+      const currentMetadata = detailsAsset.metadata ?? {};
+      const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
+      const generatedAt = new Date().toISOString();
+      const baseDetails: VyralAiDetails = currentDetails ?? {
+        schema_version: 1, scope: 'asset', source_version_id: versions.find((item) => item.asset_id === detailsAsset.id)?.id ?? null,
+        source_revision: null, provider: 'creator', model: 'manual', generated_at: generatedAt, stale: false, fields: {},
+      };
+      let updatedDetails = setVyralAiDetailField(baseDetails, 'name', detailsDraft.name.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'description', detailsDraft.description.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'category', detailsDraft.category.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'style', detailsDraft.style.trim(), 'creator_edited', generatedAt);
+      updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', detailsDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      const { error: updateError } = await supabase.from('vyral_assets').update({
+        name: detailsDraft.name.trim().slice(0, 100),
+        description: detailsDraft.description.trim().slice(0, 1000),
+        metadata: { ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready' },
+      }).eq('id', detailsAsset.id).eq('vyral_id', vyral.id);
+      if (updateError) throw updateError;
+      setDetailsAsset(null);
+      await loadWorkspace();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save Asset details.');
+    } finally { setBusy(false); }
   };
 
   const openPreview = async (asset: AssetRow) => {
@@ -2172,7 +2248,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => void openPreview(asset)} className={button}>Open</button>
-            <button type="button" onClick={() => void renameAsset(asset)} className={button}>Rename</button>
+            <button type="button" onClick={() => openAssetDetails(asset)} className={button}>Edit details</button>
             <button type="button" onClick={() => void updateAssetVisibility([asset.id], visibility === 'public' ? 'private' : 'public')} disabled={busy} className={button}>{visibility === 'public' ? 'Make private' : 'Make public'}</button>
             {isPackage && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className={button}>Import</button>}
             {protectedAsset
@@ -2500,6 +2576,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {folderDialog && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/65 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setFolderDialog(false);}}><section role="dialog" aria-modal="true" aria-labelledby="vyral-folder-title" className="w-full max-w-sm rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]"><div className="flex items-center justify-between"><h3 id="vyral-folder-title" className={'text-base font-bold '+primary}>New folder</h3><button type="button" onClick={()=>setFolderDialog(false)} aria-label="Close" className={muted}><X size={17}/></button></div><form onSubmit={(event)=>void createFolder(event)} className="mt-4 space-y-3"><input autoFocus required maxLength={100} value={folderName} onChange={(event)=>setFolderName(event.target.value)} placeholder="Folder name" className={field}/><div className="flex justify-end gap-2"><button type="button" onClick={()=>setFolderDialog(false)} className={button}>Cancel</button><button type="submit" disabled={busy||!folderName.trim()} className={primaryButton}>Create folder</button></div></form></section></div>}
 
+      {detailsAsset && <div className="fixed inset-0 z-[96] flex items-center justify-center bg-slate-950/75 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDetailsAsset(null);}}><section role="dialog" aria-modal="true" aria-label="Edit Asset details" className="w-full max-w-lg rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5"><div className="flex items-center justify-between gap-3"><div><h3 className={'text-sm font-semibold '+primary}>Asset details</h3><p className={'mt-1 text-xs '+muted}>Edit any field. Your changes stay yours.</p></div><button type="button" onClick={()=>setDetailsAsset(null)} className={button} aria-label="Close"><X size={15}/></button></div><div className="mt-4 space-y-3"><label className={'block space-y-1 text-xs '+subtle}><span>Name</span><input className={field} maxLength={100} value={detailsDraft.name} onChange={(event)=>setDetailsDraft((current)=>({...current,name:event.target.value}))}/></label><label className={'block space-y-1 text-xs '+subtle}><span>Description</span><textarea className={field+' min-h-20 py-2'} rows={3} maxLength={1000} value={detailsDraft.description} onChange={(event)=>setDetailsDraft((current)=>({...current,description:event.target.value}))}/></label><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className={'block space-y-1 text-xs '+subtle}><span>Category</span><input className={field} value={detailsDraft.category} onChange={(event)=>setDetailsDraft((current)=>({...current,category:event.target.value}))}/></label><label className={'block space-y-1 text-xs '+subtle}><span>Style</span><input className={field} value={detailsDraft.style} onChange={(event)=>setDetailsDraft((current)=>({...current,style:event.target.value}))}/></label></div><label className={'block space-y-1 text-xs '+subtle}><span>Tags</span><input className={field} value={detailsDraft.tags} onChange={(event)=>setDetailsDraft((current)=>({...current,tags:event.target.value}))} placeholder="Comma-separated tags"/></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" className={button} onClick={()=>setDetailsAsset(null)}>Cancel</button><button type="button" className={primaryButton} disabled={busy||!detailsDraft.name.trim()} onClick={()=>void saveAssetDetails()}>{busy?'Saving…':'Save details'}</button></div></section></div>}
       {previewAsset && <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget){setPreviewAsset(null);setPreviewUrl('');}}}><section role="dialog" aria-modal="true" aria-label={previewAsset.name} className="max-h-[90svh] w-full max-w-3xl overflow-auto rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><h3 className={'truncate text-sm font-semibold '+primary}>{previewAsset.name}</h3><p className={'mt-1 text-[10px] '+muted}>{previewAsset.asset_type.replace('_',' ')} · {prettyBytes(Number(previewAsset.size_bytes))}</p></div><button type="button" onClick={()=>{setPreviewAsset(null);setPreviewUrl('');}} aria-label="Close preview" className={button}><X size={15}/></button></div><div className="mt-4 flex min-h-48 items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)] p-2">{!previewUrl?<span className={'text-xs '+muted}>Preparing secure preview…</span>:previewAsset.asset_type==='image'?<img src={previewUrl} alt={previewAsset.name} className="max-h-[65svh] max-w-full object-contain"/>:previewAsset.asset_type==='video'?<video src={previewUrl} controls className="max-h-[65svh] max-w-full"/>:previewAsset.asset_type==='audio'?<audio src={previewUrl} controls className="w-full"/>:<div className="p-8 text-center"><FileText size={32} className={'mx-auto '+muted}/><p className={'mt-3 text-xs '+subtle}>Preview is not available for this file type.</p><a href={previewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[var(--vyra-accent-primary)]"><Download size={13}/> Open or download file</a></div>}</div></section></div>}
     </div>
   );
