@@ -56,8 +56,9 @@ test('keeps collection identity stable while inventory labels affect the snapsho
 });
 
 test('allows a single Asset Vyral without roles, purpose, or relationships', async () => {
+  const { purpose: _purpose, relationships: _relationships, ...base } = input;
   const single = {
-    ...input,
+    ...base,
     main_asset_ids: [],
     assets: [{
       asset_id: 'one', asset_version_id: 'one-v1', media_type: 'image/png',
