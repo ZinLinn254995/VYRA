@@ -660,9 +660,9 @@ test('exports and reconstructs a single raster Asset DNA-only package without Ma
   assert.deepEqual(reconstructed.samples, samples);
   assert.equal(reconstructed.decoded_samples_sha256, raster.record.decoded_image.decoded_samples_sha256);
 
-  const png = await encodeVyralDnaV3PngFromPackage(files, 'single-asset-dna-v3');
-  assert.deepEqual(Array.from(png.subarray(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
-  const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  const { pngBytes } = await encodeVyralDnaV3PngFromPackage(files, 'single-asset-dna-v3');
+  assert.deepEqual(Array.from(pngBytes.subarray(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+  const view = new DataView(pngBytes.buffer, pngBytes.byteOffset, pngBytes.byteLength);
   assert.equal(view.getUint32(16), 3);
   assert.equal(view.getUint32(20), 1);
 });
