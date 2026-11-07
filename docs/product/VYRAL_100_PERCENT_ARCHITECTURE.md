@@ -250,6 +250,9 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Different content types use different detail templates. Do not show irrelevant fields just because they exist in a universal schema.
 - AI suggestions should appear as useful defaults without requiring the user to answer a form or understand classification terminology. Users can edit individual fields manually, accept defaults, or leave uncertain fields blank.
 - Manual edits are authoritative creator input and must not be silently overwritten by later AI analysis. A later AI refresh may suggest changes separately, but must preserve the creator's saved values unless the creator explicitly accepts replacements.
+- Use a distinct `system_default` origin for neutral placeholders. AI may replace system defaults or older AI suggestions, but never creator-confirmed or creator-edited fields.
+- Re-read the latest saved metadata before applying asynchronous AI responses so a manual edit made while the model is working always wins. Reject stale collection-analysis results when a newer Asset inventory revision has started.
+- Preserve relevant type-specific fields as individually editable details. Structured values remain structured; unsupported or uncertain fields may remain blank.
 - Users may correct name, category, type, style, description, tags, and any other editable details at any time.
 - The same principle applies at Asset and Vyral level, but Vyral-level details describe the collection as a whole while Asset-level details describe only that Asset.
 
@@ -258,7 +261,7 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Deterministic file facts (MIME type, dimensions, duration, byte size, file structure, timestamps where reliable, and cryptographic fingerprints) are extracted by software, not invented by AI.
 - AI may infer semantic details from actual content and creator-provided context. It must not infer unsupported facts from a filename alone when content is available for inspection.
 - Store AI-generated values with provenance such as provider/model, generated time, source Asset/version or source inventory revision, confidence where meaningful, and review status.
-- Distinguish ai_suggested, creator_confirmed, and creator_edited values or equivalent field-level provenance. Do not present low-confidence guesses as confirmed facts.
+- Distinguish system_default, ai_suggested, creator_confirmed, and creator_edited values or equivalent field-level provenance. Do not present low-confidence guesses as confirmed facts.
 - If content cannot be inspected or evidence is insufficient, return a minimal safe suggestion (for example a neutral filename-based title) and leave uncertain categories/styles blank or explicitly marked as suggestions.
 - AI-generated details are descriptive metadata only. They are not Asset DNA, do not replace deterministic fingerprints or reconstruction payloads, and are never required for a Vyral to be valid or exported/imported.
 - Suggested type/category/style labels must remain extensible. Unknown, custom, mixed, and user-defined categories are valid; the taxonomy must not constrain what creators can store.
