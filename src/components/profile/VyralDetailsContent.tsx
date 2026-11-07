@@ -1169,10 +1169,33 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || packageBusy || busy) return;
     setError('');
     setPackageStatus('Reading uploaded .vyral from Asset storage…');
+    const sourceVersion = versions
+      .filter((version) => version.asset_id === asset.id)
+      .find((version) => version.storage_path === asset.storage_path)
+      ?? versions.filter((version) => version.asset_id === asset.id)
+        .sort((left, right) => right.version_number - left.version_number)[0];
+    if (!sourceVersion?.sha256 || !sourceVersion.storage_path || sourceVersion.storage_path !== asset.storage_path) {
+      setPackageStatus('');
+      setError('This .vyral upload has no matching, SHA-256-pinned source version. Verify or recover the upload before importing.');
+      return;
+    }
     const { data, error: downloadError } = await supabase.storage.from('vyral-assets').download(asset.storage_path);
     if (downloadError || !data) {
       setPackageStatus('');
       setError('Could not read this uploaded package from Asset storage: ' + (downloadError?.message ?? 'file missing'));
+      return;
+    }
+    if (data.size !== Number(sourceVersion.size_bytes) || data.size > 100 * 1024 * 1024) {
+      setPackageStatus('');
+      setError('The uploaded .vyral file size does not match its recorded source version or exceeds the 100 MB import limit.');
+      return;
+    }
+    const packageBuffer = await data.arrayBuffer();
+    const packageDigest = await crypto.subtle.digest('SHA-256', packageBuffer);
+    const packageSha256 = Array.from(new Uint8Array(packageDigest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    if (packageSha256 !== sourceVersion.sha256.toLowerCase()) {
+      setPackageStatus('');
+      setError('The uploaded .vyral file failed its source-version SHA-256 check. Import was stopped to protect package integrity.');
       return;
     }
     const filename = asset.original_filename.toLowerCase().endsWith('.vyral')
