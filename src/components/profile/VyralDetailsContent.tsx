@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
+import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
@@ -609,7 +609,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
-  const importVyralPackage = async (file: File) => {
+  const importVyralPackage = async (file: File, containerAssetId?: string) => {
     if (!file || !supabase || packageBusy) return;
     if (file.size > 256 * 1024 * 1024) { setError('VYRAL package exceeds the 256 MB import limit.'); return; }
 
@@ -627,6 +627,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     try {
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
+      const importAssets = getVyralPackageAssetsForImport(manifest.assets, containerAssetId);
+      if (!importAssets.length) {
+        throw new Error('This package contains no other Assets to import. The .vyral file used to open it was not duplicated.');
+      }
       const importedMasterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
       if (importedMasterDna) {
         const masterAssetIds = new Set(importedMasterDna.assets.map((asset) => asset.asset_id));
@@ -662,7 +666,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
-      const assetCount = manifest.assets.length;
+      const assetCount = importAssets.length;
       const folderCount = manifest.folders.length;
       if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
         setPackageStatus('');
@@ -737,7 +741,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       const importedDnaSources = new Map<string, { version_id: string; sha256: string; size_bytes: number; mime_type: string; tile_storage_paths: string[]; file_dna_record?: VyralFileDnaRecord }>();
       let completedAssets = 0;
-      for (const sourceAsset of manifest.assets) {
+      for (const sourceAsset of importAssets) {
         const oldAssetId = stringValue(sourceAsset.id);
         if (!oldAssetId) throw new Error('A package asset is missing its identity.');
         const assetId = crypto.randomUUID();
@@ -775,7 +779,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const filename = filenameBase + '.reconstructed.png';
           const pngBuffer = new ArrayBuffer(pngBytes.byteLength);
           new Uint8Array(pngBuffer).set(pngBytes);
-          if (manifest.assets.length === 1) reconstructionDownload = { blob: new Blob([pngBuffer], { type: 'image/png' }), filename };
+          if (importAssets.length === 1) reconstructionDownload = { blob: new Blob([pngBuffer], { type: 'image/png' }), filename };
           const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v1/' + versionId + '-' + encodeURIComponent(filename);
           const syntheticSource = {
             id: versionId,
@@ -961,7 +965,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
         completedAssets += 1;
-        setPackageStatus('Restoring assets ' + completedAssets + ' / ' + manifest.assets.length + '…');
+        setPackageStatus('Restoring assets ' + completedAssets + ' / ' + importAssets.length + '…');
       }
 
       const dnaRows: Record<string, unknown>[] = [];
@@ -983,7 +987,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       for (const sourceRecord of manifest.dnaRecords) {
         const oldAssetId = sourceRecord.asset_id ? String(sourceRecord.asset_id) : '';
+        if (oldAssetId && oldAssetId === containerAssetId) continue;
         const assetId = oldAssetId ? assetMap.get(oldAssetId) ?? null : null;
+        if (oldAssetId && !assetId) throw new Error('Package DNA evidence references an Asset outside the import inventory.');
         const isDnaV3Record = sourceRecord.dna_schema_id === 'vyra.asset-dna' && sourceRecord.dna_schema_version === 3;
         const isFileDnaRecord = sourceRecord.dna_schema_id === 'vyra.asset-file-dna' && sourceRecord.dna_schema_version === 1;
         const originalPayload = isDnaV3Record || isFileDnaRecord
@@ -1097,6 +1103,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       // whether an Asset or Vyral is valid, and no synthetic membership edge is created.
       if (importedMasterDna && masterDnaAvailable) {
         for (const sourceAsset of importedMasterDna.assets) {
+          if (sourceAsset.asset_id === containerAssetId) continue;
           const importedAssetId = assetMap.get(sourceAsset.asset_id);
           if (!importedAssetId) {
             throw new Error('Imported Master DNA references an Asset outside its inventory.');
@@ -1114,13 +1121,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
 
         const importedRelationships = importedMasterDna.relationships ?? [];
-        const relationshipRows = importedRelationships.map((relation) => {
+        const relationshipRows = importedRelationships.flatMap((relation) => {
+          if ((relation.from.kind === 'asset' && relation.from.asset_id === containerAssetId) ||
+              (relation.to.kind === 'asset' && relation.to.asset_id === containerAssetId)) return [];
           const fromAssetId = relation.from.kind === 'asset' ? assetMap.get(relation.from.asset_id) : null;
           const toAssetId = relation.to.kind === 'asset' ? assetMap.get(relation.to.asset_id) : null;
           if ((relation.from.kind === 'asset' && !fromAssetId) || (relation.to.kind === 'asset' && !toAssetId)) {
             throw new Error('An imported Master DNA relationship references an Asset outside its inventory.');
           }
-          return {
+          return [{
             vyral_id: vyral.id,
             user_id: userId,
             relationship_type: relation.type,
@@ -1131,7 +1140,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             rationale: relation.rationale,
             evidence_ref: relation.evidence_ref ?? null,
             metadata: { imported_from_package: manifest.packageId, imported_relationship_id: relation.relationship_id, trust: 'unverified_imported_evidence' },
-          };
+          }];
         });
         for (let index = 0; index < relationshipRows.length; index += 100) {
           const { error: relationshipError } = await supabase.from('vyral_asset_relationships').insert(relationshipRows.slice(index, index + 100));
@@ -1226,7 +1235,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const filename = asset.original_filename.toLowerCase().endsWith('.vyral')
       ? asset.original_filename
       : asset.name.toLowerCase().endsWith('.vyral') ? asset.name : asset.name + '.vyral';
-    await importVyralPackage(new File([data], filename, { type: VYRAL_PACKAGE_FORMAT }));
+    await importVyralPackage(new File([data], filename, { type: VYRAL_PACKAGE_FORMAT }), asset.id);
   };
 
   const createFolder = async (event: React.FormEvent) => {
