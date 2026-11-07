@@ -344,14 +344,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const latestBeforeDetails = latestBeforeMetadata.ai_details as VyralAiDetails | undefined;
             if (latestBeforeDetails) {
               analysisDetails = latestBeforeDetails;
-              const staleMetadata = {
-                ...latestBeforeMetadata,
-                ai_details: markVyralAiDetailsStale(latestBeforeDetails),
-                ai_details_status: 'refreshing',
-                ai_details_source_revision: revision,
-              };
-              const { error: staleError } = await supabase.from('vyrals').update({ metadata: staleMetadata }).eq('id', vyral.id);
-              if (!staleError) onVyralUpdated({ metadata: staleMetadata });
+              if (latestBeforeDetails.source_revision !== revision || latestBeforeDetails.stale) {
+                const staleMetadata = {
+                  ...latestBeforeMetadata,
+                  ai_details: markVyralAiDetailsStale(latestBeforeDetails),
+                  ai_details_status: 'refreshing',
+                  ai_details_source_revision: revision,
+                };
+                const { error: staleError } = await supabase.from('vyrals').update({ metadata: staleMetadata }).eq('id', vyral.id);
+                if (!staleError) onVyralUpdated({ metadata: staleMetadata });
+              }
             }
           }
         }
