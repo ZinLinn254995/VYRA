@@ -41,7 +41,7 @@ test('creates and verifies a canonical Master DNA snapshot and Vyral fingerprint
 
 test('rejects a modified snapshot and an invalid optional asset purpose', async () => {
   const record = await createVyralMasterDnaV1(input);
-  await assert.rejects(() => validateVyralMasterDnaV1({ ...record, purpose: { ...record.purpose, summary: 'tampered' } }), /manifest digest verification failed/);
+  await assert.rejects(() => validateVyralMasterDnaV1({ ...record, purpose: { ...(record.purpose ?? {}), summary: 'tampered' } }), /manifest digest verification failed/);
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, assets: input.assets.map((asset, i) => i === 0 ? { ...asset, purpose: '  ' } : asset) }), /asset entry is invalid/);
 });
 
