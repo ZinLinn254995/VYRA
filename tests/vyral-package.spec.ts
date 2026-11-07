@@ -601,8 +601,13 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     }],
     reconstruction_profile: { overall_claim: 'semantic_only', notes: ['The source collection snapshot had not yet been upgraded to the included sample payloads.'] },
     provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
-    source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
-    portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
+    source_resolution: { visibility: 'public', canonical_uri: null, resolution_policy: 'public_assets' },
+    portable_projection: {
+      profile: 'compact',
+      includes_full_reconstruction_payloads: false,
+      resolver_uri: 'https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource',
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
   });
   const base = {
     ...manifest,
@@ -689,6 +694,7 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   assert.equal(parsed.assets.length, 2);
   assert.equal(parsed.dnaRecords.length, 2);
   assert.equal(parsed.masterDna?.assets.length, 2);
+  assert.equal(parsed.masterDna?.portable_projection.resolver_uri, 'https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource');
   assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
   assert.ok(parsed.masterDna?.assets.every((asset) => asset.reconstruction_claim === 'lossless_decoded'));
   const repeatedArchive = await createVyralDnaOnlyPackage(
