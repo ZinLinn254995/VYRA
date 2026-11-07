@@ -49,6 +49,7 @@ const formatAiFieldDraft = (value: VyralDetailValue): string => {
 };
 
 const parseAiFieldDraft = (draft: string, previous: VyralDetailValue): VyralDetailValue => {
+  if (!draft.trim()) return Array.isArray(previous) && previous.every((item) => typeof item === 'string') ? [] : null;
   if (Array.isArray(previous)) {
     if (previous.every((item) => typeof item === 'string')) return draft.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 50);
     return JSON.parse(draft) as VyralDetailValue;
@@ -59,7 +60,11 @@ const parseAiFieldDraft = (draft: string, previous: VyralDetailValue): VyralDeta
     if (!Number.isFinite(parsed)) throw new Error('Enter a valid number for this detail.');
     return parsed;
   }
-  if (typeof previous === 'boolean') return draft.trim().toLowerCase() === 'true';
+  if (typeof previous === 'boolean') {
+    const normalized = draft.trim().toLowerCase();
+    if (normalized !== 'true' && normalized !== 'false') throw new Error('Enter true or false for this detail.');
+    return normalized === 'true';
+  }
   return draft;
 };
 const surface = 'rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]';
