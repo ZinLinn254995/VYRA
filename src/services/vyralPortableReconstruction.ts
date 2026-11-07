@@ -112,7 +112,7 @@ def reconstruct_raster(archive, record, asset, output_dir):
     height = int(image["height"])
     layout = image["channel_layout"]
     channels = 4 if layout == "RGBA" else 3 if layout == "RGB" else 0
-    if width < 1 or height < 1 or channels == 0 or width * height > 100_000_000:
+    if width < 1 or height < 1 or channels == 0 or width * height > 8_000_000:
         raise ValueError("Unsupported raster dimensions or channel layout")
     samples = bytearray(width * height * channels)
     coverage = bytearray(width * height)
