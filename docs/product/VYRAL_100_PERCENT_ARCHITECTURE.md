@@ -228,3 +228,14 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 7. Change a selected group to public/private and verify only those Asset rows change.
 8. Verify server-side resolver denies private Assets and any Asset whose Vyral or license policy disallows the requested operation.
 9. Verify new uploads default to private and imported packages preserve declared visibility only when the importer is authorized; otherwise default safely to private.
+
+### Selected-media inspection contract
+
+- Resolve every selected Asset to its latest persisted Asset Version. Never rely on a stale Asset-level storage path when a version record exists.
+- Re-check owner access, Vyral membership, and both Vyral- and Asset-level AI-analysis permissions before creating a short-lived source URL.
+- Images are converted locally into bounded JPEG previews; no more than four image/frame previews are attached to one request.
+- Plain-text formats are decoded with a strict content-length cap and an explicit truncation marker.
+- PDF and supported audio formats are attached as bounded source data for direct multimodal model inspection. Enforce per-file and aggregate byte limits on both client and server, validate file signatures where available, and reject unsupported formats rather than silently treating them as understood.
+- Video is sampled into a small number of frames from the current version. Frame inspection does not imply that the video's audio track was transcribed or understood; communicate that limitation.
+- If a request containing image, PDF, audio, or video evidence fails, return an explicit media-inspection error. Never silently downgrade it to text-only Preview Mode or claim that the media was inspected.
+- Acceptance tests must cover latest-version resolution, private owner-authorized access, license denial, MIME/signature mismatch, oversized files, PDF/audio inspection, sampled video frames, and fail-closed behavior when the multimodal provider is unavailable.
