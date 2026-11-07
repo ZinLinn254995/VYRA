@@ -338,12 +338,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setIsSending(true);
     try {
       if (selectedAssets.length && supabase) {
+        if (!supabase) throw new Error('Secure Asset access is unavailable in this environment.');
         const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
         const { data: assetRows, error: assetError } = await supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id));
         if (assetError) throw new Error('Could not verify selected Asset access: ' + assetError.message);
         if ((assetRows ?? []).length !== selectedAssets.length) throw new Error('One or more selected Assets are no longer accessible. Please select them again.');
+        if ((assetRows ?? []).some((asset) => !selectedAssets.some((selected) => selected.id === asset.id && selected.vyralId === asset.vyral_id))) throw new Error('A selected Asset no longer belongs to its declared Vyral.');
+        const { data: parentVyrals, error: vyralError } = await supabase.from('vyrals').select('id,license_policy').in('id', uniqueVyrals);
+        if (vyralError) throw new Error('Could not verify Vyral permissions: ' + vyralError.message);
+        if ((parentVyrals ?? []).length !== uniqueVyrals.length) throw new Error('One or more selected Vyrals are no longer accessible.');
+        if ((parentVyrals ?? []).some((item) => (item.license_policy as Record<string, unknown> | null)?.allow_ai_analysis === false)) throw new Error('AI analysis is not permitted by one of the selected Vyrals.');
         for (const asset of assetRows ?? []) {
-          if (!uniqueVyrals.includes(asset.vyral_id)) throw new Error('A selected Asset does not belong to its declared Vyral.');
           const license = asset.license_override && typeof asset.license_override === 'object' ? asset.license_override as Record<string, unknown> : {};
           if (license.allow_ai_analysis === false) throw new Error('AI analysis is not permitted for selected Asset: ' + asset.name);
           if (String(asset.mime_type ?? '').startsWith('image/') && visionImages.length < 4) {
