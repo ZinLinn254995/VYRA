@@ -202,7 +202,7 @@ export const CreateVideoView: React.FC = () => {
         tags: suggestedTags,
       });
       setStoryboardDetailOrigins({
-        title: workingTitle.trim() ? 'creator_edited' : (suggestedTitle ? 'ai_suggested' : 'creator_confirmed'),
+        title: workingTitle.trim() ? 'creator_edited' : (suggestedTitle ? 'ai_suggested' : 'system_default'),
         description: 'ai_suggested', videoType: 'ai_suggested', visualStyleDescription: 'ai_suggested',
         audioDirection: 'ai_suggested', mood: 'ai_suggested', pacing: 'ai_suggested', tags: 'ai_suggested',
       });
