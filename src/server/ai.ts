@@ -933,6 +933,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   const body = req.body as {
     ping?: boolean;
     task?: 'suggest_details';
+    detailsScope?: 'asset' | 'vyral' | 'storyboard';
     messages?: Array<{ role?: string; content?: string }>;
     context?: Record<string, unknown>;
     visionImages?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
@@ -1066,7 +1067,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       'Respond clearly in the user’s language.';
 
   const prompt = (isDetailsTask
-    ? 'Create default metadata for this single Asset. Return JSON only. User-provided file facts and creator context follow. Treat file names as weak hints, not proof of content.\n\n'
+    ? 'Create default metadata for the requested scope. Return JSON only. User-provided facts and creator context follow. Treat file names as weak hints, not proof of content.\n\n'
     : '') + transcript + contextText;
 
   try {
