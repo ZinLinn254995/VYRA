@@ -413,14 +413,39 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
       (parsed as Record<string, unknown>).exportMode === 'dna-only') {
     const legacy = parsed as Record<string, unknown>;
     const dnaRecords = Array.isArray(legacy.dnaRecords) ? legacy.dnaRecords : [];
+    const normalizedDnaRecords = dnaRecords.flatMap((record) => {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) return [];
+      const entry = record as Record<string, unknown>;
+      const payload = entry.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
+        ? entry.payload as Record<string, unknown>
+        : {};
+      // Earlier VYRA exports stored DNA schema metadata inside the database
+      // row's payload. Newer portable manifests store it at the record root.
+      // Normalize both shapes before applying the strict one-record-per-Asset rule.
+      const dnaRecord = entry.dna_record ?? payload.dna_record;
+      const schemaId = entry.dna_schema_id ?? payload.dna_schema_id;
+      const schemaVersion = Number(entry.dna_schema_version ?? payload.dna_schema_version);
+      if (!dnaRecord || typeof dnaRecord !== 'object' || Array.isArray(dnaRecord)) return [];
+      if (!((schemaId === 'vyra.asset-dna' && schemaVersion === 3) ||
+            (schemaId === 'vyra.asset-file-dna' && schemaVersion === 1))) return [];
+      const dnaValue = dnaRecord as Record<string, unknown>;
+      const source = dnaValue.source && typeof dnaValue.source === 'object' && !Array.isArray(dnaValue.source)
+        ? dnaValue.source as Record<string, unknown>
+        : {};
+      const { payload: _legacyPayload, ...base } = entry;
+      return [{
+        ...base,
+        id: typeof dnaValue.record_id === 'string' ? dnaValue.record_id : entry.id,
+        asset_id: typeof entry.asset_id === 'string' ? entry.asset_id : source.asset_id,
+        dna_schema_id: schemaId,
+        dna_schema_version: schemaVersion,
+        dna_record: dnaRecord,
+        recovery_level: entry.recovery_level ?? payload.recovery_level,
+      }];
+    });
     candidate = {
       ...legacy,
-      dnaRecords: dnaRecords.filter((record) => {
-        if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
-        const entry = record as Record<string, unknown>;
-        return (entry.dna_schema_id === 'vyra.asset-dna' && entry.dna_schema_version === 3) ||
-          (entry.dna_schema_id === 'vyra.asset-file-dna' && entry.dna_schema_version === 1);
-      }),
+      dnaRecords: normalizedDnaRecords,
       fingerprints: [],
       visionObservations: [],
       lineage: [],
