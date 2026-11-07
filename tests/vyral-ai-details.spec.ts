@@ -88,3 +88,31 @@ test('AI detail parser rejects unsafe or unsupported structured values', () => {
   assert.equal('__proto__' in parsed, false);
   assert.equal('malformed' in parsed, false);
 });
+
+
+test('AI suggestions may replace system defaults but never creator-authored values', () => {
+  const initial = mergeVyralAiDetails(null, {
+    scope: 'storyboard', provider: 'openrouter', model: 'text-model', generatedAt,
+    suggestions: { title: { value: 'AI title' } },
+  });
+  const systemDefault = setVyralAiDetailField(initial, 'title', 'Untitled Storyboard', 'creator_edited', generatedAt);
+  const refreshed = mergeVyralAiDetails(systemDefault, {
+    scope: 'storyboard', provider: 'openrouter', model: 'text-model', generatedAt,
+    suggestions: { title: { value: 'Another AI title' } },
+  });
+  assert.equal(refreshed.fields.title.value, 'Untitled Storyboard');
+  assert.equal(refreshed.fields.title.origin, 'creator_edited');
+
+  const defaults = {
+    ...initial,
+    fields: {
+      title: { value: 'Untitled Storyboard', origin: 'system_default' as const, updated_at: generatedAt },
+    },
+  };
+  const replaced = mergeVyralAiDetails(defaults, {
+    scope: 'storyboard', provider: 'openrouter', model: 'text-model', generatedAt,
+    suggestions: { title: { value: 'Suggested title' } },
+  });
+  assert.equal(replaced.fields.title.value, 'Suggested title');
+  assert.equal(replaced.fields.title.origin, 'ai_suggested');
+});
