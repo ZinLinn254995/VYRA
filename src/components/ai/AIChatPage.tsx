@@ -349,18 +349,55 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (vyralError) throw new Error('Could not verify Vyral permissions: ' + vyralError.message);
         if ((parentVyrals ?? []).length !== uniqueVyrals.length) throw new Error('One or more selected Vyrals are no longer accessible.');
         if ((parentVyrals ?? []).some((item) => (item.license_policy as Record<string, unknown> | null)?.allow_ai_analysis === false)) throw new Error('AI analysis is not permitted by one of the selected Vyrals.');
+
+        // Resolve immutable latest versions instead of trusting the Asset row's legacy storage_path.
+        const selectedIds = (assetRows ?? []).map((asset) => asset.id);
+        const { data: versionRows, error: versionError } = await supabase
+          .from('vyral_asset_versions')
+          .select('id,asset_id,vyral_id,storage_path,mime_type,size_bytes,version_number')
+          .in('asset_id', selectedIds)
+          .order('version_number', { ascending: false });
+        if (versionError) throw new Error('Could not resolve current selected Asset versions: ' + versionError.message);
+        const latestVersionByAsset = new Map<string, typeof versionRows[number]>();
+        for (const version of versionRows ?? []) {
+          if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
+        }
+        if (selectedIds.some((id) => !latestVersionByAsset.has(id))) throw new Error('A selected Asset has no available source version. Please refresh the Vyral and select it again.');
+
         for (const asset of assetRows ?? []) {
           const license = asset.license_override && typeof asset.license_override === 'object' ? asset.license_override as Record<string, unknown> : {};
           if (license.allow_ai_analysis === false) throw new Error('AI analysis is not permitted for selected Asset: ' + asset.name);
-          if (String(asset.mime_type ?? '').startsWith('image/') && visionImages.length < 4) {
-            const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storage_path, 60);
-            if (signedError || !signed?.signedUrl) throw new Error('Could not securely open selected image: ' + asset.name);
-            const response = await fetch(signed.signedUrl);
-            if (!response.ok) throw new Error('Could not load selected image: ' + asset.name);
-            const blob = await response.blob();
-            if (blob.size > 20 * 1024 * 1024) throw new Error('Selected image is too large for AI Vision: ' + asset.name);
+          const version = latestVersionByAsset.get(asset.id)!;
+          if (version.vyral_id !== asset.vyral_id) throw new Error('A selected Asset version no longer belongs to its Vyral: ' + asset.name);
+          const mimeType = String(version.mime_type || asset.mime_type || '').toLowerCase();
+          const filename = String(asset.name || '').toLowerCase();
+          const needsSource = mimeType.startsWith('image/') ||
+            mimeType.startsWith('text/') ||
+            ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
+            /\\.(txt|md|csv|json|xml|log)$/i.test(filename);
+          if (!needsSource) continue;
+          if (Number(version.size_bytes) > 20 * 1024 * 1024) throw new Error('Selected Asset is too large to inspect safely: ' + asset.name);
+          const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60);
+          if (signedError || !signed?.signedUrl) throw new Error('Could not securely open the current version of selected Asset: ' + asset.name);
+          const response = await fetch(signed.signedUrl);
+          if (!response.ok) throw new Error('Could not load the current version of selected Asset: ' + asset.name);
+          const blob = await response.blob();
+          if (blob.size > 20 * 1024 * 1024) throw new Error('Selected Asset is too large to inspect safely: ' + asset.name);
+          if (mimeType.startsWith('image/')) {
+            if (visionImages.length >= 4) continue;
             const preview = await createSelectedAssetVisionPreview(blob);
             visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
+          } else {
+            const textLike = mimeType.startsWith('text/') ||
+              ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
+              /\\.(txt|md|csv|json|xml|log)$/i.test(filename);
+            if (textLike) {
+              const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
+              const bounded = decoded.slice(0, 24000);
+              const marker = decoded.length > bounded.length ? '\\n[Content truncated for safety]' : '';
+              const currentMessage = nextMessages[nextMessages.length - 1];
+              currentMessage.content += `\\n\\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\\n${bounded}${marker}`;
+            }
           }
         }
       }
