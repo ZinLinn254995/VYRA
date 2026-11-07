@@ -252,8 +252,12 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     if (!components || typeof components !== 'object' ||
         typeof components.assets !== 'boolean' || typeof components.fullDna !== 'boolean' ||
         typeof components.compactDna !== 'boolean' ||
-        (!components.assets && !components.fullDna && !components.compactDna)) {
-      throw new Error('VYRAL export component selection is invalid.');
+        (!components.assets && !components.fullDna && !components.compactDna) ||
+        (manifest.exportMode === 'full' && !components.assets) ||
+        (manifest.exportMode === 'dna-only' && (components.assets || !components.fullDna)) ||
+        (manifest.exportMode === 'compact-only' && (components.assets || components.fullDna || !components.compactDna)) ||
+        (components.compactDna !== Boolean(manifest.masterDna))) {
+      throw new Error('VYRAL export component selection does not match its package contents.');
     }
   }
   if (manifest.masterDna !== undefined && manifest.masterDna !== null) {
@@ -589,6 +593,9 @@ export const selectVyralPackageComponents = async (
   }
   if (components.compactDna && !manifest.masterDna) {
     throw new Error('Compact collection data is not available yet. Update the Vyral collection data and try again.');
+  }
+  if (components.compactDna && manifest.masterDna) {
+    await validateVyralMasterDnaV1(manifest.masterDna);
   }
   const retained = new Set<string>([VYRAL_PACKAGE_MANIFEST]);
   if (files.has('README.txt')) retained.add('README.txt');
