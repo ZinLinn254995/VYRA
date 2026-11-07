@@ -244,7 +244,7 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 
 ### Product behavior
 
-- On Asset upload/generation, Vyral creation/import, and creation of supported structured content (including Storyboards), VYRA should prepare useful default details based on the detected content type and available evidence.
+- On Asset upload/import (and every supported Asset-generation path), VYRA should prepare useful default details based on detected content type and available evidence. For a Vyral, generate or refresh collection-level suggestions after its Asset inventory exists and whenever that inventory changes. For supported structured content (including Storyboards), generate type-specific defaults during creation.
 - Suggested details may include a clear name/title, short description, type, category, tags, style, format, subject/topic, intended use, and other fields relevant to that specific type.
 - Storyboards may additionally receive a suggested title, concept, format, visual style, scene/shot summaries, sequence, and other storyboard-specific details when the source content supports them.
 - Different content types use different detail templates. Do not show irrelevant fields just because they exist in a universal schema.
