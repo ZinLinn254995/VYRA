@@ -59,8 +59,8 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Type-check Master DNA Edge Function
-        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/resolve-vyral-resource/index.ts
+      - name: Type-check Supabase Edge Functions
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts
       - name: Production build
         run: npm run build
 
