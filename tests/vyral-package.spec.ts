@@ -8,6 +8,7 @@ import {
   VYRAL_PACKAGE_FORMAT,
   createVyralDnaOnlyPackage,
   createVyralAssetDnaOnlyPackage,
+  getVyralPackageAssetsForImport,
   reconstructVyralDnaV3FromPackage,
   reconstructVyralFileDnaFromPackage,
   encodeVyralDnaV3PngFromPackage,
@@ -15,6 +16,16 @@ import {
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
+
+test('does not re-import the exact .vyral Asset used as its package container', () => {
+  const assets = [
+    { id: 'package-container', name: 'source.vyral' },
+    { id: 'image-asset', name: 'Original image' },
+  ];
+  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'package-container'), [assets[1]]);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'not-in-package'), assets);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets), assets);
+});
 
 const manifest = {
   format: VYRAL_PACKAGE_FORMAT,
