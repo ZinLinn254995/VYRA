@@ -538,6 +538,7 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     dna_record: record,
   }));
   const fullArchive = createVyralZip([
+    { path: 'README.txt', data: 'Test Vyral export package' },
     ...sourceMedia,
     ...payloadEntries,
     {
@@ -618,11 +619,16 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     assert.equal(reconstructed.decoded_samples_sha256, source.decoded_image.decoded_samples_sha256);
   }
 
-  const withoutCollectionSnapshot = await createVyralDnaOnlyPackage({ ...base, masterDna: null }, sourceRecords, payloadEntries);
+  const withoutCollectionSnapshot = await createVyralDnaOnlyPackage({
+    ...base,
+    masterDna: null,
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+  }, sourceRecords, payloadEntries);
   const withoutSnapshotFiles = await readVyralZip(withoutCollectionSnapshot);
   const withoutSnapshotManifest = parseVyralManifest(withoutSnapshotFiles);
   assert.equal(withoutSnapshotManifest.assets.length, 2);
   assert.equal(withoutSnapshotManifest.masterDna, null);
+  assert.deepEqual(withoutSnapshotManifest.exportComponents, { assets: false, fullDna: true, compactDna: false });
 });
 
 
