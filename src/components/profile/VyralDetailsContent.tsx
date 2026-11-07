@@ -1048,12 +1048,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 ai_details: suggestion.details,
                 ai_details_status: 'ready',
                 ai_details_source_version_id: version.id,
+                ...(suggestedName ? { identity_name_origin: 'ai_suggested' } : {}),
+                ...(suggestedDescription ? { identity_description_origin: 'ai_suggested' } : {}),
               },
             }).eq('id', assetId).eq('user_id', auth.user.id);
             if (metadataError) console.warn('[vyral-ai-details] Could not save AI suggestions for uploaded Asset.');
           } else {
             await db.from('vyral_assets').update({
-              metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending' },
+              metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending', identity_name_origin: 'system_default', identity_description_origin: 'system_default' },
             }).eq('id', assetId).eq('user_id', auth.user.id);
           }
         } catch (metadataCause) {
@@ -1381,7 +1383,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           id: assetId, vyral_id: vyral.id, user_id: auth.user.id, folder_id: activeFolderId,
           name: file.name, original_filename: file.name, asset_type: kind, mime_type: mime,
           size_bytes: file.size, storage_path: storagePath, sha256, processing_status: 'uploading',
-          metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256' },
+          metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending', identity_name_origin: 'system_default', identity_description_origin: 'system_default' },
         });
         if (assetError) throw assetError;
         const { error: storageError } = await supabase.storage.from('vyral-assets').upload(storagePath, file, {
@@ -1998,7 +2000,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const { error: updateError } = await supabase.from('vyral_assets').update({
         name: detailsDraft.name.trim().slice(0, 100),
         description: detailsDraft.description.trim().slice(0, 1000),
-        metadata: { ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready' },
+        metadata: {
+          ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
+          identity_name_origin: 'creator_edited', identity_description_origin: 'creator_edited',
+        },
       }).eq('id', detailsAsset.id).eq('vyral_id', vyral.id);
       if (updateError) throw updateError;
       setDetailsAsset(null);
