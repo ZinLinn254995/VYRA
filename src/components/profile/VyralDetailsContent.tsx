@@ -167,7 +167,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterAssetDrafts, setMasterAssetDrafts] = useState<Record<string, MasterAssetDraft>>({});
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
   const masterDnaAutoBuildRef = useRef(false);
-  const collectionAnalysisKeyRef = useRef<string>('');
 
 
   const loadWorkspace = useCallback(async () => {
