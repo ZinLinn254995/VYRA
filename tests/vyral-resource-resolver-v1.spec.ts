@@ -5,6 +5,8 @@ import {
   hasValidVyralMasterDnaRevisionBindingV1,
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
+  isPublicVyralResourceAllowedV1,
+  isSafePublicVyralResolverUriV1,
 } from '../src/services/vyralResourceResolverV1.ts';
 
 const ownerPrefix = 'owner-1/vyral-1/asset-1/';
@@ -72,4 +74,24 @@ test('Asset DNA must match the pinned record, schema, source version, and source
   assert.equal(isVyralAssetDnaPinnedToVersionV1({ ...input, assetVersionId: 'version-2' }), false);
   assert.equal(isVyralAssetDnaPinnedToVersionV1({ ...input, dnaRecordId: 'dna-2' }), false);
   assert.equal(isVyralAssetDnaPinnedToVersionV1({ ...input, assetSha256: 'd'.repeat(64) }), false);
+});
+
+
+test('public resource access follows Vyral visibility and creator AI/download permissions', () => {
+  const publicPolicy = { allow_ai_analysis: true, allow_redistribution: true };
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'public', action: 'master', licensePolicy: publicPolicy }), true);
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'public', action: 'asset_dna', licensePolicy: publicPolicy }), true);
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'public', action: 'asset_source', licensePolicy: publicPolicy }), true);
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'public', action: 'asset_source', licensePolicy: { allow_ai_analysis: true } }), false);
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'public', action: 'asset_dna', licensePolicy: { allow_ai_analysis: false, allow_redistribution: true } }), false);
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'unlisted', action: 'master', licensePolicy: publicPolicy }), false);
+  assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'private', action: 'asset_dna', licensePolicy: publicPolicy }), false);
+});
+
+test('portable public resolver URI accepts only the canonical HTTPS Supabase endpoint', () => {
+  assert.equal(isSafePublicVyralResolverUriV1('https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource'), true);
+  assert.equal(isSafePublicVyralResolverUriV1('http://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource'), false);
+  assert.equal(isSafePublicVyralResolverUriV1('https://example.com/functions/v1/resolve-public-vyral-resource'), false);
+  assert.equal(isSafePublicVyralResolverUriV1('https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/other'), false);
+  assert.equal(isSafePublicVyralResolverUriV1('https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource?token=secret'), false);
 });
