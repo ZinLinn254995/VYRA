@@ -42,12 +42,18 @@ export const mergeVyralAiDetails = (
 ): VyralAiDetails => {
   const previous = isRecord(current) && current.schema_version === 1 ? current : {};
   const previousFields = isRecord(previous.fields) ? previous.fields : {};
+  const sameSource = previous.scope === input.scope &&
+    (previous.source_version_id ?? null) === (input.sourceVersionId ?? null) &&
+    (previous.source_revision ?? null) === (input.sourceRevision ?? null);
   const fields: Record<string, VyralAiDetailField> = {};
 
   for (const [key, raw] of Object.entries(previousFields)) {
     if (!isRecord(raw) || !('value' in raw) ||
         !['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(raw.origin)) ||
         typeof raw.updated_at !== 'string') continue;
+    // Old AI guesses belong to their original source. Drop them on source changes;
+    // creator-authored values and neutral system defaults remain authoritative.
+    if (raw.origin === 'ai_suggested' && !sameSource) continue;
     fields[key] = {
       value: raw.value as VyralDetailValue,
       origin: raw.origin as VyralDetailOrigin,
