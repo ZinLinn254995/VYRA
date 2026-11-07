@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -157,6 +157,18 @@ select is(
    where asset_id='25000000-0000-4000-8000-000000000021'),
   true,
   'Optional Asset context is stored without a synthetic Main/Supporting role'
+);
+
+select public.set_vyral_master_dna_asset_context(
+  '25000000-0000-4000-8000-000000000021', null, null
+);
+
+select is(
+  (select role is null and purpose is null
+   from public.vyral_master_dna_asset_metadata
+   where asset_id='25000000-0000-4000-8000-000000000021'),
+  true,
+  'Creators can clear optional Asset context without invalidating the Asset'
 );
 
 select * from finish();
