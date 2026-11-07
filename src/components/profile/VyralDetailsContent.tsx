@@ -1584,6 +1584,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             }).eq('id', assetId).eq('user_id', auth.user.id);
             if (metadataError) console.warn('[vyral-ai-details] Could not save uploaded Asset suggestions.');
           } else {
+            const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
+            const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+              ? currentAsset.metadata as Record<string, unknown> : {};
             await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
               .eq('id', assetId).eq('user_id', auth.user.id);
           }
