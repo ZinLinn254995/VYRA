@@ -331,11 +331,35 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       try {
         const accessToken = await getCurrentAccessToken();
         if (!accessToken) throw new Error('AI details are unavailable without an active session.');
+        let analysisName = vyral.name;
+        let analysisDescription = vyral.description ?? '';
+        let analysisDetails = currentDetails;
+        if (currentDetails && (currentDetails.source_revision !== revision || currentDetails.stale)) {
+          const { data: beforeAnalysis } = await supabase.from('vyrals').select('name,description,metadata').eq('id', vyral.id).maybeSingle();
+          if (beforeAnalysis) {
+            analysisName = beforeAnalysis.name ?? analysisName;
+            analysisDescription = beforeAnalysis.description ?? analysisDescription;
+            const latestBeforeMetadata = beforeAnalysis.metadata && typeof beforeAnalysis.metadata === 'object' && !Array.isArray(beforeAnalysis.metadata)
+              ? beforeAnalysis.metadata as Record<string, unknown> : {};
+            const latestBeforeDetails = latestBeforeMetadata.ai_details as VyralAiDetails | undefined;
+            if (latestBeforeDetails) {
+              analysisDetails = latestBeforeDetails;
+              const staleMetadata = {
+                ...latestBeforeMetadata,
+                ai_details: markVyralAiDetailsStale(latestBeforeDetails),
+                ai_details_status: 'refreshing',
+                ai_details_source_revision: revision,
+              };
+              const { error: staleError } = await supabase.from('vyrals').update({ metadata: staleMetadata }).eq('id', vyral.id);
+              if (!staleError) onVyralUpdated({ metadata: staleMetadata });
+            }
+          }
+        }
         const suggested = await suggestVyralCollectionDetails({
           accessToken,
           vyralId: vyral.id,
-          currentName: vyral.name,
-          currentDescription: vyral.description ?? '',
+          currentName: analysisName,
+          currentDescription: analysisDescription,
           sourceRevision: revision,
           assets: assets.slice(0, 80).map((asset) => {
             const detailFields = (asset.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
@@ -346,7 +370,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               description: asset.description ?? '', tags,
             };
           }),
-          currentDetails,
+          currentDetails: analysisDetails,
         });
         // A newer inventory analysis supersedes this request; never write stale collection suggestions.
         if (collectionAiAttemptRef.current !== attemptKey) return;
@@ -392,16 +416,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         });
       } catch (cause) {
         console.warn('[vyral-ai-details] Collection suggestions were unavailable.', cause);
-        if (!currentDetails) {
-          const { data: latestFailureState } = await supabase.from('vyrals').select('metadata').eq('id', vyral.id).maybeSingle();
-          const latestFailureMetadata = latestFailureState?.metadata && typeof latestFailureState.metadata === 'object' && !Array.isArray(latestFailureState.metadata)
-            ? latestFailureState.metadata as Record<string, unknown> : {};
-          if (!latestFailureMetadata.ai_details) {
-            const unavailableMetadata = { ...latestFailureMetadata, ai_details_status: 'unavailable' };
-            const { error: statusError } = await supabase.from('vyrals').update({ metadata: unavailableMetadata }).eq('id', vyral.id);
-            if (!statusError) onVyralUpdated({ metadata: unavailableMetadata });
-          }
-        }
+        const { data: latestFailureState } = await supabase.from('vyrals').select('metadata').eq('id', vyral.id).maybeSingle();
+        const latestFailureMetadata = latestFailureState?.metadata && typeof latestFailureState.metadata === 'object' && !Array.isArray(latestFailureState.metadata)
+          ? latestFailureState.metadata as Record<string, unknown> : {};
+        const latestFailureDetails = latestFailureMetadata.ai_details as VyralAiDetails | undefined;
+        const unavailableMetadata = {
+          ...latestFailureMetadata,
+          ...(latestFailureDetails ? { ai_details: markVyralAiDetailsStale(latestFailureDetails) } : {}),
+          ai_details_status: 'unavailable',
+        };
+        const { error: statusError } = await supabase.from('vyrals').update({ metadata: unavailableMetadata }).eq('id', vyral.id);
+        if (!statusError) onVyralUpdated({ metadata: unavailableMetadata });
       }
     })();
   }, [assets, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
