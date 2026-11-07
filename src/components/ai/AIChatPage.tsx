@@ -374,7 +374,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           const needsSource = mimeType.startsWith('image/') ||
             mimeType.startsWith('text/') ||
             ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
-            /\\.(txt|md|csv|json|xml|log)$/i.test(filename);
+            /\.(txt|md|csv|json|xml|log)$/i.test(filename);
           if (!needsSource) continue;
           if (Number(version.size_bytes) > 20 * 1024 * 1024) throw new Error('Selected Asset is too large to inspect safely: ' + asset.name);
           const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60);
@@ -390,13 +390,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           } else {
             const textLike = mimeType.startsWith('text/') ||
               ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
-              /\\.(txt|md|csv|json|xml|log)$/i.test(filename);
+              /\.(txt|md|csv|json|xml|log)$/i.test(filename);
             if (textLike) {
               const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
               const bounded = decoded.slice(0, 24000);
-              const marker = decoded.length > bounded.length ? '\\n[Content truncated for safety]' : '';
+              const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
               const currentMessage = nextMessages[nextMessages.length - 1];
-              currentMessage.content += `\\n\\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\\n${bounded}${marker}`;
+              currentMessage.content += `\n\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\n${bounded}${marker}`;
             }
           }
         }
