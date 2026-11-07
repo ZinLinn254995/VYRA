@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   createVyralZip,
   parseVyralManifest,
@@ -17,6 +21,87 @@ import {
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
+import { VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../src/services/vyralPortableReconstruction.ts';
+
+test('included portable decoder reconstructs raster samples and exact binary Assets from the DNA-only package', async () => {
+  const rasterSamples = new Uint8Array([255, 0, 0, 255, 0, 128, 255, 255]);
+  const raster = await createVyralDnaV3({
+    record_id: 'decoder-raster-dna',
+    source: {
+      asset_id: 'asset-raster',
+      asset_version_id: 'version-raster',
+      sha256: 'a'.repeat(64),
+      size_bytes: 128,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'decoder-test', version: '1.0.0' },
+    width: 2,
+    height: 1,
+    channel_layout: 'RGBA',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'decoder-test', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 2,
+    tile_height: 1,
+    decoded_samples: rasterSamples,
+  });
+  const originalBinary = new Uint8Array([0, 1, 2, 3, 254, 255, 19, 88]);
+  const binary = await createVyralFileDnaV1({
+    record_id: 'decoder-binary-dna',
+    source: { asset_id: 'asset-binary', asset_version_id: 'version-binary' },
+    bytes: originalBinary,
+    mime_type: 'application/octet-stream',
+    filename: 'sample.bin',
+    include_payload: true,
+  });
+  const archive = await createVyralAssetDnaOnlyPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'portable-decoder-test',
+    exportedAt: '2026-11-08T00:00:00.000Z',
+    exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    vyral: { id: 'vyral-decoder-test', name: 'Portable Decoder Test' },
+    folders: [],
+    assets: [
+      { id: 'asset-raster', name: 'Raster sample', original_filename: 'raster.png' },
+      { id: 'asset-binary', name: 'Binary sample', original_filename: 'sample.bin' },
+    ],
+    versions: [],
+    dnaRecords: [],
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+    masterDna: null,
+  }, [raster.record, binary.record], [...raster.entries, ...binary.entries]);
+
+  const temp = await mkdtemp(join(tmpdir(), 'vyra-portable-'));
+  try {
+    const packagePath = join(temp, 'test.vyral');
+    const scriptPath = join(temp, 'reconstruct_vyral.py');
+    const outputDir = join(temp, 'output');
+    await writeFile(packagePath, Buffer.from(await archive.arrayBuffer()));
+    await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT, 'utf8');
+    const report = execFileSync('python3', [scriptPath, packagePath, '--output', outputDir], { encoding: 'utf8' });
+    const parsedReport = JSON.parse(report) as { reconstructed_assets: Array<{ asset_id: string; result: string }> };
+    assert.deepEqual(parsedReport.reconstructed_assets.map((item) => item.asset_id).sort(), ['asset-binary', 'asset-raster']);
+    assert.equal(parsedReport.reconstructed_assets.find((item) => item.asset_id === 'asset-raster')?.result, 'decoded-samples-exact');
+    assert.equal(parsedReport.reconstructed_assets.find((item) => item.asset_id === 'asset-binary')?.result, 'source-file-exact');
+    const outputs = await readdir(outputDir);
+    const rawName = outputs.find((name) => name.endsWith('.rgba'));
+    const pngName = outputs.find((name) => name.endsWith('.png'));
+    const binaryName = outputs.find((name) => name.endsWith('.bin'));
+    assert.ok(rawName && pngName && binaryName);
+    assert.deepEqual(new Uint8Array(await readFile(join(outputDir, rawName))), rasterSamples);
+    assert.deepEqual(new Uint8Array(await readFile(join(outputDir, binaryName))), originalBinary);
+    const png = new Uint8Array(await readFile(join(outputDir, pngName)));
+    assert.deepEqual(Array.from(png.slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
 
 test('does not re-import the exact .vyral Asset used as its package container', () => {
   const assets = [
