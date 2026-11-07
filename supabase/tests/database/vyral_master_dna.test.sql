@@ -30,8 +30,8 @@ insert into public.vyral_assets (
 
 select is(
   (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
-  'needs_classification',
-  'New unclassified assets require Master DNA classification'
+  'stale',
+  'New Assets invalidate the collection snapshot without requiring classification'
 );
 update public.vyrals
 set master_dna_purpose = 'A primary character with supporting production resources.',
