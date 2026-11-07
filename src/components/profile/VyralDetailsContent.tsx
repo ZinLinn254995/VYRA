@@ -103,7 +103,7 @@ const formatRgb = (value: unknown) =>
 
 export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated }) => {
   const auth = useAuth();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('assets');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
@@ -2047,133 +2047,53 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
   const renderAssetCard = (asset: AssetRow) => {
     const Icon = typeIcon(asset.asset_type);
-    const isOriginReconstructionCandidate = ['a40f067c-0ed1-4b93-814f-4f2f925ff320', 'a63edc73-0247-4477-84b9-f942080de694', '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id);
-    const latestReconstructionTest = isOriginReconstructionCandidate
-      ? reconstructionTests.filter((test) => test.asset_id === asset.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-      : undefined;
-    const reconstructionReport = asRecord(latestReconstructionTest?.report);
-    const reportProvenance = asRecord(reconstructionReport.provenance);
-    const reconstructionInput = asRecord(reportProvenance.reconstructionInput);
-    const comparisonInput = asRecord(reportProvenance.comparisonInput);
-    const candidateDnaId = asset.id === '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23' ? '5460940d-4343-44bc-a109-a0141e5a17d4' : asset.id === 'a63edc73-0247-4477-84b9-f942080de694' ? '95b1ca66-01f5-4ecd-a679-bd891c8549ad' : '8856e567-0221-4011-b9c2-22c228faa449';
-    const candidateDnaRecord = dnaRecords.find((record) => record.id === candidateDnaId);
-    const recordedDnaProvenance = asRecord(asRecord(candidateDnaRecord?.payload).provenance);
-    const integrityReport = asRecord(reconstructionReport.integrity);
-    const originalIntegrity = asRecord(integrityReport.original);
-    const candidateIntegrity = asRecord(integrityReport.candidate);
-    const packageMode = reconstructionInput.packageMode ?? recordedDnaProvenance.input_package_mode ?? 'Unknown';
-    const claudeUploadMismatch = asset.id === '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'
-      ? asRecord(asRecord(candidateDnaRecord?.payload).upload_reconciliation)
-      : null;
-    const claudeModelReport = asRecord(asRecord(candidateDnaRecord?.payload).model_report);
-    const claudeUploadRecord = asRecord(asRecord(candidateDnaRecord?.payload).upload);
-    const exclusionIsUnverified = reconstructionInput.exposureIndependentlyVerifiedByComparator === false ||
-      (!reconstructionInput.originalBinaryExposure && recordedDnaProvenance.source_binary_provided_to_model === false);
-    const verifierDownloadedBoth = comparisonInput.originalBinaryDownloadedByVerifier === true &&
-      comparisonInput.candidateBinaryDownloadedByVerifier === true ||
-      (typeof originalIntegrity.actualSha256 === 'string' && typeof candidateIntegrity.actualSha256 === 'string');
-    const originalReport = asRecord(reconstructionReport.original);
-    const candidateReport = asRecord(reconstructionReport.candidate);
-    const comparisonReport = asRecord(reconstructionReport.comparison);
-    const pixelReport = asRecord(comparisonReport.pixelComparison);
-    const normalizedImageReport = asRecord(comparisonReport.normalizedImageComparison);
-    const geometryReport = asRecord(comparisonReport.redRegionGeometry);
-    const geometrySimilarity = typeof geometryReport.geometrySimilarity === 'number' ? geometryReport.geometrySimilarity : null;
-    const exactDecodedPixelMatch = typeof comparisonReport.exactDecodedPixelMatch === 'boolean'
-      ? comparisonReport.exactDecodedPixelMatch
-      : latestReconstructionTest?.exact_match === true;
-    const backgroundDelta = comparisonReport.backgroundCornerColorEuclideanDelta;
+    const protectedAsset = isProtectedVyral(vyral);
+    const isPackage = asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral');
     return (
-      <article key={asset.id} className={surface + ' group min-w-0 overflow-hidden'}>
-        <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[16/10] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]">
-          <Icon size={34} strokeWidth={1.5} />
+      <article key={asset.id} className={surface + ' min-w-0 overflow-hidden'}>
+        <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[4/3] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]" aria-label={'Open ' + asset.name}>
+          <Icon size={36} strokeWidth={1.5} />
         </button>
-        <div className="p-3">
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1"><h4 className={'truncate text-xs font-semibold ' + primary}>{asset.name}</h4><p className={'mt-1 text-[10px] ' + muted}>{prettyBytes(Number(asset.size_bytes))} · {asset.asset_type.replace('_',' ')}</p></div>
-            {isProtectedVyral(vyral) ? <span title="Protected Vyral asset — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={11}/> Protected</span> : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'rounded-md p-1 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={13}/></button>}
+        <div className="space-y-3 p-3">
+          <div className="min-w-0">
+            <h4 className={'truncate text-sm font-semibold ' + primary}>{asset.name}</h4>
+            <p className={'mt-1 text-[11px] capitalize ' + muted}>{asset.asset_type.replaceAll('_', ' ')}</p>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">{asset.processing_status === 'uploading' && <button type='button' onClick={() => void recoverAssetDna(asset)} disabled={verifyingAssetId !== null || busy || packageBusy} className='text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50'>{verifyingAssetId===asset.id?'Recovering DNA…':'Recover DNA'}</button>}{(asset.original_filename.toLowerCase().endsWith('.vyral') || asset.name.toLowerCase().endsWith('.vyral')) && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50">Import .vyral</button>}<button type="button" onClick={() => void openPreview(asset)} className="text-[10px] font-semibold text-[var(--vyra-accent-primary)]">Preview</button><button type="button" onClick={() => void renameAsset(asset)} className={'text-[10px] ' + subtle}>Rename</button><button type="button" onClick={() => void verifyAssetIntegrity(asset)} disabled={verifyingAssetId !== null || comparingReconstructionAssetId !== null || busy || packageBusy} title="Recalculate SHA-256 from protected server-side storage" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><ShieldCheck size={11}/>{verifyingAssetId===asset.id?'Verifying…':'Verify'}</button>{asset.processing_status === 'ready' && asset.asset_type === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase()) && !dnaRecords.some((record) => record.asset_id === asset.id && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) && <button type="button" onClick={() => void extractAssetDnaV3(asset)} disabled={verifyingAssetId !== null || busy || packageBusy || extractingDnaV3} title="Create immutable lossless decoded-sample DNA v3 from this verified source version" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{verifyingAssetId===asset.id?'Extracting…':'Create DNA v3'}</button>}{dnaRecords.some((record) => record.asset_id === asset.id && ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) || (record.payload?.dna_schema_id === 'vyra.asset-file-dna' && record.payload?.dna_schema_version === 1))) && <button type="button" onClick={() => void exportVyralPackage(true, asset.id)} disabled={busy || packageBusy || verifyingAssetId !== null || comparingReconstructionAssetId !== null} title="Export this Asset's lossless DNA without requiring whole-Vyral Master DNA" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><Dna size={11}/>{packageBusy?'Exporting…':'Export DNA-only'}</button>}{['a40f067c-0ed1-4b93-814f-4f2f925ff320','a63edc73-0247-4477-84b9-f942080de694','8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23'].includes(asset.id) && <button type="button" onClick={() => void compareOriginReconstruction(asset)} disabled={comparingReconstructionAssetId !== null || verifyingAssetId !== null || busy || packageBusy} title="Compare this blind reconstruction against the protected ORIGIN-01 original" className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)] disabled:opacity-50"><FlaskConical size={11}/>{comparingReconstructionAssetId===asset.id?'Comparing…':'Compare Original'}</button>}</div>{latestReconstructionTest && <div className={'mt-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2.5'}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className={'text-[10px] font-semibold '+primary}>Latest test · {latestReconstructionTest.test_status}</p>
-              <span className={'rounded-full px-2 py-1 text-[9px] font-semibold '+(exactDecodedPixelMatch === true ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-700')}>{exactDecodedPixelMatch === true ? 'Exact decoded pixels' : 'Exact reconstruction not verified'}</span>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
-                <p className={'text-[9px] '+muted}>Geometry similarity</p>
-                <p className={'mt-0.5 text-base font-semibold '+primary}>{geometrySimilarity !== null ? (geometrySimilarity*100).toFixed(2)+'%' : '—'}</p>
-                <p className={'text-[9px] '+muted}>Red-region shape, scale and placement · not full-image similarity</p>
-              </div>
-              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
-                <p className={'text-[9px] '+muted}>Normalized full-image similarity</p>
-                <p className={'mt-0.5 text-base font-semibold '+primary}>{normalizedImageReport.performed === true && typeof normalizedImageReport.normalizedGridRgbSimilarity === 'number' ? (Number(normalizedImageReport.normalizedGridRgbSimilarity)*100).toFixed(2)+'%' : '—'}</p>
-                <p className={'text-[9px] '+muted}>{normalizedImageReport.performed === true ? '256-grid RGB sample · resized-coordinate comparison' : String(normalizedImageReport.reason ?? 'Not available')}</p>
-              </div>
-              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
-                <p className={'text-[9px] '+muted}>Background color delta</p>
-                <p className={'mt-0.5 text-base font-semibold '+primary}>{typeof backgroundDelta === 'number' ? Number(backgroundDelta).toFixed(2) : '—'}</p>
-                <p className={'text-[9px] '+muted}>RGB Euclidean distance · lower is closer</p>
-              </div>
-              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
-                <p className={'text-[9px] '+muted}>Exact pixel comparison</p>
-                <p className={'mt-0.5 text-xs font-semibold '+primary}>{pixelReport.performed === true ? (exactDecodedPixelMatch === true ? 'Matched' : 'Not matched') : 'Not evaluated'}</p>
-                <p className={'text-[9px] '+muted}>{pixelReport.performed === true ? String(pixelReport.exactPixels ?? '—')+' / '+String(pixelReport.pixelCount ?? '—')+' pixels exact' : 'Not performed: dimensions differ'}</p>
-              </div>
-              <div className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
-                <p className={'text-[9px] '+muted}>Upload reconciliation</p>
-                <p className={'mt-0.5 break-words text-[10px] font-semibold '+primary}>{String(claudeUploadMismatch?.status ?? 'Not applicable / not recorded').replaceAll('_',' ')}</p>
-                <p className={'text-[9px] '+muted}>Stored candidate bytes are integrity-checked separately</p>
-              </div>
-            </div>
-            <div className={'mt-2 space-y-1 text-[10px] '+muted}>
-              <p>Reconstruction input: {String(packageMode)} package · Original exclusion: {exclusionIsUnverified ? 'creator-attested, not independently verified' : String(reconstructionInput.originalBinaryExposure ?? 'not recorded')}</p>
-              <p>Verifier comparison: {verifierDownloadedBoth ? 'Original and candidate files downloaded after generation' : 'comparison input provenance unavailable'}</p>
-              <p>Original: {String(originalReport.width ?? '—')} × {String(originalReport.height ?? '—')} · Background RGB ({formatRgb(originalReport.backgroundCornerAverageRgb)})</p>
-              <p>Candidate: {String(candidateReport.width ?? '—')} × {String(candidateReport.height ?? '—')} · Background RGB ({formatRgb(candidateReport.backgroundCornerAverageRgb)})</p>
-              {pixelReport.performed === false && <p>Pixel comparison note: {String(pixelReport.reason ?? 'Not performed')}</p>}
-            </div>
-          </div>}
-          {claudeUploadMismatch && <div className={'mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[10px] text-amber-700'}><p className="font-semibold">Upload reconciliation: {String(claudeUploadMismatch.status ?? 'pending')}</p><p>Reported by Claude: {String(claudeModelReport.reported_size_bytes ?? '—')} bytes · SHA-256 prefix {String(claudeModelReport.reported_sha256_prefix ?? '—')}</p><p>Stored upload: {String(claudeUploadRecord.size_bytes ?? '—')} bytes · SHA-256 {String(claudeUploadRecord.sha256 ?? '—').slice(0, 16)}…</p><p>Comparison uses verified uploaded file bytes only; the reported output bytes have not been reconciled.</p></div>}
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => void openPreview(asset)} className={button}>Open</button>
+            <button type="button" onClick={() => void renameAsset(asset)} className={button}>Rename</button>
+            {isPackage && <button type="button" onClick={() => void importVyralPackageFromAsset(asset)} disabled={busy || packageBusy} className={button}>Import</button>}
+            {protectedAsset
+              ? <span className={'ml-auto text-[10px] ' + muted}>Protected</span>
+              : <button type="button" onClick={() => void deleteAsset(asset)} aria-label={'Delete ' + asset.name} className={'ml-auto rounded-lg p-2 ' + muted + ' hover:text-[var(--vyra-danger)]'}><Trash2 size={15}/></button>}
+          </div>
         </div>
       </article>
     );
   };
 
-  const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'overview', label: 'Overview', icon: HardDrive },
-    { id: 'assets', label: 'Assets', icon: Folder },
-    { id: 'dna', label: 'DNA & Identity', icon: Dna },
-    { id: 'lineage', label: 'Lineage', icon: GitBranch },
-    { id: 'license', label: 'License', icon: ShieldCheck },
-  ];
-
   if (loading) return <div className="flex min-h-64 items-center justify-center"><span className={'text-xs ' + muted}>Loading Vyral workspace…</span></div>;
 
   return (
     <div className="space-y-5">
-      {packageStatus && <p className={'text-[10px] '+muted} role="status">{packageStatus}</p>}
-      {reconstructedPngDownload && <div className={surface+' flex flex-wrap items-center justify-between gap-3 p-3'}>
-        <p className={'text-xs '+subtle}>DNA v3 reconstruction is stored in this Vyral as a new PNG.</p>
-        <button type="button" className={button} onClick={() => {
-          const url = window.URL.createObjectURL(reconstructedPngDownload.blob);
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = reconstructedPngDownload.filename;
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-        }}><Download size={13}/>Download reconstructed PNG</button>
-      </div>}
+      {(packageBusy || busy) && <p className={'text-xs ' + muted} role="status">Please wait…</p>}
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0"><div className={'text-[10px] font-semibold uppercase tracking-[0.16em] ' + muted}>VYRAL WORKSPACE</div><p className={'mt-1 text-xs ' + subtle}>Your assets, identity records and evolving knowledge.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span><label className={button+' cursor-pointer'}><Upload size={13}/>Import .vyral<input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>{const file=event.target.files?.[0];event.target.value='';if(file)void importVyralPackage(file);}} disabled={busy || packageBusy}/></label><button type="button" onClick={() => void exportVyralPackage(false)} className={button} disabled={busy || packageBusy}><Archive size={13}/>{packageBusy?'Working…':'Export .vyral'}</button><button type="button" onClick={() => void exportVyralPackage(true)} className={button} disabled={busy || packageBusy || extractingDnaV3}><Dna size={13}/>{packageBusy?'Working…':'DNA-only Test'}</button>{isProtectedVyral(vyral) && <button type="button" onClick={() => void extractOriginDnaV3()} className={primaryButton} disabled={busy || packageBusy || extractingDnaV3 || verifyingDnaV3 || comparingReconstructionAssetId !== null || verifyingAssetId !== null}><Dna size={13}/>{extractingDnaV3?'Extracting DNA…':'Extract ORIGIN-01 DNA v3'}</button>}{isProtectedVyral(vyral) && dnaRecords.some((record) => record.asset_id === '2c496cd5-84c4-44b1-b02a-fca4265cc592' && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) && <button type="button" onClick={() => void verifyOriginDnaV3()} className={primaryButton} disabled={busy || packageBusy || extractingDnaV3 || verifyingDnaV3 || comparingReconstructionAssetId !== null || verifyingAssetId !== null}><Dna size={13}/>{verifyingDnaV3?'Verifying DNA…':'Verify DNA v3 Reconstruction'}</button>}<button type="button" onClick={() => void loadWorkspace()} className={button} disabled={busy || packageBusy || extractingDnaV3}><Clock3 size={13}/> Refresh</button></div>
+        <div className="min-w-0">
+          <h2 className={'text-base font-semibold ' + primary}>Assets</h2>
+          <p className={'mt-1 text-xs ' + subtle}>Everything in this Vyral, in one place.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span>
+          <label className={button + ' cursor-pointer'}>
+            <Upload size={13}/> Import
+            <input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>{const file=event.target.files?.[0];event.target.value='';if(file)void importVyralPackage(file);}} disabled={busy || packageBusy}/>
+          </label>
+          <button type="button" onClick={() => void exportVyralPackage(false)} className={primaryButton} disabled={busy || packageBusy}>
+            <Archive size={13}/>{packageBusy ? 'Working…' : 'Export'}
+          </button>
+        </div>
       </div>
-
-      <nav className="flex gap-1 overflow-x-auto border-b border-[var(--vyra-border)] pb-1" aria-label="Vyral sections">
-        {tabs.map(({id,label,icon:Icon}) => <button key={id} type="button" onClick={() => setTab(id)} className={'inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ' + (tab===id ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : subtle)}><Icon size={14}/>{label}</button>)}
-      </nav>
 
       {tab === 'overview' && (
         <div className="space-y-4">
@@ -2218,7 +2138,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {tab === 'assets' && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h3 className={'text-sm font-semibold '+primary}>Asset library</h3><p className={'mt-1 text-xs '+muted}>Original files are stored privately; metadata and identity records are stored separately.</p></div>
+            <div><h3 className={'text-sm font-semibold '+primary}>Your collection</h3><p className={'mt-1 text-xs '+muted}>Add files or folders to build your Vyral.</p></div>
             <label className={primaryButton+' cursor-pointer'}><Upload size={14}/>{busy?'Uploading…':'Add assets'}<input type="file" multiple className="hidden" onChange={(event)=>void uploadFiles(event)} disabled={busy || packageBusy || verifyingAssetId !== null}/></label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -2229,7 +2149,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           <div className="flex flex-wrap items-center gap-1 text-xs"><button type="button" onClick={()=>setActiveFolderId(null)} className={activeFolderId===null?'font-semibold text-[var(--vyra-accent-primary)]':subtle}>Root</button>{folderPath.map((folder)=><React.Fragment key={folder.id}><ChevronRight size={12} className={muted}/><button type="button" onClick={()=>setActiveFolderId(folder.id)} className={folder.id===activeFolderId?'font-semibold text-[var(--vyra-accent-primary)]':subtle}>{folder.name}</button></React.Fragment>)}</div>
           {visibleFolders.length>0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{visibleFolders.map((folder)=><div key={folder.id} className={surface+' flex min-w-0 items-center gap-2 p-3'}><button type="button" onClick={()=>setActiveFolderId(folder.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left"><Folder size={18} className="shrink-0 text-[var(--vyra-accent-primary)]"/><span className={'truncate text-xs font-medium '+primary}>{folder.name}</span></button><button type="button" onClick={()=>void deleteFolder(folder)} aria-label={'Delete '+folder.name} className={muted}><Trash2 size={13}/></button></div>)}</div>}
           {filteredAssets.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{filteredAssets.map(renderAssetCard)}</div> : <div className="rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-12 text-center"><Folder size={25} className={'mx-auto '+muted}/><p className={'mt-3 text-sm font-semibold '+primary}>{assets.length?'No matching assets in this folder':'This folder is empty'}</p><p className={'mt-1 text-xs '+muted}>Add files or create folders to organize this Vyral.</p></div>}
-          <p className={'text-[10px] '+muted}>{assets.length} assets · {prettyBytes(totalBytes)} total · 100 MB maximum per upload in this foundation</p>
+          <p className={'text-[10px] '+muted}>{assets.length} items</p>
         </div>
       )}
 
@@ -2440,7 +2360,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {folderDialog && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/65 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setFolderDialog(false);}}><section role="dialog" aria-modal="true" aria-labelledby="vyral-folder-title" className="w-full max-w-sm rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]"><div className="flex items-center justify-between"><h3 id="vyral-folder-title" className={'text-base font-bold '+primary}>New folder</h3><button type="button" onClick={()=>setFolderDialog(false)} aria-label="Close" className={muted}><X size={17}/></button></div><form onSubmit={(event)=>void createFolder(event)} className="mt-4 space-y-3"><input autoFocus required maxLength={100} value={folderName} onChange={(event)=>setFolderName(event.target.value)} placeholder="Folder name" className={field}/><div className="flex justify-end gap-2"><button type="button" onClick={()=>setFolderDialog(false)} className={button}>Cancel</button><button type="submit" disabled={busy||!folderName.trim()} className={primaryButton}>Create folder</button></div></form></section></div>}
 
-      {previewAsset && <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget){setPreviewAsset(null);setPreviewUrl('');}}}><section role="dialog" aria-modal="true" aria-label={previewAsset.name} className="max-h-[90svh] w-full max-w-3xl overflow-auto rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><h3 className={'truncate text-sm font-semibold '+primary}>{previewAsset.name}</h3><p className={'mt-1 text-[10px] '+muted}>{previewAsset.mime_type} · {prettyBytes(Number(previewAsset.size_bytes))}</p></div><button type="button" onClick={()=>{setPreviewAsset(null);setPreviewUrl('');}} aria-label="Close preview" className={button}><X size={15}/></button></div><div className="mt-4 flex min-h-48 items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)] p-2">{!previewUrl?<span className={'text-xs '+muted}>Preparing secure preview…</span>:previewAsset.asset_type==='image'?<img src={previewUrl} alt={previewAsset.name} className="max-h-[65svh] max-w-full object-contain"/>:previewAsset.asset_type==='video'?<video src={previewUrl} controls className="max-h-[65svh] max-w-full"/>:previewAsset.asset_type==='audio'?<audio src={previewUrl} controls className="w-full"/>:<div className="p-8 text-center"><FileText size={32} className={'mx-auto '+muted}/><p className={'mt-3 text-xs '+subtle}>Preview is not available for this file type.</p><a href={previewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[var(--vyra-accent-primary)]"><Download size={13}/> Open or download file</a></div>}</div><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className={'break-all font-mono text-[10px] '+muted}>SHA-256 · {previewAsset.sha256 ?? 'Not calculated'}</span><span className={'text-[10px] '+muted}>Version {versions.filter((item)=>item.asset_id===previewAsset.id).length || 1}</span></div></section></div>}
+      {previewAsset && <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget){setPreviewAsset(null);setPreviewUrl('');}}}><section role="dialog" aria-modal="true" aria-label={previewAsset.name} className="max-h-[90svh] w-full max-w-3xl overflow-auto rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><h3 className={'truncate text-sm font-semibold '+primary}>{previewAsset.name}</h3><p className={'mt-1 text-[10px] '+muted}>{previewAsset.mime_type} · {prettyBytes(Number(previewAsset.size_bytes))}</p></div><button type="button" onClick={()=>{setPreviewAsset(null);setPreviewUrl('');}} aria-label="Close preview" className={button}><X size={15}/></button></div><div className="mt-4 flex min-h-48 items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)] p-2">{!previewUrl?<span className={'text-xs '+muted}>Preparing secure preview…</span>:previewAsset.asset_type==='image'?<img src={previewUrl} alt={previewAsset.name} className="max-h-[65svh] max-w-full object-contain"/>:previewAsset.asset_type==='video'?<video src={previewUrl} controls className="max-h-[65svh] max-w-full"/>:previewAsset.asset_type==='audio'?<audio src={previewUrl} controls className="w-full"/>:<div className="p-8 text-center"><FileText size={32} className={'mx-auto '+muted}/><p className={'mt-3 text-xs '+subtle}>Preview is not available for this file type.</p><a href={previewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[var(--vyra-accent-primary)]"><Download size={13}/> Open or download file</a></div>}</div></section></div>}
     </div>
   );
 };
