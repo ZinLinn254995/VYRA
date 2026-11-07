@@ -668,7 +668,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const packageName = String(manifest.vyral.name || 'Imported Vyral');
       const assetCount = importAssets.length;
       const folderCount = manifest.folders.length;
-      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
+      const skippedNestedPackageCount = manifest.assets.length - importAssets.length;
+      const skippedPackageNote = skippedNestedPackageCount
+        ? '\n\n' + skippedNestedPackageCount + ' nested Vyral package file(s) will be skipped to avoid duplicates.'
+        : '';
+      if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + manifest.versions.length + ' versions' + skippedPackageNote + '\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
         setPackageStatus('');
         setPackageBusy(false);
         return;
@@ -1168,7 +1172,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       await loadWorkspace();
       setReconstructedPngDownload(reconstructionDownload);
-      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Optional creator context was preserved where supplied.' : importedMasterDna ? ' Collection context is preserved in the package; this destination does not have the latest context migration yet.' : ''));
+      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (skippedNestedPackageCount ? ' Skipped ' + skippedNestedPackageCount + ' nested Vyral package file(s).' : '') + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Optional creator context was preserved where supplied.' : importedMasterDna ? ' Collection context is preserved in the package; this destination does not have the latest context migration yet.' : ''));
     } catch (cause) {
       const cleanupFailures: string[] = [];
       if (importPackageId && importUserId) {
