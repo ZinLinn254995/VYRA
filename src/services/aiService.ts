@@ -224,12 +224,12 @@ class ModularAIService implements AIServiceProvider {
         const data = await response.json().catch(() => ({})) as { error?: string };
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error
-          : 'VYRA AI Vision could not inspect this Vyral image. Please retry when the live vision service is available.';
+          : 'VYRA AI could not inspect the selected media Assets. Please retry when the live multimodal service is available.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
       }
     } catch {
       if (request.visionImages?.length) {
-        const message = 'VYRA AI Vision could not reach the live Gemini service. No text-only preview was substituted.';
+        const message = 'VYRA AI could not reach the live Gemini multimodal service. No text-only preview was substituted.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
       }
       // Endpoint not active; fall through to preview mode response
