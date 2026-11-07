@@ -6,6 +6,7 @@ import {
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
   isPublicVyralResourceAllowedV1,
+  isPublicVyralAssetVisibilityAllowedV1,
   isSafePublicVyralResolverUriV1,
 } from '../src/services/vyralResourceResolverV1.ts';
 
@@ -86,6 +87,14 @@ test('Asset DNA must match the pinned record, schema, source version, and source
   }), false);
 });
 
+
+test('public Asset resolution requires both collection and Asset visibility to be public', () => {
+  assert.equal(isPublicVyralAssetVisibilityAllowedV1('public', 'public'), true);
+  assert.equal(isPublicVyralAssetVisibilityAllowedV1('private', 'public'), false);
+  assert.equal(isPublicVyralAssetVisibilityAllowedV1('unlisted', 'public'), false);
+  assert.equal(isPublicVyralAssetVisibilityAllowedV1('public', 'private'), false);
+  assert.equal(isPublicVyralAssetVisibilityAllowedV1('public', undefined), false);
+});
 
 test('public resource access follows Vyral visibility and creator AI/download permissions', () => {
   const publicPolicy = { allow_ai_analysis: true, allow_redistribution: true };
