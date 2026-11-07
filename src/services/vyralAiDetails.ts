@@ -1,5 +1,5 @@
 export type VyralDetailValue = string | number | boolean | string[] | Record<string, unknown> | null;
-export type VyralDetailOrigin = 'ai_suggested' | 'creator_confirmed' | 'creator_edited';
+export type VyralDetailOrigin = 'system_default' | 'ai_suggested' | 'creator_confirmed' | 'creator_edited';
 
 export type VyralAiDetailField = {
   value: VyralDetailValue;
@@ -46,7 +46,7 @@ export const mergeVyralAiDetails = (
 
   for (const [key, raw] of Object.entries(previousFields)) {
     if (!isRecord(raw) || !('value' in raw) ||
-        !['ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(raw.origin)) ||
+        !['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(raw.origin)) ||
         typeof raw.updated_at !== 'string') continue;
     fields[key] = {
       value: raw.value as VyralDetailValue,
@@ -59,7 +59,7 @@ export const mergeVyralAiDetails = (
   for (const [key, suggestion] of Object.entries(input.suggestions)) {
     if (!key.trim() || !suggestion || !('value' in suggestion)) continue;
     const existing = fields[key];
-    if (existing && existing.origin !== 'ai_suggested') continue;
+    if (existing && (existing.origin === 'creator_confirmed' || existing.origin === 'creator_edited')) continue;
     fields[key] = {
       value: suggestion.value,
       origin: 'ai_suggested',
