@@ -332,12 +332,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
     setSelectedVyralImages([]);
+    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!activeSessionId) setActiveSessionId(makeId());
 
     setIsSending(true);
     try {
-      if (selectedAssets.length && supabase) {
+      if (selectedAssets.length) {
         if (!supabase) throw new Error('Secure Asset access is unavailable in this environment.');
         const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
         const { data: assetRows, error: assetError } = await supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id));
