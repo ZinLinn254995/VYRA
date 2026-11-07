@@ -12,7 +12,7 @@ import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
-import { setVyralAiDetailField, suggestVyralAssetDetails, type VyralAiDetails } from '../../services/vyralAiDetails';
+import { setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails } from '../../services/vyralAiDetails';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -1497,6 +1497,50 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           failures.push(file.name + ': ' + (cause instanceof Error ? cause.message : 'upload failed.') +
             (cleanupErrors.length ? ' Cleanup needs attention: ' + cleanupErrors.join(' · ') : ' Incomplete upload records were cleaned up.'));
         }
+      }
+    }
+    // Refresh collection-level suggestions from the actual Asset inventory.
+    // Creator-authored Vyral name/description are never overwritten by this step.
+    if (selected.length > failures.length) {
+      try {
+        const accessToken = await getCurrentAccessToken();
+        if (accessToken) {
+          const [collectionResult, inventoryResult] = await Promise.all([
+            db.from('vyrals').select('name,description,metadata').eq('id', vyral.id).eq('user_id', auth.user.id).maybeSingle(),
+            db.from('vyral_assets').select('name,asset_type,mime_type,description,metadata').eq('vyral_id', vyral.id).neq('processing_status', 'archived').order('created_at', { ascending: false }),
+          ]);
+          if (!collectionResult.error && collectionResult.data && !inventoryResult.error && inventoryResult.data?.length) {
+            const currentMetadata = collectionResult.data.metadata && typeof collectionResult.data.metadata === 'object' && !Array.isArray(collectionResult.data.metadata)
+              ? collectionResult.data.metadata as Record<string, unknown> : {};
+            const summaries = (inventoryResult.data ?? []).map((asset) => {
+              const metadata = asset.metadata && typeof asset.metadata === 'object' && !Array.isArray(asset.metadata)
+                ? asset.metadata as Record<string, unknown> : {};
+              const details = metadata.ai_details && typeof metadata.ai_details === 'object'
+                ? metadata.ai_details as VyralAiDetails : undefined;
+              const fields = details?.fields ?? {};
+              return {
+                name: asset.name,
+                assetType: asset.asset_type,
+                mimeType: asset.mime_type,
+                description: asset.description ?? (typeof fields.description?.value === 'string' ? fields.description.value : ''),
+                tags: Array.isArray(fields.tags?.value) ? fields.tags.value.filter((tag): tag is string => typeof tag === 'string') : [],
+              };
+            });
+            const aiDetails = await suggestVyralCollectionDetails({
+              accessToken, vyralId: vyral.id,
+              currentName: collectionResult.data.name,
+              currentDescription: collectionResult.data.description ?? '',
+              sourceRevision: summaries.length,
+              assets: summaries,
+              currentDetails: currentMetadata.ai_details,
+            });
+            const nextMetadata = { ...currentMetadata, ai_details: aiDetails, ai_details_status: 'ready', ai_details_inventory_count: summaries.length };
+            const { error: collectionUpdateError } = await db.from('vyrals').update({ metadata: nextMetadata }).eq('id', vyral.id).eq('user_id', auth.user.id);
+            if (!collectionUpdateError) onVyralUpdated({ metadata: nextMetadata });
+          }
+        }
+      } catch (metadataCause) {
+        console.warn('[vyral-ai-details] Collection suggestions were unavailable.', metadataCause);
       }
     }
     await loadWorkspace();
