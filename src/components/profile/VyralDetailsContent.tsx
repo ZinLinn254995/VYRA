@@ -12,7 +12,7 @@ import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
-import { mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails } from '../../services/vyralAiDetails';
+import { mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails, type VyralDetailValue } from '../../services/vyralAiDetails';
 
 type Vyral = {
   id: string; name: string; description: string; visibility: 'private' | 'unlisted' | 'public';
@@ -41,6 +41,27 @@ type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 
 const isProtectedVyral = (item: Vyral) => item.id === 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d' || item.metadata?.protected === true;
+
+const formatAiFieldDraft = (value: VyralDetailValue): string => {
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string')) return value.join(', ');
+  if (value !== null && typeof value === 'object') return JSON.stringify(value, null, 2);
+  return value === null ? '' : String(value);
+};
+
+const parseAiFieldDraft = (draft: string, previous: VyralDetailValue): VyralDetailValue => {
+  if (Array.isArray(previous)) {
+    if (previous.every((item) => typeof item === 'string')) return draft.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 50);
+    return JSON.parse(draft) as VyralDetailValue;
+  }
+  if (previous !== null && typeof previous === 'object') return JSON.parse(draft) as VyralDetailValue;
+  if (typeof previous === 'number') {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) throw new Error('Enter a valid number for this detail.');
+    return parsed;
+  }
+  if (typeof previous === 'boolean') return draft.trim().toLowerCase() === 'true';
+  return draft;
+};
 const surface = 'rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]';
 const muted = 'text-[var(--vyra-text-muted)]';
 const subtle = 'text-[var(--vyra-text-secondary)]';
@@ -147,8 +168,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [detailsAsset, setDetailsAsset] = useState<AssetRow | null>(null);
   const [detailsDraft, setDetailsDraft] = useState({ name: '', description: '', category: '', style: '', tags: '' });
+  const [detailsExtraDraft, setDetailsExtraDraft] = useState<Record<string, string>>({});
   const [collectionDetailsOpen, setCollectionDetailsOpen] = useState(false);
   const [collectionDraft, setCollectionDraft] = useState({ name: vyral.name, description: vyral.description ?? '', category: '', style: '', tags: '' });
+  const [collectionExtraDraft, setCollectionExtraDraft] = useState<Record<string, string>>({});
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -2085,6 +2108,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       style: typeof fields.style?.value === 'string' ? fields.style.value : '',
       tags: Array.isArray(fields.tags?.value) ? fields.tags.value.join(', ') : '',
     });
+    setDetailsExtraDraft(Object.fromEntries(Object.entries(fields)
+      .filter(([key]) => !['name', 'description', 'category', 'style', 'tags'].includes(key))
+      .map(([key, field]) => [key, formatAiFieldDraft(field.value)])));
   };
 
   const openCollectionDetails = () => {
@@ -2097,6 +2123,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       style: typeof fields.style?.value === 'string' ? fields.style.value : '',
       tags: Array.isArray(fields.tags?.value) ? fields.tags.value.join(', ') : '',
     });
+    setCollectionExtraDraft(Object.fromEntries(Object.entries(fields)
+      .filter(([key]) => !['name', 'description', 'category', 'style', 'tags'].includes(key))
+      .map(([key, field]) => [key, formatAiFieldDraft(field.value)])));
     setCollectionDetailsOpen(true);
   };
 
@@ -2129,6 +2158,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       updatedDetails = setVyralAiDetailField(updatedDetails, 'category', collectionDraft.category.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'style', collectionDraft.style.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', collectionDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      for (const [key, value] of Object.entries(collectionExtraDraft)) {
+        const previous = currentDetails?.fields?.[key]?.value ?? null;
+        updatedDetails = setVyralAiDetailField(updatedDetails, key, parseAiFieldDraft(value, previous), 'creator_edited', generatedAt);
+      }
       updatedDetails = { ...updatedDetails, source_revision: sourceRevision, stale: false };
       const nextMetadata = {
         ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
@@ -2165,6 +2198,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       updatedDetails = setVyralAiDetailField(updatedDetails, 'category', detailsDraft.category.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'style', detailsDraft.style.trim(), 'creator_edited', generatedAt);
       updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', detailsDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      for (const [key, value] of Object.entries(detailsExtraDraft)) {
+        const previous = currentDetails?.fields?.[key]?.value ?? null;
+        updatedDetails = setVyralAiDetailField(updatedDetails, key, parseAiFieldDraft(value, previous), 'creator_edited', generatedAt);
+      }
       const { error: updateError } = await supabase.from('vyral_assets').update({
         name: detailsDraft.name.trim().slice(0, 100),
         description: detailsDraft.description.trim().slice(0, 1000),
