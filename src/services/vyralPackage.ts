@@ -775,7 +775,6 @@ export const createVyralDnaOnlyPackage = async (
   }
 
   const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
-  if (!includeCompactDna) portableBase.masterDna = null;
   const selectedAssets = portableBase.assets.filter((asset) => assetIds.has(String(asset.id)));
   if (selectedAssets.length !== records.length) {
     throw new Error('Every DNA-only asset record must map to exactly one asset in the Vyral manifest.');
@@ -798,7 +797,6 @@ export const createVyralDnaOnlyPackage = async (
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
     exportMode: 'dna-only',
-    exportComponents: { assets: false, fullDna: true, compactDna: includeCompactDna && Boolean(portableBase.masterDna) },
     folders: [],
     versions: [],
     assets: selectedAssets.map((asset) => ({
@@ -909,6 +907,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   }
   if (payloadByPath.size !== declaredPaths.size) throw new Error('DNA-only export contains undeclared DNA payload entries.');
   const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
+  if (!includeCompactDna) portableBase.masterDna = null;
   const selectedAssets = portableBase.assets.filter((asset) => assetIds.has(String(asset.id)));
   if (selectedAssets.length !== normalized.length) throw new Error('Every DNA-only record must map to exactly one Asset in the Vyral manifest.');
   if (normalized.length > 1 && selectedAssets.length !== portableBase.assets.length) throw new Error('A whole-Vyral DNA-only export requires a reconstruction record for every Asset.');
@@ -933,6 +932,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
     exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: includeCompactDna && Boolean(portableBase.masterDna) },
     folders: [],
     versions: [],
     assets: selectedAssets.map((asset) => ({ ...asset, folder_id: null, description_provenance: 'creator_declared', description_is_visual_measurement: false })),
