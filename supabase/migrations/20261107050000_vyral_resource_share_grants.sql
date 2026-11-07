@@ -153,7 +153,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 revoke all on function public.validate_vyral_resource_share_grant_insert() from public, anon, authenticated;
 drop trigger if exists vyral_resource_share_grant_validate_insert on public.vyral_resource_share_grants;
@@ -170,7 +170,7 @@ begin
   raise exception using errcode = '55000',
     message = 'Resource share audit events are immutable.';
 end;
-$;
+$$;
 
 revoke all on function public.prevent_vyral_resource_share_audit_mutation() from public, anon, authenticated;
 drop trigger if exists vyral_resource_share_audit_immutable on public.vyral_resource_share_audit;
