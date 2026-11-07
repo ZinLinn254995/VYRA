@@ -103,15 +103,15 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
   }
 });
 
-test('does not re-import the exact .vyral Asset used as its package container', () => {
+test('does not duplicate the exact .vyral container but preserves other package Assets', () => {
   const assets = [
     { id: 'package-container', name: 'source.vyral', mime_type: VYRAL_PACKAGE_FORMAT },
     { id: 'nested-package', name: 'previous-export.vyral', mime_type: VYRAL_PACKAGE_FORMAT },
     { id: 'image-asset', name: 'Original image', mime_type: 'image/png' },
   ];
-  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'package-container'), [assets[2]]);
-  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'not-in-package'), [assets[2]]);
-  assert.deepEqual(getVyralPackageAssetsForImport(assets, undefined, false), assets);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'package-container'), [assets[1], assets[2]]);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'not-in-package'), assets);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets), assets);
 });
 
 const manifest = {
