@@ -608,8 +608,6 @@ export const createVyralDnaOnlyPackage = async (
     if (masterAssetIds.size !== assetIds.size || [...masterAssetIds].some((id) => !assetIds.has(id))) {
       throw new Error('Master DNA inventory does not match the DNA-only asset reconstruction set.');
     }
-  } else if (records.length > 1) {
-    throw new Error('A whole-Vyral DNA-only export requires a verified Master DNA snapshot.');
   }
 
   const dnaOnlyManifest: VyralPackageManifest = {
@@ -736,8 +734,6 @@ export const createVyralAssetDnaOnlyPackage = async (
         throw new Error('Master DNA does not reference the exact portable DNA record for Asset ' + item.assetId + '.');
       }
     }
-  } else if (normalized.length > 1) {
-    throw new Error('A whole-Vyral DNA-only export requires a verified Master DNA snapshot.');
   }
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
