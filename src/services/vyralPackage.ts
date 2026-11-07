@@ -403,7 +403,31 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
   let parsed: unknown;
   try { parsed = JSON.parse(decoder.decode(raw)); }
   catch { throw new Error('VYRAL manifest is not valid UTF-8 JSON.'); }
-  const manifest = validateVyralManifest(parsed);
+  // Older DNA-only exports may still contain legacy DNA rows and evidence
+  // tied to binary versions that the package intentionally omits. Those records
+  // cannot be carried forward as portable evidence; discard them before applying
+  // the strict exact-reconstruction contract. Supported DNA payloads remain
+  // mandatory and are still validated one-per-Asset below.
+  let candidate = parsed;
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+      (parsed as Record<string, unknown>).exportMode === 'dna-only') {
+    const legacy = parsed as Record<string, unknown>;
+    const dnaRecords = Array.isArray(legacy.dnaRecords) ? legacy.dnaRecords : [];
+    candidate = {
+      ...legacy,
+      dnaRecords: dnaRecords.filter((record) => {
+        if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
+        const entry = record as Record<string, unknown>;
+        return (entry.dna_schema_id === 'vyra.asset-dna' && entry.dna_schema_version === 3) ||
+          (entry.dna_schema_id === 'vyra.asset-file-dna' && entry.dna_schema_version === 1);
+      }),
+      fingerprints: [],
+      visionObservations: [],
+      lineage: [],
+      reconstructionTests: [],
+    };
+  }
+  const manifest = validateVyralManifest(candidate);
   for (const version of manifest.versions) {
     if (!files.has(version.package_path)) throw new Error('Package media is missing: ' + version.package_path);
   }
