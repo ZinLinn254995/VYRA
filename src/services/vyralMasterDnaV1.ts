@@ -24,10 +24,10 @@ export type VyralMasterDnaV1 = {
   master_dna_id: string;
   vyral: { vyral_id: string; name: string; owner_ref?: string | null; created_at?: string | null };
   snapshot: { revision: number; created_at: string; parent_master_dna_id?: string | null };
-  purpose: { summary?: string | null; intended_uses?: string[]; constraints?: string[] };
+  purpose?: { summary?: string | null; intended_uses?: string[]; constraints?: string[] };
   main_asset_ids: string[];
   assets: VyralMasterDnaAsset[];
-  relationships: Array<{
+  relationships?: Array<{
     relationship_id: string;
     type: string;
     from: VyralMasterDnaEndpoint;
@@ -124,12 +124,13 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   if (!isRecord(value.snapshot) || !Number.isSafeInteger(value.snapshot.revision) || Number(value.snapshot.revision) < 1 || !isDate(value.snapshot.created_at)) {
     throw new Error('Master DNA snapshot metadata is invalid.');
   }
-  if (!isRecord(value.purpose) ||
+  if ((value.purpose !== undefined && (!isRecord(value.purpose) ||
       (value.purpose.summary !== undefined && value.purpose.summary !== null && !isText(value.purpose.summary)) ||
       (value.purpose.intended_uses !== undefined &&
-        (!Array.isArray(value.purpose.intended_uses) || !value.purpose.intended_uses.every(isText))) ||
+        (!Array.isArray(value.purpose.intended_uses) || !value.purpose.intended_uses.every(isText))))) ||
       !Array.isArray(value.main_asset_ids) || !Array.isArray(value.assets) ||
-      value.assets.length === 0 || !Array.isArray(value.relationships)) {
+      value.assets.length === 0 ||
+      (value.relationships !== undefined && !Array.isArray(value.relationships))) {
     throw new Error('Master DNA collection metadata or asset inventory is invalid.');
   }
   const assetMap = new Map<string, VyralMasterDnaAsset>();
@@ -158,7 +159,7 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     if (asset.role !== 'main' && mainIds.has(asset.asset_id)) throw new Error('Master DNA main asset list includes an Asset not declared Main.');
   }
   const relationshipIds = new Set<string>();
-  for (const raw of value.relationships) {
+  for (const raw of value.relationships ?? []) {
     if (!isRecord(raw) || !isId(raw.relationship_id) || relationshipIds.has(raw.relationship_id) ||
         !/^[a-z][a-z0-9_]{1,63}$/.test(String(raw.type)) || !isText(raw.rationale)) {
       throw new Error('Master DNA relationship entry is invalid.');
