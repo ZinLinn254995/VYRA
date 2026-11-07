@@ -556,16 +556,16 @@ const updateMasterDnaClaimsForPackage = async (
     packageClaimRank[asset.reconstruction_claim] < packageClaimRank[weakest]
       ? asset.reconstruction_claim : weakest,
   'source_file_exact' as VyralMasterDnaAsset['reconstruction_claim']);
+  const packageClaimNote = 'Reconstruction claims reflect only the exact payloads included in this DNA-only package.';
   return createVyralMasterDnaV1({
     ...unsigned,
     assets,
     reconstruction_profile: {
       ...unsigned.reconstruction_profile,
       overall_claim: overallClaim,
-      notes: [
-        ...unsigned.reconstruction_profile.notes,
-        'Reconstruction claims reflect only the exact payloads included in this DNA-only package.',
-      ],
+      notes: unsigned.reconstruction_profile.notes.includes(packageClaimNote)
+        ? unsigned.reconstruction_profile.notes
+        : [...unsigned.reconstruction_profile.notes, packageClaimNote],
     },
   });
 };
