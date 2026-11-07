@@ -1,0 +1,69 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  markVyralAiDetailsStale,
+  mergeVyralAiDetails,
+  setVyralAiDetailField,
+} from '../src/services/vyralAiDetails.ts';
+
+const generatedAt = '2026-11-08T10:00:00.000Z';
+
+test('AI detail suggestions fill defaults without overwriting creator edits', () => {
+  const first = mergeVyralAiDetails(null, {
+    scope: 'asset',
+    sourceVersionId: 'version-1',
+    provider: 'gemini',
+    model: 'vision-model',
+    generatedAt,
+    suggestions: {
+      name: { value: 'Red Circle', confidence: 0.98 },
+      category: { value: 'Shape', confidence: 0.9 },
+      description: { value: 'A simple red circle on a light background.' },
+    },
+  });
+  const edited = setVyralAiDetailField(first, 'name', 'My own title', 'creator_edited', generatedAt);
+  const refreshed = mergeVyralAiDetails(edited, {
+    scope: 'asset',
+    sourceVersionId: 'version-2',
+    provider: 'gemini',
+    model: 'vision-model',
+    generatedAt: '2026-11-08T11:00:00.000Z',
+    suggestions: {
+      name: { value: 'New AI title' },
+      category: { value: 'Graphic' },
+      style: { value: 'Minimal' },
+    },
+  });
+
+  assert.equal(refreshed.fields.name.value, 'My own title');
+  assert.equal(refreshed.fields.name.origin, 'creator_edited');
+  assert.equal(refreshed.fields.category.value, 'Graphic');
+  assert.equal(refreshed.fields.style.value, 'Minimal');
+  assert.equal(refreshed.source_version_id, 'version-2');
+});
+
+test('AI details support Vyral and Storyboard scopes without mandatory fields', () => {
+  for (const scope of ['vyral', 'storyboard'] as const) {
+    const details = mergeVyralAiDetails(null, {
+      scope, provider: 'gemini', model: 'text-model', generatedAt, suggestions: {},
+    });
+    assert.equal(details.scope, scope);
+    assert.deepEqual(details.fields, {});
+    assert.equal(details.stale, false);
+  }
+});
+
+test('AI detail provenance preserves confirmation and marks version-bound suggestions stale', () => {
+  const details = mergeVyralAiDetails(null, {
+    scope: 'asset',
+    sourceVersionId: 'version-1',
+    provider: 'gemini',
+    model: 'vision-model',
+    generatedAt,
+    suggestions: { style: { value: 'Watercolor', confidence: 0.8 } },
+  });
+  const confirmed = setVyralAiDetailField(details, 'style', 'Watercolor', 'creator_confirmed', generatedAt);
+  assert.equal(confirmed.fields.style.origin, 'creator_confirmed');
+  assert.equal(markVyralAiDetailsStale(confirmed).stale, true);
+  assert.equal(confirmed.stale, false);
+});
