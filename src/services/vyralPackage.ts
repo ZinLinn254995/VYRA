@@ -775,6 +775,7 @@ export const createVyralDnaOnlyPackage = async (
   }
 
   const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
+  if (!includeCompactDna) portableBase.masterDna = null;
   const selectedAssets = portableBase.assets.filter((asset) => assetIds.has(String(asset.id)));
   if (selectedAssets.length !== records.length) {
     throw new Error('Every DNA-only asset record must map to exactly one asset in the Vyral manifest.');
@@ -797,6 +798,7 @@ export const createVyralDnaOnlyPackage = async (
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
     exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: includeCompactDna && Boolean(portableBase.masterDna) },
     folders: [],
     versions: [],
     assets: selectedAssets.map((asset) => ({
@@ -841,6 +843,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   baseManifest: VyralPackageManifest,
   dnaRecords: Array<VyralDnaV3Record | VyralFileDnaRecord>,
   payloadEntries: Array<VyralDnaV3PackageEntry | VyralFileDnaEntry>,
+  includeCompactDna = true,
 ) => {
   if (!Array.isArray(dnaRecords) || dnaRecords.length === 0) throw new Error('DNA-only export requires at least one supported Asset DNA record.');
   if (!Array.isArray(payloadEntries)) throw new Error('DNA-only export payload entries must be an array.');
