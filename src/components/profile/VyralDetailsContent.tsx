@@ -1143,7 +1143,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (metadataError) console.warn('[vyral-ai-details] Could not save imported Asset suggestions.');
           } else {
             await supabase.from('vyral_assets').update({
-              metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, ai_details_status: 'pending', visibility: 'private' },
+              metadata: { ...objectValue(sourceAsset.metadata), imported_from_package: manifest.packageId, ai_details_status: 'unavailable', visibility: 'private' },
             }).eq('id', assetId).eq('user_id', userId);
           }
         } catch (metadataCause) {
@@ -1583,6 +1583,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               },
             }).eq('id', assetId).eq('user_id', auth.user.id);
             if (metadataError) console.warn('[vyral-ai-details] Could not save uploaded Asset suggestions.');
+          } else {
+            await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+              .eq('id', assetId).eq('user_id', auth.user.id);
           }
         } catch (metadataCause) {
           console.warn('[vyral-ai-details] Uploaded Asset suggestions were unavailable.', metadataCause);
