@@ -277,3 +277,47 @@ export const suggestVyralAssetDetails = async (
     model: payload.modelName || 'unknown',
   };
 };
+
+export const suggestVyralCollectionDetails = async (
+  input: {
+    accessToken: string;
+    vyralId: string;
+    currentName: string;
+    currentDescription: string;
+    sourceRevision: number;
+    assets: Array<{ name: string; assetType: string; mimeType: string; description: string; tags?: string[] }>;
+    currentDetails?: unknown;
+  },
+): Promise<VyralAiDetails> => {
+  if (!input.accessToken) throw new Error('Sign in to generate Vyral details.');
+  const response = await fetch('/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + input.accessToken },
+    body: JSON.stringify({
+      task: 'suggest_details',
+      detailsScope: 'vyral',
+      messages: [{
+        role: 'user',
+        content: 'Suggest useful default metadata for this Vyral collection. Preserve the existing creator name and description as source context; do not replace them.\n' +
+          JSON.stringify({
+            vyral_id: input.vyralId,
+            creator_name: input.currentName,
+            creator_description: input.currentDescription,
+            inventory_count: input.assets.length,
+            assets: input.assets.slice(0, 80),
+          }),
+      }],
+    }),
+  });
+  const payload = await response.json().catch(() => ({})) as { text?: string; modelName?: string; provider?: string; error?: string };
+  if (!response.ok || typeof payload.text !== 'string') throw new Error(payload.error || 'AI could not suggest Vyral details.');
+  const suggestions = parseSuggestionObject(payload.text);
+  return mergeVyralAiDetails(input.currentDetails, {
+    scope: 'vyral',
+    sourceRevision: input.sourceRevision,
+    provider: payload.provider || 'gemini',
+    model: payload.modelName || 'unknown',
+    generatedAt: new Date().toISOString(),
+    suggestions,
+  });
+};
