@@ -1425,7 +1425,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
   const extractAssetDnaV3 = async (asset: AssetRow) => {
     const userId = auth.user?.id;
-    if (!supabase || !userId || busy || packageBusy || verifyingAssetId || asset.processing_status !== 'ready') return;
+    if (!supabase || !userId || busy || packageBusy || verifyingAssetId || extractingDnaV3 || asset.processing_status !== 'ready') return;
     if (asset.asset_type !== 'image' || !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type.toLowerCase())) {
       setError('DNA v3 extraction currently supports PNG, JPEG and WebP raster images only.');
       return;
@@ -1442,6 +1442,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!window.confirm('Create immutable DNA v3 from the current source file "' + asset.name + '"? The server will verify its SHA-256 and extract lossless decoded RGBA samples. The original Asset and Version will not be changed. This does not preserve the original PNG/JPEG file bytes.')) return;
 
     setVerifyingAssetId(asset.id);
+    setExtractingDnaV3(true);
     setError('');
     setPackageStatus('Verifying source bytes and extracting DNA v3 for ' + asset.name + '…');
     try {
@@ -1472,6 +1473,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setError(cause instanceof Error ? cause.message : 'DNA v3 extraction failed. The original Asset was preserved.');
     } finally {
       setVerifyingAssetId(null);
+      setExtractingDnaV3(false);
     }
   };
 
