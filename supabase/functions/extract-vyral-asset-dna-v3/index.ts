@@ -84,8 +84,10 @@ Deno.serve(async (request: Request) => {
   const persistBatch = async () => {
     const batch = pending.splice(0, pending.length);
     const outcomes = await Promise.allSettled(batch.map(async (tile) => {
+      const tileBuffer = new ArrayBuffer(tile.bytes.byteLength);
+      new Uint8Array(tileBuffer).set(tile.bytes);
       const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(
-        tile.path, new Blob([tile.bytes], { type: 'application/octet-stream' }),
+        tile.path, new Blob([tileBuffer], { type: 'application/octet-stream' }),
         { contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0' },
       );
       if (error) throw new Error(error.message);
