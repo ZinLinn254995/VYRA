@@ -608,3 +608,62 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
   const restoredRaster = await reconstructVyralDnaV3FromPackage(files, 'mixed-raster-dna');
   assert.equal(restoredRaster.decoded_samples_sha256, raster.record.decoded_image.decoded_samples_sha256);
 });
+
+test('exports and reconstructs a single raster Asset DNA-only package without Master DNA', async () => {
+  const samples = new Uint8Array([
+    254, 253, 254, 255,
+    220, 12, 18, 255,
+    254, 253, 254, 255,
+  ]);
+  const raster = await createVyralDnaV3({
+    record_id: 'single-asset-dna-v3',
+    source: {
+      asset_id: 'asset-single',
+      asset_version_id: 'version-single',
+      sha256: 'c'.repeat(64),
+      size_bytes: 1024,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 3,
+    height: 1,
+    channel_layout: 'RGBA',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 2,
+    tile_height: 1,
+    decoded_samples: samples,
+  });
+  const singleAssetManifest = {
+    ...manifest,
+    assets: [{ id: 'asset-single', name: 'Single raster Asset', asset_type: 'image', mime_type: 'image/png' }],
+    versions: [],
+    masterDna: null,
+  };
+  const archive = await createVyralAssetDnaOnlyPackage(singleAssetManifest, [raster.record], raster.entries);
+  const cleanZipBytes = new Uint8Array(await archive.arrayBuffer());
+  const files = await readVyralZip(cleanZipBytes.slice());
+  const parsed = parseVyralManifest(files);
+
+  assert.equal(parsed.exportMode, 'dna-only');
+  assert.equal(parsed.assets.length, 1);
+  assert.equal(parsed.assets[0].id, 'asset-single');
+  assert.equal(parsed.versions.length, 0);
+  assert.equal(parsed.dnaRecords.length, 1);
+  assert.equal(parsed.dnaRecords[0].id, 'single-asset-dna-v3');
+  assert.equal(parsed.masterDna, undefined);
+  assert.equal(parsed.reconstructionCapabilities?.decoded_sample_stream_reconstructable, true);
+
+  const reconstructed = await reconstructVyralDnaV3FromPackage(files, 'single-asset-dna-v3');
+  assert.deepEqual(reconstructed.samples, samples);
+  assert.equal(reconstructed.decoded_samples_sha256, raster.record.decoded_image.decoded_samples_sha256);
+
+  const png = await encodeVyralDnaV3PngFromPackage(files, 'single-asset-dna-v3');
+  assert.deepEqual(Array.from(png.subarray(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+  const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  assert.equal(view.getUint32(16), 3);
+  assert.equal(view.getUint32(20), 1);
+});
+
