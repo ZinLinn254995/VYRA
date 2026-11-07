@@ -96,6 +96,18 @@ test('public resource access follows Vyral visibility and creator AI/download pe
   assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'public', action: 'asset_dna', licensePolicy: { allow_ai_analysis: false, allow_redistribution: true } }), false);
   assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'unlisted', action: 'master', licensePolicy: publicPolicy }), false);
   assert.equal(isPublicVyralResourceAllowedV1({ visibility: 'private', action: 'asset_dna', licensePolicy: publicPolicy }), false);
+  assert.equal(isPublicVyralResourceAllowedV1({
+    visibility: 'public', action: 'asset_dna', licensePolicy: publicPolicy,
+    assetPolicy: { allow_ai_analysis: false },
+  }), false);
+  assert.equal(isPublicVyralResourceAllowedV1({
+    visibility: 'public', action: 'asset_source', licensePolicy: publicPolicy,
+    assetPolicy: { allow_redistribution: false },
+  }), false);
+  assert.equal(isPublicVyralResourceAllowedV1({
+    visibility: 'public', action: 'asset_source', licensePolicy: { allow_ai_analysis: true },
+    assetPolicy: { allow_redistribution: true },
+  }), false);
 });
 
 test('portable public resolver URI accepts only the canonical HTTPS Supabase endpoint', () => {
