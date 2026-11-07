@@ -15,6 +15,8 @@ export const VYRAL_PACKAGE_MANIFEST = 'manifest.json';
 
 /** Exclude the exact .vyral Asset used as the import container, when that Asset
  * is also listed inside its own exported collection manifest. */
+/** Exclude only the exact .vyral Asset used as the import container.
+ * Other .vyral files inside the collection remain legitimate Assets and must import normally. */
 export const getVyralPackageAssetsForImport = <T extends {
   id?: string;
   name?: string;
@@ -23,15 +25,7 @@ export const getVyralPackageAssetsForImport = <T extends {
 }>(
   assets: T[],
   containerAssetId?: string,
-  excludeNestedPackages = Boolean(containerAssetId),
-): T[] => assets.filter((asset) => {
-  if (containerAssetId && asset.id === containerAssetId) return false;
-  if (!excludeNestedPackages) return true;
-  const filenames = [asset.name, asset.original_filename].filter((value): value is string => typeof value === 'string');
-  const isNestedPackage = asset.mime_type?.toLowerCase() === VYRAL_PACKAGE_FORMAT ||
-    filenames.some((filename) => filename.toLowerCase().endsWith('.vyral'));
-  return !isNestedPackage;
-});
+): T[] => assets.filter((asset) => !containerAssetId || asset.id !== containerAssetId);
 
 export type VyralPackageEntry = { path: string; data: Uint8Array | string };
 
