@@ -64,7 +64,15 @@ test('AI detail provenance preserves confirmation and marks version-bound sugges
     suggestions: { style: { value: 'Watercolor', confidence: 0.8 } },
   });
   const confirmed = setVyralAiDetailField(details, 'style', 'Watercolor', 'creator_confirmed', generatedAt);
+  const refreshed = mergeVyralAiDetails(confirmed, {
+    scope: 'asset', sourceVersionId: 'version-2', provider: 'gemini', model: 'vision-model',
+    generatedAt: '2026-11-08T11:00:00.000Z',
+    suggestions: { style: { value: 'Oil painting' }, mood: { value: 'Calm' } },
+  });
   assert.equal(confirmed.fields.style.origin, 'creator_confirmed');
+  assert.equal(refreshed.fields.style.value, 'Watercolor');
+  assert.equal(refreshed.fields.style.origin, 'creator_confirmed');
+  assert.equal(refreshed.fields.mood.value, 'Calm');
   assert.equal(markVyralAiDetailsStale(confirmed).stale, true);
   assert.equal(confirmed.stale, false);
 });
