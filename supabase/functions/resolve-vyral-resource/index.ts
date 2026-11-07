@@ -248,6 +248,7 @@ Deno.serve(async (request: Request) => {
     assetVersionId: version.id,
     assetSha256: version.sha256,
     dnaSource: nestedSource,
+    dnaFileSha256: asRecord(nestedDna.file).sha256,
   })) {
     return json({ error: 'Asset DNA, immutable source version, and pinned Master DNA inventory do not agree.' }, 409);
   }
