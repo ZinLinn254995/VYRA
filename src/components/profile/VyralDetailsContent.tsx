@@ -1247,7 +1247,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const selected = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!supabase || !selected.length) return;
-    const { data: auth } = await supabase.auth.getUser();
+    const db = supabase;
+    const { data: auth } = await db.auth.getUser();
     if (!auth.user) { setError('Your session has expired. Please sign in again.'); return; }
     setBusy(true); setError('');
     const failures: string[] = [];
@@ -1301,7 +1302,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           if (fileDna.record.file.sha256 !== sha256 || fileDna.record.file.size_bytes !== file.size) {
             throw new Error('Universal File DNA did not match the uploaded source bytes.');
           }
-          const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
+          const { error: dnaError } = await db.from('vyral_dna_records').insert({
             id: fileDna.record.record_id,
             vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
             schema_version: 1, dna_status: 'evolving', source_kind: 'system',
