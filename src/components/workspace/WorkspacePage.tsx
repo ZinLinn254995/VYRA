@@ -5,7 +5,7 @@ import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
-import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
+import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
@@ -129,7 +129,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     try {
       const suggestion = await requestStoryboardSuggestion(title, topic);
       if (suggestion) {
-        setCachedStoryboardSuggestion({ key: storyboardSuggestionKey(title, topic, detailOrigins), suggestion });
+        setCachedStoryboardSuggestion({ key: workspaceStoryboardSuggestionKey(title, topic, detailOrigins), suggestion });
         applyStoryboardSuggestionToForm(suggestion);
       }
     } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
@@ -235,7 +235,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     // Generate fresh defaults only when the idea changed since the last suggestion.
     if (nextTitle || nextTopic) {
       try {
-        const key = storyboardSuggestionKey(nextTitle, nextTopic, nextOrigins);
+        const key = workspaceStoryboardSuggestionKey(nextTitle, nextTopic, nextOrigins);
         const suggestion = cachedStoryboardSuggestion?.key === key
           ? cachedStoryboardSuggestion.suggestion
           : await requestStoryboardSuggestion(nextTitle, nextTopic, true);
