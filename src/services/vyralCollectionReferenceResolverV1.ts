@@ -419,9 +419,6 @@ export const retrievePublicVyralAssetFileDnaV1 = async (
   const identityRecord = validateVyralFileDnaV1Record(assetDna.record);
   if (identityRecord.source.asset_id !== assetReference.assetId ||
       identityRecord.source.asset_version_id !== assetReference.assetVersionId ||
-      identityRecord.reconstruction.claim !== 'unavailable' ||
-      identityRecord.reconstruction.payload_encoding !== 'none' ||
-      identityRecord.reconstruction.chunks.length !== 0 ||
       typeof asset.sha256 !== 'string' ||
       identityRecord.file.sha256.toLowerCase() !== asset.sha256.toLowerCase() ||
       identityRecord.file.size_bytes !== Number(asset.sizeBytes) ||
@@ -447,6 +444,69 @@ export const retrievePublicVyralAssetFileDnaV1 = async (
   if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0 || expectedSize > 100 * 1024 * 1024) {
     throw new Error('The requested File DNA source exceeds the 100 MB reconstruction limit.');
   }
+
+  if (identityRecord.reconstruction.claim === 'source_file_exact' &&
+      identityRecord.reconstruction.payload_encoding === 'raw-chunks-v1') {
+    const chunkReferences = assetDna.reconstructionChunks;
+    if (!Array.isArray(chunkReferences) || chunkReferences.length !== identityRecord.reconstruction.chunks.length ||
+        chunkReferences.length === 0 || chunkReferences.length > 100) {
+      throw new Error('The source did not return the complete persisted File DNA chunk inventory.');
+    }
+    const files = new Map<string, Uint8Array>();
+    for (let index = 0; index < identityRecord.reconstruction.chunks.length; index += 1) {
+      const declared = identityRecord.reconstruction.chunks[index];
+      const referenceChunk = record(chunkReferences[index]);
+      if (referenceChunk.packagePath !== declared.package_path ||
+          Number(referenceChunk.byteLength) !== declared.byte_length ||
+          String(referenceChunk.sha256 ?? '').toLowerCase() !== declared.sha256.toLowerCase() ||
+          typeof referenceChunk.signedUrl !== 'string') {
+        throw new Error('A persisted File DNA chunk reference does not match its DNA record.');
+      }
+      let chunkUrl: URL;
+      try { chunkUrl = new URL(referenceChunk.signedUrl); }
+      catch { throw new Error('The source returned an invalid File DNA chunk authorization.'); }
+      if (chunkUrl.protocol !== 'https:' || chunkUrl.hostname !== resolver.hostname ||
+          chunkUrl.username || chunkUrl.password || chunkUrl.hash ||
+          !chunkUrl.pathname.startsWith('/storage/v1/object/sign/vyral-assets/')) {
+        throw new Error('A File DNA chunk authorization points outside trusted VYRA storage.');
+      }
+      const chunkResponse = await fetch(chunkUrl, {
+        method: 'GET', cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer',
+      });
+      if (!chunkResponse.ok) throw new Error('A persisted File DNA chunk could not be downloaded.');
+      const chunkBytes = new Uint8Array(await chunkResponse.arrayBuffer());
+      if (chunkBytes.byteLength !== declared.byte_length ||
+          await sha256(chunkBytes) !== declared.sha256.toLowerCase()) {
+        throw new Error('A persisted File DNA chunk failed its exact byte-length or SHA-256 check.');
+      }
+      files.set(declared.package_path, chunkBytes);
+    }
+    const rebuiltBytes = await reconstructVyralFileDnaV1(identityRecord, files);
+    if (rebuiltBytes.byteLength !== expectedSize ||
+        await sha256(rebuiltBytes) !== identityRecord.file.sha256.toLowerCase()) {
+      throw new Error('Persisted File DNA chunks failed the aggregate original-file SHA-256 check.');
+    }
+    return {
+      asset: {
+        id: String(asset.id), versionId: String(asset.versionId),
+        name: typeof asset.name === 'string' ? asset.name : 'Public Asset',
+        mimeType: String(asset.mimeType ?? assetReference.mediaType),
+        sizeBytes: expectedSize, sha256: identityRecord.file.sha256,
+      },
+      record: identityRecord,
+      payloadEntries: identityRecord.reconstruction.chunks.map((chunk) => ({
+        path: chunk.package_path,
+        data: files.get(chunk.package_path)!,
+      })),
+    };
+  }
+
+  if (identityRecord.reconstruction.claim !== 'unavailable' ||
+      identityRecord.reconstruction.payload_encoding !== 'none' ||
+      identityRecord.reconstruction.chunks.length !== 0) {
+    throw new Error('The File DNA reconstruction declaration is inconsistent.');
+  }
+
   const download = await fetch(signed, {
     method: 'GET',
     cache: 'no-store',
