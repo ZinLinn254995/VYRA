@@ -8,7 +8,8 @@ import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: { provider: string; model: string; generatedAt: string } } };
+type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
 type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
@@ -229,7 +230,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     let nextMood = mood.trim();
     let nextTags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
     const nextOrigins = { ...detailOrigins };
-    let aiProvenance: Storyboard['details'] extends infer T ? T extends { ai_provenance?: infer P } ? P : never : never;
+    let aiProvenance: StoryboardAiProvenance | undefined;
     // Reuse a just-reviewed suggestion instead of charging for a duplicate AI request.
     // Generate fresh defaults only when the idea changed since the last suggestion.
     if (nextTitle || nextTopic) {
