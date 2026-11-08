@@ -44,6 +44,14 @@ test('validates the required System File inventory and detects package tampering
  await verifyVyralSystemFileIntegrityV1(map);
  map.set('assets/asset-1/source.png',new Uint8Array([9,9,9]));
  await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(map),/SHA-256 verification failed/);
+ const tamperedSystem=new Map(map);
+ tamperedSystem.set('system/identity.json',new TextEncoder().encode('{"tampered":true}'));
+ await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(tamperedSystem),/SHA-256 verification failed/);
+ const alteredIndex=new Map(map);
+ const index=JSON.parse(new TextDecoder().decode(alteredIndex.get('system/system-files.json')!));
+ index.deletion_policy.individual_system_file_deletion='allowed';
+ alteredIndex.set('system/system-files.json',new TextEncoder().encode(JSON.stringify(index)));
+ await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(alteredIndex),/deletion policy/);
 });
 
 test('component-selected .vyral exports include protected System Files and pass import validation',async()=>{
