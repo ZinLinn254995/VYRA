@@ -45,6 +45,8 @@ const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [category, setCategory] = useState('');
@@ -109,6 +111,16 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
   }, [storageKey, storyboards]);
 
+  const openStoryboardEditor = (item: Storyboard) => { setEditingStoryboardId(item.id); setEditDraft({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); };
+  const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editDraft || !editingStoryboardId) return;
+    const now = new Date().toISOString();
+    const updated: Storyboard = { ...editDraft, title: editDraft.title.trim() || editDraft.topic.trim().slice(0, 100) || 'Untitled Storyboard', topic: editDraft.topic.trim(), updatedAt: now, details: { ...editDraft.details, tags: (editDraft.details?.tags || []).map((tag) => tag.trim()).filter(Boolean) } };
+    setStoryboards((current) => current.map((item) => item.id === editingStoryboardId ? updated : item));
+    setEditingStoryboardId(null); setEditDraft(null);
+  };
+
   const createStoryboard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const cleanTitle = title.trim() || topic.trim().slice(0, 100) || 'Untitled Storyboard';
@@ -161,7 +173,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               <div className="p-4">
                 <h2 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.title}</h2>
                 {item.topic && <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--vyra-text-secondary)]">{item.topic}</p>}
+                {item.details?.category && <p className="mt-2 text-[11px] text-[var(--vyra-text-secondary)]">{item.details.category}{item.details.style ? ' · ' + item.details.style : ''}</p>}
+                {item.details?.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.details.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] text-[var(--vyra-text-secondary)]">{tag}</span>)}</div> : null}
                 <p className="mt-3 text-[10px] text-[var(--vyra-text-muted)]">Updated {new Date(item.updatedAt).toLocaleDateString()}</p>
+                <button type="button" onClick={() => openStoryboardEditor(item)} className="mt-3 min-h-9 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] transition hover:bg-[var(--vyra-bg-hover)]">Edit details</button>
               </div>
             </Card>
           ))}
@@ -172,6 +187,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No storyboards yet</h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
         </section>
+      )}
+
+      {editDraft && editingStoryboardId && (
+        <div role="presentation" className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditingStoryboardId(null); setEditDraft(null); } }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-storyboard-title" className="my-auto w-full max-w-lg rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)] sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3"><h2 id="edit-storyboard-title" className="text-xl font-bold text-[var(--vyra-text-primary)]">Edit Storyboard Details</h2><button type="button" onClick={() => { setEditingStoryboardId(null); setEditDraft(null); }} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button></div>
+            <form onSubmit={saveStoryboardEdits} className="space-y-3">
+              <div><label className="mb-1 block text-xs font-semibold text-[var(--vyra-text-primary)]">Name</label><input maxLength={100} value={editDraft.title} onChange={(event) => setEditDraft((current) => current ? { ...current, title: event.target.value } : current)} className={inputClass} /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-[var(--vyra-text-primary)]">Description</label><textarea rows={3} maxLength={500} value={editDraft.topic} onChange={(event) => setEditDraft((current) => current ? { ...current, topic: event.target.value } : current)} className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} /></div>
+              {(['category', 'style', 'mood'] as const).map((key) => <div key={key}><label className="mb-1 block text-xs font-semibold capitalize text-[var(--vyra-text-primary)]">{key === 'style' ? 'Visual style' : key}</label><input value={editDraft.details?.[key] || ''} onChange={(event) => setEditDraft((current) => current ? { ...current, details: { ...current.details, [key]: event.target.value, origins: { ...current.details?.origins, [key]: 'creator_edited' } } } : current)} className={inputClass} /></div>)}
+              <div><label className="mb-1 block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input value={(editDraft.details?.tags || []).join(', ')} onChange={(event) => setEditDraft((current) => current ? { ...current, details: { ...current.details, tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean), origins: { ...current.details?.origins, tags: 'creator_edited' } } } : current)} className={inputClass} placeholder="Separate tags with commas" /></div>
+              <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" onClick={() => { setEditingStoryboardId(null); setEditDraft(null); }}>Cancel</Button><Button type="submit">Save details</Button></div>
+            </form>
+          </section>
+        </div>
       )}
 
       {createOpen && (
