@@ -108,6 +108,7 @@ const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeB
   return resolved;
 };
 
+/** Shared thresholds belong to the higher grade: all upper bounds are exclusive except S. */
 const gradeFor = (score: number, bands: ReturnType<typeof resolveAndValidateGradeBands>): VyralQualityGrade => {
   for (const grade of GRADE_ORDER) {
     const band = bands[grade];
