@@ -139,13 +139,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }, [storageKey, loadedStorageKey, storyboards]);
 
   const persistStoryboard = async (item: Storyboard) => {
-    if (!isAuthenticated || !supabase || !isPersistableStoryboardId(item.id)) return;
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const client = supabase;
+    if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id)) return;
+    const { data: authData, error: authError } = await client.auth.getUser();
     if (authError || !authData.user) {
       setCloudSyncMessage('Could not sync this Storyboard. Sign in again to retry.');
       return;
     }
-    const { error: saveError } = await supabase.from('vyral_storyboards').upsert({
+    const { error: saveError } = await client.from('vyral_storyboards').upsert({
       id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
       details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
     }, { onConflict: 'id' });
@@ -154,16 +155,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   useEffect(() => {
     let cancelled = false;
-    if (!isAuthenticated || !supabase || loadedStorageKey !== storageKey) return;
+    const client = supabase;
+    if (!isAuthenticated || !client || loadedStorageKey !== storageKey) return;
     const syncStoryboards = async () => {
       setCloudSyncMessage('Syncing your Storyboards…');
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await client.auth.getUser();
       if (cancelled) return;
       if (authError || !authData.user) {
         setCloudSyncMessage('Sign in again to sync your Storyboards.');
         return;
       }
-      const { data, error: loadError } = await supabase.from('vyral_storyboards')
+      const { data, error: loadError } = await client.from('vyral_storyboards')
         .select('id,title,topic,details,created_at,updated_at')
         .eq('user_id', authData.user.id).order('updated_at', { ascending: false });
       if (cancelled) return;
@@ -177,8 +179,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         createdAt: row.created_at as string, updatedAt: row.updated_at as string,
       }));
       const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
+      let syncFailed = false;
       if (pending.length) {
-        const { error: uploadError } = await supabase.from('vyral_storyboards').upsert(pending.map((item) => ({
+        const { error: uploadError } = await client.from('vyral_storyboards').upsert(pending.map((item) => ({
           id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
           details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
         })), { onConflict: 'id' });
