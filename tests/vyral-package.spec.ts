@@ -439,6 +439,8 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   // bytes and creates a fresh file map with no source asset or shared state.
   const files = await readVyralZip(archiveBytes.slice());
   const parsed = parseVyralManifest(files);
+  assert.equal(parsed.systemFiles?.length, 13);
+  await verifyVyralSystemFileIntegrityV1(files);
   const packageWithHiddenSource = new Map(files);
   packageWithHiddenSource.set('assets/asset-test/versions/hidden-original.png', new Uint8Array([1, 2, 3]));
   assert.throws(() => parseVyralManifest(packageWithHiddenSource), /DNA-only package contains an undeclared file/);
