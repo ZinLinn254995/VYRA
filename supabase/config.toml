@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.extract-vyral-asset-dna-v3]
 verify_jwt = true
 
+[functions.assess-vyral-asset-dna]
+verify_jwt = true
+
 [functions.verify-origin-01-dna-v3]
 verify_jwt = true
 
