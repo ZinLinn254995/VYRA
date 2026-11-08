@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
-import { getCurrentAccessToken } from '../../context/AuthContext';
+import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
@@ -56,6 +56,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [detailOrigins, setDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_edited'>>({});
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
+  const [cloudSyncMessage, setCloudSyncMessage] = useState('');
+  const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
   const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
     if (key === 'title') setTitle(value);
     else if (key === 'topic') setTopic(value);
@@ -106,10 +108,82 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
 
-  useEffect(() => { setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards)); }, [storageKey, seedDemoStoryboards]);
   useEffect(() => {
+    setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
+    setLoadedStorageKey(storageKey);
+  }, [storageKey, seedDemoStoryboards]);
+  useEffect(() => {
+    if (loadedStorageKey !== storageKey) return;
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
-  }, [storageKey, storyboards]);
+  }, [storageKey, loadedStorageKey, storyboards]);
+
+  const persistStoryboard = async (item: Storyboard) => {
+    if (!isAuthenticated || !supabase) return;
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      setCloudSyncMessage('Could not sync this Storyboard. Sign in again to retry.');
+      return;
+    }
+    const { error: saveError } = await supabase.from('vyral_storyboards').upsert({
+      id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
+      details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
+    }, { onConflict: 'id' });
+    setCloudSyncMessage(saveError ? 'Cloud sync is unavailable. This Storyboard is saved on this device.' : '');
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated || !supabase || loadedStorageKey !== storageKey) return;
+    const syncStoryboards = async () => {
+      setCloudSyncMessage('Syncing your Storyboards…');
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (authError || !authData.user) {
+        setCloudSyncMessage('Sign in again to sync your Storyboards.');
+        return;
+      }
+      const { data, error: loadError } = await supabase.from('vyral_storyboards')
+        .select('id,title,topic,details,created_at,updated_at')
+        .eq('user_id', authData.user.id).order('updated_at', { ascending: false });
+      if (cancelled) return;
+      if (loadError) {
+        setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
+        return;
+      }
+      const remote = (data ?? []).map((row) => ({
+        id: row.id as string, title: row.title as string, topic: row.topic as string,
+        details: (row.details ?? {}) as Storyboard['details'],
+        createdAt: row.created_at as string, updatedAt: row.updated_at as string,
+      }));
+      const remoteById = new Map(remote.map((item) => [item.id, item]));
+      const merged = new Map(remote.map((item) => [item.id, item]));
+      const pending: Storyboard[] = [];
+      for (const item of readStoryboards(storageKey)) {
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.id)) {
+          merged.set(item.id, item);
+          continue;
+        }
+        const saved = remoteById.get(item.id);
+        if (!saved || Date.parse(item.updatedAt) > Date.parse(saved.updatedAt)) {
+          merged.set(item.id, item);
+          pending.push(item);
+        }
+      }
+      if (pending.length) {
+        const { error: uploadError } = await supabase.from('vyral_storyboards').upsert(pending.map((item) => ({
+          id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
+          details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
+        })), { onConflict: 'id' });
+        if (cancelled) return;
+        if (uploadError) setCloudSyncMessage('Some Storyboards could not sync. Your device copy is still available.');
+      }
+      if (cancelled) return;
+      setStoryboards(Array.from(merged.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      setCloudSyncMessage('');
+    };
+    void syncStoryboards();
+    return () => { cancelled = true; };
+  }, [storageKey, isAuthenticated, loadedStorageKey]);
 
   const openStoryboardEditor = (item: Storyboard) => { setEditingStoryboardId(item.id); setEditDraft({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); };
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
@@ -118,6 +192,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const now = new Date().toISOString();
     const updated: Storyboard = { ...editDraft, title: editDraft.title.trim() || editDraft.topic.trim().slice(0, 100) || 'Untitled Storyboard', topic: editDraft.topic.trim(), updatedAt: now, details: { ...editDraft.details, tags: (editDraft.details?.tags || []).map((tag) => tag.trim()).filter(Boolean) } };
     setStoryboards((current) => current.map((item) => item.id === editingStoryboardId ? updated : item));
+    void persistStoryboard(updated);
     setEditingStoryboardId(null); setEditDraft(null);
   };
 
@@ -132,6 +207,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       details: { category: category.trim(), style: style.trim(), mood: mood.trim(), tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean), origins: detailOrigins },
     };
     setStoryboards((current) => [next, ...current]);
+    void persistStoryboard(next);
     setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setSuggestionError(''); setCreateOpen(false);
   };
 
@@ -161,6 +237,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         <div className="min-w-0">
           <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
+        {cloudSyncMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{cloudSyncMessage}</p>}
         </div>
         <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
       </section>
@@ -218,17 +295,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               <form onSubmit={createStoryboard} className="space-y-4">
                 <div className="min-w-0 space-y-2.5">
                   <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="font-normal text-[var(--vyra-text-muted)]">(optional — AI can suggest one)</span></label>
-                  <input id="vyra-storyboard-name" type="text" maxLength={100} value={title} onChange={(event) => updateDetail('title', event.target.value)} placeholder="e.g. The Last City" className={inputClass} />
+                  <input id="vyra-storyboard-name" type="text" maxLength={100} value={title} onChange={(event) => updateDetail('title', event.target.value)} placeholder="e.g. The Last City" disabled={isSuggesting} className={inputClass} />
                 </div>
                 <div className="min-w-0 space-y-2.5">
                   <label htmlFor="vyra-storyboard-description" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label>
-                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => updateDetail('topic', event.target.value)} placeholder="Describe your idea (optional)" className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
+                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => updateDetail('topic', event.target.value)} placeholder="Describe your idea (optional)" disabled={isSuggesting} className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-category" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Category</label><input id="vyra-storyboard-category" value={category} onChange={(event) => updateDetail('category', event.target.value)} placeholder="Suggested automatically" className={inputClass} /></div>
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-style" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Visual style</label><input id="vyra-storyboard-style" value={style} onChange={(event) => updateDetail('style', event.target.value)} placeholder="e.g. cinematic, documentary" className={inputClass} /></div>
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-mood" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Mood</label><input id="vyra-storyboard-mood" value={mood} onChange={(event) => updateDetail('mood', event.target.value)} placeholder="Suggested automatically" className={inputClass} /></div>
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-tags" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input id="vyra-storyboard-tags" value={tags} onChange={(event) => updateDetail('tags', event.target.value)} placeholder="Comma-separated" className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-category" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Category</label><input id="vyra-storyboard-category" value={category} onChange={(event) => updateDetail('category', event.target.value)} placeholder="Suggested automatically" disabled={isSuggesting} className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-style" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Visual style</label><input id="vyra-storyboard-style" value={style} onChange={(event) => updateDetail('style', event.target.value)} placeholder="e.g. cinematic, documentary" disabled={isSuggesting} className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-mood" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Mood</label><input id="vyra-storyboard-mood" value={mood} onChange={(event) => updateDetail('mood', event.target.value)} placeholder="Suggested automatically" disabled={isSuggesting} className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-tags" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input id="vyra-storyboard-tags" value={tags} onChange={(event) => updateDetail('tags', event.target.value)} placeholder="Comma-separated" disabled={isSuggesting} className={inputClass} /></div>
                 </div>
                 {suggestionError && <p role="alert" className="text-xs text-[var(--vyra-danger)]">{suggestionError}</p>}
                 <div className="flex flex-wrap justify-between gap-2 pt-2">
