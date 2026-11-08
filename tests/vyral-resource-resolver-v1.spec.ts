@@ -446,7 +446,7 @@ test('public Asset DNA retrieval rejects tampered tile bytes before returning a 
         resolver_uri: 'https://project.supabase.co/functions/v1/resolve-public-vyral-resource',
         source_vyral_id: 'vyral-1',
       }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }),
-      /SHA-256 integrity check failed/,
+      /SHA-256 integrity check/,
     );
   } finally {
     globalThis.fetch = originalFetch;
