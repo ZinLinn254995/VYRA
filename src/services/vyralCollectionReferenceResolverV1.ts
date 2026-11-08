@@ -3,6 +3,7 @@ import {
   isSafePublicVyralResolverUriV1,
 } from './vyralResourceResolverV1';
 import { reconstructVyralDnaV3, validateVyralDnaV3Record, type VyralDnaV3Record, type VyralDnaV3PackageEntry } from './vyralDnaV3';
+import { createVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1';
 
 type JsonRecord = Record<string, unknown>;
 
