@@ -40,7 +40,7 @@ const asset = (id: string, asset_type: string | undefined, media_type: string) =
 });
 
 test('evaluates a mixed collection against the exact Master DNA snapshot and pins standard version', async () => {
-  const result = evaluateVyralSnapshotQualityV1({
+  const result = await evaluateVyralSnapshotQualityV1({
     masterDna: await masterDna([asset('audio-1', 'audio', 'audio/wav'), asset('image-1', 'image', 'image/png')]),
     profile,
     evidenceFindings: [
@@ -59,7 +59,7 @@ test('evaluates a mixed collection against the exact Master DNA snapshot and pin
 });
 
 test('marks unrelated scoped rules N/A for a known audio-only collection', async () => {
-  const result = evaluateVyralSnapshotQualityV1({
+  const result = await evaluateVyralSnapshotQualityV1({
     masterDna: await masterDna([asset('audio-1', 'audio', 'audio/wav')]),
     profile,
     evidenceFindings: [
@@ -74,7 +74,7 @@ test('marks unrelated scoped rules N/A for a known audio-only collection', async
 });
 
 test('unknown asset classification keeps type-scoped rules applicable instead of silently N/A', async () => {
-  const result = evaluateVyralSnapshotQualityV1({
+  const result = await evaluateVyralSnapshotQualityV1({
     masterDna: await masterDna([asset('opaque-1', undefined, 'application/octet-stream')]),
     profile,
     evidenceFindings: [
