@@ -13,7 +13,7 @@ import {
   createPublicVyralMasterDnaProjectionV1,
   canonicalizeVyralPublicProjectionV1,
 } from '../src/services/vyralResourceResolverV1.ts';
-import { verifyPublicVyralCollectionReferenceV1 } from '../src/services/vyralCollectionReferenceResolverV1.ts';
+import { verifyPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1 } from '../src/services/vyralCollectionReferenceResolverV1.ts';
 
 const ownerPrefix = 'owner-1/vyral-1/asset-1/';
 const digest = 'a'.repeat(64);
@@ -296,4 +296,60 @@ test('live public collection reference verification pins identity, revision, pro
     }),
     /Asset inventory differs/,
   );
+});
+
+
+test('public source Asset copy requires exact identity and verifies downloaded bytes before returning a File', async () => {
+  const bytes = new Uint8Array([0, 1, 2, 3, 254, 255]);
+  const sourceSha256 = createHash('sha256').update(bytes).digest('hex');
+  const calls: Array<{ url: string; method: string }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    calls.push({ url, method });
+    if (method === 'POST') {
+      return new Response(JSON.stringify({
+        status: 'resolved',
+        access: 'public',
+        asset: {
+          id: 'asset-1', name: 'original.bin', versionId: 'version-1',
+          mimeType: 'application/octet-stream', sizeBytes: bytes.byteLength, sha256: sourceSha256,
+        },
+        source: { signedUrl: 'https://project.supabase.co/storage/v1/object/sign/private/source.bin' },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(bytes, { status: 200, headers: { 'Content-Length': String(bytes.byteLength) } });
+  }) as typeof fetch;
+  try {
+    const file = await downloadPublicVyralCollectionAssetV1({
+      resolver_uri: 'https://project.supabase.co/functions/v1/resolve-public-vyral-resource',
+      source_vyral_id: 'vyral-1',
+    }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'application/octet-stream' });
+    assert.equal(file.name, 'original.bin');
+    assert.equal(file.size, bytes.byteLength);
+    assert.equal(file.type, 'application/octet-stream');
+    assert.deepEqual(new Uint8Array(await file.arrayBuffer()), bytes);
+    assert.deepEqual(calls.map((call) => call.method), ['POST', 'GET']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('public source Asset copy rejects an authorization for a different Asset version', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    error: 'not allowed',
+  }), { status: 403, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  try {
+    await assert.rejects(
+      downloadPublicVyralCollectionAssetV1({
+        resolver_uri: 'https://project.supabase.co/functions/v1/resolve-public-vyral-resource',
+        source_vyral_id: 'vyral-1',
+      }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }),
+      /not allowed/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
