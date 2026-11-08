@@ -714,6 +714,8 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   const compactOnlyFiles = await readVyralZip(compactOnlyArchive);
   const compactOnlyManifest = parseVyralManifest(compactOnlyFiles);
   assert.equal(compactOnlyManifest.exportMode, 'compact-only');
+  assert.equal(compactOnlyManifest.assets.length, 0);
+  assert.equal(compactOnlyManifest.folders.length, 0);
   assert.equal(compactOnlyManifest.versions.length, 0);
   assert.equal(compactOnlyManifest.dnaRecords.length, 0);
   assert.ok(compactOnlyManifest.masterDna);
