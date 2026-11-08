@@ -109,6 +109,8 @@ Deno.serve(async (request: Request) => {
   const dnaRecordId = dnaRow.id;
   if (asset.vyral_id !== version.vyral_id || dnaRow.vyral_id !== asset.vyral_id ||
       asset.processing_status !== 'ready' || !SHA.test(String(version.sha256)) ||
+      String(asset.sha256 ?? '').toLowerCase() !== String(version.sha256).toLowerCase() ||
+      Number(asset.size_bytes) !== Number(version.size_bytes) ||
       !Number.isSafeInteger(Number(version.size_bytes)) || Number(version.size_bytes) <= 0) {
     return reply({ error: 'Asset, Version and DNA ownership or source metadata is inconsistent.' }, 409);
   }
