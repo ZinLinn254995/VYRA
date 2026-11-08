@@ -166,6 +166,14 @@ test('assigns exact score boundaries to one and only one grade', () => {
       version: 1,
       name: 'Boundary test',
       scope: 'general',
+      gradeBands: {
+        S: { min: 95, max: 100 },
+        A: { min: 90, max: 95 },
+        B: { min: 80, max: 90 },
+        C: { min: 70, max: 80 },
+        D: { min: 50, max: 70 },
+        F: { min: 0, max: 50 },
+      },
       rules: [
         { id: 'score.earned', title: 'Earned points', category: 'universal', evidenceClass: 'deterministic', weight: score, required: true },
         { id: 'score.unearned', title: 'Unearned points', category: 'universal', evidenceClass: 'deterministic', weight: 100 - score, required: true },
