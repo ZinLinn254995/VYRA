@@ -321,3 +321,41 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Whenever the creator selects the Compact DNA component in a `.vyral` export, VYRA creates a separately re-hashed compact Master DNA projection. It retains stable collection/Asset/version identity, DNA record references, fingerprints, and reconstruction claims while omitting creator purpose, relationship rationales, Asset names/types/roles/purposes, provenance identities, internal notes, and storage/package prefixes.
 - The selected Full DNA component remains independent. Selecting Full DNA does not silently add descriptive collection metadata to the Compact DNA component; selecting Assets includes the separately selected source Asset metadata and binaries.
 - The seven supported component combinations must each be tested for exact component presence and absence, and every combination containing Compact DNA must pass the compact-projection privacy assertions.
+
+## 17. Compact-only import as a collection reference
+
+A Compact-only package is importable as a **reference record**, not as a restored Asset collection. Importing it must never create placeholder Assets, fake source files, fabricated Asset Versions, or unverified local DNA records.
+
+### Destination and ownership
+
+- The user must be authenticated and must explicitly choose an existing destination Vyral they own.
+- Store the imported reference as a separate collection-reference record associated with that destination Vyral. It is not an Asset and must not be counted as an Asset, media file, or restorable item.
+- The record is owned by the importing user and protected by owner-scoped row-level security. The source Vyral ID is an external identity only; it must never be treated as a local Vyral foreign key or as proof of source ownership.
+- Re-importing the same source Vyral revision into the same destination should be idempotent. A later source revision is a separate immutable reference revision; it must not silently overwrite the earlier imported snapshot.
+
+### Validation before persistence
+
+- Parse and validate the .vyral archive and its compact Master DNA schema before asking for confirmation or writing anything.
+- Require the compact export profile, no original Asset rows, no Asset Versions, no full DNA records, and no hidden reconstruction payloads. Reject mixed or malformed packages rather than attempting a partial restore.
+- Recompute the compact projection's canonical integrity digest locally. Do not trust a digest merely because it is present in the package.
+- Validate unique Asset IDs, Asset Version IDs, DNA references, media types, fingerprints, reconstruction claims, and the collection identity. Do not infer missing source data.
+- Accept a resolver URI only when it passes the strict HTTPS canonical resolver allow-list. Never accept arbitrary URLs, credentials, tokens, or user-provided storage paths from the package.
+
+### Retrieval and lifecycle
+
+- A compact reference is descriptive identity data only. It does not grant access to original media or full reconstruction payloads.
+- Remote retrieval is available only when the imported projection explicitly carries an allowed public resolver and the source endpoint independently confirms current visibility, revision, membership, and license permissions. Import-time validation is not authorization for later retrieval.
+- If no supported resolver is present, retain the reference without remote retrieval. Do not label it as restored, recovered, verified, or locally available.
+- Source deletion, privacy changes, permission changes, or a newer source revision must be reflected by the resolver at retrieval time. A previously imported reference must not bypass those checks.
+- Deleting the destination reference must not delete or mutate any source Vyral or Asset.
+- Reference records must remain separate from the destination Vyral's own Master DNA inventory. They must not cause the destination's Master DNA to claim ownership of the referenced source Assets.
+
+### Acceptance tests
+
+1. A valid compact-only package imports as one reference record into the selected destination.
+2. No Asset, Asset Version, storage object, full DNA record, or fake Fingerprint is created by that import.
+3. Invalid schema, altered projection digest, duplicate inventory IDs, unsafe resolver URI, or mixed full/compact payload is rejected before persistence.
+4. Re-import of the same source revision is idempotent; a newer revision is preserved separately.
+5. The importing user can read and delete only their own destination reference records.
+6. A reference with no resolver remains non-retrievable; a public resolver is re-authorized on every retrieval.
+7. Destination Master DNA excludes external reference inventory unless a future, explicitly versioned schema adds a safe reference-link type.
