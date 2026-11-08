@@ -16,6 +16,7 @@ export type VyralQualityRuleStatus =
 export type VyralQualityGrade = 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
 
 export type VyralQualityEvidenceKeyV1 =
+  | 'snapshot.integrity'
   | 'fingerprint.cryptographic'
   | 'reconstruction.byte_exact'
   | 'reconstruction.decoded_exact'
