@@ -220,6 +220,7 @@ Deno.serve(async (request: Request) => {
     const chunkMetadata: Array<Record<string, unknown>> = [];
     const chunkStoragePaths: string[] = [];
     const uploadedPaths: string[] = [];
+    let dnaRecordUpdated = false;
     const storage = context.supabaseAdmin.storage.from(BUCKET);
     const prefix = userId + '/' + asset.vyral_id + '/' + asset.id + '/dna/file/v1/' + recordId + '/chunks/';
     try {
@@ -294,6 +295,7 @@ Deno.serve(async (request: Request) => {
         .eq('asset_id', asset.id)
         .eq('user_id', userId);
       if (dnaUpdateError) throw new Error('Exact File DNA was reconstructed but its verified payload could not be saved.');
+      dnaRecordUpdated = true;
 
       const { data: existingExactTest, error: exactTestLookupError } = await context.supabaseAdmin
         .from('vyral_reconstruction_tests')
@@ -346,7 +348,7 @@ Deno.serve(async (request: Request) => {
       }
       sourceFileReconstruction = 'byte_exact';
     } catch (error) {
-      if (uploadedPaths.length) await storage.remove(uploadedPaths);
+      if (!dnaRecordUpdated && uploadedPaths.length) await storage.remove(uploadedPaths);
       return json({
         error: error instanceof Error ? error.message : 'File DNA exact reconstruction failed.',
         status: 'file_dna_verification_failed',
