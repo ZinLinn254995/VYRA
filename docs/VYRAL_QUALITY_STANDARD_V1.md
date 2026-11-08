@@ -84,3 +84,17 @@ The `get-vyral-quality-history` Edge Function:
 - Preserves each evaluation's pinned Master DNA revision, standard identity/version, engine version, grade/status and score
 
 No history is fabricated when no saved evaluations exist. History is read-only; this endpoint cannot create, alter, or delete evaluations. The AI Chat history request takes precedence over a generic quality-evaluation intent when both terms appear in one message.
+
+### Evidence-key trust-class compatibility
+
+The deterministic grading engine validates evidence-key mappings in the published profile before scoring. The only accepted mappings are:
+
+| Evidence key | Required evidence class |
+| --- | --- |
+| `snapshot.integrity` | `deterministic` |
+| `fingerprint.cryptographic` | `deterministic` |
+| `reconstruction.byte_exact` | `generation_test` |
+| `reconstruction.decoded_exact` | `generation_test` |
+| `vision.corroborated` | `ai_assessment` |
+
+Unknown keys or mismatched classes invalidate the standard. This prevents a profile from relabeling an AI observation as deterministic proof or treating a client-provided claim as a trusted evidence source. A rule without a supported evidence key remains unevaluated until a trusted adapter is implemented.
