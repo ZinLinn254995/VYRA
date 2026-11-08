@@ -306,3 +306,13 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 
 - Storyboard creation attempts to generate type-appropriate defaults from the creator's supplied title or idea. The creator explicitly approves any metered AI request; declining, missing AI configuration, or an AI failure never blocks manual Storyboard creation.
 - Creator-entered Storyboard fields are marked authoritative before the request begins and are never replaced by returned AI suggestions.
+
+
+## 16. Public compact Master DNA projection
+
+- A public Master DNA lookup must not return the complete creator-side snapshot verbatim. The canonical private revision may contain descriptive Asset names, creator purposes, roles, relationships, rationales, provenance references, and internal notes that are not required for portable collection identity.
+- The public resolver returns a separately canonicalized projection containing only the public Vyral identity, revision identity, stable Asset and Asset Version IDs, media types, DNA record references, Asset fingerprints, reconstruction claims, and the minimum retrieval policy fields.
+- The public projection omits descriptive Asset rows, Asset purpose/role, collection purpose, relationship graph and rationales, creator/provenance references, internal notes, and resolver implementation details.
+- The response includes a projection integrity digest and the source revision manifest digest as separate fields. The source digest identifies the canonical private revision; the projection digest verifies the exact public projection bytes. They are not interchangeable.
+- Public projection remains gated by Vyral visibility, every Asset's public visibility, and AI-analysis permissions. Selective Asset source retrieval separately requires redistribution permission.
+- Acceptance tests must prove that private creator-authored text and descriptive Asset metadata cannot appear in the public projection, while stable identity and exact version references remain available.
