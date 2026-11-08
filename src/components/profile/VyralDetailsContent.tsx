@@ -36,7 +36,7 @@ type ObservationRow = { id: string; asset_id: string; asset_version_id: string; 
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type MasterRelationshipRow = { id: string; relationship_type: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; rationale: string };
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
-type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
+type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; dna_record_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type CollectionReferenceRow = { id: string; source_vyral_id: string; source_revision: number; source_visibility: 'public' | 'private' | 'unlisted'; resolver_uri: string | null; projection_sha256: string; compact_snapshot: Record<string, unknown>; imported_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
@@ -317,8 +317,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       });
       if (!fileDna) continue;
       const alreadyPassed = testRowsForVerification.some((item) =>
-        item.asset_id === asset.id && item.asset_version_id === sourceVersion.id &&
-        item.id && item.comparison_mode === 'byte_exact' && item.test_status === 'passed' &&
+        item.asset_id === asset.id && item.asset_version_id === sourceVersion.id && item.dna_record_id === fileDna.id &&
+        item.comparison_mode === 'byte_exact' && item.test_status === 'passed' &&
         item.exact_match === true && item.model_id === 'universal-file-dna-v1-readback-verifier'
       );
       const attemptKey = asset.id + ':' + sourceVersion.id + ':' + fileDna.id;
