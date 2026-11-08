@@ -122,27 +122,27 @@ import { preflightVyralMasterDna } from '../src/services/vyralMasterDnaPreflight
 
 test('preflight accepts single and unrelated Assets without optional metadata', () => {
   assert.deepEqual(preflightVyralMasterDna({
-    assets: [{ asset_id: 'single', has_latest_version: true, has_matching_dna: true }],
+    assets: [{ asset_id: 'single', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true }],
   }), []);
   assert.deepEqual(preflightVyralMasterDna({
     assets: [
-      { asset_id: 'unrelated-a', has_latest_version: true, has_matching_dna: true },
-      { asset_id: 'unrelated-b', has_latest_version: true, has_matching_dna: true },
+      { asset_id: 'unrelated-a', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true },
+      { asset_id: 'unrelated-b', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true },
     ],
   }), []);
 });
 
 test('preflight blocks unsupported or version-mismatched DNA as incomplete Asset DNA', () => {
   assert.deepEqual(preflightVyralMasterDna({
-    assets: [{ asset_id: 'needs-supported-dna', has_latest_version: true, has_matching_dna: false }],
+    assets: [{ asset_id: 'needs-supported-dna', has_latest_version: true, has_matching_dna: false, has_exact_reconstruction: false }],
   }).map((item) => item.code), ['missing_asset_dna']);
 });
 
 test('preflight blocks only missing source versions or matching Asset DNA', () => {
   const blockers = preflightVyralMasterDna({
     assets: [
-      { asset_id: 'needs-version', has_latest_version: false, has_matching_dna: true },
-      { asset_id: 'needs-dna', has_latest_version: true, has_matching_dna: false },
+      { asset_id: 'needs-version', has_latest_version: false, has_matching_dna: true, has_exact_reconstruction: true },
+      { asset_id: 'needs-dna', has_latest_version: true, has_matching_dna: false, has_exact_reconstruction: false },
     ],
   });
   assert.deepEqual(blockers.map((item) => item.code), ['missing_asset_version', 'missing_asset_dna']);
@@ -179,4 +179,17 @@ test('publishes only a canonical public resolver URI and never exposes one for p
       retrieval_policy: 'authorized_selective_retrieval',
     },
   }), /A public resolver URI requires public visibility/);
+});
+
+
+test('preflight refuses to mark a Vyral ready until every Asset has exact reconstruction evidence', () => {
+  const blockers = preflightVyralMasterDna({
+    assets: [
+      { asset_id: 'verified', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true },
+      { asset_id: 'unverified', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: false },
+    ],
+  });
+  assert.deepEqual(blockers.map((item) => [item.code, item.asset_id]), [
+    ['reconstruction_not_verified', 'unverified'],
+  ]);
 });
