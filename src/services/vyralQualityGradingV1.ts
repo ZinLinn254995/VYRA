@@ -23,6 +23,11 @@ export type VyralQualityRule = {
   weight: number;
   required: boolean;
   hardGate?: boolean;
+  appliesTo?: {
+    assetTypes?: string[];
+    purposes?: string[];
+    workflowTypes?: string[];
+  };
 };
 
 export type VyralQualityRuleFinding = {
