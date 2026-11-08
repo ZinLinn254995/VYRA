@@ -49,7 +49,8 @@ test('AI details support Vyral and Storyboard scopes without mandatory fields', 
       scope, provider: 'gemini', model: 'text-model', generatedAt, suggestions: {},
     });
     assert.equal(details.scope, scope);
-    assert.deepEqual(details.fields, {});
+    assert.deepEqual(Object.keys(details.fields), []);
+    assert.equal(Object.getPrototypeOf(details.fields), null);
     assert.equal(details.stale, false);
   }
 });
