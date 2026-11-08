@@ -7,6 +7,8 @@ export {
   isPublicVyralAssetVisibilityAllowedV1,
   isPublicVyralMasterDnaSnapshotAllowedV1,
   isSafePublicVyralResolverUriV1,
+  createPublicVyralMasterDnaProjectionV1,
+  canonicalizeVyralPublicProjectionV1,
 } from '../../supabase/functions/_shared/vyralResourceResolverV1.ts';
 export type {
   VyralResolverSnapshotAssetV1,
