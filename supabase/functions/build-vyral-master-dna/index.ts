@@ -316,6 +316,10 @@ Deno.serve(async (request: Request) => {
             fileDna.file.mime_type !== String(version.mime_type || asset.mime_type).toLowerCase()) {
           throw new Error('Universal File DNA does not match the exact latest source version.');
         }
+        if (fileDna.reconstruction.claim !== 'source_file_exact' ||
+            fileDna.reconstruction.payload_encoding !== 'raw-chunks-v1') {
+          throw new Error('File DNA exact reconstruction is still being prepared; Master DNA cannot claim completion yet.');
+        }
         if (fileDna.reconstruction.claim === 'source_file_exact') {
           const chunkPaths = Array.isArray(payload.chunk_storage_paths) ? payload.chunk_storage_paths : [];
           const chunks = fileDna.reconstruction.chunks;
