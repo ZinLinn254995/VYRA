@@ -37,9 +37,8 @@ create index if not exists vyral_quality_evaluations_owner_history_idx
 create or replace function public.validate_vyral_quality_evaluation()
 returns trigger
 language plpgsql
-security definer
 set search_path = ''
-as $$
+as $
 declare
   source_revision integer;
   source_fingerprint text;
