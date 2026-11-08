@@ -278,6 +278,20 @@ def validate_manifest(manifest, archive_names, archive):
 
     counts = {}
     expected_paths = {"manifest.json", "README.txt", "AI_RECONSTRUCTION_GUIDE.md", "tools/reconstruct_vyral.py"}
+    reserved_system_paths = {
+        "system/identity.json",
+        "system/asset-index.json",
+        "system/asset-dna/index.json",
+        "system/master-dna.ref.json",
+        "system/fingerprints/index.json",
+        "system/provenance/index.json",
+        "system/relationships/index.json",
+        "system/classifications/index.json",
+        "system/creator-instructions/index.json",
+        "system/licensing.json",
+        "system/integrity.json",
+        "system/system-files.json",
+    }
     for entry in records:
         if not isinstance(entry, dict):
             raise ValueError("Package contains an invalid DNA record")
@@ -304,6 +318,8 @@ def validate_manifest(manifest, archive_names, archive):
                 path = tile.get("package_path")
                 if not isinstance(path, str) or path in expected_paths:
                     raise ValueError("Raster DNA contains an invalid or duplicate payload path")
+                if path in reserved_system_paths:
+                    raise ValueError("Raster DNA payload path collides with a protected System File")
                 expected_paths.add(path)
         elif schema == "vyra.asset-file-dna" and version == 1:
             if entry.get("recovery_level") != "source-file-exact":
@@ -323,6 +339,8 @@ def validate_manifest(manifest, archive_names, archive):
                 path = chunk.get("package_path")
                 if not isinstance(path, str) or path in expected_paths:
                     raise ValueError("File DNA contains an invalid or duplicate payload path")
+                if path in reserved_system_paths:
+                    raise ValueError("File DNA payload path collides with a protected System File")
                 expected_paths.add(path)
         else:
             raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
