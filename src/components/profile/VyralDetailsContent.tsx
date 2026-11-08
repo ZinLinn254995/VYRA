@@ -871,7 +871,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const manifestAssetIds = new Set(manifest.assets.map((asset) => String(asset.id)));
       if (!importAssets.length) {
         if (manifest.exportMode === 'compact-only' || (!manifest.exportComponents?.assets && manifest.exportComponents?.compactDna)) {
-          throw new Error('This is a collection-reference package. It contains the Vyral identity and compact reference data, but no original Assets to restore. Import it only when you want to keep the reference; choose an export that includes Assets or full rebuild data to restore files.');
+          throw new Error('This is a collection-reference-only package. It contains no original Assets or full per-Asset rebuild data, so it cannot be imported as a restorable Vyral yet. To restore the collection here, export it with Assets or full rebuild data included.');
         }
         throw new Error('This package contains no restorable Assets. The .vyral file used to open it was not duplicated.');
       }
