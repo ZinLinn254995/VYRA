@@ -87,14 +87,14 @@ Deno.serve(async (request: Request) => {
   }
 
   const assetResult = await context.supabaseAdmin.from('vyral_assets')
-    .select('id,vyral_id,user_id,sha256,size_bytes,processing_status')
+    .select('id,vyral_id,user_id,sha256,size_bytes,storage_path,processing_status')
     .eq('id', assetId).eq('user_id', userId).maybeSingle();
   if (assetResult.error) return reply({ error: 'Could not load the owner-scoped Asset.' }, 500);
   const asset = assetResult.data;
   if (!asset) return reply({ error: 'Asset was not found for this account.' }, 404);
   const [versionResult, dnaResult] = await Promise.all([
     context.supabaseAdmin.from('vyral_asset_versions')
-      .select('id,asset_id,vyral_id,user_id,sha256,size_bytes,version_number')
+      .select('id,asset_id,vyral_id,user_id,sha256,size_bytes,storage_path,version_number')
       .eq('asset_id', assetId).eq('user_id', userId)
       .order('version_number', { ascending: false }).limit(1).maybeSingle(),
     context.supabaseAdmin.from('vyral_dna_records')
@@ -115,6 +115,19 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'Asset, Version and DNA ownership or source metadata is inconsistent.' }, 409);
   }
 
+  const expectedSourcePrefix = userId + '/' + asset.vyral_id + '/' + assetId + '/v' + version.version_number + '/';
+  const sourcePath = String(version.storage_path ?? '');
+  let sourceFileIntegrityVerified = false;
+  if (sourcePath && sourcePath === String(asset.storage_path ?? '') &&
+      sourcePath.startsWith(expectedSourcePrefix) && !sourcePath.includes('..') &&
+      !sourcePath.startsWith('/') && !sourcePath.includes('\\\\')) {
+    const { data: sourceFile, error: sourceFileError } = await context.supabaseAdmin.storage.from(BUCKET).download(sourcePath);
+    if (!sourceFileError && sourceFile && sourceFile.size === Number(version.size_bytes)) {
+      const sourceBytes = new Uint8Array(await sourceFile.arrayBuffer());
+      sourceFileIntegrityVerified = sourceBytes.byteLength === Number(version.size_bytes) &&
+        await sha256(sourceBytes) === String(version.sha256).toLowerCase();
+    }
+  }
   const payload = isObject(dnaRow.payload) ? dnaRow.payload : {};
   const record = isObject(payload.dna_record) ? payload.dna_record : null;
   const fileSource = isObject(record?.source) ? record.source : {};
@@ -198,6 +211,7 @@ Deno.serve(async (request: Request) => {
     assetId, assetVersionId: versionId, sourceSha256: String(version.sha256).toLowerCase(),
     sourceSizeBytes: Number(version.size_bytes), dnaRecordId, dnaSchemaId: schemaId,
     dnaSchemaVersion: schemaVersion,
+    sourceFileIntegrityVerified,
     dnaSource: { assetId: sourceAssetId, assetVersionId: sourceVersionId, sha256: sourceSha, sizeBytes: sourceSize },
     structure: {
       schemaValid: Boolean(schemaValid),
