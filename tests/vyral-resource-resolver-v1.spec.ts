@@ -7,6 +7,7 @@ import {
   isVyralAssetDnaPinnedToVersionV1,
   isPublicVyralResourceAllowedV1,
   isPublicVyralAssetVisibilityAllowedV1,
+  isPublicVyralMasterDnaSnapshotAllowedV1,
   isSafePublicVyralResolverUriV1,
 } from '../src/services/vyralResourceResolverV1.ts';
 
@@ -94,6 +95,25 @@ test('public Asset resolution requires both collection and Asset visibility to b
   assert.equal(isPublicVyralAssetVisibilityAllowedV1('unlisted', 'public'), false);
   assert.equal(isPublicVyralAssetVisibilityAllowedV1('public', 'private'), false);
   assert.equal(isPublicVyralAssetVisibilityAllowedV1('public', undefined), false);
+});
+
+test('public Master DNA never exposes a mixed-visibility or AI-restricted Asset inventory', () => {
+  const publicAssets = [
+    { metadata: { visibility: 'public' }, license_override: { allow_ai_analysis: true } },
+    { metadata: { visibility: 'public' }, license_override: {} },
+  ];
+  assert.equal(isPublicVyralMasterDnaSnapshotAllowedV1('public', publicAssets), true);
+  assert.equal(isPublicVyralMasterDnaSnapshotAllowedV1('private', publicAssets), false);
+  assert.equal(isPublicVyralMasterDnaSnapshotAllowedV1('public', [
+    ...publicAssets, { metadata: { visibility: 'private' }, license_override: {} },
+  ]), false);
+  assert.equal(isPublicVyralMasterDnaSnapshotAllowedV1('public', [
+    ...publicAssets, { metadata: { visibility: 'public' }, license_override: { allow_ai_analysis: false } },
+  ]), false);
+  assert.equal(isPublicVyralMasterDnaSnapshotAllowedV1('public', [
+    ...publicAssets, { metadata: {}, license_override: {} },
+  ]), false);
+  assert.equal(isPublicVyralMasterDnaSnapshotAllowedV1('public', []), false);
 });
 
 test('public resource access follows Vyral visibility and creator AI/download permissions', () => {
