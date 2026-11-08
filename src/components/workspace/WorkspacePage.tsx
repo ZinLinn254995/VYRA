@@ -58,6 +58,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
+  const [storyboardAiMessage, setStoryboardAiMessage] = useState('');
   const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
   const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
     if (key === 'title') setTitle(value);
@@ -234,7 +235,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           if (suggestion.tags.length && nextOrigins.tags !== 'creator_edited') { nextTags = suggestion.tags; nextOrigins.tags = 'ai_suggested'; }
         }
       } catch (error) {
-        setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable. Your Storyboard will still be created.');
+        setStoryboardAiMessage('Storyboard saved. AI details could not be generated this time; you can edit them later.');
       }
     }
     const now = new Date().toISOString();
@@ -276,6 +277,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         <div className="min-w-0">
           <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
+        {storyboardAiMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
         {cloudSyncMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{cloudSyncMessage}</p>}
         </div>
         <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
@@ -349,7 +351,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 {suggestionError && <p role="alert" className="text-xs text-[var(--vyra-danger)]">{suggestionError}</p>}
                 <div className="flex flex-wrap justify-between gap-2 pt-2">
                   <Button type="button" variant="secondary" onClick={suggestStoryboardDetails} disabled={isSuggesting}>{isSuggesting ? 'Suggesting…' : '✦ Suggest with AI'}</Button>
-                  <div className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={!title.trim() && !topic.trim()}>Create Storyboard</Button></div>
+                  <div className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? "Preparing…" : "Create Storyboard"}</Button></div>
                 </div>
               </form>
             </div>
