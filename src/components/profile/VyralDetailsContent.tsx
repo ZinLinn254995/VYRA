@@ -870,7 +870,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const importAssetIds = new Set(importAssets.map((asset) => String(asset.id)));
       const manifestAssetIds = new Set(manifest.assets.map((asset) => String(asset.id)));
       if (!importAssets.length) {
-        throw new Error('This package contains no other Assets to import. The .vyral file used to open it was not duplicated.');
+        if (manifest.exportMode === 'compact-only' || (!manifest.exportComponents?.assets && manifest.exportComponents?.compactDna)) {
+          throw new Error('This is a collection-reference package. It contains the Vyral identity and compact reference data, but no original Assets to restore. Import it only when you want to keep the reference; choose an export that includes Assets or full rebuild data to restore files.');
+        }
+        throw new Error('This package contains no restorable Assets. The .vyral file used to open it was not duplicated.');
       }
       const importedMasterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
       if (importedMasterDna) {
