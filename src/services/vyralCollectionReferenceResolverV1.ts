@@ -25,10 +25,12 @@ const record = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
 
 const sha256 = async (value: string | ArrayBuffer | Uint8Array): Promise<string> => {
-  const input = typeof value === 'string'
+  const source = typeof value === 'string'
     ? new TextEncoder().encode(value)
-    : value instanceof Uint8Array ? value : value;
-  const digest = await crypto.subtle.digest('SHA-256', input);
+    : value instanceof Uint8Array ? value : new Uint8Array(value);
+  const input = new Uint8Array(source.byteLength);
+  input.set(source);
+  const digest = await crypto.subtle.digest('SHA-256', input.buffer);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
@@ -481,7 +483,7 @@ export const retrievePublicVyralAssetFileDnaV1 = async (
     source: identityRecord.source,
     bytes,
     mime_type: identityRecord.file.mime_type,
-    filename: asset.name,
+    filename: typeof asset.name === 'string' ? asset.name : null,
     include_payload: true,
     chunk_size: identityRecord.reconstruction.chunk_size ?? undefined,
   });
