@@ -54,6 +54,7 @@ create policy "vyral_collection_references_delete_own"
   on public.vyral_collection_references for delete to authenticated
   using (user_id = (select auth.uid()));
 
+revoke all on public.vyral_collection_references from anon, authenticated;
 grant select, insert, delete on public.vyral_collection_references to authenticated;
 
 comment on table public.vyral_collection_references is
