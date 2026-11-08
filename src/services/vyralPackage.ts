@@ -544,7 +544,7 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
   }
   if (manifest.exportMode === 'compact-only') {
     for (const path of files.keys()) {
-      if (path !== VYRAL_PACKAGE_MANIFEST && path !== 'README.txt' && path !== 'AI_RECONSTRUCTION_GUIDE.md') {
+      if (path !== VYRAL_PACKAGE_MANIFEST && path !== 'README.txt' && path !== 'AI_RECONSTRUCTION_GUIDE.md' && !path.startsWith('system/')) {
         throw new Error('Compact-only package contains an undeclared file: ' + path);
       }
     }
