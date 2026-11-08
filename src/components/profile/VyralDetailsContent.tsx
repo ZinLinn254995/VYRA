@@ -2700,6 +2700,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setBusy(false);
   };
 
+  const deleteCollectionReference = async (reference: CollectionReferenceRow) => {
+    if (!supabase || !window.confirm('Remove this collection reference from this Vyral? The source collection will not be changed.')) return;
+    setPackageBusy(true);
+    const { error: deleteError } = await supabase.from('vyral_collection_references')
+      .delete().eq('id', reference.id).eq('destination_vyral_id', vyral.id);
+    if (deleteError) setError(deleteError.message);
+    else await loadWorkspace();
+    setPackageBusy(false);
+  };
+
   const deleteFolder = async (folder: FolderRow) => {
     if (!supabase || !window.confirm('Delete folder "' + folder.name + '"? Files inside will move to the Vyral root.')) return;
     setBusy(true);
@@ -2754,6 +2764,22 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     <div className="space-y-5">
       {(packageBusy || busy) && <p className={'text-xs ' + muted} role="status">Please wait…</p>}
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">That action could not be completed. Please try again.</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
+      {collectionReferences.length > 0 && <section className={surface + ' space-y-3 p-3'}>
+        <div className="flex items-center justify-between gap-3">
+          <div><h3 className={'text-sm font-semibold ' + primary}>Collection references</h3><p className={'mt-1 text-[11px] ' + muted}>References are kept separate from this Vyral’s own Assets.</p></div>
+          <span className={'text-[10px] ' + muted}>{collectionReferences.length}</span>
+        </div>
+        <div className="space-y-2">
+          {collectionReferences.map((reference) => {
+            const snapshotVyral = asRecord(reference.compact_snapshot.vyral);
+            const label = typeof snapshotVyral.name === 'string' ? snapshotVyral.name : 'Referenced collection';
+            return <div key={reference.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--vyra-border-subtle)] px-3 py-2">
+              <div className="min-w-0"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'} · {reference.resolver_uri ? 'Remote access subject to source permission checks' : 'Identity reference only'}</p></div>
+              <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
+            </div>;
+          })}
+        </div>
+      </section>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className={'text-base font-semibold ' + primary}>Assets</h2>
