@@ -114,7 +114,7 @@ export const verifyVyralSystemFileIntegrityV1 = async (files: Map<string, Uint8A
   if (!integrityBytes) throw new Error('Vyral package integrity file is missing.');
   const integrity = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(integrityBytes)) as Record<string, unknown>;
   if (integrity.hash_algorithm !== 'SHA-256' || !Array.isArray(integrity.entries)) throw new Error('Vyral package integrity declaration is invalid.');
-  const actualPaths = [...files.keys()].filter(path=>path!=='manifest.json'&&path!=='system/integrity.json'&&path!=='system/system-files.json').sort();
+  const actualPaths = [...files.keys()].filter(path=>path!=='manifest.json'&&path!=='system/integrity.json'&&path!=='system/system-files.json').sort((a,b)=>a.localeCompare(b));
   const declared = (integrity.entries as Array<Record<string, unknown>>).slice().sort((a,b)=>String(a.path).localeCompare(String(b.path)));
   if (declared.length!==actualPaths.length || declared.some((entry,index)=>entry.path!==actualPaths[index])) {
     throw new Error('Vyral package integrity inventory does not match the actual package entries.');
