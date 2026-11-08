@@ -159,3 +159,12 @@ Asset DNA assessments need their own result type, history, and evidence adapter 
 ### Reconstruction retest precedence
 
 For a given exact Asset Version, DNA record, comparison mode, and trusted verifier, the latest timestamped test is authoritative for the current assessment. A newer successful retest supersedes that verifier's older failure; a newer failure supersedes its older pass. Results from different trusted verifiers remain independently visible, and any latest failure from a trusted verifier prevents the evidence key from passing. Equal timestamps for the same verifier are ambiguous and fail closed. Historical test rows remain immutable and available for audit.
+
+
+### Asset DNA assessment v1 implementation boundary
+
+The deterministic service `assessVyralAssetDnaV1` and its contract tests define a separate Asset-scoped readiness result. Its identity is pinned to Asset ID, Asset Version ID, source SHA-256, DNA record ID and schema version. It returns `ready`, `partial`, or `blocked`, with explicit blockers and limitations; it does not assign a collection grade or a universal percentage.
+
+A reconstruction claim is not proof. The assessment requires a test for the exact same Asset Version, DNA record, source hash, and recovery mode, plus verified payload integrity. A decoded-sample exact test can establish equality under its decoder contract but cannot establish recovery of the original encoded file. Semantic-only DNA remains partial. The pure service is not an authentication boundary: only an owner-authorized server adapter may construct its evidence input from trusted database and Storage verification.
+
+This first increment establishes the assessment contract and deterministic tests. Persistent Asset assessment history, server-side evidence assembly, and AI Chat presentation are separate follow-up integrations and are not implied to be deployed by this service alone.
