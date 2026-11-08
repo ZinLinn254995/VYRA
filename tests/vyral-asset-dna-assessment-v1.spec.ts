@@ -10,6 +10,7 @@ const base = (): VyralAssetDnaAssessmentInput => ({
   dnaRecordId: 'dna-1',
   dnaSchemaId: 'vyra.asset-dna',
   dnaSchemaVersion: 3,
+  sourceFileIntegrityVerified: true,
   dnaSource: { assetId: 'asset-1', assetVersionId: 'version-1', sha256: 'a'.repeat(64), sizeBytes: 4096 },
   structure: { schemaValid: true, provenanceVerified: true, knowledgeFactCount: 4 },
   recovery: {
@@ -28,6 +29,7 @@ test('assesses a pinned, verified decoded-sample reconstruction as partial Asset
   assert.equal(result.scope, 'asset_dna');
   assert.equal(result.status, 'partial');
   assert.equal(result.checks.sourceBinding, 'pass');
+  assert.equal(result.checks.sourceFileIntegrity, 'pass');
   assert.equal(result.checks.exactReconstruction, 'pass');
   assert.ok(result.limitations.includes('decoded_sample_recovery_does_not_restore_original_encoded_file_bytes'));
 });
@@ -100,4 +102,13 @@ test('marks original source-file recovery ready only after a matching byte-exact
   const result = assessVyralAssetDnaV1(input);
   assert.equal(result.status, 'ready');
   assert.equal(result.checks.exactReconstruction, 'pass');
+});
+
+test('blocks assessment when original stored source bytes cannot be verified', () => {
+  const input = base();
+  input.sourceFileIntegrityVerified = false;
+  const result = assessVyralAssetDnaV1(input);
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.checks.sourceFileIntegrity, 'fail');
+  assert.ok(result.blockers.includes('source_file_storage_integrity_unverified'));
 });
