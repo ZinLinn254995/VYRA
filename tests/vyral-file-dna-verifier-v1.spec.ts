@@ -35,12 +35,12 @@ test('verifies File DNA v1 by reconstructing exact bytes across multiple chunks'
 
 test('rejects File DNA tied to a different Asset or immutable Version', async () => {
   const record = await makeRecord();
-  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+  await assert.rejects(async () => verifyVyralFileDnaSourceV1({
     record, assetId: 'another-asset', versionId: 'version-1',
     sourceBytes: bytes, expectedSha256: await sha256(bytes),
     expectedSizeBytes: bytes.byteLength, expectedMimeType: 'application/octet-stream',
   }), /identity does not match/);
-  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+  await assert.rejects(async () => verifyVyralFileDnaSourceV1({
     record, assetId: 'asset-1', versionId: 'another-version',
     sourceBytes: bytes, expectedSha256: await sha256(bytes),
     expectedSizeBytes: bytes.byteLength, expectedMimeType: 'application/octet-stream',
@@ -51,23 +51,23 @@ test('rejects altered source bytes, size, MIME type and unsupported chunk sizes'
   const record = await makeRecord();
   const altered = bytes.slice();
   altered[4] ^= 0xff;
-  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+  await assert.rejects(async () => verifyVyralFileDnaSourceV1({
     record, assetId: 'asset-1', versionId: 'version-1',
     sourceBytes: altered, expectedSha256: await sha256(bytes),
     expectedSizeBytes: bytes.byteLength, expectedMimeType: 'application/octet-stream',
   }), /SHA-256 check/);
-  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+  await assert.rejects(async () => verifyVyralFileDnaSourceV1({
     record, assetId: 'asset-1', versionId: 'version-1',
     sourceBytes: bytes, expectedSha256: await sha256(bytes),
     expectedSizeBytes: bytes.byteLength + 1, expectedMimeType: 'application/octet-stream',
   }), /metadata does not match/);
-  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+  await assert.rejects(async () => verifyVyralFileDnaSourceV1({
     record, assetId: 'asset-1', versionId: 'version-1',
     sourceBytes: bytes, expectedSha256: await sha256(bytes),
     expectedSizeBytes: bytes.byteLength, expectedMimeType: 'audio/mpeg',
   }), /metadata does not match/);
   const invalidChunkRecord = { ...record, reconstruction: { ...record.reconstruction, chunk_size: 0 } };
-  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+  await assert.rejects(async () => verifyVyralFileDnaSourceV1({
     record: invalidChunkRecord, assetId: 'asset-1', versionId: 'version-1',
     sourceBytes: bytes, expectedSha256: await sha256(bytes),
     expectedSizeBytes: bytes.byteLength, expectedMimeType: 'application/octet-stream',
