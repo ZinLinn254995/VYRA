@@ -42,10 +42,13 @@ const sha256Bytes = async (bytes: Uint8Array): Promise<string> => {
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
 };
 
-const getReconstructionClaim = (tests: Row[], assetId: string, versionId: string, semanticDnaAvailable: boolean) => {
+const getReconstructionClaim = (tests: Row[], assetId: string, versionId: string, dnaRecordId: string, semanticDnaAvailable: boolean) => {
+  // Reconstruction evidence must prove this exact DNA record, not merely another
+  // record attached to the same Asset version.
   const pinned = tests.filter((item) =>
     item.asset_id === assetId &&
     item.asset_version_id === versionId &&
+    item.dna_record_id === dnaRecordId &&
     item.test_status === 'passed'
   );
   if (pinned.some((item) => item.comparison_mode === 'byte_exact' && item.exact_match === true)) return 'source_file_exact' as const;
@@ -111,7 +114,7 @@ Deno.serve(async (request: Request) => {
       .select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,evidence_ref')
       .eq('vyral_id', vyral.id).eq('user_id', userId),
     context.supabase.from('vyral_reconstruction_tests')
-      .select('asset_id,asset_version_id,comparison_mode,test_status,exact_match,created_at')
+      .select('asset_id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,created_at')
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId)
       .order('created_at', { ascending: false }),
     context.supabase.from('vyral_master_dna_revisions')
@@ -362,7 +365,8 @@ Deno.serve(async (request: Request) => {
       schemaId && schemaId !== 'vyra.asset-file-dna' &&
       Number(dna.schema_version) < 3 && Object.keys(payload).length > 0
     );
-    const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, semanticDnaAvailable);
+    const dnaRecordId = typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dna.id;
+    const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, dnaRecordId, semanticDnaAvailable);
     claims.push(claim);
     if (assetMetadata?.role === 'main') mainAssetIds.push(asset.id);
 
