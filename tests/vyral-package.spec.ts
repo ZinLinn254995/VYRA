@@ -136,6 +136,33 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
     assert.deepEqual(new Uint8Array(await readFile(join(outputDir, binaryName))), originalBinary);
     const png = new Uint8Array(await readFile(join(outputDir, pngName)));
     assert.deepEqual(Array.from(png.slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+
+    const files = await readVyralZip(new Uint8Array(await archive.arrayBuffer()));
+    const originalManifest = JSON.parse(new TextDecoder().decode(files.get('manifest.json')!)) as Record<string, any>;
+    const wrongAssetManifest = {
+      ...originalManifest,
+      dnaRecords: originalManifest.dnaRecords.map((entry: Record<string, any>, index: number) =>
+        index === 0 ? { ...entry, asset_id: 'missing-asset' } : entry),
+    };
+    const wrongAssetArchive = await createVyralZip([...files.entries()].map(([path, data]) =>
+      path === 'manifest.json' ? { path, data: JSON.stringify(wrongAssetManifest) } : { path, data }));
+    const wrongAssetPath = join(temp, 'wrong-asset.vyral');
+    await writeFile(wrongAssetPath, Buffer.from(await wrongAssetArchive.arrayBuffer()));
+    assert.throws(
+      () => execFileSync('python3', [scriptPath, wrongAssetPath, '--output', join(temp, 'wrong-asset-output')], { encoding: 'utf8' }),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('DNA record references an Asset missing from the manifest'),
+    );
+
+    const extraEntryArchive = await createVyralZip([
+      ...Array.from(files.entries()).map(([path, data]) => ({ path, data })),
+      { path: 'unlisted-extra.bin', data: new Uint8Array([1, 2, 3]) },
+    ]);
+    const extraEntryPath = join(temp, 'extra-entry.vyral');
+    await writeFile(extraEntryPath, Buffer.from(await extraEntryArchive.arrayBuffer()));
+    assert.throws(
+      () => execFileSync('python3', [scriptPath, extraEntryPath, '--output', join(temp, 'extra-entry-output')], { encoding: 'utf8' }),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('Package entries do not match the declared reconstruction payloads'),
+    );
   } finally {
     await rm(temp, { recursive: true, force: true });
   }
