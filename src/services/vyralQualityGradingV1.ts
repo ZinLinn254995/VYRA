@@ -64,6 +64,8 @@ export type EvaluateVyralQualityInput = {
 };
 
 export type VyralQualityEvaluation = {
+  /** This engine grades the whole immutable Vyral collection, never an individual Asset DNA record. */
+  scope: 'vyral_collection';
   engineVersion: typeof VYRAL_QUALITY_ENGINE_VERSION;
   vyralId: string;
   snapshotFingerprint: string;
@@ -265,6 +267,7 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
       : 'graded';
 
   return {
+    scope: 'vyral_collection',
     engineVersion: VYRAL_QUALITY_ENGINE_VERSION,
     vyralId: input.vyralId,
     snapshotFingerprint: input.snapshotFingerprint,
