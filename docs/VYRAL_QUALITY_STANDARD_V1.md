@@ -168,3 +168,14 @@ The deterministic service `assessVyralAssetDnaV1` and its contract tests define 
 A reconstruction claim is not proof. The assessment requires a test for the exact same Asset Version, DNA record, source hash, and recovery mode, plus verified payload integrity. A decoded-sample exact test can establish equality under its decoder contract but cannot establish recovery of the original encoded file. Semantic-only DNA remains partial. The pure service is not an authentication boundary: only an owner-authorized server adapter may construct its evidence input from trusted database and Storage verification.
 
 This first increment establishes the assessment contract and deterministic tests. Persistent Asset assessment history, server-side evidence assembly, and AI Chat presentation are separate follow-up integrations and are not implied to be deployed by this service alone.
+
+
+### Persistent Asset DNA assessment history and endpoint
+
+The additive migration `20261109120000_vyral_asset_dna_assessments.sql` defines owner-readable, server-written assessment history pinned to the Asset, Asset Version, DNA record, and source hash. Authenticated clients receive read-only access; inserts are reserved for the server role. Deleting the owning Asset, Version, or DNA record cleans up dependent assessment rows with the existing ownership cascade.
+
+The `assess-vyral-asset-dna` Edge Function requires a signed-in owner and explicit Asset ID, Asset Version ID, and DNA Record ID. It checks all three records in the same owner/Vyral scope, validates the DNA source binding, verifies the stored decoded-sample tile bytes against their per-tile SHA-256 manifest, resolves trusted reconstruction tests for that exact version and DNA record, then saves an immutable assessment history row.
+
+The first server adapter recognizes the current raster DNA v3 decoded-sample payload. It does not claim encoded PNG/JPEG/WebP source-byte recovery. File DNA v1 package chunks are not treated as recoverable merely because a package manifest declares them; they require a server-addressable payload and matching exact test. Unrecognized or incomplete records remain blocked/partial rather than being promoted to ready.
+
+Deployment is intentionally pending: apply the migration only to the isolated Development database, deploy the Edge Function only to Development, and run its owner-isolation, tile-tampering, retest-precedence, and history tests before enabling AI Chat presentation. No Production database or deployment is part of this change.
