@@ -6,6 +6,7 @@ import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
+import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -94,18 +95,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     });
     const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
     if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
-    const raw = data.text.trim().replace(/^\x60{3}(?:json)?\s*/i, '').replace(/\s*\x60{3}$/, '');
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const unwrap = (value: unknown): unknown => value && typeof value === 'object' && !Array.isArray(value) && 'value' in value
-      ? (value as { value: unknown }).value : value;
-    const asText = (value: unknown) => {
-      const unwrapped = unwrap(value);
-      return typeof unwrapped === 'string' ? unwrapped.trim().slice(0, 500) : '';
-    };
-    const rawTags = unwrap(parsed.tags);
+    const parsed = parseVyralAiSuggestions(data.text);
+    const asText = (key: string) => typeof parsed[key]?.value === 'string'
+      ? String(parsed[key].value).trim().slice(0, 500) : '';
+    const rawTags = parsed.tags?.value;
     return {
-      title: asText(parsed.title), topic: asText(parsed.topic), category: asText(parsed.category),
-      style: asText(parsed.style), mood: asText(parsed.mood),
+      title: asText('title'), topic: asText('topic'), category: asText('category'),
+      style: asText('style'), mood: asText('mood'),
       tags: Array.isArray(rawTags) ? rawTags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
     };
   };
