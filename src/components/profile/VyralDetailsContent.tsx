@@ -37,6 +37,7 @@ type MasterRelationshipRow = { id: string; relationship_type: string; from_kind:
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
 type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
+type CollectionReferenceRow = { id: string; source_vyral_id: string; source_revision: number; source_visibility: 'public' | 'private' | 'unlisted'; resolver_uri: string | null; compact_snapshot: Record<string, unknown>; imported_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 
@@ -146,6 +147,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [error, setError] = useState('');
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);
+  const [collectionReferences, setCollectionReferences] = useState<CollectionReferenceRow[]>([]);
   const [versions, setVersions] = useState<AssetVersionRow[]>([]);
   const [dnaRecords, setDnaRecords] = useState<DnaRow[]>([]);
   const [fingerprints, setFingerprints] = useState<FingerprintRow[]>([]);
@@ -214,6 +216,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyrals').select('master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses').eq('id', vyral.id).single(),
       supabase.from('vyral_asset_relationships').select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale').eq('vyral_id', vyral.id).order('created_at', { ascending: true }),
       supabase.from('vyral_master_dna_asset_metadata').select('asset_id,role,purpose').eq('vyral_id', vyral.id).eq('user_id', auth.user?.id ?? ''),
+      supabase.from('vyral_collection_references').select('id,source_vyral_id,source_revision,source_visibility,resolver_uri,compact_snapshot,imported_at').eq('destination_vyral_id', vyral.id).order('imported_at', { ascending: false }),
     ]);
     const failed = results.slice(0, 6).find((item) => item.error);
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
@@ -230,6 +233,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
     setFolders((results[0].data ?? []) as FolderRow[]);
     setAssets(assetRows);
+    setCollectionReferences((results[9].data ?? []) as CollectionReferenceRow[]);
     setVersions((results[2].data ?? []) as AssetVersionRow[]);
     setDnaRecords((results[3].data ?? []) as DnaRow[]);
     setFingerprints((fingerprintResult.data ?? []) as FingerprintRow[]);
@@ -866,6 +870,59 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     try {
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
+      if (manifest.exportMode === 'compact-only') {
+        if (manifest.exportComponents?.assets !== false || manifest.exportComponents?.fullDna !== false ||
+            manifest.exportComponents?.compactDna !== true || manifest.assets.length || manifest.folders.length ||
+            manifest.versions.length || manifest.dnaRecords.length || manifest.fingerprints.length ||
+            manifest.visionObservations.length || manifest.lineage.length || manifest.reconstructionTests.length ||
+            !manifest.masterDna) {
+          throw new Error('This collection reference package contains unexpected source or reconstruction data and cannot be imported safely.');
+        }
+        const allowedPaths = new Set(['manifest.json', 'README.txt', 'AI_RECONSTRUCTION_GUIDE.md']);
+        const unexpectedPaths = [...archiveFiles.keys()].filter((entryPath) => !allowedPaths.has(entryPath));
+        if (unexpectedPaths.length) throw new Error('This collection reference package contains unexpected files and was not imported.');
+        const compactMasterDna = await validateVyralMasterDnaV1(manifest.masterDna);
+        if (compactMasterDna.vyral.vyral_id !== String(manifest.vyral.id ?? '') ||
+            compactMasterDna.snapshot.revision < 1) {
+          throw new Error('The collection reference identity does not match its package manifest.');
+        }
+        const { data: currentUser } = await supabase.auth.getUser();
+        if (!currentUser.user) throw new Error('Please sign in again before importing a collection reference.');
+        const sourceName = compactMasterDna.vyral.name || 'Unnamed collection';
+        const resolverAvailable = Boolean(compactMasterDna.portable_projection.resolver_uri);
+        const confirmation = 'Save collection reference “' + sourceName + '” in “' + vyral.name + '”?\\n\\n' +
+          compactMasterDna.assets.length + ' referenced Assets · Revision ' + compactMasterDna.snapshot.revision +
+          '\\n' + (resolverAvailable ? 'Public retrieval can be requested and will be checked again each time.' : 'This reference is identity-only and has no remote retrieval access.') +
+          '\\n\\nNo original Assets or media files will be copied.';
+        if (!window.confirm(confirmation)) {
+          setPackageStatus('');
+          setPackageBusy(false);
+          return;
+        }
+        const manifestBytes = new TextEncoder().encode(stableJson(manifest));
+        const manifestDigest = await crypto.subtle.digest('SHA-256', manifestBytes);
+        const sourceManifestSha256 = Array.from(new Uint8Array(manifestDigest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        const { error: referenceError } = await supabase.from('vyral_collection_references').upsert({
+          destination_vyral_id: vyral.id,
+          user_id: currentUser.user.id,
+          source_vyral_id: compactMasterDna.vyral.vyral_id,
+          source_revision: compactMasterDna.snapshot.revision,
+          source_schema_id: compactMasterDna.schema_id,
+          source_schema_version: compactMasterDna.schema_version,
+          source_manifest_sha256: sourceManifestSha256,
+          projection_sha256: compactMasterDna.integrity.manifest_sha256,
+          source_visibility: compactMasterDna.source_resolution.visibility,
+          resolver_uri: compactMasterDna.portable_projection.resolver_uri,
+          compact_snapshot: compactMasterDna,
+        }, {
+          onConflict: 'destination_vyral_id,user_id,source_vyral_id,source_revision',
+          ignoreDuplicates: true,
+        });
+        if (referenceError) throw referenceError;
+        setPackageStatus('Collection reference saved.');
+        await loadWorkspace();
+        return;
+      }
       const importAssets = getVyralPackageAssetsForImport(manifest.assets, containerAssetId);
       const importAssetIds = new Set(importAssets.map((asset) => String(asset.id)));
       const manifestAssetIds = new Set(manifest.assets.map((asset) => String(asset.id)));
