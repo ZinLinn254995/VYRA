@@ -375,3 +375,27 @@ A Compact-only package is importable as a **reference record**, not as a restore
 7. Destination Master DNA excludes external reference inventory unless a future, explicitly versioned schema adds a safe reference-link type.
 8. A public source Asset copy requires current source-side redistribution permission, exact Asset/Version membership, signed-URL host validation, byte-length validation, and SHA-256 verification before a new private destination Asset is created.
 9. Disabling AI analysis does not silently revoke a separately granted redistribution permission; collection-DNA access and original-source copying remain separate authorization paths.
+
+
+## 18. ORIGIN-01 verified baseline and remaining acceptance
+
+### Verified in Development
+
+- Protected source Asset: `2c496cd5-84c4-44b1-b02a-fca4265cc592`, Version `b4376fd9-a577-464e-91b4-e33791559e7f`.
+- Original PNG: 1,046,585 bytes; SHA-256 `3529e592f9caebff28aca52ef1e5f827e6905fde1519171a18a390a9d347d1b0`.
+- DNA v3 stores a 1,254 × 1,254 RGB decoded sample stream using 100 raw tiles.
+- The owner-authenticated second-pass verifier independently re-read the original source and all 100 stored tiles, checked every tile byte length and SHA-256, rebuilt the complete RGB sample buffer, and compared it byte-for-byte with a fresh decode using the pinned ImageMagick WASM 0.0.30 contract.
+- The verified decoded sample SHA-256 is `cc87764f6f8cfbda290476eb8ac3008b496f862407875a1a0bc98c44c757c3af`. The verifier report records `all_tile_hashes_verified=true`, `byte_for_byte_sample_comparison=true`, and `original_bytes_unchanged=true`.
+- Three saved `decoded_exact` readback tests are `passed`, `exact_match=true`, with similarity `1.0000000`. Storage metadata audit also found all 100 expected tile objects, no missing objects, and exact declared byte lengths for all 100 tiles.
+- This proves exact decoded-sample recovery under the pinned decoder contract. It does not prove reconstruction of the original encoded PNG byte stream.
+
+### Still not accepted
+
+- The Gemini, Grok, and Claude blind image-generation candidates remain non-exact. Their perceptual/geometry similarity must not be presented as exact recovery.
+- External AI acceptance requires using the package's included deterministic reconstruction tool when code execution is available. A model-generated visual approximation is a separate generation result, not a successful DNA recovery.
+- The current Development `build-vyral-master-dna` Edge Function was refreshed to version 2 from this branch so its optional-context, current-version and public-resolver behavior matches the active implementation. Deployment is confirmed; an authenticated invocation against ORIGIN-01 has not yet been confirmed from this runtime.
+- Main remains unchanged. No Production database or Production deployment was used for this work.
+
+### Acceptance rule
+
+ORIGIN-01 is accepted for exact decoded-sample recovery only when the pinned source identity, every tile hash/length, complete reconstructed sample digest, and byte-for-byte fresh-decode comparison all pass. Whole-Vyral acceptance additionally requires automatic inventory composition, import/export round trips, privacy and licensing checks, and portable blind reconstruction evidence. Do not collapse these separate claims into one generic similarity score.
