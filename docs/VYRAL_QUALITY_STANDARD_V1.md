@@ -123,3 +123,8 @@ The endpoint returns 403 while the publisher allowlist is unset or the caller is
 Before any production use, the owner must approve the actual rubric: rule definitions, weights, hard gates, applicability, grade thresholds, and the standard's intended scope. Passing structural validation only means the profile is well-formed; it does not make the rubric officially approved.
 
 Additional strictness: a profile must define exactly the six supported grade keys (no custom or extra bands), and each band must contain exactly `min` and `max`. Selector lists reject duplicate values even when duplicates differ only by case or surrounding whitespace. This avoids ambiguous grade routing and inconsistent applicability matching.
+
+
+### Hard-gate completion semantics
+
+A deterministic hard gate is a prerequisite, not a weighted rule. Only a fully evidenced `pass` satisfies it. A `partial` or `fail` finding blocks grading and records the rule in `hardGateFailures`; a missing finding remains `incomplete_evidence` rather than being treated as a failure or a pass. A resolver-approved `not_applicable` finding is excluded from the applicable rule set. This prevents a high weighted score from masking a partially satisfied integrity prerequisite.
