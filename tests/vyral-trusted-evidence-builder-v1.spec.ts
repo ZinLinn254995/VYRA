@@ -27,6 +27,7 @@ const profile = (evidenceKey: 'fingerprint.cryptographic' | 'reconstruction.byte
 
 const base = {
   masterDna,
+  masterDnaRevisionId: 'revision-7',
   assetVersions: [
     { asset_id: 'asset-a', asset_version_id: 'version-a', sha256: shaA },
     { asset_id: 'asset-b', asset_version_id: 'version-b', sha256: shaB },
@@ -35,6 +36,16 @@ const base = {
   reconstructionTests: [],
   visionObservations: [],
 };
+
+
+test('pins snapshot integrity to the immutable Master DNA revision ID', () => {
+  const result = buildVyralTrustedEvidenceFindingsV1({
+    ...base,
+    profile: profile('snapshot.integrity', 'deterministic'),
+  });
+  assert.equal(result[0].status, 'pass');
+  assert.deepEqual(result[0].evidenceRefs, ['revision-7']);
+});
 
 test('requires a matching SHA-256 cryptographic fingerprint for every exact Asset Version', () => {
   const result = buildVyralTrustedEvidenceFindingsV1({
