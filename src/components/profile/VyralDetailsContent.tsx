@@ -1786,65 +1786,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
     }
-    // Refresh collection-level suggestions from the actual Asset inventory.
-    // Creator-authored Vyral name/description are never overwritten by this step.
-    if (selected.length > failures.length) {
-      try {
-        const accessToken = await getCurrentAccessToken();
-        if (accessToken) {
-          const [collectionResult, inventoryResult] = await Promise.all([
-            db.from('vyrals').select('name,description,metadata').eq('id', vyral.id).eq('user_id', auth.user.id).maybeSingle(),
-            db.from('vyral_assets').select('name,asset_type,mime_type,description,metadata').eq('vyral_id', vyral.id).neq('processing_status', 'archived').order('created_at', { ascending: false }),
-          ]);
-          if (!collectionResult.error && collectionResult.data && !inventoryResult.error && inventoryResult.data?.length) {
-            const currentMetadata = collectionResult.data.metadata && typeof collectionResult.data.metadata === 'object' && !Array.isArray(collectionResult.data.metadata)
-              ? collectionResult.data.metadata as Record<string, unknown> : {};
-            const summaries = (inventoryResult.data ?? []).map((asset) => {
-              const metadata = asset.metadata && typeof asset.metadata === 'object' && !Array.isArray(asset.metadata)
-                ? asset.metadata as Record<string, unknown> : {};
-              const details = metadata.ai_details && typeof metadata.ai_details === 'object'
-                ? metadata.ai_details as VyralAiDetails : undefined;
-              const fields = details?.fields ?? {};
-              return {
-                name: asset.name,
-                assetType: asset.asset_type,
-                mimeType: asset.mime_type,
-                description: asset.description ?? (typeof fields.description?.value === 'string' ? fields.description.value : ''),
-                tags: Array.isArray(fields.tags?.value) ? fields.tags.value.filter((tag): tag is string => typeof tag === 'string') : [],
-              };
-            });
-            const aiDetails = await suggestVyralCollectionDetails({
-              accessToken, vyralId: vyral.id,
-              currentName: collectionResult.data.name,
-              currentDescription: collectionResult.data.description ?? '',
-              sourceRevision: summaries.length,
-              assets: summaries,
-              currentDetails: currentMetadata.ai_details,
-            });
-            const nextMetadata = { ...currentMetadata, ai_details: aiDetails, ai_details_status: 'ready', ai_details_inventory_count: summaries.length };
-            const suggestedName = typeof aiDetails.fields.name?.value === 'string' ? aiDetails.fields.name.value.trim().slice(0, 100) : '';
-            const suggestedDescription = typeof aiDetails.fields.description?.value === 'string' ? aiDetails.fields.description.value.trim().slice(0, 1000) : '';
-            const applySuggestedName = currentMetadata.identity_name_origin === 'system_default' && Boolean(suggestedName);
-            const applySuggestedDescription = currentMetadata.identity_description_origin === 'system_default' && Boolean(suggestedDescription);
-            if (applySuggestedName) nextMetadata.identity_name_origin = 'ai_suggested';
-            if (applySuggestedDescription) nextMetadata.identity_description_origin = 'ai_suggested';
-            const collectionPatch = {
-              metadata: nextMetadata,
-              ...(applySuggestedName ? { name: suggestedName } : {}),
-              ...(applySuggestedDescription ? { description: suggestedDescription } : {}),
-            };
-            const { error: collectionUpdateError } = await db.from('vyrals').update(collectionPatch).eq('id', vyral.id).eq('user_id', auth.user.id);
-            if (!collectionUpdateError) onVyralUpdated({
-              metadata: nextMetadata,
-              ...(applySuggestedName ? { name: suggestedName } : {}),
-              ...(applySuggestedDescription ? { description: suggestedDescription } : {}),
-            });
-          }
-        }
-      } catch (metadataCause) {
-        console.warn('[vyral-ai-details] Collection suggestions were unavailable.', metadataCause);
-      }
-    }
     await loadWorkspace();
     if (failures.length) setError(failures.join(' · '));
     setBusy(false);
