@@ -27,6 +27,7 @@ export type VyralQualityRule = {
 
 export type VyralQualityRuleFinding = {
   ruleId: string;
+  evidenceClass: VyralQualityEvidenceClass;
   status: VyralQualityRuleStatus;
   evidenceRefs?: string[];
   explanation?: string;
@@ -108,7 +109,7 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
         !Number.isFinite(rule.weight) || rule.weight < 0 || rule.weight > 100 ||
         !['universal', 'asset_type', 'purpose', 'workflow'].includes(rule.category) ||
         !['deterministic', 'creator_declared', 'ai_assessment', 'generation_test'].includes(rule.evidenceClass) ||
-        typeof rule.required !== 'boolean' || (rule.hardGate && !rule.required)) {
+        typeof rule.required !== 'boolean' || (rule.hardGate && (!rule.required || rule.evidenceClass !== 'deterministic'))) {
       throw new Error('Quality standard contains an invalid rule definition.');
     }
     if (ruleMap.has(rule.id)) throw new Error(`Duplicate quality rule ID: ${rule.id}`);
@@ -121,6 +122,9 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
       throw new Error('Quality findings contain an unknown rule ID.');
     }
     if (findingMap.has(finding.ruleId)) throw new Error(`Duplicate finding for quality rule: ${finding.ruleId}`);
+    if (finding.evidenceClass !== ruleMap.get(finding.ruleId)!.evidenceClass) {
+      throw new Error(`Evidence class does not match the standard for quality rule: ${finding.ruleId}`);
+    }
     if (!['pass', 'partial', 'fail', 'not_applicable', 'not_evaluated'].includes(finding.status)) {
       throw new Error('Quality finding contains an invalid status.');
     }
