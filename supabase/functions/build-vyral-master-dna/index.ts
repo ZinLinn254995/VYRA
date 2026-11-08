@@ -35,6 +35,13 @@ const isSha256 = (value: unknown): value is string =>
 const asRecord = (value: unknown): Row =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 
+const sha256Bytes = async (bytes: Uint8Array): Promise<string> => {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+};
+
 const getReconstructionClaim = (tests: Row[], assetId: string, versionId: string, semanticDnaAvailable: boolean) => {
   const pinned = tests.filter((item) =>
     item.asset_id === assetId &&
@@ -303,10 +310,40 @@ Deno.serve(async (request: Request) => {
       try {
         const fileDna = validateVyralFileDnaV1Record(nestedDna);
         if (fileDna.source.asset_version_id !== version.id ||
+            fileDna.source.asset_id !== asset.id ||
             fileDna.file.sha256.toLowerCase() !== version.sha256.toLowerCase() ||
             fileDna.file.size_bytes !== Number(version.size_bytes) ||
             fileDna.file.mime_type !== String(version.mime_type || asset.mime_type).toLowerCase()) {
           throw new Error('Universal File DNA does not match the exact latest source version.');
+        }
+        if (fileDna.reconstruction.claim === 'source_file_exact') {
+          const chunkPaths = Array.isArray(payload.chunk_storage_paths) ? payload.chunk_storage_paths : [];
+          const chunks = fileDna.reconstruction.chunks;
+          const expectedPrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
+          if (chunkPaths.length !== chunks.length || chunks.length === 0 || chunks.length > 100 ||
+              new Set(chunkPaths).size !== chunkPaths.length ||
+              chunkPaths.some((path: unknown) => typeof path !== 'string' ||
+                !path.startsWith(expectedPrefix) || !path.startsWith(expectedPrefix + 'dna/file/v1/' + fileDna.record_id + '/chunks/') ||
+                path.includes('\\') || path.split('/').some((part: string) => !part || part === '.' || part === '..'))) {
+            throw new Error('Universal File DNA has an invalid persisted reconstruction chunk map.');
+          }
+          const rebuilt = new Uint8Array(fileDna.file.size_bytes);
+          let offset = 0;
+          for (let index = 0; index < chunks.length; index += 1) {
+            const chunk = chunks[index];
+            const { data: stored, error: storedError } = await context.supabaseAdmin.storage
+              .from('vyral-assets').download(chunkPaths[index]);
+            if (storedError || !stored) throw new Error('A persisted File DNA reconstruction chunk is missing.');
+            const bytes = new Uint8Array(await stored.arrayBuffer());
+            if (bytes.byteLength !== chunk.byte_length || await sha256Bytes(bytes) !== chunk.sha256.toLowerCase()) {
+              throw new Error('A persisted File DNA reconstruction chunk failed its integrity check.');
+            }
+            rebuilt.set(bytes, offset);
+            offset += bytes.byteLength;
+          }
+          if (offset !== fileDna.file.size_bytes || await sha256Bytes(rebuilt) !== fileDna.file.sha256.toLowerCase()) {
+            throw new Error('Persisted File DNA chunks do not reconstruct the exact source file.');
+          }
         }
       } catch (error) {
         return json({
