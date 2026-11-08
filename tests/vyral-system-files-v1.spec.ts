@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertVyralPackageDeletionAllowedV1, buildVyralSystemFilesV1, isVyralSystemFilePathV1 } from '../src/services/vyralSystemFilesV1.ts';
+import { assertVyralPackageDeletionAllowedV1, buildVyralSystemFilesV1, isVyralSystemFilePathV1, validateVyralSystemFilesStructureV1, verifyVyralSystemFileIntegrityV1 } from '../src/services/vyralSystemFilesV1.ts';
 const manifest = {
   format:'application/vnd.vyra.vyral+zip', formatVersion:1, packageId:'package-1',
   vyral:{id:'vyral-1',name:'ORIGIN-01',license_policy:{allow_ai_analysis:true}},
@@ -32,3 +32,15 @@ test('prevents individual System File deletion',()=>{
  assert.doesNotThrow(()=>assertVyralPackageDeletionAllowedV1('system/master-dna.ref.json',true)); assert.doesNotThrow(()=>assertVyralPackageDeletionAllowedV1('assets/a/original.png',false));
 });
 test('rejects invalid package manifests',async()=>{await assert.rejects(()=>buildVyralSystemFilesV1({...manifest,assets:'invalid'}),/invalid package manifest/);});
+
+test('validates the required System File inventory and detects package tampering',async()=>{
+ const built=await buildVyralSystemFilesV1(manifest,[{path:'assets/asset-1/source.png',data:new Uint8Array([1,2,3])}]);
+ const entries=[{path:'assets/asset-1/source.png',data:new Uint8Array([1,2,3])},...built.entries];
+ const projected={...manifest,systemFiles:built.descriptors};
+ const manifestBytes=new TextEncoder().encode(JSON.stringify(projected));
+ const map=new Map<string,Uint8Array>([['manifest.json',manifestBytes],...entries.map(e=>[e.path,new TextEncoder().encode(e.data)] as [string,Uint8Array])]);
+ validateVyralSystemFilesStructureV1(map,projected);
+ await verifyVyralSystemFileIntegrityV1(map);
+ map.set('assets/asset-1/source.png',new Uint8Array([9,9,9]));
+ await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(map),/SHA-256 verification failed/);
+});

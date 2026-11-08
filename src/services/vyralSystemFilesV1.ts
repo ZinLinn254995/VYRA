@@ -50,3 +50,62 @@ export const buildVyralSystemFilesV1 = async (manifestValue: Record<string, unkn
 const PROTECTED_PATHS = new Set<string>([...SYSTEM_SOURCES.map(item=>item.path),'system/system-files.json']);
 export const isVyralSystemFilePathV1 = (path: string): boolean => PROTECTED_PATHS.has(path) || path.startsWith('system/');
 export const assertVyralPackageDeletionAllowedV1 = (path: string, deletingWholeVyral: boolean): void => { if (isVyralSystemFilePathV1(path) && !deletingWholeVyral) throw new Error('Protected Vyral System Files cannot be deleted individually.'); };
+
+/** Structural validation is synchronous so existing package readers remain backward compatible. */
+export const validateVyralSystemFilesStructureV1 = (
+  files: Map<string, Uint8Array>,
+  manifestValue: Record<string, unknown>,
+): void => {
+  const manifest = record(manifestValue);
+  if (manifest.systemFiles === undefined) return; // Legacy package.
+  if (!Array.isArray(manifest.systemFiles)) throw new Error('Vyral System File inventory is malformed.');
+  const expectedPaths = [...SYSTEM_SOURCES.map(item=>item.path), 'system/system-files.json'];
+  const descriptors = manifest.systemFiles as VyralSystemFileDescriptorV1[];
+  const paths = descriptors.map(item=>item?.path);
+  if (descriptors.length !== expectedPaths.length || new Set(paths).size !== paths.length ||
+      expectedPaths.some(path=>!paths.includes(path))) throw new Error('Vyral System File inventory is incomplete or contains unexpected paths.');
+  for (const item of descriptors) {
+    if (!item || item.protected !== true || item.required !== true || typeof item.source !== 'string' ||
+        !['present','empty','not_available'].includes(item.state)) {
+      throw new Error('A required Vyral System File is not marked as protected.');
+    }
+    if (!files.has(item.path)) throw new Error('A required Vyral System File is missing: ' + item.path);
+  }
+  for (const path of expectedPaths.filter(path=>path.startsWith('system/') && path!=='system/system-files.json')) {
+    const bytes = files.get(path)!;
+    try { JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)); }
+    catch { throw new Error('Vyral System File is not valid UTF-8 JSON: ' + path); }
+  }
+  let index: Record<string, unknown>;
+  try { index = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('system/system-files.json')!)) as Record<string, unknown>; }
+  catch { throw new Error('Vyral System File index is not valid JSON.'); }
+  if (!Array.isArray(index.files) || JSON.stringify(index.files)!==JSON.stringify(descriptors)) {
+    throw new Error('Vyral System File index does not match the protected manifest inventory.');
+  }
+};
+
+/** Verify the SHA-256 inventory for every non-manifest, non-System package entry. */
+export const verifyVyralSystemFileIntegrityV1 = async (files: Map<string, Uint8Array>): Promise<void> => {
+  const manifestBytes = files.get('manifest.json');
+  if (!manifestBytes) throw new Error('Vyral package manifest is missing.');
+  let manifest: Record<string, unknown>;
+  try { manifest = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(manifestBytes)) as Record<string, unknown>; }
+  catch { throw new Error('Vyral package manifest is invalid JSON.'); }
+  if (manifest.systemFiles === undefined) return;
+  validateVyralSystemFilesStructureV1(files, manifest);
+  const integrityBytes = files.get('system/integrity.json');
+  if (!integrityBytes) throw new Error('Vyral package integrity file is missing.');
+  const integrity = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(integrityBytes)) as Record<string, unknown>;
+  if (integrity.hash_algorithm !== 'SHA-256' || !Array.isArray(integrity.entries)) throw new Error('Vyral package integrity declaration is invalid.');
+  const actualPaths = [...files.keys()].filter(path=>path!=='manifest.json'&&!path.startsWith('system/')).sort();
+  const declared = (integrity.entries as Array<Record<string, unknown>>).slice().sort((a,b)=>String(a.path).localeCompare(String(b.path)));
+  if (declared.length!==actualPaths.length || declared.some((entry,index)=>entry.path!==actualPaths[index])) {
+    throw new Error('Vyral package integrity inventory does not match the actual package entries.');
+  }
+  for (const entry of declared) {
+    const bytes=files.get(String(entry.path));
+    if (!bytes || Number(entry.size_bytes)!==bytes.byteLength || String(entry.sha256)!==await digest(bytes)) {
+      throw new Error('Vyral package SHA-256 verification failed: ' + String(entry.path));
+    }
+  }
+};

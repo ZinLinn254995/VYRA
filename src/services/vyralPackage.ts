@@ -1,5 +1,5 @@
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from './vyralPortableReconstruction.ts';
-import { buildVyralSystemFilesV1, type VyralSystemFileDescriptorV1 } from './vyralSystemFilesV1.ts';
+import { buildVyralSystemFilesV1, validateVyralSystemFilesStructureV1, verifyVyralSystemFileIntegrityV1, type VyralSystemFileDescriptorV1 } from './vyralSystemFilesV1.ts';
 import { createVyralMasterDnaV1, validateVyralMasterDnaV1, type VyralMasterDnaAsset, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import { isSafePublicVyralResolverUriV1 } from './vyralResourceResolverV1.ts';
 import { reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1.ts';
@@ -519,6 +519,7 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
     };
   }
   const manifest = validateVyralManifest(candidate);
+  validateVyralSystemFilesStructureV1(files, manifest as unknown as Record<string, unknown>);
   for (const version of manifest.versions) {
     if (!files.has(version.package_path)) throw new Error('Package media is missing: ' + version.package_path);
   }
@@ -715,6 +716,7 @@ export const selectVyralPackageComponents = async (
   // Validate the projected manifest and ZIP structure before returning it.
   const projectedFiles = await readVyralZip(output);
   parseVyralManifest(projectedFiles);
+  await verifyVyralSystemFileIntegrityV1(projectedFiles);
   return output;
 };
 
