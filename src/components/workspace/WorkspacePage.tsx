@@ -72,7 +72,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
   };
   type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[]; provider: string; model: string; generatedAt: string };
-  const storyboardSuggestionKey = (seedTitle: string, seedTopic: string, origins: Record<string, 'ai_suggested' | 'creator_edited'> = {}) => (origins.title === 'ai_suggested' ? '' : seedTitle.trim()) + '\\u0000' + (origins.topic === 'ai_suggested' ? '' : seedTopic.trim());
   const requestStoryboardSuggestion = async (seedTitle: string, seedTopic: string, optional = false): Promise<StoryboardSuggestion | null> => {
     const accessToken = await getCurrentAccessToken();
     if (!accessToken) {
