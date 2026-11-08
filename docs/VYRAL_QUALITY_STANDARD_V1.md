@@ -200,3 +200,10 @@ A read-only Development database inspection confirmed that ORIGIN-01's DNA v3 ma
 This verifies object inventory and Storage metadata only. It does **not** verify the actual object bytes against the declared SHA-256 hashes, nor recompute the complete decoded image sample hash. Those checks are performed by the authenticated version-5 Edge Function when invoked with the owner's session. No assessment history row has been fabricated.
 
 The assessment history table now has covering indexes for its Asset, Asset Version, and DNA record composite foreign keys. They were applied to Development and verified through `pg_indexes`; the corresponding GitHub CI run passed. The Development Performance Advisor no longer reports unindexed foreign keys for this assessment table; its remaining unindexed-FK finding concerns the unrelated `vyral_collection_references.user_id` constraint. Unused-index notices are informational and are not a reason to remove newly added indexes before representative workload exists.
+
+
+### Source-file byte integrity gate
+
+The Development Asset DNA assessment now downloads the canonical latest Asset Version from the private `vyral-assets` bucket and independently verifies the downloaded byte length and SHA-256 against the owner-scoped Asset and Version metadata. The storage path must match the Asset's current path and the expected owner/Vyral/Asset/version prefix; traversal segments, absolute paths, and backslashes are rejected.
+
+For bounded Edge Function memory use, this synchronous source-file readback is limited to files up to 64 MiB. Larger files remain explicitly unverified and cannot receive a passing source-file integrity check from this assessment path; they require a future streaming or chunked verifier. A successful source-file integrity check proves the stored bytes match the pinned source hash, not that an AI-generated reconstruction is exact. The independent decoded-sample tile verifier remains a separate check.
