@@ -705,6 +705,17 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     assert.equal(selectedManifest.versions.length, components.assets ? 2 : 0);
     assert.equal(selectedManifest.dnaRecords.length, components.fullDna ? 2 : 0);
     assert.equal(Boolean(selectedManifest.masterDna), components.compactDna);
+    if (components.compactDna) {
+      assert.equal(selectedManifest.masterDna?.purpose, undefined);
+      assert.equal(selectedManifest.masterDna?.relationships, undefined);
+      assert.deepEqual(selectedManifest.masterDna?.main_asset_ids, []);
+      assert.equal(selectedManifest.masterDna?.assets.every((asset) =>
+        asset.name === undefined && asset.role === undefined && asset.purpose === undefined &&
+        asset.provenance_ref === undefined && asset.license_ref === undefined &&
+        asset.dna_ref.package_prefix === undefined), true);
+      assert.equal(selectedManifest.masterDna?.provenance.creator_ref, null);
+      assert.equal(selectedManifest.masterDna?.provenance.license_ref, null);
+    }
     assert.equal(sourceMedia.every((entry) => selectedFiles.has(entry.path)) , true);
     assert.equal(payloadEntries.every((entry) => selectedFiles.has(entry.path)), components.fullDna);
   }
