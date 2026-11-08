@@ -31,6 +31,7 @@ type ReconstructionRecord = {
   test_status: string;
   exact_match: boolean | null;
   model_id: string;
+  created_at: string;
 };
 
 type VisionObservationRecord = {
@@ -109,15 +110,29 @@ const evidenceForRule = (
         row.comparison_mode === mode &&
         TRUSTED_RECONSTRUCTION_VERIFIERS[mode].has(row.model_id)
       );
-      if (matches.some((row) => row.test_status === 'failed' && row.exact_match === false)) {
+      if (matches.some((row) => !Number.isFinite(Date.parse(row.created_at)))) {
+        throw new Error(`Malformed reconstruction evidence timestamp for Asset ${asset.asset_id}.`);
+      }
+      // Historical failures must not permanently override a newer successful retest.
+      // Resolve the latest result per trusted verifier; equal timestamps are ambiguous.
+      const latestByVerifier = new Map<string, ReconstructionRecord>();
+      for (const row of matches) {
+        const previous = latestByVerifier.get(row.model_id);
+        if (!previous || Date.parse(row.created_at) > Date.parse(previous.created_at)) {
+          latestByVerifier.set(row.model_id, row);
+        } else if (Date.parse(row.created_at) === Date.parse(previous.created_at)) {
+          throw new Error(`Ambiguous latest reconstruction evidence for Asset ${asset.asset_id}.`);
+        }
+      }
+      const latest = [...latestByVerifier.values()];
+      if (latest.some((row) => row.test_status === 'failed' && row.exact_match === false)) {
         failed = true;
-        refs.push(...matches.filter((row) => row.test_status === 'failed' && row.exact_match === false).map((row) => row.id));
+        refs.push(...latest.filter((row) => row.test_status === 'failed' && row.exact_match === false).map((row) => row.id));
         continue;
       }
-      const passed = matches.filter((row) => row.test_status === 'passed' && row.exact_match === true);
-      if (passed.length > 1) throw new Error(`Ambiguous exact reconstruction evidence for Asset ${asset.asset_id}.`);
+      const passed = latest.filter((row) => row.test_status === 'passed' && row.exact_match === true);
       if (passed.length === 0) complete = false;
-      else refs.push(passed[0].id);
+      else refs.push(...passed.map((row) => row.id));
       continue;
     }
 
