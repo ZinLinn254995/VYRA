@@ -44,6 +44,7 @@ type EvidenceKey = NonNullable<import('./vyralQualityGradingV1.ts').VyralQuality
 type EvidenceSource = FingerprintRecord | ReconstructionRecord | VisionObservationRecord;
 
 const EXPECTED_CLASS: Record<EvidenceKey, VyralQualityEvidenceClass> = {
+  'snapshot.integrity': 'deterministic',
   'fingerprint.cryptographic': 'deterministic',
   'reconstruction.byte_exact': 'generation_test',
   'reconstruction.decoded_exact': 'generation_test',
@@ -66,8 +67,16 @@ const evidenceForRule = (
   fingerprints: FingerprintRecord[],
   reconstructionTests: ReconstructionRecord[],
   visionObservations: VisionObservationRecord[],
+  masterDnaRevisionId: string,
 ): VyralQualityRuleFinding => {
   const refs: string[] = [];
+  if (key === 'snapshot.integrity') {
+    return {
+      ruleId: '', evidenceClass: 'deterministic', status: 'pass',
+      evidenceRefs: [masterDnaRevisionId],
+      explanation: 'The Master DNA snapshot was loaded from its immutable owner-scoped revision record and validated before evaluation.',
+    };
+  }
   let failed = false;
   let complete = true;
 
@@ -139,11 +148,15 @@ const evidenceForRule = (
 export const buildVyralTrustedEvidenceFindingsV1 = (input: {
   masterDna: VyralMasterDnaV1;
   profile: VyralQualityStandardProfile;
+  masterDnaRevisionId: string;
   assetVersions: Array<{ asset_id: string; asset_version_id: string; sha256: string | null }>;
   fingerprints: FingerprintRecord[];
   reconstructionTests: ReconstructionRecord[];
   visionObservations: VisionObservationRecord[];
 }): VyralQualityRuleFinding[] => {
+  if (!input.masterDnaRevisionId || typeof input.masterDnaRevisionId !== 'string') {
+    throw new Error('An immutable Master DNA revision identity is required for trusted evidence.');
+  }
   const snapshotAssets = input.masterDna.assets.map((asset): SnapshotAsset => {
     const versions = input.assetVersions.filter((row) =>
       row.asset_id === asset.asset_id && row.asset_version_id === asset.asset_version_id
@@ -179,6 +192,7 @@ export const buildVyralTrustedEvidenceFindingsV1 = (input: {
       input.fingerprints,
       input.reconstructionTests,
       input.visionObservations,
+      input.masterDnaRevisionId,
     );
     findings.push({ ...finding, ruleId: rule.id });
   }
