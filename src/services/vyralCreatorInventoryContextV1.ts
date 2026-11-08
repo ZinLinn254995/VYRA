@@ -24,6 +24,7 @@ const inferTypeFromMime = (mimeType: string | null): string => {
   if (normalized.startsWith('video/')) return 'video';
   if (normalized.startsWith('audio/')) return 'audio';
   if (normalized.startsWith('text/')) return 'document';
+  if (normalized === 'application/octet-stream' || normalized === 'binary/octet-stream') return 'unknown';
   if (normalized === 'application/pdf' || normalized.includes('document') || normalized.includes('word')) return 'document';
   if (normalized.includes('json') || normalized.includes('xml')) return 'data';
   if (normalized.includes('3d') || normalized.includes('model') || normalized.includes('gltf')) return '3d';
