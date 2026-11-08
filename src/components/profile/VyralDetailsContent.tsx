@@ -8,6 +8,7 @@ import {
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
+import { checkPublicVyralCollectionReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
@@ -37,7 +38,7 @@ type MasterRelationshipRow = { id: string; relationship_type: string; from_kind:
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
 type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
-type CollectionReferenceRow = { id: string; source_vyral_id: string; source_revision: number; source_visibility: 'public' | 'private' | 'unlisted'; resolver_uri: string | null; compact_snapshot: Record<string, unknown>; imported_at: string };
+type CollectionReferenceRow = { id: string; source_vyral_id: string; source_revision: number; source_visibility: 'public' | 'private' | 'unlisted'; resolver_uri: string | null; projection_sha256: string; compact_snapshot: Record<string, unknown>; imported_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
 type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 
@@ -188,6 +189,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     allow_ai_analysis: true, allow_ai_generation: true, allow_remix: false,
     allow_redistribution: false, commercial_use: false, require_attribution: true,
   });
+  const [referenceChecks, setReferenceChecks] = useState<Record<string, { status: 'checking' } | { status: 'current'; revision: number; assetCount: number } | { status: 'newer_revision'; revision: number; assetCount: number } | { status: 'error'; message: string }>>({});
   const [masterDnaPurposeDraft, setMasterDnaPurposeDraft] = useState(vyral.master_dna_purpose ?? '');
   const [masterDnaUsesDraft, setMasterDnaUsesDraft] = useState((vyral.master_dna_intended_uses ?? []).join(', '));
   const [masterDnaStatus, setMasterDnaStatus] = useState(vyral.master_dna_status ?? 'not_started');
@@ -216,7 +218,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyrals').select('master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses').eq('id', vyral.id).single(),
       supabase.from('vyral_asset_relationships').select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale').eq('vyral_id', vyral.id).order('created_at', { ascending: true }),
       supabase.from('vyral_master_dna_asset_metadata').select('asset_id,role,purpose').eq('vyral_id', vyral.id).eq('user_id', auth.user?.id ?? ''),
-      supabase.from('vyral_collection_references').select('id,source_vyral_id,source_revision,source_visibility,resolver_uri,compact_snapshot,imported_at').eq('destination_vyral_id', vyral.id).order('imported_at', { ascending: false }),
+      supabase.from('vyral_collection_references').select('id,source_vyral_id,source_revision,source_visibility,resolver_uri,projection_sha256,compact_snapshot,imported_at').eq('destination_vyral_id', vyral.id).order('imported_at', { ascending: false }),
     ]);
     const failed = results.slice(0, 6).find((item) => item.error);
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
@@ -2700,6 +2702,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setBusy(false);
   };
 
+  const checkCollectionReference = async (reference: CollectionReferenceRow) => {
+    if (!reference.resolver_uri || packageBusy) return;
+    setReferenceChecks((current) => ({ ...current, [reference.id]: { status: 'checking' } }));
+    try {
+      const result = await checkPublicVyralCollectionReferenceV1({
+        resolver_uri: reference.resolver_uri,
+        source_vyral_id: reference.source_vyral_id,
+        source_revision: reference.source_revision,
+        projection_sha256: reference.projection_sha256,
+        compact_snapshot: reference.compact_snapshot,
+      });
+      setReferenceChecks((current) => ({ ...current, [reference.id]: result }));
+    } catch (cause) {
+      setReferenceChecks((current) => ({
+        ...current,
+        [reference.id]: { status: 'error', message: cause instanceof Error ? cause.message : 'Could not check this collection right now.' },
+      }));
+    }
+  };
+
   const deleteCollectionReference = async (reference: CollectionReferenceRow) => {
     if (!supabase || !window.confirm('Remove this collection reference from this Vyral? The source collection will not be changed.')) return;
     setPackageBusy(true);
@@ -2773,9 +2795,22 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           {collectionReferences.map((reference) => {
             const snapshotVyral = asRecord(reference.compact_snapshot.vyral);
             const label = typeof snapshotVyral.name === 'string' ? snapshotVyral.name : 'Referenced collection';
+            const check = referenceChecks[reference.id];
+            const checkLabel = check?.status === 'checking'
+              ? 'Checking current access…'
+              : check?.status === 'current'
+                ? 'Available now · ' + check.assetCount + ' Assets'
+                : check?.status === 'newer_revision'
+                  ? 'New revision available · ' + check.revision
+                  : check?.status === 'error'
+                    ? check.message
+                    : reference.resolver_uri ? 'Access has not been checked yet' : 'Identity reference only';
             return <div key={reference.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--vyra-border-subtle)] px-3 py-2">
-              <div className="min-w-0"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'} · {reference.resolver_uri ? 'Remote access subject to source permission checks' : 'Identity reference only'}</p></div>
-              <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
+              <div className="min-w-0 flex-1"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Imported revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'}</p><p className={'mt-1 text-[10px] ' + (check?.status === 'error' ? 'text-rose-500' : muted)}>{checkLabel}</p></div>
+              <div className="flex items-center gap-2">
+                {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check access'}</button>}
+                <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
+              </div>
             </div>;
           })}
         </div>
