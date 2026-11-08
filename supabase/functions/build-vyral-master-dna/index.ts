@@ -154,9 +154,34 @@ Deno.serve(async (request: Request) => {
   for (const item of metadataResult.data ?? []) metadataByAsset.set(item.asset_id, item);
 
   const dnaByAsset = new Map<string, Row>();
+  const dnaPriorityByAsset = new Map<string, number>();
   for (const record of dnaResult.data ?? []) {
-    const current = dnaByAsset.get(record.asset_id);
-    if (!current || (Number(record.schema_version) === 3 && Number(current.schema_version) !== 3)) dnaByAsset.set(record.asset_id, record);
+    const payload = asRecord(record.payload);
+    const nestedDna = asRecord(payload.dna_record);
+    const nestedSource = asRecord(nestedDna.source);
+    const schemaId = typeof payload.dna_schema_id === 'string'
+      ? payload.dna_schema_id
+      : typeof nestedDna.schema_id === 'string' ? nestedDna.schema_id : '';
+    const sourceVersionId = typeof nestedSource.asset_version_id === 'string'
+      ? nestedSource.asset_version_id
+      : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
+    const sourceSha = typeof nestedSource.sha256 === 'string'
+      ? nestedSource.sha256
+      : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
+    const version = latestVersionByAsset.get(record.asset_id);
+    const matchesCurrentVersion = Boolean(version && sourceVersionId === version.id &&
+      typeof version.sha256 === 'string' && sourceSha.toLowerCase() === version.sha256.toLowerCase());
+    const isSupportedReconstructionDna =
+      (schemaId === 'vyra.asset-dna' && Number(record.schema_version) === 3) ||
+      (schemaId === 'vyra.asset-file-dna' && Number(record.schema_version) === 1);
+    const priority = matchesCurrentVersion && isSupportedReconstructionDna ? 2 : matchesCurrentVersion ? 1 : 0;
+    const currentPriority = dnaPriorityByAsset.get(record.asset_id) ?? -1;
+    // Results are newest-first. Prefer a supported exact-reconstruction record
+    // for the current immutable version over newer legacy/semantic records.
+    if (priority > currentPriority) {
+      dnaByAsset.set(record.asset_id, record);
+      dnaPriorityByAsset.set(record.asset_id, priority);
+    }
   }
 
   const relationships = relationshipsResult.data ?? [];
@@ -177,8 +202,11 @@ Deno.serve(async (request: Request) => {
       return {
         asset_id: asset.id,
         has_latest_version: Boolean(version),
-        has_matching_dna: Boolean(version && dna && sourceVersionId === version.id &&
-          typeof version.sha256 === 'string' && sourceSha.toLowerCase() === version.sha256.toLowerCase()),
+        has_matching_dna: Boolean(version && dna &&
+          ((payload.dna_schema_id === 'vyra.asset-dna' && Number(dna.schema_version) === 3) ||
+           (payload.dna_schema_id === 'vyra.asset-file-dna' && Number(dna.schema_version) === 1)) &&
+          sourceVersionId === version.id && typeof version.sha256 === 'string' &&
+          sourceSha.toLowerCase() === version.sha256.toLowerCase()),
       };
     }),
   });
