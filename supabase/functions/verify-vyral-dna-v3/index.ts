@@ -54,12 +54,13 @@ Deno.serve(async (request: Request) => {
   const tiles = Array.isArray(lossless.tiles) ? lossless.tiles as Array<Record<string, unknown>> : [];
   const paths = Array.isArray(payload.tile_storage_paths) ? payload.tile_storage_paths as string[] : [];
   const storagePrefix = typeof payload.storage_prefix === 'string' ? payload.storage_prefix : '';
+  const decoder = decoded.decoder_contract && typeof decoded.decoder_contract === 'object' ? decoded.decoder_contract as Record<string, unknown> : {};
   if (record.schema_id !== 'vyra.asset-dna' || Number(record.schema_version) !== 3 || record.record_id !== row.id ||
       source.asset_id !== asset.id || source.asset_version_id !== version.id ||
       String(source.sha256 ?? '').toLowerCase() !== String(version.sha256 ?? '').toLowerCase() ||
       Number(source.size_bytes) !== size || String(source.mime_type).toLowerCase() !== String(version.mime_type).toLowerCase() ||
       decoded.sample_format !== 'uint8' || !['RGB', 'RGBA'].includes(String(decoded.channel_layout)) ||
-      decoded.decoder_contract?.name !== 'ImageMagick WASM' || decoded.decoder_contract?.version !== '0.0.30' ||
+      decoder.name !== 'ImageMagick WASM' || decoder.version !== '0.0.30' ||
       lossless.encoding !== 'raw-tiled-v1' || tiles.length < 1 || paths.length !== tiles.length || !storagePrefix) {
     return reply({ error: 'DNA v3 manifest does not describe this exact source version or supported decoder contract.' }, 409);
   }
