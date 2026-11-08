@@ -9,6 +9,8 @@ import {
   isPublicVyralAssetVisibilityAllowedV1,
   isPublicVyralMasterDnaSnapshotAllowedV1,
   isSafePublicVyralResolverUriV1,
+  createPublicVyralMasterDnaProjectionV1,
+  canonicalizeVyralPublicProjectionV1,
 } from '../src/services/vyralResourceResolverV1.ts';
 
 const ownerPrefix = 'owner-1/vyral-1/asset-1/';
@@ -149,4 +151,50 @@ test('portable public resolver URI accepts only the canonical HTTPS Supabase end
   assert.equal(isSafePublicVyralResolverUriV1('https://example.com/functions/v1/resolve-public-vyral-resource'), false);
   assert.equal(isSafePublicVyralResolverUriV1('https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/other'), false);
   assert.equal(isSafePublicVyralResolverUriV1('https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource?token=secret'), false);
+});
+
+test('public Master DNA projection omits descriptive Asset metadata and creator-authored context', () => {
+  const source = {
+    schema_id: 'vyra.vyral-master-dna',
+    schema_version: 1,
+    master_dna_id: 'vyral-1',
+    vyral: { vyral_id: 'vyral-1', name: 'Public Collection', owner_ref: 'private-owner-ref' },
+    snapshot: { revision: 3, created_at: '2026-11-08T00:00:00.000Z' },
+    purpose: { summary: 'private creator notes', intended_uses: ['private use'] },
+    main_asset_ids: ['asset-1'],
+    assets: [{
+      asset_id: 'asset-1',
+      asset_version_id: 'version-1',
+      name: 'Confidential source filename',
+      asset_type: 'image',
+      updated_at: '2026-11-07T00:00:00.000Z',
+      role: 'main',
+      purpose: 'private asset purpose',
+      media_type: 'image/png',
+      dna_ref: { record_id: 'dna-1', schema_id: 'vyra.asset-dna', schema_version: 3, package_prefix: 'private/path' },
+      asset_fingerprint: digest,
+      reconstruction_claim: 'lossless_decoded',
+      provenance_ref: 'private-provenance',
+      license_ref: 'private-license',
+    }],
+    relationships: [{ relationship_id: 'rel-1', type: 'derived_from', rationale: 'private relationship rationale' }],
+    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['private notes'] },
+    source_resolution: { visibility: 'public', canonical_uri: 'private-uri', resolution_policy: 'public_assets' },
+    provenance: { creator_ref: 'private-creator', license_ref: 'private-license', evidence_status: 'unknown' },
+    portable_projection: { profile: 'compact', resolver_uri: 'https://private', retrieval_policy: 'authorized_selective_retrieval', notes: ['private notes'] },
+  };
+  const projection = createPublicVyralMasterDnaProjectionV1(source);
+  const projectedAsset = (projection.assets as Array<Record<string, unknown>>)[0];
+  assert.deepEqual(Object.keys(projectedAsset).sort(), [
+    'asset_fingerprint', 'asset_id', 'asset_version_id', 'dna_ref', 'media_type', 'reconstruction_claim',
+  ]);
+  assert.deepEqual(projectedAsset.dna_ref, {
+    record_id: 'dna-1', schema_id: 'vyra.asset-dna', schema_version: 3,
+  });
+  assert.equal('purpose' in projection, false);
+  assert.equal('relationships' in projection, false);
+  assert.equal('provenance' in projection, false);
+  assert.equal('main_asset_ids' in projection, false);
+  assert.equal(canonicalizeVyralPublicProjectionV1(projection).includes('Confidential source filename'), false);
+  assert.equal(canonicalizeVyralPublicProjectionV1(projection).includes('private relationship rationale'), false);
 });
