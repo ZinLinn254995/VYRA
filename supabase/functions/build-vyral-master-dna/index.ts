@@ -193,18 +193,21 @@ Deno.serve(async (request: Request) => {
       const payload = asRecord(dna?.payload);
       const nestedDna = asRecord(payload.dna_record);
       const nestedSource = asRecord(nestedDna.source);
+      const schemaId = typeof payload.dna_schema_id === 'string'
+        ? payload.dna_schema_id
+        : typeof nestedDna.schema_id === 'string' ? nestedDna.schema_id : '';
       const sourceVersionId = typeof nestedSource.asset_version_id === 'string'
         ? nestedSource.asset_version_id
         : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
       const sourceSha = typeof nestedSource.sha256 === 'string'
         ? nestedSource.sha256
         : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
+      const supported = (schemaId === 'vyra.asset-dna' && Number(dna?.schema_version) === 3) ||
+        (schemaId === 'vyra.asset-file-dna' && Number(dna?.schema_version) === 1);
       return {
         asset_id: asset.id,
         has_latest_version: Boolean(version),
-        has_matching_dna: Boolean(version && dna &&
-          ((payload.dna_schema_id === 'vyra.asset-dna' && Number(dna.schema_version) === 3) ||
-           (payload.dna_schema_id === 'vyra.asset-file-dna' && Number(dna.schema_version) === 1)) &&
+        has_matching_dna: Boolean(version && dna && supported &&
           sourceVersionId === version.id && typeof version.sha256 === 'string' &&
           sourceSha.toLowerCase() === version.sha256.toLowerCase()),
       };
