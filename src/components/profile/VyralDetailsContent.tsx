@@ -2235,7 +2235,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         throw new Error(detail);
       }
       if (data?.status !== 'verified') throw new Error('The verification service did not return a verified result.');
-      setPackageStatus('Server verified SHA-256 for ' + asset.name + ' · ' + String(data.sha256).slice(0, 16) + '…');
+      setPackageStatus(data.sourceFileReconstruction === 'byte_exact'
+        ? 'VYRA verified that the original file can be rebuilt exactly for ' + asset.name + '.'
+        : 'VYRA verified the original file integrity for ' + asset.name + '.');
       await loadWorkspace();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Server-side asset verification failed.');
