@@ -36,6 +36,10 @@ create index if not exists vyral_collection_references_destination_idx
 
 alter table public.vyral_collection_references enable row level security;
 
+drop policy if exists "vyral_collection_references_select_own" on public.vyral_collection_references;
+drop policy if exists "vyral_collection_references_insert_own" on public.vyral_collection_references;
+drop policy if exists "vyral_collection_references_delete_own" on public.vyral_collection_references;
+
 create policy "vyral_collection_references_select_own"
   on public.vyral_collection_references for select to authenticated
   using (user_id = (select auth.uid()));
