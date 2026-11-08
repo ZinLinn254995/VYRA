@@ -327,9 +327,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }).then(({ data, error: verifyError }) => {
           if (verifyError || data?.status !== 'verified' || data?.sourceFileReconstruction !== 'byte_exact') {
             console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.');
+            fileDnaAutoVerifyRef.current.delete(attemptKey);
           }
           return data;
-        }).catch(() => undefined),
+        }).catch(() => {
+          fileDnaAutoVerifyRef.current.delete(attemptKey);
+          return undefined;
+        }),
       );
     }
     if (fileDnaVerificationTasks.length) await Promise.all(fileDnaVerificationTasks);
