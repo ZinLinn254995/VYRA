@@ -34,11 +34,20 @@ const verifyDecodedPayload = async (
       decoded.decoder_contract?.version !== '0.0.30' || !SHA.test(String(decoded.decoded_samples_sha256))) {
     return false;
   }
+  const width = Number(decoded.width), height = Number(decoded.height);
+  const pixelCount = width * height;
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) ||
+      width < 1 || height < 1 || !Number.isSafeInteger(pixelCount) || pixelCount > 8_000_000) return false;
+  const reconstructed = new Uint8Array(pixelCount * 4);
+  const coverage = new Uint8Array(pixelCount);
   const expectedPaths = new Set<string>();
   for (const tile of tiles) {
     if (!isObject(tile) || !Number.isSafeInteger(tile.x) || !Number.isSafeInteger(tile.y) ||
         !Number.isSafeInteger(tile.width) || !Number.isSafeInteger(tile.height) ||
-        !Number.isSafeInteger(tile.byte_length) || tile.byte_length <= 0 ||
+        tile.x < 0 || tile.y < 0 || tile.x % 256 !== 0 || tile.y % 256 !== 0 ||
+        tile.width !== Math.min(256, width - tile.x) ||
+        tile.height !== Math.min(256, height - tile.y) ||
+        !Number.isSafeInteger(tile.byte_length) || tile.byte_length !== tile.width * tile.height * 4 ||
         !SHA.test(String(tile.sha256))) return false;
     const path = prefix + tile.x + '_' + tile.y + '.raw';
     if (expectedPaths.has(path) || !paths.includes(path)) return false;
@@ -47,8 +56,20 @@ const verifyDecodedPayload = async (
     if (error || !data || data.size !== tile.byte_length) return false;
     const bytes = new Uint8Array(await data.arrayBuffer());
     if (await sha256(bytes) !== tile.sha256) return false;
+    for (let row = 0; row < tile.height; row += 1) {
+      const sourceStart = row * tile.width * 4;
+      const targetStart = (tile.y + row) * width * 4 + tile.x * 4;
+      for (let col = 0; col < tile.width; col += 1) {
+        const pixelIndex = (tile.y + row) * width + tile.x + col;
+        if (coverage[pixelIndex]) return false;
+        coverage[pixelIndex] = 1;
+      }
+      reconstructed.set(bytes.subarray(sourceStart, sourceStart + tile.width * 4), targetStart);
+    }
   }
-  return expectedPaths.size === paths.length && paths.every((path: string) => expectedPaths.has(path));
+  if (expectedPaths.size !== paths.length || !paths.every((path: string) => expectedPaths.has(path)) ||
+      coverage.some((covered) => covered !== 1)) return false;
+  return await sha256(reconstructed) === String(decoded.decoded_samples_sha256).toLowerCase();
 };
 
 Deno.serve(async (request: Request) => {
