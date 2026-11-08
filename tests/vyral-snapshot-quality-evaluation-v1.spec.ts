@@ -62,6 +62,7 @@ test('evaluates a mixed collection against the exact Master DNA snapshot and pin
   });
   assert.equal(result.snapshot.revision, 7);
   assert.equal(result.snapshot.fingerprint, result.evaluation.snapshotFingerprint);
+  assert.equal(result.evaluation.scope, 'vyral_collection');
   assert.equal(result.evaluation.standard.version, 3);
   assert.equal(result.evaluation.status, 'graded');
   assert.equal(result.evaluation.grade, 'A');
