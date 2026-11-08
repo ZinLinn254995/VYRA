@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   findVyralMasterDnaSnapshotAssetV1,
   hasValidVyralMasterDnaRevisionBindingV1,
@@ -12,6 +13,7 @@ import {
   createPublicVyralMasterDnaProjectionV1,
   canonicalizeVyralPublicProjectionV1,
 } from '../src/services/vyralResourceResolverV1.ts';
+import { verifyPublicVyralCollectionReferenceV1 } from '../src/services/vyralCollectionReferenceResolverV1.ts';
 
 const ownerPrefix = 'owner-1/vyral-1/asset-1/';
 const digest = 'a'.repeat(64);
@@ -197,4 +199,99 @@ test('public Master DNA projection omits descriptive Asset metadata and creator-
   assert.equal('main_asset_ids' in projection, false);
   assert.equal(canonicalizeVyralPublicProjectionV1(projection).includes('Confidential source filename'), false);
   assert.equal(canonicalizeVyralPublicProjectionV1(projection).includes('private relationship rationale'), false);
+});
+
+
+test('live public collection reference verification pins identity, revision, projection digest and Asset inventory', async () => {
+  const asset = {
+    asset_id: 'asset-1',
+    asset_version_id: 'version-1',
+    media_type: 'image/png',
+    dna_ref: { record_id: 'dna-1', schema_id: 'vyra.asset-dna', schema_version: 3 },
+    asset_fingerprint: digest,
+    reconstruction_claim: 'lossless_decoded',
+  };
+  const snapshot = {
+    schema_id: 'vyra.vyral-master-dna',
+    schema_version: 1,
+    vyral: { vyral_id: 'vyral-1', name: 'Public Collection' },
+    snapshot: { revision: 4 },
+    assets: [asset],
+  };
+  const projectionSha256 = createHash('sha256').update(canonicalizeVyralPublicProjectionV1(snapshot)).digest('hex');
+  const response = {
+    status: 'resolved',
+    access: 'public',
+    vyral: { id: 'vyral-1', name: 'Public Collection' },
+    masterDna: {
+      schemaId: 'vyra.vyral-master-dna',
+      schemaVersion: 1,
+      revision: 4,
+      snapshot,
+      projectionIntegrity: {
+        sourceManifestSha256: 'c'.repeat(64),
+        projectionSha256,
+      },
+    },
+  };
+  const reference = {
+    source_vyral_id: 'vyral-1',
+    source_revision: 4,
+    projection_sha256: 'c'.repeat(64),
+    compact_snapshot: {
+      assets: [{
+        ...asset,
+        name: 'Original descriptive name is not in the public projection',
+      }],
+    },
+  };
+  assert.deepEqual(await verifyPublicVyralCollectionReferenceV1(response, reference), {
+    status: 'current',
+    revision: 4,
+    assetCount: 1,
+  });
+
+  const newerSnapshot = { ...snapshot, snapshot: { revision: 5 } };
+  const newerDigest = createHash('sha256').update(canonicalizeVyralPublicProjectionV1(newerSnapshot)).digest('hex');
+  const newerResponse = {
+    ...response,
+    masterDna: {
+      ...response.masterDna,
+      revision: 5,
+      snapshot: newerSnapshot,
+      projectionIntegrity: { sourceManifestSha256: 'd'.repeat(64), projectionSha256: newerDigest },
+    },
+  };
+  assert.deepEqual(await verifyPublicVyralCollectionReferenceV1(newerResponse, reference), {
+    status: 'newer_revision',
+    revision: 5,
+    assetCount: 1,
+  });
+
+  await assert.rejects(
+    verifyPublicVyralCollectionReferenceV1({
+      ...response,
+      masterDna: {
+        ...response.masterDna,
+        projectionIntegrity: { ...response.masterDna.projectionIntegrity, projectionSha256: 'e'.repeat(64) },
+      },
+    }, reference),
+    /failed its integrity check/,
+  );
+
+  await assert.rejects(
+    verifyPublicVyralCollectionReferenceV1({
+      ...response,
+      vyral: { id: 'another-vyral', name: 'Spoofed' },
+    }, reference),
+    /collection identity/,
+  );
+
+  await assert.rejects(
+    verifyPublicVyralCollectionReferenceV1(response, {
+      ...reference,
+      compact_snapshot: { assets: [{ ...asset, asset_fingerprint: 'f'.repeat(64) }] },
+    }),
+    /Asset inventory differs/,
+  );
 });
