@@ -2830,12 +2830,21 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   : check?.status === 'error'
                     ? check.message
                     : reference.resolver_uri ? 'Access has not been checked yet' : 'Identity reference only';
-            return <div key={reference.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--vyra-border-subtle)] px-3 py-2">
-              <div className="min-w-0 flex-1"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Imported revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'}</p><p className={'mt-1 text-[10px] ' + (check?.status === 'error' ? 'text-rose-500' : muted)}>{checkLabel}</p></div>
-              <div className="flex items-center gap-2">
-                {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check access'}</button>}
-                <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
+            return <div key={reference.id} className="rounded-lg border border-[var(--vyra-border-subtle)] px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0 flex-1"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Imported revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'}</p><p className={'mt-1 text-[10px] ' + (check?.status === 'error' ? 'text-rose-500' : muted)}>{checkLabel}</p></div>
+                <div className="flex items-center gap-2">
+                  {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check access'}</button>}
+                  <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
+                </div>
               </div>
+              {check?.status === 'current' && <div className="mt-3 space-y-2 border-t border-[var(--vyra-border-subtle)] pt-3">
+                <p className={'text-[10px] ' + muted}>Public Assets · copies are saved privately in this Vyral</p>
+                {check.assets.map((assetReference) => <div key={assetReference.assetId + ':' + assetReference.assetVersionId} className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0"><p className={'text-[11px] ' + primary}>{assetReference.mediaType}</p><p className={'text-[9px] ' + muted}>{assetReference.assetId.slice(0, 8)} · version {assetReference.assetVersionId.slice(0, 8)}</p></div>
+                  <button type="button" onClick={() => void copyReferencedAsset(reference, assetReference)} disabled={packageBusy || busy} className={button}>Copy Asset here</button>
+                </div>)}
+              </div>}
             </div>;
           })}
         </div>
