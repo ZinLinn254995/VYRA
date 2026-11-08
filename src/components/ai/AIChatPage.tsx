@@ -11,6 +11,7 @@ import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, recon
 import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
 import { buildVyralCreatorInventoryContextV1 } from '../../services/vyralCreatorInventoryContextV1.ts';
+import { requestsVyralQualityEvaluationV1 } from '../../services/vyralQualityIntentV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -410,7 +411,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const sendMessage = async (value = draft) => {
     const text = value.trim();
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
-    const requestsVyralQuality = /(?:\b(?:grade|evaluate|assess)\s+(?:(?:this|my|the)\s+)?(?:vyral|collection)\b|\b(?:vyral|collection)\s+(?:quality|grade)\b|\b(?:check|show)\s+(?:the\s+)?quality(?:\s+of)?\s+(?:(?:this|my|the)\s+)?(?:vyral|collection)\b)/i.test(text);
+    const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const qualityVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
     if (selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext) return;
     if (!isAuthenticated) {
