@@ -155,14 +155,10 @@ test('late AI analysis merges into the latest creator-edited Asset details', () 
       style: { value: 'Minimal' },
     },
   });
-  const creatorSavedWhileAiWasRunning = mergeVyralAiDetails(null, {
-    scope: 'asset', sourceVersionId: 'version-1', provider: 'creator', model: 'manual',
-    generatedAt: '2026-11-08T10:05:00.000Z',
-    suggestions: {
-      name: { value: 'Creator title' },
-      description: { value: 'Creator description' },
-    },
-  });
+  const creatorSavedWhileAiWasRunning = setVyralAiDetailField(
+    setVyralAiDetailField(aiStarted, 'name', 'Creator title', 'creator_edited', '2026-11-08T10:05:00.000Z'),
+    'description', 'Creator description', 'creator_edited', '2026-11-08T10:05:00.000Z',
+  );
   const lateAiSuggestions = Object.fromEntries(Object.entries(aiStarted.fields)
     .filter(([, field]) => field.origin === 'ai_suggested')
     .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
@@ -171,9 +167,9 @@ test('late AI analysis merges into the latest creator-edited Asset details', () 
     generatedAt: '2026-11-08T10:10:00.000Z', suggestions: lateAiSuggestions,
   });
   assert.equal(saved.fields.name.value, 'Creator title');
-  assert.equal(saved.fields.name.origin, 'ai_suggested');
+  assert.equal(saved.fields.name.origin, 'creator_edited');
   assert.equal(saved.fields.description.value, 'Creator description');
-  assert.equal(saved.fields.description.origin, 'ai_suggested');
+  assert.equal(saved.fields.description.origin, 'creator_edited');
   assert.equal(saved.fields.category.value, 'Illustration');
   assert.equal(saved.fields.style.value, 'Minimal');
 });
