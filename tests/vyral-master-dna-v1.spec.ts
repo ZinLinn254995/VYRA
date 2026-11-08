@@ -132,6 +132,12 @@ test('preflight accepts single and unrelated Assets without optional metadata', 
   }), []);
 });
 
+test('preflight blocks unsupported or version-mismatched DNA as incomplete Asset DNA', () => {
+  assert.deepEqual(preflightVyralMasterDna({
+    assets: [{ asset_id: 'needs-supported-dna', has_latest_version: true, has_matching_dna: false }],
+  }).map((item) => item.code), ['missing_asset_dna']);
+});
+
 test('preflight blocks only missing source versions or matching Asset DNA', () => {
   const blockers = preflightVyralMasterDna({
     assets: [
