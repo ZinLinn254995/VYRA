@@ -3,6 +3,7 @@ import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
   findVyralMasterDnaSnapshotAssetV1,
   isPublicVyralAssetVisibilityAllowedV1,
+  isPublicVyralMasterDnaSnapshotAllowedV1,
   hasValidVyralMasterDnaRevisionBindingV1,
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
@@ -148,6 +149,16 @@ Deno.serve(async (request: Request) => {
   }
 
   if (body.action === 'master') {
+    // A full snapshot exposes the entire Asset inventory; fail closed for mixed visibility.
+    const { data: snapshotAssets, error: snapshotAssetsError } = await context.supabaseAdmin
+      .from('vyral_assets')
+      .select('id,metadata,license_override')
+      .eq('vyral_id', vyral.id)
+      .eq('user_id', ownerId);
+    if (snapshotAssetsError) return json({ error: 'Could not verify public Asset visibility for the collection snapshot.' }, 500);
+    if (!isPublicVyralMasterDnaSnapshotAllowedV1(vyral.visibility, snapshotAssets ?? [])) {
+      return json({ error: 'The complete collection DNA is not publicly available because one or more Assets are private or do not permit AI analysis.' }, 403);
+    }
     return json({
       status: 'resolved',
       access: 'public',
