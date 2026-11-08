@@ -6,7 +6,7 @@ import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
-import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
+import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -119,7 +119,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }, [storageKey, loadedStorageKey, storyboards]);
 
   const persistStoryboard = async (item: Storyboard) => {
-    if (!isAuthenticated || !supabase) return;
+    if (!isAuthenticated || !supabase || !isPersistableStoryboardId(item.id)) return;
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user) {
       setCloudSyncMessage('Could not sync this Storyboard. Sign in again to retry.');
