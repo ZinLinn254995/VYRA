@@ -52,3 +52,19 @@ History is append-only for direct application actions. Deleting the parent Vyral
 ## Interpretation
 
 A grade describes the Vyral's readiness under the selected standard and evidence available at evaluation time. It does not guarantee byte-exact reconstruction, visual identity, licensing rights, third-party tool access, or identical results across external AI models. Those claims require their own exact tests and evidence.
+
+## Server-managed standard registry and evidence keys
+
+Published profiles are stored as immutable rows in `vyral_quality_standards`. Client roles cannot read, insert, update, or delete these rows. A new profile version is published as a new row; an active profile is never edited in place. No production grade scale is approved merely because a provisional test fixture exists.
+
+Rules may opt into server-built evidence with an explicit `evidenceKey`:
+
+- `snapshot.integrity` — exact immutable Master DNA revision validated by VYRA
+- `fingerprint.cryptographic` — a server-verified SHA-256 fingerprint matching the exact Asset Version's stored source hash
+- `reconstruction.byte_exact` — a passed byte-exact test for the exact Asset Version and exact DNA record, from the trusted File DNA verifier
+- `reconstruction.decoded_exact` — a passed decoded-exact test for the exact Asset Version and exact DNA record, from an allowlisted VYRA readback verifier
+- `vision.corroborated` — a corroborated or independently verified observation pinned to the exact Asset Version and source SHA-256
+
+The Edge Function loads all evidence using the authenticated owner identity and the exact Asset Version IDs in the immutable snapshot. It does not accept client-supplied findings, evidence IDs, model claims, or grade values. Client-created fingerprint rows are not trusted: only records carrying protected verification metadata written by `verify-vyral-asset` qualify. Reconstruction and Vision evidence tables are read through the server role because client insert permissions are revoked.
+
+Rules without an evidence key remain unevaluated until a separate trusted evidence adapter exists for that class. Therefore an evaluation can correctly return `incomplete_evidence`; the system must not fill gaps with AI guesses or automatic passing results.
