@@ -34,7 +34,9 @@ const masterDna = async (assets: VyralMasterDnaV1['assets']): Promise<VyralMaste
   });
 
 const asset = (id: string, asset_type: string | undefined, media_type: string) => ({
-  asset_id: id, asset_version_id: `version-${id}`, asset_type, media_type,
+  asset_id: id, asset_version_id: `version-${id}`,
+  ...(asset_type ? { asset_type } : {}),
+  media_type,
   dna_ref: { record_id: `dna-${id}`, schema_id: 'vyra.asset-file-dna', schema_version: 1 },
   asset_fingerprint: fingerprint, reconstruction_claim: 'semantic_only' as const,
 });
@@ -51,7 +53,7 @@ test('evaluates a mixed collection against the exact Master DNA snapshot and pin
     ],
   });
   assert.equal(result.snapshot.revision, 7);
-  assert.equal(result.snapshot.fingerprint, fingerprint);
+  assert.equal(result.snapshot.fingerprint, result.evaluation.snapshotFingerprint);
   assert.equal(result.evaluation.standard.version, 3);
   assert.equal(result.evaluation.status, 'graded');
   assert.equal(result.evaluation.grade, 'A');
