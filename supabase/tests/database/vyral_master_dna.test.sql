@@ -328,14 +328,14 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$ update public.vyral_quality_evaluations set score=99 where vyral_id='24000000-0000-4000-8000-000000000011' $,
+  $$ update public.vyral_quality_evaluations set score=99 where vyral_id='24000000-0000-4000-8000-000000000011' $$,
   '55000',
   'Quality evaluation history is immutable; create a new evaluation instead.',
   'Quality evaluation history cannot be edited in place'
 );
 
 select throws_ok(
-  $$ delete from public.vyral_quality_evaluations where vyral_id='24000000-0000-4000-8000-000000000011' $,
+  $$ delete from public.vyral_quality_evaluations where vyral_id='24000000-0000-4000-8000-000000000011' $$,
   '55000',
   'Quality evaluation history is immutable; create a new evaluation instead.',
   'Quality evaluation history cannot be deleted'
@@ -380,7 +380,7 @@ select set_config('request.jwt.claim.role','service_role',true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 
 select throws_ok(
-  $$ update public.vyral_master_dna_revisions set revision=2 where vyral_id='24000000-0000-4000-8000-000000000011' $,
+  $$ update public.vyral_master_dna_revisions set revision=2 where vyral_id='24000000-0000-4000-8000-000000000011' $$,
   '55000',
   'Master DNA revisions are immutable; create a new revision instead.',
   'Master DNA snapshots cannot be edited in place'
