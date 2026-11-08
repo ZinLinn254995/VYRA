@@ -29,7 +29,7 @@ type ReconstructionRecord = {
   comparison_mode: string;
   test_status: string;
   exact_match: boolean | null;
-  verifier: Record<string, unknown>;
+  model_id: string;
 };
 
 type VisionObservationRecord = {
@@ -58,11 +58,6 @@ const TRUSTED_RECONSTRUCTION_VERIFIERS: Record<'byte_exact' | 'decoded_exact', S
 const isSha256 = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
-const verifierId = (value: Record<string, unknown>) => {
-  const candidate = value.id ?? value.model_id ?? value.verifier_id;
-  return typeof candidate === 'string' ? candidate : null;
-};
-
 const versionKey = (assetId: string, versionId: string) => assetId + ':' + versionId;
 
 const evidenceForRule = (
@@ -83,7 +78,7 @@ const evidenceForRule = (
       const matches = fingerprints.filter((row) =>
         versionKey(row.asset_id, row.asset_version_id) === target &&
         row.fingerprint_kind === 'cryptographic' &&
-        row.algorithm.toLowerCase() === 'sha256' &&
+        row.algorithm.toLowerCase().replace(/[^a-z0-9]/g, '') === 'sha256' &&
         row.value === asset.source_sha256
       );
       if (matches.length > 1) throw new Error(`Ambiguous cryptographic fingerprint evidence for Asset ${asset.asset_id}.`);
@@ -98,7 +93,7 @@ const evidenceForRule = (
         versionKey(row.asset_id, row.asset_version_id) === target &&
         row.dna_record_id === asset.dna_ref.record_id &&
         row.comparison_mode === mode &&
-        TRUSTED_RECONSTRUCTION_VERIFIERS[mode].has(verifierId(row.verifier) ?? '')
+        TRUSTED_RECONSTRUCTION_VERIFIERS[mode].has(row.model_id)
       );
       if (matches.some((row) => row.test_status === 'failed' && row.exact_match === false)) {
         failed = true;
