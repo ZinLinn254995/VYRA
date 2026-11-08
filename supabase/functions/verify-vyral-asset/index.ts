@@ -231,7 +231,7 @@ Deno.serve(async (request: Request) => {
         const digest = await sha256Hex(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength));
         const packagePath = 'dna/file/v1/' + recordId + '/chunks/' + index.toString().padStart(8, '0') + '.bin';
         const storagePath = prefix + index.toString().padStart(8, '0') + '.bin';
-        const { error: uploadError } = await storage.upload(storagePath, chunk, {
+        const { error: uploadError } = await storage.upload(storagePath, new Blob([chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength)]), {
           contentType: 'application/octet-stream',
           upsert: true,
           cacheControl: '31536000',
