@@ -79,7 +79,7 @@ Deno.serve(async (request: Request) => {
   if (revisionError) return json({ error: 'Could not load the immutable Master DNA snapshot.' }, 500);
   if (!revision) return json({ error: 'A verified Master DNA snapshot is required before quality evaluation.' }, 409);
 
-  let masterDna;
+  let masterDna: Awaited<ReturnType<typeof validateVyralMasterDnaV1>>;
   try {
     masterDna = await validateVyralMasterDnaV1(revision.snapshot);
   } catch {
@@ -164,7 +164,7 @@ Deno.serve(async (request: Request) => {
       applicability: result.applicability,
       evaluation: result.evaluation,
     });
-  } catch (error) {
+  } catch {
     // Internal database or evidence details are deliberately not exposed to the client.
     return json({ error: 'Trusted quality evidence could not be evaluated.' }, 409);
   }
