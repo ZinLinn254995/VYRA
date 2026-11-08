@@ -482,6 +482,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           recoveryLevel?: string;
           checks?: {
             sourceBinding?: string;
+            sourceFileIntegrity?: string;
             schemaValidity?: string;
             provenance?: string;
             knowledge?: string;
@@ -500,6 +501,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           `Recovery capability: ${assessment.recoveryLevel ?? 'unknown'}`,
           'Evidence checks:',
           `• Source identity: ${assessment.checks?.sourceBinding ?? 'not available'}`,
+          `• Original file bytes (Storage SHA-256): ${assessment.checks?.sourceFileIntegrity ?? 'not available'}`,
           `• DNA schema: ${assessment.checks?.schemaValidity ?? 'not available'}`,
           `• Provenance: ${assessment.checks?.provenance ?? 'not available'}`,
           `• Structured knowledge: ${assessment.checks?.knowledge ?? 'not available'}`,
