@@ -131,3 +131,54 @@ export const isVyralAssetDnaPinnedToVersionV1 = (input: {
     typeof dnaSourceSha256 === 'string' &&
     dnaSourceSha256.toLowerCase() === input.assetSha256.toLowerCase();
 };
+
+/** Public compact projection deliberately excludes descriptive Asset rows and creator-authored context. */
+export const createPublicVyralMasterDnaProjectionV1 = (snapshotValue: unknown): Record<string, unknown> => {
+  const snapshot = asRecord(snapshotValue);
+  const vyral = asRecord(snapshot.vyral);
+  const snapshotMeta = asRecord(snapshot.snapshot);
+  const reconstruction = asRecord(snapshot.reconstruction_profile);
+  const sourceResolution = asRecord(snapshot.source_resolution);
+  const portable = asRecord(snapshot.portable_projection);
+  const assets = Array.isArray(snapshot.assets) ? snapshot.assets.map((value) => {
+    const asset = asRecord(value);
+    const dnaRef = asRecord(asset.dna_ref);
+    return {
+      asset_id: asset.asset_id,
+      asset_version_id: asset.asset_version_id,
+      media_type: asset.media_type,
+      dna_ref: {
+        record_id: dnaRef.record_id,
+        schema_id: dnaRef.schema_id,
+        schema_version: dnaRef.schema_version,
+      },
+      asset_fingerprint: asset.asset_fingerprint,
+      reconstruction_claim: asset.reconstruction_claim,
+    };
+  }) : [];
+  return {
+    schema_id: snapshot.schema_id,
+    schema_version: snapshot.schema_version,
+    master_dna_id: snapshot.master_dna_id,
+    vyral: { vyral_id: vyral.vyral_id, name: vyral.name },
+    snapshot: snapshotMeta,
+    assets,
+    reconstruction_profile: { overall_claim: reconstruction.overall_claim },
+    source_resolution: { visibility: sourceResolution.visibility },
+    portable_projection: {
+      profile: portable.profile,
+      retrieval_policy: portable.retrieval_policy,
+    },
+  };
+};
+
+export const canonicalizeVyralPublicProjectionV1 = (value: unknown): string => {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Public projection contains a non-finite number.');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return '[' + value.map(canonicalizeVyralPublicProjectionV1).join(',') + ']';
+  const record = asRecord(value);
+  return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + canonicalizeVyralPublicProjectionV1(record[key])).join(',') + '}';
+};
