@@ -169,7 +169,7 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
     await writeFile(extraEntryPath, Buffer.from(await extraEntryArchive.arrayBuffer()));
     assert.throws(
       () => execFileSync('python3', [scriptPath, extraEntryPath, '--output', join(temp, 'extra-entry-output')], { encoding: 'utf8' }),
-      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('Package entries do not match the declared reconstruction payloads'),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('Vyral package integrity inventory does not match its ZIP entries'),
     );
   } finally {
     await rm(temp, { recursive: true, force: true });
