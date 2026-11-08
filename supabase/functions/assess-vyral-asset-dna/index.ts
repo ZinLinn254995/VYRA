@@ -120,7 +120,8 @@ Deno.serve(async (request: Request) => {
   let sourceFileIntegrityVerified = false;
   if (sourcePath && sourcePath === String(asset.storage_path ?? '') &&
       sourcePath.startsWith(expectedSourcePrefix) && !sourcePath.includes('..') &&
-      !sourcePath.startsWith('/') && !sourcePath.includes('\\\\')) {
+      !sourcePath.startsWith('/') && !sourcePath.includes('\\') &&
+      Number(version.size_bytes) <= 64 * 1024 * 1024) {
     const { data: sourceFile, error: sourceFileError } = await context.supabaseAdmin.storage.from(BUCKET).download(sourcePath);
     if (!sourceFileError && sourceFile && sourceFile.size === Number(version.size_bytes)) {
       const sourceBytes = new Uint8Array(await sourceFile.arrayBuffer());
