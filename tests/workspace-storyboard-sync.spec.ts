@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isPersistableStoryboardId, mergeWorkspaceStoryboards, type WorkspaceStoryboard } from '../src/services/workspaceStoryboards.ts';
+import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey, type WorkspaceStoryboard } from '../src/services/workspaceStoryboards.ts';
 
 const uuid = '4f6d1f2a-8b3c-4d5e-9a7b-1c2d3e4f5a6b';
 const item = (overrides: Partial<WorkspaceStoryboard> = {}): WorkspaceStoryboard => ({
