@@ -6,6 +6,7 @@ import type { VyralQualityStandardProfile } from '../src/services/vyralQualityGr
 
 const shaA = 'a'.repeat(64);
 const shaB = 'b'.repeat(64);
+const verifiedFingerprint = { verification_status: 'server_verified', verified_by: 'verify-vyral-asset', comparison_status: 'matched', actual_size_bytes: 1024 };
 const masterDna = {
   assets: [
     { asset_id: 'asset-a', asset_version_id: 'version-a', dna_ref: { record_id: 'dna-a' },
@@ -52,12 +53,25 @@ test('requires a matching SHA-256 cryptographic fingerprint for every exact Asse
     ...base,
     profile: profile('fingerprint.cryptographic', 'deterministic'),
     fingerprints: [
-      { id: 'fp-a', asset_id: 'asset-a', asset_version_id: 'version-a', fingerprint_kind: 'cryptographic', algorithm: 'SHA256', value: shaA },
-      { id: 'fp-b', asset_id: 'asset-b', asset_version_id: 'version-b', fingerprint_kind: 'cryptographic', algorithm: 'sha256', value: shaB },
+      { id: 'fp-a', asset_id: 'asset-a', asset_version_id: 'version-a', fingerprint_kind: 'cryptographic', algorithm: 'SHA256', value: shaA, metadata: verifiedFingerprint },
+      { id: 'fp-b', asset_id: 'asset-b', asset_version_id: 'version-b', fingerprint_kind: 'cryptographic', algorithm: 'sha256', value: shaB, metadata: verifiedFingerprint },
     ],
   });
   assert.equal(result[0].status, 'pass');
   assert.deepEqual(result[0].evidenceRefs, ['fp-a', 'fp-b']);
+});
+
+
+test('does not treat client-created cryptographic fingerprint rows as trusted evidence', () => {
+  const result = buildVyralTrustedEvidenceFindingsV1({
+    ...base,
+    profile: profile('fingerprint.cryptographic', 'deterministic'),
+    fingerprints: [
+      { id: 'client-fp-a', asset_id: 'asset-a', asset_version_id: 'version-a', fingerprint_kind: 'cryptographic', algorithm: 'SHA-256', value: shaA, metadata: {} },
+      { id: 'client-fp-b', asset_id: 'asset-b', asset_version_id: 'version-b', fingerprint_kind: 'cryptographic', algorithm: 'SHA-256', value: shaB, metadata: {} },
+    ],
+  });
+  assert.equal(result[0].status, 'not_evaluated');
 });
 
 test('does not treat partial fingerprint coverage as a pass', () => {
