@@ -62,11 +62,38 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
     exportedAt: '2026-11-08T00:00:00.000Z',
     exportMode: 'dna-only',
     exportComponents: { assets: false, fullDna: true, compactDna: false },
-    vyral: { id: 'vyral-decoder-test', name: 'Portable Decoder Test' },
+    vyral: {
+      id: 'vyral-decoder-test',
+      name: 'Portable Decoder Test',
+      metadata: {
+        ai_details: {
+          schema_version: 1, scope: 'vyral', source_version_id: null, source_revision: 2,
+          provider: 'google', model: 'gemini-test', generated_at: '2026-11-08T00:00:00.000Z',
+          stale: false,
+          fields: {
+            category: { value: 'Creative collection', origin: 'creator_edited', updated_at: '2026-11-08T00:00:00.000Z' },
+          },
+        },
+        identity_name_origin: 'creator_edited',
+      },
+    },
     folders: [],
     assets: [
-      { id: 'asset-raster', name: 'Raster sample', original_filename: 'raster.png' },
-      { id: 'asset-binary', name: 'Binary sample', original_filename: 'sample.bin' },
+      {
+        id: 'asset-raster', name: 'Raster sample', original_filename: 'raster.png',
+        metadata: {
+          ai_details: {
+            schema_version: 1, scope: 'asset', source_version_id: 'version-raster', source_revision: 1,
+            provider: 'google', model: 'gemini-test', generated_at: '2026-11-08T00:00:00.000Z',
+            stale: false,
+            fields: {
+              style: { value: 'Minimal geometric', origin: 'creator_edited', updated_at: '2026-11-08T00:00:00.000Z' },
+            },
+          },
+          identity_description_origin: 'creator_confirmed',
+        },
+      },
+      { id: 'asset-binary', name: 'Binary sample', original_filename: 'sample.bin', metadata: { visibility: 'private' } },
     ],
     versions: [],
     dnaRecords: [],
@@ -86,6 +113,17 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
     await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT, 'utf8');
     const report = execFileSync('python3', [scriptPath, packagePath, '--output', outputDir], { encoding: 'utf8' });
     const parsedReport = JSON.parse(report) as { reconstructed_assets: Array<{ asset_id: string; result: string }> };
+    const exportedManifest = parseVyralManifest(await readVyralZip(archive));
+    assert.equal((exportedManifest.vyral.metadata as { identity_name_origin: string }).identity_name_origin, 'creator_edited');
+    assert.equal(
+      (((exportedManifest.vyral.metadata as { ai_details: { fields: Record<string, { value: string; origin: string }> } }).ai_details.fields).category).origin,
+      'creator_edited',
+    );
+    const rasterMetadata = exportedManifest.assets.find((asset) => asset.id === 'asset-raster')?.metadata as {
+      ai_details: { fields: Record<string, { value: string; origin: string }> };
+    };
+    assert.equal(rasterMetadata.ai_details.fields.style.value, 'Minimal geometric');
+    assert.equal(rasterMetadata.ai_details.fields.style.origin, 'creator_edited');
     assert.deepEqual(parsedReport.reconstructed_assets.map((item) => item.asset_id).sort(), ['asset-binary', 'asset-raster']);
     assert.equal(parsedReport.reconstructed_assets.find((item) => item.asset_id === 'asset-raster')?.result, 'decoded-samples-exact');
     assert.equal(parsedReport.reconstructed_assets.find((item) => item.asset_id === 'asset-binary')?.result, 'source-file-exact');
