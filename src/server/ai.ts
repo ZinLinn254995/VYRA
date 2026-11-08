@@ -944,8 +944,12 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   if (body?.ping === true) {
     return res.status(200).json(getGeminiStatus());
   }
-  if (!(await requireVerifiedVYraSession(req, res))) return;
-  if (blockUntrackedGeneration(res, 'gemini-text')) return;
+  const verifiedUserId = await requireVerifiedVYraSession(req, res);
+  if (!verifiedUserId) return;
+  const isDetailsTaskRequest = body.task === 'suggest_details';
+  // Ordinary Gemini chat remains paused while its provider usage is not tracked.
+  // Metadata suggestions use the same server-owned text ledger as other providers.
+  if (!isDetailsTaskRequest && blockUntrackedGeneration(res, 'gemini-text')) return;
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
@@ -1052,7 +1056,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     })
     .join('\n\n');
 
-  const isDetailsTask = body.task === 'suggest_details';
+  const isDetailsTask = isDetailsTaskRequest;
   const systemInstruction = isDetailsTask
     ? 'You create helpful default metadata suggestions for VYRA Assets, Vyral collections, and Storyboards. The requested scope is ' + (body.detailsScope || 'asset') + '. Return exactly one valid JSON object and no Markdown or surrounding text. Use only evidence from attached content and supplied facts. Never invent relationships, storylines, creator intent, cultural identity, or technical facts. Distinguish observed facts from uncertain suggestions. Use the user language when clear; otherwise use concise English. Suggested fields may include name, description, type, category, style, tags, format, subject, intended_use, and scope-specific details. For a Vyral collection, describe only the collection and inventory; do not invent relationships or a shared storyline. Storyboards may include title, concept, format, visual style, scene/shot summaries, and sequence only when supported by source content. For audio, infer genre, voice, or instruments only when audible evidence supports it. For documents, summarize actual text. For images/video frames, describe visible evidence. Use arrays for tags. Omit unsupported fields. Include confidence values from 0 to 1 only when meaningful. Return JSON shaped as {"name":{"value":"...","confidence":0.9},"description":{"value":"..."},"category":{"value":"...","confidence":0.8},"tags":{"value":["..."]}}.'
     : 'You are VYRA, a creative assistant for planning educational and social video content. ' +
@@ -1069,6 +1073,32 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   const prompt = (isDetailsTask
     ? 'Create default metadata for the requested scope. Return JSON only. User-provided facts and creator context follow. Treat file names as weak hints, not proof of content.\n\n'
     : '') + transcript + contextText;
+
+  let ledgerContext: { userId: string; job: OpenRouterTextJob } | null = null;
+  if (isDetailsTask && isUsageLedgerRequested()) {
+    if (!isUsageLedgerServerEnabled()) {
+      return res.status(503).json({
+        error: 'Usage tracking is enabled but its server-side Supabase configuration is incomplete. No provider request was sent.',
+        code: 'USAGE_LEDGER_NOT_CONFIGURED',
+      });
+    }
+    const idempotencyKey = req.header('idempotency-key')?.trim() ?? '';
+    if (!isValidIdempotencyKey(idempotencyKey)) {
+      return res.status(400).json({ error: 'A valid metadata generation request ID is required.' });
+    }
+    const started = await beginOpenRouterTextJob({
+      userId: verifiedUserId, idempotencyKey, model: MODEL_NAME,
+      messageCount: messages.length, inputCharacters: totalMessageChars, provider: 'google',
+    });
+    if (!started.ok) {
+      return res.status(started.reason === 'duplicate' ? 409 : 503).json({
+        error: started.reason === 'duplicate'
+          ? 'This metadata request was already recorded. Check the Asset details before retrying.'
+          : 'Usage tracking could not start safely. No metadata request was sent.',
+      });
+    }
+    ledgerContext = { userId: verifiedUserId, job: started.job };
+  }
 
   try {
     const genAI = new GoogleGenAI({ apiKey });
@@ -1093,15 +1123,48 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     });
     const text = generated.text?.trim();
 
+    const usage = generated.usageMetadata ? {
+      promptTokens: generated.usageMetadata.promptTokenCount,
+      completionTokens: generated.usageMetadata.candidatesTokenCount,
+      totalTokens: generated.usageMetadata.totalTokenCount,
+    } : null;
+    const generationId = typeof generated.responseId === 'string' ? generated.responseId : null;
     if (!text) {
       lastGeminiRequestSucceeded = false;
+      if (ledgerContext) {
+        const recorded = await finishOpenRouterTextJob({
+          userId: ledgerContext.userId, job: ledgerContext.job, status: 'failed',
+          model: MODEL_NAME, provider: 'google', generationId, usage,
+        });
+        if (!recorded) return res.status(503).json({ error: 'Gemini returned no metadata and its usage record could not be confirmed.', code: 'USAGE_RECORD_UNCONFIRMED' });
+      }
       return res.status(502).json({ error: 'Gemini returned an empty response. Please try again.' });
     }
 
+    if (ledgerContext) {
+      const recorded = await finishOpenRouterTextJob({
+        userId: ledgerContext.userId, job: ledgerContext.job, status: 'succeeded',
+        model: MODEL_NAME, provider: 'google', generationId, usage,
+      });
+      if (!recorded) return res.status(503).json({
+        error: 'Gemini may have completed this metadata request, but its usage record could not be confirmed. Check the Asset before retrying.',
+        code: 'USAGE_RECORD_UNCONFIRMED',
+      });
+    }
     lastGeminiRequestSucceeded = true;
-    return res.status(200).json({ text, modelName: MODEL_NAME, provider: 'gemini' });
+    return res.status(200).json({ text, modelName: MODEL_NAME, provider: 'gemini', generationId, usage });
   } catch (error) {
     lastGeminiRequestSucceeded = false;
+    if (ledgerContext) {
+      const recorded = await finishOpenRouterTextJob({
+        userId: ledgerContext.userId, job: ledgerContext.job, status: 'unknown',
+        model: MODEL_NAME, provider: 'google',
+      });
+      if (!recorded) return res.status(503).json({
+        error: 'Gemini may have received the metadata request but its status could not be confirmed. Check before retrying.',
+        code: 'GENERATION_STATUS_UNKNOWN',
+      });
+    }
     // Keep provider diagnostics server-side; never return credentials or raw SDK errors.
     const errorName =
       error && typeof error === 'object' && 'name' in error
