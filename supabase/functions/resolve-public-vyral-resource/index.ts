@@ -14,6 +14,11 @@ import {
 
 type Row = Record<string, any>;
 
+const sha256Hex = async (value: string) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
 const SIGNED_URL_TTL_SECONDS = 60;
 const MAX_REQUEST_BYTES = 16 * 1024;
 const MAX_DNA_TILES_PER_REQUEST = 500;
@@ -177,7 +182,7 @@ Deno.serve(async (request: Request) => {
         projectionIntegrity: {
           schema: 'vyra.public-master-dna-projection.v1',
           sourceManifestSha256: revision.manifest_sha256,
-          projectionSha256: await sha256Hex(canonicalizeJson(createPublicMasterDnaProjection(snapshot))),
+          projectionSha256: await sha256Hex(canonicalizeVyralPublicProjectionV1(createPublicVyralMasterDnaProjectionV1(snapshot))),
         },
         createdAt: revision.created_at,
       },
