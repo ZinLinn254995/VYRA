@@ -247,8 +247,10 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
   const missingApplicableEvidence = applicable
     .filter((rule) => rule.status === 'not_evaluated')
     .map((rule) => rule.id);
+  // A hard gate is a pass/fail prerequisite, not a weighted quality dimension.
+  // Partial evidence cannot satisfy it; unevaluated gates remain incomplete rather than blocked.
   const hardGateFailures = applicable
-    .filter((rule) => rule.hardGate && rule.status === 'fail')
+    .filter((rule) => rule.hardGate && ['partial', 'fail'].includes(rule.status))
     .map((rule) => rule.id);
 
   const scored = applicable.filter((rule) => rule.awardedPoints !== null && rule.weight > 0);
