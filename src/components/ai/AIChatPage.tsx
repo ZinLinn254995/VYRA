@@ -410,6 +410,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const sendMessage = async (value = draft) => {
     const text = value.trim();
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
+    const requestsVyralQuality = /(?:\\b(?:grade|evaluate|assess)\\s+(?:this\\s+)?(?:vyral|collection)\\b|\\b(?:vyral|collection)\\s+(?:quality|grade)\\b|\\b(?:check|show)\\s+(?:the\\s+)?quality\\b)/i.test(text);
+    const qualityVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
     if (selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext) return;
     if (!isAuthenticated) {
       onLoginRequired();
@@ -444,6 +446,55 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+      if (requestsVyralQuality) {
+        if (qualityVyralIds.length !== 1) {
+          throw new Error('To evaluate quality, select one or more Assets from exactly one Vyral in the AI Chat context first.');
+        }
+        if (!supabase) throw new Error('Secure Vyral quality evaluation is unavailable in this environment.');
+        const { data, error } = await supabase.functions.invoke('evaluate-vyral-quality', {
+          body: { vyralId: qualityVyralIds[0] },
+        });
+        if (error) {
+          let message = 'VYRA could not complete the quality evaluation.';
+          try {
+            const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the safe generic message when the function response is unavailable.
+          }
+          throw new Error(message);
+        }
+        const evaluation = data?.evaluation as {
+          status?: 'graded' | 'incomplete_evidence' | 'blocked';
+          grade?: string | null;
+          score?: number | null;
+          hardGateFailures?: string[];
+          missingApplicableEvidence?: string[];
+          rules?: Array<{ title: string; status: string; recommendation?: string | null }>;
+        } | undefined;
+        if (!evaluation) throw new Error('The quality evaluation response was incomplete.');
+        const report = [
+          evaluation.status === 'graded'
+            ? `Vyral quality: ${evaluation.grade ?? '—'} (${evaluation.score ?? '—'}/100)`
+            : evaluation.status === 'blocked'
+              ? 'Vyral quality evaluation: BLOCKED — no grade issued.'
+              : 'Vyral quality evaluation: INCOMPLETE — no grade issued.',
+          `Snapshot revision: ${data.snapshot?.revision ?? 'unknown'}`,
+          `Standard: ${data.evaluation?.standard?.name ?? 'versioned standard'} v${data.evaluation?.standard?.version ?? '?'}`,
+          ...(evaluation.hardGateFailures?.length ? [`Hard-gate failures: ${evaluation.hardGateFailures.join(', ')}`] : []),
+          ...(evaluation.missingApplicableEvidence?.length ? [`Evidence still needed: ${evaluation.missingApplicableEvidence.join(', ')}`] : []),
+          ...(evaluation.rules ?? []).filter((rule) => rule.recommendation).map((rule) => `• ${rule.title}: ${rule.recommendation}`),
+          '',
+          'This grade reflects only the pinned snapshot, selected standard and verified evidence available at evaluation time. It does not guarantee identical results across external AI models.',
+        ].join('\\n');
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: evaluation.status === 'graded' ? 'success' : 'preview',
+        }]);
+        return;
+      }
       if (selectedAssets.length) {
         if (!supabase) throw new Error('Secure Asset access is unavailable in this environment.');
         const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
