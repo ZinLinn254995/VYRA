@@ -51,5 +51,5 @@ test('server rejects oversized, malformed, or MIME-mismatched vision payloads', 
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
   assert.match(server, /MIME type does not match its file signature/);
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
-  assert.match(entry, /express\.json\(\{ limit: '4mb' \}\)/);
+  assert.match(entry, /express\.json\(\{ limit: '8mb' \}\)/);
 });
