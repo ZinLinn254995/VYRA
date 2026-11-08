@@ -870,7 +870,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     try {
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
-      if (manifest.exportMode === 'compact-only') {
+      if (String(manifest.exportMode) === 'compact-only') {
         if (manifest.exportComponents?.assets !== false || manifest.exportComponents?.fullDna !== false ||
             manifest.exportComponents?.compactDna !== true || manifest.assets.length || manifest.folders.length ||
             manifest.versions.length || manifest.dnaRecords.length || manifest.fingerprints.length ||
