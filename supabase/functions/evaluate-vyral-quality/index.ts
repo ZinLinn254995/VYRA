@@ -100,11 +100,11 @@ Deno.serve(async (request: Request) => {
   try {
     const [assetVersions, fingerprints, reconstructionTests, visionObservations] = await Promise.all([
       loadAll(() => admin.from('vyral_asset_versions')
-        .select('id,asset_id,asset_version_id:id,sha256')
+        .select('id,asset_id,sha256')
         .in('id', versionIds).in('asset_id', assetIds)
         .eq('vyral_id', body.vyralId).eq('user_id', userId)),
       loadAll(() => admin.from('vyral_fingerprints')
-        .select('id,asset_id,asset_version_id,fingerprint_kind,algorithm,value')
+        .select('id,asset_id,asset_version_id,fingerprint_kind,algorithm,value,metadata')
         .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId)),
       loadAll(() => admin.from('vyral_reconstruction_tests')
         .select('id,asset_id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,model_id')
@@ -165,7 +165,7 @@ Deno.serve(async (request: Request) => {
       evaluation: result.evaluation,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown evidence evaluation error.';
-    return json({ error: 'Trusted quality evidence could not be evaluated.', detail: message }, 409);
+    // Internal database or evidence details are deliberately not exposed to the client.
+    return json({ error: 'Trusted quality evidence could not be evaluated.' }, 409);
   }
 });
