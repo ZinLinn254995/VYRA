@@ -2,6 +2,7 @@ import {
   canonicalizeVyralPublicProjectionV1,
   isSafePublicVyralResolverUriV1,
 } from './vyralResourceResolverV1';
+import { reconstructVyralDnaV3, validateVyralDnaV3Record, type VyralDnaV3Record, type VyralDnaV3PackageEntry } from './vyralDnaV3';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -228,4 +229,137 @@ export const downloadPublicVyralCollectionAssetV1 = async (
     ? resolvedAsset.mimeType.trim()
     : assetReference.mediaType || 'application/octet-stream';
   return new File([bytes], filename, { type: mimeType });
+};
+
+
+export type RetrievedPublicAssetDnaV1 = {
+  asset: { id: string; versionId: string; name: string; mimeType: string; sizeBytes: number; sha256: string };
+  record: VyralDnaV3Record;
+  payloadEntries: VyralDnaV3PackageEntry[];
+};
+
+export const retrievePublicVyralAssetDnaV1 = async (
+  reference: Pick<PublicCollectionReferenceV1, 'resolver_uri' | 'source_vyral_id'>,
+  assetReference: PublicCollectionAssetReferenceV1,
+): Promise<RetrievedPublicAssetDnaV1> => {
+  if (!reference.resolver_uri || !isSafePublicVyralResolverUriV1(reference.resolver_uri)) {
+    throw new Error('This collection reference has no supported public access link.');
+  }
+  const resolver = new URL(reference.resolver_uri);
+  const response = await fetch(reference.resolver_uri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      action: 'asset_dna',
+      vyralId: reference.source_vyral_id,
+      assetId: assetReference.assetId,
+      assetVersionId: assetReference.assetVersionId,
+    }),
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  });
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch { throw new Error('The source service returned an unreadable DNA response.'); }
+  if (!response.ok) {
+    const message = record(payload).error;
+    throw new Error(typeof message === 'string' ? message : 'The source creator has not permitted Asset DNA access.');
+  }
+
+  const root = record(payload);
+  const asset = record(root.asset);
+  const assetDna = record(root.assetDna);
+  if (root.status !== 'resolved' || root.access !== 'public' ||
+      asset.id !== assetReference.assetId || asset.versionId !== assetReference.assetVersionId ||
+      Number(assetDna.schemaVersion) !== 3) {
+    throw new Error('The returned Asset DNA does not match the requested public Asset version or supported reconstruction format.');
+  }
+
+  const dnaRecord = validateVyralDnaV3Record(assetDna.record);
+  if (dnaRecord.source.asset_id !== assetReference.assetId ||
+      dnaRecord.source.asset_version_id !== assetReference.assetVersionId ||
+      typeof asset.sha256 !== 'string' || dnaRecord.source.sha256.toLowerCase() !== asset.sha256.toLowerCase() ||
+      Number(asset.sizeBytes) !== dnaRecord.source.size_bytes ||
+      String(asset.mimeType ?? '') !== dnaRecord.source.mime_type) {
+    throw new Error('The Asset DNA source binding does not match the authorized Asset version.');
+  }
+
+  const tilePayloads = Array.isArray(assetDna.tilePayloads) ? assetDna.tilePayloads : [];
+  const tiles = dnaRecord.lossless_payload.tiles;
+  if (tilePayloads.length !== tiles.length || !tiles.length || tiles.length > 500) {
+    throw new Error('The source did not authorize the complete DNA tile set.');
+  }
+  const totalBytes = tiles.reduce((sum, tile) => sum + tile.byte_length, 0);
+  if (!Number.isSafeInteger(totalBytes) || totalBytes > 32 * 1024 * 1024) {
+    throw new Error('The requested DNA reconstruction payload exceeds the supported size limit.');
+  }
+
+  const payloadEntries: VyralDnaV3PackageEntry[] = [];
+  const seen = new Set<string>();
+  for (let index = 0; index < tiles.length; index += 1) {
+    const tile = tiles[index];
+    const authorization = record(tilePayloads[index]);
+    if (authorization.packagePath !== tile.package_path ||
+        typeof authorization.signedUrl !== 'string' || seen.has(tile.package_path)) {
+      throw new Error('The source DNA tile authorization does not match the declared reconstruction payload.');
+    }
+    seen.add(tile.package_path);
+    let signed: URL;
+    try { signed = new URL(authorization.signedUrl); }
+    catch { throw new Error('The source returned an invalid DNA tile authorization.'); }
+    if (signed.protocol !== 'https:' || signed.hostname !== resolver.hostname ||
+        signed.username || signed.password || signed.hash ||
+        !signed.pathname.startsWith('/storage/v1/object/sign/vyral-assets/')) {
+      throw new Error('The DNA tile authorization points outside the trusted VYRA storage endpoint.');
+    }
+
+    const tileResponse = await fetch(signed, {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+    });
+    if (!tileResponse.ok || !tileResponse.body) throw new Error('An authorized DNA tile could not be downloaded.');
+    const declaredLength = Number(tileResponse.headers.get('content-length') ?? tile.byte_length);
+    if (Number.isFinite(declaredLength) && declaredLength !== tile.byte_length) {
+      throw new Error('A DNA tile download length does not match its declared record.');
+    }
+    const reader = tileResponse.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      length += value.byteLength;
+      if (length > tile.byte_length) {
+        await reader.cancel();
+        throw new Error('A DNA tile exceeded its declared byte length.');
+      }
+      chunks.push(value);
+    }
+    if (length !== tile.byte_length) throw new Error('A DNA tile is incomplete.');
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    if (await sha256(bytes.buffer) !== tile.sha256.toLowerCase()) {
+      throw new Error('A downloaded DNA tile failed its SHA-256 integrity check.');
+    }
+    payloadEntries.push({ path: tile.package_path, data: bytes });
+  }
+
+  await reconstructVyralDnaV3(dnaRecord, new Map(payloadEntries.map((entry) => [entry.path, entry.data])));
+  return {
+    asset: {
+      id: String(asset.id),
+      versionId: String(asset.versionId),
+      name: typeof asset.name === 'string' ? asset.name : 'Public Asset',
+      mimeType: String(asset.mimeType ?? assetReference.mediaType),
+      sizeBytes: Number(asset.sizeBytes),
+      sha256: String(asset.sha256),
+    },
+    record: dnaRecord,
+    payloadEntries,
+  };
 };
