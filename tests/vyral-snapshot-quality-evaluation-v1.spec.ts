@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { evaluateVyralSnapshotQualityV1 } from '../src/services/vyralSnapshotQualityEvaluationV1.ts';
-import type { VyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
+import { createVyralMasterDnaV1, type VyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 import type { VyralQualityStandardProfile } from '../src/services/vyralQualityGradingV1.ts';
 
 const fingerprint = 'c'.repeat(64);
@@ -18,22 +18,20 @@ const profile: VyralQualityStandardProfile = {
   ],
 };
 
-const masterDna = (assets: VyralMasterDnaV1['assets']): VyralMasterDnaV1 => ({
-  schema_id: 'vyra.vyral-master-dna',
-  schema_version: 1,
-  master_dna_id: 'master-1',
-  vyral: { vyral_id: 'vyral-1', name: 'Mixed collection' },
-  snapshot: { revision: 7, created_at: '2026-11-09T00:00:00.000Z' },
-  purpose: { summary: 'Personal library', intended_uses: ['reference'] },
-  main_asset_ids: [],
-  assets,
-  relationships: [],
-  reconstruction_profile: { overall_claim: 'semantic_only', notes: [] },
-  provenance: { creator_ref: null, license_ref: null, evidence_status: 'creator_attested' },
-  source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
-  integrity: { canonicalization: 'vyra-json-c14n-v1', hash_algorithm: 'SHA-256', manifest_sha256: fingerprint, vyral_fingerprint: fingerprint, fingerprint_version: 1 },
-  portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
-});
+const masterDna = async (assets: VyralMasterDnaV1['assets']): Promise<VyralMasterDnaV1> =>
+  createVyralMasterDnaV1({
+    master_dna_id: 'master-1',
+    vyral: { vyral_id: 'vyral-1', name: 'Mixed collection' },
+    snapshot: { revision: 7, created_at: '2026-11-09T00:00:00.000Z' },
+    purpose: { summary: 'Personal library', intended_uses: ['reference'] },
+    main_asset_ids: [],
+    assets,
+    relationships: [],
+    reconstruction_profile: { overall_claim: 'semantic_only', notes: [] },
+    provenance: { creator_ref: null, license_ref: null, evidence_status: 'creator_attested' },
+    source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
+    portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
+  });
 
 const asset = (id: string, asset_type: string | undefined, media_type: string) => ({
   asset_id: id, asset_version_id: `version-${id}`, asset_type, media_type,
@@ -41,9 +39,9 @@ const asset = (id: string, asset_type: string | undefined, media_type: string) =
   asset_fingerprint: fingerprint, reconstruction_claim: 'semantic_only' as const,
 });
 
-test('evaluates a mixed collection against the exact Master DNA snapshot and pins standard version', () => {
+test('evaluates a mixed collection against the exact Master DNA snapshot and pins standard version', async () => {
   const result = evaluateVyralSnapshotQualityV1({
-    masterDna: masterDna([asset('audio-1', 'audio', 'audio/wav'), asset('image-1', 'image', 'image/png')]),
+    masterDna: await masterDna([asset('audio-1', 'audio', 'audio/wav'), asset('image-1', 'image', 'image/png')]),
     profile,
     evidenceFindings: [
       { ruleId: 'identity.integrity', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://snapshot'] },
@@ -60,7 +58,7 @@ test('evaluates a mixed collection against the exact Master DNA snapshot and pin
   assert.deepEqual(result.inventory.typeCounts, { audio: 1, image: 1 });
 });
 
-test('marks unrelated scoped rules N/A for a known audio-only collection', () => {
+test('marks unrelated scoped rules N/A for a known audio-only collection', async () => {
   const result = evaluateVyralSnapshotQualityV1({
     masterDna: masterDna([asset('audio-1', 'audio', 'audio/wav')]),
     profile,
@@ -75,7 +73,7 @@ test('marks unrelated scoped rules N/A for a known audio-only collection', () =>
   assert.equal(result.evaluation.status, 'graded');
 });
 
-test('unknown asset classification keeps type-scoped rules applicable instead of silently N/A', () => {
+test('unknown asset classification keeps type-scoped rules applicable instead of silently N/A', async () => {
   const result = evaluateVyralSnapshotQualityV1({
     masterDna: masterDna([asset('opaque-1', undefined, 'application/octet-stream')]),
     profile,
@@ -89,8 +87,8 @@ test('unknown asset classification keeps type-scoped rules applicable instead of
   assert.deepEqual(result.evaluation.missingRequiredEvidence, ['audio.quality', 'image.quality']);
 });
 
-test('prevents evidence input from overriding applicability decisions', () => {
-  assert.throws(() => evaluateVyralSnapshotQualityV1({
+test('prevents evidence input from overriding applicability decisions', async () => {
+  await assert.rejects(() => evaluateVyralSnapshotQualityV1({
     masterDna: masterDna([asset('audio-1', 'audio', 'audio/wav')]),
     profile,
     evidenceFindings: [
@@ -108,9 +106,9 @@ test('prevents evidence input from overriding applicability decisions', () => {
   }), /cannot be manually marked not applicable/);
 });
 
-test('rejects an unpinned or empty Master DNA snapshot', () => {
-  const invalid = masterDna([asset('audio-1', 'audio', 'audio/wav')]);
+test('rejects an unpinned or empty Master DNA snapshot', async () => {
+  const invalid = await masterDna([asset('audio-1', 'audio', 'audio/wav')]);
   invalid.integrity.vyral_fingerprint = 'invalid';
-  assert.throws(() => evaluateVyralSnapshotQualityV1({ masterDna: invalid, profile, evidenceFindings: [] }), /SHA-256 fingerprint/);
+  await assert.rejects(() => evaluateVyralSnapshotQualityV1({ masterDna: invalid, profile, evidenceFindings: [] }), /Master DNA integrity metadata is invalid/);
   assert.throws(() => evaluateVyralSnapshotQualityV1({ masterDna: masterDna([]), profile, evidenceFindings: [] }), /non-empty Master DNA Asset inventory/);
 });
