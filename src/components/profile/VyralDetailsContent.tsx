@@ -28,7 +28,7 @@ type AssetRow = {
 
 };
 type DnaRow = {
-  id: string; asset_id: string | null; scope: string; dna_status: string; source_kind: string;
+  id: string; asset_id: string | null; scope: string; schema_version: number; dna_status: string; source_kind: string;
   verification_status: string; payload: Record<string, unknown>; created_at: string;
 };
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
