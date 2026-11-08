@@ -112,7 +112,7 @@ Deno.serve(async (request: Request) => {
         .eq('vyral_id', body.vyralId).eq('user_id', userId).order('id', { ascending: true })),
       loadAll(() => admin.from('vyral_vision_observations')
         .select('id,asset_id,asset_version_id,verification_status,source_sha256')
-        .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId)),
+        .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId).order('id', { ascending: true })),
     ]);
 
     const evidenceFindings = buildVyralTrustedEvidenceFindingsV1({
