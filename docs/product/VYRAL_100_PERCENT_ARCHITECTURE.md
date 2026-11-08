@@ -218,6 +218,11 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Public resolver and Compact-DNA retrieval must enforce both Vyral-level and Asset-level visibility and the relevant license permissions server-side. UI state alone is never authorization.
 - Bulk visibility changes require a clear confirmation summary and must apply only to the selected Assets. Protected foundational Assets remain protected from destructive management actions; visibility changes must not weaken their protection.
 
+
+- The destination UI may offer a live **Check access** action. It calls the canonical public resolver without sending credentials, requests the latest public Master DNA projection, verifies the projection SHA-256, source Vyral identity, current revision, source manifest digest, and exact Asset/Version/DNA-reference inventory against the imported immutable reference.
+- If the source revision is newer, preserve the imported reference unchanged and tell the user to import the new compact package as a separate revision. Never overwrite an earlier reference snapshot.
+- A successful collection-level access check confirms only that the current public Master DNA projection is accessible. It does not mean original media bytes or every Asset DNA payload have been downloaded; those require separate per-Asset requests and their own permission and integrity checks.
+
 ### Acceptance tests
 1. Select one Asset and confirm only that Asset is attached to AI Chat.
 2. Select multiple Assets across the current library view and confirm each appears as a distinct removable context chip.
