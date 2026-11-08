@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(25);
+select plan(27);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -19,14 +19,16 @@ select set_config('request.jwt.claims','{"role":"service_role"}',true);
 insert into public.vyrals (id,user_id,name,metadata)
 values
   ('24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Master DNA Test A','{}'::jsonb),
-  ('24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Master DNA Test B','{"protected":true}'::jsonb);
+  ('24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Master DNA Test B','{"protected":true}'::jsonb),
+  ('24000000-0000-4000-8000-000000000013','24000000-0000-4000-8000-000000000001','Unclassified Single Asset Vyral','{}'::jsonb);
 
 insert into public.vyral_assets (
   id,vyral_id,user_id,name,original_filename,asset_type,mime_type,size_bytes,storage_path
 ) values
   ('24000000-0000-4000-8000-000000000021','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Main','main.png','image','image/png',100,'master-dna-test/a/main.png'),
   ('24000000-0000-4000-8000-000000000022','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','Support','support.png','image','image/png',100,'master-dna-test/a/support.png'),
-  ('24000000-0000-4000-8000-000000000023','24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Other Owner Asset','other.png','image','image/png',100,'master-dna-test/b/other.png');
+  ('24000000-0000-4000-8000-000000000023','24000000-0000-4000-8000-000000000012','24000000-0000-4000-8000-000000000002','Other Owner Asset','other.png','image','image/png',100,'master-dna-test/b/other.png'),
+  ('24000000-0000-4000-8000-000000000024','24000000-0000-4000-8000-000000000013','24000000-0000-4000-8000-000000000001','Unclassified Asset','unclassified.png','image','image/png',100,'master-dna-test/a/unclassified.png');
 
 select is(
   (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000011'),
@@ -142,13 +144,15 @@ insert into public.vyral_asset_versions
   (id,asset_id,vyral_id,user_id,version_number,storage_path,mime_type,size_bytes,sha256)
 values
   ('24000000-0000-4000-8000-000000000031','24000000-0000-4000-8000-000000000021','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',1,'master-dna-test/a/main-v1.png','image/png',100,repeat('c',64)),
-  ('24000000-0000-4000-8000-000000000032','24000000-0000-4000-8000-000000000022','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',1,'master-dna-test/a/support-v1.png','image/png',100,repeat('d',64));
+  ('24000000-0000-4000-8000-000000000032','24000000-0000-4000-8000-000000000022','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',1,'master-dna-test/a/support-v1.png','image/png',100,repeat('d',64)),
+  ('24000000-0000-4000-8000-000000000033','24000000-0000-4000-8000-000000000024','24000000-0000-4000-8000-000000000013','24000000-0000-4000-8000-000000000001',1,'master-dna-test/a/unclassified-v1.png','image/png',100,repeat('e',64));
 
 insert into public.vyral_dna_records
   (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
 values
   ('24000000-0000-4000-8000-000000000041','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000021','asset',3,jsonb_build_object('dna_schema_id','vyra.asset-dna','dna_record',jsonb_build_object('schema_id','vyra.asset-dna','source',jsonb_build_object('asset_version_id','24000000-0000-4000-8000-000000000031','sha256',repeat('c',64)))),'system'),
-  ('24000000-0000-4000-8000-000000000042','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000022','asset',3,jsonb_build_object('dna_schema_id','vyra.asset-dna','dna_record',jsonb_build_object('schema_id','vyra.asset-dna','source',jsonb_build_object('asset_version_id','24000000-0000-4000-8000-000000000032','sha256',repeat('d',64)))),'system');
+  ('24000000-0000-4000-8000-000000000042','24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000022','asset',3,jsonb_build_object('dna_schema_id','vyra.asset-dna','dna_record',jsonb_build_object('schema_id','vyra.asset-dna','source',jsonb_build_object('asset_version_id','24000000-0000-4000-8000-000000000032','sha256',repeat('d',64)))),'system'),
+  ('24000000-0000-4000-8000-000000000044','24000000-0000-4000-8000-000000000013','24000000-0000-4000-8000-000000000001','24000000-0000-4000-8000-000000000024','asset',3,jsonb_build_object('dna_schema_id','vyra.asset-dna','dna_record',jsonb_build_object('schema_id','vyra.asset-dna','source',jsonb_build_object('asset_version_id','24000000-0000-4000-8000-000000000033','sha256',repeat('e',64)))),'system');
 
 select lives_ok(
   $$ insert into public.vyral_master_dna_revisions
@@ -175,6 +179,47 @@ select lives_ok(
        '24000000-0000-4000-8000-000000000001'
      ) $$,
   'Service role can append a Master DNA snapshot after canonical membership validation'
+);
+
+select lives_ok(
+  $ insert into public.vyral_master_dna_revisions
+     (vyral_id,user_id,revision,schema_id,schema_version,manifest_sha256,vyral_fingerprint,snapshot,created_by)
+     values (
+       '24000000-0000-4000-8000-000000000013','24000000-0000-4000-8000-000000000001',
+       1,'vyra.vyral-master-dna',1,repeat('f',64),repeat('1',64),
+       jsonb_build_object(
+         'schema_id','vyra.vyral-master-dna',
+         'schema_version',1,
+         'vyral',jsonb_build_object('vyral_id','24000000-0000-4000-8000-000000000013','name','Unclassified Single Asset Vyral'),
+         'snapshot',jsonb_build_object('revision',1),
+         'main_asset_ids','[]'::jsonb,
+         'assets',jsonb_build_array(
+           jsonb_build_object(
+             'asset_id','24000000-0000-4000-8000-000000000024',
+             'asset_version_id','24000000-0000-4000-8000-000000000033',
+             'name','Unclassified Asset',
+             'asset_type','image',
+             'media_type','image/png',
+             'dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000044','schema_id','vyra.asset-dna','schema_version',3),
+             'asset_fingerprint',repeat('e',64),
+             'reconstruction_claim','unavailable'
+           )
+         ),
+         'reconstruction_profile',jsonb_build_object('overall_claim','unavailable','notes','[]'::jsonb),
+         'provenance',jsonb_build_object('creator_ref',null,'license_ref',null,'evidence_status','unknown'),
+         'source_resolution',jsonb_build_object('visibility','private','canonical_uri',null,'resolution_policy','no_remote_resolution'),
+         'portable_projection',jsonb_build_object('profile','compact','includes_full_reconstruction_payloads',false,'resolver_uri',null,'retrieval_policy','no_remote_resolution'),
+         'integrity',jsonb_build_object('manifest_sha256',repeat('f',64),'vyral_fingerprint',repeat('1',64))
+       ),
+       '24000000-0000-4000-8000-000000000001'
+     ) $,
+  'A single-Asset Vyral can create its derived snapshot without creator purpose, Asset roles, Asset purpose, or relationships'
+);
+
+select is(
+  (select master_dna_status from public.vyrals where id='24000000-0000-4000-8000-000000000013'),
+  'ready',
+  'A valid single-Asset snapshot without optional context becomes ready'
 );
 
 select throws_ok(
