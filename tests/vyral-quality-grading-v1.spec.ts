@@ -61,6 +61,22 @@ test('does not grade when required evidence is missing', () => {
   assert.deepEqual(result.missingRequiredEvidence, ['asset.dna-coverage']);
 });
 
+test('does not silently treat an applicable but unevaluated optional rule as a pass', () => {
+  const result = evaluateVyralQualityV1({
+    vyralId: 'vyral-1',
+    snapshotFingerprint: fingerprint,
+    profile,
+    findings: [
+      finding('identity.integrity', 'pass'),
+      finding('asset.dna-coverage', 'pass'),
+      finding('instructions.clarity', 'pass'),
+    ],
+  });
+  assert.equal(result.status, 'incomplete_evidence');
+  assert.equal(result.grade, null);
+  assert.deepEqual(result.missingApplicableEvidence, ['relationships.optional']);
+});
+
 test('hard-gate failure blocks grading even when other rules pass', () => {
   const result = evaluateVyralQualityV1({
     vyralId: 'vyral-1',
