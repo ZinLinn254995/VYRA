@@ -2,10 +2,11 @@ export type MasterDnaPreflightAsset = {
   asset_id: string;
   has_latest_version: boolean;
   has_matching_dna: boolean;
+  has_exact_reconstruction: boolean;
 };
 
 export type MasterDnaPreflightBlocker = {
-  code: 'missing_asset_version' | 'missing_asset_dna';
+  code: 'missing_asset_version' | 'missing_asset_dna' | 'reconstruction_not_verified';
   asset_id: string;
   message: string;
 };
@@ -25,6 +26,8 @@ export const preflightVyralMasterDna = (input: {
     }
     if (!asset.has_matching_dna) {
       blockers.push({ code: 'missing_asset_dna', asset_id: asset.asset_id, message: 'Generate or recover this Asset’s DNA for its latest version.' });
+    } else if (!asset.has_exact_reconstruction) {
+      blockers.push({ code: 'reconstruction_not_verified', asset_id: asset.asset_id, message: 'Verify exact reconstruction from this Asset’s own DNA before the collection can be marked ready.' });
     }
   }
   return blockers;
