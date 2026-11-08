@@ -98,3 +98,16 @@ The deterministic grading engine validates evidence-key mappings in the publishe
 | `vision.corroborated` | `ai_assessment` |
 
 Unknown keys or mismatched classes invalidate the standard. This prevents a profile from relabeling an AI observation as deterministic proof or treating a client-provided claim as a trusted evidence source. A rule without a supported evidence key remains unevaluated until a trusted adapter is implemented.
+
+### Rule-definition validation
+
+The deterministic evaluator rejects malformed scope definitions before scoring:
+
+- Universal rules cannot carry scope selectors.
+- Asset-type rules must define only a non-empty `appliesTo.assetTypes` selector list.
+- Purpose rules must define only a non-empty `appliesTo.purposes` selector list.
+- Workflow rules must define only a non-empty `appliesTo.workflowTypes` selector list.
+- Selector entries must be non-empty strings no longer than 128 characters.
+- A standard may contain at most 200 rules and must assign positive total configured weight.
+
+These checks prevent a malformed profile from silently broadening or narrowing applicability, and bound evaluation work for a published profile. They do not approve any particular quality rubric, weights, or grade thresholds.
