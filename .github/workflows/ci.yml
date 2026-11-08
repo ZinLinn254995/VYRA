@@ -57,6 +57,8 @@ jobs:
         run: npm run test:vyral-ai-vision
       - name: Vyral AI-generated details and creator-edit preservation tests
         run: npm run test:vyral-ai-details
+      - name: Workspace storyboard cloud sync reconciliation tests
+        run: npm run test:workspace-storyboards
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
