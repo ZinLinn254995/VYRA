@@ -176,7 +176,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [detailsExtraDraft, setDetailsExtraDraft] = useState<Record<string, string>>({});
   const [collectionDetailsOpen, setCollectionDetailsOpen] = useState(false);
   const [collectionDraft, setCollectionDraft] = useState({ name: vyral.name, description: vyral.description ?? '', category: '', style: '', tags: '' });
+  const [collectionDetailsBaseline, setCollectionDetailsBaseline] = useState<typeof collectionDraft | null>(null);
   const [collectionExtraDraft, setCollectionExtraDraft] = useState<Record<string, string>>({});
+  const [collectionExtraBaseline, setCollectionExtraBaseline] = useState<Record<string, string>>({});
+  const [collectionExtraBaselineValues, setCollectionExtraBaselineValues] = useState<Record<string, VyralDetailValue>>({});
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [licenseDraft, setLicenseDraft] = useState({
@@ -2164,24 +2167,27 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const openCollectionDetails = () => {
     const details = vyral.metadata?.ai_details as VyralAiDetails | undefined;
     const fields = details?.fields ?? {};
-    setCollectionDraft({
+    const draft = {
       name: vyral.name,
       description: vyral.description ?? '',
       category: typeof fields.category?.value === 'string' ? fields.category.value : '',
       style: typeof fields.style?.value === 'string' ? fields.style.value : '',
       tags: Array.isArray(fields.tags?.value) ? fields.tags.value.join(', ') : '',
-    });
-    setCollectionExtraDraft(Object.fromEntries(Object.entries(fields)
-      .filter(([key]) => !['name', 'description', 'category', 'style', 'tags'].includes(key))
-      .map(([key, field]) => [key, formatAiFieldDraft(field.value)])));
+    };
+    const extraEntries = Object.entries(fields).filter(([key]) => !['name', 'description', 'category', 'style', 'tags'].includes(key));
+    setCollectionDraft(draft);
+    setCollectionDetailsBaseline(draft);
+    setCollectionExtraDraft(Object.fromEntries(extraEntries.map(([key, field]) => [key, formatAiFieldDraft(field.value)])));
+    setCollectionExtraBaseline(Object.fromEntries(extraEntries.map(([key, field]) => [key, formatAiFieldDraft(field.value)])));
+    setCollectionExtraBaselineValues(Object.fromEntries(extraEntries.map(([key, field]) => [key, field.value])));
     setCollectionDetailsOpen(true);
   };
 
   const saveCollectionDetails = async () => {
-    if (!supabase || busy || !collectionDraft.name.trim()) return;
+    if (!supabase || busy || !collectionDraft.name.trim() || !collectionDetailsBaseline) return;
     setBusy(true); setError('');
     try {
-      // Merge against the latest persisted record, not the dialog's opening snapshot.
+      // Merge only fields the creator actually changed, against the latest persisted record.
       const { data: latestVyral, error: latestReadError } = await supabase.from('vyrals')
         .select('metadata').eq('id', vyral.id).maybeSingle();
       if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Vyral was not found.');
@@ -2189,6 +2195,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         ? latestVyral.metadata as Record<string, unknown> : {};
       const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
       const generatedAt = new Date().toISOString();
+      const nameChanged = collectionDraft.name.trim() !== collectionDetailsBaseline.name.trim();
+      const descriptionChanged = collectionDraft.description.trim() !== collectionDetailsBaseline.description.trim();
+      const categoryChanged = collectionDraft.category !== collectionDetailsBaseline.category;
+      const styleChanged = collectionDraft.style !== collectionDetailsBaseline.style;
+      const tagsChanged = collectionDraft.tags !== collectionDetailsBaseline.tags;
+      const changedExtras = Object.entries(collectionExtraDraft).filter(([key, value]) => value !== (collectionExtraBaseline[key] ?? ''));
+      const hasDetailChanges = nameChanged || descriptionChanged || categoryChanged || styleChanged || tagsChanged || changedExtras.length > 0;
+      if (!hasDetailChanges) { setCollectionDetailsOpen(false); return; }
+
       const inventorySignature = assets
         .map((asset) => [
           asset.id, asset.name, asset.asset_type, asset.mime_type, asset.updated_at, asset.sha256 ?? '',
@@ -2206,28 +2221,34 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         schema_version: 1, scope: 'vyral', source_version_id: null, source_revision: sourceRevision,
         provider: 'creator', model: 'manual', generated_at: generatedAt, stale: false, fields: {},
       };
-      let updatedDetails = setVyralAiDetailField(baseDetails, 'name', collectionDraft.name.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'description', collectionDraft.description.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'category', collectionDraft.category.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'style', collectionDraft.style.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', collectionDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
-      for (const [key, value] of Object.entries(collectionExtraDraft)) {
-        const previous = currentDetails?.fields?.[key]?.value ?? null;
+      let updatedDetails = baseDetails;
+      if (nameChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'name', collectionDraft.name.trim(), 'creator_edited', generatedAt);
+      if (descriptionChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'description', collectionDraft.description.trim(), 'creator_edited', generatedAt);
+      if (categoryChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'category', collectionDraft.category.trim(), 'creator_edited', generatedAt);
+      if (styleChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'style', collectionDraft.style.trim(), 'creator_edited', generatedAt);
+      if (tagsChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', collectionDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      for (const [key, value] of changedExtras) {
+        const previous = collectionExtraBaselineValues[key] ?? currentDetails?.fields?.[key]?.value ?? null;
         updatedDetails = setVyralAiDetailField(updatedDetails, key, parseAiFieldDraft(value, previous), 'creator_edited', generatedAt);
       }
       updatedDetails = { ...updatedDetails, source_revision: sourceRevision, stale: false };
       const nextMetadata = {
         ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
         ai_details_source_revision: sourceRevision, ai_details_inventory_signature: String(sourceRevision),
-        identity_name_origin: 'creator_edited', identity_description_origin: 'creator_edited',
+        ...(nameChanged ? { identity_name_origin: 'creator_edited' } : {}),
+        ...(descriptionChanged ? { identity_description_origin: 'creator_edited' } : {}),
       };
       const { error: updateError } = await supabase.from('vyrals').update({
-        name: collectionDraft.name.trim().slice(0, 100),
-        description: collectionDraft.description.trim().slice(0, 1000),
+        ...(nameChanged ? { name: collectionDraft.name.trim().slice(0, 100) } : {}),
+        ...(descriptionChanged ? { description: collectionDraft.description.trim().slice(0, 1000) } : {}),
         metadata: nextMetadata,
       }).eq('id', vyral.id);
       if (updateError) throw updateError;
-      onVyralUpdated({ name: collectionDraft.name.trim(), description: collectionDraft.description.trim(), metadata: nextMetadata });
+      onVyralUpdated({
+        ...(nameChanged ? { name: collectionDraft.name.trim() } : {}),
+        ...(descriptionChanged ? { description: collectionDraft.description.trim() } : {}),
+        metadata: nextMetadata,
+      });
       setCollectionDetailsOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save Vyral details.');
@@ -2247,26 +2268,42 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const currentMetadata = latestAsset.metadata && typeof latestAsset.metadata === 'object' && !Array.isArray(latestAsset.metadata)
         ? latestAsset.metadata as Record<string, unknown> : {};
       const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
+      const baselineDetails = detailsAsset.metadata?.ai_details as VyralAiDetails | undefined;
+      const baselineFields = baselineDetails?.fields ?? {};
       const generatedAt = new Date().toISOString();
+      const baselineCategory = typeof baselineFields.category?.value === 'string' ? baselineFields.category.value : '';
+      const baselineStyle = typeof baselineFields.style?.value === 'string' ? baselineFields.style.value : '';
+      const baselineTags = Array.isArray(baselineFields.tags?.value) ? baselineFields.tags.value.join(', ') : '';
+      const nameChanged = detailsDraft.name.trim() !== (detailsAsset.name ?? '').trim();
+      const descriptionChanged = detailsDraft.description.trim() !== (detailsAsset.description ?? '').trim();
+      const categoryChanged = detailsDraft.category !== baselineCategory;
+      const styleChanged = detailsDraft.style !== baselineStyle;
+      const tagsChanged = detailsDraft.tags !== baselineTags;
+      const changedExtras = Object.entries(detailsExtraDraft).filter(([key, value]) =>
+        value !== formatAiFieldDraft(baselineFields[key]?.value ?? null));
+      const hasDetailChanges = nameChanged || descriptionChanged || categoryChanged || styleChanged || tagsChanged || changedExtras.length > 0;
+      if (!hasDetailChanges) { setDetailsAsset(null); return; }
       const baseDetails: VyralAiDetails = currentDetails ?? {
         schema_version: 1, scope: 'asset', source_version_id: versions.find((item) => item.asset_id === detailsAsset.id)?.id ?? null,
         source_revision: null, provider: 'creator', model: 'manual', generated_at: generatedAt, stale: false, fields: {},
       };
-      let updatedDetails = setVyralAiDetailField(baseDetails, 'name', detailsDraft.name.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'description', detailsDraft.description.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'category', detailsDraft.category.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'style', detailsDraft.style.trim(), 'creator_edited', generatedAt);
-      updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', detailsDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
-      for (const [key, value] of Object.entries(detailsExtraDraft)) {
-        const previous = currentDetails?.fields?.[key]?.value ?? null;
+      let updatedDetails = baseDetails;
+      if (nameChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'name', detailsDraft.name.trim(), 'creator_edited', generatedAt);
+      if (descriptionChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'description', detailsDraft.description.trim(), 'creator_edited', generatedAt);
+      if (categoryChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'category', detailsDraft.category.trim(), 'creator_edited', generatedAt);
+      if (styleChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'style', detailsDraft.style.trim(), 'creator_edited', generatedAt);
+      if (tagsChanged) updatedDetails = setVyralAiDetailField(updatedDetails, 'tags', detailsDraft.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30), 'creator_edited', generatedAt);
+      for (const [key, value] of changedExtras) {
+        const previous = baselineFields[key]?.value ?? currentDetails?.fields?.[key]?.value ?? null;
         updatedDetails = setVyralAiDetailField(updatedDetails, key, parseAiFieldDraft(value, previous), 'creator_edited', generatedAt);
       }
       const { error: updateError } = await supabase.from('vyral_assets').update({
-        name: detailsDraft.name.trim().slice(0, 100),
-        description: detailsDraft.description.trim().slice(0, 1000),
+        ...(nameChanged ? { name: detailsDraft.name.trim().slice(0, 100) } : {}),
+        ...(descriptionChanged ? { description: detailsDraft.description.trim().slice(0, 1000) } : {}),
         metadata: {
           ...currentMetadata, ai_details: updatedDetails, ai_details_status: 'ready',
-          identity_name_origin: 'creator_edited', identity_description_origin: 'creator_edited',
+          ...(nameChanged ? { identity_name_origin: 'creator_edited' } : {}),
+          ...(descriptionChanged ? { identity_description_origin: 'creator_edited' } : {}),
         },
       }).eq('id', detailsAsset.id).eq('vyral_id', vyral.id);
       if (updateError) throw updateError;
