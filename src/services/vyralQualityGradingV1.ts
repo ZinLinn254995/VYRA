@@ -91,6 +91,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const GRADE_ORDER = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
 
+const EVIDENCE_KEY_CLASS: Record<VyralQualityEvidenceKeyV1, VyralQualityEvidenceClass> = {
+  'snapshot.integrity': 'deterministic',
+  'fingerprint.cryptographic': 'deterministic',
+  'reconstruction.byte_exact': 'generation_test',
+  'reconstruction.decoded_exact': 'generation_test',
+  'vision.corroborated': 'ai_assessment',
+};
+const EVIDENCE_KEYS = new Set<string>(Object.keys(EVIDENCE_KEY_CLASS));
+
 const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeBands']) => {
   if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands))) {
     throw new Error('Every versioned quality standard must explicitly define all six grade bands.');
@@ -146,6 +155,7 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
         !['universal', 'asset_type', 'purpose', 'workflow'].includes(rule.category) ||
         !['deterministic', 'creator_declared', 'ai_assessment', 'generation_test'].includes(rule.evidenceClass) ||
         typeof rule.required !== 'boolean' || (rule.hardGate !== undefined && typeof rule.hardGate !== 'boolean') ||
+        (rule.evidenceKey !== undefined && (!EVIDENCE_KEYS.has(rule.evidenceKey) || EVIDENCE_KEY_CLASS[rule.evidenceKey] !== rule.evidenceClass)) ||
         (rule.hardGate && (!rule.required || rule.evidenceClass !== 'deterministic'))) {
       throw new Error('Quality standard contains an invalid rule definition.');
     }
