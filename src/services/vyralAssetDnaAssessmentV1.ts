@@ -22,6 +22,7 @@ export type VyralAssetDnaAssessmentInput = {
     sha256: string;
     sizeBytes: number;
   };
+  sourceFileIntegrityVerified: boolean;
   structure: {
     schemaValid: boolean;
     provenanceVerified: boolean;
@@ -56,6 +57,7 @@ export type VyralAssetDnaAssessment = {
   recoveryLevel: VyralAssetDnaRecoveryLevel;
   checks: {
     sourceBinding: 'pass' | 'fail';
+    sourceFileIntegrity: 'pass' | 'fail';
     schemaValidity: 'pass' | 'fail';
     provenance: 'pass' | 'incomplete';
     knowledge: 'present' | 'missing';
@@ -84,7 +86,7 @@ export const assessVyralAssetDnaV1 = (input: VyralAssetDnaAssessmentInput): Vyra
       !HASH.test(input.sourceSha256) || !Number.isSafeInteger(input.sourceSizeBytes) || input.sourceSizeBytes <= 0) {
     throw new Error('Asset DNA assessment identity is invalid.');
   }
-  if (!input.structure || typeof input.structure.schemaValid !== 'boolean' ||
+  if (typeof input.sourceFileIntegrityVerified !== 'boolean' || !input.structure || typeof input.structure.schemaValid !== 'boolean' ||
       typeof input.structure.provenanceVerified !== 'boolean' ||
       !Number.isSafeInteger(input.structure.knowledgeFactCount) || input.structure.knowledgeFactCount < 0 ||
       !input.recovery || typeof input.recovery.payloadPresent !== 'boolean' ||
@@ -100,6 +102,7 @@ export const assessVyralAssetDnaV1 = (input: VyralAssetDnaAssessmentInput): Vyra
   const blockers: string[] = [];
   const limitations: string[] = [];
   if (!sourceBinding) blockers.push('source_binding_mismatch');
+  if (!input.sourceFileIntegrityVerified) blockers.push('source_file_storage_integrity_unverified');
   if (!input.structure.schemaValid) blockers.push('dna_schema_invalid');
   if (!input.structure.provenanceVerified) limitations.push('provenance_not_independently_verified');
   if (input.structure.knowledgeFactCount === 0) limitations.push('no_structured_knowledge_facts');
@@ -165,6 +168,7 @@ export const assessVyralAssetDnaV1 = (input: VyralAssetDnaAssessmentInput): Vyra
     recoveryLevel: input.recovery.declaredLevel,
     checks: {
       sourceBinding: sourceBinding ? 'pass' : 'fail',
+      sourceFileIntegrity: input.sourceFileIntegrityVerified ? 'pass' : 'fail',
       schemaValidity: input.structure.schemaValid ? 'pass' : 'fail',
       provenance: input.structure.provenanceVerified ? 'pass' : 'incomplete',
       knowledge: input.structure.knowledgeFactCount > 0 ? 'present' : 'missing',
