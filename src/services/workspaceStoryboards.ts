@@ -15,13 +15,13 @@ export const isPersistableStoryboardId = (id: string): boolean => UUID_PATTERN.t
  * Merge device and account copies without allowing an older local copy to
  * overwrite a newer cloud revision. Non-UUID demo entries remain device-only.
  */
-export const mergeWorkspaceStoryboards = (
-  local: WorkspaceStoryboard[],
-  remote: WorkspaceStoryboard[],
-): { storyboards: WorkspaceStoryboard[]; pending: WorkspaceStoryboard[] } => {
+export const mergeWorkspaceStoryboards = <T extends WorkspaceStoryboard>(
+  local: T[],
+  remote: T[],
+): { storyboards: T[]; pending: T[] } => {
   const remoteById = new Map(remote.map((item) => [item.id, item]));
   const merged = new Map(remote.map((item) => [item.id, item]));
-  const pending: WorkspaceStoryboard[] = [];
+  const pending: T[] = [];
 
   for (const item of local) {
     if (!isPersistableStoryboardId(item.id)) {
