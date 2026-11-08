@@ -36,3 +36,19 @@ test('cloud-only records and local demo records are both retained', () => {
   assert.deepEqual(new Set(result.storyboards.map((entry) => entry.id)), new Set([remote.id, demo.id]));
   assert.deepEqual(result.pending, []);
 });
+
+
+test('Storyboard suggestion cache ignores AI-filled title/topic but changes after creator edits', () => {
+  const seed = workspaceStoryboardSuggestionKey('A city at night', '', {});
+  const aiFilled = workspaceStoryboardSuggestionKey('Neon City', 'A city at night becomes a place of discovery.', {
+    title: 'ai_suggested',
+    topic: 'ai_suggested',
+  });
+  assert.equal(aiFilled, seed);
+
+  const creatorEdited = workspaceStoryboardSuggestionKey('My Neon City', 'A city at night becomes a place of discovery.', {
+    title: 'creator_edited',
+    topic: 'ai_suggested',
+  });
+  assert.notEqual(creatorEdited, seed);
+});
