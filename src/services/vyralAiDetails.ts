@@ -225,11 +225,11 @@ export const parseVyralAiSuggestions = (raw: string): Record<string, VyralAiSugg
   const normalized = raw.trim().replace(/^\x60{3}(?:json)?\s*/i, '').replace(/\s*\x60{3}$/i, '');
   const parsed: unknown = JSON.parse(normalized);
   if (!isRecord(parsed)) throw new Error('AI returned invalid default details.');
-  const result: Record<string, VyralAiSuggestion> = {};
+  const result = Object.create(null) as Record<string, VyralAiSuggestion>;
   for (const [rawKey, value] of Object.entries(parsed)) {
     if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(rawKey) || !isRecord(value) || !('value' in value)) continue;
     const key = rawKey.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_').toLowerCase();
-    if (!/^[a-z][a-z0-9_]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key) || key in result) continue;
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key) || Object.hasOwn(result, key)) continue;
     const candidate = normalizeSuggestedValue(value.value);
     if (candidate === undefined) continue;
     const confidence = isValidConfidence(value.confidence) ? value.confidence : undefined;
