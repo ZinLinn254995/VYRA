@@ -15,8 +15,15 @@ export type VyralQualityRuleStatus =
 
 export type VyralQualityGrade = 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
 
+export type VyralQualityEvidenceKeyV1 =
+  | 'fingerprint.cryptographic'
+  | 'reconstruction.byte_exact'
+  | 'reconstruction.decoded_exact'
+  | 'vision.corroborated';
+
 export type VyralQualityRule = {
   id: string;
+  evidenceKey?: VyralQualityEvidenceKeyV1;
   title: string;
   category: 'universal' | 'asset_type' | 'purpose' | 'workflow';
   evidenceClass: VyralQualityEvidenceClass;
