@@ -6,6 +6,7 @@ import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
+import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -155,21 +156,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         details: (row.details ?? {}) as Storyboard['details'],
         createdAt: row.created_at as string, updatedAt: row.updated_at as string,
       }));
-      const remoteById = new Map(remote.map((item) => [item.id, item]));
-      const merged = new Map(remote.map((item) => [item.id, item]));
-      const pending: Storyboard[] = [];
-      let syncFailed = false;
-      for (const item of readStoryboards(storageKey)) {
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.id)) {
-          merged.set(item.id, item);
-          continue;
-        }
-        const saved = remoteById.get(item.id);
-        if (!saved || Date.parse(item.updatedAt) > Date.parse(saved.updatedAt)) {
-          merged.set(item.id, item);
-          pending.push(item);
-        }
-      }
+      const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
       if (pending.length) {
         const { error: uploadError } = await supabase.from('vyral_storyboards').upsert(pending.map((item) => ({
           id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
@@ -179,7 +166,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         if (uploadError) syncFailed = true;
       }
       if (cancelled) return;
-      setStoryboards(Array.from(merged.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      setStoryboards(mergedStoryboards);
       setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
     };
     void syncStoryboards();
