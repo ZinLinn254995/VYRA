@@ -284,3 +284,14 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 6. Test uncertain, mixed, unknown, and custom categories; confirm the system does not force a false classification.
 7. Disable or fail the AI provider; confirm upload, Vyral creation, DNA generation, import/export, and ordinary use still work with safe minimal metadata.
 8. Verify AI details remain separate from deterministic Asset DNA, Fingerprints, and Vyral DNA integrity claims.
+
+## 15. Workspace Storyboard persistence
+
+- Creator Storyboards are account-owned workspace records, not device-only drafts.
+- Persist Storyboard identity, title, topic, type-specific editable details, and timestamps in the private `vyral_storyboards` table.
+- Row Level Security restricts every read, create, update, and delete to the authenticated owner. Anonymous access is not granted.
+- Keep a local device copy as a resilience/cache layer; authenticated account data is the cross-device source of truth.
+- On sign-in, reconcile local and cloud records by stable Storyboard ID and `updated_at`. The newer revision wins; older local data must never overwrite a newer cloud revision.
+- Existing device-only demo entries are not uploaded as creator records.
+- Cloud sync failure must not discard a local Storyboard or block the creator from continuing. Show a concise sync status and retry on the next account load.
+- Storyboard metadata remains independently editable after creation. AI suggestions never overwrite creator edits, including edits made while a suggestion request is in progress.
