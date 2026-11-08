@@ -947,6 +947,10 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   const verifiedUserId = await requireVerifiedVYraSession(req, res);
   if (!verifiedUserId) return;
   const isDetailsTaskRequest = body.task === 'suggest_details';
+  const detailsScope = body.detailsScope ?? 'asset';
+  if (isDetailsTaskRequest && !['asset', 'vyral', 'storyboard'].includes(detailsScope)) {
+    return res.status(400).json({ error: 'Choose a supported metadata scope.' });
+  }
   // Ordinary Gemini chat remains paused while its provider usage is not tracked.
   // Metadata suggestions use the same server-owned text ledger as other providers.
   if (!isDetailsTaskRequest && blockUntrackedGeneration(res, 'gemini-text')) return;
@@ -1058,7 +1062,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
 
   const isDetailsTask = isDetailsTaskRequest;
   const systemInstruction = isDetailsTask
-    ? 'You create helpful default metadata suggestions for VYRA Assets, Vyral collections, and Storyboards. The requested scope is ' + (body.detailsScope || 'asset') + '. Return exactly one valid JSON object and no Markdown or surrounding text. Use only evidence from attached content and supplied facts. Never invent relationships, storylines, creator intent, cultural identity, or technical facts. Distinguish observed facts from uncertain suggestions. Use the user language when clear; otherwise use concise English. Suggested fields may include name, description, type, category, style, tags, format, subject, intended_use, and scope-specific details. For a Vyral collection, describe only the collection and inventory; do not invent relationships or a shared storyline. Storyboards may include title, concept, format, visual style, scene/shot summaries, and sequence only when supported by source content. For audio, infer genre, voice, or instruments only when audible evidence supports it. For documents, summarize actual text. For images/video frames, describe visible evidence. Use arrays for tags. Omit unsupported fields. Include confidence values from 0 to 1 only when meaningful. Return JSON shaped as {"name":{"value":"...","confidence":0.9},"description":{"value":"..."},"category":{"value":"...","confidence":0.8},"tags":{"value":["..."]}}.'
+    ? 'You create helpful default metadata suggestions for VYRA Assets, Vyral collections, and Storyboards. The requested scope is ' + detailsScope + '. Return exactly one valid JSON object and no Markdown or surrounding text. Use only evidence from attached content and supplied facts. Never invent relationships, storylines, creator intent, cultural identity, or technical facts. Distinguish observed facts from uncertain suggestions. Use the user language when clear; otherwise use concise English. Suggested fields may include name, description, type, category, style, tags, format, subject, intended_use, and scope-specific details. For a Vyral collection, describe only the collection and inventory; do not invent relationships or a shared storyline. Storyboards may include title, concept, format, visual style, scene/shot summaries, and sequence only when supported by source content. For audio, infer genre, voice, or instruments only when audible evidence supports it. For documents, summarize actual text. For images/video frames, describe visible evidence. Use arrays for tags. Omit unsupported fields. Include confidence values from 0 to 1 only when meaningful. Return JSON shaped as {"name":{"value":"...","confidence":0.9},"description":{"value":"..."},"category":{"value":"...","confidence":0.8},"tags":{"value":["..."]}}.'
     : 'You are VYRA, a creative assistant for planning educational and social video content. ' +
       'Help with original ideas, accurate scripts, hooks, outlines, and storyboards. ' +
       'Do not claim to create image/video/audio files, publish content, or execute workspace actions unless a connected tool explicitly confirms it. ' +
