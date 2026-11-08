@@ -346,7 +346,6 @@ Deno.serve(async (request: Request) => {
       protocol: 'ORIGIN-01-blind-reconstruction-comparison-v3',
       testedAt,
       candidateUploadReconciliation,
-    attemptEvidence,
       attemptEvidence,
       integrity: {
         original: { expectedSizeBytes: Number(originalVersion.size_bytes), actualSizeBytes: originalBytes.byteLength, expectedSha256: originalVersion.sha256, actualSha256: originalHash, matched: originalIntegrity },
@@ -423,7 +422,6 @@ Deno.serve(async (request: Request) => {
     protocol: 'ORIGIN-01-blind-reconstruction-comparison-v3',
     testedAt,
       candidateUploadReconciliation,
-    attemptEvidence,
       attemptEvidence,
     integrity: {
       original: { expectedSizeBytes: Number(originalVersion.size_bytes), actualSizeBytes: originalBytes.byteLength, expectedSha256: originalVersion.sha256, actualSha256: originalHash, matched: originalIntegrity },
