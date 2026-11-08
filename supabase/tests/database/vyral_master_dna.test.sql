@@ -281,8 +281,8 @@ select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-00000000
 
 select is(
   (select count(*)::integer from public.vyral_master_dna_revisions),
-  1,
-  'Owner can read their own Master DNA snapshot'
+  2,
+  'Owner can read both of their own Master DNA snapshots'
 );
 select is(
   (select count(*)::integer from public.vyral_master_dna_asset_metadata),
