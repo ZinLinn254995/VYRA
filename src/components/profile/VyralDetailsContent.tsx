@@ -247,7 +247,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const masterRootResult = results[6];
     const masterEdgesResult = results[7];
     const masterMetadataResult = results[8];
-    const masterSchemaReady = !masterRootResult.error && !masterEdgesResult.error && !masterMetadataResult.error && Boolean(masterRootResult.data);
+    // Collection DNA composition depends on the Vyral root and Asset DNA inventory only.
+    // Creator relationships and per-Asset role/purpose metadata are optional context;
+    // a missing or unreadable optional table must never block automatic composition.
+    const masterSchemaReady = !masterRootResult.error && Boolean(masterRootResult.data);
     setMasterDnaAvailable(masterSchemaReady);
     if (masterSchemaReady) {
       setMasterDnaMessage('');
