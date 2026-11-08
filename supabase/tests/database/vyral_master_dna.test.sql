@@ -182,37 +182,37 @@ select lives_ok(
 );
 
 select lives_ok(
-  $ insert into public.vyral_master_dna_revisions
+  'insert into public.vyral_master_dna_revisions
      (vyral_id,user_id,revision,schema_id,schema_version,manifest_sha256,vyral_fingerprint,snapshot,created_by)
      values (
-       '24000000-0000-4000-8000-000000000013','24000000-0000-4000-8000-000000000001',
-       1,'vyra.vyral-master-dna',1,repeat('f',64),repeat('1',64),
+       ''24000000-0000-4000-8000-000000000013'',''24000000-0000-4000-8000-000000000001'',
+       1,''vyra.vyral-master-dna'',1,repeat(''f'',64),repeat(''1'',64),
        jsonb_build_object(
-         'schema_id','vyra.vyral-master-dna',
-         'schema_version',1,
-         'vyral',jsonb_build_object('vyral_id','24000000-0000-4000-8000-000000000013','name','Unclassified Single Asset Vyral'),
-         'snapshot',jsonb_build_object('revision',1),
-         'main_asset_ids','[]'::jsonb,
-         'assets',jsonb_build_array(
+         ''schema_id'',''vyra.vyral-master-dna'',
+         ''schema_version'',1,
+         ''vyral'',jsonb_build_object(''vyral_id'',''24000000-0000-4000-8000-000000000013'',''name'',''Unclassified Single Asset Vyral''),
+         ''snapshot'',jsonb_build_object(''revision'',1),
+         ''main_asset_ids'',''[]''::jsonb,
+         ''assets'',jsonb_build_array(
            jsonb_build_object(
-             'asset_id','24000000-0000-4000-8000-000000000024',
-             'asset_version_id','24000000-0000-4000-8000-000000000033',
-             'name','Unclassified Asset',
-             'asset_type','image',
-             'media_type','image/png',
-             'dna_ref',jsonb_build_object('record_id','24000000-0000-4000-8000-000000000044','schema_id','vyra.asset-dna','schema_version',3),
-             'asset_fingerprint',repeat('e',64),
-             'reconstruction_claim','unavailable'
+             ''asset_id'',''24000000-0000-4000-8000-000000000024'',
+             ''asset_version_id'',''24000000-0000-4000-8000-000000000033'',
+             ''name'',''Unclassified Asset'',
+             ''asset_type'',''image'',
+             ''media_type'',''image/png'',
+             ''dna_ref'',jsonb_build_object(''record_id'',''24000000-0000-4000-8000-000000000044'',''schema_id'',''vyra.asset-dna'',''schema_version'',3),
+             ''asset_fingerprint'',repeat(''e'',64),
+             ''reconstruction_claim'',''unavailable''
            )
          ),
-         'reconstruction_profile',jsonb_build_object('overall_claim','unavailable','notes','[]'::jsonb),
-         'provenance',jsonb_build_object('creator_ref',null,'license_ref',null,'evidence_status','unknown'),
-         'source_resolution',jsonb_build_object('visibility','private','canonical_uri',null,'resolution_policy','no_remote_resolution'),
-         'portable_projection',jsonb_build_object('profile','compact','includes_full_reconstruction_payloads',false,'resolver_uri',null,'retrieval_policy','no_remote_resolution'),
-         'integrity',jsonb_build_object('manifest_sha256',repeat('f',64),'vyral_fingerprint',repeat('1',64))
+         ''reconstruction_profile'',jsonb_build_object(''overall_claim'',''unavailable'',''notes'',''[]''::jsonb),
+         ''provenance'',jsonb_build_object(''creator_ref'',null,''license_ref'',null,''evidence_status'',''unknown''),
+         ''source_resolution'',jsonb_build_object(''visibility'',''private'',''canonical_uri'',null,''resolution_policy'',''no_remote_resolution''),
+         ''portable_projection'',jsonb_build_object(''profile'',''compact'',''includes_full_reconstruction_payloads'',false,''resolver_uri'',null,''retrieval_policy'',''no_remote_resolution''),
+         ''integrity'',jsonb_build_object(''manifest_sha256'',repeat(''f'',64),''vyral_fingerprint'',repeat(''1'',64))
        ),
-       '24000000-0000-4000-8000-000000000001'
-     ) $,
+       ''24000000-0000-4000-8000-000000000001''
+     )',
   'A single-Asset Vyral can create its derived snapshot without creator purpose, Asset roles, Asset purpose, or relationships'
 );
 
