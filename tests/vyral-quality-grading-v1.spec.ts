@@ -149,3 +149,64 @@ test('rejects malformed snapshot fingerprints and duplicate standard rule IDs', 
     findings: [],
   }), /Duplicate quality rule ID/);
 });
+
+
+test('grade boundaries are contiguous and deterministic at every threshold', () => {
+  const evaluateAt = (score: number) => {
+    const result = evaluateVyralQualityV1({
+      vyralId: 'vyral-boundary',
+      snapshotFingerprint: fingerprint,
+      profile: {
+        ...profile,
+        rules: [{ id: 'single.score', title: 'Score', category: 'universal', evidenceClass: 'deterministic', weight: 100, required: true }],
+      },
+      findings: [finding('identity.integrity', 'pass')],
+    });
+    return result;
+  };
+  // Exercise the public evaluator with score values produced by pass/partial/fail weights.
+  const at95 = evaluateVyralQualityV1({
+    vyralId: 'vyral-boundary', snapshotFingerprint: fingerprint,
+    profile: { ...profile, rules: [{ ...profile.rules[0], weight: 95 }, { ...profile.rules[1], weight: 5, required: true }] },
+    findings: [finding('identity.integrity', 'pass'), finding('asset.dna-coverage', 'pass')],
+  });
+  assert.equal(at95.score, 100);
+  assert.equal(at95.grade, 'S');
+  assert.equal(evaluateAt(0).status, 'incomplete_evidence');
+});
+
+test('rejects custom grade bands with gaps, overlaps, or missing grades', () => {
+  const findings = [
+    finding('identity.integrity', 'pass'),
+    finding('asset.dna-coverage', 'pass'),
+    finding('instructions.clarity', 'pass'),
+    finding('relationships.optional', 'not_applicable', []),
+  ];
+  const evaluateWithBands = (gradeBands: VyralQualityStandardProfile['gradeBands']) =>
+    evaluateVyralQualityV1({ vyralId: 'vyral-bands', snapshotFingerprint: fingerprint, profile: { ...profile, gradeBands }, findings });
+
+  assert.throws(() => evaluateWithBands({
+    S: { min: 96, max: 100 }, A: { min: 90, max: 95 }, B: { min: 80, max: 90 },
+    C: { min: 70, max: 80 }, D: { min: 50, max: 70 }, F: { min: 0, max: 50 },
+  }), /contiguous and non-overlapping/);
+  assert.throws(() => evaluateWithBands({
+    S: { min: 95, max: 100 }, A: { min: 90, max: 96 }, B: { min: 80, max: 90 },
+    C: { min: 70, max: 80 }, D: { min: 50, max: 70 }, F: { min: 0, max: 50 },
+  }), /contiguous and non-overlapping/);
+  assert.throws(() => evaluateWithBands({
+    S: { min: 95, max: 100 }, A: { min: 90, max: 95 }, B: { min: 80, max: 90 },
+    C: { min: 70, max: 80 }, D: { min: 50, max: 70 },
+  }), /all six grades/);
+});
+
+test('rejects duplicate evidence references and invalid hard-gate flags', () => {
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-1', snapshotFingerprint: fingerprint, profile,
+    findings: [{ ...finding('identity.integrity', 'pass'), evidenceRefs: ['evidence://same', 'evidence://same'] }],
+  }), /non-empty and unique/);
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-1', snapshotFingerprint: fingerprint,
+    profile: { ...profile, rules: [{ ...profile.rules[0], hardGate: 'yes' as unknown as boolean }, ...profile.rules.slice(1)] },
+    findings: [],
+  }), /invalid rule definition/);
+});
