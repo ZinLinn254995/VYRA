@@ -9,7 +9,7 @@ import type {
 } from './vyralQualityGradingV1.ts';
 
 type SnapshotAsset = VyralMasterDnaAsset & {
-  source_sha256: string;
+  source_sha256: string | null;
 };
 
 type FingerprintRecord = {
@@ -89,7 +89,7 @@ const evidenceForRule = (
         versionKey(row.asset_id, row.asset_version_id) === target &&
         row.fingerprint_kind === 'cryptographic' &&
         row.algorithm.toLowerCase().replace(/[^a-z0-9]/g, '') === 'sha256' &&
-        row.value === asset.source_sha256 &&
+        asset.source_sha256 !== null && row.value === asset.source_sha256 &&
         row.metadata?.verification_status === 'server_verified' &&
         row.metadata?.verified_by === 'verify-vyral-asset' &&
         ['matched', 'baseline_created'].includes(String(row.metadata?.comparison_status)) &&
@@ -123,7 +123,7 @@ const evidenceForRule = (
 
     const matches = visionObservations.filter((row) =>
       versionKey(row.asset_id, row.asset_version_id) === target &&
-      row.source_sha256 === asset.source_sha256 &&
+      asset.source_sha256 !== null && row.source_sha256 === asset.source_sha256 &&
       ['corroborated', 'independently_verified'].includes(row.verification_status)
     );
     if (matches.length === 0) complete = false;
@@ -166,8 +166,11 @@ export const buildVyralTrustedEvidenceFindingsV1 = (input: {
     const versions = input.assetVersions.filter((row) =>
       row.asset_id === asset.asset_id && row.asset_version_id === asset.asset_version_id
     );
-    if (versions.length !== 1 || !isSha256(versions[0].sha256)) {
-      throw new Error(`Exact immutable Asset Version SHA-256 is missing or ambiguous for Asset ${asset.asset_id}.`);
+    if (versions.length !== 1) {
+      throw new Error(`Exact immutable Asset Version is missing or ambiguous for Asset ${asset.asset_id}.`);
+    }
+    if (versions[0].sha256 !== null && !isSha256(versions[0].sha256)) {
+      throw new Error(`Exact immutable Asset Version SHA-256 is malformed for Asset ${asset.asset_id}.`);
     }
     return { ...asset, source_sha256: versions[0].sha256 };
   });
