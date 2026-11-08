@@ -110,5 +110,5 @@ test('rejects an unpinned or empty Master DNA snapshot', async () => {
   const invalid = await masterDna([asset('audio-1', 'audio', 'audio/wav')]);
   invalid.integrity.vyral_fingerprint = 'invalid';
   await assert.rejects(() => evaluateVyralSnapshotQualityV1({ masterDna: invalid, profile, evidenceFindings: [] }), /Master DNA integrity metadata is invalid/);
-  await assert.rejects(async () => evaluateVyralSnapshotQualityV1({ masterDna: await masterDna([]), profile, evidenceFindings: [] }), /non-empty Master DNA Asset inventory/);
+  await assert.rejects(async () => evaluateVyralSnapshotQualityV1({ masterDna: await masterDna([]), profile, evidenceFindings: [] }), /Master DNA collection metadata or asset inventory is invalid/);
 });
