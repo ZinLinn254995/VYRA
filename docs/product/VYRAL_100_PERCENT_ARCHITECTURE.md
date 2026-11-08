@@ -225,6 +225,9 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - A creator-authorized original Asset copy is a separate explicit action from the collection-DNA access check. It calls the public resolver's `asset_source` action for the exact Asset and Version IDs from the imported reference; the source independently checks current public visibility, Master DNA membership, Vyral redistribution permission, Asset redistribution override, ownership, storage path, and source fingerprint.
 - The client downloads only the short-lived signed URL, verifies exact byte length and SHA-256 before saving, and then creates a normal new destination Asset using the existing upload pipeline. The new copy defaults to private and receives its own destination Version, Fingerprint, and deterministic DNA extraction. A public source's permission is never copied as a destination permission.
 
+- For an explicitly selected public raster Asset, an external AI-ready single-Asset `.vyral` can be built from the remote DNA v3 record and its signed raw tiles without downloading the original media. The client verifies the exact Asset/Version binding, each tile's HTTPS host, byte length and SHA-256, then reconstructs the complete decoded sample stream and verifies its aggregate SHA-256 before packaging.
+- This single-Asset package contains one Asset identity record plus the lossless decoded-sample payload and portable reconstruction guide. It omits original encoded source bytes and does not claim exact PNG/JPEG/WebP file-byte recovery. The remote action requires current public visibility and AI-analysis permission; source-media copying remains a separate redistribution permission.
+
 ### Acceptance tests
 1. Select one Asset and confirm only that Asset is attached to AI Chat.
 2. Select multiple Assets across the current library view and confirm each appears as a distinct removable context chip.
