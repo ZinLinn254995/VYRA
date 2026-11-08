@@ -1,4 +1,5 @@
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from './vyralPortableReconstruction.ts';
+import { buildVyralSystemFilesV1, type VyralSystemFileDescriptorV1 } from './vyralSystemFilesV1.ts';
 import { createVyralMasterDnaV1, validateVyralMasterDnaV1, type VyralMasterDnaAsset, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import { isSafePublicVyralResolverUriV1 } from './vyralResourceResolverV1.ts';
 import { reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1.ts';
@@ -47,6 +48,7 @@ export type VyralPackageManifest = {
   lineage: Record<string, unknown>[];
   reconstructionTests: Record<string, unknown>[];
   masterDna?: VyralMasterDnaV1 | null;
+  systemFiles?: VyralSystemFileDescriptorV1[];
 };
 
 const encoder = new TextEncoder();
@@ -705,6 +707,9 @@ export const selectVyralPackageComponents = async (
     if (path === VYRAL_PACKAGE_MANIFEST) continue;
     if (retained.has(path)) entries.push({ path, data });
   }
+  const systemPackage = await buildVyralSystemFilesV1(projected as unknown as Record<string, unknown>, entries);
+  projected.systemFiles = systemPackage.descriptors;
+  entries.push(...systemPackage.entries);
   entries.push({ path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(projected) });
   const output = createVyralZip(entries);
   // Validate the projected manifest and ZIP structure before returning it.

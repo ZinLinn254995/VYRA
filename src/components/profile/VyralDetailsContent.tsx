@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle, Archive, Box, ChevronRight, Clock3, Dna,
   Download, File as FileIcon, FileText, Fingerprint, FlaskConical, Folder, FolderPlus, GitBranch,
-  HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck,
+  HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck, Eye, EyeOff,
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
+import { VYRAL_SYSTEM_FILES_VERSION } from '../../services/vyralSystemFilesV1';
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
@@ -140,6 +141,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [busy, setBusy] = useState(false);
   const [packageBusy, setPackageBusy] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [showSystemFiles, setShowSystemFiles] = useState(false);
   const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
   const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
   const [extractingDnaV3, setExtractingDnaV3] = useState(false);
@@ -3073,6 +3075,44 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </details>
         </div>
       </div>
+
+      <section className={surface+' p-4'}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <LockKeyhole size={16} className="shrink-0 text-[var(--vyra-accent-primary)]"/>
+            <div className="min-w-0">
+              <h3 className={'text-sm font-semibold '+primary}>System Files</h3>
+              <p className={'mt-0.5 text-[10px] '+muted}>Protected package records · read-only · v{VYRAL_SYSTEM_FILES_VERSION}</p>
+            </div>
+          </div>
+          <button type="button" onClick={()=>setShowSystemFiles(value=>!value)} aria-expanded={showSystemFiles} className={button}>
+            {showSystemFiles?<EyeOff size={13}/>:<Eye size={13}/>} {showSystemFiles?'Hide':'Show'} System Files
+          </button>
+        </div>
+        {showSystemFiles && <div className="mt-3 space-y-1.5 border-t border-[var(--vyra-border-subtle)] pt-3">
+          {[
+            {path:'manifest.json',label:'Package manifest',count:1,state:'present'},
+            {path:'system/identity.json',label:'Vyral identity',count:1,state:'present'},
+            {path:'system/asset-index.json',label:'Asset index',count:assets.length,state:'present'},
+            {path:'system/asset-dna/index.json',label:'Asset DNA index',count:dnaRecords.filter(item=>item.asset_id).length,state:dnaRecords.some(item=>item.asset_id)?'present':'empty'},
+            {path:'system/master-dna.ref.json',label:'Master DNA reference',count:masterDnaRevision,state:masterDnaAvailable&&masterDnaStatus==='ready'?'present':'not_available'},
+            {path:'system/fingerprints/index.json',label:'Fingerprint index',count:fingerprints.length,state:fingerprints.length?'present':'empty'},
+            {path:'system/provenance/index.json',label:'Provenance and lineage',count:lineage.length,state:lineage.length?'present':'empty'},
+            {path:'system/relationships/index.json',label:'Relationship index',count:masterRelationships.length,state:masterRelationships.length?'present':'empty'},
+            {path:'system/classifications/index.json',label:'Asset classifications',count:assets.length,state:'present'},
+            {path:'system/creator-instructions/index.json',label:'Creator instructions',count:0,state:'not_available'},
+            {path:'system/licensing.json',label:'Licensing policy',count:1,state:'present'},
+            {path:'system/integrity.json',label:'Package integrity',count:0,state:'generated_on_export'},
+            {path:'system/system-files.json',label:'Protected file index',count:12,state:'present'},
+          ].map(file=><div key={file.path} className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] px-2.5 py-2">
+            <FileText size={13} className="shrink-0 text-[var(--vyra-text-muted)]"/>
+            <div className="min-w-0 flex-1"><p className={'truncate text-[11px] font-medium '+primary}>{file.path}</p><p className={'text-[9px] '+muted}>{file.label}</p></div>
+            <span className={'shrink-0 text-[9px] '+muted}>{file.state==='present'?(file.count+' record'+(file.count===1?'':'s')):file.state==='empty'?'Empty':file.state==='generated_on_export'?'On export':'Not available'}</span>
+            <LockKeyhole size={11} className="shrink-0 text-[var(--vyra-accent-primary)]"/>
+          </div>)}
+          <p className={'pt-1 text-[10px] leading-4 '+muted}>System Files are protected package views of existing VYRA records. They cannot be individually deleted. Their contents are validated again when a package is imported.</p>
+        </div>}
+      </section>
 
       {tab === 'overview' && (
         <div className="space-y-4">
