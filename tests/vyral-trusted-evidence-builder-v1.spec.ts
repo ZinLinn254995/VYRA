@@ -79,7 +79,7 @@ test('does not treat partial fingerprint coverage as a pass', () => {
     ...base,
     profile: profile('fingerprint.cryptographic', 'deterministic'),
     fingerprints: [
-      { id: 'fp-a', asset_id: 'asset-a', asset_version_id: 'version-a', fingerprint_kind: 'cryptographic', algorithm: 'sha256', value: shaA },
+      { id: 'fp-a', asset_id: 'asset-a', asset_version_id: 'version-a', fingerprint_kind: 'cryptographic', algorithm: 'sha256', value: shaA, metadata: verifiedFingerprint },
     ],
   });
   assert.equal(result[0].status, 'not_evaluated');
