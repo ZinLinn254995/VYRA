@@ -60,6 +60,7 @@ export type VyralQualityEvaluation = {
   grade: VyralQualityGrade | null;
   hardGateFailures: string[];
   missingRequiredEvidence: string[];
+  missingApplicableEvidence: string[];
   rules: Array<VyralQualityRule & {
     status: VyralQualityRuleStatus;
     evidenceRefs: string[];
@@ -158,6 +159,9 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
   const missingRequiredEvidence = applicable
     .filter((rule) => rule.required && rule.status === 'not_evaluated')
     .map((rule) => rule.id);
+  const missingApplicableEvidence = applicable
+    .filter((rule) => rule.status === 'not_evaluated')
+    .map((rule) => rule.id);
   const hardGateFailures = applicable
     .filter((rule) => rule.hardGate && rule.status === 'fail')
     .map((rule) => rule.id);
@@ -169,7 +173,7 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
 
   const status = hardGateFailures.length > 0
     ? 'blocked'
-    : missingRequiredEvidence.length > 0 || score === null
+    : missingApplicableEvidence.length > 0 || score === null
       ? 'incomplete_evidence'
       : 'graded';
 
@@ -183,6 +187,7 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
     grade: status === 'graded' && score !== null ? gradeFor(score, profile.gradeBands) : null,
     hardGateFailures,
     missingRequiredEvidence,
+    missingApplicableEvidence,
     rules,
   };
 };
