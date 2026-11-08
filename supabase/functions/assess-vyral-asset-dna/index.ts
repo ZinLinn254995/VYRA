@@ -82,25 +82,28 @@ Deno.serve(async (request: Request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return reply({ error: 'Request body must be valid JSON.' }, 400); }
   const assetId = typeof body.assetId === 'string' ? body.assetId : '';
-  const versionId = typeof body.versionId === 'string' ? body.versionId : '';
-  const dnaRecordId = typeof body.dnaRecordId === 'string' ? body.dnaRecordId : '';
-  if (!userId || !UUID.test(assetId) || !UUID.test(versionId) || !UUID.test(dnaRecordId)) {
-    return reply({ error: 'Asset ID, Asset Version ID and DNA Record ID are required.' }, 400);
+  if (!userId || !UUID.test(assetId)) {
+    return reply({ error: 'A valid Asset ID is required.' }, 400);
   }
 
-  const [assetResult, versionResult, dnaResult] = await Promise.all([
-    context.supabaseAdmin.from('vyral_assets')
-      .select('id,vyral_id,user_id,sha256,size_bytes,processing_status')
-      .eq('id', assetId).eq('user_id', userId).maybeSingle(),
+  const assetResult = await context.supabaseAdmin.from('vyral_assets')
+    .select('id,vyral_id,user_id,sha256,size_bytes,processing_status')
+    .eq('id', assetId).eq('user_id', userId).maybeSingle();
+  if (assetResult.error) return reply({ error: 'Could not load the owner-scoped Asset.' }, 500);
+  const asset = assetResult.data;
+  if (!asset) return reply({ error: 'Asset was not found for this account.' }, 404);
+  const [versionResult, dnaResult] = await Promise.all([
     context.supabaseAdmin.from('vyral_asset_versions')
-      .select('id,asset_id,vyral_id,user_id,sha256,size_bytes')
-      .eq('id', versionId).eq('asset_id', assetId).eq('user_id', userId).maybeSingle(),
+      .select('id,asset_id,vyral_id,user_id,sha256,size_bytes,version_number')
+      .eq('asset_id', assetId).eq('user_id', userId)
+      .order('version_number', { ascending: false }).limit(1).maybeSingle(),
     context.supabaseAdmin.from('vyral_dna_records')
       .select('id,vyral_id,user_id,asset_id,schema_version,payload,reconstruction_data,verification_status,created_at')
-      .eq('id', dnaRecordId).eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset').maybeSingle(),
+      .eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (assetResult.error || versionResult.error || dnaResult.error) return reply({ error: 'Could not load owner-scoped Asset DNA inputs.' }, 500);
-  const asset = assetResult.data, version = versionResult.data, dnaRow = dnaResult.data;
+  if (versionResult.error || dnaResult.error) return reply({ error: 'Could not resolve the latest owner-scoped Asset Version and DNA record.' }, 500);
+  const version = versionResult.data, dnaRow = dnaResult.data;
   if (!asset || !version || !dnaRow) return reply({ error: 'Asset, source Version, or DNA record was not found for this account.' }, 404);
   if (asset.vyral_id !== version.vyral_id || dnaRow.vyral_id !== asset.vyral_id ||
       asset.processing_status !== 'ready' || !SHA.test(String(version.sha256)) ||
