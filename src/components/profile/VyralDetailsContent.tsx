@@ -306,7 +306,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     for (const asset of assetRows) {
       const sourceVersion = versionRowsForVerification.find((item) =>
         item.asset_id === asset.id && item.storage_path === asset.storage_path
-      ) ?? versionRowsForVerification.find((item) => item.asset_id === asset.id);
+      );
       if (!sourceVersion) continue;
       const rasterDna = dnaRowsForVerification.find((item) => {
         if (item.asset_id !== asset.id || item.scope !== 'asset' || Number(item.schema_version) !== 3) return false;
