@@ -348,3 +348,21 @@ test('rejects duplicate selector values that differ only by case or whitespace',
     findings: [],
   }), /invalid rule definition/);
 });
+
+test('partial hard-gate evidence blocks grading until the gate fully passes', () => {
+  const result = evaluateVyralQualityV1({
+    vyralId: 'vyral-1',
+    snapshotFingerprint: fingerprint,
+    profile,
+    findings: [
+      finding('identity.integrity', 'partial'),
+      finding('asset.dna-coverage', 'pass'),
+      finding('instructions.clarity', 'pass'),
+      finding('relationships.optional', 'not_applicable', []),
+    ],
+  });
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.score, null);
+  assert.equal(result.grade, null);
+  assert.deepEqual(result.hardGateFailures, ['identity.integrity']);
+});
