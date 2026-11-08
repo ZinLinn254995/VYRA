@@ -60,7 +60,7 @@ test('evaluates a mixed collection against the exact Master DNA snapshot and pin
 
 test('marks unrelated scoped rules N/A for a known audio-only collection', async () => {
   const result = evaluateVyralSnapshotQualityV1({
-    masterDna: masterDna([asset('audio-1', 'audio', 'audio/wav')]),
+    masterDna: await masterDna([asset('audio-1', 'audio', 'audio/wav')]),
     profile,
     evidenceFindings: [
       { ruleId: 'identity.integrity', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://snapshot'] },
@@ -75,7 +75,7 @@ test('marks unrelated scoped rules N/A for a known audio-only collection', async
 
 test('unknown asset classification keeps type-scoped rules applicable instead of silently N/A', async () => {
   const result = evaluateVyralSnapshotQualityV1({
-    masterDna: masterDna([asset('opaque-1', undefined, 'application/octet-stream')]),
+    masterDna: await masterDna([asset('opaque-1', undefined, 'application/octet-stream')]),
     profile,
     evidenceFindings: [
       { ruleId: 'identity.integrity', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://snapshot'] },
@@ -89,15 +89,15 @@ test('unknown asset classification keeps type-scoped rules applicable instead of
 
 test('prevents evidence input from overriding applicability decisions', async () => {
   await assert.rejects(() => evaluateVyralSnapshotQualityV1({
-    masterDna: masterDna([asset('audio-1', 'audio', 'audio/wav')]),
+    masterDna: await masterDna([asset('audio-1', 'audio', 'audio/wav')]),
     profile,
     evidenceFindings: [
       { ruleId: 'identity.integrity', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://snapshot'] },
       { ruleId: 'image.quality', evidenceClass: 'ai_assessment', status: 'pass', evidenceRefs: ['proof://image'] },
     ],
   }), /cannot override a contextually not-applicable rule/);
-  assert.throws(() => evaluateVyralSnapshotQualityV1({
-    masterDna: masterDna([asset('audio-1', 'audio', 'audio/wav')]),
+  await assert.rejects(() => evaluateVyralSnapshotQualityV1({
+    masterDna: await masterDna([asset('audio-1', 'audio', 'audio/wav')]),
     profile,
     evidenceFindings: [
       { ruleId: 'identity.integrity', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://snapshot'] },
@@ -110,5 +110,5 @@ test('rejects an unpinned or empty Master DNA snapshot', async () => {
   const invalid = await masterDna([asset('audio-1', 'audio', 'audio/wav')]);
   invalid.integrity.vyral_fingerprint = 'invalid';
   await assert.rejects(() => evaluateVyralSnapshotQualityV1({ masterDna: invalid, profile, evidenceFindings: [] }), /Master DNA integrity metadata is invalid/);
-  assert.throws(() => evaluateVyralSnapshotQualityV1({ masterDna: masterDna([]), profile, evidenceFindings: [] }), /non-empty Master DNA Asset inventory/);
+  assert.throws(() => evaluateVyralSnapshotQualityV1({ masterDna: await masterDna([]), profile, evidenceFindings: [] }), /non-empty Master DNA Asset inventory/);
 });
