@@ -49,6 +49,8 @@ jobs:
         run: npm run test:vyral-package
       - name: VYRA DNA v3 lossless reconstruction tests
         run: npm run test:vyral-dna-v3
+      - name: Protected Vyral System Files export, import and integrity tests
+        run: npm run test:vyral-system-files
       - name: Vyral Master DNA v1 validation and fingerprint tests
         run: npm run test:vyral-master-dna
       - name: Vyral Universal File DNA v1 exact binary tests
