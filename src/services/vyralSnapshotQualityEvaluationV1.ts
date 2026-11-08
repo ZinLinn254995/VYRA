@@ -1,4 +1,4 @@
-import type { VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
+import { validateVyralMasterDnaV1, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import { buildVyralCreatorInventoryContextV1 } from './vyralCreatorInventoryContextV1.ts';
 import { resolveVyralQualityApplicabilityV1 } from './vyralQualityApplicabilityV1.ts';
 import {
@@ -14,13 +14,20 @@ export type EvaluateVyralSnapshotQualityInputV1 = {
   workflowType?: string | null;
 };
 
-export const evaluateVyralSnapshotQualityV1 = (input: EvaluateVyralSnapshotQualityInputV1) => {
-  const { masterDna, profile } = input;
-  if (!masterDna?.vyral?.vyral_id || !/^[a-f0-9]{64}$/.test(masterDna.integrity?.vyral_fingerprint ?? '')) {
+export const evaluateVyralSnapshotQualityV1 = async (input: EvaluateVyralSnapshotQualityInputV1) => {
+  const { profile } = input;
+  if (!Array.isArray(input.evidenceFindings)) {
+    throw new Error('Quality evidence findings must be an array.');
+  }
+  const masterDna = await validateVyralMasterDnaV1(input.masterDna);
+  if (!masterDna.vyral.vyral_id || !/^[a-f0-9]{64}$/.test(masterDna.integrity.vyral_fingerprint)) {
     throw new Error('A verified Master DNA snapshot with a SHA-256 fingerprint is required.');
   }
   if (!Array.isArray(masterDna.assets) || masterDna.assets.length === 0) {
     throw new Error('A non-empty Master DNA Asset inventory is required.');
+  }
+  if (new Set(masterDna.assets.map((asset) => asset.asset_id)).size !== masterDna.assets.length) {
+    throw new Error('Master DNA inventory contains duplicate Asset identities.');
   }
 
   const inventory = buildVyralCreatorInventoryContextV1({
