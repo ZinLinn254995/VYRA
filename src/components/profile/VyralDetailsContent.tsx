@@ -302,11 +302,45 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const dnaRowsForVerification = (results[3].data ?? []) as DnaRow[];
     const testRowsForVerification = (results[5].data ?? []) as ReconstructionRow[];
     const fileDnaVerificationTasks: Promise<unknown>[] = [];
+    const rasterDnaVerificationTasks: Promise<unknown>[] = [];
     for (const asset of assetRows) {
       const sourceVersion = versionRowsForVerification.find((item) =>
         item.asset_id === asset.id && item.storage_path === asset.storage_path
       ) ?? versionRowsForVerification.find((item) => item.asset_id === asset.id);
       if (!sourceVersion) continue;
+      const rasterDna = dnaRowsForVerification.find((item) => {
+        if (item.asset_id !== asset.id || item.scope !== 'asset' || Number(item.schema_version) !== 3) return false;
+        const payload = item.payload as Record<string, unknown>;
+        const record = payload.dna_record && typeof payload.dna_record === 'object' ? payload.dna_record as Record<string, unknown> : {};
+        const source = record.source && typeof record.source === 'object' ? record.source as Record<string, unknown> : {};
+        return (payload.dna_schema_id === 'vyra.asset-dna' || record.schema_id === 'vyra.asset-dna') &&
+          source.asset_version_id === sourceVersion.id;
+      });
+      if (rasterDna) {
+        const alreadyPassedRaster = testRowsForVerification.some((item) =>
+          item.asset_id === asset.id && item.asset_version_id === sourceVersion.id && item.dna_record_id === rasterDna.id &&
+          item.comparison_mode === 'decoded_exact' && item.test_status === 'passed' &&
+          item.exact_match === true && item.model_id === 'vyral-dna-v3-readback-verifier'
+        );
+        const rasterAttemptKey = asset.id + ':' + sourceVersion.id + ':' + rasterDna.id;
+        if (!alreadyPassedRaster && !fileDnaAutoVerifyRef.current.has(rasterAttemptKey)) {
+          fileDnaAutoVerifyRef.current.add(rasterAttemptKey);
+          rasterDnaVerificationTasks.push(
+            supabase.functions.invoke('verify-vyral-dna-v3', {
+              body: { assetId: asset.id, versionId: sourceVersion.id, dnaRecordId: rasterDna.id },
+            }).then(({ data, error: verifyError }) => {
+              if (verifyError || data?.status !== 'passed' || data?.originalBytesUnchanged !== true) {
+                console.warn('[vyral-dna-v3] Exact decoded-sample readback is pending for an Asset.');
+                fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
+              }
+              return data;
+            }).catch(() => {
+              fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
+              return undefined;
+            }),
+          );
+        }
+      }
       const fileDna = dnaRowsForVerification.find((item) => {
         if (item.asset_id !== asset.id || item.scope !== 'asset' || Number(item.schema_version) !== 1) return false;
         const payload = item.payload as Record<string, unknown>;
@@ -340,6 +374,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       );
     }
     if (fileDnaVerificationTasks.length) await Promise.all(fileDnaVerificationTasks);
+    if (rasterDnaVerificationTasks.length) await Promise.all(rasterDnaVerificationTasks);
 
     // Keep the collection snapshot synchronized in the background. The builder
     // only requires each Asset's own current version and matching DNA; optional
