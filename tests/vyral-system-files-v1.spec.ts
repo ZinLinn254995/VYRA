@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertVyralPackageDeletionAllowedV1, buildVyralSystemFilesV1, isVyralSystemFilePathV1, validateVyralSystemFilesStructureV1, verifyVyralSystemFileIntegrityV1 } from '../src/services/vyralSystemFilesV1.ts';
+import { createVyralZip, parseVyralManifest, readVyralZip, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT } from '../src/services/vyralPackage.ts';
 const manifest = {
   format:'application/vnd.vyra.vyral+zip', formatVersion:1, packageId:'package-1',
   vyral:{id:'vyral-1',name:'ORIGIN-01',license_policy:{allow_ai_analysis:true}},
@@ -43,4 +44,21 @@ test('validates the required System File inventory and detects package tampering
  await verifyVyralSystemFileIntegrityV1(map);
  map.set('assets/asset-1/source.png',new Uint8Array([9,9,9]));
  await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(map),/SHA-256 verification failed/);
+});
+
+test('component-selected .vyral exports include protected System Files and pass import validation',async()=>{
+ const base={
+  format:VYRAL_PACKAGE_FORMAT,formatVersion:1,packageId:'system-export-test',exportedAt:'2026-11-09T00:00:00.000Z',
+  vyral:{id:'vyral-export-test',name:'System File Export Test'},folders:[],assets:[],versions:[],
+  dnaRecords:[],fingerprints:[],visionObservations:[],lineage:[],reconstructionTests:[],masterDna:null,
+ };
+ const source=createVyralZip([{path:'README.txt',data:'test package'},{path:'manifest.json',data:JSON.stringify(base)}]);
+ const output=await selectVyralPackageComponents(source,{assets:true,fullDna:false,compactDna:false});
+ const files=await readVyralZip(output);
+ const parsed=parseVyralManifest(files);
+ assert.equal(parsed.systemFiles?.length,13);
+ assert.ok(files.has('system/system-files.json'));
+ assert.ok(files.has('system/identity.json'));
+ assert.ok(files.has('system/integrity.json'));
+ await verifyVyralSystemFileIntegrityV1(files);
 });
