@@ -67,10 +67,11 @@ test('marks unrelated scoped rules N/A for a known audio-only collection', () =>
     evidenceFindings: [
       { ruleId: 'identity.integrity', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://snapshot'] },
       { ruleId: 'audio.quality', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['proof://audio'] },
+      { ruleId: 'purpose.reference', evidenceClass: 'creator_declared', status: 'pass', evidenceRefs: ['creator://purpose'] },
     ],
   });
   assert.ok(result.applicability.notApplicableRuleIds.includes('image.quality'));
-  assert.ok(result.applicability.notApplicableRuleIds.includes('purpose.reference'));
+  assert.ok(result.applicability.applicableRuleIds.includes('purpose.reference'));
   assert.equal(result.evaluation.status, 'graded');
 });
 
