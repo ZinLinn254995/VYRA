@@ -26,7 +26,7 @@ const base = (): VyralAssetDnaAssessmentInput => ({
 test('assesses a pinned, verified decoded-sample reconstruction as Asset DNA ready', () => {
   const result = assessVyralAssetDnaV1(base());
   assert.equal(result.scope, 'asset_dna');
-  assert.equal(result.status, 'ready');
+  assert.equal(result.status, 'partial');
   assert.equal(result.checks.sourceBinding, 'pass');
   assert.equal(result.checks.exactReconstruction, 'pass');
   assert.ok(result.limitations.includes('decoded_sample_recovery_does_not_restore_original_encoded_file_bytes'));
@@ -64,7 +64,7 @@ test('does not infer exact recovery from a declaration without a test', () => {
   const result = assessVyralAssetDnaV1(input);
   assert.equal(result.status, 'partial');
   assert.equal(result.checks.exactReconstruction, 'not_tested');
-  assert.ok(result.limitations.includes('source_file_exact_claim_not_test_verified') === false);
+  assert.ok(result.limitations.includes('source_file_exact_claim_not_test_verified'));
 });
 
 test('keeps semantic-only DNA explicitly partial', () => {
@@ -91,4 +91,13 @@ test('rejects a reconstruction test pinned to a different DNA record', () => {
   const result = assessVyralAssetDnaV1(input);
   assert.equal(result.status, 'blocked');
   assert.ok(result.blockers.includes('reconstruction_test_snapshot_mismatch'));
+});
+
+test('marks original source-file recovery ready only after a matching byte-exact test', () => {
+  const input = base();
+  input.recovery.declaredLevel = 'source_file_exact';
+  input.recovery.exactTest!.mode = 'source_file_exact';
+  const result = assessVyralAssetDnaV1(input);
+  assert.equal(result.status, 'ready');
+  assert.equal(result.checks.exactReconstruction, 'pass');
 });
