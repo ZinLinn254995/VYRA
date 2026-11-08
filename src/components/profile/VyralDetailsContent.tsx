@@ -3006,31 +3006,41 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             {[
               {label:'Assets',value:assets.length,icon:Folder},
               {label:'Folders',value:folders.length,icon:FolderPlus},
-              {label:'Stored data',value:prettyBytes(totalBytes),icon:HardDrive},
-              {label:'Knowledge records',value:dnaRecords.length,icon:Dna},
+              {label:'Storage used',value:prettyBytes(totalBytes),icon:HardDrive},
+              {label:'Collection updates',value:assets.length ? 'Automatic' : 'Waiting',icon:Folder},
             ].map(({label,value,icon:Icon})=><div key={label} className={surface+' p-3'}><div className={'flex items-center gap-2 text-[10px] '+muted}><Icon size={14}/>{label}</div><div className={'mt-2 text-xl font-semibold '+primary}>{value}</div></div>)}
           </div>
           <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
             <section className={surface+' p-4'}>
-              <div className="flex items-center justify-between gap-2"><h3 className={'text-sm font-semibold '+primary}>Identity status</h3><span className="rounded-full bg-[var(--vyra-bg-subtle)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.dna_status.replaceAll('_',' ')}</span></div>
-              <p className={'mt-2 text-xs leading-5 '+subtle}>Vyral DNA grows from creator-defined facts, source assets, AI observations and verified reconstruction evidence. It is not marked complete by record count alone.</p>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className={'text-sm font-semibold '+primary}>Collection status</h3>
+                <span className="rounded-full bg-[var(--vyra-bg-subtle)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                  {assets.length === 0 ? 'Ready for Assets' : masterDnaStatus === 'ready' ? 'Up to date' : 'Updating automatically'}
+                </span>
+              </div>
+              <p className={'mt-2 text-xs leading-5 '+subtle}>
+                VYRA automatically keeps collection and Asset information in sync as your library changes. You do not need to configure technical settings.
+              </p>
               <div className="mt-4 space-y-2">
-                {[
-                  ['Creator identity','Stored with the Vyral'],
-                  ['Asset fingerprints',fingerprints.length+' cryptographic or analysis fingerprints'],
-                  ['AI observations',observations.length+' recorded observations'],
-                  ['DNA-only reconstruction',reconstructionTests.length+' test records · '+(reconstructionTests.some((item)=>item.test_status==='passed'&&item.exact_match===true)?'exact match verified':'not yet verified')],
-                ].map(([label,value])=><div key={label} className="flex items-start justify-between gap-3 border-t border-[var(--vyra-border-subtle)] pt-2 first:border-0 first:pt-0"><span className={'text-xs '+subtle}>{label}</span><span className={'text-right text-[10px] '+muted}>{value}</span></div>)}
+                <div className="flex items-center justify-between border-t border-[var(--vyra-border-subtle)] pt-2">
+                  <span className={'text-xs '+subtle}>Assets included</span>
+                  <span className={'text-xs font-medium '+primary}>{assets.length}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-[var(--vyra-border-subtle)] pt-2">
+                  <span className={'text-xs '+subtle}>Collection information</span>
+                  <span className={'text-xs font-medium '+primary}>Maintained automatically</span>
+                </div>
               </div>
             </section>
             <section className={surface+' p-4'}>
               <h3 className={'text-sm font-semibold '+primary}>Recent activity</h3>
-              {dnaRecords.length || assets.length ? <div className="mt-3 space-y-3">
-                {[
-                  ...assets.slice(0,3).map((item)=>({id:item.id,title:'Asset added',detail:item.name,at:item.created_at})),
-                  ...dnaRecords.slice(0,3).map((item)=>({id:item.id,title:'DNA record added',detail:item.scope+' · '+item.source_kind,at:item.created_at})),
-                ].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,5).map((item)=><div key={item.id} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--vyra-accent-primary)]"/><div className="min-w-0 flex-1"><p className={'text-xs font-medium '+primary}>{item.title}</p><p className={'truncate text-[10px] '+muted}>{item.detail}</p></div><time className={'shrink-0 text-[10px] '+muted}>{dateLabel(item.at)}</time></div>)}
-              </div> : <p className={'mt-3 text-xs '+muted}>Your first assets and DNA records will appear here.</p>}
+              {assets.length ? <div className="mt-3 space-y-3">
+                {assets.slice(0,5).map((item)=><div key={item.id} className="flex gap-2">
+                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--vyra-accent-primary)]"/>
+                  <div className="min-w-0 flex-1"><p className={'text-xs font-medium '+primary}>Asset added</p><p className={'truncate text-[10px] '+muted}>{item.name}</p></div>
+                  <time className={'shrink-0 text-[10px] '+muted}>{dateLabel(item.created_at)}</time>
+                </div>)}
+              </div> : <p className={'mt-3 text-xs '+muted}>Your first Assets will appear here.</p>}
             </section>
           </div>
           <section className={surface+' p-4'}>
@@ -3063,178 +3073,45 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         <div className="space-y-4">
           <section className={surface+' p-4'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h3 className={'text-sm font-semibold '+primary}>Vyral Master DNA</h3><p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>Describe the purpose of this Vyral, classify every Asset, and connect each Asset to the Vyral root or another Asset. No purpose or relationship is guessed from filenames.</p></div>
-              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{masterDnaStatus.replaceAll('_',' ')} · rev {masterDnaRevision}</span>
+              <div>
+                <h3 className={'text-sm font-semibold '+primary}>Collection identity</h3>
+                <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>
+                  VYRA keeps this collection's identity and Asset information updated automatically. Add, remove or update Assets whenever you need to. Roles, purposes and relationships are optional.
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                {assets.length === 0 ? 'Waiting for Assets' : masterDnaStatus === 'ready' ? 'Up to date' : 'Updating automatically'}
+              </span>
             </div>
-            <form onSubmit={(event)=>void saveMasterDnaPurpose(event)} className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="block md:col-span-2"><span className={'mb-1 block text-[10px] font-semibold '+subtle}>What is this Vyral for?</span><textarea value={masterDnaPurposeDraft} onChange={(event)=>setMasterDnaPurposeDraft(event.target.value)} rows={2} maxLength={2000} className={field+' py-2'} placeholder="Describe the Vyral's overall purpose and identity."/></label>
-              <label className="block"><span className={'mb-1 block text-[10px] font-semibold '+subtle}>Intended uses (comma-separated)</span><input value={masterDnaUsesDraft} onChange={(event)=>setMasterDnaUsesDraft(event.target.value)} className={field} placeholder="storyboarding, video_generation"/></label>
-              <div className="flex items-end"><button type="submit" className={button} disabled={!masterDnaAvailable || masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Vyral purpose'}</button></div>
-            </form>
-            {assets.length === 0 ? <p className={'mt-3 text-xs '+muted}>Add at least one Asset before building Master DNA.</p> : <div className="mt-4 space-y-3">
-              <div><h4 className={'text-xs font-semibold '+primary}>Asset roles, purposes and relationships</h4><p className={'mt-1 text-[10px] '+muted}>Main and Supporting are organizational roles. A relationship may point to the Vyral root or any other Asset, with a clear reason.</p></div>
-              {assets.map((asset) => {
-                const draft = masterAssetDrafts[asset.id] ?? { role: '', purpose: '', targetAssetId: '__vyral__', rationale: '' };
-                return <article key={asset.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2"><p className={'text-xs font-semibold '+primary}>{asset.name}</p><span className={'text-[9px] '+muted}>{masterAssetDrafts[asset.id]?.role || 'role not set'}</span></div>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
-                    <label><span className={'mb-1 block text-[10px] '+subtle}>Role</span><select value={draft.role} onChange={(event)=>updateMasterAssetDraft(asset.id,{role:event.target.value as MasterAssetDraft['role']})} className={field}><option value="">Choose role</option><option value="main">Main Asset</option><option value="supporting">Supporting Asset</option></select></label>
-                    <label><span className={'mb-1 block text-[10px] '+subtle}>Purpose</span><input value={draft.purpose} onChange={(event)=>updateMasterAssetDraft(asset.id,{purpose:event.target.value})} className={field} maxLength={2000} placeholder="Why does this Asset belong here?"/></label>
-                    <label><span className={'mb-1 block text-[10px] '+subtle}>Related to</span><select value={draft.targetAssetId} onChange={(event)=>updateMasterAssetDraft(asset.id,{targetAssetId:event.target.value})} className={field}><option value="__vyral__">Vyral root</option>{assets.filter((candidate)=>candidate.id!==asset.id).map((candidate)=><option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
-                    <label><span className={'mb-1 block text-[10px] '+subtle}>Relationship reason</span><input value={draft.rationale} onChange={(event)=>updateMasterAssetDraft(asset.id,{rationale:event.target.value})} className={field} maxLength={2000} placeholder="How does it relate?"/></label>
-                  </div>
-                  <div className="mt-3 flex justify-end"><button type="button" className={button} onClick={()=>void saveMasterAssetClassification(asset)} disabled={!masterDnaAvailable || masterDnaSaving || masterDnaBuilding}>{masterDnaSaving?'Saving…':'Save Asset DNA structure'}</button></div>
-                </article>;
-              })}
-            </div>}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--vyra-border-subtle)] pt-3">
-              <p className={'text-[10px] '+muted}>Master DNA is a compact snapshot. Full Asset DNA and original media stay in this Vyral.</p>
-              <button type="button" className={primaryButton} onClick={()=>void buildMasterDna()} disabled={!masterDnaAvailable || masterDnaBuilding || masterDnaSaving || !assets.length}><Dna size={13}/>{masterDnaBuilding?'Building Master DNA…':'Build Master DNA'}</button>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                <p className={'text-[10px] '+muted}>Assets in this collection</p>
+                <p className={'mt-1 text-lg font-semibold '+primary}>{assets.length}</p>
+              </div>
+              <div className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                <p className={'text-[10px] '+muted}>Collection updates</p>
+                <p className={'mt-1 text-sm font-semibold '+primary}>Automatic</p>
+              </div>
             </div>
-            {masterDnaMessage && <p className={'mt-3 text-xs '+subtle} role="status">{masterDnaMessage}</p>}
-            {masterDnaBlockers.length > 0 && <div className="mt-3 rounded-lg border border-[var(--vyra-border)] p-3" role="status"><div className="flex items-center justify-between gap-2"><p className={'text-xs font-semibold '+primary}>Master DNA requirements</p><span className={'text-[10px] '+muted}>{masterDnaBlockers.length} item(s) to resolve</span></div><ul className="mt-2 space-y-2">{masterDnaBlockers.map((blocker,index)=><li key={blocker.code+'-'+(blocker.asset_id??'root')+'-'+index} className="flex gap-2 text-xs"><span className={'mt-0.5 '+muted}>•</span><span className={subtle}>{blocker.asset_id ? (assets.find((asset)=>asset.id===blocker.asset_id)?.name ?? 'Asset')+': ' : ''}{blocker.message}</span></li>)}</ul></div>}
-            {masterRelationships.length > 0 && <p className={'mt-2 text-[9px] '+muted}>{masterRelationships.length} relationship edge(s) currently stored.</p>}
           </section>
           <section className={surface+' p-4'}>
-            <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Dna size={21}/></span><div><h3 className={'text-sm font-semibold '+primary}>Knowledge DNA</h3><p className={'mt-1 text-xs leading-5 '+subtle}>Structured, sourced knowledge that AI can use to understand and reconstruct this Vyral. Creator-defined facts remain authoritative; AI observations are stored as evidence, not silently promoted to truth.</p></div></div>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{[
-              ['DNA records',dnaRecords.length],['Fingerprints',fingerprints.length],['Vision observations',observations.length],['Reconstruction tests',reconstructionTests.length],
-            ].map(([label,value])=><div key={label} className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3"><p className={'text-[10px] '+muted}>{label}</p><p className={'mt-1 text-lg font-semibold '+primary}>{value}</p></div>)}</div>
-          </section>
-          <section className={surface+' p-4'}>
-            <h3 className={'text-sm font-semibold '+primary}>Add creator knowledge</h3><p className={'mt-1 text-xs '+muted}>Record a fact, rule or identity detail you want VYRA to preserve.</p>
+            <h3 className={'text-sm font-semibold '+primary}>Notes for AI (optional)</h3>
+            <p className={'mt-1 text-xs '+muted}>Add a detail or rule you want VYRA to keep in mind. You can leave this empty.</p>
             <form onSubmit={(event)=>void saveDnaNote(event)} className="mt-3 space-y-2">
-              <select value={dnaAssetId} onChange={(event)=>setDnaAssetId(event.target.value)} className={field}><option value="vyral">Whole Vyral identity</option>{assets.map((asset)=><option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>
-              <textarea value={dnaNote} onChange={(event)=>setDnaNote(event.target.value)} rows={3} maxLength={4000} placeholder="Example: This character's eye color is always deep green. This is a creator-confirmed identity rule." className={field+' min-h-24 py-2.5'}/>
-              <div className="flex justify-end"><button type="submit" disabled={!dnaNote.trim()} className={primaryButton}><Plus size={13}/> Save DNA record</button></div>
+              <label className="block">
+                <span className={'mb-1 block text-[10px] '+muted}>Apply to</span>
+                <select value={dnaAssetId} onChange={(event)=>setDnaAssetId(event.target.value)} className={field}>
+                  <option value="vyral">Whole collection</option>
+                  {assets.map((asset)=><option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                </select>
+              </label>
+              <textarea value={dnaNote} onChange={(event)=>setDnaNote(event.target.value)} rows={3} maxLength={4000}
+                placeholder="Anything important VYRA should remember about this collection or Asset…"
+                className={field+' min-h-24 py-2.5'}/>
+              <div className="flex justify-end">
+                <button type="submit" disabled={!dnaNote.trim()} className={primaryButton}><Plus size={13}/> Save note</button>
+              </div>
             </form>
-          </section>
-          <section className={surface+' p-4'}>
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className={'text-sm font-semibold '+primary}>DNA record history</h3><select value={dnaAssetId} onChange={(event)=>setDnaAssetId(event.target.value)} className={field+' !w-auto'}><option value="">All records</option><option value="vyral">Vyral-level</option>{assets.map((asset)=><option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></div>
-            <div className="mt-3 space-y-2">{selectedDnaRecords.length ? selectedDnaRecords.map((record)=><article key={record.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold capitalize '+primary}>{record.scope} DNA · {record.source_kind}</span><span className="rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] capitalize text-[var(--vyra-text-secondary)]">{record.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{typeof record.payload.creator_statement === 'string' ? record.payload.creator_statement : record.payload.identity ? JSON.stringify(record.payload.identity) : record.payload.source ? JSON.stringify(record.payload.source) : 'Structured DNA data recorded.'}</p>{record.payload.dna_schema_id === 'vyra.asset-file-dna' && (() => { const fileDna = asRecord(record.payload.dna_record); const structure = asRecord(fileDna.structure); const facts = Array.isArray(structure.facts) ? structure.facts.slice(0, 12).map((item) => asRecord(item)) : []; const notes = Array.isArray(structure.notes) ? structure.notes.filter((item): item is string => typeof item === 'string').slice(0, 3) : []; return <div className="mt-3 rounded-lg bg-[var(--vyra-bg-subtle)] p-3"><div className="flex flex-wrap items-center gap-2"><span className={'text-[10px] font-semibold capitalize '+primary}>Structure · {String(structure.profile ?? 'unknown').replaceAll('_',' ')}</span><span className={'text-[9px] '+muted}>{String(structure.status ?? 'unknown').replaceAll('_',' ')}</span></div>{facts.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{facts.map((fact,index)=><span key={String(fact.key)+index} className="rounded-md border border-[var(--vyra-border-subtle)] px-2 py-1 text-[9px] text-[var(--vyra-text-secondary)]">{String(fact.key).replaceAll('_',' ')}: {String(fact.value)}{fact.unit ? ' '+String(fact.unit) : ''}</span>)}</div>}{notes.map((note,index)=><p key={index} className={'mt-2 text-[9px] '+muted}>{note}</p>)}</div>; })()}<time className={'mt-2 block text-[10px] '+muted}>{dateLabel(record.created_at)}</time></article>) : <p className={'py-6 text-center text-xs '+muted}>No DNA records match this filter.</p>}</div>
-          </section>
-          <section className={surface+' p-4'}>
-            <h3 className={'text-sm font-semibold '+primary}>Fingerprint registry</h3><p className={'mt-1 text-xs '+muted}>Fingerprints identify or compare assets. SHA-256 can be verified against protected Storage by the server. Perceptual, semantic and structural fingerprints require their own analysis pipelines; imported claims remain unverified until independently checked.</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">{['cryptographic','perceptual','semantic','structural'].map((kind)=>{const list=fingerprints.filter((item)=>item.fingerprint_kind===kind);return <div key={kind} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex items-center gap-2"><Fingerprint size={15} className="text-[var(--vyra-accent-primary)]"/><span className={'text-xs font-semibold capitalize '+primary}>{kind}</span><span className={'ml-auto text-[10px] '+muted}>{list.length} records</span></div>{list.length?list.slice(0,2).map((item)=><div key={item.id} className="mt-2"><p className={'break-all font-mono text-[10px] '+muted}>{item.algorithm}: {item.value}</p><p className={'mt-1 text-[9px] '+(item.metadata?.verification_status==='server_verified'&&item.metadata?.comparison_status==='matched'?'text-emerald-500':item.metadata?.comparison_status==='mismatch'?'text-rose-500':item.metadata?.comparison_status==='baseline_created'?'text-sky-500':muted)}>{item.metadata?.verification_status==='server_verified'?(item.metadata?.comparison_status==='matched'?'Server verified · match':item.metadata?.comparison_status==='baseline_created'?'Server hash baseline created':'Server hash recorded · mismatch'):'Unverified evidence'}</p></div>):<p className={'mt-2 text-[10px] '+muted}>Not generated yet</p>}</div>})}</div>
-          </section>
-          <section className={surface+' p-4'}>
-            <h3 className={'text-sm font-semibold '+primary}>AI Vision evidence</h3>
-            <p className={'mt-1 text-xs '+muted}>Observations remain separate from creator-confirmed identity rules until they are reviewed or corroborated. This recorder stores externally generated model output; it does not call an AI provider or claim provider-authenticated provenance.</p>
-            <form onSubmit={(event)=>void saveVisionObservation(event)} className="mt-3 space-y-2 rounded-lg border border-[var(--vyra-border-subtle)] p-3">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Source asset</span><select required value={visionAssetId} onChange={(event)=>{setVisionAssetId(event.target.value);setVisionVersionId('');}} className={field}><option value="">Select asset</option>{assets.map((asset)=><option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></label>
-                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Source version</span><select required value={visionVersionId} onChange={(event)=>setVisionVersionId(event.target.value)} className={field}><option value="">Select version</option>{versions.filter((version)=>version.asset_id===visionAssetId).sort((a,b)=>b.version_number-a.version_number).map((version)=><option key={version.id} value={version.id}>Version {version.version_number} · {version.sha256?'SHA-256 recorded':'No hash'}</option>)}</select></label>
-                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Analysis task</span><select value={visionTaskKind} onChange={(event)=>setVisionTaskKind(event.target.value)} className={field}><option value="identity">Identity</option><option value="description">Description</option><option value="consistency">Consistency</option><option value="generation_context">Generation context</option><option value="reconstruction">Reconstruction</option><option value="safety">Safety</option><option value="other">Other</option></select></label>
-                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Model provider / source</span><input required maxLength={80} value={visionProvider} onChange={(event)=>setVisionProvider(event.target.value)} className={field} placeholder="e.g. OpenRouter, Gemini"/></label>
-                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Model identifier</span><input required maxLength={160} value={visionModel} onChange={(event)=>setVisionModel(event.target.value)} className={field} placeholder="Exact model name or ID"/></label>
-                <label className={'space-y-1 text-[10px] '+muted}><span className="block">Model-reported confidence (optional, 0–1)</span><input type="number" min="0" max="1" step="0.0001" value={visionConfidence} onChange={(event)=>setVisionConfidence(event.target.value)} className={field} placeholder="e.g. 0.82"/></label>
-              </div>
-              <label className={'block space-y-1 text-[10px] '+muted}><span>Structured observation (JSON)</span><textarea required rows={6} maxLength={65536} value={visionJson} onChange={(event)=>setVisionJson(event.target.value)} className={field+' min-h-32 py-2.5 font-mono text-[11px]'} /></label>
-              <div className="flex flex-wrap items-center justify-between gap-2"><p className={'max-w-xl text-[10px] leading-4 '+muted}>The server rechecks the private source file's SHA-256 and size. Provider/model labels are recorded as user-supplied claims, not verified credentials.</p><button type="submit" disabled={savingVision||!visionAssetId||!visionVersionId||!visionProvider.trim()||!visionModel.trim()} className={primaryButton}><Plus size={13}/>{savingVision?'Recording…':'Record observation'}</button></div>
-            </form>
-
-            {visionComparisonGroups.length > 0 && <section className="mt-4 rounded-lg border border-[var(--vyra-border)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className={'text-xs font-semibold '+primary}>Multi-model comparison</h4><p className={'mt-1 text-[10px] '+muted}>Only observations from the exact same asset version and task are grouped. This is deterministic JSON field comparison, not semantic AI judgement.</p></div><span className={'text-[10px] '+muted}>{visionComparisonGroups.length} version/task groups</span></div>
-              <div className="mt-3 space-y-3">{visionComparisonGroups.slice(0,8).map((group) => {
-                const first = group.items[0];
-                const version = versions.find((item) => item.id === first.asset_version_id);
-                const asset = assets.find((item) => item.id === first.asset_id);
-                const sameCount = group.comparisons.filter((item) => item.same).length;
-                const differentCount = group.comparisons.length - sameCount;
-                return <article key={group.key} className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className={'text-xs font-semibold '+primary}>{asset?.name ?? 'Asset'} · {first.task_kind.replaceAll('_',' ')}</p><p className={'mt-1 text-[10px] '+muted}>Version {version?.version_number ?? 'unknown'} · {group.items.length} observations · {group.modelCount} model labels</p><p className={'mt-1 break-all font-mono text-[9px] '+muted}>SHA-256: {first.source_sha256 || 'not recorded'}</p></div><div className="flex gap-2 text-[9px]"><span className="rounded bg-[var(--vyra-bg-canvas)] px-2 py-1 text-emerald-500">{sameCount} same</span><span className="rounded bg-[var(--vyra-bg-canvas)] px-2 py-1 text-amber-500">{differentCount} different</span></div></div>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">{group.items.map((entry) => <div key={entry.id} className="min-w-0 rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2"><p className={'text-[10px] font-semibold '+primary}>{entry.model_provider} · {entry.model_id}</p><pre className={'mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words text-[9px] leading-4 '+subtle}>{JSON.stringify(entry.observation, null, 2)}</pre></div>)}</div>
-                  {group.comparisons.length > 0 && <div className="mt-3 space-y-1"><p className={'text-[10px] font-semibold '+primary}>Exact field comparison</p>{group.comparisons.slice(0,20).map((comparison) => <div key={comparison.path} className="flex flex-wrap items-start gap-2 border-t border-[var(--vyra-border-subtle)] py-1.5"><span className={'min-w-0 flex-1 break-all text-[10px] '+subtle}>{comparison.path}</span><span className={'text-[9px] font-semibold '+(comparison.same?'text-emerald-500':'text-amber-500')}>{comparison.same?'Exact value match':'Different / missing value'}</span></div>)}</div>}
-                  <p className={'mt-2 text-[9px] '+muted}>A matching JSON value is not proof that the models agree semantically. Missing fields are counted as differences. Creator review remains separate.</p>
-                </article>;
-              })}</div>
-            </section>}
-            {visionKnowledgeConflicts.length > 0 && <section className="mt-4 rounded-lg border border-amber-500/30 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div><h4 className={'text-xs font-semibold '+primary}>Creator-approved knowledge conflicts</h4><p className={'mt-1 text-[10px] '+muted}>Different exact values were explicitly promoted by the creator for the same asset version, task and field. No value is automatically preferred or overwritten.</p></div>
-                <span className="rounded bg-amber-500/10 px-2 py-1 text-[9px] font-semibold text-amber-500">{visionKnowledgeConflicts.length} conflict group(s)</span>
-              </div>
-              <div className="mt-3 space-y-3">{visionKnowledgeConflicts.slice(0,12).map((group) => {
-                const version = versions.find((item) => item.id === group.versionId); const asset = assets.find((item) => item.id === group.assetId);
-                return <article key={group.assetId+':'+group.versionId+':'+group.taskKind+':'+group.fieldPath} className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className={'break-all text-xs font-semibold '+primary}>{asset?.name ?? 'Asset'} · {group.fieldPath}</p><p className={'mt-1 text-[10px] '+muted}>Version {version?.version_number ?? 'unknown'} · {group.taskKind.replaceAll('_',' ')} · {group.records.length} creator-approved records</p></div><span className="text-[9px] font-semibold text-amber-500">Exact-value disagreement</span></div>
-                  <div className="mt-2 space-y-2">{group.records.map((record) => <div key={record.id} className="rounded-md border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-surface)] p-2">
-                    <p className={'text-[10px] font-semibold '+primary}>{String(record.payload.model_provider_claim ?? 'Model unknown')} · {String(record.payload.model_id_claim ?? 'Model ID unknown')}</p>
-                    <pre className={'mt-1 whitespace-pre-wrap break-words text-[10px] leading-4 '+subtle}>{JSON.stringify(record.payload.accepted_value, null, 2)}</pre>
-                    {typeof record.payload.creator_note === 'string' && record.payload.creator_note && <p className={'mt-1 text-[9px] '+muted}>Creator note: {record.payload.creator_note}</p>}
-                    <p className={'mt-1 text-[9px] '+muted}>{dateLabel(record.created_at)} · observation {String(record.payload.promotion_observation_id).slice(0,8)}</p>
-                  </div>)}</div>
-                  <p className={'mt-2 text-[9px] '+muted}>Both records remain immutable evidence. This comparison does not decide which value is correct, combine different contexts, or change DNA completion/reconstruction eligibility.</p>
-                  {group.resolutionRecords.length > 0 && <div className="mt-3 rounded-md border border-[var(--vyra-border-subtle)] p-2">
-                    <p className={'text-[10px] font-semibold '+primary}>Latest creator decision: {group.resolutionRecords[group.resolutionRecords.length - 1].payload.resolution_type === 'prefer_one' ? 'Scoped preference recorded' : 'Context-dependent values recorded'}</p>
-                    <p className={'mt-1 text-[9px] '+muted}>This decision applies only to the exact promotion records listed in its history entry. New evidence does not inherit the decision automatically.</p>
-                    <p className={'mt-2 text-[10px] font-semibold '+primary}>Creator resolution history</p>
-                    {group.resolutionRecords.map((resolution) => <div key={resolution.id} className="mt-2">
-                      <p className={'text-[10px] '+subtle}>{resolution.payload.resolution_type === 'prefer_one' ? 'Preferred value: ' + String(resolution.payload.preferred_promotion_record_id).slice(0,8) : 'Both values retained as context-dependent'} · {dateLabel(resolution.created_at)}</p>
-                      {typeof resolution.payload.creator_context_label === 'string' && resolution.payload.creator_context_label && <div className="mt-1"><p className={'text-[9px] '+primary}>Creator-defined context: {resolution.payload.creator_context_label}</p>{Array.isArray(resolution.payload.creator_context_tags) && resolution.payload.creator_context_tags.length > 0 && <p className={'mt-1 break-words text-[9px] '+subtle}>Exact tags required: {resolution.payload.creator_context_tags.join(' · ')}</p>}<p className={'mt-1 text-[9px] '+muted}>Not applied: runtime context has not been independently supplied and exactly matched. Tags are creator-defined, not AI-inferred.</p></div>}
-                      {typeof resolution.payload.creator_note === 'string' && resolution.payload.creator_note && <p className={'mt-1 text-[9px] '+muted}>{resolution.payload.creator_note}</p>}
-                    </div>)}
-                  </div>}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" className={button} disabled={!!resolvingConflictKey} onClick={() => resolveVisionKnowledgeConflict(group, 'prefer_one')}>
-                      {resolvingConflictKey === JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]) ? 'Saving…' : 'Prefer one value'}
-                    </button>
-                    <button type="button" className={button} disabled={!!resolvingConflictKey} onClick={() => resolveVisionKnowledgeConflict(group, 'keep_contextual')}>
-                      Keep both as contextual
-                    </button>
-                  </div>
-                </article>;
-              })}</div>
-              {visionKnowledgeConflicts.length > 12 && <p className={'mt-2 text-[9px] '+muted}>Showing 12 of {visionKnowledgeConflicts.length} conflict groups.</p>}
-            </section>}
-            {observations.length ? <div className="mt-3 space-y-2">{observations.slice(0,12).map((item)=><article key={item.id} className="rounded-lg border border-[var(--vyra-border-subtle)] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={'text-xs font-semibold '+primary}>{item.model_provider} · {item.model_id}</span><span className={'text-[10px] capitalize '+muted}>{item.verification_status.replaceAll('_',' ')}</span></div><p className={'mt-2 text-xs '+subtle}>{JSON.stringify(item.observation)}</p><p className={'mt-2 text-[10px] '+muted}>{item.task_kind.replaceAll('_',' ')} · {item.confidence === null ? 'confidence unavailable' : Math.round(Number(item.confidence)*100)+'% confidence'} · {dateLabel(item.created_at)}</p>{(() => { const review = dnaRecords.find((record) => record.source_kind === 'creator' && ['creator_confirmed', 'disputed'].includes(record.verification_status) && record.payload?.review_source === 'server_creator_review' && record.payload?.vision_observation_review_id === item.id); return review ? <div className="mt-2"><p className={'text-[10px] font-semibold '+(review.verification_status === 'creator_confirmed' ? 'text-emerald-500' : 'text-amber-500')}>Creator review: {review.verification_status.replaceAll('_',' ')} · applies to this observation only</p>{review.verification_status === 'creator_confirmed' && (() => { const promotedFields = dnaRecords.filter((record) => record.source_kind === 'creator' && record.payload?.promotion_source === 'creator_approved_vision_field' && record.payload?.promotion_observation_id === item.id); const availableFields = Object.keys(flattenObservation(item.observation)); return <div className="mt-2"><p className={'text-[10px] '+muted}>{promotedFields.length} field(s) promoted · {availableFields.length} available</p>{promotedFields.map((record)=><p key={record.id} className={'mt-1 break-all text-[10px] text-emerald-500'}>{String(record.payload?.promotion_field_path)} · creator-approved DNA field</p>)}<button type="button" disabled={promotingObservationId !== null || availableFields.length === 0} onClick={()=>void promoteVisionKnowledge(item.id)} className={button+' mt-2'}>{promotingObservationId===item.id?'Promoting…':'Promote one field to DNA'}</button></div>; })()}</div> : <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'creator_confirmed')} className={button}>{reviewingObservationId===item.id?'Saving…':'Confirm observation'}</button><button type="button" disabled={reviewingObservationId !== null} onClick={()=>void reviewVisionObservation(item.id,'disputed')} className={button}>Dispute observation</button></div>; })()}</article>)}</div> : <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><Dna size={19} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No Vision observations yet</p><p className={'mt-1 text-[10px] '+muted}>The evidence registry is ready. AI Vision execution will be connected when the analysis provider workflow is implemented.</p></div>}
-          </section>
-          <section className={surface+' p-4'}>
-            <h3 className={'text-sm font-semibold '+primary}>Reconstruction verification</h3>
-            <p className={'mt-1 text-xs leading-5 '+subtle}>DNA-only blind reconstruction evidence. Visual similarity, geometry, exact pixels and upload provenance are reported separately; none is silently substituted for another.</p>
-            {originV2LatestTests.length > 0 && <div className="mt-3">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className={'text-xs font-semibold '+primary}>Latest ORIGIN-01 V2 comparison by model</p>
-                <span className={'text-[9px] '+muted}>Latest saved V2 run per provider</span>
-              </div>
-              <div className="grid gap-2 md:grid-cols-3">
-                {originV2LatestTests.map((test) => {
-                  const report = asRecord(test.report);
-                  const comparison = asRecord(report.comparison);
-                  const normalized = asRecord(comparison.normalizedImageComparison);
-                  const geometry = asRecord(comparison.redRegionGeometry);
-                  const pixel = asRecord(comparison.pixelComparison);
-                  const upload = asRecord(report.candidateUploadReconciliation);
-                  const normalizedScore = typeof normalized.normalizedGridRgbSimilarity === 'number' ? normalized.normalizedGridRgbSimilarity : null;
-                  const geometryScore = typeof geometry.geometrySimilarity === 'number' ? geometry.geometrySimilarity : null;
-                  const backgroundDelta = typeof comparison.backgroundCornerColorEuclideanDelta === 'number' ? comparison.backgroundCornerColorEuclideanDelta : null;
-                  const uploadStatus = typeof upload.status === 'string' ? upload.status : 'not recorded';
-                  const normalizedReason = typeof normalized.reason === 'string' ? normalized.reason : '';
-                  return <article key={test.id} className="min-w-0 rounded-lg border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0"><p className={'text-xs font-semibold '+primary}>{test.model_provider}</p><p className={'mt-0.5 text-[9px] '+muted}>{test.model_id} · {dateLabel(test.created_at)}</p></div>
-                      <span className={'shrink-0 rounded px-2 py-1 text-[9px] font-semibold '+(test.test_status === 'passed' && test.exact_match === true ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{test.test_status}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Normalized image</p><p className={'mt-0.5 text-base font-semibold '+primary}>{normalizedScore === null ? 'N/A' : (normalizedScore*100).toFixed(2)+'%'}</p><p className={'text-[9px] '+muted}>{normalized.performed === true ? '256-grid RGB' : 'Not evaluated'}</p></div>
-                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Geometry</p><p className={'mt-0.5 text-base font-semibold '+primary}>{geometryScore === null ? 'N/A' : (geometryScore*100).toFixed(2)+'%'}</p><p className={'text-[9px] '+muted}>Red-region only</p></div>
-                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Background delta</p><p className={'mt-0.5 text-sm font-semibold '+primary}>{backgroundDelta === null ? 'N/A' : backgroundDelta.toFixed(2)}</p><p className={'text-[9px] '+muted}>Lower is closer</p></div>
-                      <div className="rounded-md border border-[var(--vyra-border-subtle)] p-2"><p className={'text-[9px] '+muted}>Exact pixels</p><p className={'mt-0.5 text-sm font-semibold '+primary}>{pixel.performed === true ? (test.exact_match ? 'Matched' : 'Different') : 'Not evaluated'}</p><p className={'text-[9px] '+muted}>{pixel.performed === true ? 'Decoded RGB' : 'Dimensions differ / unavailable'}</p></div>
-                    </div>
-                    <div className="mt-2 border-t border-[var(--vyra-border-subtle)] pt-2">
-                      <p className={'text-[9px] '+muted}>Upload provenance</p>
-                      <p className={'mt-0.5 break-words text-[10px] font-semibold '+(uploadStatus === 'reconciled' ? 'text-emerald-500' : 'text-amber-500')}>{uploadStatus.replaceAll('_',' ')}</p>
-                      {normalizedScore === null && normalizedReason && <p className={'mt-1 text-[9px] '+muted}>{normalizedReason}</p>}
-                      <p className={'mt-1 text-[9px] '+muted}>A high similarity score is not an exact reconstruction pass.</p>
-                    </div>
-                  </article>;
-                })}
-              </div>
-            </div>}
-            <div className="mt-4">
-              <p className={'mb-2 text-xs font-semibold '+primary}>Test history</p>
-              <div className="space-y-2">{reconstructionTests.length ? reconstructionTests.map((test)=><div key={test.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-3"><div><p className={'text-xs font-semibold '+primary}>{test.model_provider} · {test.model_id}</p><p className={'mt-1 text-[10px] '+muted}>{test.protocol_version ?? 'Legacy protocol'} · {test.comparison_mode.replaceAll('_',' ')} · {dateLabel(test.created_at)}</p></div><span className={'text-[10px] font-semibold '+(test.test_status==='passed'&&test.exact_match?'text-emerald-500':subtle)}>{test.test_status}{test.exact_match===true?' · Exact match':test.exact_match===false?' · Not exact':''}</span></div>):<div className="rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-center"><FlaskConical size={20} className={'mx-auto '+muted}/><p className={'mt-2 text-xs font-semibold '+primary}>No reconstruction tests yet</p><p className={'mt-1 text-[10px] '+muted}>No independent reconstruction comparisons have been saved yet.</p></div>}</div>
-            </div>
           </section>
         </div>
       )}
