@@ -237,3 +237,32 @@ test('rejects duplicate evidence references and invalid hard-gate flags', () => 
     findings: [],
   }), /invalid rule definition/);
 });
+
+test('rejects evidence keys assigned to an incompatible evidence trust class', () => {
+  const invalidProfile: VyralQualityStandardProfile = {
+    ...profile,
+    rules: [
+      { ...profile.rules[0], evidenceKey: 'reconstruction.byte_exact' },
+      ...profile.rules.slice(1),
+    ],
+  };
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-1',
+    snapshotFingerprint: fingerprint,
+    profile: invalidProfile,
+    findings: [],
+  }), /invalid rule definition/);
+});
+
+test('rejects unknown evidence keys in untrusted published profile JSON', () => {
+  const invalidRule = {
+    ...profile.rules[0],
+    evidenceKey: 'browser.claimed-proof',
+  } as unknown as VyralQualityStandardProfile['rules'][number];
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-1',
+    snapshotFingerprint: fingerprint,
+    profile: { ...profile, rules: [invalidRule, ...profile.rules.slice(1)] },
+    findings: [],
+  }), /invalid rule definition/);
+});
