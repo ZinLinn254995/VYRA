@@ -67,7 +67,7 @@ export type VyralAssetDnaAssessment = {
 };
 
 const HASH = /^[a-f0-9]{64}$/;
-const ID = /^[A-Za-z0-9_-]{1,128}$/;
+const ID = /^[A-Za-z0-9._-]{1,128}$/;
 const isRecoveryLevel = (value: unknown): value is VyralAssetDnaRecoveryLevel =>
   value === 'source_file_exact' || value === 'decoded_samples_exact' ||
   value === 'semantic_only' || value === 'unavailable';
