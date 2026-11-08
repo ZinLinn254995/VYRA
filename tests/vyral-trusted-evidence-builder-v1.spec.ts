@@ -8,8 +8,8 @@ const shaA = 'a'.repeat(64);
 const shaB = 'b'.repeat(64);
 const masterDna = {
   assets: [
-    { asset_id: 'asset-a', asset_version_id: 'version-a', dna_ref: { record_id: 'dna-a' } },
-    { asset_id: 'asset-b', asset_version_id: 'version-b', dna_ref: { record_id: 'dna-b' } },
+    { asset_id: 'asset-a', asset_version_id: 'version-a', dna_ref: { record_id: 'dna-a' },
+    { asset_id: 'asset-b', asset_version_id: 'version-b', dna_ref: { record_id: 'dna-b' },
   ],
 } as unknown as VyralMasterDnaV1;
 
@@ -65,8 +65,8 @@ test('accepts only trusted byte-exact verifier evidence pinned to the snapshot D
     ...base,
     profile: profile('reconstruction.byte_exact', 'generation_test'),
     reconstructionTests: [
-      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, verifier: { model_id: 'universal-file-dna-v1-readback-verifier' } },
-      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'dna-b', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, verifier: { model_id: 'universal-file-dna-v1-readback-verifier' } },
+      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier' },
+      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'dna-b', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier' },
     ],
   });
   assert.equal(result[0].status, 'pass');
@@ -78,8 +78,8 @@ test('does not trust model-generated or wrong-DNA reconstruction claims as exact
     ...base,
     profile: profile('reconstruction.byte_exact', 'generation_test'),
     reconstructionTests: [
-      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, verifier: { model_id: 'external-ai-model' } },
-      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'wrong-dna', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, verifier: { model_id: 'universal-file-dna-v1-readback-verifier' } },
+      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'external-ai-model' },
+      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'wrong-dna', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier' },
     ],
   });
   assert.equal(result[0].status, 'not_evaluated');
@@ -91,7 +91,7 @@ test('a trusted exact reconstruction failure is a failure, not missing evidence'
     ...base,
     profile: profile('reconstruction.decoded_exact', 'generation_test'),
     reconstructionTests: [
-      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'failed', exact_match: false, verifier: { model_id: 'vyral-dna-v3-readback-verifier' } },
+      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'failed', exact_match: false, model_id: 'vyral-dna-v3-readback-verifier' },
     ],
   });
   assert.equal(result[0].status, 'fail');
