@@ -328,8 +328,74 @@ def validate_manifest(manifest, archive_names):
             raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
     if set(counts) != set(assets):
         raise ValueError("Every Asset must have exactly one supported reconstruction record")
+
+    # Validate protected System Files shipped with every current .vyral package.
+    system_descriptors = manifest.get("systemFiles")
+    if system_descriptors is not None:
+        if not isinstance(system_descriptors, list):
+            raise ValueError("Vyral System File inventory is malformed")
+        definitions = [
+            ("manifest.json", "package_manifest", "package.manifest"),
+            ("system/identity.json", "identity", "manifest.vyral"),
+            ("system/asset-index.json", "asset_index", "manifest.assets"),
+            ("system/asset-dna/index.json", "asset_dna_index", "manifest.dnaRecords"),
+            ("system/master-dna.ref.json", "master_dna_reference", "manifest.masterDna"),
+            ("system/fingerprints/index.json", "fingerprint_index", "manifest.fingerprints"),
+            ("system/provenance/index.json", "provenance_index", "manifest.lineage"),
+            ("system/relationships/index.json", "relationship_index", "manifest.masterDna.relationships"),
+            ("system/classifications/index.json", "classification_index", "manifest.assets[].asset_type"),
+            ("system/creator-instructions/index.json", "creator_instructions", "manifest.vyral.metadata.creator_instructions"),
+            ("system/licensing.json", "licensing", "manifest.vyral.license_policy"),
+            ("system/integrity.json", "integrity", "package.entries"),
+            ("system/system-files.json", "system_file_index", "package.systemFiles"),
+        ]
+        if len(system_descriptors) != len(definitions):
+            raise ValueError("Vyral System File inventory is incomplete")
+        by_path = {}
+        for descriptor in system_descriptors:
+            if not isinstance(descriptor, dict) or not isinstance(descriptor.get("path"), str) or descriptor["path"] in by_path:
+                raise ValueError("Vyral System File descriptor is invalid or duplicated")
+            by_path[descriptor["path"]] = descriptor
+        for path, kind, source in definitions:
+            descriptor = by_path.get(path)
+            if (not isinstance(descriptor, dict) or descriptor.get("kind") != kind
+                    or descriptor.get("source") != source or descriptor.get("required") is not True
+                    or descriptor.get("protected") is not True
+                    or descriptor.get("state") not in ("present", "empty", "not_available")):
+                raise ValueError("Required Vyral System File is missing or not protected: " + path)
+            if path.startswith("system/"):
+                expected_paths.add(path)
+        if set(by_path) != {item[0] for item in definitions}:
+            raise ValueError("Vyral System File inventory contains unexpected paths")
+
+        index = json.loads(archive.read("system/system-files.json").decode("utf-8"))
+        if (index.get("schema") != "vyra.vyral-system-file-index" or index.get("version") != 1
+                or index.get("files") != system_descriptors
+                or index.get("deletion_policy") != {
+                    "individual_system_file_deletion": "forbidden",
+                    "delete_with_parent_vyral_only": True,
+                }):
+            raise ValueError("Vyral System File index or deletion policy is invalid")
+
+        integrity = json.loads(archive.read("system/integrity.json").decode("utf-8"))
+        entries = integrity.get("entries")
+        if integrity.get("hash_algorithm") != "SHA-256" or not isinstance(entries, list):
+            raise ValueError("Vyral package integrity declaration is invalid")
+        actual_covered = archive_names - {"manifest.json", "system/integrity.json", "system/system-files.json"}
+        declared = {}
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) or entry["path"] in declared:
+                raise ValueError("Vyral package integrity entry is invalid or duplicated")
+            declared[entry["path"]] = entry
+        if set(declared) != actual_covered:
+            raise ValueError("Vyral package integrity inventory does not match its ZIP entries")
+        for path, entry in declared.items():
+            data = archive.read(path)
+            if entry.get("size_bytes") != len(data) or entry.get("sha256") != sha256(data):
+                raise ValueError("Vyral package SHA-256 verification failed: " + path)
+
     if archive_names != expected_paths:
-        raise ValueError("Package entries do not match the declared reconstruction payloads")
+        raise ValueError("Package entries do not match the declared reconstruction payloads and protected System Files")
     return assets, records
 
 
