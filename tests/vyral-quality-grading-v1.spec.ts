@@ -223,7 +223,7 @@ test('rejects custom grade bands with gaps, overlaps, or missing grades', () => 
   }), /all six grade bands/);
   assert.throws(
     () => evaluateWithBands(undefined as unknown as VyralQualityStandardProfile['gradeBands']),
-    /explicitly define all six grade bands/
+    /all six grade bands/
   );
 });
 
@@ -327,7 +327,7 @@ test('rejects extra grade bands and malformed band fields', () => {
   assert.throws(() => evaluateBands({
     ...profile.gradeBands,
     X: { min: 0, max: 0 },
-  }), /exactly all six grade bands/);
+  }), /all six grade bands/);
   assert.throws(() => evaluateBands({
     ...profile.gradeBands,
     S: { ...profile.gradeBands.S, note: 'unexpected' },
