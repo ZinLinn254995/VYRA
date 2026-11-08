@@ -390,7 +390,7 @@ Deno.serve(async (request: Request) => {
       const declaredChunks = reconstruction.chunks as Row[];
       if (chunkPaths.length !== declaredChunks.length || chunkPaths.length > 100 ||
           declaredChunks.some((chunk, index) =>
-            chunk.index !== index || !isSha256(chunk.sha256) ||
+            chunk.index !== index || !SHA256.test(String(chunk.sha256)) ||
             !Number.isSafeInteger(chunk.byte_length) || chunk.byte_length <= 0 ||
             typeof chunk.package_path !== 'string'
           )) {
