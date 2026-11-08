@@ -1057,3 +1057,60 @@ test('imports legacy DNA-only packages after dropping version-bound evidence whi
   assert.deepEqual(imported.reconstructionTests, []);
   assert.deepEqual(await reconstructVyralFileDnaFromPackage(legacyFiles, 'portable-file-dna-legacy-compat'), sourceBytes);
 });
+
+
+
+test('single public Asset DNA can be packaged as a standalone AI-ready Vyral without source media or collection metadata', async () => {
+  const samples = new Uint8Array([12, 34, 56, 255]);
+  const sourceSha256 = 'a'.repeat(64);
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'public-single-asset-dna',
+    source: {
+      asset_id: 'asset-public-single', asset_version_id: 'version-public-single',
+      sha256: sourceSha256, size_bytes: 11, mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const archive = await createVyralAssetDnaOnlyPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'public-single-asset-package',
+    exportedAt: '2026-11-08T00:00:00.000Z',
+    exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    vyral: { id: 'source-public-vyral', name: 'Public source collection' },
+    folders: [],
+    assets: [{
+      id: 'asset-public-single',
+      name: 'Public sample image',
+      original_filename: 'public-sample.png',
+      asset_type: 'image',
+      mime_type: 'image/png',
+      size_bytes: 11,
+      sha256: sourceSha256,
+      metadata: { visibility: 'public' },
+    }],
+    versions: [],
+    dnaRecords: [],
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+    masterDna: null,
+  }, [record], entries, false);
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  assert.equal(manifest.exportMode, 'dna-only');
+  assert.equal(manifest.assets.length, 1);
+  assert.equal(manifest.assets[0].id, 'asset-public-single');
+  assert.equal(manifest.versions.length, 0);
+  assert.equal(manifest.masterDna, null);
+  assert.equal(manifest.dnaRecords.length, 1);
+  assert.equal(manifest.dnaRecords[0].dna_schema_id, 'vyra.asset-dna');
+  assert.equal(files.has('assets/asset-public-single/versions/1.bin'), false);
+  assert.equal(files.has(record.lossless_payload.tiles[0].package_path), true);
+});
