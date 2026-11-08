@@ -205,7 +205,7 @@ def reconstruct_file(archive, record, asset, output_dir):
     asset_id = str(asset["id"])
     original_name = asset.get("original_filename") or asset.get("name") or asset_id
     original_name = Path(str(original_name)).name
-    suffix = Path(original_name).suffix
+    suffix = re.sub(r"[^A-Za-z0-9.]+", "", Path(original_name).suffix)[:20]
     if not suffix and file_info.get("extension"):
         suffix = "." + str(file_info["extension"]).lstrip(".")
     stem = safe_name(Path(original_name).stem or asset_id) + "-" + safe_name(asset_id[:8])
@@ -222,6 +222,117 @@ def reconstruct_file(archive, record, asset, output_dir):
     }
 
 
+def validate_archive(archive):
+    infos = archive.infolist()
+    if not infos or len(infos) > 20000:
+        raise ValueError("Package has an invalid or excessive number of ZIP entries")
+    names = set()
+    total_size = 0
+    for info in infos:
+        name = info.filename
+        parts = name.split("/")
+        if (not name or name.startswith("/") or "\\" in name
+                or any(part in ("", ".", "..") for part in parts)
+                or re.match(r"^[A-Za-z]:", name)):
+            raise ValueError("Package contains an unsafe ZIP path")
+        if name in names:
+            raise ValueError("Package contains duplicate ZIP entry names")
+        names.add(name)
+        if info.flag_bits & 0x1:
+            raise ValueError("Encrypted ZIP entries are not supported")
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode == 0o120000:
+            raise ValueError("Symbolic links are not allowed in a VYRAL package")
+        if info.file_size < 0 or info.file_size > 64 * 1024 * 1024:
+            raise ValueError("A ZIP entry exceeds the 64 MiB safety limit")
+        total_size += info.file_size
+        if total_size > 512 * 1024 * 1024:
+            raise ValueError("Package exceeds the 512 MiB uncompressed safety limit")
+        if info.file_size and info.compress_size == 0:
+            raise ValueError("Package contains an invalid compressed entry")
+        if info.compress_size and info.file_size / info.compress_size > 5000:
+            raise ValueError("Package contains an excessive compression ratio")
+    return names
+
+
+def validate_manifest(manifest, archive_names):
+    if not isinstance(manifest, dict) or manifest.get("format") != "application/vnd.vyra.vyral+zip" or manifest.get("formatVersion") != 1:
+        raise ValueError("Unsupported VYRAL package format")
+    if manifest.get("exportMode") != "dna-only":
+        raise ValueError("The portable decoder accepts DNA-only VYRAL packages")
+    if manifest.get("versions") or manifest.get("folders"):
+        raise ValueError("DNA-only packages must not include source versions or folder data")
+    assets_list = manifest.get("assets")
+    records = manifest.get("dnaRecords")
+    if not isinstance(assets_list, list) or not assets_list or not isinstance(records, list) or not records:
+        raise ValueError("This package contains no complete per-Asset reconstruction inventory")
+    assets = {}
+    for asset in assets_list:
+        if not isinstance(asset, dict) or not isinstance(asset.get("id"), str) or not asset["id"]:
+            raise ValueError("Package contains an Asset with an invalid identity")
+        if asset["id"] in assets:
+            raise ValueError("Package contains duplicate Asset identities")
+        assets[asset["id"]] = asset
+    if len(records) != len(assets):
+        raise ValueError("Every Asset must have exactly one supported reconstruction record")
+
+    counts = {}
+    expected_paths = {"manifest.json", "README.txt", "AI_RECONSTRUCTION_GUIDE.md", "tools/reconstruct_vyral.py"}
+    for entry in records:
+        if not isinstance(entry, dict):
+            raise ValueError("Package contains an invalid DNA record")
+        asset_id = entry.get("asset_id")
+        if not isinstance(asset_id, str) or asset_id not in assets:
+            raise ValueError("DNA record references an Asset missing from the manifest")
+        counts[asset_id] = counts.get(asset_id, 0) + 1
+        if counts[asset_id] != 1:
+            raise ValueError("Every Asset must have exactly one DNA record")
+        record = entry.get("dna_record")
+        if not isinstance(record, dict):
+            raise ValueError("DNA record payload is missing")
+        schema = entry.get("dna_schema_id")
+        version = entry.get("dna_schema_version")
+        if schema == "vyra.asset-dna" and version == 3:
+            if entry.get("recovery_level") != "decoded-samples-exact":
+                raise ValueError("Raster DNA must declare exact decoded-sample recovery")
+            if record.get("record_id") != entry.get("id") or record.get("source", {}).get("asset_id") != asset_id:
+                raise ValueError("Raster DNA identity does not match its Asset inventory entry")
+            tiles = record.get("lossless_payload", {}).get("tiles")
+            if not isinstance(tiles, list) or not tiles:
+                raise ValueError("Raster DNA is missing reconstruction tiles")
+            for tile in tiles:
+                path = tile.get("package_path")
+                if not isinstance(path, str) or path in expected_paths:
+                    raise ValueError("Raster DNA contains an invalid or duplicate payload path")
+                expected_paths.add(path)
+        elif schema == "vyra.asset-file-dna" and version == 1:
+            if entry.get("recovery_level") != "source-file-exact":
+                raise ValueError("File DNA must declare exact source-file recovery")
+            if record.get("record_id") != entry.get("id") or record.get("source", {}).get("asset_id") != asset_id:
+                raise ValueError("File DNA identity does not match its Asset inventory entry")
+            reconstruction = record.get("reconstruction", {})
+            if reconstruction.get("claim") != "source_file_exact":
+                raise ValueError("File DNA does not contain an exact source-byte claim")
+            chunks = reconstruction.get("chunks")
+            if not isinstance(chunks, list) or not chunks:
+                raise ValueError("File DNA is missing source-byte chunks")
+            indices = [int(chunk.get("index", -1)) for chunk in chunks]
+            if sorted(indices) != list(range(len(chunks))):
+                raise ValueError("File DNA chunk indices must be unique and contiguous")
+            for chunk in chunks:
+                path = chunk.get("package_path")
+                if not isinstance(path, str) or path in expected_paths:
+                    raise ValueError("File DNA contains an invalid or duplicate payload path")
+                expected_paths.add(path)
+        else:
+            raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
+    if set(counts) != set(assets):
+        raise ValueError("Every Asset must have exactly one supported reconstruction record")
+    if archive_names != expected_paths:
+        raise ValueError("Package entries do not match the declared reconstruction payloads")
+    return assets, records
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify and reconstruct Assets from a VYRAL package.")
     parser.add_argument("package", help="Path to the .vyral ZIP package")
@@ -232,32 +343,28 @@ def main():
     output_dir = Path(args.output)
     results = []
     with zipfile.ZipFile(args.package, "r") as archive:
+        archive_names = validate_archive(archive)
+        manifest_info = archive.getinfo("manifest.json")
+        if manifest_info.file_size > 32 * 1024 * 1024:
+            raise ValueError("VYRAL manifest exceeds the 32 MiB safety limit")
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
-        assets = {str(item["id"]): item for item in manifest.get("assets", [])}
-        records = manifest.get("dnaRecords", [])
-        if not records:
-            raise ValueError("This package contains no full per-Asset reconstruction records.")
+        assets, records = validate_manifest(manifest, archive_names)
         selected = set(args.asset_ids or [])
+        unknown = selected.difference(assets)
+        if unknown:
+            raise ValueError("Requested Asset IDs are not present in this package: " + ", ".join(sorted(unknown)))
         for entry in records:
-            asset_id = str(entry.get("asset_id") or "")
+            asset_id = entry["asset_id"]
             if selected and asset_id not in selected:
                 continue
-            asset = assets.get(asset_id)
-            if asset is None:
-                raise ValueError("DNA record references an Asset missing from the manifest: " + asset_id)
-            schema = entry.get("dna_schema_id")
-            version = int(entry.get("dna_schema_version", 0))
-            record = entry.get("dna_record") or {}
+            asset = assets[asset_id]
+            schema = entry["dna_schema_id"]
+            version = int(entry["dna_schema_version"])
+            record = entry["dna_record"]
             if schema == "vyra.asset-dna" and version == 3:
                 results.append(reconstruct_raster(archive, record, asset, output_dir))
             elif schema == "vyra.asset-file-dna" and version == 1:
                 results.append(reconstruct_file(archive, record, asset, output_dir))
-            else:
-                raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
-        if selected:
-            missing = selected.difference({item["asset_id"] for item in results})
-            if missing:
-                raise ValueError("Requested Asset IDs have no supported reconstruction records: " + ", ".join(sorted(missing)))
 
     print(json.dumps({"package": args.package, "reconstructed_assets": results}, indent=2))
     if not results:
