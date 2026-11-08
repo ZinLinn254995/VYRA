@@ -111,3 +111,13 @@ The deterministic evaluator rejects malformed scope definitions before scoring:
 - A standard may contain at most 200 rules and must assign positive total configured weight.
 
 These checks prevent a malformed profile from silently broadening or narrowing applicability, and bound evaluation work for a published profile. They do not approve any particular quality rubric, weights, or grade thresholds.
+
+## Controlled publication workflow
+
+The Development publisher endpoint is `publish-vyral-quality-standard` and requires a valid user JWT. It is fail-closed unless the server secret `VYRAL_QUALITY_STANDARD_PUBLISHER_IDS` contains one or more explicitly approved user UUIDs (comma-separated). This allowlist is server-only; it must never be supplied by a browser or user-editable metadata.
+
+Before publication, the endpoint runs the same deterministic profile validator used by the grading engine. The database RPC is `SECURITY INVOKER`, executable only by `service_role`, and serializes publishers with a table lock. In one database transaction it inserts the new immutable version, deactivates the prior active version, and activates the new version. A failed publication rolls back the entire transaction. Version numbers must increase for the same standard ID.
+
+The endpoint returns 403 while the publisher allowlist is unset or the caller is not listed. Do not configure the allowlist until the actual administrator account IDs and operational ownership are confirmed. The publisher function is deployed to Development only; Production remains untouched.
+
+Before any production use, the owner must approve the actual rubric: rule definitions, weights, hard gates, applicability, grade thresholds, and the standard's intended scope. Passing structural validation only means the profile is well-formed; it does not make the rubric officially approved.
