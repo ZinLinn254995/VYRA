@@ -171,17 +171,27 @@ Deno.serve(async (request: Request) => {
     .eq('user_id', userId)
     .eq('scope', 'asset')
     .eq('schema_version', 1)
-    .order('created_at', { ascending: false })
-    .limit(50);
+    .order('created_at', { ascending: false });
   if (dnaLookupError) return json({ error: 'Could not load File DNA for exact source verification.' }, 500);
 
-  const fileDnaRow = (dnaRows ?? []).find((row: Record<string, unknown>) => {
+  const matchingFileDnaRows = (dnaRows ?? []).filter((row: Record<string, unknown>) => {
     const payload = row.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {};
     const record = payload.dna_record && typeof payload.dna_record === 'object' ? payload.dna_record as Record<string, unknown> : {};
     const source = record.source && typeof record.source === 'object' ? record.source as Record<string, unknown> : {};
     return (payload.dna_schema_id === 'vyra.asset-file-dna' || record.schema_id === 'vyra.asset-file-dna') &&
       (source.asset_version_id === version.id || payload.source_version_id === version.id);
-  }) as Record<string, unknown> | undefined;
+  }) as Record<string, unknown>[];
+
+  if (matchingFileDnaRows.length > 1) {
+    return json({
+      error: 'More than one File DNA record claims this exact Asset version. Resolve the duplicate DNA records before verification.',
+      status: 'ambiguous_file_dna',
+      assetId: asset.id,
+      versionId: version.id,
+      matchingRecordCount: matchingFileDnaRows.length,
+    }, 409);
+  }
+  const fileDnaRow = matchingFileDnaRows[0];
 
   if (fileDnaRow) {
     const payload = fileDnaRow.payload as Record<string, unknown>;
