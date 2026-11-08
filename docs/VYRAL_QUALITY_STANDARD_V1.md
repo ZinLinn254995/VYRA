@@ -179,3 +179,12 @@ The `assess-vyral-asset-dna` Edge Function requires a signed-in owner and explic
 The first server adapter recognizes the current raster DNA v3 decoded-sample payload. It does not claim encoded PNG/JPEG/WebP source-byte recovery. File DNA v1 package chunks are not treated as recoverable merely because a package manifest declares them; they require a server-addressable payload and matching exact test. Unrecognized or incomplete records remain blocked/partial rather than being promoted to ready.
 
 Deployment is intentionally pending: apply the migration only to the isolated Development database, deploy the Edge Function only to Development, and run its owner-isolation, tile-tampering, retest-precedence, and history tests before enabling AI Chat presentation. No Production database or deployment is part of this change.
+
+
+### Development rollout note — 2026-11-09
+
+The Asset DNA assessment history migration has been applied to the isolated Development project `wbqheogfoahnjvgkwhxe`. A live SQL verification confirmed the table exists, RLS is enabled, one owner-scoped SELECT policy exists, authenticated users have SELECT but not INSERT, and service_role has INSERT. The Production project was not touched.
+
+The `assess-vyral-asset-dna` Edge Function is deployed to Development as version 2 with JWT verification enabled. During rollout inspection, the existing ORIGIN-01 raster DNA v3 record showed RGB decoded samples and 128×128 raw tiles (not RGBA/256×256). The verifier was corrected to honor the stored RGB/RGBA channel layout and 128-pixel tile grid before version 2 was deployed. The stored record has 100 tile entries and three historical decoded-exact passing verifier rows. These database facts are not yet an end-to-end assessment result: Storage byte downloads and recomputed whole-sample SHA-256 still occur only when the authenticated endpoint runs.
+
+The expected ORIGIN-01 result is not a perfect/complete DNA grade: the record is currently marked `observed`, and decoded-sample exactness does not recover the original encoded PNG bytes. The assessment therefore preserves those limitations instead of claiming source-file exactness. End-to-end invocation, storage-byte verification, saved history creation, and AI Chat integration remain pending.
