@@ -13,6 +13,7 @@ import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
 import { buildVyralCreatorInventoryContextV1 } from '../../services/vyralCreatorInventoryContextV1.ts';
 import { requestsVyralQualityEvaluationV1 } from '../../services/vyralQualityIntentV1.ts';
 import { requestsVyralQualityHistoryV1 } from '../../services/vyralQualityHistoryIntentV1.ts';
+import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaAssessmentIntentV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -417,6 +418,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
+    const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
     const qualityVyralIds = [...new Set([
       ...selectedAssets.map((asset) => asset.vyralId),
       ...(selectedFile?.name.toLowerCase().endsWith('.vyral') && selectedVyralId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedVyralId) ? [selectedVyralId] : []),
@@ -456,6 +458,67 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+      if (requestsAssetDnaAssessment) {
+        if (selectedAssets.length !== 1) {
+          throw new Error('To assess Asset DNA, select exactly one Asset in My Vyrals or My Media Library, then ask VYRA AI Chat to check its DNA.');
+        }
+        if (!supabase) throw new Error('Secure Asset DNA assessment is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data, error } = await supabase.functions.invoke('assess-vyral-asset-dna', {
+          body: { assetId: selectedAsset.id },
+        });
+        if (error) {
+          let message = 'VYRA could not assess this Asset DNA.';
+          try {
+            const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the safe generic message when the function response is unavailable.
+          }
+          throw new Error(message);
+        }
+        const assessment = data?.assessment as {
+          status?: 'ready' | 'partial' | 'blocked';
+          recoveryLevel?: string;
+          checks?: {
+            sourceBinding?: string;
+            schemaValidity?: string;
+            provenance?: string;
+            knowledge?: string;
+            payloadIntegrity?: string;
+            exactReconstruction?: string;
+          };
+          blockers?: string[];
+          limitations?: string[];
+        } | undefined;
+        if (!assessment) throw new Error('The Asset DNA assessment response was incomplete.');
+        const statusLabel = assessment.status === 'ready' ? 'READY'
+          : assessment.status === 'blocked' ? 'BLOCKED' : 'PARTIAL';
+        const report = [
+          `Asset DNA assessment — ${selectedAsset.name}`,
+          `Status: ${statusLabel}`,
+          `Recovery capability: ${assessment.recoveryLevel ?? 'unknown'}`,
+          'Evidence checks:',
+          `• Source identity: ${assessment.checks?.sourceBinding ?? 'not available'}`,
+          `• DNA schema: ${assessment.checks?.schemaValidity ?? 'not available'}`,
+          `• Provenance: ${assessment.checks?.provenance ?? 'not available'}`,
+          `• Structured knowledge: ${assessment.checks?.knowledge ?? 'not available'}`,
+          `• Stored payload integrity: ${assessment.checks?.payloadIntegrity ?? 'not available'}`,
+          `• Exact reconstruction test: ${assessment.checks?.exactReconstruction ?? 'not available'}`,
+          ...(assessment.blockers?.length ? ['Blockers:', ...assessment.blockers.map((item) => `• ${item}`)] : []),
+          ...(assessment.limitations?.length ? ['Limitations:', ...assessment.limitations.map((item) => `• ${item}`)] : []),
+          '',
+          'This result evaluates only the selected Asset Version and its DNA record. It is not the Vyral collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
+          `Assessment history ID: ${data.assessmentId ?? 'not returned'}`,
+        ].join('\\n');
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: assessment.status === 'ready' ? 'success' : 'preview',
+        }]);
+        return;
+      }
       if (requestsVyralQualityHistory) {
         if (qualityVyralIds.length !== 1) {
           throw new Error('To view quality history, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
