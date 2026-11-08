@@ -1946,7 +1946,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const url = window.URL.createObjectURL(archive);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = safeName(retrieved.asset.name, 'asset', 100).replace(/\\.[^.]+$/, '') + '-DNA-ONLY.vyral';
+      anchor.download = safeDownloadName(retrieved.asset.name) + '-AI.vyral';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
