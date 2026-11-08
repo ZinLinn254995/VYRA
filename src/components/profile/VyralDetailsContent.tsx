@@ -1666,8 +1666,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     await uploadFilesFromFiles(selected);
   };
 
-  const uploadFilesFromFiles = async (selected: File[]) => {
-    if (!supabase || !selected.length) return;
+  const uploadFilesFromFiles = async (selected: File[]): Promise<boolean> => {
+    if (!supabase || !selected.length) return false;
     const db = supabase;
     const { data: auth } = await db.auth.getUser();
     if (!auth.user) { setError('Your session has expired. Please sign in again.'); return; }
@@ -1865,6 +1865,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     await loadWorkspace();
     if (failures.length) setError(failures.join(' · '));
     setBusy(false);
+    return failures.length === 0;
   };
 
   const copyReferencedAsset = async (reference: CollectionReferenceRow, assetReference: PublicCollectionAssetReferenceV1) => {
@@ -1878,7 +1879,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         source_vyral_id: reference.source_vyral_id,
       }, assetReference);
       setPackageStatus('Source integrity verified. Saving a private copy in this Vyral…');
-      await uploadFilesFromFiles([file]);
+      const saved = await uploadFilesFromFiles([file]);
+      if (!saved) { setPackageStatus('The verified source was downloaded, but the destination copy needs attention.'); return; }
       setPackageStatus('The verified Asset copy was saved privately in this Vyral.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not retrieve this public Asset.');
