@@ -33,6 +33,10 @@ export type VyralAiDetailsInput = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+const isSafeDetailKey = (key: string): boolean =>
+  /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key) &&
+  !['__proto__', 'prototype', 'constructor'].includes(key);
+
 const isValidConfidence = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
 
@@ -45,10 +49,10 @@ export const mergeVyralAiDetails = (
   const sameSource = previous.scope === input.scope &&
     (previous.source_version_id ?? null) === (input.sourceVersionId ?? null) &&
     (previous.source_revision ?? null) === (input.sourceRevision ?? null);
-  const fields: Record<string, VyralAiDetailField> = {};
+  const fields = Object.create(null) as Record<string, VyralAiDetailField>;
 
   for (const [key, raw] of Object.entries(previousFields)) {
-    if (!isRecord(raw) || !('value' in raw) ||
+    if (!isSafeDetailKey(key) || !isRecord(raw) || !('value' in raw) ||
         !['system_default', 'ai_suggested', 'creator_confirmed', 'creator_edited'].includes(String(raw.origin)) ||
         typeof raw.updated_at !== 'string') continue;
     // Old AI guesses belong to their original source. Drop them on source changes;
@@ -63,7 +67,7 @@ export const mergeVyralAiDetails = (
   }
 
   for (const [key, suggestion] of Object.entries(input.suggestions)) {
-    if (!key.trim() || !suggestion || !('value' in suggestion)) continue;
+    if (!isSafeDetailKey(key) || !key.trim() || !suggestion || !('value' in suggestion)) continue;
     const existing = fields[key];
     if (existing && (existing.origin === 'creator_confirmed' || existing.origin === 'creator_edited')) continue;
     fields[key] = {
@@ -93,13 +97,16 @@ export const setVyralAiDetailField = (
   value: VyralDetailValue,
   origin: 'creator_confirmed' | 'creator_edited',
   updatedAt: string,
-): VyralAiDetails => ({
-  ...current,
-  fields: {
-    ...current.fields,
-    [key]: { value, origin, updated_at: updatedAt },
-  },
-});
+): VyralAiDetails => {
+  if (!isSafeDetailKey(key)) throw new Error('Invalid Asset detail field name.');
+  return {
+    ...current,
+    fields: {
+      ...current.fields,
+      [key]: { value, origin, updated_at: updatedAt },
+    },
+  };
+};
 
 export const markVyralAiDetailsStale = (current: VyralAiDetails): VyralAiDetails => ({
   ...current,
@@ -227,7 +234,7 @@ export const parseVyralAiSuggestions = (raw: string): Record<string, VyralAiSugg
   if (!isRecord(parsed)) throw new Error('AI returned invalid default details.');
   const result = Object.create(null) as Record<string, VyralAiSuggestion>;
   for (const [rawKey, value] of Object.entries(parsed)) {
-    if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(rawKey) || !isRecord(value) || !('value' in value)) continue;
+    if (!isSafeDetailKey(rawKey) || !isRecord(value) || !('value' in value)) continue;
     const key = rawKey.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_').toLowerCase();
     if (!/^[a-z][a-z0-9_]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key) || Object.hasOwn(result, key)) continue;
     const candidate = normalizeSuggestedValue(value.value);
