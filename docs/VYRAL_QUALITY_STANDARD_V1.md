@@ -70,3 +70,17 @@ The Edge Function loads all evidence using the authenticated owner identity and 
 Rules without an evidence key remain unevaluated until a separate trusted evidence adapter exists for that class. Therefore an evaluation can correctly return `incomplete_evidence`; the system must not fill gaps with AI guesses or automatic passing results.
 
 The registry has one globally active default profile at a time. Activation is a separate server-only state change; the profile JSON, rules, grade bands, identity and version remain immutable. To replace the active profile, the trusted publisher deactivates the old row and activates a newly inserted version. The unique active index prevents two defaults from being active concurrently. The evaluation endpoint resolves this single active profile when AI Chat requests a grade; if none is active, it returns a clear blocked setup response and records no invented grade.
+
+## AI Chat quality history
+
+The single VYRA AI Chat surface supports explicit English and Burmese requests to view a Vyral's saved quality history. The caller must select Assets from exactly one Vyral or attach that Vyral's portable `.vyral` package so the request is unambiguous.
+
+The `get-vyral-quality-history` Edge Function:
+
+- Requires a valid signed-in user JWT (`verify_jwt = true` and `auth: 'user'`)
+- Confirms that the requested Vyral belongs to the authenticated user before reading history
+- Filters evaluation rows by both Vyral ID and authenticated user ID
+- Returns at most the latest 20 saved evaluations, newest first
+- Preserves each evaluation's pinned Master DNA revision, standard identity/version, engine version, grade/status and score
+
+No history is fabricated when no saved evaluations exist. History is read-only; this endpoint cannot create, alter, or delete evaluations. The AI Chat history request takes precedence over a generic quality-evaluation intent when both terms appear in one message.
