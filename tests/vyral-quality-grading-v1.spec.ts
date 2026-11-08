@@ -151,28 +151,35 @@ test('rejects malformed snapshot fingerprints and duplicate standard rule IDs', 
 });
 
 
-test('grade boundaries are contiguous and deterministic at every threshold', () => {
-  const evaluateAt = (score: number) => {
+test('assigns exact score boundaries to one and only one grade', () => {
+  const gradeAt = (score: number) => {
+    const boundaryProfile: VyralQualityStandardProfile = {
+      id: 'vyra.boundary',
+      version: 1,
+      name: 'Boundary test',
+      scope: 'general',
+      rules: [
+        { id: 'score.earned', title: 'Earned points', category: 'universal', evidenceClass: 'deterministic', weight: score, required: true },
+        { id: 'score.unearned', title: 'Unearned points', category: 'universal', evidenceClass: 'deterministic', weight: 100 - score, required: true },
+      ],
+    };
     const result = evaluateVyralQualityV1({
       vyralId: 'vyral-boundary',
       snapshotFingerprint: fingerprint,
-      profile: {
-        ...profile,
-        rules: [{ id: 'single.score', title: 'Score', category: 'universal', evidenceClass: 'deterministic', weight: 100, required: true }],
-      },
-      findings: [finding('identity.integrity', 'pass')],
+      profile: boundaryProfile,
+      findings: [
+        { ruleId: 'score.earned', evidenceClass: 'deterministic', status: 'pass', evidenceRefs: ['evidence://earned'] },
+        { ruleId: 'score.unearned', evidenceClass: 'deterministic', status: 'fail', evidenceRefs: ['evidence://unearned'] },
+      ],
     });
-    return result;
+    return { score: result.score, grade: result.grade };
   };
-  // Exercise the public evaluator with score values produced by pass/partial/fail weights.
-  const at95 = evaluateVyralQualityV1({
-    vyralId: 'vyral-boundary', snapshotFingerprint: fingerprint,
-    profile: { ...profile, rules: [{ ...profile.rules[0], weight: 95 }, { ...profile.rules[1], weight: 5, required: true }] },
-    findings: [finding('identity.integrity', 'pass'), finding('asset.dna-coverage', 'pass')],
-  });
-  assert.equal(at95.score, 100);
-  assert.equal(at95.grade, 'S');
-  assert.equal(evaluateAt(0).status, 'incomplete_evidence');
+  assert.deepEqual(gradeAt(95), { score: 95, grade: 'S' });
+  assert.deepEqual(gradeAt(90), { score: 90, grade: 'A' });
+  assert.deepEqual(gradeAt(80), { score: 80, grade: 'B' });
+  assert.deepEqual(gradeAt(70), { score: 70, grade: 'C' });
+  assert.deepEqual(gradeAt(50), { score: 50, grade: 'D' });
+  assert.deepEqual(gradeAt(0), { score: 0, grade: 'F' });
 });
 
 test('rejects custom grade bands with gaps, overlaps, or missing grades', () => {
