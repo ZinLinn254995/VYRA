@@ -145,3 +145,35 @@ test('source changes discard stale AI guesses while retaining creator edits', ()
   assert.equal(refreshed.fields.style.value, 'New style');
   assert.equal(refreshed.source_version_id, 'version-new');
 });
+
+test('late AI analysis merges into the latest creator-edited Asset details', () => {
+  const aiStarted = mergeVyralAiDetails(null, {
+    scope: 'asset', sourceVersionId: 'version-1', provider: 'gemini', model: 'vision',
+    generatedAt, suggestions: {
+      name: { value: 'AI suggested name' },
+      category: { value: 'Illustration' },
+      style: { value: 'Minimal' },
+    },
+  });
+  const creatorSavedWhileAiWasRunning = mergeVyralAiDetails(null, {
+    scope: 'asset', sourceVersionId: 'version-1', provider: 'creator', model: 'manual',
+    generatedAt: '2026-11-08T10:05:00.000Z',
+    suggestions: {
+      name: { value: 'Creator title' },
+      description: { value: 'Creator description' },
+    },
+  });
+  const lateAiSuggestions = Object.fromEntries(Object.entries(aiStarted.fields)
+    .filter(([, field]) => field.origin === 'ai_suggested')
+    .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
+  const saved = mergeVyralAiDetails(creatorSavedWhileAiWasRunning, {
+    scope: 'asset', sourceVersionId: 'version-1', provider: 'gemini', model: 'vision',
+    generatedAt: '2026-11-08T10:10:00.000Z', suggestions: lateAiSuggestions,
+  });
+  assert.equal(saved.fields.name.value, 'Creator title');
+  assert.equal(saved.fields.name.origin, 'ai_suggested');
+  assert.equal(saved.fields.description.value, 'Creator description');
+  assert.equal(saved.fields.description.origin, 'ai_suggested');
+  assert.equal(saved.fields.category.value, 'Illustration');
+  assert.equal(saved.fields.style.value, 'Minimal');
+});
