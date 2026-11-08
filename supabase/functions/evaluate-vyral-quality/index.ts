@@ -102,14 +102,14 @@ Deno.serve(async (request: Request) => {
       loadAll(() => admin.from('vyral_asset_versions')
         .select('id,asset_id,sha256')
         .in('id', versionIds).in('asset_id', assetIds)
-        .eq('vyral_id', body.vyralId).eq('user_id', userId)),
+        .eq('vyral_id', body.vyralId).eq('user_id', userId).order('id', { ascending: true })),
       loadAll(() => admin.from('vyral_fingerprints')
         .select('id,asset_id,asset_version_id,fingerprint_kind,algorithm,value,metadata')
-        .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId)),
+        .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId).order('id', { ascending: true })),
       loadAll(() => admin.from('vyral_reconstruction_tests')
         .select('id,asset_id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,model_id')
         .in('asset_version_id', versionIds).in('asset_id', assetIds)
-        .eq('vyral_id', body.vyralId).eq('user_id', userId)),
+        .eq('vyral_id', body.vyralId).eq('user_id', userId).order('id', { ascending: true })),
       loadAll(() => admin.from('vyral_vision_observations')
         .select('id,asset_id,asset_version_id,verification_status,source_sha256')
         .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId)),
