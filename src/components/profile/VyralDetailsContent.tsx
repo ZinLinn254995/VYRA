@@ -37,7 +37,7 @@ type ObservationRow = { id: string; asset_id: string; asset_version_id: string; 
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type MasterRelationshipRow = { id: string; relationship_type: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; rationale: string };
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
-type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; dna_record_id?: string | null; model_provider: string; model_id: string; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
+type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: string | null; dna_record_id?: string | null; model_provider: string; model_id: string; model_version?: string | null; prompt_sha256?: string | null; session_reference?: string | null; tool_access?: Record<string, unknown>; blindness_status?: 'unverified' | 'creator_attested' | 'independently_verified' | 'invalid'; attempt_evidence?: Record<string, unknown>; protocol_version?: string; comparison_mode: string; test_status: string; exact_match: boolean | null; similarity_score: number | null; report?: Record<string, unknown>; created_at: string };
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type CollectionReferenceRow = { id: string; source_vyral_id: string; source_revision: number; source_visibility: 'public' | 'private' | 'unlisted'; resolver_uri: string | null; projection_sha256: string; compact_snapshot: Record<string, unknown>; imported_at: string };
 type Tab = 'overview' | 'assets' | 'dna' | 'lineage' | 'license';
@@ -546,12 +546,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   }, [assets, loading, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
 
 
-  const originV2LatestTests = useMemo(() => {
-    const providers = ['Anthropic', 'Google Gemini', 'xAI'];
-    return providers.map((provider) => reconstructionTests.find((test) =>
-      test.protocol_version === 'ORIGIN-01-v2' && test.model_provider === provider
-    )).filter((test): test is ReconstructionRow => Boolean(test));
-  }, [reconstructionTests]);
+  const originV3Attempts = useMemo(() =>
+    reconstructionTests
+      .filter((test) => test.protocol_version === 'ORIGIN-01-v3')
+      .slice()
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+  [reconstructionTests]);
 
   const filteredAssets = useMemo(() => {
     const search = (searchQuery + ' ' + localSearch).trim().toLowerCase();
@@ -3250,6 +3250,60 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               </div>
             </div>
           </section>
+          {isProtectedVyral(vyral) && (
+            <section className={surface+' p-4'}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className={'text-sm font-semibold '+primary}>Reconstruction evidence</h3>
+                  <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>
+                    Each DNA-only attempt is kept separately. Exact decoded-pixel matches are the pass condition; similarity alone never counts as an exact reconstruction.
+                  </p>
+                </div>
+                <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                  {originV3Attempts.length} recorded attempts
+                </span>
+              </div>
+              {originV3Attempts.length ? (
+                <div className="mt-3 space-y-2">
+                  {originV3Attempts.map((attempt) => {
+                    const evidence = asRecord(attempt.attempt_evidence);
+                    const blindness = asRecord(evidence.blindness);
+                    const promptHash = attempt.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
+                    const modelVersion = attempt.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : null);
+                    const statusLabel = attempt.exact_match === true ? 'Exact match' :
+                      attempt.test_status === 'inconclusive' ? 'Inconclusive' :
+                      attempt.test_status === 'failed' ? 'Different from original' : attempt.test_status;
+                    return (
+                      <article key={attempt.id} className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className={'truncate text-xs font-semibold '+primary}>{attempt.model_provider} · {attempt.model_id}</p>
+                            <p className={'mt-1 text-[10px] '+muted}>{modelVersion ? 'Model version '+modelVersion+' · ' : ''}{dateLabel(attempt.created_at)}</p>
+                          </div>
+                          <span className={'rounded-full border px-2 py-1 text-[10px] font-semibold '+(attempt.exact_match === true ? 'border-emerald-500/30 text-emerald-600' : attempt.test_status === 'inconclusive' ? 'border-amber-500/30 text-amber-600' : 'border-[var(--vyra-border)] '+subtle)}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+                          <span className={muted}>RGB similarity: <strong className={primary}>{typeof attempt.similarity_score === 'number' ? (attempt.similarity_score * 100).toFixed(2)+'%' : 'Not available'}</strong></span>
+                          <span className={muted}>Blindness: <strong className={primary}>{attempt.blindness_status ?? (typeof blindness.status === 'string' ? blindness.status : 'unverified')}</strong></span>
+                          <span className={muted}>Prompt SHA-256: <strong className={primary}>{promptHash ? promptHash.slice(0, 12)+'…' : 'Not recorded'}</strong></span>
+                        </div>
+                        {attempt.session_reference && <p className={'mt-2 break-all text-[10px] '+muted}>Session: {attempt.session_reference}</p>}
+                        {(attempt.blindness_status === 'creator_attested' || blindness.independentlyVerified === false) && (
+                          <p className="mt-2 text-[10px] leading-4 text-amber-600">Original-file isolation is creator-attested only; the external AI session has not been independently audited.</p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className={'mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-xs '+muted}>
+                  No ORIGIN-01 v3 comparison attempts have been recorded yet.
+                </p>
+              )}
+            </section>
+          )}
           <section className={surface+' p-4'}>
             <h3 className={'text-sm font-semibold '+primary}>Notes for AI (optional)</h3>
             <p className={'mt-1 text-xs '+muted}>Add a detail or rule you want VYRA to keep in mind. You can leave this empty.</p>
