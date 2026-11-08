@@ -316,3 +316,8 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - The response includes a projection integrity digest and the source revision manifest digest as separate fields. The source digest identifies the canonical private revision; the projection digest verifies the exact public projection bytes. They are not interchangeable.
 - Public projection remains gated by Vyral visibility, every Asset's public visibility, and AI-analysis permissions. Selective Asset source retrieval separately requires redistribution permission.
 - Acceptance tests must prove that private creator-authored text and descriptive Asset metadata cannot appear in the public projection, while stable identity and exact version references remain available.
+
+
+- Whenever the creator selects the Compact DNA component in a `.vyral` export, VYRA creates a separately re-hashed compact Master DNA projection. It retains stable collection/Asset/version identity, DNA record references, fingerprints, and reconstruction claims while omitting creator purpose, relationship rationales, Asset names/types/roles/purposes, provenance identities, internal notes, and storage/package prefixes.
+- The selected Full DNA component remains independent. Selecting Full DNA does not silently add descriptive collection metadata to the Compact DNA component; selecting Assets includes the separately selected source Asset metadata and binaries.
+- The seven supported component combinations must each be tested for exact component presence and absence, and every combination containing Compact DNA must pass the compact-projection privacy assertions.
