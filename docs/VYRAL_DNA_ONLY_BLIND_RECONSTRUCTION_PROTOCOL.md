@@ -43,6 +43,19 @@ Each attempt must record:
 
 The evidence record must be append-only or versioned. Re-running a test must create a new attempt, not overwrite the earlier result.
 
+The Development comparison record stores the available evidence in `public.vyral_reconstruction_tests`:
+
+| Field | Meaning |
+| --- | --- |
+| `model_provider`, `model_id`, `model_version` | Provider and exact model identifiers when supplied; missing versions remain null and an unrecorded model ID is explicitly labelled |
+| `prompt_sha256` | SHA-256 of the exact prompt, when supplied and valid; prompt text itself is not stored in this field |
+| `session_reference` | Optional external session reference supplied by the creator; it is not provider-authenticated |
+| `tool_access` | JSON record of available browsing, connectors, code execution, and other tools when supplied |
+| `blindness_status` | `creator_attested` means the creator claims the original binary was not provided; it is not independent proof |
+| `attempt_evidence` | Snapshot of model, prompt-hash status, tool access, isolation claim, and uploaded-output hash/size reconciliation |
+
+The comparator intentionally never upgrades a creator attestation to `independently_verified`: it cannot observe or authenticate what happened inside a third-party AI session. An absent model version, prompt hash, or tool-access record remains visibly missing rather than being inferred. Each successful comparison call inserts a separate test row; existing rows are not overwritten.
+
 ## 4. Modality-specific scoring
 
 ### Raster images
