@@ -25,6 +25,20 @@ export type VyralPublicResolverActionV1 = 'master' | 'asset_dna' | 'asset_source
 export const isPublicVyralAssetVisibilityAllowedV1 = (vyralVisibility: unknown, assetVisibility: unknown): boolean =>
   vyralVisibility === 'public' && assetVisibility === 'public';
 
+/** The complete Master DNA inventory is public only when every Asset is public and AI-analysis eligible. */
+export const isPublicVyralMasterDnaSnapshotAllowedV1 = (
+  vyralVisibility: unknown,
+  assets: unknown,
+): boolean => {
+  if (vyralVisibility !== 'public' || !Array.isArray(assets) || assets.length === 0) return false;
+  return assets.every((value) => {
+    const asset = asRecord(value);
+    const metadata = asRecord(asset.metadata);
+    const license = asRecord(asset.license_override);
+    return metadata.visibility === 'public' && license.allow_ai_analysis !== false;
+  });
+};
+
 export const isPublicVyralResourceAllowedV1 = (input: {
   visibility: unknown;
   action: unknown;
