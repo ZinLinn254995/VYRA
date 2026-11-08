@@ -5,7 +5,6 @@ import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
-import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
@@ -71,35 +70,43 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   };
   type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[] };
   const requestStoryboardSuggestion = async (seedTitle: string, seedTopic: string, optional = false): Promise<StoryboardSuggestion | null> => {
-    const apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
-    const models = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
-    const model = models.text;
-    if (!apiKey || !model) {
-      if (optional) return null;
-      throw new Error('Connect OpenRouter and select a Text model in Settings to use AI suggestions.');
-    }
-    const approved = await confirmSpendBeforeGeneration({ operation: 'Suggest storyboard details', capability: 'text', model, apiKey, parameters: { completionTokenBudget: 500 } });
-    if (!approved) return null;
     const accessToken = await getCurrentAccessToken();
-    if (!accessToken) throw new Error('Sign in again before requesting AI suggestions.');
-    const response = await fetch('/api/providers/openrouter/chat', {
+    if (!accessToken) {
+      if (optional) return null;
+      throw new Error('Sign in before requesting AI suggestions.');
+    }
+    const response = await fetch('/api/ai/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': 'vyra-storyboard-details-' + crypto.randomUUID() },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: [
-        'Suggest useful default metadata for a storyboard. Return only JSON with string fields title, topic, category, style, mood and an array of up to 8 tags.',
-        'Do not invent facts. If the idea is unclear, keep uncertain fields short or empty. The creator can edit every field.',
-        'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
-      ].join('\n') }] }),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + accessToken,
+        'Idempotency-Key': 'storyboard-details-' + crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'storyboard',
+        messages: [{ role: 'user', content: [
+          'Suggest useful default metadata for a storyboard. Return JSON only. Use title, topic, category, style, mood and tags where supported. Put each field in the shape {"value":"..."}; tags may use {"value":["tag"]}.',
+          'Do not invent facts. If the idea is unclear, omit uncertain details. The creator can edit every field.',
+          'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
+        ].join('\\n') }],
+      }),
     });
     const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
     if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
-    const raw = data.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const raw = data.text.trim().replace(/^\x60{3}(?:json)?\\s*/i, '').replace(/\\s*\x60{3}$/, '');
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const asText = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+    const unwrap = (value: unknown): unknown => value && typeof value === 'object' && !Array.isArray(value) && 'value' in value
+      ? (value as { value: unknown }).value : value;
+    const asText = (value: unknown) => {
+      const unwrapped = unwrap(value);
+      return typeof unwrapped === 'string' ? unwrapped.trim().slice(0, 500) : '';
+    };
+    const rawTags = unwrap(parsed.tags);
     return {
       title: asText(parsed.title), topic: asText(parsed.topic), category: asText(parsed.category),
       style: asText(parsed.style), mood: asText(parsed.mood),
-      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
+      tags: Array.isArray(rawTags) ? rawTags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
     };
   };
   const applyStoryboardSuggestionToForm = (suggestion: StoryboardSuggestion) => {
