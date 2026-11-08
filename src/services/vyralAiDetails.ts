@@ -258,10 +258,10 @@ export const suggestVyralAssetDetails = async (
   let mediaFiles: Array<{ mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac'; data: string; assetName: string }> = [];
   let extractedText = '';
 
-  if (mimeType.startsWith('image/')) {
+  if (mimeType.startsWith('image/') && file.size <= 20 * 1024 * 1024) {
     const preview = await makeImagePreview(file);
     visionImages = [{ ...preview, assetName: file.name }];
-  } else if (mimeType.startsWith('video/')) {
+  } else if (mimeType.startsWith('video/') && file.size <= 50 * 1024 * 1024) {
     visionImages = (await makeVideoPreviews(file)).map((frame, index) => ({ ...frame, assetName: file.name + ' · frame ' + (index + 1) }));
   } else if (mimeType === 'application/pdf' || mimeType.startsWith('audio/')) {
     const normalizedMime = mimeType === 'audio/mp3' || mimeType === 'audio/x-mp3' ? 'audio/mpeg'
@@ -272,7 +272,7 @@ export const suggestVyralAssetDetails = async (
       mediaFiles = [{ mimeType: normalizedMime as typeof mediaFiles[number]['mimeType'], data: toBase64(new Uint8Array(await file.arrayBuffer())), assetName: file.name }];
     }
   } else if (mimeType.startsWith('text/') || ['txt', 'md', 'json', 'csv', 'xml', 'html'].includes(extension)) {
-    extractedText = (await file.text()).slice(0, 12000);
+    extractedText = (await file.slice(0, 48 * 1024).text()).slice(0, 12000);
   }
 
   const messages = [{
