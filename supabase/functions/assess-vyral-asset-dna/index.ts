@@ -105,6 +105,8 @@ Deno.serve(async (request: Request) => {
   if (versionResult.error || dnaResult.error) return reply({ error: 'Could not resolve the latest owner-scoped Asset Version and DNA record.' }, 500);
   const version = versionResult.data, dnaRow = dnaResult.data;
   if (!asset || !version || !dnaRow) return reply({ error: 'Asset, source Version, or DNA record was not found for this account.' }, 404);
+  const versionId = version.id;
+  const dnaRecordId = dnaRow.id;
   if (asset.vyral_id !== version.vyral_id || dnaRow.vyral_id !== asset.vyral_id ||
       asset.processing_status !== 'ready' || !SHA.test(String(version.sha256)) ||
       !Number.isSafeInteger(Number(version.size_bytes)) || Number(version.size_bytes) <= 0) {
