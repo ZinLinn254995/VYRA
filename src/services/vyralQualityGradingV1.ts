@@ -100,6 +100,29 @@ const EVIDENCE_KEY_CLASS: Record<VyralQualityEvidenceKeyV1, VyralQualityEvidence
 };
 const EVIDENCE_KEYS = new Set<string>(Object.keys(EVIDENCE_KEY_CLASS));
 
+const validSelectorList = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.length > 0 &&
+  value.every((entry) => isText(entry) && entry.trim().length <= 128);
+
+const hasOnlySelector = (
+  appliesTo: unknown,
+  expected: 'assetTypes' | 'purposes' | 'workflowTypes',
+): boolean => {
+  if (!isRecord(appliesTo)) return false;
+  const keys = Object.keys(appliesTo);
+  return keys.length === 1 && keys[0] === expected && validSelectorList(appliesTo[expected]);
+};
+
+const validateRuleScope = (rule: VyralQualityRule): boolean => {
+  if (rule.category === 'universal') {
+    return rule.appliesTo === undefined;
+  }
+  if (rule.category === 'asset_type') return hasOnlySelector(rule.appliesTo, 'assetTypes');
+  if (rule.category === 'purpose') return hasOnlySelector(rule.appliesTo, 'purposes');
+  if (rule.category === 'workflow') return hasOnlySelector(rule.appliesTo, 'workflowTypes');
+  return false;
+};
+
 const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeBands']) => {
   if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands))) {
     throw new Error('Every versioned quality standard must explicitly define all six grade bands.');
@@ -148,11 +171,16 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
     throw new Error('A quality standard must define rules and receive rule findings.');
   }
 
+  if (profile.rules.length > 200) {
+    throw new Error('A versioned quality standard cannot contain more than 200 rules.');
+  }
   const ruleMap = new Map<string, VyralQualityRule>();
+  let configuredWeight = 0;
   for (const rule of profile.rules) {
     if (!isText(rule.id) || !RULE_ID.test(rule.id) || !isText(rule.title) ||
         !Number.isFinite(rule.weight) || rule.weight < 0 || rule.weight > 100 ||
         !['universal', 'asset_type', 'purpose', 'workflow'].includes(rule.category) ||
+        !validateRuleScope(rule) ||
         !['deterministic', 'creator_declared', 'ai_assessment', 'generation_test'].includes(rule.evidenceClass) ||
         typeof rule.required !== 'boolean' || (rule.hardGate !== undefined && typeof rule.hardGate !== 'boolean') ||
         (rule.evidenceKey !== undefined && (!EVIDENCE_KEYS.has(rule.evidenceKey) || EVIDENCE_KEY_CLASS[rule.evidenceKey] !== rule.evidenceClass)) ||
@@ -160,7 +188,11 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
       throw new Error('Quality standard contains an invalid rule definition.');
     }
     if (ruleMap.has(rule.id)) throw new Error(`Duplicate quality rule ID: ${rule.id}`);
+    configuredWeight += rule.weight;
     ruleMap.set(rule.id, rule);
+  }
+  if (configuredWeight <= 0) {
+    throw new Error('A quality standard must assign positive total weight to its rules.');
   }
 
   const findingMap = new Map<string, VyralQualityRuleFinding>();
