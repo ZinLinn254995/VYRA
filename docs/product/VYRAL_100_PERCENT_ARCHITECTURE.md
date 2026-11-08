@@ -399,3 +399,13 @@ A Compact-only package is importable as a **reference record**, not as a restore
 ### Acceptance rule
 
 ORIGIN-01 is accepted for exact decoded-sample recovery only when the pinned source identity, every tile hash/length, complete reconstructed sample digest, and byte-for-byte fresh-decode comparison all pass. Whole-Vyral acceptance additionally requires automatic inventory composition, import/export round trips, privacy and licensing checks, and portable blind reconstruction evidence. Do not collapse these separate claims into one generic similarity score.
+
+
+## 19. Automatic File DNA exact-readback acceptance
+
+- Non-raster uploads initially store a compact File DNA v1 identity record while retaining the immutable original bytes in private Storage. The payload chunks are materialized when a portable DNA-only export is requested; this avoids duplicating the original file in database JSON.
+- A compact identity record alone is not evidence of successful reconstruction. The authenticated `verify-vyral-asset` service now reads the protected source, checks its exact size and SHA-256 against the immutable Asset Version and File DNA identity, deterministically splits the source into canonical File DNA chunks, verifies each chunk digest, reassembles the byte stream, and compares the rebuilt bytes byte-for-byte with the source.
+- A passing readback is stored as an immutable `byte_exact` reconstruction test pinned to the exact Asset, Version, and DNA record. The result is `source_file_exact`; no generative model is involved.
+- Workspace loading automatically schedules this verification for File DNA records that do not yet have a passing byte-exact test. It waits for those attempts before composing Master DNA, so the collection-level reconstruction claim can reflect the newly verified exact File Assets.
+- The readback helper has independent unit coverage for valid chunk reconstruction, cross-Asset and cross-Version identity mismatches, altered bytes, size/MIME mismatches, and invalid chunk sizes.
+- Development Edge Function `verify-vyral-asset` is deployed as version 4 with this verifier. The deployment is confirmed; a live authenticated browser invocation is still pending the next branch Preview session.
