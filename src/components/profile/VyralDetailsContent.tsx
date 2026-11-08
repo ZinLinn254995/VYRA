@@ -2821,10 +2821,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const snapshotVyral = asRecord(reference.compact_snapshot.vyral);
             const label = typeof snapshotVyral.name === 'string' ? snapshotVyral.name : 'Referenced collection';
             const check = referenceChecks[reference.id];
+            const importedAssets: PublicCollectionAssetReferenceV1[] = Array.isArray(reference.compact_snapshot.assets)
+              ? reference.compact_snapshot.assets.map((value) => {
+                  const asset = asRecord(value);
+                  return { assetId: String(asset.asset_id ?? ''), assetVersionId: String(asset.asset_version_id ?? ''), mediaType: String(asset.media_type ?? 'application/octet-stream') };
+                }).filter((asset) => /^[0-9a-f-]{36}$/i.test(asset.assetId) && /^[0-9a-f-]{36}$/i.test(asset.assetVersionId))
+              : [];
             const checkLabel = check?.status === 'checking'
               ? 'Checking current access…'
               : check?.status === 'current'
-                ? 'Available now · ' + check.assetCount + ' Assets'
+                ? 'Collection DNA available · ' + check.assetCount + ' Assets'
                 : check?.status === 'newer_revision'
                   ? 'New revision available · ' + check.revision
                   : check?.status === 'error'
@@ -2834,13 +2840,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Imported revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'}</p><p className={'mt-1 text-[10px] ' + (check?.status === 'error' ? 'text-rose-500' : muted)}>{checkLabel}</p></div>
                 <div className="flex items-center gap-2">
-                  {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check access'}</button>}
+                  {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check collection DNA'}</button>}
                   <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
                 </div>
               </div>
-              {check?.status === 'current' && <div className="mt-3 space-y-2 border-t border-[var(--vyra-border-subtle)] pt-3">
-                <p className={'text-[10px] ' + muted}>Public Assets · copies are saved privately in this Vyral</p>
-                {check.assets.map((assetReference) => <div key={assetReference.assetId + ':' + assetReference.assetVersionId} className="flex flex-wrap items-center justify-between gap-2">
+              {reference.resolver_uri && reference.source_visibility === 'public' && importedAssets.length > 0 && <div className="mt-3 space-y-2 border-t border-[var(--vyra-border-subtle)] pt-3">
+                <p className={'text-[10px] ' + muted}>Source Assets · copying requires the creator’s current redistribution permission; copies are saved privately here</p>
+                {importedAssets.map((assetReference) => <div key={assetReference.assetId + ':' + assetReference.assetVersionId} className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0"><p className={'text-[11px] ' + primary}>{assetReference.mediaType}</p><p className={'text-[9px] ' + muted}>{assetReference.assetId.slice(0, 8)} · version {assetReference.assetVersionId.slice(0, 8)}</p></div>
                   <button type="button" onClick={() => void copyReferencedAsset(reference, assetReference)} disabled={packageBusy || busy} className={button}>Copy Asset here</button>
                 </div>)}
