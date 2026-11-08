@@ -52,17 +52,25 @@ Deno.serve(async (request: Request) => {
   const decoded = record.decoded_image && typeof record.decoded_image === 'object' ? record.decoded_image as Record<string, unknown> : {};
   const lossless = record.lossless_payload && typeof record.lossless_payload === 'object' ? record.lossless_payload as Record<string, unknown> : {};
   const tiles = Array.isArray(lossless.tiles) ? lossless.tiles as Array<Record<string, unknown>> : [];
-  const paths = Array.isArray(payload.tile_storage_paths) ? payload.tile_storage_paths as string[] : [];
+  const paths = Array.isArray(payload.tile_storage_paths) ? payload.tile_storage_paths as unknown[] : [];
   const storagePrefix = typeof payload.storage_prefix === 'string' ? payload.storage_prefix : '';
   const decoder = decoded.decoder_contract && typeof decoded.decoder_contract === 'object' ? decoded.decoder_contract as Record<string, unknown> : {};
+  const declaredTileWidth = Number(lossless.tile_width), declaredTileHeight = Number(lossless.tile_height);
+  const declaredWidth = Number(decoded.width), declaredHeight = Number(decoded.height);
+  const expectedTileCount = Number.isSafeInteger(declaredWidth) && Number.isSafeInteger(declaredHeight) &&
+    Number.isSafeInteger(declaredTileWidth) && Number.isSafeInteger(declaredTileHeight) &&
+    declaredWidth > 0 && declaredHeight > 0 && declaredTileWidth > 0 && declaredTileHeight > 0
+      ? Math.ceil(declaredWidth / declaredTileWidth) * Math.ceil(declaredHeight / declaredTileHeight) : -1;
   if (record.schema_id !== 'vyra.asset-dna' || Number(record.schema_version) !== 3 || record.record_id !== row.id ||
       source.asset_id !== asset.id || source.asset_version_id !== version.id ||
       String(source.sha256 ?? '').toLowerCase() !== String(version.sha256 ?? '').toLowerCase() ||
       Number(source.size_bytes) !== size || String(source.mime_type).toLowerCase() !== String(version.mime_type).toLowerCase() ||
       decoded.sample_format !== 'uint8' || !['RGB', 'RGBA'].includes(String(decoded.channel_layout)) ||
       decoder.name !== 'ImageMagick WASM' || decoder.version !== '0.0.30' ||
-      lossless.encoding !== 'raw-tiled-v1' || tiles.length < 1 || paths.length !== tiles.length || !storagePrefix) {
-    return reply({ error: 'DNA v3 manifest does not describe this exact source version or supported decoder contract.' }, 409);
+      lossless.encoding !== 'raw-tiled-v1' || tiles.length < 1 || tiles.length !== expectedTileCount ||
+      declaredTileWidth > 1024 || declaredTileHeight > 1024 || paths.length !== tiles.length ||
+      paths.some((path) => typeof path !== 'string') || new Set(paths).size !== paths.length || !storagePrefix) {
+    return reply({ error: 'DNA v3 manifest does not describe a complete, unique tile grid for this exact source version.' }, 409);
   }
   const expectedPrefix = userId + '/' + asset.vyral_id + '/' + asset.id + '/dna/v3/' + row.id + '/tiles/';
   if (storagePrefix !== expectedPrefix) return reply({ error: 'DNA tile storage prefix is invalid.' }, 409);
@@ -92,17 +100,25 @@ Deno.serve(async (request: Request) => {
   const rebuilt = new Uint8Array(freshSamples.byteLength);
   const rowBytes = width * channels;
   const seen = new Set<string>();
+  const seenGrid = new Set<string>();
+  const declaredPaths = new Set(paths as string[]);
+  const expectedGrid = new Set<string>();
+  for (let y = 0; y < height; y += declaredTileHeight) {
+    for (let x = 0; x < width; x += declaredTileWidth) expectedGrid.add(x + ':' + y);
+  }
   let tileBytesTotal = 0;
   for (const tile of tiles) {
     const x = Number(tile.x), y = Number(tile.y), w = Number(tile.width), h = Number(tile.height);
-    const tw = Number(lossless.tile_width), th = Number(lossless.tile_height);
+    const tw = declaredTileWidth, th = declaredTileHeight;
     if (![x,y,w,h,tw,th].every(Number.isSafeInteger) || tw < 1 || th < 1 || x < 0 || y < 0 ||
         x % tw !== 0 || y % th !== 0 || w !== Math.min(tw, width-x) || h !== Math.min(th, height-y) ||
-        w < 1 || h < 1 || tile.package_path !== 'dna/v3/' + row.id + '/tiles/' + x + '_' + y + '.raw') {
-      return reply({ error: 'DNA tile geometry or package path is invalid.' }, 409);
+        w < 1 || h < 1 || !expectedGrid.has(x + ':' + y) || seenGrid.has(x + ':' + y) ||
+        tile.package_path !== 'dna/v3/' + row.id + '/tiles/' + x + '_' + y + '.raw') {
+      return reply({ error: 'DNA tile geometry, grid coverage or package path is invalid.' }, 409);
     }
+    seenGrid.add(x + ':' + y);
     const storagePath = storagePrefix + x + '_' + y + '.raw';
-    if (seen.has(storagePath) || !paths.includes(storagePath)) return reply({ error: 'DNA tile storage map contains a missing or duplicate path.' }, 409);
+    if (seen.has(storagePath) || !declaredPaths.has(storagePath)) return reply({ error: 'DNA tile storage map contains a missing or duplicate path.' }, 409);
     seen.add(storagePath);
     const { data: tileBlob, error: tileError } = await ctx.supabaseAdmin.storage.from(BUCKET).download(storagePath);
     if (tileError || !tileBlob) return reply({ error: 'Could not read a persisted DNA tile.' }, 502);
@@ -113,7 +129,9 @@ Deno.serve(async (request: Request) => {
     for (let y0 = 0; y0 < h; y0++) rebuilt.set(bytes.subarray(y0*w*channels,(y0+1)*w*channels),(y+y0)*rowBytes+x*channels);
     tileBytesTotal += bytes.byteLength;
   }
-  if (seen.size !== tiles.length || paths.some((path) => !seen.has(path)) ||
+  if (seen.size !== tiles.length || seenGrid.size !== expectedGrid.size ||
+      [...expectedGrid].some((key) => !seenGrid.has(key)) ||
+      [...declaredPaths].some((path) => !seen.has(path)) ||
       await sha256(rebuilt) !== String(decoded.decoded_samples_sha256).toLowerCase()) return reply({ error: 'DNA tile set is incomplete or reconstructed samples do not match.' }, 409);
   for (let i = 0; i < rebuilt.length; i++) if (rebuilt[i] !== freshSamples[i]) return reply({ error: 'DNA samples differ from a fresh decode of the original source.' }, 409);
 
