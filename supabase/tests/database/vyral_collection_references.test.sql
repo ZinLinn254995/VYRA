@@ -87,7 +87,7 @@ select is(
 );
 
 select throws_ok(
- $update public.vyral_collection_references set compact_snapshot='{}'::jsonb$,
+ $stmt$update public.vyral_collection_references set compact_snapshot='{}'::jsonb$stmt$,
  '42501',
  null,
  'Imported reference snapshots are immutable to authenticated clients'
