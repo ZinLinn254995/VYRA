@@ -12,7 +12,8 @@ export type MasterDnaPreflightBlocker = {
 
 /**
  * Validity is determined by the canonical Asset inventory and each Asset's own
- * version/DNA. Creator context, roles and relationships are optional metadata.
+ * version and a supported exact-reconstruction DNA record for that same version.
+ * Creator context, roles and relationships are optional metadata.
  */
 export const preflightVyralMasterDna = (input: {
   assets: MasterDnaPreflightAsset[];
