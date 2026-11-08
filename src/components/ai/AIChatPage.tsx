@@ -291,6 +291,10 @@ const inspectVyralAttachment = async (file: File) => {
   const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
   const lines = [
     `Package: ${String(manifest.vyral.name)} (${mode})`,
+    'VYRA CREATOR CONTEXT: Treat this Vyral as a creator-defined collection of Assets. Any supported asset types may be mixed, and Assets may be related or unrelated. No Main/Supporting role, purpose, story, character, world, style, or relationship is mandatory. An unclassified Asset is valid; do not invent missing metadata or relationships.',
+    'COMPACT DNA POLICY: Compact DNA is a navigation/reference map, not the canonical Original Asset, a complete substitute for Original DNA, or an access credential. Use only the Assets relevant to the user’s request. Do not claim to have inspected or retrieved an Original Asset unless its bytes/content are actually present in this request or returned by an authorized VYRA resolver.',
+    'EVIDENCE POLICY: Distinguish verified DNA/fingerprint facts, creator-declared metadata, AI suggestions, and untested assumptions. Reconstruction claims describe only the stated evidence level; visual similarity or semantic interpretation is not exact source-file recovery.',
+    'CREATOR ASSISTANCE: If asked to improve this Vyral, first understand the creator’s intended task, then recommend only useful optional Assets, metadata, relationships, instructions, or tests. Explain why each recommendation helps; never turn suggestions into confirmed facts or require unrelated structure.',
     `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
     `Asset inventory (showing up to 64 of ${manifest.assets.length}): ${manifest.assets.slice(0, 64).map((item) => `${String(item.name ?? item.id)} [${String(item.asset_type ?? 'unknown type')}; ${String(item.mime_type ?? 'unknown MIME')}]`).join('; ')}`,
     masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
