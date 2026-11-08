@@ -32,7 +32,7 @@
     "test:seo": "node --import tsx --test tests/seo-discovery-contract.spec.ts",
     "test:vyral-ai-details": "node --import tsx --test tests/vyral-ai-details.spec.ts",
     "test:workspace-storyboards": "node --import tsx --test tests/workspace-storyboard-sync.spec.ts",
-    "test:vyral-quality": "node --import tsx --test tests/vyral-quality-grading-v1.spec.ts tests/vyral-quality-applicability-v1.spec.ts tests/vyral-creator-inventory-context-v1.spec.ts tests/vyral-snapshot-quality-evaluation-v1.spec.ts tests/vyral-trusted-evidence-builder-v1.spec.ts tests/vyral-quality-intent-v1.spec.ts"
+    "test:vyral-quality": "node --import tsx --test tests/vyral-quality-grading-v1.spec.ts tests/vyral-quality-applicability-v1.spec.ts tests/vyral-creator-inventory-context-v1.spec.ts tests/vyral-snapshot-quality-evaluation-v1.spec.ts tests/vyral-trusted-evidence-builder-v1.spec.ts tests/vyral-quality-intent-v1.spec.ts tests/vyral-quality-history-intent-v1.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
