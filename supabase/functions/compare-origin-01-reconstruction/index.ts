@@ -285,6 +285,7 @@ Deno.serve(async (request: Request) => {
     modelIdentifier,
     modelVersion,
     promptSha256,
+    promptHashStatus: !promptSha256Raw ? 'not_recorded' : promptSha256 ? 'valid_sha256' : 'invalid_format',
     sessionReference,
     toolAccess,
     blindness: {
