@@ -9,12 +9,12 @@ const shaB = 'b'.repeat(64);
 const verifiedFingerprint = { verification_status: 'server_verified', verified_by: 'verify-vyral-asset', comparison_status: 'matched', actual_size_bytes: 1024 };
 const masterDna = {
   assets: [
-    { asset_id: 'asset-a', asset_version_id: 'version-a', dna_ref: { record_id: 'dna-a' },
-    { asset_id: 'asset-b', asset_version_id: 'version-b', dna_ref: { record_id: 'dna-b' },
+    { asset_id: 'asset-a', asset_version_id: 'version-a', dna_ref: { record_id: 'dna-a' } },
+    { asset_id: 'asset-b', asset_version_id: 'version-b', dna_ref: { record_id: 'dna-b' } },
   ],
 } as unknown as VyralMasterDnaV1;
 
-const profile = (evidenceKey: 'fingerprint.cryptographic' | 'reconstruction.byte_exact' | 'reconstruction.decoded_exact' | 'vision.corroborated', evidenceClass: 'deterministic' | 'generation_test' | 'ai_assessment'): VyralQualityStandardProfile => ({
+const profile = (evidenceKey: 'snapshot.integrity' | 'fingerprint.cryptographic' | 'reconstruction.byte_exact' | 'reconstruction.decoded_exact' | 'vision.corroborated', evidenceClass: 'deterministic' | 'generation_test' | 'ai_assessment'): VyralQualityStandardProfile => ({
   id: 'test.standard',
   version: 1,
   name: 'Evidence test',
