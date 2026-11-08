@@ -51,24 +51,39 @@ Deno.serve(async (request: Request) => {
   } catch {
     return json({ error: 'Request body must be valid JSON.' }, 400);
   }
-  if (!isUuid(body.vyralId) || !isStandardId(body.standardId) ||
-      !Number.isSafeInteger(body.standardVersion) || body.standardVersion < 1) {
-    return json({ error: 'A valid Vyral ID and exact versioned standard identity are required.' }, 400);
+  const hasStandardSelector = body.standardId !== undefined || body.standardVersion !== undefined;
+  if (!isUuid(body.vyralId) || (hasStandardSelector &&
+      (!isStandardId(body.standardId) || !Number.isSafeInteger(body.standardVersion) || body.standardVersion < 1))) {
+    return json({ error: 'A valid Vyral ID and, when supplied, an exact versioned standard identity are required.' }, 400);
   }
 
   const admin = context.supabaseAdmin;
-  const [vyralResult, standardResult] = await Promise.all([
+  const [vyralResult, standardQueryResult] = await Promise.all([
     admin.from('vyrals').select('id,user_id').eq('id', body.vyralId).eq('user_id', userId).maybeSingle(),
-    admin.from('vyral_quality_standards').select('standard_id,standard_version,profile,is_active')
-      .eq('standard_id', body.standardId).eq('standard_version', body.standardVersion).eq('is_active', true).maybeSingle(),
+    (() => {
+      let query = admin.from('vyral_quality_standards')
+        .select('standard_id,standard_version,profile,is_active')
+        .eq('is_active', true);
+      if (hasStandardSelector) {
+        query = query.eq('standard_id', body.standardId).eq('standard_version', body.standardVersion);
+      }
+      return query.order('standard_id', { ascending: true }).order('standard_version', { ascending: false });
+    })(),
   ]);
   if (vyralResult.error) return json({ error: 'Could not verify Vyral ownership.' }, 500);
   if (!vyralResult.data) return json({ error: 'Vyral not found or not owned by the signed-in user.' }, 404);
-  if (standardResult.error) return json({ error: 'Could not load the approved quality standard.' }, 500);
-  if (!standardResult.data) return json({ error: 'The requested quality standard version is not published.' }, 409);
+  if (standardQueryResult.error) return json({ error: 'Could not load the approved quality standard.' }, 500);
+  const activeStandards = standardQueryResult.data ?? [];
+  if (activeStandards.length === 0) {
+    return json({ error: 'No approved quality standard is active yet. VYRA will not invent a grade; a versioned standard must be published first.' }, 409);
+  }
+  if (activeStandards.length !== 1) {
+    return json({ error: 'More than one quality standard is active. Select an exact standard version before evaluation.' }, 409);
+  }
 
-  const profile = standardResult.data.profile as VyralQualityStandardProfile;
-  if (profile.id !== standardResult.data.standard_id || profile.version !== standardResult.data.standard_version) {
+  const standardRow = activeStandards[0];
+  const profile = standardRow.profile as VyralQualityStandardProfile;
+  if (profile.id !== standardRow.standard_id || profile.version !== standardRow.standard_version) {
     return json({ error: 'Published quality standard identity is inconsistent.' }, 409);
   }
 
