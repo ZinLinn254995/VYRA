@@ -246,6 +246,39 @@ test('ledger-enabled Asset metadata suggestions record Google provider usage bef
   assert.equal(jobUpdate.body.status, 'succeeded');
 });
 
+test('Gemini metadata suggestions reject unsupported scopes before provider or ledger calls', async () => {
+  let providerCalls = 0;
+  let ledgerCalls = 0;
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname.startsWith('/rest/v1/')) ledgerCalls += 1;
+    if (url.hostname === 'generativelanguage.googleapis.com') providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer verified-development-session',
+        'Idempotency-Key': 'asset-details-invalid-scope-001',
+      },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'admin_override',
+        messages: [{ role: 'user', content: 'Suggest details.' }],
+      }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as { error: string }).error, 'Choose a supported metadata scope.');
+  }, fetcher);
+
+  assert.equal(providerCalls, 0);
+  assert.equal(ledgerCalls, 0);
+});
+
 test('Gemini metadata suggestions fail closed when the usage ledger cannot start', async () => {
   let providerCalls = 0;
   const calls: Array<{ path: string; method: string }> = [];
