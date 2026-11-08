@@ -410,7 +410,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const sendMessage = async (value = draft) => {
     const text = value.trim();
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
-    const requestsVyralQuality = /(?:\b(?:grade|evaluate|assess)\s+(?:this\s+)?(?:vyral|collection)\b|\b(?:vyral|collection)\s+(?:quality|grade)\b|\b(?:check|show)\s+(?:the\s+)?quality\b)/i.test(text);
+    const requestsVyralQuality = /(?:\b(?:grade|evaluate|assess)\s+(?:(?:this|my|the)\s+)?(?:vyral|collection)\b|\b(?:vyral|collection)\s+(?:quality|grade)\b|\b(?:check|show)\s+(?:the\s+)?quality(?:\s+of)?\s+(?:(?:this|my|the)\s+)?(?:vyral|collection)\b)/i.test(text);
     const qualityVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
     if (selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext) return;
     if (!isAuthenticated) {
