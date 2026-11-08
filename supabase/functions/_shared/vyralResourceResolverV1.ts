@@ -48,8 +48,10 @@ export const isPublicVyralResourceAllowedV1 = (input: {
   if (input.visibility !== 'public') return false;
   const policy = asRecord(input.licensePolicy);
   const assetPolicy = asRecord(input.assetPolicy);
-  if (policy.allow_ai_analysis === false || assetPolicy.allow_ai_analysis === false) return false;
-  if (input.action === 'master' || input.action === 'asset_dna') return true;
+  if (input.action === 'master' || input.action === 'asset_dna') {
+    return policy.allow_ai_analysis !== false && assetPolicy.allow_ai_analysis !== false;
+  }
+  // Source redistribution is a separate creator permission from AI analysis.
   return input.action === 'asset_source' &&
     policy.allow_redistribution === true && assetPolicy.allow_redistribution !== false;
 };
