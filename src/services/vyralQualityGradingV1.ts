@@ -130,7 +130,7 @@ const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeB
   if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands)) ||
       Object.keys(bands).length !== GRADE_ORDER.length ||
       Object.keys(bands).some((grade) => !GRADE_ORDER.includes(grade as VyralQualityGrade))) {
-    throw new Error('Every versioned quality standard must define exactly all six grade bands.');
+    throw new Error('Every versioned quality standard must explicitly define all six grade bands.');
   }
   const resolved = bands as Record<VyralQualityGrade, { min: number; max: number }>;
   for (const grade of GRADE_ORDER) {
