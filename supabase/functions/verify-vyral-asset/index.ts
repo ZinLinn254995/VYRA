@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { verifyVyralFileDnaSourceV1 } from '../_shared/vyralFileDnaVerifierV1.ts';
 
 const MAX_ASSET_BYTES = 100 * 1024 * 1024;
 const BUCKET = 'vyral-assets';
@@ -41,7 +42,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: asset, error: assetError } = await context.supabase
     .from('vyral_assets')
-    .select('id,vyral_id,user_id,name,storage_path,sha256,size_bytes')
+    .select('id,vyral_id,user_id,name,mime_type,storage_path,sha256,size_bytes')
     .eq('id', body.assetId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -50,7 +51,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: version, error: versionError } = await context.supabase
     .from('vyral_asset_versions')
-    .select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number')
+    .select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,version_number,mime_type')
     .eq('id', body.versionId)
     .eq('asset_id', asset.id)
     .eq('vyral_id', asset.vyral_id)
@@ -158,6 +159,104 @@ Deno.serve(async (request: Request) => {
     }
   }
 
+  // A non-raster upload starts with a compact File DNA identity record. Verify
+  // that its protected source can be split into canonical chunks and rebuilt
+  // byte-for-byte, then persist a version-pinned exact-readback acceptance row.
+  let sourceFileReconstruction: 'byte_exact' | null = null;
+  const { data: dnaRows, error: dnaLookupError } = await context.supabaseAdmin
+    .from('vyral_dna_records')
+    .select('id,schema_version,payload')
+    .eq('asset_id', asset.id)
+    .eq('vyral_id', asset.vyral_id)
+    .eq('user_id', userId)
+    .eq('scope', 'asset')
+    .eq('schema_version', 1)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (dnaLookupError) return json({ error: 'Could not load File DNA for exact source verification.' }, 500);
+
+  const fileDnaRow = (dnaRows ?? []).find((row: Record<string, unknown>) => {
+    const payload = row.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {};
+    const record = payload.dna_record && typeof payload.dna_record === 'object' ? payload.dna_record as Record<string, unknown> : {};
+    const source = record.source && typeof record.source === 'object' ? record.source as Record<string, unknown> : {};
+    return (payload.dna_schema_id === 'vyra.asset-file-dna' || record.schema_id === 'vyra.asset-file-dna') &&
+      (source.asset_version_id === version.id || payload.source_version_id === version.id);
+  }) as Record<string, unknown> | undefined;
+
+  if (fileDnaRow) {
+    const payload = fileDnaRow.payload as Record<string, unknown>;
+    const fileDnaRecord = payload.dna_record as Record<string, unknown>;
+    let readback;
+    try {
+      readback = await verifyVyralFileDnaSourceV1({
+        record: fileDnaRecord,
+        assetId: asset.id,
+        versionId: version.id,
+        sourceBytes: new Uint8Array(bytes),
+        expectedSha256: actualSha256,
+        expectedSizeBytes: actualSize,
+        expectedMimeType: String(version.mime_type || asset.mime_type || 'application/octet-stream').toLowerCase(),
+      });
+    } catch (error) {
+      return json({
+        error: error instanceof Error ? error.message : 'File DNA exact source verification failed.',
+        status: 'file_dna_verification_failed',
+        assetId: asset.id,
+        versionId: version.id,
+      }, 409);
+    }
+
+    const { data: existingExactTest, error: exactTestLookupError } = await context.supabaseAdmin
+      .from('vyral_reconstruction_tests')
+      .select('id')
+      .eq('asset_id', asset.id)
+      .eq('asset_version_id', version.id)
+      .eq('dna_record_id', fileDnaRow.id)
+      .eq('comparison_mode', 'byte_exact')
+      .eq('test_status', 'passed')
+      .eq('exact_match', true)
+      .limit(1)
+      .maybeSingle();
+    if (exactTestLookupError) return json({ error: 'Could not inspect existing exact reconstruction evidence.' }, 500);
+    if (!existingExactTest) {
+      const { error: exactTestInsertError } = await context.supabaseAdmin
+        .from('vyral_reconstruction_tests')
+        .insert({
+          vyral_id: asset.vyral_id,
+          user_id: userId,
+          asset_id: asset.id,
+          asset_version_id: version.id,
+          dna_record_id: fileDnaRow.id,
+          model_provider: 'VYRA',
+          model_id: 'universal-file-dna-v1-readback-verifier',
+          protocol_version: 'file-dna-v1-readback-1',
+          comparison_mode: 'byte_exact',
+          test_status: 'passed',
+          exact_match: true,
+          similarity_score: 1,
+          verifier: {
+            function: FUNCTION_ID,
+            method: 'protected-storage-readback-and-canonical-chunk-reassembly',
+            hash_algorithm: 'SHA-256',
+            chunk_size: readback.chunkSize,
+            chunk_count: readback.chunkCount,
+          },
+          report: {
+            original_sha256: actualSha256,
+            reconstructed_sha256: readback.sha256,
+            original_size_bytes: actualSize,
+            reconstructed_size_bytes: readback.sizeBytes,
+            chunk_sha256: readback.chunkHashes,
+            byte_for_byte_equal: readback.byteForByteEqual,
+            source_storage_path: version.storage_path,
+          },
+          tested_at: verifiedAt,
+        });
+      if (exactTestInsertError) return json({ error: 'Exact File DNA reconstruction passed but its acceptance evidence could not be saved.' }, 500);
+    }
+    sourceFileReconstruction = 'byte_exact';
+  }
+
   return json({
     status: 'verified',
     assetId: asset.id,
@@ -165,5 +264,6 @@ Deno.serve(async (request: Request) => {
     sha256: actualSha256,
     sizeBytes: actualSize,
     verifiedAt,
+    sourceFileReconstruction,
   });
 });
