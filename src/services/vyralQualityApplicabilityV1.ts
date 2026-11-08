@@ -7,6 +7,7 @@ import type {
 export type VyralQualityApplicabilityContextV1 = {
   assetTypes?: string[];
   purpose?: string | null;
+  purposes?: string[];
   workflowType?: string | null;
 };
 
@@ -55,13 +56,21 @@ export const resolveVyralQualityApplicabilityV1 = (
       if (!validSelectorList(scoped.appliesTo?.assetTypes)) {
         throw new Error(`Asset-type rule ${rule.id} must declare appliesTo.assetTypes.`);
       }
-      applies = matchesAny(scoped.appliesTo.assetTypes, assetTypes);
+      // Unknown classifications cannot safely prove that a type-scoped rule is irrelevant.
+      applies = assetTypes.includes('unknown') || matchesAny(scoped.appliesTo.assetTypes, assetTypes);
     } else if (rule.category === 'purpose') {
       if (!validSelectorList(scoped.appliesTo?.purposes)) {
         throw new Error(`Purpose rule ${rule.id} must declare appliesTo.purposes.`);
       }
-      applies = typeof context.purpose === 'string' &&
-        matchesAny(scoped.appliesTo.purposes, [context.purpose]);
+      const purposes = [
+        ...(typeof context.purpose === 'string' ? [context.purpose] : []),
+        ...(context.purposes ?? []),
+      ];
+      if (!Array.isArray(context.purposes ?? []) ||
+          !(context.purposes ?? []).every((value) => typeof value === 'string' && value.trim())) {
+        throw new Error('Purposes must be non-empty strings.');
+      }
+      applies = matchesAny(scoped.appliesTo.purposes, purposes);
     } else if (rule.category === 'workflow') {
       if (!validSelectorList(scoped.appliesTo?.workflowTypes)) {
         throw new Error(`Workflow rule ${rule.id} must declare appliesTo.workflowTypes.`);
