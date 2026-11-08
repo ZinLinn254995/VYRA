@@ -295,3 +295,11 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Existing device-only demo entries are not uploaded as creator records.
 - Cloud sync failure must not discard a local Storyboard or block the creator from continuing. Show a concise sync status and retry on the next account load.
 - Storyboard metadata remains independently editable after creation. AI suggestions never overwrite creator edits, including edits made while a suggestion request is in progress.
+
+### Asset and empty-collection metadata lifecycle
+
+- Upload and import analysis are best-effort and occur after the original Asset and its deterministic recovery evidence have been safely saved. AI unavailability never invalidates or rolls back the Asset.
+- After model analysis completes, re-read the latest Asset metadata before saving. Merge only AI-origin suggestions into that latest record so a creator edit made while analysis was in flight always wins.
+- Apply the same latest-record merge rule to both ordinary uploads and package imports.
+- Collection defaults are generated after the workspace finishes loading even when the Vyral currently has zero Assets. Empty and unrelated inventories remain valid; the model may omit unsupported details rather than inventing a shared purpose or relationship.
+- A collection inventory revision change refreshes AI-origin suggestions only. Creator-confirmed and creator-edited fields remain authoritative across revisions.
