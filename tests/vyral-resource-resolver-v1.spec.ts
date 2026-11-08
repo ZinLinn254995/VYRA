@@ -249,6 +249,7 @@ test('live public collection reference verification pins identity, revision, pro
     status: 'current',
     revision: 4,
     assetCount: 1,
+    assets: [{ assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }],
   });
 
   const newerSnapshot = { ...snapshot, snapshot: { revision: 5 } };
