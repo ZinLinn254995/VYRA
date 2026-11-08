@@ -12,8 +12,7 @@ begin
       message = 'Published quality standard versions cannot be deleted.';
   end if;
 
-  if current_user <> 'service_role'
-     and coalesce(auth.role(), '') <> 'service_role' then
+  if current_user <> 'service_role' then
     raise exception using errcode = '42501',
       message = 'Only the trusted publisher may activate a quality standard version.';
   end if;
@@ -33,7 +32,7 @@ create or replace function public.publish_vyral_quality_standard(
 )
 returns uuid
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -41,7 +40,7 @@ declare
   v_standard_version integer;
   v_row_id uuid;
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
+  if current_user <> 'service_role' then
     raise exception using errcode = '42501',
       message = 'Quality standard publication requires the trusted server role.';
   end if;
