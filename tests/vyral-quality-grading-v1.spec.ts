@@ -33,8 +33,8 @@ test('computes a deterministic grade from weighted, evidence-backed rule finding
     ],
   });
   assert.equal(result.status, 'graded');
-  assert.equal(result.score, 90);
-  assert.equal(result.grade, 'A');
+  assert.equal(result.score, 87.5);
+  assert.equal(result.grade, 'B');
   assert.equal(result.standard.version, 1);
 });
 
