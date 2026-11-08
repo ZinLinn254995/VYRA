@@ -12,6 +12,7 @@ import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../..
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
 import { buildVyralCreatorInventoryContextV1 } from '../../services/vyralCreatorInventoryContextV1.ts';
 import { requestsVyralQualityEvaluationV1 } from '../../services/vyralQualityIntentV1.ts';
+import { requestsVyralQualityHistoryV1 } from '../../services/vyralQualityHistoryIntentV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -415,6 +416,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const text = value.trim();
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
+    const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
     const qualityVyralIds = [...new Set([
       ...selectedAssets.map((asset) => asset.vyralId),
       ...(selectedFile?.name.toLowerCase().endsWith('.vyral') && selectedVyralId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedVyralId) ? [selectedVyralId] : []),
@@ -454,6 +456,58 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+      if (requestsVyralQualityHistory) {
+        if (qualityVyralIds.length !== 1) {
+          throw new Error('To view quality history, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+        }
+        if (!supabase) throw new Error('Secure Vyral quality history is unavailable in this environment.');
+        const { data, error } = await supabase.functions.invoke('get-vyral-quality-history', {
+          body: { vyralId: qualityVyralIds[0] },
+        });
+        if (error) {
+          let message = 'VYRA could not load this Vyral’s quality history.';
+          try {
+            const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the safe generic message when the function response is unavailable.
+          }
+          throw new Error(message);
+        }
+        const history = Array.isArray(data?.history) ? data.history as Array<{
+          id: string;
+          createdAt: string;
+          snapshotRevision: number;
+          standardId: string;
+          standardVersion: number;
+          status: string;
+          score: number | null;
+          grade: string | null;
+        }> : [];
+        const report = history.length
+          ? [
+              `Vyral quality history — latest ${history.length} evaluation(s)`,
+              ...history.map((item, index) => {
+                const date = item.createdAt && Number.isFinite(Date.parse(item.createdAt))
+                  ? new Date(item.createdAt).toLocaleString()
+                  : 'Date unavailable';
+                const result = item.status === 'graded'
+                  ? `${item.grade ?? '—'} (${item.score ?? '—'}/100)`
+                  : `${String(item.status).toUpperCase()} — no grade issued`;
+                return `${index + 1}. ${date} · ${result} · snapshot r${item.snapshotRevision} · standard ${item.standardId} v${item.standardVersion}`;
+              }),
+              '',
+              'History is ordered newest first. Each result is tied to its own immutable snapshot and versioned standard.',
+            ].join('\\n')
+          : 'No saved quality evaluations exist for this Vyral yet. Ask VYRA AI Chat to evaluate its quality after an approved standard is published.';
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: 'success',
+        }]);
+        return;
+      }
       if (requestsVyralQuality) {
         if (qualityVyralIds.length !== 1) {
           throw new Error('To evaluate quality, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
