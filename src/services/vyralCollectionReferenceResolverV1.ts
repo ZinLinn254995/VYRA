@@ -22,8 +22,9 @@ export type PublicCollectionReferenceCheckV1 =
 const record = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
 
-const sha256 = async (value: string): Promise<string> => {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+const sha256 = async (value: string | ArrayBuffer): Promise<string> => {
+  const input = typeof value === 'string' ? new TextEncoder().encode(value) : value;
+  const digest = await crypto.subtle.digest('SHA-256', input);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
