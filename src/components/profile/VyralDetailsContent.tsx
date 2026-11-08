@@ -1898,7 +1898,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return;
     }
     setPackageBusy(true);
-    setPackageStatus('Retrieving and verifying the public Asset DNA…');
+    setPackageStatus('Preparing an AI-ready file and checking every part…');
     setError('');
     try {
       const retrieved = await retrievePublicVyralAssetDnaV1({
@@ -1950,7 +1950,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       anchor.click();
       anchor.remove();
       window.URL.revokeObjectURL(url);
-      setPackageStatus('Verified DNA-only package created for ' + retrieved.asset.name + '. Original encoded file bytes are not included; decoded image samples are exact.');
+      setPackageStatus('AI-ready file created for ' + retrieved.asset.name + '. The image samples are preserved exactly; the original encoded file is not included.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not export this Asset DNA.');
       setPackageStatus('');
@@ -2920,7 +2920,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 {importedAssets.map((assetReference) => <div key={assetReference.assetId + ':' + assetReference.assetVersionId} className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0"><p className={'text-[11px] ' + primary}>{assetReference.mediaType}</p><p className={'text-[9px] ' + muted}>{assetReference.assetId.slice(0, 8)} · version {assetReference.assetVersionId.slice(0, 8)}</p></div>
                   <div className="flex flex-wrap gap-2">
-                    {['image/png', 'image/jpeg', 'image/webp'].includes(assetReference.mediaType.toLowerCase()) && <button type="button" onClick={() => void exportReferencedAssetDna(reference, assetReference)} disabled={packageBusy || busy} className={button}>Export DNA</button>}
+                    {['image/png', 'image/jpeg', 'image/webp'].includes(assetReference.mediaType.toLowerCase()) && <button type="button" onClick={() => void exportReferencedAssetDna(reference, assetReference)} disabled={packageBusy || busy} className={button}>Export for AI</button>}
                     <button type="button" onClick={() => void copyReferencedAsset(reference, assetReference)} disabled={packageBusy || busy} className={button}>Copy Asset here</button>
                   </div>
                 </div>)}
