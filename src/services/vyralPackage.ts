@@ -527,6 +527,10 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
   for (const staticPath of ['README.txt', 'AI_RECONSTRUCTION_GUIDE.md', 'tools/reconstruct_vyral.py']) {
     if (files.has(staticPath)) dnaOnlyExpectedPaths.add(staticPath);
   }
+  // Protected System Files are required package metadata, not undeclared extras.
+  for (const descriptor of manifest.systemFiles ?? []) {
+    if (descriptor.path.startsWith('system/')) dnaOnlyExpectedPaths.add(descriptor.path);
+  }
   for (const record of manifest.dnaRecords) {
     if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
       const dnaRecord = validateVyralDnaV3Record(record.dna_record);
@@ -1023,13 +1027,22 @@ export const createVyralAssetDnaOnlyPackage = async (
     reconstructionTests: [],
   };
   validateVyralManifest(dnaOnlyManifest);
-  return createVyralZip([
+  const entries: VyralPackageEntry[] = [
     ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
     { path: 'README.txt', data: 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
     { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
     { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
-    { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
-  ]);
+  ];
+  // DNA-only is still a .vyral package and must carry the protected System Files.
+  const systemPackage = await buildVyralSystemFilesV1(dnaOnlyManifest as unknown as Record<string, unknown>, entries);
+  dnaOnlyManifest.systemFiles = systemPackage.descriptors;
+  entries.push(...systemPackage.entries);
+  entries.push({ path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) });
+  const archive = createVyralZip(entries);
+  const packagedFiles = await readVyralZip(archive);
+  parseVyralManifest(packagedFiles);
+  await verifyVyralSystemFileIntegrityV1(packagedFiles);
+  return archive;
 };
 
 export const reconstructVyralFileDnaFromPackage = async (files: Map<string, Uint8Array>, recordId: string) => {
