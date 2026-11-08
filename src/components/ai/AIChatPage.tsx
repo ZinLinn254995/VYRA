@@ -276,12 +276,15 @@ const inspectVyralAttachment = async (file: File) => {
   }
   const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
   const creatorInventoryContext = buildVyralCreatorInventoryContextV1({
-    assets: manifest.assets.map((item) => ({
-      id: String(item.id),
-      name: typeof item.name === 'string' ? item.name : null,
-      asset_type: typeof item.asset_type === 'string' ? item.asset_type : null,
-      mime_type: typeof item.mime_type === 'string' ? item.mime_type : null,
-    })),
+    assets: manifest.assets.map((item) => {
+      const dnaAsset = masterDna?.assets.find((entry) => entry.asset_id === String(item.id));
+      return {
+        id: String(item.id),
+        name: typeof item.name === 'string' ? item.name : null,
+        asset_type: dnaAsset?.asset_type ?? null,
+        mime_type: typeof item.mime_type === 'string' ? item.mime_type : null,
+      };
+    }),
     purpose: masterDna?.purpose ?? null,
     relationships: masterDna?.relationships ?? [],
   });
