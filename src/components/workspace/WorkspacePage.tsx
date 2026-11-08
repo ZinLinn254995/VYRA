@@ -8,7 +8,7 @@ import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: { provider: string; model: string; generatedAt: string } } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
 type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
@@ -55,6 +55,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [mood, setMood] = useState('');
   const [tags, setTags] = useState('');
   const [detailOrigins, setDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_edited'>>({});
+  const [cachedStoryboardSuggestion, setCachedStoryboardSuggestion] = useState<{ key: string; suggestion: StoryboardSuggestion } | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
@@ -69,7 +70,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     else setTags(value);
     setDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
   };
-  type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[] };
+  type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[]; provider: string; model: string; generatedAt: string };
+  const storyboardSuggestionKey = (seedTitle: string, seedTopic: string) => seedTitle.trim() + '\\u0000' + seedTopic.trim();
   const requestStoryboardSuggestion = async (seedTitle: string, seedTopic: string, optional = false): Promise<StoryboardSuggestion | null> => {
     const accessToken = await getCurrentAccessToken();
     if (!accessToken) {
@@ -93,7 +95,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         ].join('\n') }],
       }),
     });
-    const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+    const data = await response.json().catch(() => ({})) as { text?: string; error?: string; provider?: string; modelName?: string };
     if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
     const parsed = parseVyralAiSuggestions(data.text);
     const asText = (key: string) => typeof parsed[key]?.value === 'string'
@@ -103,6 +105,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       title: asText('title'), topic: asText('topic'), category: asText('category'),
       style: asText('style'), mood: asText('mood'),
       tags: Array.isArray(rawTags) ? rawTags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
+      provider: data.provider || 'gemini', model: data.modelName || 'unknown', generatedAt: new Date().toISOString(),
     };
   };
   const applyStoryboardSuggestionToForm = (suggestion: StoryboardSuggestion) => {
@@ -124,7 +127,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setIsSuggesting(true);
     try {
       const suggestion = await requestStoryboardSuggestion(title, topic);
-      if (suggestion) applyStoryboardSuggestionToForm(suggestion);
+      if (suggestion) {
+        setCachedStoryboardSuggestion({ key: storyboardSuggestionKey(title, topic), suggestion });
+        applyStoryboardSuggestionToForm(suggestion);
+      }
     } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
     finally { setIsSuggesting(false); }
   };
@@ -223,22 +229,28 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     let nextMood = mood.trim();
     let nextTags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
     const nextOrigins = { ...detailOrigins };
-    // Generate type-appropriate defaults during creation; failure or declined spend
-    // never blocks a valid manual Storyboard.
+    let aiProvenance: Storyboard['details'] extends infer T ? T extends { ai_provenance?: infer P } ? P : never : never;
+    // Reuse a just-reviewed suggestion instead of charging for a duplicate AI request.
+    // Generate fresh defaults only when the idea changed since the last suggestion.
     if (nextTitle || nextTopic) {
       try {
-        const suggestion = await requestStoryboardSuggestion(nextTitle, nextTopic, true);
+        const key = storyboardSuggestionKey(nextTitle, nextTopic);
+        const suggestion = cachedStoryboardSuggestion?.key === key
+          ? cachedStoryboardSuggestion.suggestion
+          : await requestStoryboardSuggestion(nextTitle, nextTopic, true);
         if (suggestion) {
-          const apply = (key: keyof StoryboardSuggestion, value: string) => {
-            if (!value || nextOrigins[key] === 'creator_edited') return value;
-            nextOrigins[key] = 'ai_suggested';
+          aiProvenance = { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt };
+          setCachedStoryboardSuggestion({ key, suggestion });
+          const apply = (field: 'title' | 'topic' | 'category' | 'style' | 'mood', value: string) => {
+            if (!value || nextOrigins[field] === 'creator_edited') return value;
+            nextOrigins[field] = 'ai_suggested';
             return value;
           };
-          if (suggestion.title && nextOrigins.title !== 'creator_edited') { nextTitle = apply('title', suggestion.title); }
-          if (suggestion.topic && nextOrigins.topic !== 'creator_edited') { nextTopic = apply('topic', suggestion.topic); }
-          if (suggestion.category && nextOrigins.category !== 'creator_edited') { nextCategory = apply('category', suggestion.category); }
-          if (suggestion.style && nextOrigins.style !== 'creator_edited') { nextStyle = apply('style', suggestion.style); }
-          if (suggestion.mood && nextOrigins.mood !== 'creator_edited') { nextMood = apply('mood', suggestion.mood); }
+          if (suggestion.title && nextOrigins.title !== 'creator_edited') nextTitle = apply('title', suggestion.title);
+          if (suggestion.topic && nextOrigins.topic !== 'creator_edited') nextTopic = apply('topic', suggestion.topic);
+          if (suggestion.category && nextOrigins.category !== 'creator_edited') nextCategory = apply('category', suggestion.category);
+          if (suggestion.style && nextOrigins.style !== 'creator_edited') nextStyle = apply('style', suggestion.style);
+          if (suggestion.mood && nextOrigins.mood !== 'creator_edited') nextMood = apply('mood', suggestion.mood);
           if (suggestion.tags.length && nextOrigins.tags !== 'creator_edited') { nextTags = suggestion.tags; nextOrigins.tags = 'ai_suggested'; }
         }
       } catch (error) {
@@ -250,11 +262,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: nextTitle || nextTopic.slice(0, 100) || 'Untitled Storyboard',
       topic: nextTopic, createdAt: now, updatedAt: now,
-      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins },
+      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins, ...(aiProvenance ? { ai_provenance: aiProvenance } : {}) },
     };
     setStoryboards((current) => [next, ...current]);
     void persistStoryboard(next);
-    setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setCreateOpen(false);
+    setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setCachedStoryboardSuggestion(null); setCreateOpen(false);
     setIsSuggesting(false);
   };
 
@@ -357,7 +369,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 </div>
                 {suggestionError && <p role="alert" className="text-xs text-[var(--vyra-danger)]">{suggestionError}</p>}
                 <div className="flex flex-wrap justify-between gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={suggestStoryboardDetails} disabled={isSuggesting}>{isSuggesting ? 'Suggesting…' : '✦ Suggest with AI'}</Button>
+                  <Button type="button" variant="secondary" onClick={suggestStoryboardDetails} disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? 'Suggesting…' : '✦ Suggest with AI'}</Button>
                   <div className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? "Preparing…" : "Create Storyboard"}</Button></div>
                 </div>
               </form>
