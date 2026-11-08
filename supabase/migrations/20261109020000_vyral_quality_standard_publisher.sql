@@ -45,6 +45,9 @@ begin
       message = 'Quality standard publication requires the trusted server role.';
   end if;
 
+  -- Serialize publishers so two concurrent requests cannot activate an older version last.
+  lock table public.vyral_quality_standards in exclusive mode;
+
   if p_created_by is null
      or jsonb_typeof(p_profile) <> 'object'
      or jsonb_typeof(p_profile -> 'rules') <> 'array'
