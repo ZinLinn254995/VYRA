@@ -621,6 +621,7 @@ export const selectVyralPackageComponents = async (
     exportMode: components.assets ? 'full' : components.fullDna ? 'dna-only' : 'compact-only',
     exportComponents: { ...components },
     folders: components.assets ? manifest.folders : [],
+    assets: components.assets ? manifest.assets : [],
     versions: components.assets ? manifest.versions : [],
     dnaRecords: components.fullDna ? manifest.dnaRecords : [],
     fingerprints: components.fullDna ? manifest.fingerprints : [],
