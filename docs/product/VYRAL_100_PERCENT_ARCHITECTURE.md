@@ -228,6 +228,8 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - For an explicitly selected public raster Asset, an external AI-ready single-Asset `.vyral` can be built from the remote DNA v3 record and its signed raw tiles without downloading the original media. The client verifies the exact Asset/Version binding, each tile's HTTPS host, byte length and SHA-256, then reconstructs the complete decoded sample stream and verifies its aggregate SHA-256 before packaging.
 - This single-Asset package contains one Asset identity record plus the lossless decoded-sample payload and portable reconstruction guide. It omits original encoded source bytes and does not claim exact PNG/JPEG/WebP file-byte recovery. The remote action requires current public visibility and AI-analysis permission; source-media copying remains a separate redistribution permission.
 
+- Development database verification: the collection-reference pgTAP suite passed all 14 assertions, covering owner isolation, immutable references, duplicate prevention, no placeholder Assets, and mandatory snapshot integrity/permission bindings. Test fixtures were rolled back; no customer records were created.
+
 ### Acceptance tests
 1. Select one Asset and confirm only that Asset is attached to AI Chat.
 2. Select multiple Assets across the current library view and confirm each appears as a distinct removable context chip.
