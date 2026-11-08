@@ -326,7 +326,7 @@ const inspectVyralAttachment = async (file: File) => {
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
     ...visionImages.map((item, index) => `AI Vision preview ${index + 1}: ${item.assetName} (${item.assetId}), ${item.width}×${item.height} JPEG derivative; lossless DNA remains unchanged`),
   ].filter(Boolean);
-  return { context: lines.join('\n'), visionImages };
+  return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange }) => {
@@ -341,6 +341,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
+  const [selectedVyralId, setSelectedVyralId] = useState<string | null>(null);
   const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
@@ -388,6 +389,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -401,6 +403,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -412,7 +415,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const text = value.trim();
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
-    const qualityVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
+    const qualityVyralIds = [...new Set([
+      ...selectedAssets.map((asset) => asset.vyralId),
+      ...(selectedFile?.name.toLowerCase().endsWith('.vyral') && selectedVyralId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedVyralId) ? [selectedVyralId] : []),
+    ])];
     if (selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext) return;
     if (!isAuthenticated) {
       onLoginRequired();
@@ -440,6 +446,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -616,6 +623,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const handleFileSelection = async (file: File | null) => {
     setSelectedFile(file);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     if (!file) {
       setSelectedFileStatus(null);
@@ -626,6 +634,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       try {
         const inspection = await inspectVyralAttachment(file);
         setSelectedVyralContext(inspection.context);
+        setSelectedVyralId(inspection.vyralId);
         setSelectedVyralImages(inspection.visionImages);
         setSelectedFileStatus(inspection.visionImages.length ? `Vyral package validated · DNA v3 checked · ${inspection.visionImages.length} AI Vision previews ready` : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
       } catch (error) {
@@ -659,6 +668,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
@@ -675,6 +685,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
@@ -777,7 +788,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
               <span className="min-w-0 flex-1 truncate">{selectedFile.name}{selectedFileStatus ? ` · ${selectedFileStatus}` : ''}</span>
-              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null); setSelectedVyralImages([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
+              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null);
+    setSelectedVyralId(null); setSelectedVyralImages([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
                 <X size={13} />
               </button>
             </div>
