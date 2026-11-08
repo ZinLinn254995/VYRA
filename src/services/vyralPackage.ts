@@ -578,6 +578,66 @@ export type VyralExportComponents = {
  * creator. Asset binaries, full per-Asset reconstruction DNA, and compact
  * collection DNA are independent package components.
  */
+const createCompactVyralMasterDnaPackageProjection = async (
+  value: VyralMasterDnaV1,
+): Promise<VyralMasterDnaV1> => {
+  const validated = await validateVyralMasterDnaV1(value);
+  const { schema_id, schema_version, integrity, purpose: _purpose, relationships: _relationships, ...unsigned } = validated;
+  void schema_id;
+  void schema_version;
+  void integrity;
+  const isPublic = unsigned.source_resolution.visibility === 'public';
+  const retrievalPolicy = isPublic
+    ? unsigned.portable_projection.retrieval_policy
+    : 'no_remote_resolution';
+  return createVyralMasterDnaV1({
+    ...unsigned,
+    vyral: { vyral_id: unsigned.vyral.vyral_id, name: unsigned.vyral.name },
+    snapshot: { revision: unsigned.snapshot.revision, created_at: unsigned.snapshot.created_at },
+    main_asset_ids: [],
+    assets: unsigned.assets.map((asset) => ({
+      asset_id: asset.asset_id,
+      asset_version_id: asset.asset_version_id,
+      media_type: asset.media_type,
+      dna_ref: {
+        record_id: asset.dna_ref.record_id,
+        schema_id: asset.dna_ref.schema_id,
+        schema_version: asset.dna_ref.schema_version,
+      },
+      asset_fingerprint: asset.asset_fingerprint,
+      reconstruction_claim: asset.reconstruction_claim,
+    })),
+    reconstruction_profile: {
+      overall_claim: unsigned.reconstruction_profile.overall_claim,
+      notes: [],
+    },
+    provenance: {
+      creator_ref: null,
+      license_ref: null,
+      evidence_status: 'unknown',
+    },
+    source_resolution: {
+      visibility: unsigned.source_resolution.visibility,
+      canonical_uri: null,
+      resolution_policy: isPublic ? 'public_metadata' : 'no_remote_resolution',
+      ...(isPublic && unsigned.source_resolution.public_revision != null
+        ? { public_revision: unsigned.source_resolution.public_revision }
+        : {}),
+    },
+    portable_projection: {
+      profile: 'compact',
+      includes_full_reconstruction_payloads: false,
+      resolver_uri: isPublic && retrievalPolicy === 'authorized_selective_retrieval'
+        ? unsigned.portable_projection.resolver_uri
+        : null,
+      retrieval_policy: isPublic ? retrievalPolicy : 'no_remote_resolution',
+      ...(unsigned.portable_projection.max_assets_per_request != null
+        ? { max_assets_per_request: unsigned.portable_projection.max_assets_per_request }
+        : {}),
+    },
+  });
+};
+
 export const selectVyralPackageComponents = async (
   archive: Blob,
   components: VyralExportComponents,
@@ -628,7 +688,9 @@ export const selectVyralPackageComponents = async (
     visionObservations: components.fullDna ? manifest.visionObservations : [],
     lineage: components.fullDna ? manifest.lineage : [],
     reconstructionTests: components.fullDna ? manifest.reconstructionTests : [],
-    ...(components.compactDna ? {} : { masterDna: null }),
+    ...(components.compactDna && manifest.masterDna
+      ? { masterDna: await createCompactVyralMasterDnaPackageProjection(manifest.masterDna) }
+      : { masterDna: null }),
     ...(!components.fullDna ? { reconstructionCapabilities: undefined } : {}),
   };
 
