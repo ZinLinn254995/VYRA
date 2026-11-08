@@ -19,6 +19,7 @@ type FingerprintRecord = {
   fingerprint_kind: string;
   algorithm: string;
   value: string;
+  metadata: Record<string, unknown>;
 };
 
 type ReconstructionRecord = {
@@ -88,7 +89,11 @@ const evidenceForRule = (
         versionKey(row.asset_id, row.asset_version_id) === target &&
         row.fingerprint_kind === 'cryptographic' &&
         row.algorithm.toLowerCase().replace(/[^a-z0-9]/g, '') === 'sha256' &&
-        row.value === asset.source_sha256
+        row.value === asset.source_sha256 &&
+        row.metadata?.verification_status === 'server_verified' &&
+        row.metadata?.verified_by === 'verify-vyral-asset' &&
+        ['matched', 'baseline_created'].includes(String(row.metadata?.comparison_status)) &&
+        Number(row.metadata?.actual_size_bytes) > 0
       );
       if (matches.length > 1) throw new Error(`Ambiguous cryptographic fingerprint evidence for Asset ${asset.asset_id}.`);
       if (matches.length === 0) complete = false;
