@@ -369,8 +369,61 @@ Deno.serve(async (request: Request) => {
     });
   }
 
-  // Non-raster File DNA may be identity-only. Do not imply that a hash is a
-  // reconstruction payload; callers can request the exact source version separately.
+  if (Number(dnaRow.schema_version) === 1 &&
+      nestedDna.schema_id === 'vyra.asset-file-dna' &&
+      Number(nestedDna.schema_version) === 1) {
+    const file = asRecord(nestedDna.file);
+    const reconstruction = asRecord(nestedDna.reconstruction);
+    if (typeof version.sha256 !== 'string' ||
+        typeof file.sha256 !== 'string' ||
+        file.sha256.toLowerCase() !== version.sha256.toLowerCase() ||
+        Number(file.size_bytes) !== Number(version.size_bytes) ||
+        String(file.mime_type ?? '') !== String(version.mime_type || asset.mime_type) ||
+        reconstruction.claim !== 'unavailable' ||
+        reconstruction.payload_encoding !== 'none' ||
+        !Array.isArray(reconstruction.chunks) || reconstruction.chunks.length !== 0) {
+      return json({ error: 'File DNA identity does not match the exact source version or is not eligible for source-backed reconstruction.' }, 409);
+    }
+    // AI-analysis permission was checked above. This short-lived URL is specifically
+    // for an external AI reconstruction request; it does not grant redistribution.
+    const { data: signed, error: signedError } = await context.supabaseAdmin.storage
+      .from('vyral-assets')
+      .createSignedUrl(version.storage_path, SIGNED_URL_TTL_SECONDS, { download: true });
+    if (signedError || !signed?.signedUrl) {
+      return json({ error: 'Could not authorize the exact source bytes for File DNA reconstruction.' }, 502);
+    }
+    return json({
+      status: 'resolved',
+      access: 'public',
+      asset: {
+        id: asset.id,
+        name: asset.name,
+        versionId: version.id,
+        versionNumber: version.version_number,
+        mimeType: version.mime_type || asset.mime_type,
+        sizeBytes: version.size_bytes,
+        sha256: version.sha256,
+      },
+      assetDna: {
+        recordId: dnaRow.id,
+        schemaVersion: dnaRow.schema_version,
+        createdAt: dnaRow.created_at,
+        record: nestedDna,
+        reconstructionSource: {
+          signedUrl: signed.signedUrl,
+          expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+          permission: 'allow_ai_analysis',
+          purpose: 'source_file_exact_reconstruction',
+        },
+      },
+      verification: {
+        required: 'Rebuild raw File DNA chunks and verify every chunk SHA-256 plus the aggregate original-file SHA-256.',
+        redistribution: 'This AI-analysis authorization is not a redistribution license.',
+      },
+    });
+  }
+
+  // Unknown or unsupported records remain identity-only; never upgrade a hash into a reconstruction claim.
   return json({
     status: 'resolved',
     access: 'public',
@@ -388,10 +441,10 @@ Deno.serve(async (request: Request) => {
       schemaVersion: dnaRow.schema_version,
       createdAt: dnaRow.created_at,
       record: nestedDna,
-      reconstruction: 'Inspect the record claim. Identity-only File DNA verifies bytes but cannot reconstruct them.',
+      reconstruction: 'Identity-only File DNA verifies bytes but cannot reconstruct them without an authorized source payload.',
     },
     retrieval: {
-      originalAsset: 'Use action=asset_source to request a short-lived URL for this exact source version.',
+      originalAsset: 'Use action=asset_source to request a short-lived URL when redistribution is permitted.',
     },
   });
 });
