@@ -8,6 +8,8 @@ import {
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
   isPublicVyralResourceAllowedV1,
+  createPublicVyralMasterDnaProjectionV1,
+  canonicalizeVyralPublicProjectionV1,
 } from '../_shared/vyralResourceResolverV1.ts';
 
 type Row = Record<string, any>;
@@ -33,55 +35,6 @@ const isUuid = (value: unknown): value is string =>
 
 const asRecord = (value: unknown): Row =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
-
-const canonicalizeJson = (value: unknown): string => {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('Public projection contains a non-finite number.');
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return '[' + value.map(canonicalizeJson).join(',') + ']';
-  const record = asRecord(value);
-  return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + canonicalizeJson(record[key])).join(',') + '}';
-};
-
-const createPublicMasterDnaProjection = (snapshot: Row) => {
-  const assets = Array.isArray(snapshot.assets) ? snapshot.assets.map((value: unknown) => {
-    const asset = asRecord(value);
-    const dnaRef = asRecord(asset.dna_ref);
-    return {
-      asset_id: asset.asset_id,
-      asset_version_id: asset.asset_version_id,
-      media_type: asset.media_type,
-      dna_ref: {
-        record_id: dnaRef.record_id,
-        schema_id: dnaRef.schema_id,
-        schema_version: dnaRef.schema_version,
-      },
-      asset_fingerprint: asset.asset_fingerprint,
-      reconstruction_claim: asset.reconstruction_claim,
-    };
-  }) : [];
-  return {
-    schema_id: snapshot.schema_id,
-    schema_version: snapshot.schema_version,
-    master_dna_id: snapshot.master_dna_id,
-    vyral: { vyral_id: asRecord(snapshot.vyral).vyral_id, name: asRecord(snapshot.vyral).name },
-    snapshot: snapshot.snapshot,
-    assets,
-    reconstruction_profile: { overall_claim: asRecord(snapshot.reconstruction_profile).overall_claim },
-    source_resolution: { visibility: asRecord(snapshot.source_resolution).visibility },
-    portable_projection: {
-      profile: asRecord(snapshot.portable_projection).profile,
-      retrieval_policy: asRecord(snapshot.portable_projection).retrieval_policy,
-    },
-  };
-};
-
-const sha256Hex = async (value: string) => {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-};
 
 const sourceVersionIdOf = (payload: Row) => {
   const nested = asRecord(payload.dna_record);
@@ -220,7 +173,7 @@ Deno.serve(async (request: Request) => {
         schemaVersion: revision.schema_version,
         manifestSha256: revision.manifest_sha256,
         vyralFingerprint: revision.vyral_fingerprint,
-        snapshot: createPublicMasterDnaProjection(snapshot),
+        snapshot: createPublicVyralMasterDnaProjectionV1(snapshot),
         projectionIntegrity: {
           schema: 'vyra.public-master-dna-projection.v1',
           sourceManifestSha256: revision.manifest_sha256,
