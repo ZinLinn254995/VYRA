@@ -220,6 +220,10 @@ test('rejects custom grade bands with gaps, overlaps, or missing grades', () => 
     S: { min: 95, max: 100 }, A: { min: 90, max: 95 }, B: { min: 80, max: 90 },
     C: { min: 70, max: 80 }, D: { min: 50, max: 70 },
   }), /all six grades/);
+  assert.throws(
+    () => evaluateWithBands(undefined as unknown as VyralQualityStandardProfile['gradeBands']),
+    /explicitly define all six grade bands/
+  );
 });
 
 test('rejects duplicate evidence references and invalid hard-gate flags', () => {
