@@ -22,6 +22,7 @@ import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
 import { VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../src/services/vyralPortableReconstruction.ts';
+import { verifyVyralSystemFileIntegrityV1 } from '../src/services/vyralSystemFilesV1.ts';
 
 test('included portable decoder reconstructs raster samples and exact binary Assets from the DNA-only package', async () => {
   const rasterSamples = new Uint8Array([255, 0, 0, 255, 0, 128, 255, 255]);
@@ -113,7 +114,14 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
     await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT, 'utf8');
     const report = execFileSync('python3', [scriptPath, packagePath, '--output', outputDir], { encoding: 'utf8' });
     const parsedReport = JSON.parse(report) as { reconstructed_assets: Array<{ asset_id: string; result: string }> };
-    const exportedManifest = parseVyralManifest(await readVyralZip(archive));
+    const exportedFiles = await readVyralZip(archive);
+    const exportedManifest = parseVyralManifest(exportedFiles);
+    assert.equal(exportedManifest.systemFiles?.length, 13);
+    for (const path of ['system/identity.json','system/asset-index.json','system/asset-dna/index.json','system/integrity.json','system/system-files.json']) assert.ok(exportedFiles.has(path));
+    await verifyVyralSystemFileIntegrityV1(exportedFiles);
+    const tamperedFiles = new Map(exportedFiles);
+    tamperedFiles.set('tools/reconstruct_vyral.py', new TextEncoder().encode('tampered'));
+    await assert.rejects(() => verifyVyralSystemFileIntegrityV1(tamperedFiles), /SHA-256 verification failed/);
     assert.equal((exportedManifest.vyral.metadata as { identity_name_origin: string }).identity_name_origin, 'creator_edited');
     assert.equal(
       (((exportedManifest.vyral.metadata as { ai_details: { fields: Record<string, { value: string; origin: string }> } }).ai_details.fields).category).origin,
