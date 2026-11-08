@@ -158,6 +158,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       const remoteById = new Map(remote.map((item) => [item.id, item]));
       const merged = new Map(remote.map((item) => [item.id, item]));
       const pending: Storyboard[] = [];
+      let syncFailed = false;
       for (const item of readStoryboards(storageKey)) {
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.id)) {
           merged.set(item.id, item);
@@ -175,11 +176,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
         })), { onConflict: 'id' });
         if (cancelled) return;
-        if (uploadError) setCloudSyncMessage('Some Storyboards could not sync. Your device copy is still available.');
+        if (uploadError) syncFailed = true;
       }
       if (cancelled) return;
       setStoryboards(Array.from(merged.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
-      setCloudSyncMessage('');
+      setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
     };
     void syncStoryboards();
     return () => { cancelled = true; };
