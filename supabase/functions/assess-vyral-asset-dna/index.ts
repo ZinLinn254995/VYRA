@@ -30,24 +30,25 @@ const verifyDecodedPayload = async (
       dna.schema_version !== 3 || !isObject(decoded) || !Array.isArray(tiles) ||
       !Array.isArray(paths) || tiles.length === 0 || paths.length !== tiles.length ||
       prefix !== expectedPrefix || decoded.sample_format !== 'uint8' ||
-      decoded.channel_layout !== 'RGBA' || decoded.decoder_contract?.name !== 'ImageMagick WASM' ||
+      !['RGB','RGBA'].includes(decoded.channel_layout) || decoded.decoder_contract?.name !== 'ImageMagick WASM' ||
       decoded.decoder_contract?.version !== '0.0.30' || !SHA.test(String(decoded.decoded_samples_sha256))) {
     return false;
   }
   const width = Number(decoded.width), height = Number(decoded.height);
+  const channels = decoded.channel_layout === 'RGB' ? 3 : 4;
   const pixelCount = width * height;
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) ||
       width < 1 || height < 1 || !Number.isSafeInteger(pixelCount) || pixelCount > 8_000_000) return false;
-  const reconstructed = new Uint8Array(pixelCount * 4);
+  const reconstructed = new Uint8Array(pixelCount * channels);
   const coverage = new Uint8Array(pixelCount);
   const expectedPaths = new Set<string>();
   for (const tile of tiles) {
     if (!isObject(tile) || !Number.isSafeInteger(tile.x) || !Number.isSafeInteger(tile.y) ||
         !Number.isSafeInteger(tile.width) || !Number.isSafeInteger(tile.height) ||
-        tile.x < 0 || tile.y < 0 || tile.x % 256 !== 0 || tile.y % 256 !== 0 ||
-        tile.width !== Math.min(256, width - tile.x) ||
-        tile.height !== Math.min(256, height - tile.y) ||
-        !Number.isSafeInteger(tile.byte_length) || tile.byte_length !== tile.width * tile.height * 4 ||
+        tile.x < 0 || tile.y < 0 || tile.x % 128 !== 0 || tile.y % 128 !== 0 ||
+        tile.width !== Math.min(128, width - tile.x) ||
+        tile.height !== Math.min(128, height - tile.y) ||
+        !Number.isSafeInteger(tile.byte_length) || tile.byte_length !== tile.width * tile.height * channels ||
         !SHA.test(String(tile.sha256))) return false;
     const path = prefix + tile.x + '_' + tile.y + '.raw';
     if (expectedPaths.has(path) || !paths.includes(path)) return false;
@@ -57,14 +58,14 @@ const verifyDecodedPayload = async (
     const bytes = new Uint8Array(await data.arrayBuffer());
     if (await sha256(bytes) !== tile.sha256) return false;
     for (let row = 0; row < tile.height; row += 1) {
-      const sourceStart = row * tile.width * 4;
-      const targetStart = (tile.y + row) * width * 4 + tile.x * 4;
+      const sourceStart = row * tile.width * channels;
+      const targetStart = (tile.y + row) * width * channels + tile.x * channels;
       for (let col = 0; col < tile.width; col += 1) {
         const pixelIndex = (tile.y + row) * width + tile.x + col;
         if (coverage[pixelIndex]) return false;
         coverage[pixelIndex] = 1;
       }
-      reconstructed.set(bytes.subarray(sourceStart, sourceStart + tile.width * 4), targetStart);
+      reconstructed.set(bytes.subarray(sourceStart, sourceStart + tile.width * channels), targetStart);
     }
   }
   if (expectedPaths.size !== paths.length || !paths.every((path: string) => expectedPaths.has(path)) ||
@@ -131,7 +132,7 @@ Deno.serve(async (request: Request) => {
   let payloadIntegrityVerified = false;
   const recoveryData = isObject(dnaRow.reconstruction_data) ? dnaRow.reconstruction_data : {};
   if (recoveryData.recovery_level === 'decoded-samples-exact' ||
-      (recoveryData.encoding === 'raw-tiled-v1' && recoveryData.reconstruction_ready === true)) {
+      (recoveryData.encoding === 'raw-tiled-v1' && Array.isArray(payload.tile_storage_paths) && payload.tile_storage_paths.length > 0)) {
     declaredLevel = 'decoded_samples_exact';
     payloadPresent = Array.isArray(payload.tile_storage_paths) && payload.tile_storage_paths.length > 0;
     if (payloadPresent && sourceBinding && schemaValid) {
