@@ -92,16 +92,16 @@ Deno.serve(async (request: Request) => {
   const legacySource = isObject(payload.source) ? payload.source : {};
   const sourceAssetId = String(fileSource.asset_id ?? legacySource.asset_id ?? '');
   const sourceVersionId = String(fileSource.asset_version_id ?? legacySource.asset_version_id ?? payload.source_version_id ?? '');
-  const sourceSha = String(fileSource.sha256 ?? legacySource.sha256 ?? payload.source_file_sha256 ?? '').toLowerCase();
-  const sourceSize = Number(fileSource.size_bytes ?? legacySource.size_bytes ?? payload.source_size_bytes ?? 0);
+  const sourceSha = String(fileSource.sha256 ?? record?.file?.sha256 ?? legacySource.sha256 ?? payload.source_file_sha256 ?? '').toLowerCase();
+  const sourceSize = Number(fileSource.size_bytes ?? record?.file?.size_bytes ?? legacySource.size_bytes ?? payload.source_size_bytes ?? 0);
   const schemaId = String(record?.schema_id ?? payload.dna_schema_id ?? 'vyra.asset-file-dna');
   const schemaVersion = Number(record?.schema_version ?? payload.dna_schema_version ?? dnaRow.schema_version);
+  const hasV3Shape = isObject(record?.decoded_image) && isObject(record?.lossless_payload);
+  const hasFileDnaShape = isObject(record?.file) && isObject(record?.reconstruction);
   const schemaValid = isObject(record) && record.record_id === dnaRecordId &&
     Number(record.schema_version) === Number(dnaRow.schema_version) &&
-    isObject(record.source) && typeof record.schema_id === 'string' &&
-    isObject(record.decoded_image) && isObject(record.lossless_payload) ||
-    isObject(payload) && payload.dna_schema_id === 'vyra.asset-file-dna' &&
-      Number(payload.dna_schema_version ?? dnaRow.schema_version) === Number(dnaRow.schema_version);
+    typeof record.schema_id === 'string' && isObject(record.source) &&
+    (hasV3Shape || hasFileDnaShape);
 
   const sourceBinding = sourceAssetId === assetId && sourceVersionId === versionId &&
     sourceSha === String(version.sha256).toLowerCase() && sourceSize === Number(version.size_bytes);
@@ -135,24 +135,29 @@ Deno.serve(async (request: Request) => {
     .order('created_at', { ascending: false }).limit(100);
   if (testsError) return reply({ error: 'Could not load pinned reconstruction test history.' }, 500);
   const trusted = (tests ?? []).filter((row: any) =>
-    row.model_id === 'universal-file-dna-v1-readback-verifier' ||
-    row.model_id === 'vyral-dna-v3-readback-verifier' ||
-    row.model_id === 'ORIGIN-01-readback-verifier'
+    ['universal-file-dna-v1-readback-verifier','vyral-dna-v3-readback-verifier','ORIGIN-01-readback-verifier'].includes(row.model_id)
   );
-  let exactTest: VyralAssetDnaAssessmentInput['recovery']['exactTest'] = null;
-  if (trusted.length) {
-    const latest = trusted[0];
-    if (trusted.length > 1 && Date.parse(trusted[0].created_at) === Date.parse(trusted[1].created_at) &&
-        trusted[0].model_id === trusted[1].model_id) {
+  const latestByVerifier = new Map<string, any>();
+  for (const row of trusted) {
+    if (!Number.isFinite(Date.parse(row.created_at))) return reply({ error: 'Trusted reconstruction test timestamp is invalid.' }, 409);
+    const previous = latestByVerifier.get(row.model_id);
+    if (!previous) latestByVerifier.set(row.model_id, row);
+    else if (Date.parse(row.created_at) === Date.parse(previous.created_at)) {
       return reply({ error: 'Latest trusted reconstruction result is timestamp-ambiguous.' }, 409);
     }
+  }
+  const latestTrusted = [...latestByVerifier.values()];
+  const failedTest = latestTrusted.find((row) => row.test_status === 'failed' && row.exact_match === false);
+  const selectedTest = failedTest ?? latestTrusted.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+  let exactTest: VyralAssetDnaAssessmentInput['recovery']['exactTest'] = null;
+  if (selectedTest) {
     exactTest = {
-      status: latest.test_status === 'passed' && latest.exact_match === true ? 'passed'
-        : latest.test_status === 'failed' && latest.exact_match === false ? 'failed' : 'not_run',
-      mode: latest.comparison_mode === 'byte_exact' ? 'source_file_exact'
-        : latest.comparison_mode === 'decoded_exact' ? 'decoded_samples_exact' : null,
-      assetVersionId: latest.asset_version_id,
-      dnaRecordId: latest.dna_record_id,
+      status: selectedTest.test_status === 'passed' && selectedTest.exact_match === true ? 'passed'
+        : selectedTest.test_status === 'failed' && selectedTest.exact_match === false ? 'failed' : 'not_run',
+      mode: selectedTest.comparison_mode === 'byte_exact' ? 'source_file_exact'
+        : selectedTest.comparison_mode === 'decoded_exact' ? 'decoded_samples_exact' : null,
+      assetVersionId: selectedTest.asset_version_id,
+      dnaRecordId: selectedTest.dna_record_id,
       sourceSha256: sourceSha,
     };
   }
