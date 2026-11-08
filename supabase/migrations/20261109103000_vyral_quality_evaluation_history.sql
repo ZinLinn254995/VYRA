@@ -17,13 +17,13 @@ create table if not exists public.vyral_quality_evaluations (
   score numeric(5,2) check (score is null or (score >= 0 and score <= 100)),
   grade text check (grade is null or grade in ('S','A','B','C','D','F')),
   evaluation jsonb not null check (jsonb_typeof(evaluation) = 'object'),
-  created_by uuid references auth.users(id) on delete set null,
+  created_by uuid,
   created_at timestamptz not null default now(),
   constraint vyral_quality_evaluations_owner_fk
     foreign key (vyral_id,user_id) references public.vyrals(id,user_id) on delete cascade,
   constraint vyral_quality_evaluations_master_revision_fk
     foreign key (master_dna_revision_id,vyral_id,user_id)
-    references public.vyral_master_dna_revisions(id,vyral_id,user_id) on delete restrict,
+    references public.vyral_master_dna_revisions(id,vyral_id,user_id) on delete cascade,
   constraint vyral_quality_evaluations_id_scope_unique unique (id,vyral_id,user_id),
   constraint vyral_quality_evaluations_grade_state_check check (
     (status = 'graded' and score is not null and grade is not null)
@@ -91,6 +91,11 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  -- Allow parent Vyral / Master DNA deletion to clean up its own history.
+  -- Direct row edits and deletes remain forbidden.
+  if pg_catalog.pg_trigger_depth() > 1 then
+    return old;
+  end if;
   raise exception using errcode = '55000',
     message = 'Quality evaluation history is immutable; create a new evaluation instead.';
 end;
