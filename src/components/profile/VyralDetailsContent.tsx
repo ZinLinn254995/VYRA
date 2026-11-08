@@ -8,7 +8,7 @@ import {
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
-import { VYRAL_SYSTEM_FILES_VERSION } from '../../services/vyralSystemFilesV1';
+import { VYRAL_SYSTEM_FILES_VERSION, verifyVyralSystemFileIntegrityV1 } from '../../services/vyralSystemFilesV1';
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
@@ -967,6 +967,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     try {
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
+      await verifyVyralSystemFileIntegrityV1(archiveFiles);
       if (String(manifest.exportMode) === 'compact-only') {
         if (manifest.exportComponents?.assets !== false || manifest.exportComponents?.fullDna !== false ||
             manifest.exportComponents?.compactDna !== true || manifest.assets.length || manifest.folders.length ||
@@ -976,7 +977,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           throw new Error('This collection reference package contains unexpected source or reconstruction data and cannot be imported safely.');
         }
         const allowedPaths = new Set(['manifest.json', 'README.txt', 'AI_RECONSTRUCTION_GUIDE.md']);
-        const unexpectedPaths = [...archiveFiles.keys()].filter((entryPath) => !allowedPaths.has(entryPath));
+        const unexpectedPaths = [...archiveFiles.keys()].filter((entryPath) => !allowedPaths.has(entryPath) && !entryPath.startsWith('system/'));
         if (unexpectedPaths.length) throw new Error('This collection reference package contains unexpected files and was not imported.');
         const compactMasterDna = await validateVyralMasterDnaV1(manifest.masterDna);
         if (compactMasterDna.vyral.vyral_id !== String(manifest.vyral.id ?? '') ||
