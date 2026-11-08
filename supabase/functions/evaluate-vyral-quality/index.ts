@@ -122,7 +122,7 @@ Deno.serve(async (request: Request) => {
         .select('id,asset_id,asset_version_id,fingerprint_kind,algorithm,value,metadata')
         .in('asset_version_id', versionIds).in('asset_id', assetIds).eq('user_id', userId).order('id', { ascending: true })),
       loadAll(() => admin.from('vyral_reconstruction_tests')
-        .select('id,asset_id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,model_id')
+        .select('id,asset_id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,model_id,created_at')
         .in('asset_version_id', versionIds).in('asset_id', assetIds)
         .eq('vyral_id', body.vyralId).eq('user_id', userId).order('id', { ascending: true })),
       loadAll(() => admin.from('vyral_vision_observations')
