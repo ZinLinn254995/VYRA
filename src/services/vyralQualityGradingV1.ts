@@ -45,7 +45,7 @@ export type VyralQualityStandardProfile = {
   name: string;
   scope: 'general' | 'asset_type' | 'purpose' | 'workflow';
   rules: VyralQualityRule[];
-  gradeBands?: Partial<Record<VyralQualityGrade, { min: number; max: number }>>;
+  gradeBands: Record<VyralQualityGrade, { min: number; max: number }>;
 };
 
 export type EvaluateVyralQualityInput = {
@@ -81,19 +81,9 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const DEFAULT_BANDS: Record<VyralQualityGrade, { min: number; max: number }> = {
-  S: { min: 95, max: 100 },
-  A: { min: 90, max: 95 },
-  B: { min: 80, max: 90 },
-  C: { min: 70, max: 80 },
-  D: { min: 50, max: 70 },
-  F: { min: 0, max: 50 },
-};
-
 const GRADE_ORDER = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
 
 const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeBands']) => {
-  if (bands === undefined) return DEFAULT_BANDS;
   if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands))) {
     throw new Error('Custom grade bands must define all six grades.');
   }
