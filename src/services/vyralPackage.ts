@@ -900,9 +900,16 @@ export const createVyralDnaOnlyPackage = async (
     { path: 'README.txt', data: 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
     { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
     { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
-    { path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) },
   ];
-  return createVyralZip(entries);
+  const systemPackage = await buildVyralSystemFilesV1(dnaOnlyManifest as unknown as Record<string, unknown>, entries);
+  dnaOnlyManifest.systemFiles = systemPackage.descriptors;
+  entries.push(...systemPackage.entries);
+  entries.push({ path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(dnaOnlyManifest) });
+  const archive = createVyralZip(entries);
+  const packagedFiles = await readVyralZip(archive);
+  parseVyralManifest(packagedFiles);
+  await verifyVyralSystemFileIntegrityV1(packagedFiles);
+  return archive;
 };
 
 export const createVyralAssetDnaOnlyPackage = async (
