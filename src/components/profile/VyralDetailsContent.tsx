@@ -308,7 +308,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       ) ?? versionRowsForVerification.find((item) => item.asset_id === asset.id);
       if (!sourceVersion) continue;
       const fileDna = dnaRowsForVerification.find((item) => {
-        if (item.asset_id !== asset.id || item.scope !== 'asset' || Number((item.payload as Record<string, unknown>).dna_schema_version) !== 1) return false;
+        if (item.asset_id !== asset.id || item.scope !== 'asset' || Number(item.schema_version) !== 1) return false;
         const payload = item.payload as Record<string, unknown>;
         const record = payload.dna_record && typeof payload.dna_record === 'object' ? payload.dna_record as Record<string, unknown> : {};
         const source = record.source && typeof record.source === 'object' ? record.source as Record<string, unknown> : {};
