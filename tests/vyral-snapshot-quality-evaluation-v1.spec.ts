@@ -10,6 +10,14 @@ const profile: VyralQualityStandardProfile = {
   version: 3,
   name: 'Creator readiness',
   scope: 'general',
+  gradeBands: {
+    S: { min: 95, max: 100 },
+    A: { min: 90, max: 95 },
+    B: { min: 80, max: 90 },
+    C: { min: 70, max: 80 },
+    D: { min: 50, max: 70 },
+    F: { min: 0, max: 50 },
+  },
   rules: [
     { id: 'identity.integrity', title: 'Snapshot identity', category: 'universal', evidenceClass: 'deterministic', weight: 50, required: true, hardGate: true },
     { id: 'audio.quality', title: 'Audio quality', category: 'asset_type', evidenceClass: 'deterministic', weight: 30, required: true, appliesTo: { assetTypes: ['audio'] } },
