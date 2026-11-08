@@ -68,40 +68,59 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     else setTags(value);
     setDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
   };
+  type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[] };
+  const requestStoryboardSuggestion = async (seedTitle: string, seedTopic: string, optional = false): Promise<StoryboardSuggestion | null> => {
+    const apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+    const models = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+    const model = models.text;
+    if (!apiKey || !model) {
+      if (optional) return null;
+      throw new Error('Connect OpenRouter and select a Text model in Settings to use AI suggestions.');
+    }
+    const approved = await confirmSpendBeforeGeneration({ operation: 'Suggest storyboard details', capability: 'text', model, apiKey, parameters: { completionTokenBudget: 500 } });
+    if (!approved) return null;
+    const accessToken = await getCurrentAccessToken();
+    if (!accessToken) throw new Error('Sign in again before requesting AI suggestions.');
+    const response = await fetch('/api/providers/openrouter/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': 'vyra-storyboard-details-' + crypto.randomUUID() },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: [
+        'Suggest useful default metadata for a storyboard. Return only JSON with string fields title, topic, category, style, mood and an array of up to 8 tags.',
+        'Do not invent facts. If the idea is unclear, keep uncertain fields short or empty. The creator can edit every field.',
+        'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
+      ].join('\\n') }] }),
+    });
+    const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+    if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
+    const raw = data.text.trim().replace(/^\x60\x60\x60(?:json)?\\s*/i, '').replace(/\\s*\x60\x60\x60$/, '');
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const asText = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+    return {
+      title: asText(parsed.title), topic: asText(parsed.topic), category: asText(parsed.category),
+      style: asText(parsed.style), mood: asText(parsed.mood),
+      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
+    };
+  };
+  const applyStoryboardSuggestionToForm = (suggestion: StoryboardSuggestion) => {
+    const values = { title: suggestion.title, topic: suggestion.topic, category: suggestion.category, style: suggestion.style, mood: suggestion.mood, tags: suggestion.tags.join(', ') };
+    for (const key of Object.keys(values) as Array<keyof typeof values>) {
+      const value = values[key];
+      if (!value || detailOrigins[key] === 'creator_edited') continue;
+      if (key === 'title') setTitle(value);
+      else if (key === 'topic') setTopic(value);
+      else if (key === 'category') setCategory(value);
+      else if (key === 'style') setStyle(value);
+      else if (key === 'mood') setMood(value);
+      else setTags(value);
+      setDetailOrigins((current) => ({ ...current, [key]: 'ai_suggested' }));
+    }
+  };
   const suggestStoryboardDetails = async () => {
     setSuggestionError('');
     setIsSuggesting(true);
     try {
-      const apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
-      const models = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
-      const model = models.text;
-      if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Text model in Settings to use AI suggestions.');
-      const approved = await confirmSpendBeforeGeneration({ operation: 'Suggest storyboard details', capability: 'text', model, apiKey, parameters: { completionTokenBudget: 500 } });
-      if (!approved) return;
-      const accessToken = await getCurrentAccessToken();
-      if (!accessToken) throw new Error('Sign in again before requesting AI suggestions.');
-      const response = await fetch('/api/providers/openrouter/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': 'vyra-storyboard-details-' + crypto.randomUUID() },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: [
-          'Suggest useful default metadata for a storyboard. Return only JSON with string fields title, topic, category, style, mood and an array of up to 8 tags.',
-          'Do not invent facts. If the idea is unclear, keep uncertain fields short or empty. The creator can edit every field.',
-          'Current title: ' + title, 'Current idea: ' + topic,
-        ].join('\n') }] }),
-      });
-      const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
-      if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
-      const raw = data.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const asText = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
-      const apply = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
-        if (!value || detailOrigins[key] === 'creator_edited') return;
-        if (key === 'title') setTitle(value); else if (key === 'topic') setTopic(value); else if (key === 'category') setCategory(value); else if (key === 'style') setStyle(value); else if (key === 'mood') setMood(value); else setTags(value);
-        setDetailOrigins((current) => ({ ...current, [key]: 'ai_suggested' }));
-      };
-      apply('title', asText(parsed.title)); apply('topic', asText(parsed.topic));
-      apply('category', asText(parsed.category)); apply('style', asText(parsed.style)); apply('mood', asText(parsed.mood));
-      apply('tags', Array.isArray(parsed.tags) ? parsed.tags.filter((item): item is string => typeof item === 'string').slice(0, 8).join(', ') : '');
+      const suggestion = await requestStoryboardSuggestion(title, topic);
+      if (suggestion) applyStoryboardSuggestionToForm(suggestion);
     } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
     finally { setIsSuggesting(false); }
   };
@@ -184,19 +203,51 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setEditingStoryboardId(null); setEditDraft(null);
   };
 
-  const createStoryboard = (event: React.FormEvent<HTMLFormElement>) => {
+  const createStoryboard = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cleanTitle = title.trim() || topic.trim().slice(0, 100) || 'Untitled Storyboard';
     if (!isAuthenticated) { onLoginRequired(); return; }
+    setIsSuggesting(true);
+    setSuggestionError('');
+    let nextTitle = title.trim();
+    let nextTopic = topic.trim();
+    let nextCategory = category.trim();
+    let nextStyle = style.trim();
+    let nextMood = mood.trim();
+    let nextTags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+    const nextOrigins = { ...detailOrigins };
+    // Generate type-appropriate defaults during creation; failure or declined spend
+    // never blocks a valid manual Storyboard.
+    if (nextTitle || nextTopic) {
+      try {
+        const suggestion = await requestStoryboardSuggestion(nextTitle, nextTopic, true);
+        if (suggestion) {
+          const apply = (key: keyof StoryboardSuggestion, value: string) => {
+            if (!value || nextOrigins[key] === 'creator_edited') return value;
+            nextOrigins[key] = 'ai_suggested';
+            return value;
+          };
+          if (suggestion.title && nextOrigins.title !== 'creator_edited') { nextTitle = apply('title', suggestion.title); }
+          if (suggestion.topic && nextOrigins.topic !== 'creator_edited') { nextTopic = apply('topic', suggestion.topic); }
+          if (suggestion.category && nextOrigins.category !== 'creator_edited') { nextCategory = apply('category', suggestion.category); }
+          if (suggestion.style && nextOrigins.style !== 'creator_edited') { nextStyle = apply('style', suggestion.style); }
+          if (suggestion.mood && nextOrigins.mood !== 'creator_edited') { nextMood = apply('mood', suggestion.mood); }
+          if (suggestion.tags.length && nextOrigins.tags !== 'creator_edited') { nextTags = suggestion.tags; nextOrigins.tags = 'ai_suggested'; }
+        }
+      } catch (error) {
+        setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable. Your Storyboard will still be created.');
+      }
+    }
     const now = new Date().toISOString();
     const next: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
-      title: cleanTitle, topic: topic.trim(), createdAt: now, updatedAt: now,
-      details: { category: category.trim(), style: style.trim(), mood: mood.trim(), tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean), origins: detailOrigins },
+      title: nextTitle || nextTopic.slice(0, 100) || 'Untitled Storyboard',
+      topic: nextTopic, createdAt: now, updatedAt: now,
+      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins },
     };
     setStoryboards((current) => [next, ...current]);
     void persistStoryboard(next);
-    setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setSuggestionError(''); setCreateOpen(false);
+    setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setCreateOpen(false);
+    setIsSuggesting(false);
   };
 
   return (
