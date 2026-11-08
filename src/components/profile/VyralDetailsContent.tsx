@@ -8,7 +8,7 @@ import {
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
-import { checkPublicVyralCollectionReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
+import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
@@ -189,7 +189,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     allow_ai_analysis: true, allow_ai_generation: true, allow_remix: false,
     allow_redistribution: false, commercial_use: false, require_attribution: true,
   });
-  const [referenceChecks, setReferenceChecks] = useState<Record<string, { status: 'checking' } | { status: 'current'; revision: number; assetCount: number } | { status: 'newer_revision'; revision: number; assetCount: number } | { status: 'error'; message: string }>>({});
+  const [referenceChecks, setReferenceChecks] = useState<Record<string, { status: 'checking' } | { status: 'current'; revision: number; assetCount: number; assets: PublicCollectionAssetReferenceV1[] } | { status: 'newer_revision'; revision: number; assetCount: number; assets: PublicCollectionAssetReferenceV1[] } | { status: 'error'; message: string }>>({});
   const [masterDnaPurposeDraft, setMasterDnaPurposeDraft] = useState(vyral.master_dna_purpose ?? '');
   const [masterDnaUsesDraft, setMasterDnaUsesDraft] = useState((vyral.master_dna_intended_uses ?? []).join(', '));
   const [masterDnaStatus, setMasterDnaStatus] = useState(vyral.master_dna_status ?? 'not_started');
@@ -1663,6 +1663,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const uploadFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
     event.target.value = '';
+    await uploadFilesFromFiles(selected);
+  };
+
+  const uploadFilesFromFiles = async (selected: File[]) => {
     if (!supabase || !selected.length) return;
     const db = supabase;
     const { data: auth } = await db.auth.getUser();
@@ -1861,6 +1865,27 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     await loadWorkspace();
     if (failures.length) setError(failures.join(' · '));
     setBusy(false);
+  };
+
+  const copyReferencedAsset = async (reference: CollectionReferenceRow, assetReference: PublicCollectionAssetReferenceV1) => {
+    if (!supabase || busy || packageBusy) return;
+    setPackageBusy(true);
+    setPackageStatus('Checking permission and downloading the public Asset…');
+    setError('');
+    try {
+      const file = await downloadPublicVyralCollectionAssetV1({
+        resolver_uri: reference.resolver_uri,
+        source_vyral_id: reference.source_vyral_id,
+      }, assetReference);
+      setPackageStatus('Source integrity verified. Saving a private copy in this Vyral…');
+      await uploadFilesFromFiles([file]);
+      setPackageStatus('The verified Asset copy was saved privately in this Vyral.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not retrieve this public Asset.');
+      setPackageStatus('');
+    } finally {
+      setPackageBusy(false);
+    }
   };
 
   const recoverAssetDna = async (asset: AssetRow) => {
