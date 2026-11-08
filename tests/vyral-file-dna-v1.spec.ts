@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzeVyralFileStructureV1, createVyralFileDnaV1, reconstructVyralFileDnaV1, validateVyralFileDnaV1Record } from '../src/services/vyralFileDnaV1.ts';
+import { verifyVyralFileDnaSourceV1 } from '../supabase/functions/_shared/vyralFileDnaVerifierV1.ts';
 
 const source = { asset_id: 'asset-1', asset_version_id: 'version-1' };
 const sample = new Uint8Array([0x50,0x4b,0x03,0x04,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]);
@@ -197,3 +198,57 @@ test('File DNA embeds structural metadata but never stores document text or sema
   }), /structural fact is invalid/);
 });
 
+
+
+test('server File DNA verifier pins exact Asset/version, MIME, size and source SHA before accepting readback', async () => {
+  const bytes = new Uint8Array([0x56, 0x59, 0x52, 0x41, 1, 2, 3, 4, 5, 6, 7]);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const sha256 = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+  const record = {
+    schema_id: 'vyra.asset-file-dna',
+    schema_version: 1,
+    record_id: 'server-file-dna-test',
+    source: { asset_id: 'asset-server-test', asset_version_id: 'version-server-test' },
+    file: { size_bytes: bytes.byteLength, mime_type: 'application/octet-stream', sha256 },
+    reconstruction: { claim: 'unavailable', chunk_size: null },
+  };
+  const input = {
+    record, assetId: 'asset-server-test', versionId: 'version-server-test',
+    sourceBytes: bytes, expectedSha256: sha256, expectedSizeBytes: bytes.byteLength,
+    expectedMimeType: 'application/octet-stream',
+  };
+  const result = await verifyVyralFileDnaSourceV1(input);
+  assert.equal(result.status, 'passed');
+  assert.equal(result.comparisonMode, 'byte_exact');
+  assert.equal(result.exactMatch, true);
+  assert.equal(result.byteForByteEqual, true);
+  assert.equal(result.chunkCount, 1);
+  assert.equal(result.sha256, sha256);
+});
+
+test('server File DNA verifier rejects wrong Asset/version, bytes, MIME, size and unsafe chunk declarations', async () => {
+  const bytes = new Uint8Array([1, 3, 5, 7, 9, 11]);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const sha256 = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+  const record = {
+    schema_id: 'vyra.asset-file-dna',
+    schema_version: 1,
+    record_id: 'server-file-dna-reject',
+    source: { asset_id: 'asset-server-test', asset_version_id: 'version-server-test' },
+    file: { size_bytes: bytes.byteLength, mime_type: 'application/octet-stream', sha256 },
+    reconstruction: { claim: 'unavailable', chunk_size: null },
+  };
+  const input = {
+    record, assetId: 'asset-server-test', versionId: 'version-server-test',
+    sourceBytes: bytes, expectedSha256: sha256, expectedSizeBytes: bytes.byteLength,
+    expectedMimeType: 'application/octet-stream',
+  };
+  await assert.rejects(() => verifyVyralFileDnaSourceV1({ ...input, assetId: 'another-asset' }), /identity/);
+  await assert.rejects(() => verifyVyralFileDnaSourceV1({ ...input, versionId: 'another-version' }), /identity/);
+  await assert.rejects(() => verifyVyralFileDnaSourceV1({ ...input, sourceBytes: new Uint8Array([1, 3, 5]) }), /metadata|SHA-256/);
+  await assert.rejects(() => verifyVyralFileDnaSourceV1({ ...input, expectedMimeType: 'image/png' }), /metadata/);
+  await assert.rejects(() => verifyVyralFileDnaSourceV1({ ...input, expectedSizeBytes: bytes.byteLength + 1 }), /metadata/);
+  await assert.rejects(() => verifyVyralFileDnaSourceV1({
+    ...input, record: { ...record, reconstruction: { claim: 'unavailable', chunk_size: 16 * 1024 * 1024 } },
+  }), /chunk size/);
+});
