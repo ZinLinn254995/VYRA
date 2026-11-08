@@ -259,3 +259,10 @@ Current engine behavior:
 **Not yet implemented:** production standard-profile definitions and their approved rule weights/hard gates; AI rubric evaluation; database persistence/history; Chat UI and Creator Assistant integration; purpose/asset-type applicability resolver; generation test runner; and end-to-end grading acceptance tests.
 
 **Verification:** The new tests are registered in CI, but no GitHub Actions result has been confirmed for this push. The Vercel status currently reports a build-rate-limit failure; this is not evidence of a TypeScript/test failure. A Cloudflare Workers build check was observed in progress at the time of inspection. Do not claim the grading tests or full CI passed until a matching run reports success. No Production database mutation or intentional Production deployment was performed as part of this code change.
+
+
+## 2026-11-08 — Quality evaluator evidence hardening
+
+The deterministic grading engine now requires each finding to declare the same evidence class as its standard rule. A semantic AI assessment cannot be submitted as deterministic proof for an integrity rule. Hard-gate rules must be required deterministic rules. The evaluator also distinguishes missing required evidence from any applicable rule that remains unevaluated: an applicable rule must be explicitly evaluated or marked not applicable; an omitted optional rule is not silently treated as a pass. Added regression tests for evidence-class mismatch, non-deterministic hard gates, and unevaluated applicable optional rules.
+
+**Verification status:** Regression tests and CI wiring are present, but the GitHub Actions result for the latest commits has not yet been confirmed. The grading engine is still a pure foundation; it is not yet wired to authoritative database evidence or the VYRA AI Chat interface.
