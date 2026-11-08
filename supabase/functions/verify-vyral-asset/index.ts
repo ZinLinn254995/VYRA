@@ -302,6 +302,7 @@ Deno.serve(async (request: Request) => {
         .eq('comparison_mode', 'byte_exact')
         .eq('test_status', 'passed')
         .eq('exact_match', true)
+        .eq('model_id', 'universal-file-dna-v1-readback-verifier')
         .limit(1)
         .maybeSingle();
       if (exactTestLookupError) throw new Error('Could not inspect existing exact reconstruction evidence.');
