@@ -13,9 +13,11 @@ export type PublicCollectionReferenceV1 = {
   compact_snapshot: JsonRecord;
 };
 
+export type PublicCollectionAssetReferenceV1 = { assetId: string; assetVersionId: string; mediaType: string };
+
 export type PublicCollectionReferenceCheckV1 =
-  | { status: 'current'; revision: number; assetCount: number }
-  | { status: 'newer_revision'; revision: number; assetCount: number };
+  | { status: 'current'; revision: number; assetCount: number; assets: PublicCollectionAssetReferenceV1[] }
+  | { status: 'newer_revision'; revision: number; assetCount: number; assets: PublicCollectionAssetReferenceV1[] };
 
 const record = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
@@ -96,12 +98,12 @@ export const verifyPublicVyralCollectionReferenceV1 = async (
         canonicalizeVyralPublicProjectionV1(importedInventory) !== canonicalizeVyralPublicProjectionV1(liveInventory)) {
       throw new Error('The live Asset inventory differs from the imported collection reference.');
     }
-    return { status: 'current', revision: currentRevision, assetCount: liveInventory.length };
+    return { status: 'current', revision: currentRevision, assetCount: liveInventory.length, assets: liveInventory.map((asset) => ({ assetId: String(asset.asset_id), assetVersionId: String(asset.asset_version_id), mediaType: String(asset.media_type ?? 'application/octet-stream') })) };
   }
 
   const liveInventory = projectionInventory(snapshot);
   if (!liveInventory.length) throw new Error('The latest public collection has no retrievable Assets.');
-  return { status: 'newer_revision', revision: currentRevision, assetCount: liveInventory.length };
+  return { status: 'newer_revision', revision: currentRevision, assetCount: liveInventory.length, assets: liveInventory.map((asset) => ({ assetId: String(asset.asset_id), assetVersionId: String(asset.asset_version_id), mediaType: String(asset.media_type ?? 'application/octet-stream') })) };
 };
 
 export const checkPublicVyralCollectionReferenceV1 = async (
@@ -135,4 +137,74 @@ export const checkPublicVyralCollectionReferenceV1 = async (
     throw new Error(typeof message === 'string' ? message : 'Could not check public collection access.');
   }
   return verifyPublicVyralCollectionReferenceV1(payload, reference);
+};
+
+
+export const downloadPublicVyralCollectionAssetV1 = async (
+  reference: Pick<PublicCollectionReferenceV1, 'resolver_uri' | 'source_vyral_id'>,
+  assetReference: PublicCollectionAssetReferenceV1,
+): Promise<File> => {
+  if (!reference.resolver_uri || !isSafePublicVyralResolverUriV1(reference.resolver_uri)) {
+    throw new Error('This collection reference has no supported public access link.');
+  }
+  const resolver = new URL(reference.resolver_uri);
+  const response = await fetch(reference.resolver_uri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      action: 'asset_source',
+      vyralId: reference.source_vyral_id,
+      assetId: assetReference.assetId,
+      assetVersionId: assetReference.assetVersionId,
+    }),
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  });
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch { throw new Error('The source service returned an unreadable Asset authorization.'); }
+  if (!response.ok) {
+    const message = record(payload).error;
+    throw new Error(typeof message === 'string' ? message : 'The source creator has not authorized this Asset download.');
+  }
+  const resolvedAsset = record(record(payload).asset);
+  const source = record(record(payload).source);
+  const signedUrl = source.signedUrl;
+  const expectedSha256 = resolvedAsset.sha256;
+  const expectedSize = Number(resolvedAsset.sizeBytes);
+  if (resolvedAsset.id !== assetReference.assetId ||
+      resolvedAsset.versionId !== assetReference.assetVersionId ||
+      typeof signedUrl !== 'string' || typeof expectedSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/i.test(expectedSha256) ||
+      !Number.isSafeInteger(expectedSize) || expectedSize < 0 || expectedSize > 100 * 1024 * 1024) {
+    throw new Error('The source authorization does not match the requested Asset version.');
+  }
+  let signed: URL;
+  try { signed = new URL(signedUrl); }
+  catch { throw new Error('The source returned an invalid download authorization.'); }
+  if (signed.protocol !== 'https:' || signed.hostname !== resolver.hostname ||
+      signed.username || signed.password || signed.hash) {
+    throw new Error('The source download authorization points outside its trusted storage host.');
+  }
+  const download = await fetch(signed, {
+    method: 'GET',
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  });
+  if (!download.ok) throw new Error('The authorized source Asset could not be downloaded.');
+  const blob = await download.blob();
+  if (blob.size !== expectedSize) throw new Error('The downloaded Asset size does not match the source version.');
+  const actualSha256 = await sha256(await blob.arrayBuffer());
+  if (actualSha256 !== expectedSha256.toLowerCase()) {
+    throw new Error('The downloaded Asset failed its SHA-256 integrity check.');
+  }
+  const filename = typeof resolvedAsset.name === 'string' && resolvedAsset.name.trim()
+    ? resolvedAsset.name.trim().slice(0, 240)
+    : 'public-asset-' + assetReference.assetId;
+  const mimeType = typeof resolvedAsset.mimeType === 'string' && resolvedAsset.mimeType.trim()
+    ? resolvedAsset.mimeType.trim()
+    : assetReference.mediaType || 'application/octet-stream';
+  return new File([blob], filename, { type: mimeType });
 };
