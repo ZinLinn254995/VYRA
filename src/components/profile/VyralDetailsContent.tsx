@@ -1670,7 +1670,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || !selected.length) return false;
     const db = supabase;
     const { data: auth } = await db.auth.getUser();
-    if (!auth.user) { setError('Your session has expired. Please sign in again.'); return; }
+    if (!auth.user) { setError('Your session has expired. Please sign in again.'); return false; }
     setBusy(true); setError('');
     const failures: string[] = [];
     for (const file of selected) {
