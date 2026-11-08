@@ -46,6 +46,7 @@ test('computes a deterministic grade from weighted, evidence-backed rule finding
       finding('relationships.optional', 'not_applicable', []),
     ],
   });
+  assert.equal(result.scope, 'vyral_collection');
   assert.equal(result.status, 'graded');
   assert.equal(result.score, 87.5);
   assert.equal(result.grade, 'B');
