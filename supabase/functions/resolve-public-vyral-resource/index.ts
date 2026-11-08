@@ -19,6 +19,7 @@ const sha256Hex = async (value: string) => {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
+const SHA256 = /^[a-f0-9]{64}$/i;
 const SIGNED_URL_TTL_SECONDS = 60;
 const MAX_REQUEST_BYTES = 16 * 1024;
 const MAX_DNA_TILES_PER_REQUEST = 500;
