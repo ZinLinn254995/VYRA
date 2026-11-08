@@ -23,7 +23,7 @@ const base = (): VyralAssetDnaAssessmentInput => ({
   },
 });
 
-test('assesses a pinned, verified decoded-sample reconstruction as Asset DNA ready', () => {
+test('assesses a pinned, verified decoded-sample reconstruction as partial Asset DNA readiness', () => {
   const result = assessVyralAssetDnaV1(base());
   assert.equal(result.scope, 'asset_dna');
   assert.equal(result.status, 'partial');
@@ -64,7 +64,7 @@ test('does not infer exact recovery from a declaration without a test', () => {
   const result = assessVyralAssetDnaV1(input);
   assert.equal(result.status, 'partial');
   assert.equal(result.checks.exactReconstruction, 'not_tested');
-  assert.ok(result.limitations.includes('source_file_exact_claim_not_test_verified'));
+  assert.ok(result.limitations.includes('decoded_sample_recovery_does_not_restore_original_encoded_file_bytes'));
 });
 
 test('keeps semantic-only DNA explicitly partial', () => {
