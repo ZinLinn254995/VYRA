@@ -266,3 +266,12 @@ Current engine behavior:
 The deterministic grading engine now requires each finding to declare the same evidence class as its standard rule. A semantic AI assessment cannot be submitted as deterministic proof for an integrity rule. Hard-gate rules must be required deterministic rules. The evaluator also distinguishes missing required evidence from any applicable rule that remains unevaluated: an applicable rule must be explicitly evaluated or marked not applicable; an omitted optional rule is not silently treated as a pass. Added regression tests for evidence-class mismatch, non-deterministic hard gates, and unevaluated applicable optional rules.
 
 **Verification status:** Regression tests and CI wiring are present, but the GitHub Actions result for the latest commits has not yet been confirmed. The grading engine is still a pure foundation; it is not yet wired to authoritative database evidence or the VYRA AI Chat interface.
+
+
+## 2026-11-08 — Grade-band validation and Vyral Chat handoff context
+
+The quality evaluator now validates custom grade profiles before scoring: all six grades must be defined, ranges must stay within 0–100, and boundaries must be contiguous and non-overlapping. Upper boundaries are exclusive (except the top of S), so exact threshold scores map to exactly one grade. Runtime validation also rejects malformed hard-gate flags and duplicate evidence references. Added regression coverage for threshold scores and invalid custom profiles.
+
+The existing VYRA AI Chat `.vyral` attachment inspection context now communicates the accepted creator contract to the receiving model: free-form mixed/unrelated Asset collections are valid; unclassified Assets are not errors; Compact DNA is a navigation map rather than original content or an access credential; retrieval claims require actually available bytes or an authorized resolver; and creator recommendations must remain optional suggestions rather than invented facts. This is a first handoff-context improvement, not complete Creator Assistant orchestration or selective remote retrieval.
+
+**Verification:** The changes and regression tests are committed on the existing branch. No matching GitHub Actions run was returned for the latest commit, so tests are not confirmed as passing. The Vercel check reports a build-rate-limit failure; it does not establish a code/test failure. No merge, Production deployment, or Production database mutation was performed.
