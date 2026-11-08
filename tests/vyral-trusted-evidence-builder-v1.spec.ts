@@ -90,8 +90,8 @@ test('accepts only trusted byte-exact verifier evidence pinned to the snapshot D
     ...base,
     profile: profile('reconstruction.byte_exact', 'generation_test'),
     reconstructionTests: [
-      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier' },
-      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'dna-b', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier' },
+      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier', created_at: '2026-01-01T00:00:00.000Z' },
+      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'dna-b', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier', created_at: '2026-01-01T00:00:00.000Z' },
     ],
   });
   assert.equal(result[0].status, 'pass');
@@ -103,8 +103,8 @@ test('does not trust model-generated or wrong-DNA reconstruction claims as exact
     ...base,
     profile: profile('reconstruction.byte_exact', 'generation_test'),
     reconstructionTests: [
-      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'external-ai-model' },
-      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'wrong-dna', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier' },
+      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'external-ai-model', created_at: '2026-01-01T00:00:00.000Z' },
+      { id: 'test-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'wrong-dna', comparison_mode: 'byte_exact', test_status: 'passed', exact_match: true, model_id: 'universal-file-dna-v1-readback-verifier', created_at: '2026-01-01T00:00:00.000Z' },
     ],
   });
   assert.equal(result[0].status, 'not_evaluated');
@@ -116,7 +116,7 @@ test('a trusted exact reconstruction failure is a failure, not missing evidence'
     ...base,
     profile: profile('reconstruction.decoded_exact', 'generation_test'),
     reconstructionTests: [
-      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'failed', exact_match: false, model_id: 'vyral-dna-v3-readback-verifier' },
+      { id: 'test-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'failed', exact_match: false, model_id: 'vyral-dna-v3-readback-verifier', created_at: '2026-01-01T00:00:00.000Z' },
     ],
   });
   assert.equal(result[0].status, 'fail');
@@ -161,4 +161,29 @@ test('treats missing source hashes as incomplete evidence and rejects evidence-c
     ...base,
     profile: profile('fingerprint.cryptographic', 'ai_assessment'),
   }), /incompatible evidence class/);
+});
+
+test('a newer trusted successful retest supersedes an older failure', () => {
+  const result = buildVyralTrustedEvidenceFindingsV1({
+    ...base,
+    profile: profile('reconstruction.decoded_exact', 'generation_test'),
+    reconstructionTests: [
+      { id: 'old-failure', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'failed', exact_match: false, model_id: 'vyral-dna-v3-readback-verifier', created_at: '2026-01-01T00:00:00.000Z' },
+      { id: 'new-pass-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'passed', exact_match: true, model_id: 'vyral-dna-v3-readback-verifier', created_at: '2026-01-02T00:00:00.000Z' },
+      { id: 'pass-b', asset_id: 'asset-b', asset_version_id: 'version-b', dna_record_id: 'dna-b', comparison_mode: 'decoded_exact', test_status: 'passed', exact_match: true, model_id: 'vyral-dna-v3-readback-verifier', created_at: '2026-01-02T00:00:00.000Z' },
+    ],
+  });
+  assert.equal(result[0].status, 'pass');
+  assert.deepEqual(result[0].evidenceRefs, ['new-pass-a', 'pass-b']);
+});
+
+test('rejects ambiguous latest reconstruction results from the same verifier', () => {
+  assert.throws(() => buildVyralTrustedEvidenceFindingsV1({
+    ...base,
+    profile: profile('reconstruction.decoded_exact', 'generation_test'),
+    reconstructionTests: [
+      { id: 'pass-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'passed', exact_match: true, model_id: 'vyral-dna-v3-readback-verifier', created_at: '2026-01-02T00:00:00.000Z' },
+      { id: 'fail-a', asset_id: 'asset-a', asset_version_id: 'version-a', dna_record_id: 'dna-a', comparison_mode: 'decoded_exact', test_status: 'failed', exact_match: false, model_id: 'vyral-dna-v3-readback-verifier', created_at: '2026-01-02T00:00:00.000Z' },
+    ],
+  }), /Ambiguous latest reconstruction evidence/);
 });
