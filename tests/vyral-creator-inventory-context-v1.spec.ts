@@ -14,7 +14,7 @@ test('summarizes mixed asset inventory using explicit type before MIME fallback'
     relationships: [],
   });
   assert.equal(context.assetCount, 4);
-  assert.deepEqual(context.typeCounts, { character: 1, audio: 1, document: 1, other: 1 });
+  assert.deepEqual(context.typeCounts, { character: 1, audio: 1, document: 1, unknown: 1 });
   assert.equal(context.declaredPurpose, null);
   assert.deepEqual(context.intendedUses, []);
   assert.equal(context.relationshipsCount, 0);
