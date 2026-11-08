@@ -298,17 +298,25 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const masterRoot = masterRootResult.data as Pick<Vyral, 'master_dna_status'> | null;
     if (masterSchemaReady && assetRows.length > 0 && masterRoot?.master_dna_status !== 'ready' && !masterDnaAutoBuildRef.current) {
       masterDnaAutoBuildRef.current = true;
-      void supabase.functions.invoke('build-vyral-master-dna', {
-        body: { vyralId: vyral.id },
-      }).then(({ data, error: buildError }) => {
-        if (!buildError && data?.status === 'ready') {
+      void (async () => {
+        try {
+          const { data, error: buildError } = await supabase.functions.invoke('build-vyral-master-dna', {
+            body: { vyralId: vyral.id },
+          });
+          if (buildError || data?.status !== 'ready') {
+            // Keep internal diagnostics out of the customer-facing workspace.
+            setMasterDnaMessage('Your collection is still being prepared. VYRA will try again when you return to this collection.');
+            return;
+          }
           setMasterDnaStatus('ready');
           setMasterDnaRevision(Number(data.revision ?? 0));
           setMasterDnaMessage('');
+        } catch {
+          setMasterDnaMessage('Your collection is still being prepared. VYRA will try again when you return to this collection.');
+        } finally {
+          masterDnaAutoBuildRef.current = false;
         }
-      }).catch(() => undefined).finally(() => {
-        masterDnaAutoBuildRef.current = false;
-      });
+      })();
     }
   }, [vyral.id, vyral.license_policy]);
 
@@ -3021,6 +3029,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <p className={'mt-2 text-xs leading-5 '+subtle}>
                 VYRA automatically keeps collection and Asset information in sync as your library changes. You do not need to configure technical settings.
               </p>
+              {masterDnaMessage && <p role="status" className={'mt-2 text-xs leading-5 '+muted}>{masterDnaMessage}</p>}
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between border-t border-[var(--vyra-border-subtle)] pt-2">
                   <span className={'text-xs '+subtle}>Assets included</span>
