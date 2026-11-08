@@ -3,7 +3,7 @@ import {
   isSafePublicVyralResolverUriV1,
 } from './vyralResourceResolverV1';
 import { reconstructVyralDnaV3, validateVyralDnaV3Record, type VyralDnaV3Record, type VyralDnaV3PackageEntry } from './vyralDnaV3';
-import { createVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1';
+import { createVyralFileDnaV1, reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -490,8 +490,9 @@ export const retrievePublicVyralAssetFileDnaV1 = async (
       rebuilt.record.source.asset_version_id !== identityRecord.source.asset_version_id) {
     throw new Error('The rebuilt File DNA does not match the canonical identity record.');
   }
-  const reconstructed = await import('./vyralFileDnaV1').then(({ reconstructVyralFileDnaV1 }) =>
-    reconstructVyralFileDnaV1(rebuilt.record, new Map(rebuilt.entries.map((entry) => [entry.path, entry.data])))
+  const reconstructed = await reconstructVyralFileDnaV1(
+    rebuilt.record,
+    new Map(rebuilt.entries.map((entry) => [entry.path, entry.data])),
   );
   if (await sha256(reconstructed.buffer) !== identityRecord.file.sha256.toLowerCase()) {
     throw new Error('The reconstructed File DNA failed its aggregate SHA-256 integrity check.');
