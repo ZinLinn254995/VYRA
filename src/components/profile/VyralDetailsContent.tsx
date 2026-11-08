@@ -8,7 +8,7 @@ import {
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
 import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
-import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
+import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
@@ -1894,19 +1894,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const exportReferencedAssetDna = async (reference: CollectionReferenceRow, assetReference: PublicCollectionAssetReferenceV1) => {
     if (packageBusy || busy) return;
     const mimeType = assetReference.mediaType.toLowerCase();
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) {
-      setError('Portable DNA v3 export currently supports PNG, JPEG and WebP Assets. Other file types need their own lossless File DNA payload.');
-      return;
-    }
+    const isRaster = ['image/png', 'image/jpeg', 'image/webp'].includes(mimeType);
     setPackageBusy(true);
     setPackageStatus('Preparing an AI-ready file and checking every part…');
     setError('');
     try {
-      const retrieved = await retrievePublicVyralAssetDnaV1({
+      const resolverReference = {
         resolver_uri: reference.resolver_uri,
         source_vyral_id: reference.source_vyral_id,
-      }, assetReference);
+      };
+      const retrieved = isRaster
+        ? await retrievePublicVyralAssetDnaV1(resolverReference, assetReference)
+        : await retrievePublicVyralAssetFileDnaV1(resolverReference, assetReference);
       const sourceVyral = asRecord(reference.compact_snapshot.vyral);
+      const assetType = mimeType.startsWith('image/') ? 'image'
+        : mimeType.startsWith('video/') ? 'video'
+          : mimeType.startsWith('audio/') ? 'audio'
+            : mimeType.includes('pdf') || mimeType.includes('text') ? 'document' : 'file';
       const baseManifest = {
         format: VYRAL_PACKAGE_FORMAT,
         formatVersion: VYRAL_PACKAGE_VERSION,
@@ -1923,7 +1927,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           id: retrieved.asset.id,
           name: retrieved.asset.name,
           original_filename: retrieved.asset.name,
-          asset_type: 'image',
+          asset_type: assetType,
           mime_type: retrieved.asset.mimeType,
           size_bytes: retrieved.asset.sizeBytes,
           sha256: retrieved.asset.sha256,
@@ -1951,7 +1955,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       anchor.click();
       anchor.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-      setPackageStatus('AI-ready file created for ' + retrieved.asset.name + '. The image samples are preserved exactly; the original encoded file is not included.');
+      setPackageStatus(isRaster
+        ? 'AI-ready file created for ' + retrieved.asset.name + '. Decoded image samples are preserved exactly; original encoded file bytes are not included.'
+        : 'AI-ready file created for ' + retrieved.asset.name + '. The original file bytes are preserved exactly and verified.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not export this Asset DNA.');
       setPackageStatus('');
@@ -2921,7 +2927,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 {importedAssets.map((assetReference) => <div key={assetReference.assetId + ':' + assetReference.assetVersionId} className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0"><p className={'text-[11px] ' + primary}>{assetReference.mediaType}</p><p className={'text-[9px] ' + muted}>{assetReference.assetId.slice(0, 8)} · version {assetReference.assetVersionId.slice(0, 8)}</p></div>
                   <div className="flex flex-wrap gap-2">
-                    {['image/png', 'image/jpeg', 'image/webp'].includes(assetReference.mediaType.toLowerCase()) && <button type="button" onClick={() => void exportReferencedAssetDna(reference, assetReference)} disabled={packageBusy || busy} className={button}>Export for AI</button>}
+                    <button type="button" onClick={() => void exportReferencedAssetDna(reference, assetReference)} disabled={packageBusy || busy} className={button}>Export for AI</button>
                     <button type="button" onClick={() => void copyReferencedAsset(reference, assetReference)} disabled={packageBusy || busy} className={button}>Copy Asset here</button>
                   </div>
                 </div>)}
