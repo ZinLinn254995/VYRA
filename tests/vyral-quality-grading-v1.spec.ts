@@ -309,3 +309,42 @@ test('rejects oversized standard rule inventories', () => {
     findings: [],
   }), /more than 200 rules/);
 });
+
+test('rejects extra grade bands and malformed band fields', () => {
+  const findings = [
+    finding('identity.integrity', 'pass'),
+    finding('asset.dna-coverage', 'pass'),
+    finding('instructions.clarity', 'pass'),
+    finding('relationships.optional', 'not_applicable', []),
+  ];
+  const evaluateBands = (gradeBands: unknown) => evaluateVyralQualityV1({
+    vyralId: 'vyral-extra-bands',
+    snapshotFingerprint: fingerprint,
+    profile: { ...profile, gradeBands } as VyralQualityStandardProfile,
+    findings,
+  });
+  assert.throws(() => evaluateBands({
+    ...profile.gradeBands,
+    X: { min: 0, max: 0 },
+  }), /exactly all six grade bands/);
+  assert.throws(() => evaluateBands({
+    ...profile.gradeBands,
+    S: { ...profile.gradeBands.S, note: 'unexpected' },
+  }), /Invalid score range for grade S/);
+});
+
+test('rejects duplicate selector values that differ only by case or whitespace', () => {
+  const duplicateSelectorRule = {
+    ...profile.rules[2],
+    appliesTo: { workflowTypes: ['video_creation', ' Video_Creation '] },
+  };
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-duplicate-selectors',
+    snapshotFingerprint: fingerprint,
+    profile: {
+      ...profile,
+      rules: [profile.rules[0], profile.rules[1], duplicateSelectorRule, profile.rules[3]],
+    },
+    findings: [],
+  }), /invalid rule definition/);
+});
