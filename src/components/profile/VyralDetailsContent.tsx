@@ -800,16 +800,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const source = asRecord(identityRecord.source);
             const { data: sourceBlob, error: sourceError } = await supabase.storage.from('vyral-assets').download(sourceVersion.storage_path);
             if (sourceError || !sourceBlob) throw new Error('Could not read the original binary for ' + asset.name + ': ' + (sourceError?.message ?? 'source missing'));
+            const sourceBytes = new Uint8Array(await sourceBlob.arrayBuffer());
             const fileDna = await createVyralFileDnaV1({
               record_id: String(identityRecord.record_id),
               source: { asset_id: asset.id, asset_version_id: sourceVersion.id },
-              bytes: new Uint8Array(await sourceBlob.arrayBuffer()),
+              bytes: sourceBytes,
               mime_type: sourceVersion.mime_type || asset.mime_type || 'application/octet-stream',
               filename: asset.original_filename || asset.name,
               include_payload: true,
             });
-            if (fileDna.record.file.sha256 !== String(source.sha256 ?? asRecord(identityRecord.file).sha256 ?? '').toLowerCase()) {
-              throw new Error('The original binary for ' + asset.name + ' no longer matches its File DNA fingerprint.');
+            const actualSourceHash = fileDna.record.file.sha256.toLowerCase();
+            const expectedDnaHash = String(source.sha256 ?? asRecord(identityRecord.file).sha256 ?? '').toLowerCase();
+            const expectedVersionHash = String(sourceVersion.sha256 ?? '').toLowerCase();
+            const expectedAssetHash = String(asset.sha256 ?? '').toLowerCase();
+            if (!expectedDnaHash || actualSourceHash !== expectedDnaHash ||
+                (expectedVersionHash && actualSourceHash !== expectedVersionHash) ||
+                (expectedAssetHash && actualSourceHash !== expectedAssetHash)) {
+              throw new Error('The original binary for ' + asset.name + ' no longer matches its DNA, Asset version, and stored Asset fingerprints.');
             }
             dnaPayloadEntries.push(...fileDna.entries);
             dnaRecordsForExport.push(fileDna.record);
