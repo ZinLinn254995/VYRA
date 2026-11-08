@@ -4,8 +4,10 @@ import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { getCurrentAccessToken } from '../../context/AuthContext';
+import { confirmSpendBeforeGeneration } from '../../services/spendConfirmation';
 
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'> } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
 type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
@@ -45,6 +47,59 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
+  const [category, setCategory] = useState('');
+  const [style, setStyle] = useState('');
+  const [mood, setMood] = useState('');
+  const [tags, setTags] = useState('');
+  const [detailOrigins, setDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_edited'>>({});
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
+    if (key === 'title') setTitle(value);
+    else if (key === 'topic') setTopic(value);
+    else if (key === 'category') setCategory(value);
+    else if (key === 'style') setStyle(value);
+    else if (key === 'mood') setMood(value);
+    else setTags(value);
+    setDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
+  };
+  const suggestStoryboardDetails = async () => {
+    setSuggestionError('');
+    setIsSuggesting(true);
+    try {
+      const apiKey = sessionStorage.getItem('vyra_openrouter_key_session') || '';
+      const models = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string };
+      const model = models.text;
+      if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Text model in Settings to use AI suggestions.');
+      const approved = await confirmSpendBeforeGeneration({ operation: 'Suggest storyboard details', capability: 'text', model, apiKey, parameters: { completionTokenBudget: 500 } });
+      if (!approved) return;
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before requesting AI suggestions.');
+      const response = await fetch('/api/providers/openrouter/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-openrouter-api-key': apiKey, Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': 'vyra-storyboard-details-' + crypto.randomUUID() },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: [
+          'Suggest useful default metadata for a storyboard. Return only JSON with string fields title, topic, category, style, mood and an array of up to 8 tags.',
+          'Do not invent facts. If the idea is unclear, keep uncertain fields short or empty. The creator can edit every field.',
+          'Current title: ' + title, 'Current idea: ' + topic,
+        ].join('\\n') }] }),
+      });
+      const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+      if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
+      const raw = data.text.trim().replace(/^\\x60{3}(?:json)?\\s*/i, '').replace(/\\s*\\x60{3}$/, '');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const asText = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+      const apply = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
+        if (!value || detailOrigins[key] === 'creator_edited') return;
+        if (key === 'title') setTitle(value); else if (key === 'topic') setTopic(value); else if (key === 'category') setCategory(value); else if (key === 'style') setStyle(value); else if (key === 'mood') setMood(value); else setTags(value);
+        setDetailOrigins((current) => ({ ...current, [key]: 'ai_suggested' }));
+      };
+      apply('title', asText(parsed.title)); apply('topic', asText(parsed.topic));
+      apply('category', asText(parsed.category)); apply('style', asText(parsed.style)); apply('mood', asText(parsed.mood));
+      apply('tags', Array.isArray(parsed.tags) ? parsed.tags.filter((item): item is string => typeof item === 'string').slice(0, 8).join(', ') : '');
+    } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
+    finally { setIsSuggesting(false); }
+  };
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
@@ -63,9 +118,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const next: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: cleanTitle, topic: topic.trim(), createdAt: now, updatedAt: now,
+      details: { category: category.trim(), style: style.trim(), mood: mood.trim(), tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean), origins: detailOrigins },
     };
     setStoryboards((current) => [next, ...current]);
-    setTitle(''); setTopic(''); setCreateOpen(false);
+    setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setSuggestionError(''); setCreateOpen(false);
   };
 
   return (
@@ -128,20 +184,27 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <h2 id="create-storyboard-title" className="min-w-0 text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
                   <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="shrink-0 rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Give your new storyboard a name and a short description.</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Start with an idea. AI can suggest the details, and you can edit anything.</p>
               </div>
               <form onSubmit={createStoryboard} className="space-y-4">
                 <div className="min-w-0 space-y-2.5">
-                  <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="ml-1 text-[var(--vyra-danger)]" aria-hidden="true">*</span></label>
-                  <input id="vyra-storyboard-name" type="text" required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. The Last City" className={inputClass} />
+                  <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="font-normal text-[var(--vyra-text-muted)]">(optional — AI can suggest one)</span></label>
+                  <input id="vyra-storyboard-name" type="text" maxLength={100} value={title} onChange={(event) => updateDetail('title', event.target.value)} placeholder="e.g. The Last City" className={inputClass} />
                 </div>
                 <div className="min-w-0 space-y-2.5">
                   <label htmlFor="vyra-storyboard-description" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label>
-                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="What is this story about?" className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
+                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => updateDetail('topic', event.target.value)} placeholder="Describe your idea (optional)" className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={!title.trim()}>Create Storyboard</Button>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-category" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Category</label><input id="vyra-storyboard-category" value={category} onChange={(event) => updateDetail('category', event.target.value)} placeholder="Suggested automatically" className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-style" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Visual style</label><input id="vyra-storyboard-style" value={style} onChange={(event) => updateDetail('style', event.target.value)} placeholder="e.g. cinematic, documentary" className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-mood" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Mood</label><input id="vyra-storyboard-mood" value={mood} onChange={(event) => updateDetail('mood', event.target.value)} placeholder="Suggested automatically" className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-tags" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input id="vyra-storyboard-tags" value={tags} onChange={(event) => updateDetail('tags', event.target.value)} placeholder="Comma-separated" className={inputClass} /></div>
+                </div>
+                {suggestionError && <p role="alert" className="text-xs text-[var(--vyra-danger)]">{suggestionError}</p>}
+                <div className="flex flex-wrap justify-between gap-2 pt-2">
+                  <Button type="button" variant="secondary" onClick={suggestStoryboardDetails} disabled={isSuggesting}>{isSuggesting ? 'Suggesting…' : '✦ Suggest with AI'}</Button>
+                  <div className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={!title.trim() && !topic.trim()}>Create Storyboard</Button></div>
                 </div>
               </form>
             </div>
