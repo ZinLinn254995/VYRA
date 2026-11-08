@@ -73,6 +73,8 @@ export type VyralQualityEvaluation = {
 const SHA256 = /^[a-f0-9]{64}$/;
 const RULE_ID = /^[a-z0-9][a-z0-9._:-]{0,127}$/i;
 const isText = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const DEFAULT_BANDS: Record<VyralQualityGrade, { min: number; max: number }> = {
   S: { min: 95, max: 100 },
