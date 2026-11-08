@@ -379,13 +379,70 @@ Deno.serve(async (request: Request) => {
         file.sha256.toLowerCase() !== version.sha256.toLowerCase() ||
         Number(file.size_bytes) !== Number(version.size_bytes) ||
         String(file.mime_type ?? '') !== String(version.mime_type || asset.mime_type) ||
-        reconstruction.claim !== 'unavailable' ||
-        reconstruction.payload_encoding !== 'none' ||
-        !Array.isArray(reconstruction.chunks) || reconstruction.chunks.length !== 0) {
-      return json({ error: 'File DNA identity does not match the exact source version or is not eligible for source-backed reconstruction.' }, 409);
+        !Array.isArray(reconstruction.chunks)) {
+      return json({ error: 'File DNA identity does not match the exact source version.' }, 409);
     }
-    // AI-analysis permission was checked above. This short-lived URL is specifically
-    // for an external AI reconstruction request; it does not grant redistribution.
+
+    if (reconstruction.claim === 'source_file_exact' &&
+        reconstruction.payload_encoding === 'raw-chunks-v1' &&
+        reconstruction.chunks.length > 0) {
+      const chunkPaths = Array.isArray(payload.chunk_storage_paths) ? payload.chunk_storage_paths : [];
+      const declaredChunks = reconstruction.chunks as Row[];
+      if (chunkPaths.length !== declaredChunks.length || chunkPaths.length > 100 ||
+          declaredChunks.some((chunk, index) =>
+            chunk.index !== index || !isSha256(chunk.sha256) ||
+            !Number.isSafeInteger(chunk.byte_length) || chunk.byte_length <= 0 ||
+            typeof chunk.package_path !== 'string'
+          )) {
+        return json({ error: 'The persisted File DNA chunk manifest is incomplete.' }, 409);
+      }
+      if (declaredChunks.reduce((sum, chunk) => sum + Number(chunk.byte_length), 0) !== Number(file.size_bytes)) {
+        return json({ error: 'The persisted File DNA chunks do not cover the exact source size.' }, 409);
+      }
+      const safeChunkPaths = chunkPaths.every((path: unknown) =>
+        isSafeVyralStoragePathV1(path, storagePrefix) &&
+        path.startsWith(storagePrefix + 'dna/file/v1/' + nestedDna.record_id + '/chunks/')
+      );
+      if (!safeChunkPaths || new Set(chunkPaths).size !== chunkPaths.length) {
+        return json({ error: 'A File DNA chunk storage reference failed its ownership/path check.' }, 409);
+      }
+      const { data: signedChunks, error: chunkSignError } = await context.supabaseAdmin.storage
+        .from('vyral-assets')
+        .createSignedUrls(chunkPaths, SIGNED_URL_TTL_SECONDS);
+      if (chunkSignError || !signedChunks || signedChunks.length !== chunkPaths.length ||
+          signedChunks.some((item: Row) => !item.signedUrl || item.error)) {
+        return json({ error: 'Could not authorize every File DNA chunk. No partial chunk list was returned.' }, 502);
+      }
+      return json({
+        status: 'resolved',
+        access: 'public',
+        asset: {
+          id: asset.id, name: asset.name, versionId: version.id,
+          versionNumber: version.version_number, mimeType: version.mime_type || asset.mime_type,
+          sizeBytes: version.size_bytes, sha256: version.sha256,
+        },
+        assetDna: {
+          recordId: dnaRow.id, schemaVersion: dnaRow.schema_version,
+          createdAt: dnaRow.created_at, record: nestedDna,
+          reconstructionChunks: signedChunks.map((item: Row, index: number) => ({
+            packagePath: declaredChunks[index].package_path,
+            byteLength: declaredChunks[index].byte_length,
+            sha256: declaredChunks[index].sha256,
+            signedUrl: item.signedUrl,
+            expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+          })),
+        },
+        verification: {
+          required: 'Verify each persisted File DNA chunk and the aggregate source SHA-256.',
+          redistribution: 'AI-analysis permission is not a redistribution license.',
+        },
+      });
+    }
+
+    if (reconstruction.claim !== 'unavailable' ||
+        reconstruction.payload_encoding !== 'none' || reconstruction.chunks.length !== 0) {
+      return json({ error: 'File DNA reconstruction metadata is inconsistent.' }, 409);
+    }
     const { data: signed, error: signedError } = await context.supabaseAdmin.storage
       .from('vyral-assets')
       .createSignedUrl(version.storage_path, SIGNED_URL_TTL_SECONDS, { download: true });
@@ -396,24 +453,16 @@ Deno.serve(async (request: Request) => {
       status: 'resolved',
       access: 'public',
       asset: {
-        id: asset.id,
-        name: asset.name,
-        versionId: version.id,
-        versionNumber: version.version_number,
-        mimeType: version.mime_type || asset.mime_type,
-        sizeBytes: version.size_bytes,
-        sha256: version.sha256,
+        id: asset.id, name: asset.name, versionId: version.id,
+        versionNumber: version.version_number, mimeType: version.mime_type || asset.mime_type,
+        sizeBytes: version.size_bytes, sha256: version.sha256,
       },
       assetDna: {
-        recordId: dnaRow.id,
-        schemaVersion: dnaRow.schema_version,
-        createdAt: dnaRow.created_at,
-        record: nestedDna,
+        recordId: dnaRow.id, schemaVersion: dnaRow.schema_version,
+        createdAt: dnaRow.created_at, record: nestedDna,
         reconstructionSource: {
-          signedUrl: signed.signedUrl,
-          expiresInSeconds: SIGNED_URL_TTL_SECONDS,
-          permission: 'allow_ai_analysis',
-          purpose: 'source_file_exact_reconstruction',
+          signedUrl: signed.signedUrl, expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+          permission: 'allow_ai_analysis', purpose: 'source_file_exact_reconstruction',
         },
       },
       verification: {
