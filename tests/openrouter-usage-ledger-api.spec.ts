@@ -246,6 +246,44 @@ test('ledger-enabled Asset metadata suggestions record Google provider usage bef
   assert.equal(jobUpdate.body.status, 'succeeded');
 });
 
+test('Gemini metadata suggestions fail closed when the usage ledger cannot start', async () => {
+  let providerCalls = 0;
+  const calls: Array<{ path: string; method: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const method = init?.method || 'GET';
+    calls.push({ path: url.pathname, method });
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
+      return Response.json({ message: 'ledger unavailable' }, { status: 503 });
+    }
+    if (url.hostname === 'generativelanguage.googleapis.com') providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer verified-development-session',
+        'Idempotency-Key': 'asset-details-ledger-failure-001',
+      },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'asset',
+        messages: [{ role: 'user', content: 'Suggest metadata for this Asset.' }],
+      }),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(providerCalls, 0);
+    assert.equal((await response.json() as { error: string }).error, 'Usage tracking could not start safely. No metadata request was sent.');
+  }, fetcher);
+
+  assert.ok(calls.some((call) => call.path === '/rest/v1/generation_jobs' && call.method === 'POST'));
+  assert.equal(calls.some((call) => call.path === '/rest/v1/provider_attempts' && call.method === 'POST'), false);
+});
+
 test('ledger-enabled mode blocks authenticated Gemini generation until its usage recorder exists', async () => {
   let providerCalls = 0;
   const fetcher: typeof fetch = async (input) => {
