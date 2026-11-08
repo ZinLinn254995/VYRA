@@ -171,6 +171,17 @@ test('included portable decoder reconstructs raster samples and exact binary Ass
       () => execFileSync('python3', [scriptPath, extraEntryPath, '--output', join(temp, 'extra-entry-output')], { encoding: 'utf8' }),
       (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('Vyral package integrity inventory does not match its ZIP entries'),
     );
+
+    const collidingManifest = JSON.parse(new TextDecoder().decode(files.get('manifest.json')!)) as Record<string, any>;
+    collidingManifest.dnaRecords[0].dna_record.lossless_payload.tiles[0].package_path = 'system/identity.json';
+    const collidingArchive = await createVyralZip([...files.entries()].map(([path, data]) =>
+      path === 'manifest.json' ? { path, data: JSON.stringify(collidingManifest) } : { path, data }));
+    const collidingPath = join(temp, 'system-file-collision.vyral');
+    await writeFile(collidingPath, Buffer.from(await collidingArchive.arrayBuffer()));
+    assert.throws(
+      () => execFileSync('python3', [scriptPath, collidingPath, '--output', join(temp, 'collision-output')], { encoding: 'utf8' }),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('payload path collides with a protected System File'),
+    );
   } finally {
     await rm(temp, { recursive: true, force: true });
   }
