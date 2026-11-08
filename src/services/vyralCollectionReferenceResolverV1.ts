@@ -193,10 +193,30 @@ export const downloadPublicVyralCollectionAssetV1 = async (
     credentials: 'omit',
     referrerPolicy: 'no-referrer',
   });
-  if (!download.ok) throw new Error('The authorized source Asset could not be downloaded.');
-  const blob = await download.blob();
-  if (blob.size !== expectedSize) throw new Error('The downloaded Asset size does not match the source version.');
-  const actualSha256 = await sha256(await blob.arrayBuffer());
+  if (!download.ok || !download.body) throw new Error('The authorized source Asset could not be downloaded.');
+  const declaredDownloadSize = Number(download.headers.get('content-length') ?? expectedSize);
+  if (Number.isFinite(declaredDownloadSize) && declaredDownloadSize !== expectedSize) {
+    throw new Error('The authorized download size does not match the pinned source version.');
+  }
+  const reader = download.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let downloadedSize = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    downloadedSize += value.byteLength;
+    if (downloadedSize > expectedSize || downloadedSize > 100 * 1024 * 1024) {
+      await reader.cancel();
+      throw new Error('The source download exceeded its verified size limit.');
+    }
+    chunks.push(value);
+  }
+  if (downloadedSize !== expectedSize) throw new Error('The downloaded Asset size does not match the source version.');
+  const bytes = new Uint8Array(downloadedSize);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  const actualSha256 = await sha256(bytes.buffer);
   if (actualSha256 !== expectedSha256.toLowerCase()) {
     throw new Error('The downloaded Asset failed its SHA-256 integrity check.');
   }
@@ -206,5 +226,5 @@ export const downloadPublicVyralCollectionAssetV1 = async (
   const mimeType = typeof resolvedAsset.mimeType === 'string' && resolvedAsset.mimeType.trim()
     ? resolvedAsset.mimeType.trim()
     : assetReference.mediaType || 'application/octet-stream';
-  return new File([blob], filename, { type: mimeType });
+  return new File([bytes], filename, { type: mimeType });
 };
