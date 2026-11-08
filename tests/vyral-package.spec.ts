@@ -778,7 +778,7 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   assert.equal(compactOnlyManifest.masterDna.provenance.license_ref, null);
   assert.equal(compactOnlyManifest.masterDna.provenance.evidence_status, 'unknown');
   assert.equal(compactOnlyManifest.masterDna.integrity.manifest_sha256 === masterDna.integrity.manifest_sha256, false);
-  assert.equal(compactOnlyFiles.size, 2);
+  assert.equal(compactOnlyFiles.size, 14); // README + manifest + 12 protected System Files
   const tamperedMasterDna = {
     ...masterDna,
     integrity: { ...masterDna.integrity, vyral_fingerprint: '0'.repeat(64) },
