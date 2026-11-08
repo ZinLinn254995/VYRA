@@ -144,12 +144,19 @@ test('rejects evidence rows outside the pinned snapshot', () => {
   }), /outside the exact Master DNA Asset Version snapshot/);
 });
 
-test('rejects missing source hashes and evidence-class mismatches', () => {
-  assert.throws(() => buildVyralTrustedEvidenceFindingsV1({
+test('treats missing source hashes as incomplete evidence and rejects evidence-class mismatches', () => {
+  const result = buildVyralTrustedEvidenceFindingsV1({
     ...base,
-    assetVersions: [{ asset_id: 'asset-a', asset_version_id: 'version-a', sha256: null }],
+    assetVersions: [
+      { asset_id: 'asset-a', asset_version_id: 'version-a', sha256: null },
+      { asset_id: 'asset-b', asset_version_id: 'version-b', sha256: shaB },
+    ],
     profile: profile('fingerprint.cryptographic', 'deterministic'),
-  }), /SHA-256 is missing or ambiguous/);
+    fingerprints: [
+      { id: 'fp-b', asset_id: 'asset-b', asset_version_id: 'version-b', fingerprint_kind: 'cryptographic', algorithm: 'SHA-256', value: shaB, metadata: verifiedFingerprint },
+    ],
+  });
+  assert.equal(result[0].status, 'not_evaluated');
   assert.throws(() => buildVyralTrustedEvidenceFindingsV1({
     ...base,
     profile: profile('fingerprint.cryptographic', 'ai_assessment'),
