@@ -24,8 +24,10 @@ export type PublicCollectionReferenceCheckV1 =
 const record = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
 
-const sha256 = async (value: string | ArrayBuffer): Promise<string> => {
-  const input = typeof value === 'string' ? new TextEncoder().encode(value) : value;
+const sha256 = async (value: string | ArrayBuffer | Uint8Array): Promise<string> => {
+  const input = typeof value === 'string'
+    ? new TextEncoder().encode(value)
+    : value instanceof Uint8Array ? value : value;
   const digest = await crypto.subtle.digest('SHA-256', input);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
@@ -494,7 +496,7 @@ export const retrievePublicVyralAssetFileDnaV1 = async (
     rebuilt.record,
     new Map(rebuilt.entries.map((entry) => [entry.path, entry.data])),
   );
-  if (await sha256(reconstructed.buffer) !== identityRecord.file.sha256.toLowerCase()) {
+  if (await sha256(reconstructed) !== identityRecord.file.sha256.toLowerCase()) {
     throw new Error('The reconstructed File DNA failed its aggregate SHA-256 integrity check.');
   }
 
