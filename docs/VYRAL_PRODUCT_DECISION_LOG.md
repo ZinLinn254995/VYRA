@@ -241,3 +241,21 @@ Added the first deterministic license decision helper and focused automated test
 **Important reconciliation required before database/UI implementation:** Older decision-log sections and existing Master DNA persistence work describe Main/Supporting roles, purpose, and relationship coverage as mandatory for every Asset. The accepted product definition and current 100% architecture already allow arbitrary/unrelated Assets and optional relationships. The latest clarification confirms the optional/free-form product behavior. Do not silently impose the older mandatory classification model on all Vyrals. Review and reconcile the database readiness gates, builder, UI, schema, and tests additively; preserve existing records and ORIGIN-01 protections.
 
 **Implementation status:** The accepted contract is documented in `docs/product/VYRAL_CREATOR_ASSISTANT_AND_QUALITY_STANDARDS.md`. This documentation does not mean the Creator Assistant, deterministic grading engine, complete Chat orchestration, or external generation handoff is implemented. Each requires code and acceptance tests. Continue on the existing `feat/vyral-100-percent-acceptance` branch; no new branch, merge, Production deployment, or Production database mutation is authorized by this decision.
+
+
+## 2026-11-08 — Deterministic Quality Grading v1 foundation
+
+Added an initial pure TypeScript grading engine at `src/services/vyralQualityGradingV1.ts`, focused tests at `tests/vyral-quality-grading-v1.spec.ts`, the `test:vyral-quality` package script, and a CI step in `.github/workflows/ci.yml`.
+
+Current engine behavior:
+- pins each evaluation to a Vyral ID, snapshot SHA-256 fingerprint, and versioned standard profile;
+- validates unique rule IDs, unique findings, supported evidence classes/statuses, and evidence references for scored findings;
+- computes weighted scores deterministically (pass = 100% of rule weight, partial = 50%, fail = 0%; not-applicable rules are excluded);
+- withholds a grade when required evidence is missing or no applicable weighted evidence exists;
+- blocks a grade when a declared hard-gate rule fails;
+- records rule-level status, evidence references, explanation, recommendation, and awarded points;
+- uses provisional S/A/B/C/D/F bands only as a default; a versioned profile may override them.
+
+**Not yet implemented:** production standard-profile definitions and their approved rule weights/hard gates; AI rubric evaluation; database persistence/history; Chat UI and Creator Assistant integration; purpose/asset-type applicability resolver; generation test runner; and end-to-end grading acceptance tests.
+
+**Verification:** The new tests are registered in CI, but no GitHub Actions result has been confirmed for this push. The Vercel status currently reports a build-rate-limit failure; this is not evidence of a TypeScript/test failure. A Cloudflare Workers build check was observed in progress at the time of inspection. Do not claim the grading tests or full CI passed until a matching run reports success. No Production database mutation or intentional Production deployment was performed as part of this code change.
