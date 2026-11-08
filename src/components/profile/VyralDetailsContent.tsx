@@ -3103,7 +3103,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             {path:'system/creator-instructions/index.json',label:'Creator instructions',count:0,state:'not_available'},
             {path:'system/licensing.json',label:'Licensing policy',count:1,state:'present'},
             {path:'system/integrity.json',label:'Package integrity',count:0,state:'generated_on_export'},
-            {path:'system/system-files.json',label:'Protected file index',count:12,state:'present'},
+            {path:'system/system-files.json',label:'Protected file index',count:13,state:'present'},
           ].map(file=><div key={file.path} className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] px-2.5 py-2">
             <FileText size={13} className="shrink-0 text-[var(--vyra-text-muted)]"/>
             <div className="min-w-0 flex-1"><p className={'truncate text-[11px] font-medium '+primary}>{file.path}</p><p className={'text-[9px] '+muted}>{file.label}</p></div>

@@ -13,7 +13,7 @@ const manifest = {
 };
 test('builds protected System File projections without duplicating canonical DNA payloads',async()=>{
  const result=await buildVyralSystemFilesV1(manifest,[{path:'assets/asset-1/source.png',data:new Uint8Array([1,2,3])}]);
- assert.equal(result.descriptors.length,12); assert.ok(result.descriptors.every(x=>x.required&&x.protected));
+ assert.equal(result.descriptors.length,13); assert.ok(result.descriptors.every(x=>x.required&&x.protected));
  const files=new Map(result.entries.map(x=>[x.path,x.data]));
  for(const path of ['system/identity.json','system/asset-index.json','system/asset-dna/index.json','system/master-dna.ref.json','system/integrity.json','system/system-files.json']) assert.ok(files.has(path));
  const dna=JSON.parse(files.get('system/asset-dna/index.json')!); assert.deepEqual(dna.records.map(x=>x.record_id),['dna-1']); assert.equal(files.has('system/asset-dna/dna-1.json'),false);
