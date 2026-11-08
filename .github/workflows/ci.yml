@@ -75,5 +75,5 @@ jobs:
       - name: Vyral resource resolver security policy tests
         run: npm run test:vyral-resource-resolver
 
-      - name: Vyral deterministic quality grading and applicability tests
+      - name: Vyral deterministic quality grading, applicability and creator context tests
         run: npm run test:vyral-quality
