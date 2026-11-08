@@ -8,6 +8,14 @@ const profile: VyralQualityStandardProfile = {
   version: 1,
   name: 'General Vyral Readiness',
   scope: 'general',
+  gradeBands: {
+    S: { min: 95, max: 100 },
+    A: { min: 90, max: 95 },
+    B: { min: 80, max: 90 },
+    C: { min: 70, max: 80 },
+    D: { min: 50, max: 70 },
+    F: { min: 0, max: 50 },
+  },
   rules: [
     { id: 'identity.integrity', title: 'Identity and integrity', category: 'universal', evidenceClass: 'deterministic', weight: 30, required: true, hardGate: true },
     { id: 'asset.dna-coverage', title: 'Asset DNA coverage', category: 'universal', evidenceClass: 'deterministic', weight: 30, required: true },
