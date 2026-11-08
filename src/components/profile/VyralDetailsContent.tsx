@@ -854,6 +854,20 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           if (!sourceVersion?.id || !sourceVersion.storage_path) {
             throw new Error('The current source version for ' + asset.name + ' is unavailable; DNA-only export stopped.');
           }
+          // A DNA-only package must be bound to the exact current Asset bytes,
+          // not merely to whichever Version happens to be newest. Reject stale
+          // paths or metadata before reading any reconstruction payload.
+          const expectedAssetSize = Number(asset.size_bytes);
+          const expectedVersionSize = Number(sourceVersion.size_bytes);
+          const expectedAssetHash = String(asset.sha256 ?? '').toLowerCase();
+          const expectedVersionHash = String(sourceVersion.sha256 ?? '').toLowerCase();
+          if (sourceVersion.storage_path !== asset.storage_path ||
+              !expectedAssetHash || expectedAssetHash !== expectedVersionHash ||
+              !Number.isSafeInteger(expectedAssetSize) || expectedAssetSize <= 0 ||
+              expectedAssetSize !== expectedVersionSize ||
+              String(sourceVersion.mime_type ?? '').toLowerCase() !== String(asset.mime_type ?? '').toLowerCase()) {
+            throw new Error('Asset ' + asset.name + ' does not match its current immutable source Version. Refresh or verify the source before DNA-only export.');
+          }
           const matchingRows = supportedRows.filter((row) => {
             if (row.asset_id !== asset.id) return false;
             const nested = asRecord(row.payload?.dna_record);
@@ -876,13 +890,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const { data: sourceBlob, error: sourceError } = await supabase.storage.from('vyral-assets').download(sourceVersion.storage_path);
             if (sourceError || !sourceBlob) throw new Error('Could not verify the original image for ' + asset.name + ': ' + (sourceError?.message ?? 'source missing'));
             const sourceBytes = new Uint8Array(await sourceBlob.arrayBuffer());
+            if (sourceBytes.byteLength !== expectedAssetSize || sourceBytes.byteLength !== expectedVersionSize) {
+              throw new Error('The original image for ' + asset.name + ' no longer matches its immutable Asset and Version sizes. Re-extract DNA before exporting.');
+            }
             const digestBuffer = new ArrayBuffer(sourceBytes.byteLength);
             new Uint8Array(digestBuffer).set(sourceBytes);
             const digest = await crypto.subtle.digest('SHA-256', digestBuffer);
             const actualSourceHash = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
             const expectedSourceHash = String(source.sha256 ?? '').toLowerCase();
             if (!expectedSourceHash || actualSourceHash !== expectedSourceHash ||
-                (sourceVersion.sha256 && actualSourceHash !== sourceVersion.sha256.toLowerCase())) {
+                actualSourceHash !== expectedVersionHash || actualSourceHash !== expectedAssetHash) {
               throw new Error('The original image for ' + asset.name + ' no longer matches its DNA/source-version SHA-256. Re-extract DNA before exporting.');
             }
             for (let index = 0; index < tiles.length; index += 1) {
@@ -902,6 +919,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const { data: sourceBlob, error: sourceError } = await supabase.storage.from('vyral-assets').download(sourceVersion.storage_path);
             if (sourceError || !sourceBlob) throw new Error('Could not read the original binary for ' + asset.name + ': ' + (sourceError?.message ?? 'source missing'));
             const sourceBytes = new Uint8Array(await sourceBlob.arrayBuffer());
+            if (sourceBytes.byteLength !== expectedAssetSize || sourceBytes.byteLength !== expectedVersionSize) {
+              throw new Error('The original binary for ' + asset.name + ' no longer matches its immutable Asset and Version sizes. Re-extract DNA before exporting.');
+            }
             const fileDna = await createVyralFileDnaV1({
               record_id: String(identityRecord.record_id),
               source: { asset_id: asset.id, asset_version_id: sourceVersion.id },
