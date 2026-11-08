@@ -9,6 +9,14 @@ const profile: VyralQualityStandardProfile = {
   version: 1,
   name: 'Multi-asset collection',
   scope: 'general',
+  gradeBands: {
+    S: { min: 95, max: 100 },
+    A: { min: 90, max: 95 },
+    B: { min: 80, max: 90 },
+    C: { min: 70, max: 80 },
+    D: { min: 50, max: 70 },
+    F: { min: 0, max: 50 },
+  },
   rules: [
     { id: 'identity.integrity', title: 'Identity integrity', category: 'universal', evidenceClass: 'deterministic', weight: 40, required: true, hardGate: true },
     { id: 'image.visual-quality', title: 'Visual quality', category: 'asset_type', evidenceClass: 'ai_assessment', weight: 30, required: true, appliesTo: { assetTypes: ['image', 'illustration'] } },
