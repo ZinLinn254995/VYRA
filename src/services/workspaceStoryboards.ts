@@ -40,3 +40,16 @@ export const mergeWorkspaceStoryboards = <T extends WorkspaceStoryboard>(
     pending,
   };
 };
+
+
+/**
+ * Keep the original idea as the cache key when AI has filled the title/topic.
+ * A creator edit changes the key and correctly requests fresh suggestions.
+ */
+export const workspaceStoryboardSuggestionKey = (
+  title: string,
+  topic: string,
+  origins: Record<string, 'ai_suggested' | 'creator_edited'> = {},
+): string =>
+  (origins.title === 'ai_suggested' ? '' : title.trim()) + '\u0000' +
+  (origins.topic === 'ai_suggested' ? '' : topic.trim());
