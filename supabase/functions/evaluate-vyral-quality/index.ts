@@ -124,9 +124,9 @@ Deno.serve(async (request: Request) => {
         asset_version_id: row.id,
         sha256: row.sha256,
       })),
-      fingerprints,
-      reconstructionTests,
-      visionObservations,
+      fingerprints: fingerprints as Parameters<typeof buildVyralTrustedEvidenceFindingsV1>[0]['fingerprints'],
+      reconstructionTests: reconstructionTests as Parameters<typeof buildVyralTrustedEvidenceFindingsV1>[0]['reconstructionTests'],
+      visionObservations: visionObservations as Parameters<typeof buildVyralTrustedEvidenceFindingsV1>[0]['visionObservations'],
     });
 
     const result = await evaluateVyralSnapshotQualityV1({
