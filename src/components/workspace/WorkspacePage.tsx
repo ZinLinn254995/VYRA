@@ -89,12 +89,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           'Suggest useful default metadata for a storyboard. Return JSON only. Use title, topic, category, style, mood and tags where supported. Put each field in the shape {"value":"..."}; tags may use {"value":["tag"]}.',
           'Do not invent facts. If the idea is unclear, omit uncertain details. The creator can edit every field.',
           'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
-        ].join('\\n') }],
+        ].join('\n') }],
       }),
     });
     const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
     if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
-    const raw = data.text.trim().replace(/^\x60{3}(?:json)?\\s*/i, '').replace(/\\s*\x60{3}$/, '');
+    const raw = data.text.trim().replace(/^\x60{3}(?:json)?\s*/i, '').replace(/\s*\x60{3}$/, '');
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const unwrap = (value: unknown): unknown => value && typeof value === 'object' && !Array.isArray(value) && 'value' in value
       ? (value as { value: unknown }).value : value;
