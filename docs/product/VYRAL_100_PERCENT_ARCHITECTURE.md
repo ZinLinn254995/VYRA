@@ -366,3 +366,5 @@ A Compact-only package is importable as a **reference record**, not as a restore
 5. The importing user can read and delete only their own destination reference records.
 6. A reference with no resolver remains non-retrievable; a public resolver is re-authorized on every retrieval.
 7. Destination Master DNA excludes external reference inventory unless a future, explicitly versioned schema adds a safe reference-link type.
+8. A public source Asset copy requires current source-side redistribution permission, exact Asset/Version membership, signed-URL host validation, byte-length validation, and SHA-256 verification before a new private destination Asset is created.
+9. Disabling AI analysis does not silently revoke a separately granted redistribution permission; collection-DNA access and original-source copying remain separate authorization paths.
