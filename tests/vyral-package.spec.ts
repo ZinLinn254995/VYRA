@@ -719,6 +719,19 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   assert.equal(compactOnlyManifest.versions.length, 0);
   assert.equal(compactOnlyManifest.dnaRecords.length, 0);
   assert.ok(compactOnlyManifest.masterDna);
+  assert.equal(compactOnlyManifest.masterDna.purpose, undefined);
+  assert.equal(compactOnlyManifest.masterDna.relationships, undefined);
+  assert.deepEqual(compactOnlyManifest.masterDna.main_asset_ids, []);
+  assert.equal(compactOnlyManifest.masterDna.vyral.owner_ref, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].name, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].role, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].purpose, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].dna_ref.package_prefix, undefined);
+  assert.deepEqual(compactOnlyManifest.masterDna.reconstruction_profile.notes, []);
+  assert.equal(compactOnlyManifest.masterDna.provenance.creator_ref, null);
+  assert.equal(compactOnlyManifest.masterDna.provenance.license_ref, null);
+  assert.equal(compactOnlyManifest.masterDna.provenance.evidence_status, 'unknown');
+  assert.equal(compactOnlyManifest.masterDna.integrity.manifest_sha256 === masterDna.integrity.manifest_sha256, false);
   assert.equal(compactOnlyFiles.size, 2);
   const tamperedMasterDna = {
     ...masterDna,
