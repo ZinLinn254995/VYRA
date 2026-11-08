@@ -203,6 +203,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterAssetDrafts, setMasterAssetDrafts] = useState<Record<string, MasterAssetDraft>>({});
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
   const masterDnaAutoBuildRef = useRef(false);
+  const fileDnaAutoVerifyRef = useRef(new Set<string>());
 
 
   const loadWorkspace = useCallback(async () => {
@@ -291,6 +292,47 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       require_attribution: policy.require_attribution !== false,
     });
     setLoading(false);
+
+    // Automatically complete exact File DNA readback for older and newly
+    // imported non-raster Assets before composing the collection snapshot.
+    const versionRowsForVerification = (results[2].data ?? []) as AssetVersionRow[];
+    const dnaRowsForVerification = (results[3].data ?? []) as DnaRow[];
+    const testRowsForVerification = (results[5].data ?? []) as ReconstructionRow[];
+    const fileDnaVerificationTasks: Promise<unknown>[] = [];
+    for (const asset of assetRows) {
+      const sourceVersion = versionRowsForVerification.find((item) =>
+        item.asset_id === asset.id && item.storage_path === asset.storage_path
+      ) ?? versionRowsForVerification.find((item) => item.asset_id === asset.id);
+      if (!sourceVersion) continue;
+      const fileDna = dnaRowsForVerification.find((item) => {
+        if (item.asset_id !== asset.id || item.scope !== 'asset' || Number((item.payload as Record<string, unknown>).dna_schema_version) !== 1) return false;
+        const payload = item.payload as Record<string, unknown>;
+        const record = payload.dna_record && typeof payload.dna_record === 'object' ? payload.dna_record as Record<string, unknown> : {};
+        const source = record.source && typeof record.source === 'object' ? record.source as Record<string, unknown> : {};
+        return (payload.dna_schema_id === 'vyra.asset-file-dna' || record.schema_id === 'vyra.asset-file-dna') &&
+          (source.asset_version_id === sourceVersion.id || payload.source_version_id === sourceVersion.id);
+      });
+      if (!fileDna) continue;
+      const alreadyPassed = testRowsForVerification.some((item) =>
+        item.asset_id === asset.id && item.asset_version_id === sourceVersion.id &&
+        item.id && item.comparison_mode === 'byte_exact' && item.test_status === 'passed' &&
+        item.exact_match === true && item.model_id === 'universal-file-dna-v1-readback-verifier'
+      );
+      const attemptKey = asset.id + ':' + sourceVersion.id + ':' + fileDna.id;
+      if (alreadyPassed || fileDnaAutoVerifyRef.current.has(attemptKey)) continue;
+      fileDnaAutoVerifyRef.current.add(attemptKey);
+      fileDnaVerificationTasks.push(
+        supabase.functions.invoke('verify-vyral-asset', {
+          body: { assetId: asset.id, versionId: sourceVersion.id },
+        }).then(({ data, error: verifyError }) => {
+          if (verifyError || data?.status !== 'verified' || data?.sourceFileReconstruction !== 'byte_exact') {
+            console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.');
+          }
+          return data;
+        }).catch(() => undefined),
+      );
+    }
+    if (fileDnaVerificationTasks.length) await Promise.all(fileDnaVerificationTasks);
 
     // Keep the collection snapshot synchronized in the background. The builder
     // only requires each Asset's own current version and matching DNA; optional
