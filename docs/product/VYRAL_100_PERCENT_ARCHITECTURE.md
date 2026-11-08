@@ -303,3 +303,6 @@ A Vyral implementation is not accepted merely because it builds or exports a pac
 - Apply the same latest-record merge rule to both ordinary uploads and package imports.
 - Collection defaults are generated after the workspace finishes loading even when the Vyral currently has zero Assets. Empty and unrelated inventories remain valid; the model may omit unsupported details rather than inventing a shared purpose or relationship.
 - A collection inventory revision change refreshes AI-origin suggestions only. Creator-confirmed and creator-edited fields remain authoritative across revisions.
+
+- Storyboard creation attempts to generate type-appropriate defaults from the creator's supplied title or idea. The creator explicitly approves any metered AI request; declining, missing AI configuration, or an AI failure never blocks manual Storyboard creation.
+- Creator-entered Storyboard fields are marked authoritative before the request begins and are never replaced by returned AI suggestions.
