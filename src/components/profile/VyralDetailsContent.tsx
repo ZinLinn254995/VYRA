@@ -1213,17 +1213,25 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               accessToken, assetType: assetTypeValueSafe, sourceVersionId: latest.id, sourceRevision: latest.versionNumber,
               currentDetails: sourceMetadata.ai_details,
             });
-            const fields = suggestion.details.fields;
-            const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
-            const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
             const { data: currentAsset } = await supabase.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', userId).maybeSingle();
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
+            const aiSuggestions = Object.fromEntries(Object.entries(suggestion.details.fields)
+              .filter(([, field]) => field.origin === 'ai_suggested')
+              .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
+            const mergedDetails = mergeVyralAiDetails(currentMetadata.ai_details, {
+              scope: 'asset', sourceVersionId: latest.id, sourceRevision: latest.versionNumber,
+              provider: suggestion.provider, model: suggestion.model,
+              generatedAt: suggestion.details.generated_at, suggestions: aiSuggestions,
+            });
+            const fields = mergedDetails.fields;
+            const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
+            const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
             const { error: metadataError } = await supabase.from('vyral_assets').update({
               ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { name: suggestedName } : {}),
               ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { description: suggestedDescription } : {}),
               metadata: {
-                ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
+                ...currentMetadata, ai_details: mergedDetails, ai_details_status: 'ready',
                 ai_details_source_version_id: latest.id,
                 ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { identity_name_origin: 'ai_suggested' } : {}),
                 ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { identity_description_origin: 'ai_suggested' } : {}),
@@ -1703,17 +1711,25 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const suggestion = await suggestVyralAssetDetails(file, {
               accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
             });
-            const fields = suggestion.details.fields;
-            const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
-            const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
             const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
+            const aiSuggestions = Object.fromEntries(Object.entries(suggestion.details.fields)
+              .filter(([, field]) => field.origin === 'ai_suggested')
+              .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
+            const mergedDetails = mergeVyralAiDetails(currentMetadata.ai_details, {
+              scope: 'asset', sourceVersionId: version.id, sourceRevision: 1,
+              provider: suggestion.provider, model: suggestion.model,
+              generatedAt: suggestion.details.generated_at, suggestions: aiSuggestions,
+            });
+            const fields = mergedDetails.fields;
+            const suggestedName = typeof fields.name?.value === 'string' ? fields.name.value.trim().slice(0, 100) : '';
+            const suggestedDescription = typeof fields.description?.value === 'string' ? fields.description.value.trim().slice(0, 1000) : '';
             const { error: metadataError } = await db.from('vyral_assets').update({
               ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { name: suggestedName } : {}),
               ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { description: suggestedDescription } : {}),
               metadata: {
-                ...currentMetadata, ai_details: suggestion.details, ai_details_status: 'ready',
+                ...currentMetadata, ai_details: mergedDetails, ai_details_status: 'ready',
                 ai_details_source_version_id: version.id,
                 ...(suggestedName && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_name_origin ?? 'system_default')) ? { identity_name_origin: 'ai_suggested' } : {}),
                 ...(suggestedDescription && ['system_default', 'ai_suggested'].includes(String(currentMetadata.identity_description_origin ?? 'system_default')) ? { identity_description_origin: 'ai_suggested' } : {}),
