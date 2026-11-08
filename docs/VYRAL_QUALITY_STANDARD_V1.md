@@ -128,3 +128,34 @@ Additional strictness: a profile must define exactly the six supported grade key
 ### Hard-gate completion semantics
 
 A deterministic hard gate is a prerequisite, not a weighted rule. Only a fully evidenced `pass` satisfies it. A `partial` or `fail` finding blocks grading and records the rule in `hardGateFailures`; a missing finding remains `incomplete_evidence` rather than being treated as a failure or a pass. A resolver-approved `not_applicable` finding is excluded from the applicable rule set. This prevents a high weighted score from masking a partially satisfied integrity prerequisite.
+
+
+## Separate Asset DNA quality and Vyral collection quality
+
+These are two different measurements and must never be merged into one score:
+
+- **Asset DNA quality** evaluates one exact Asset Version and its own DNA record. It answers whether that Asset's identity, source binding, structured knowledge, stored reconstruction payload, and tested recovery capability are complete and trustworthy. Its result is scoped to that Asset Version and DNA record.
+- **Vyral collection quality** evaluates one immutable Master DNA snapshot as a collection. It answers whether the collection inventory, declared context, relationships, provenance, licensing references, cross-Asset constraints, and collection-level requirements are sufficiently complete for the selected purpose/workflow. It is the scope of the versioned standard and history described in this document.
+
+The current `evaluate-vyral-quality` endpoint and `vyral_quality_evaluations` history are **collection-level only**. Their weighted score must not be described as the DNA quality grade of every Asset inside the Vyral. The current inventory context is descriptive input for collection evaluation, not an Asset DNA grade.
+
+A collection may contain Assets with different DNA readiness levels. Collection evaluation must preserve per-Asset evidence references and must not average, copy, or infer an Asset DNA score from the collection score. Conversely, one highly complete Asset does not make the entire collection complete.
+
+### Asset DNA assessment boundary
+
+An Asset DNA assessment must be pinned to the exact Asset ID, Asset Version ID, source SHA-256, and immutable DNA record ID/schema version. It must separately report:
+
+- source identity and version binding;
+- DNA record/schema validity and provenance;
+- structured knowledge coverage, with creator-declared, generation-derived, and observed facts kept distinct;
+- reconstruction payload integrity and actual payload availability;
+- recovery capability level (for example source-file exact, decoded-sample exact, semantic-only, or unavailable);
+- exact reconstruction-test results, including verifier identity and test time.
+
+A declaration such as `reconstruction_ready: true`, a non-empty tile manifest, a prompt description, or a model's similarity opinion is not by itself proof that the stored payload can be recovered. Payload integrity requires server-side verification of the referenced bytes and their hashes. Exact reconstruction claims require a matching test for the same Asset Version and DNA record. A decoded-sample exact result must not be represented as byte-exact recovery of the original encoded file.
+
+Asset DNA assessments need their own result type, history, and evidence adapter before they can be presented as a scored grade. Until that implementation exists, VYRA must show the Asset DNA status as not yet assessed rather than reusing the collection grade or inventing an Asset grade.
+
+### Reconstruction retest precedence
+
+For a given exact Asset Version, DNA record, comparison mode, and trusted verifier, the latest timestamped test is authoritative for the current assessment. A newer successful retest supersedes that verifier's older failure; a newer failure supersedes its older pass. Results from different trusted verifiers remain independently visible, and any latest failure from a trusted verifier prevents the evidence key from passing. Equal timestamps for the same verifier are ambiguous and fail closed. Historical test rows remain immutable and available for audit.
