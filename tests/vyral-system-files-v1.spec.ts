@@ -44,6 +44,7 @@ test('validates the required System File inventory and detects package tampering
  await verifyVyralSystemFileIntegrityV1(map);
  map.set('assets/asset-1/source.png',new Uint8Array([9,9,9]));
  await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(map),/SHA-256 verification failed/);
+ map.set('assets/asset-1/source.png',new Uint8Array([1,2,3]));
  const tamperedSystem=new Map(map);
  tamperedSystem.set('system/identity.json',new TextEncoder().encode('{"tampered":true}'));
  await assert.rejects(()=>verifyVyralSystemFileIntegrityV1(tamperedSystem),/SHA-256 verification failed/);
