@@ -1,6 +1,6 @@
 # Vyral Package System Files v1
 
-Status: Initial package-level implementation on the Vyral 100% working branch.
+Status: Package contract, export projection, read-only viewer, and import validation are implemented on the Vyral 100% working branch. Automated runtime execution and Development acceptance remain pending.
 
 A .vyral remains a ZIP-based hybrid package. Root manifest.json is protected. Original Assets, canonical package records and protected system/ projections coexist.
 
