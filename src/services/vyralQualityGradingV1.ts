@@ -76,20 +76,47 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 
 const DEFAULT_BANDS: Record<VyralQualityGrade, { min: number; max: number }> = {
   S: { min: 95, max: 100 },
-  A: { min: 90, max: 94.999999 },
-  B: { min: 80, max: 89.999999 },
-  C: { min: 70, max: 79.999999 },
-  D: { min: 50, max: 69.999999 },
-  F: { min: 0, max: 49.999999 },
+  A: { min: 90, max: 95 },
+  B: { min: 80, max: 90 },
+  C: { min: 70, max: 80 },
+  D: { min: 50, max: 70 },
+  F: { min: 0, max: 50 },
 };
 
-const gradeFor = (score: number, bands: VyralQualityStandardProfile['gradeBands']): VyralQualityGrade => {
-  const resolved = { ...DEFAULT_BANDS, ...(bands ?? {}) };
-  for (const grade of ['S', 'A', 'B', 'C', 'D', 'F'] as const) {
-    const band = resolved[grade];
-    if (band && score >= band.min && score <= band.max) return grade;
+const GRADE_ORDER = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
+
+const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeBands']) => {
+  if (bands === undefined) return DEFAULT_BANDS;
+  if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands))) {
+    throw new Error('Custom grade bands must define all six grades.');
   }
-  return 'F';
+  const resolved = bands as Record<VyralQualityGrade, { min: number; max: number }>;
+  for (const grade of GRADE_ORDER) {
+    const band = resolved[grade];
+    if (!isRecord(band) || !Number.isFinite(band.min) || !Number.isFinite(band.max) ||
+        band.min < 0 || band.max > 100 || band.min >= band.max) {
+      throw new Error(`Invalid score range for grade ${grade}.`);
+    }
+  }
+  if (resolved.S.max !== 100 || resolved.F.min !== 0) {
+    throw new Error('Grade bands must cover the complete 0–100 score range.');
+  }
+  for (let index = 0; index < GRADE_ORDER.length - 1; index += 1) {
+    const higher = resolved[GRADE_ORDER[index]];
+    const lower = resolved[GRADE_ORDER[index + 1]];
+    if (higher.min !== lower.max) {
+      throw new Error('Grade bands must be contiguous and non-overlapping.');
+    }
+  }
+  return resolved;
+};
+
+const gradeFor = (score: number, bands: ReturnType<typeof resolveAndValidateGradeBands>): VyralQualityGrade => {
+  for (const grade of GRADE_ORDER) {
+    const band = bands[grade];
+    if (score >= band.min && (score < band.max || (grade === 'S' && score <= band.max))) return grade;
+  }
+  throw new Error('Score falls outside the validated grade bands.');
 };
 
 export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQualityEvaluation => {
@@ -97,9 +124,11 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
   if (!isText(input.vyralId) || !SHA256.test(input.snapshotFingerprint)) {
     throw new Error('Quality evaluation must pin a Vyral ID and a lowercase SHA-256 snapshot fingerprint.');
   }
-  if (!isText(profile.id) || !isText(profile.name) || !Number.isSafeInteger(profile.version) || profile.version < 1) {
-    throw new Error('Quality standard identity and positive version are required.');
+  if (!isText(profile.id) || !isText(profile.name) || !Number.isSafeInteger(profile.version) || profile.version < 1 ||
+      !['general', 'asset_type', 'purpose', 'workflow'].includes(profile.scope)) {
+    throw new Error('Quality standard identity, scope, and positive version are required.');
   }
+  const gradeBands = resolveAndValidateGradeBands(profile.gradeBands);
   if (!Array.isArray(profile.rules) || profile.rules.length === 0 || !Array.isArray(input.findings)) {
     throw new Error('A quality standard must define rules and receive rule findings.');
   }
@@ -110,7 +139,8 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
         !Number.isFinite(rule.weight) || rule.weight < 0 || rule.weight > 100 ||
         !['universal', 'asset_type', 'purpose', 'workflow'].includes(rule.category) ||
         !['deterministic', 'creator_declared', 'ai_assessment', 'generation_test'].includes(rule.evidenceClass) ||
-        typeof rule.required !== 'boolean' || (rule.hardGate && (!rule.required || rule.evidenceClass !== 'deterministic'))) {
+        typeof rule.required !== 'boolean' || (rule.hardGate !== undefined && typeof rule.hardGate !== 'boolean') ||
+        (rule.hardGate && (!rule.required || rule.evidenceClass !== 'deterministic'))) {
       throw new Error('Quality standard contains an invalid rule definition.');
     }
     if (ruleMap.has(rule.id)) throw new Error(`Duplicate quality rule ID: ${rule.id}`);
@@ -130,7 +160,9 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
       throw new Error('Quality finding contains an invalid status.');
     }
     const refs = finding.evidenceRefs ?? [];
-    if (!Array.isArray(refs) || !refs.every(isText)) throw new Error('Quality evidence references must be non-empty strings.');
+    if (!Array.isArray(refs) || !refs.every(isText) || new Set(refs).size !== refs.length) {
+      throw new Error('Quality evidence references must be non-empty and unique strings.');
+    }
     if (['pass', 'partial', 'fail'].includes(finding.status) && refs.length === 0) {
       throw new Error(`Quality rule ${finding.ruleId} requires evidence for a scored finding.`);
     }
@@ -184,7 +216,7 @@ export const evaluateVyralQualityV1 = (input: EvaluateVyralQualityInput): VyralQ
     standard: { id: profile.id, version: profile.version, name: profile.name, scope: profile.scope },
     status,
     score: status === 'graded' ? score : null,
-    grade: status === 'graded' && score !== null ? gradeFor(score, profile.gradeBands) : null,
+    grade: status === 'graded' && score !== null ? gradeFor(score, gradeBands) : null,
     hardGateFailures,
     missingRequiredEvidence,
     missingApplicableEvidence,
