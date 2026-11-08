@@ -364,3 +364,149 @@ export const retrievePublicVyralAssetDnaV1 = async (
     payloadEntries,
   };
 };
+
+
+export type RetrievedPublicAssetFileDnaV1 = {
+  asset: { id: string; versionId: string; name: string; mimeType: string; sizeBytes: number; sha256: string };
+  record: VyralFileDnaRecord;
+  payloadEntries: VyralFileDnaEntry[];
+};
+
+/** Retrieve an exact File DNA source under public AI-analysis permission, then package verified raw chunks. */
+export const retrievePublicVyralAssetFileDnaV1 = async (
+  reference: Pick<PublicCollectionReferenceV1, 'resolver_uri' | 'source_vyral_id'>,
+  assetReference: PublicCollectionAssetReferenceV1,
+): Promise<RetrievedPublicAssetFileDnaV1> => {
+  if (!reference.resolver_uri || !isSafePublicVyralResolverUriV1(reference.resolver_uri)) {
+    throw new Error('This collection reference has no supported public access link.');
+  }
+  const resolver = new URL(reference.resolver_uri);
+  const response = await fetch(reference.resolver_uri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      action: 'asset_dna',
+      vyralId: reference.source_vyral_id,
+      assetId: assetReference.assetId,
+      assetVersionId: assetReference.assetVersionId,
+    }),
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  });
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch { throw new Error('The source service returned an unreadable File DNA response.'); }
+  if (!response.ok) {
+    const message = record(payload).error;
+    throw new Error(typeof message === 'string' ? message : 'The source creator has not permitted File DNA access.');
+  }
+
+  const root = record(payload);
+  const asset = record(root.asset);
+  const assetDna = record(root.assetDna);
+  if (root.status !== 'resolved' || root.access !== 'public' ||
+      asset.id !== assetReference.assetId || asset.versionId !== assetReference.assetVersionId ||
+      Number(assetDna.schemaVersion) !== 1) {
+    throw new Error('The returned File DNA does not match the requested public Asset version.');
+  }
+  const identityRecord = validateVyralFileDnaV1Record(assetDna.record);
+  if (identityRecord.source.asset_id !== assetReference.assetId ||
+      identityRecord.source.asset_version_id !== assetReference.assetVersionId ||
+      identityRecord.reconstruction.claim !== 'unavailable' ||
+      identityRecord.reconstruction.payload_encoding !== 'none' ||
+      identityRecord.reconstruction.chunks.length !== 0 ||
+      typeof asset.sha256 !== 'string' ||
+      identityRecord.file.sha256.toLowerCase() !== asset.sha256.toLowerCase() ||
+      identityRecord.file.size_bytes !== Number(asset.sizeBytes) ||
+      identityRecord.file.mime_type !== String(asset.mimeType ?? assetReference.mediaType)) {
+    throw new Error('The File DNA identity does not match the authorized source version.');
+  }
+  const source = record(assetDna.reconstructionSource);
+  if (source.permission !== 'allow_ai_analysis' ||
+      source.purpose !== 'source_file_exact_reconstruction' ||
+      typeof source.signedUrl !== 'string') {
+    throw new Error('The source did not authorize a File DNA reconstruction payload.');
+  }
+  let signed: URL;
+  try { signed = new URL(source.signedUrl); }
+  catch { throw new Error('The source returned an invalid File DNA reconstruction authorization.'); }
+  if (signed.protocol !== 'https:' || signed.hostname !== resolver.hostname ||
+      signed.username || signed.password || signed.hash ||
+      !signed.pathname.startsWith('/storage/v1/object/sign/vyral-assets/')) {
+    throw new Error('The File DNA reconstruction authorization points outside trusted VYRA storage.');
+  }
+
+  const expectedSize = identityRecord.file.size_bytes;
+  if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0 || expectedSize > 100 * 1024 * 1024) {
+    throw new Error('The requested File DNA source exceeds the 100 MB reconstruction limit.');
+  }
+  const download = await fetch(signed, {
+    method: 'GET',
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  });
+  if (!download.ok || !download.body) throw new Error('The authorized File DNA source could not be downloaded.');
+  const declaredLength = Number(download.headers.get('content-length') ?? expectedSize);
+  if (Number.isFinite(declaredLength) && declaredLength !== expectedSize) {
+    throw new Error('The File DNA source length does not match its pinned record.');
+  }
+  const reader = download.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let downloadedSize = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    downloadedSize += value.byteLength;
+    if (downloadedSize > expectedSize || downloadedSize > 100 * 1024 * 1024) {
+      await reader.cancel();
+      throw new Error('The File DNA source exceeded its verified size limit.');
+    }
+    chunks.push(value);
+  }
+  if (downloadedSize !== expectedSize) throw new Error('The File DNA source download is incomplete.');
+  const bytes = new Uint8Array(downloadedSize);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  if (await sha256(bytes.buffer) !== identityRecord.file.sha256.toLowerCase()) {
+    throw new Error('The File DNA source failed its original SHA-256 integrity check.');
+  }
+
+  const rebuilt = await createVyralFileDnaV1({
+    record_id: identityRecord.record_id,
+    source: identityRecord.source,
+    bytes,
+    mime_type: identityRecord.file.mime_type,
+    filename: asset.name,
+    include_payload: true,
+    chunk_size: identityRecord.reconstruction.chunk_size ?? undefined,
+  });
+  if (rebuilt.record.file.sha256 !== identityRecord.file.sha256 ||
+      rebuilt.record.file.size_bytes !== identityRecord.file.size_bytes ||
+      rebuilt.record.file.format_signature !== identityRecord.file.format_signature ||
+      rebuilt.record.source.asset_id !== identityRecord.source.asset_id ||
+      rebuilt.record.source.asset_version_id !== identityRecord.source.asset_version_id) {
+    throw new Error('The rebuilt File DNA does not match the canonical identity record.');
+  }
+  const reconstructed = await import('./vyralFileDnaV1').then(({ reconstructVyralFileDnaV1 }) =>
+    reconstructVyralFileDnaV1(rebuilt.record, new Map(rebuilt.entries.map((entry) => [entry.path, entry.data])))
+  );
+  if (await sha256(reconstructed.buffer) !== identityRecord.file.sha256.toLowerCase()) {
+    throw new Error('The reconstructed File DNA failed its aggregate SHA-256 integrity check.');
+  }
+
+  return {
+    asset: {
+      id: String(asset.id),
+      versionId: String(asset.versionId),
+      name: typeof asset.name === 'string' ? asset.name : 'Public Asset',
+      mimeType: String(asset.mimeType ?? assetReference.mediaType),
+      sizeBytes: expectedSize,
+      sha256: identityRecord.file.sha256,
+    },
+    record: rebuilt.record,
+    payloadEntries: rebuilt.entries,
+  };
+};
