@@ -456,7 +456,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     try {
       if (requestsVyralQuality) {
         if (qualityVyralIds.length !== 1) {
-          throw new Error('To evaluate quality, select one or more Assets from exactly one Vyral in the AI Chat context first.');
+          throw new Error('To evaluate quality, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure Vyral quality evaluation is unavailable in this environment.');
         const { data, error } = await supabase.functions.invoke('evaluate-vyral-quality', {
