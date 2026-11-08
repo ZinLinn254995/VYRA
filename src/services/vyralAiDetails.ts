@@ -283,7 +283,11 @@ export const suggestVyralAssetDetails = async (
   }];
   const response = await fetch('/api/ai/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + options.accessToken },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + options.accessToken,
+      'Idempotency-Key': 'asset-details-' + crypto.randomUUID(),
+    },
     body: JSON.stringify({ task: 'suggest_details', messages, ...(visionImages.length ? { visionImages } : {}), ...(mediaFiles.length ? { mediaFiles } : {}) }),
   });
   const payload = await response.json().catch(() => ({})) as { text?: string; modelName?: string; provider?: string; error?: string };
@@ -321,7 +325,11 @@ export const suggestVyralCollectionDetails = async (
   if (!input.accessToken) throw new Error('Sign in to generate Vyral details.');
   const response = await fetch('/api/ai/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + input.accessToken },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + input.accessToken,
+      'Idempotency-Key': 'vyral-details-' + crypto.randomUUID(),
+    },
     body: JSON.stringify({
       task: 'suggest_details',
       detailsScope: 'vyral',
