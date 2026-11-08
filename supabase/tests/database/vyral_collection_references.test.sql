@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 insert into auth.users (
   id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -80,8 +80,14 @@ select throws_ok(
  'Re-importing the same source revision cannot create a duplicate reference'
 );
 
+select is(
+ has_table_privilege('authenticated','public.vyral_collection_references','update'),
+ false,
+ 'Authenticated clients have no UPDATE privilege on immutable reference records'
+);
+
 select throws_ok(
- $$update public.vyral_collection_references set compact_snapshot='{}'::jsonb$$,
+ $update public.vyral_collection_references set compact_snapshot='{}'::jsonb$,
  '42501',
  null,
  'Imported reference snapshots are immutable to authenticated clients'
