@@ -72,6 +72,9 @@ export const validateVyralSystemFilesStructureV1 = (
   const paths = descriptors.map(item=>item?.path);
   if (descriptors.length !== expectedPaths.length || new Set(paths).size !== paths.length ||
       expectedPaths.some(path=>!paths.includes(path))) throw new Error('Vyral System File inventory is incomplete or contains unexpected paths.');
+  for (const path of files.keys()) {
+    if (path.startsWith('system/') && !expectedPaths.includes(path)) throw new Error('Unexpected Vyral System File: ' + path);
+  }
   for (const expected of expectedDefinitions) {
     const item = descriptors.find(value=>value?.path===expected.path);
     if (!item || item.kind!==expected.kind || item.source!==expected.source ||
@@ -89,8 +92,12 @@ export const validateVyralSystemFilesStructureV1 = (
   let index: Record<string, unknown>;
   try { index = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('system/system-files.json')!)) as Record<string, unknown>; }
   catch { throw new Error('Vyral System File index is not valid JSON.'); }
-  if (!Array.isArray(index.files) || JSON.stringify(index.files)!==JSON.stringify(descriptors)) {
-    throw new Error('Vyral System File index does not match the protected manifest inventory.');
+  const deletionPolicy = record(index.deletion_policy);
+  if (index.schema!=='vyra.vyral-system-file-index' || index.version!==1 ||
+      !Array.isArray(index.files) || JSON.stringify(index.files)!==JSON.stringify(descriptors) ||
+      deletionPolicy.individual_system_file_deletion!=='forbidden' ||
+      deletionPolicy.delete_with_parent_vyral_only!==true) {
+    throw new Error('Vyral System File index does not match the protected manifest inventory or deletion policy.');
   }
 };
 
