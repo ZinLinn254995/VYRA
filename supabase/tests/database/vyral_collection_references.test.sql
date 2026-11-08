@@ -22,7 +22,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','25000000-0000-4000-8000-000000000001',true);
 select set_config('request.jwt.claims','{"sub":"25000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 
-select lives_ok($$insert into public.vyral_collection_references (
+select lives_ok($$test$insert into public.vyral_collection_references (
  destination_vyral_id,user_id,source_vyral_id,source_revision,source_schema_id,source_schema_version,
  source_manifest_sha256,projection_sha256,source_visibility,resolver_uri,compact_snapshot
 ) values (
@@ -113,7 +113,7 @@ select throws_ok(
  '25000000-0000-4000-8000-000000000098',1,'vyra.vyral-master-dna',1,
  repeat('a',64),repeat('c',64),'private',null,
  '{"schema_id":"vyra.vyral-master-dna","schema_version":1,"vyral":{"vyral_id":"25000000-0000-4000-8000-000000000098"},"snapshot":{"revision":1},"integrity":{"manifest_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"source_resolution":{"visibility":"private"},"portable_projection":{"resolver_uri":null}}'::jsonb
- )$,
+ )$test$,
  '23514',
  null,
  'Database rejects a projection digest that differs from the embedded Master DNA integrity digest'
