@@ -209,6 +209,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (!isAuthenticated) { onLoginRequired(); return; }
     setIsSuggesting(true);
     setSuggestionError('');
+    setStoryboardAiMessage('');
     let nextTitle = title.trim();
     let nextTopic = topic.trim();
     let nextCategory = category.trim();
