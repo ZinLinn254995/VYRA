@@ -72,7 +72,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
   };
   type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[]; provider: string; model: string; generatedAt: string };
-  const storyboardSuggestionKey = (seedTitle: string, seedTopic: string) => seedTitle.trim() + '\\u0000' + seedTopic.trim();
+  const storyboardSuggestionKey = (seedTitle: string, seedTopic: string, origins: Record<string, 'ai_suggested' | 'creator_edited'> = {}) => (origins.title === 'ai_suggested' ? '' : seedTitle.trim()) + '\\u0000' + (origins.topic === 'ai_suggested' ? '' : seedTopic.trim());
   const requestStoryboardSuggestion = async (seedTitle: string, seedTopic: string, optional = false): Promise<StoryboardSuggestion | null> => {
     const accessToken = await getCurrentAccessToken();
     if (!accessToken) {
@@ -129,7 +129,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     try {
       const suggestion = await requestStoryboardSuggestion(title, topic);
       if (suggestion) {
-        setCachedStoryboardSuggestion({ key: storyboardSuggestionKey(title, topic), suggestion });
+        setCachedStoryboardSuggestion({ key: storyboardSuggestionKey(title, topic, detailOrigins), suggestion });
         applyStoryboardSuggestionToForm(suggestion);
       }
     } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
@@ -235,7 +235,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     // Generate fresh defaults only when the idea changed since the last suggestion.
     if (nextTitle || nextTopic) {
       try {
-        const key = storyboardSuggestionKey(nextTitle, nextTopic);
+        const key = storyboardSuggestionKey(nextTitle, nextTopic, nextOrigins);
         const suggestion = cachedStoryboardSuggestion?.key === key
           ? cachedStoryboardSuggestion.suggestion
           : await requestStoryboardSuggestion(nextTitle, nextTopic, true);
