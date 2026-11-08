@@ -19,8 +19,8 @@ const profile: VyralQualityStandardProfile = {
   rules: [
     { id: 'identity.integrity', title: 'Identity and integrity', category: 'universal', evidenceClass: 'deterministic', weight: 30, required: true, hardGate: true },
     { id: 'asset.dna-coverage', title: 'Asset DNA coverage', category: 'universal', evidenceClass: 'deterministic', weight: 30, required: true },
-    { id: 'instructions.clarity', title: 'Instruction clarity', category: 'workflow', evidenceClass: 'ai_assessment', weight: 20, required: true },
-    { id: 'relationships.optional', title: 'Optional relationships', category: 'purpose', evidenceClass: 'creator_declared', weight: 20, required: false },
+    { id: 'instructions.clarity', title: 'Instruction clarity', category: 'workflow', appliesTo: { workflowTypes: ['video_creation'] }, evidenceClass: 'ai_assessment', weight: 20, required: true },
+    { id: 'relationships.optional', title: 'Optional relationships', category: 'purpose', appliesTo: { purposes: ['character_world'] }, evidenceClass: 'creator_declared', weight: 20, required: false },
   ],
 };
 
@@ -265,4 +265,47 @@ test('rejects unknown evidence keys in untrusted published profile JSON', () => 
     profile: { ...profile, rules: [invalidRule, ...profile.rules.slice(1)] },
     findings: [],
   }), /invalid rule definition/);
+});
+
+test('rejects scoped rules without exact matching selectors or with unrelated selectors', () => {
+  const malformed = [
+    { ...profile.rules[2], appliesTo: undefined },
+    { ...profile.rules[2], appliesTo: { purposes: ['video'] } },
+    { ...profile.rules[0], appliesTo: { assetTypes: ['image'] } },
+    { ...profile.rules[2], appliesTo: { workflowTypes: ['video'], assetTypes: ['image'] } },
+  ];
+  for (const rule of malformed) {
+    assert.throws(() => evaluateVyralQualityV1({
+      vyralId: 'vyral-scope',
+      snapshotFingerprint: fingerprint,
+      profile: { ...profile, rules: [rule, ...profile.rules.slice(1).filter((item) => item.id !== rule.id)] },
+      findings: [],
+    }), /invalid rule definition/);
+  }
+});
+
+test('rejects standards with zero total configured weight', () => {
+  const zeroWeightProfile = {
+    ...profile,
+    rules: profile.rules.map((rule) => ({ ...rule, weight: 0 })),
+  };
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-zero-weight',
+    snapshotFingerprint: fingerprint,
+    profile: zeroWeightProfile,
+    findings: [],
+  }), /positive total weight/);
+});
+
+test('rejects oversized standard rule inventories', () => {
+  const manyRules = Array.from({ length: 201 }, (_, index) => ({
+    ...profile.rules[0],
+    id: `rule.${index}`,
+  }));
+  assert.throws(() => evaluateVyralQualityV1({
+    vyralId: 'vyral-many-rules',
+    snapshotFingerprint: fingerprint,
+    profile: { ...profile, rules: manyRules },
+    findings: [],
+  }), /more than 200 rules/);
 });
