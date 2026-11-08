@@ -102,7 +102,8 @@ const EVIDENCE_KEYS = new Set<string>(Object.keys(EVIDENCE_KEY_CLASS));
 
 const validSelectorList = (value: unknown): value is string[] =>
   Array.isArray(value) && value.length > 0 &&
-  value.every((entry) => isText(entry) && entry.trim().length <= 128);
+  value.every((entry) => isText(entry) && entry.trim().length <= 128) &&
+  new Set(value.map((entry) => entry.trim().toLowerCase())).size === value.length;
 
 const hasOnlySelector = (
   appliesTo: unknown,
@@ -124,13 +125,17 @@ const validateRuleScope = (rule: VyralQualityRule): boolean => {
 };
 
 const resolveAndValidateGradeBands = (bands: VyralQualityStandardProfile['gradeBands']) => {
-  if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands))) {
-    throw new Error('Every versioned quality standard must explicitly define all six grade bands.');
+  if (!isRecord(bands) || GRADE_ORDER.some((grade) => !(grade in bands)) ||
+      Object.keys(bands).length !== GRADE_ORDER.length ||
+      Object.keys(bands).some((grade) => !GRADE_ORDER.includes(grade as VyralQualityGrade))) {
+    throw new Error('Every versioned quality standard must define exactly all six grade bands.');
   }
   const resolved = bands as Record<VyralQualityGrade, { min: number; max: number }>;
   for (const grade of GRADE_ORDER) {
     const band = resolved[grade];
-    if (!isRecord(band) || !Number.isFinite(band.min) || !Number.isFinite(band.max) ||
+    if (!isRecord(band) || Object.keys(band).length !== 2 ||
+        !Object.hasOwn(band, 'min') || !Object.hasOwn(band, 'max') ||
+        !Number.isFinite(band.min) || !Number.isFinite(band.max) ||
         band.min < 0 || band.max > 100 || band.min >= band.max) {
       throw new Error(`Invalid score range for grade ${grade}.`);
     }
