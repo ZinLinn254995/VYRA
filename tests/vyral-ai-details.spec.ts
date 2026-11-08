@@ -99,6 +99,24 @@ test('AI detail parser rejects unsafe or unsupported structured values', () => {
   assert.equal('malformed' in parsed, false);
 });
 
+test('AI detail merging ignores unsafe imported keys and rejects unsafe creator field names', () => {
+  const hostileCurrent = JSON.parse('{"schema_version":1,"scope":"asset","fields":{"__proto__":{"value":"polluted","origin":"ai_suggested","updated_at":"2026-11-08T10:00:00.000Z"},"constructor":{"value":"unsafe","origin":"ai_suggested","updated_at":"2026-11-08T10:00:00.000Z"},"category":{"value":"Graphic","origin":"creator_edited","updated_at":"2026-11-08T10:00:00.000Z"}}}') as unknown;
+  const hostileSuggestions = JSON.parse('{"__proto__":{"value":"polluted"},"prototype":{"value":"unsafe"},"style":{"value":"Minimal"}}') as Record<string, { value: string }>;
+  const merged = mergeVyralAiDetails(hostileCurrent, {
+    scope: 'asset', sourceVersionId: 'version-1', provider: 'gemini', model: 'test',
+    generatedAt, suggestions: hostileSuggestions,
+  });
+  assert.equal(Object.getPrototypeOf(merged.fields), null);
+  assert.equal(Object.hasOwn(merged.fields, '__proto__'), false);
+  assert.equal(Object.hasOwn(merged.fields, 'constructor'), false);
+  assert.equal(merged.fields.category.value, 'Graphic');
+  assert.equal(merged.fields.style.value, 'Minimal');
+  assert.throws(
+    () => setVyralAiDetailField(merged, '__proto__', 'polluted', 'creator_edited', generatedAt),
+    /Invalid Asset detail field name/,
+  );
+});
+
 test('AI suggestions may replace system defaults but never creator-authored values', () => {
   const initial = mergeVyralAiDetails(null, {
     scope: 'storyboard', provider: 'openrouter', model: 'text-model', generatedAt,
