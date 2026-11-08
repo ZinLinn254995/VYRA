@@ -267,6 +267,7 @@ test('live public collection reference verification pins identity, revision, pro
     status: 'newer_revision',
     revision: 5,
     assetCount: 1,
+    assets: [{ assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }],
   });
 
   await assert.rejects(
