@@ -14,6 +14,12 @@ export type EvaluateVyralSnapshotQualityInputV1 = {
   workflowType?: string | null;
 };
 
+/**
+ * Pure deterministic evaluation orchestrator. It verifies the Master DNA
+ * snapshot and applicability, but does not authenticate evidence references.
+ * Callers must build findings from server-verified evidence records; never
+ * treat browser-supplied evidenceRefs as authoritative proof.
+ */
 export const evaluateVyralSnapshotQualityV1 = async (input: EvaluateVyralSnapshotQualityInputV1) => {
   const { profile } = input;
   if (!Array.isArray(input.evidenceFindings)) {
