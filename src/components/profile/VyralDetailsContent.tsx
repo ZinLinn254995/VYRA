@@ -308,7 +308,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   // Creator-edited fields are preserved by mergeVyralAiDetails; AI is optional.
   const collectionAiAttemptRef = useRef('');
   useEffect(() => {
-    if (!supabase || assets.length === 0) return;
+    if (!supabase || loading) return;
     const inventorySignature = assets
       .map((asset) => [
         asset.id, asset.name, asset.asset_type, asset.mime_type, asset.updated_at, asset.sha256 ?? '',
@@ -439,7 +439,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
     })();
-  }, [assets, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
+  }, [assets, loading, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
 
 
   const originV2LatestTests = useMemo(() => {
