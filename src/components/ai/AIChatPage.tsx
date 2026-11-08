@@ -10,6 +10,7 @@ import type { VyralChatAssetContext } from '../../types/vyralChat';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
 import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
+import { buildVyralCreatorInventoryContextV1 } from '../../services/vyralCreatorInventoryContextV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -274,6 +275,16 @@ const inspectVyralAttachment = async (file: File) => {
     });
   }
   const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
+  const creatorInventoryContext = buildVyralCreatorInventoryContextV1({
+    assets: manifest.assets.map((item) => ({
+      id: String(item.id),
+      name: typeof item.name === 'string' ? item.name : null,
+      asset_type: typeof item.asset_type === 'string' ? item.asset_type : null,
+      mime_type: typeof item.mime_type === 'string' ? item.mime_type : null,
+    })),
+    purpose: masterDna?.purpose ?? null,
+    relationships: masterDna?.relationships ?? [],
+  });
   if (masterDna && masterDna.vyral.vyral_id !== String(manifest.vyral.id)) {
     throw new Error('Vyral Master DNA identity does not match this package.');
   }
@@ -296,6 +307,8 @@ const inspectVyralAttachment = async (file: File) => {
     'EVIDENCE POLICY: Distinguish verified DNA/fingerprint facts, creator-declared metadata, AI suggestions, and untested assumptions. Reconstruction claims describe only the stated evidence level; visual similarity or semantic interpretation is not exact source-file recovery.',
     'CREATOR ASSISTANCE: If asked to improve this Vyral, first understand the creator’s intended task, then recommend only useful optional Assets, metadata, relationships, instructions, or tests. Explain why each recommendation helps; never turn suggestions into confirmed facts or require unrelated structure.',
     `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
+    `Creator inventory summary (verified package metadata only): ${creatorInventoryContext.assetCount} Assets; types ${Object.entries(creatorInventoryContext.typeCounts).map(([type, count]) => type + '=' + count).join(', ')}; declared purpose ${creatorInventoryContext.declaredPurpose ?? 'not provided'}; intended uses ${creatorInventoryContext.intendedUses.join(', ') || 'not provided'}; declared relationships ${creatorInventoryContext.relationshipsCount}`,
+    'QUALITY STATUS: This inventory summary is not a grade. Do not invent a score or grade. A grade requires a versioned applicable standard and evidence for every applicable rule; missing evidence must remain incomplete.',
     `Asset inventory (showing up to 64 of ${manifest.assets.length}): ${manifest.assets.slice(0, 64).map((item) => `${String(item.name ?? item.id)} [${String(item.asset_type ?? 'unknown type')}; ${String(item.mime_type ?? 'unknown MIME')}]`).join('; ')}`,
     masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
     ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose?.summary ?? 'Not provided'}`, `Intended uses: ${(masterDna.purpose?.intended_uses ?? []).join(', ') || 'None declared'}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role ?? 'unclassified'}; ${item.media_type}; purpose: ${item.purpose ?? 'Not provided'}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${(masterDna.relationships ?? []).length}): ${(masterDna.relationships ?? []).slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} raster DNA v3 asset previews are attached to this Vision request (maximum four); File DNA binaries are integrity-checked but their audio/video/document contents are not decoded or attached to Vision.`]; })() : []),
