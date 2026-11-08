@@ -39,7 +39,7 @@ test('validates the required System File inventory and detects package tampering
  const entries=[{path:'assets/asset-1/source.png',data:new Uint8Array([1,2,3])},...built.entries];
  const projected={...manifest,systemFiles:built.descriptors};
  const manifestBytes=new TextEncoder().encode(JSON.stringify(projected));
- const map=new Map<string,Uint8Array>([['manifest.json',manifestBytes],...entries.map(e=>[e.path,new TextEncoder().encode(e.data)] as [string,Uint8Array])]);
+ const map=new Map<string,Uint8Array>([['manifest.json',manifestBytes],...entries.map(e=>[e.path,typeof e.data==='string'?new TextEncoder().encode(e.data):e.data] as [string,Uint8Array])]);
  validateVyralSystemFilesStructureV1(map,projected);
  await verifyVyralSystemFileIntegrityV1(map);
  map.set('assets/asset-1/source.png',new Uint8Array([9,9,9]));
