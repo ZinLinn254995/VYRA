@@ -124,7 +124,7 @@ select throws_ok(
  destination_vyral_id,user_id,source_vyral_id,source_revision,source_schema_id,source_schema_version,
  source_manifest_sha256,projection_sha256,source_visibility,resolver_uri,compact_snapshot
  ) values (
- '25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000097',
+ '25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001',
  '25000000-0000-4000-8000-000000000097',1,'vyra.vyral-master-dna',1,
  repeat('a',64),repeat('b',64),'private',null,
  '{"schema_id":"vyra.vyral-master-dna","schema_version":1,"vyral":{"vyral_id":"25000000-0000-4000-8000-000000000097"},"snapshot":{"revision":1},"integrity":{"manifest_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"source_resolution":{"visibility":"public"},"portable_projection":{"resolver_uri":null}}'::jsonb
