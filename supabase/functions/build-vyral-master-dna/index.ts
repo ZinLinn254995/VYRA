@@ -214,12 +214,26 @@ Deno.serve(async (request: Request) => {
         : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
       const supported = (schemaId === 'vyra.asset-dna' && Number(dna?.schema_version) === 3) ||
         (schemaId === 'vyra.asset-file-dna' && Number(dna?.schema_version) === 1);
+      const dnaRecordId = typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dna?.id;
+      const expectedComparisonMode = schemaId === 'vyra.asset-file-dna' ? 'byte_exact' : 'decoded_exact';
+      const hasExactReconstruction = Boolean(version && dna && dnaRecordId && reconstructionTests.some((item: Row) =>
+        item.asset_id === asset.id &&
+        item.asset_version_id === version.id &&
+        item.dna_record_id === dnaRecordId &&
+        item.comparison_mode === expectedComparisonMode &&
+        item.test_status === 'passed' &&
+        item.exact_match === true &&
+        (schemaId === 'vyra.asset-file-dna'
+          ? item.model_id === 'universal-file-dna-v1-readback-verifier'
+          : item.model_id === 'ORIGIN-01-readback-verifier' || item.model_id === 'vyral-dna-v3-readback-verifier')
+      ));
       return {
         asset_id: asset.id,
         has_latest_version: Boolean(version),
         has_matching_dna: Boolean(version && dna && supported &&
           sourceVersionId === version.id && typeof version.sha256 === 'string' &&
           sourceSha.toLowerCase() === version.sha256.toLowerCase()),
+        has_exact_reconstruction: hasExactReconstruction,
       };
     }),
   });
