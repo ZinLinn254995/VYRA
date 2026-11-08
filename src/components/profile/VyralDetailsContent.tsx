@@ -2181,7 +2181,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || busy || !collectionDraft.name.trim()) return;
     setBusy(true); setError('');
     try {
-      const currentMetadata = vyral.metadata ?? {};
+      // Merge against the latest persisted record, not the dialog's opening snapshot.
+      const { data: latestVyral, error: latestReadError } = await supabase.from('vyrals')
+        .select('metadata').eq('id', vyral.id).maybeSingle();
+      if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Vyral was not found.');
+      const currentMetadata = latestVyral.metadata && typeof latestVyral.metadata === 'object' && !Array.isArray(latestVyral.metadata)
+        ? latestVyral.metadata as Record<string, unknown> : {};
       const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
       const generatedAt = new Date().toISOString();
       const inventorySignature = assets
@@ -2234,7 +2239,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!detailsDraft.name.trim()) { setError('Asset name cannot be empty.'); return; }
     setBusy(true); setError('');
     try {
-      const currentMetadata = detailsAsset.metadata ?? {};
+      // Read after the dialog opened so an in-flight AI refresh cannot be overwritten
+      // by a stale metadata snapshot when the creator saves their edits.
+      const { data: latestAsset, error: latestReadError } = await supabase.from('vyral_assets')
+        .select('metadata').eq('id', detailsAsset.id).eq('vyral_id', vyral.id).maybeSingle();
+      if (latestReadError || !latestAsset) throw latestReadError ?? new Error('Asset was not found.');
+      const currentMetadata = latestAsset.metadata && typeof latestAsset.metadata === 'object' && !Array.isArray(latestAsset.metadata)
+        ? latestAsset.metadata as Record<string, unknown> : {};
       const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
       const generatedAt = new Date().toISOString();
       const baseDetails: VyralAiDetails = currentDetails ?? {
