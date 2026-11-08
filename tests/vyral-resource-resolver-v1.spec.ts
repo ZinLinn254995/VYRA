@@ -13,7 +13,8 @@ import {
   createPublicVyralMasterDnaProjectionV1,
   canonicalizeVyralPublicProjectionV1,
 } from '../src/services/vyralResourceResolverV1.ts';
-import { verifyPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1 } from '../src/services/vyralCollectionReferenceResolverV1.ts';
+import { verifyPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1 } from '../src/services/vyralCollectionReferenceResolverV1.ts';
+import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 
 const ownerPrefix = 'owner-1/vyral-1/asset-1/';
 const digest = 'a'.repeat(64);
@@ -348,6 +349,138 @@ test('public source Asset copy rejects an authorization for a different Asset ve
         source_vyral_id: 'vyral-1',
       }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }),
       /not allowed/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test('public Asset DNA retrieval verifies every authorized tile and the aggregate decoded samples', async () => {
+  const samples = new Uint8Array([12, 34, 56, 255]);
+  const sourceSha256 = createHash('sha256').update('source-file').digest('hex');
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'public-dna-test',
+    source: {
+      asset_id: 'asset-1', asset_version_id: 'version-1', sha256: sourceSha256,
+      size_bytes: 11, mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const tile = entries[0];
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url);
+    if ((init?.method ?? 'GET') === 'POST') {
+      return new Response(JSON.stringify({
+        status: 'resolved',
+        access: 'public',
+        asset: {
+          id: 'asset-1', versionId: 'version-1', name: 'public.png',
+          mimeType: 'image/png', sizeBytes: 11, sha256: sourceSha256,
+        },
+        assetDna: {
+          schemaVersion: 3,
+          record,
+          tilePayloads: [{
+            packagePath: tile.path,
+            signedUrl: 'https://project.supabase.co/storage/v1/object/sign/vyral-assets/owner/vyral/asset/tile?token=short',
+          }],
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(tile.data, { status: 200, headers: { 'Content-Length': String(tile.data.byteLength) } });
+  }) as typeof fetch;
+  try {
+    const result = await retrievePublicVyralAssetDnaV1({
+      resolver_uri: 'https://project.supabase.co/functions/v1/resolve-public-vyral-resource',
+      source_vyral_id: 'vyral-1',
+    }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' });
+    assert.equal(result.record.record_id, 'public-dna-test');
+    assert.equal(result.payloadEntries.length, 1);
+    assert.deepEqual(result.payloadEntries[0].data, tile.data);
+    assert.deepEqual(calls.map((url) => url.startsWith('https://project.supabase.co/functions/') ? 'resolver' : 'tile'), ['resolver', 'tile']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('public Asset DNA retrieval rejects tampered tile bytes before returning a package payload', async () => {
+  const samples = new Uint8Array([12, 34, 56, 255]);
+  const sourceSha256 = createHash('sha256').update('source-file').digest('hex');
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'public-dna-tamper',
+    source: {
+      asset_id: 'asset-1', asset_version_id: 'version-1', sha256: sourceSha256,
+      size_bytes: 11, mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const tile = entries[0];
+  const altered = tile.data.slice();
+  altered[0] ^= 0xff;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if ((init?.method ?? 'GET') === 'POST') {
+      return new Response(JSON.stringify({
+        status: 'resolved', access: 'public',
+        asset: { id: 'asset-1', versionId: 'version-1', name: 'public.png', mimeType: 'image/png', sizeBytes: 11, sha256: sourceSha256 },
+        assetDna: { schemaVersion: 3, record, tilePayloads: [{ packagePath: tile.path, signedUrl: 'https://project.supabase.co/storage/v1/object/sign/vyral-assets/tile?token=short' }] },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(altered, { status: 200, headers: { 'Content-Length': String(altered.byteLength) } });
+  }) as typeof fetch;
+  try {
+    await assert.rejects(
+      retrievePublicVyralAssetDnaV1({
+        resolver_uri: 'https://project.supabase.co/functions/v1/resolve-public-vyral-resource',
+        source_vyral_id: 'vyral-1',
+      }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }),
+      /SHA-256 integrity check failed/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('public Asset DNA retrieval rejects a signed tile URL outside the trusted VYRA storage host', async () => {
+  const samples = new Uint8Array([12, 34, 56, 255]);
+  const sourceSha256 = createHash('sha256').update('source-file').digest('hex');
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'public-dna-host',
+    source: {
+      asset_id: 'asset-1', asset_version_id: 'version-1', sha256: sourceSha256,
+      size_bytes: 11, mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    status: 'resolved', access: 'public',
+    asset: { id: 'asset-1', versionId: 'version-1', name: 'public.png', mimeType: 'image/png', sizeBytes: 11, sha256: sourceSha256 },
+    assetDna: { schemaVersion: 3, record, tilePayloads: [{ packagePath: entries[0].path, signedUrl: 'https://evil.example/storage/v1/object/sign/vyral-assets/tile?token=short' }] },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  try {
+    await assert.rejects(
+      retrievePublicVyralAssetDnaV1({
+        resolver_uri: 'https://project.supabase.co/functions/v1/resolve-public-vyral-resource',
+        source_vyral_id: 'vyral-1',
+      }, { assetId: 'asset-1', assetVersionId: 'version-1', mediaType: 'image/png' }),
+      /outside the trusted VYRA storage endpoint/,
     );
   } finally {
     globalThis.fetch = originalFetch;
