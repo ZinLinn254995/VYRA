@@ -255,7 +255,7 @@ def validate_archive(archive):
     return names
 
 
-def validate_manifest(manifest, archive_names):
+def validate_manifest(manifest, archive_names, archive):
     if not isinstance(manifest, dict) or manifest.get("format") != "application/vnd.vyra.vyral+zip" or manifest.get("formatVersion") != 1:
         raise ValueError("Unsupported VYRAL package format")
     if manifest.get("exportMode") != "dna-only":
@@ -414,7 +414,7 @@ def main():
         if manifest_info.file_size > 32 * 1024 * 1024:
             raise ValueError("VYRAL manifest exceeds the 32 MiB safety limit")
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
-        assets, records = validate_manifest(manifest, archive_names)
+        assets, records = validate_manifest(manifest, archive_names, archive)
         selected = set(args.asset_ids or [])
         unknown = selected.difference(assets)
         if unknown:
