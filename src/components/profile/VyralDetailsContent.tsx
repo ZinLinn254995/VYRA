@@ -1950,7 +1950,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.URL.revokeObjectURL(url);
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       setPackageStatus('AI-ready file created for ' + retrieved.asset.name + '. The image samples are preserved exactly; the original encoded file is not included.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not export this Asset DNA.');
