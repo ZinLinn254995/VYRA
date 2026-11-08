@@ -143,7 +143,8 @@ Deno.serve(async (request: Request) => {
     note: 'Exact decoded-sample recovery under the DNA v3 pinned decoder contract; this does not claim original encoded-file byte recovery.' };
   const { data: existing, error: lookupError } = await ctx.supabaseAdmin.from('vyral_reconstruction_tests')
     .select('id').eq('asset_id', asset.id).eq('asset_version_id', version.id).eq('dna_record_id', row.id)
-    .eq('comparison_mode', 'decoded_exact').eq('test_status', 'passed').eq('exact_match', true).limit(1).maybeSingle();
+    .eq('comparison_mode', 'decoded_exact').eq('test_status', 'passed').eq('exact_match', true)
+    .eq('model_id', 'vyral-dna-v3-readback-verifier').limit(1).maybeSingle();
   if (lookupError) return reply({ error: 'Could not inspect existing reconstruction evidence.' }, 500);
   let testId = existing?.id;
   if (!testId) {
