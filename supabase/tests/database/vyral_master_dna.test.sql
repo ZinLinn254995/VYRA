@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(38);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -261,8 +261,126 @@ select is(
   'An unrelated multi-Asset snapshot without optional context becomes ready'
 );
 
+select lives_ok(
+  $ insert into public.vyral_quality_evaluations (
+       vyral_id,user_id,master_dna_revision_id,master_dna_revision,snapshot_fingerprint,
+       engine_version,standard_id,standard_version,standard_profile,status,score,grade,evaluation,created_by
+     ) values (
+       '24000000-0000-4000-8000-000000000011',
+       '24000000-0000-4000-8000-000000000001',
+       (select id from public.vyral_master_dna_revisions where vyral_id='24000000-0000-4000-8000-000000000011' and revision=1),
+       1,repeat('b',64),1,'vyra.test-standard',1,
+       jsonb_build_object('id','vyra.test-standard','version',1,'name','Test standard','scope','general','rules','[]'::jsonb),
+       'graded',95,'S',
+       jsonb_build_object(
+         'engineVersion',1,'vyralId','24000000-0000-4000-8000-000000000011',
+         'snapshotFingerprint',repeat('b',64),
+         'standard',jsonb_build_object('id','vyra.test-standard','version',1,'name','Test standard','scope','general'),
+         'status','graded','score',95,'grade','S',
+         'hardGateFailures','[]'::jsonb,'missingRequiredEvidence','[]'::jsonb,
+         'missingApplicableEvidence','[]'::jsonb,'rules','[]'::jsonb
+       ),
+       '24000000-0000-4000-8000-000000000001'
+     ) $,
+  'Service role can append an evaluation pinned to an exact Master DNA revision and standard version'
+);
+
+select is(
+  (select count(*)::integer from public.vyral_quality_evaluations where vyral_id='24000000-0000-4000-8000-000000000011'),
+  1,
+  'Quality evaluation history is stored separately from immutable Master DNA snapshots'
+);
+
 select throws_ok(
-  $$ update public.vyral_master_dna_revisions set revision=2 where vyral_id='24000000-0000-4000-8000-000000000011' $$,
+  $ insert into public.vyral_quality_evaluations (
+       vyral_id,user_id,master_dna_revision_id,master_dna_revision,snapshot_fingerprint,
+       engine_version,standard_id,standard_version,standard_profile,status,score,grade,evaluation,created_by
+     ) values (
+       '24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
+       (select id from public.vyral_master_dna_revisions where vyral_id='24000000-0000-4000-8000-000000000011' and revision=1),
+       1,repeat('c',64),1,'vyra.test-standard',1,
+       jsonb_build_object('id','vyra.test-standard','version',1),
+       'graded',95,'S',
+       jsonb_build_object('engineVersion',1,'vyralId','24000000-0000-4000-8000-000000000011','snapshotFingerprint',repeat('c',64),'standard',jsonb_build_object('id','vyra.test-standard','version',1),'status','graded','score',95,'grade','S'),
+       '24000000-0000-4000-8000-000000000001'
+     ) $,
+  '23514',
+  'Quality evaluation must match its exact immutable Master DNA revision and fingerprint.',
+  'An evaluation cannot claim a different fingerprint from its pinned Master DNA revision'
+);
+
+select throws_ok(
+  $ insert into public.vyral_quality_evaluations (
+       vyral_id,user_id,master_dna_revision_id,master_dna_revision,snapshot_fingerprint,
+       engine_version,standard_id,standard_version,standard_profile,status,score,grade,evaluation,created_by
+     ) values (
+       '24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000001',
+       (select id from public.vyral_master_dna_revisions where vyral_id='24000000-0000-4000-8000-000000000011' and revision=1),
+       1,repeat('b',64),1,'vyra.test-standard',2,
+       jsonb_build_object('id','vyra.test-standard','version',1),
+       'graded',95,'S',
+       jsonb_build_object('engineVersion',1,'vyralId','24000000-0000-4000-8000-000000000011','snapshotFingerprint',repeat('b',64),'standard',jsonb_build_object('id','vyra.test-standard','version',2),'status','graded','score',95,'grade','S'),
+       '24000000-0000-4000-8000-000000000001'
+     ) $,
+  '23514',
+  'Quality evaluation standard identity must match its pinned standard profile.',
+  'An evaluation cannot change its pinned standard version'
+);
+
+select throws_ok(
+  $ update public.vyral_quality_evaluations set score=99 where vyral_id='24000000-0000-4000-8000-000000000011' $,
+  '55000',
+  'Quality evaluation history is immutable; create a new evaluation instead.',
+  'Quality evaluation history cannot be edited in place'
+);
+
+select throws_ok(
+  $ delete from public.vyral_quality_evaluations where vyral_id='24000000-0000-4000-8000-000000000011' $,
+  '55000',
+  'Quality evaluation history is immutable; create a new evaluation instead.',
+  'Quality evaluation history cannot be deleted'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','24000000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select is(
+  (select count(*)::integer from public.vyral_quality_evaluations where vyral_id='24000000-0000-4000-8000-000000000011'),
+  1,
+  'An owner can read their own quality evaluation history'
+);
+
+select set_config('request.jwt.claim.sub','24000000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"24000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select is(
+  (select count(*)::integer from public.vyral_quality_evaluations where vyral_id='24000000-0000-4000-8000-000000000011'),
+  0,
+  'Another owner cannot read a customer quality evaluation history'
+);
+select throws_ok(
+  $ insert into public.vyral_quality_evaluations (
+       vyral_id,user_id,master_dna_revision_id,master_dna_revision,snapshot_fingerprint,
+       engine_version,standard_id,standard_version,standard_profile,status,score,grade,evaluation
+     ) values (
+       '24000000-0000-4000-8000-000000000011','24000000-0000-4000-8000-000000000002',
+       (select id from public.vyral_master_dna_revisions where vyral_id='24000000-0000-4000-8000-000000000011' and revision=1),
+       1,repeat('b',64),1,'vyra.test-standard',1,
+       jsonb_build_object('id','vyra.test-standard','version',1),
+       'graded',95,'S',
+       jsonb_build_object('engineVersion',1,'vyralId','24000000-0000-4000-8000-000000000011','snapshotFingerprint',repeat('b',64),'standard',jsonb_build_object('id','vyra.test-standard','version',1),'status','graded','score',95,'grade','S')
+     ) $,
+  '42501',
+  null,
+  'Authenticated users cannot write their own quality grades directly'
+);
+
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+
+select throws_ok(
+  $ update public.vyral_master_dna_revisions set revision=2 where vyral_id='24000000-0000-4000-8000-000000000011' $,
   '55000',
   'Master DNA revisions are immutable; create a new revision instead.',
   'Master DNA snapshots cannot be edited in place'
