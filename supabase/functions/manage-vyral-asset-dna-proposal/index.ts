@@ -43,6 +43,16 @@ Deno.serve(async (request: Request) => {
     ]);
     if (version.error || dna.error) return reply({ error: 'Could not verify the proposal source snapshot.' }, 500);
     if (!version.data || !dna.data) return reply({ error: 'The source Asset Version or DNA record no longer exists.' }, 409);
+    const [latestVersion, latestDna] = await Promise.all([
+      context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', assessmentRow.asset_id)
+        .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
+      context.supabaseAdmin.from('vyral_dna_records').select('id').eq('asset_id', assessmentRow.asset_id)
+        .eq('user_id', userId).eq('scope','asset').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (latestVersion.error || latestDna.error) return reply({ error: 'Could not verify the latest Asset snapshot.' }, 500);
+    if (latestVersion.data?.id !== assessmentRow.asset_version_id || latestDna.data?.id !== assessmentRow.dna_record_id) {
+      return reply({ error: 'The assessment is no longer pinned to the latest Asset and DNA snapshot. Run a fresh assessment.' }, 409);
+    }
     const plan = buildVyralDnaImprovementPlanV1({
       assessmentVersion: Number(assessmentRow.assessment_version),
       identity: {
