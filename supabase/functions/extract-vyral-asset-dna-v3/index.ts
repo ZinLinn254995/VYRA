@@ -7,7 +7,6 @@ const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_PIXELS = 8_000_000;
 const TILE = 256;
-const SOURCE_CHUNK_BYTES = 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const wasm = await Deno.readFile(new URL('magick.wasm', import.meta.resolve('npm:@imagemagick/magick-wasm@0.0.30')));
 await initializeImageMagick(wasm);
@@ -35,7 +34,7 @@ Deno.serve(async (request: Request) => {
   if (!userId || !UUID.test(assetId) || !UUID.test(versionId)) return reply({ error: 'Valid session, Asset ID and Version ID are required.' }, 400);
 
   const [a, v, existing, duplicate] = await Promise.all([
-    ctx.supabase.from('vyral_assets').select('id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,processing_status,name,original_filename').eq('id', assetId).eq('user_id', userId).maybeSingle(),
+    ctx.supabase.from('vyral_assets').select('id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', assetId).eq('user_id', userId).maybeSingle(),
     ctx.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type').eq('id', versionId).eq('asset_id', assetId).eq('user_id', userId).maybeSingle(),
     ctx.supabase.from('vyral_dna_records').select('id,revision_number,payload').eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
     ctx.supabase.from('vyral_dna_records').select('id').eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset').eq('payload->dna_record->source->>asset_version_id', versionId).maybeSingle(),
@@ -136,31 +135,6 @@ Deno.serve(async (request: Request) => {
   }
 
   const decodedHash = await sha256(samples);
-  const sourceStoragePrefix = userId + '/' + asset.vyral_id + '/' + assetId + '/dna/v3/' + recordId + '/source/';
-  const sourceChunkMetadata: Record<string, unknown>[] = [];
-  const sourceUploaded: string[] = [];
-  try {
-    for (let offset = 0, index = 0; offset < original.byteLength; offset += SOURCE_CHUNK_BYTES, index += 1) {
-      const chunk = original.slice(offset, Math.min(offset + SOURCE_CHUNK_BYTES, original.byteLength));
-      const storagePath = sourceStoragePrefix + index + '.bin';
-      const chunkBuffer = new ArrayBuffer(chunk.byteLength);
-      new Uint8Array(chunkBuffer).set(chunk);
-      const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(
-        storagePath, new Blob([chunkBuffer], { type: 'application/octet-stream' }),
-        { contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0' },
-      );
-      if (error) throw new Error(error.message);
-      sourceUploaded.push(storagePath);
-      uploaded.push(storagePath);
-      sourceChunkMetadata.push({
-        index, byte_length: chunk.byteLength, sha256: await sha256(chunk),
-        package_path: 'dna/v3/' + recordId + '/source/' + index + '.bin',
-      });
-    }
-  } catch (error) {
-    await ctx.supabaseAdmin.storage.from(BUCKET).remove([...uploaded]);
-    return reply({ error: 'Exact source-byte chunk upload failed; all DNA payload objects were rolled back.', detail: error instanceof Error ? error.message : 'Unknown source chunk error.' }, 500);
-  }
   const record = {
     schema_id: 'vyra.asset-dna', schema_version: 3, record_id: recordId,
     source: { asset_id: assetId, asset_version_id: versionId, sha256: sourceHash, size_bytes: original.byteLength, mime_type: mime },
@@ -174,12 +148,6 @@ Deno.serve(async (request: Request) => {
     },
     lossless_payload: { encoding: 'raw-tiled-v1', tile_width: TILE, tile_height: TILE,
       tiles: tileMetadata.map(({ storage_path: _path, ...tile }) => tile) },
-    encoded_file_payload: {
-      encoding: 'raw-chunks-v1',
-      filename: String(asset.original_filename || asset.name || 'asset.' + mime.split('/')[1]),
-      mime_type: mime, size_bytes: original.byteLength, sha256: sourceHash,
-      chunk_size: SOURCE_CHUNK_BYTES, chunks: sourceChunkMetadata,
-    },
   };
   const { data: row, error: insertError } = await ctx.supabaseAdmin.from('vyral_dna_records').insert({
     id: recordId, vyral_id: asset.vyral_id, user_id: userId, asset_id: assetId, scope: 'asset',
@@ -187,13 +155,11 @@ Deno.serve(async (request: Request) => {
     schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
     payload: { record_kind: 'lossless_decoded_samples_v3', dna_schema_id: 'vyra.asset-dna',
       dna_schema_version: 3, dna_record: record, storage_bucket: BUCKET, storage_prefix: storagePrefix,
-      tile_storage_paths: tileMetadata.map((tile) => tile.storage_path),
-      source_storage_paths: sourceUploaded },
+      tile_storage_paths: uploaded },
     reconstruction_data: { encoding: 'raw-tiled-v1', decoded_samples_sha256: decodedHash,
       tile_count: tileMetadata.length, extraction_status: 'extracted_not_yet_reconstructed',
       source_preservation: 'original_binary_retained', reconstruction_ready: true,
-      recovery_level: 'source-file-exact', encoded_source_bytes_recoverable: true,
-      source_file_chunk_count: sourceChunkMetadata.length, source_file_chunk_size: SOURCE_CHUNK_BYTES },
+      recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false },
   }).select('id,revision_number,parent_dna_record_id').single();
   if (insertError || !row) {
     await ctx.supabaseAdmin.storage.from(BUCKET).remove(uploaded);
