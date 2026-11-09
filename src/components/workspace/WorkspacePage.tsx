@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Music2, Pause, Play, Plus, Sparkles, Trash2, Type, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -78,7 +78,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
@@ -504,8 +503,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 <div className="space-y-5 border-t border-[var(--vyra-border)] pt-5">
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard Preview</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Preview the complete sequence or choose a scene.</p></div>
-                      <Button type="button" variant="secondary" onClick={() => setIsPreviewPlaying((value) => !value)} disabled={!scenes.length}>{isPreviewPlaying ? <Pause size={14} /> : <Play size={14} />}{isPreviewPlaying ? 'Pause' : 'Play'}</Button>
+                      <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard Preview</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">The complete video preview will appear here as scenes receive media.</p></div>
                     </div>
                     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
@@ -532,7 +530,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   </section>
 
                   {selectedScene && <section className="space-y-3 rounded-xl border border-[var(--vyra-border)] p-3 sm:p-4">
-                    <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Selected Scene</h3><p className="text-[11px] text-[var(--vyra-text-secondary)]">Quick details for {selectedScene.title}</p></div><Button type="button" variant="secondary" onClick={() => setStoryboardAiMessage('Scene editing workspace is ready to be connected to the dedicated Scene Editor.')}>Open Scene</Button></div>
+                    <div><h3 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Selected Scene</h3><p className="text-[11px] text-[var(--vyra-text-secondary)]">Quick details for {selectedScene.title}</p></div>
                     <label className="block text-[11px] font-medium text-[var(--vyra-text-secondary)]">Scene title<input value={selectedScene.title} onChange={(event) => updateScene(selectedScene.id, { title: event.target.value })} className={inputClass + ' mt-1 min-h-9'} /></label>
                     <label className="block text-[11px] font-medium text-[var(--vyra-text-secondary)]">What happens in this scene?<textarea rows={2} value={selectedScene.description} onChange={(event) => updateScene(selectedScene.id, { description: event.target.value })} className={inputClass + ' mt-1 resize-y py-2'} placeholder="Describe this scene..." /></label>
                     <div className="grid grid-cols-2 gap-3"><label className="block text-[11px] font-medium text-[var(--vyra-text-secondary)]">Duration (seconds)<input type="number" min={1} max={600} value={selectedScene.duration} onChange={(event) => updateScene(selectedScene.id, { duration: Math.max(1, Math.min(600, Number(event.target.value) || 1)) })} className={inputClass + ' mt-1 min-h-9'} /></label><label className="block text-[11px] font-medium text-[var(--vyra-text-secondary)]">Transition<select value={selectedScene.transition} onChange={(event) => updateScene(selectedScene.id, { transition: event.target.value })} className={inputClass + ' mt-1 min-h-9'}><option>Fade</option><option>Cut</option><option>Dissolve</option><option>Slide</option><option>Zoom</option></select></label></div>
@@ -546,7 +544,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       <div className="flex items-center gap-2"><span className="w-20 shrink-0 text-[10px] text-[var(--vyra-text-secondary)]">Music</span><input aria-label="Storyboard-wide music description" value={details.globalMusic || ''} onChange={(event) => setActiveStoryboard((current) => current ? { ...current, details: { ...current.details, globalMusic: event.target.value } } : current)} className={inputClass + ' min-h-8 flex-1 text-xs'} placeholder="Add shared music or describe what you need" /></div>
                       <div className="flex items-center gap-2"><span className="w-20 shrink-0 text-[10px] text-[var(--vyra-text-secondary)]">Global text</span><input aria-label="Storyboard-wide title or subtitle" value={details.globalTitle || ''} onChange={(event) => setActiveStoryboard((current) => current ? { ...current, details: { ...current.details, globalTitle: event.target.value } } : current)} className={inputClass + ' min-h-8 flex-1 text-xs'} placeholder="Add an opening title or shared subtitle" /></div>
                     </div>
-                    <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setStoryboardAiMessage('Shared music controls are ready for media selection integration.')}><Music2 size={14} /> Add Music</Button><Button type="button" variant="secondary" onClick={() => setStoryboardAiMessage('Global title controls are ready for text styling integration.')}><Type size={14} /> Add Text</Button></div>
+                    <p className="text-[10px] text-[var(--vyra-text-muted)]">These are Storyboard-wide notes for now; attaching real media and styling will be connected in the next implementation step.</p>
                   </section>
                 </div>
               );
