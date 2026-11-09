@@ -8,6 +8,53 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const cleanText = (value: unknown, max = 4000) =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
 
+const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
+  const forbiddenKeys = new Set([
+    'image', 'image_url', 'image_uri', 'image_data', 'media', 'media_url', 'media_uri',
+    'binary', 'binary_data', 'payload', 'raw_payload', 'encoded', 'encoded_bytes',
+    'base64', 'data_url', 'bytes', 'file_bytes', 'file_data', 'storage_path',
+    'signed_url', 'download_url', 'source_url', 'asset_url', 'tile', 'tiles',
+    'samples', 'decoded_samples', 'pixel_buffer', 'audio_buffer', 'video_frames',
+  ]);
+  let nodes = 0;
+  const visit = (item: unknown, depth: number): unknown => {
+    nodes += 1;
+    if (nodes > 2048 || depth > 8) throw new Error('Semantic DNA evidence exceeds the safe structured-data limits.');
+    if (item === null || typeof item === 'boolean' || typeof item === 'number') {
+      if (typeof item === 'number' && !Number.isFinite(item)) throw new Error('Semantic DNA evidence contains a non-finite number.');
+      return item;
+    }
+    if (typeof item === 'string') {
+      const text = item.trim();
+      if (text.length > 4000 || /^data:/i.test(text) || /https?:\\/\\//i.test(text)) {
+        throw new Error('Semantic DNA evidence cannot contain data URLs, remote media references, or oversized strings.');
+      }
+      return text;
+    }
+    if (Array.isArray(item)) {
+      if (item.length > 128) throw new Error('Semantic DNA evidence contains an oversized list.');
+      return item.map((child) => visit(child, depth + 1));
+    }
+    if (!isObject(item)) throw new Error('Semantic DNA evidence must be JSON-compatible structured data.');
+    const entries = Object.entries(item);
+    if (entries.length > 128) throw new Error('Semantic DNA evidence contains too many fields.');
+    const output: Record<string, unknown> = {};
+    for (const [key, child] of entries) {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      if (forbiddenKeys.has(normalizedKey)) {
+        throw new Error('Semantic DNA evidence cannot include media payloads or source-file references.');
+      }
+      output[key.slice(0, 128)] = visit(child, depth + 1);
+    }
+    return output;
+  };
+  const clean = visit(value, 0);
+  if (!isObject(clean) || new TextEncoder().encode(JSON.stringify(clean)).byteLength > 32 * 1024) {
+    throw new Error('Semantic DNA evidence must be an object no larger than 32 KiB.');
+  }
+  return clean;
+};
+
 export type VyralSemanticDnaObservation = {
   observation_id: string;
   review_id: string;
@@ -124,7 +171,7 @@ export const createVyralSemanticDnaV1 = (input: CreateVyralSemanticDnaInput): Vy
       task_kind: cleanText(raw.taskKind, 64) || 'unknown',
       source_asset_version_id: raw.assetVersionId,
       source_sha256: raw.sourceSha256.toLowerCase(),
-      evidence: raw.evidence,
+      evidence: sanitizeSemanticEvidence(raw.evidence),
     });
   }
   const missing: string[] = [];
