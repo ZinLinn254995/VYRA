@@ -181,7 +181,11 @@ export const validateVyralDnaChangeSetV1 = async (input: {
   });
 
   checks.operations = errors.some((error) => error.startsWith('Operation ')) ? 'fail' : 'pass';
-  const referencedEvidence = operations.flatMap((operation: VyralDnaChangeOperationV1) => operation.evidenceRefs);
+  const referencedEvidence = operations.flatMap((operation) =>
+    operation && typeof operation === 'object' && Array.isArray((operation as Partial<VyralDnaChangeOperationV1>).evidenceRefs)
+      ? (operation as Partial<VyralDnaChangeOperationV1>).evidenceRefs ?? []
+      : []
+  );
   const verified = new Set(input.verifiedEvidenceRefs ?? []);
   const evidenceVerified = referencedEvidence.length > 0 && referencedEvidence.every((ref) => verified.has(ref));
   checks.evidence = evidenceVerified ? 'pass' : 'blocked';

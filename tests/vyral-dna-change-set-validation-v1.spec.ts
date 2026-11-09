@@ -113,3 +113,11 @@ test('rejects duplicate operations targeting the same DNA field', async () => {
   assert.equal(result.status, 'invalid');
   assert.match(result.errors.join(' '), /duplicate target path/);
 });
+
+test('rejects malformed operation entries without crashing evidence resolution', async () => {
+  for (const operation of [null, 'not-an-operation', 42]) {
+    const result = await validate(makeSet([operation]));
+    assert.equal(result.status, 'invalid');
+    assert.equal(result.checks.operations, 'fail');
+  }
+});
