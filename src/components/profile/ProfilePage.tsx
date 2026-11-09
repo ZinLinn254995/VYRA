@@ -82,11 +82,7 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
   help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
 };
 
-const updateProfileCardBottomRadius = (content: HTMLElement) => {
-  const card = content.closest<HTMLElement>('.profile-subpage-card');
-  if (!card) return;
-  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
-  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
+const updateProfileHeaderCompact = (content: HTMLElement) => {
   const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
   card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
   const header = card.querySelector<HTMLElement>('.profile-collapse-header');
@@ -142,14 +138,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, [activePage]);
   React.useLayoutEffect(() => {
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
-    if (content) updateProfileCardBottomRadius(content);
+    if (content) updateProfileHeaderCompact(content);
   }, [activePage]);
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
   const goHome = () => setActivePage('home');
 
   return (
-    <main className="profile-page-main mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
+    <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
       {activePage === 'home' ? (
         <>
           <section className="mb-7">
@@ -201,7 +197,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : activePage === 'my-vyrals' ? (
         <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} onSendAssetsToChat={onSendAssetsToChat} />
       ) : (
-        <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+        <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
             backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
@@ -210,7 +206,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             description={pageInfo[activePage].description}
             search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />
-          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
+          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)}>
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
