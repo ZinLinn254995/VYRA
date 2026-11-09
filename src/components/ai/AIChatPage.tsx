@@ -422,6 +422,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
     const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
+    const proposalAction = /^\s*(?:approve(?: dna (?:improvement )?plan)?|အတည်ပြု(?:မယ်)?|လက်ခံမယ်)\s*$/i.test(text)
+      ? 'approve'
+      : /^\s*(?:reject(?: dna (?:improvement )?plan)?|decline|မလုပ်တော့|ပယ်ချမယ်)\s*$/i.test(text)
+        ? 'reject' : null;
     const requestsVyralReconstructionHistory = requestsVyralReconstructionHistoryV1(text);
     const qualityVyralIds = [...new Set([
       ...selectedAssets.map((asset) => asset.vyralId),
@@ -462,6 +466,32 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+      if (proposalAction) {
+        if (selectedAssets.length !== 1) throw new Error('To approve or reject a DNA improvement plan, select the same Asset and send “Approve” or “Reject”.');
+        if (!supabase) throw new Error('Secure DNA proposal review is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: pending, error: pendingError } = await supabase
+          .from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,created_at')
+          .eq('asset_id', selectedAsset.id).eq('status','proposed')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (pendingError) throw new Error('Could not load the pending DNA improvement proposal: ' + pendingError.message);
+        if (!pending) throw new Error('There is no pending DNA improvement proposal for this Asset. Run a fresh DNA assessment first.');
+        const { data: review, error: reviewError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          body: { action: proposalAction, proposalId: pending.id },
+        });
+        if (reviewError) {
+          let message = 'VYRA could not save this proposal review.';
+          try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        const result = review?.proposal;
+        const report = proposalAction === 'approve'
+          ? 'DNA improvement proposal approved. The approved plan is saved against the exact Asset Version and DNA snapshot. Canonical DNA has NOT been changed. The next step is to prepare and validate the proposed changes, then create a separate immutable DNA version.'
+          : 'DNA improvement proposal rejected. Canonical DNA remains unchanged.';
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: report + '\nProposal: ' + (result?.id ?? pending.id) + '\nStatus: ' + (result?.status ?? proposalAction), status: 'success' }]);
+        return;
+      }
       if (requestsAssetDnaAssessment) {
         if (selectedAssets.length !== 1) {
           throw new Error('To assess Asset DNA, select exactly one Asset in My Vyrals or My Media Library, then ask VYRA AI Chat to check its DNA.');
@@ -499,6 +529,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           limitations?: string[];
         } | undefined;
         if (!assessment) throw new Error('The Asset DNA assessment response was incomplete.');
+        let proposalStatus = 'not saved';
+        let proposalId = '';
+        if (data.assessmentId) {
+          const { data: proposalData, error: proposalError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+            body: { action: 'create', assessmentId: data.assessmentId },
+          });
+          if (!proposalError && proposalData?.proposal?.id) {
+            proposalId = String(proposalData.proposal.id);
+            proposalStatus = String(proposalData.proposal.status ?? 'proposed');
+          }
+        }
         const improvementPlan = buildVyralDnaImprovementPlanV1({
           assessmentVersion: assessment.assessmentVersion,
           identity: assessment.identity,
@@ -529,6 +570,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           '',
           'This result evaluates only the selected Asset Version and its DNA record. It is not the Vyral collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
           `Assessment history ID: ${data.assessmentId ?? 'not returned'}`,
+          `Improvement proposal: ${proposalId || proposalStatus}`,
+          ...(proposalId && proposalStatus === 'proposed' ? ['To approve this plan, select this same Asset and send “Approve”. To reject it, send “Reject”. Approval does not change DNA; it authorizes the next reviewed version-creation step.'] : []),
         ].join('\n');
         setMessages((previous) => [...previous, {
           id: makeId(),
