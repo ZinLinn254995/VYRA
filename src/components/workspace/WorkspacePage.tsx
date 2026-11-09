@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Clapperboard, Film, Images, Plus, Sparkles, X } from 'lucide-react';
+import { Check, ChevronRight, Clapperboard, Film, Images, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -464,16 +464,16 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
             </section>
 
-        <section className="mb-4 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Add and arrange scenes after creating your storyboard.</p></div>
-            <Button type="button" variant="secondary" disabled><Plus size={14} /> Add Scene</Button>
-          </div>
-          <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] px-3 py-5 text-center">
-            <Film size={22} className="mx-auto text-[var(--vyra-text-muted)]" />
-            <p className="mt-2 text-xs font-medium text-[var(--vyra-text-primary)]">No scenes yet</p>
-          </div>
-        </section>
+            <section className="rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Add and arrange scenes after creating your storyboard.</p></div>
+                <Button type="button" variant="secondary" disabled><Plus size={14} /> Add Scene</Button>
+              </div>
+              <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] px-3 py-5 text-center">
+                <Film size={22} className="mx-auto text-[var(--vyra-text-muted)]" />
+                <p className="mt-2 text-xs font-medium text-[var(--vyra-text-primary)]">No scenes yet</p>
+              </div>
+            </section>
 
             {!activeStoryboardConfirmed && (
               <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
