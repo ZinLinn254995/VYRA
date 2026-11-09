@@ -11,7 +11,8 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
-type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[] };
+type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
+type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -567,6 +568,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     sceneId: scene.id,
                     sourceIn: Math.max(0, Number(legacyRange?.sourceIn) || 0),
                     sourceOut: Math.min(scene.duration, Math.max(0.1, Number(legacyRange?.sourceOut) || scene.duration)),
+                    sceneProjectId: scene.project?.id,
+                    renderRevisionId: scene.project?.latestRenderRevisionId ?? null,
                   };
                 });
                 const sceneRanges = Object.fromEntries(Object.entries(master.sceneRanges || {}).filter(([id]) => sceneIds.has(id)));
@@ -641,7 +644,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   </section>
 
                   <MasterTimelineEditor
-                    scenes={scenes}
+                    scenes={scenes.map((scene) => ({
+                      ...scene,
+                      projectId: scene.project?.id,
+                      latestRenderRevisionId: scene.project?.latestRenderRevisionId ?? null,
+                    }))}
                     value={details.masterTimeline}
                     onSceneOrderChange={(sceneIds) => {
                       const byId = new Map(scenes.map((scene) => [scene.id, scene]));
