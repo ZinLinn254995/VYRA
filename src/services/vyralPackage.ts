@@ -412,7 +412,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     );
     const supportedRecords = [...v3Records, ...fileRecords];
     const expectedDecoded = v3Records.length > 0;
-    const expectedEncodedSource = v3Records.length === 0 && fileRecords.length > 0;
+    const expectedEncodedSource = supportedRecords.length > 0 && supportedRecords.every((record) => record.recovery_level === 'source-file-exact');
     if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== expectedDecoded ||
         capabilities.source_decode_independently_verified !== false ||
         capabilities.encoded_source_bytes_recoverable !== expectedEncodedSource ||
