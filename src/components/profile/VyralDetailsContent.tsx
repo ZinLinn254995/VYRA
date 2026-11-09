@@ -3262,7 +3262,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 disabled={busy || packageBusy}
                 onClick={(event) => {
                   event.currentTarget.closest('details')?.removeAttribute('open');
-                  void exportVyralPackage({ assets: false, fullDna: true, compactDna: true }, undefined, true);
+                  void exportVyralPackage({ assets: false, fullDna: true, compactDna: false }, undefined, false, true);
                 }}
                 className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
               >
@@ -3272,7 +3272,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="border-t border-[var(--vyra-border-subtle)] pt-2">
               <button type="button" disabled={packageBusy || loading || !assets.length} onClick={(event) => {
                 event.currentTarget.closest('details')?.removeAttribute('open');
-                void exportVyralPackage({ assets: false, fullDna: true, compactDna: false }, undefined, false, true);
+                void exportVyralPackage({ assets: false, fullDna: true, compactDna: true }, undefined, true);
                 }}
                 className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
               >
