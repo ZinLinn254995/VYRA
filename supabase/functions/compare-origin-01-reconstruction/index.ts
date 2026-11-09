@@ -290,14 +290,16 @@ Deno.serve(async (request: Request) => {
     asNonEmptyString(modelReport.package_sha256);
   const packageSha256 = packageSha256Raw && /^[a-f0-9]{64}$/i.test(packageSha256Raw)
     ? packageSha256Raw.toLowerCase() : null;
-  const originalBinaryPayloadEntries = Number(
-    dnaProvenance.original_binary_payload_entries ?? modelReport.original_binary_payload_entries,
-  );
+  const originalBinaryPayloadEntriesRaw =
+    dnaProvenance.original_binary_payload_entries ?? modelReport.original_binary_payload_entries;
+  const originalBinaryPayloadEntries =
+    typeof originalBinaryPayloadEntriesRaw === 'number' &&
+    Number.isSafeInteger(originalBinaryPayloadEntriesRaw)
+      ? originalBinaryPayloadEntriesRaw : null;
   const semanticPackageAuditPassed =
     blindnessScope === 'semantic_only_no_media_payload' &&
     packageAuditStatus === 'passed' &&
     !!packageSha256 &&
-    Number.isSafeInteger(originalBinaryPayloadEntries) &&
     originalBinaryPayloadEntries === 0;
   const blindnessStatus =
     dnaProvenance.source_binary_provided_to_model === false && semanticPackageAuditPassed
@@ -317,7 +319,7 @@ Deno.serve(async (request: Request) => {
       packageAudit: {
         status: packageAuditStatus ?? 'not_recorded',
         packageSha256,
-        originalBinaryPayloadEntries: Number.isSafeInteger(originalBinaryPayloadEntries) ? originalBinaryPayloadEntries : null,
+        originalBinaryPayloadEntries,
         acceptedAsSemanticOnly: semanticPackageAuditPassed,
       },
       independentlyVerified: false,
