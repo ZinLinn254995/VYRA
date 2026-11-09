@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { verifyVyralFileDnaSourceV1 } from '../_shared/vyralFileDnaVerifierV1.ts';
 
 const MAX_ASSET_BYTES = 100 * 1024 * 1024;
@@ -61,7 +62,7 @@ Deno.serve(async (request: Request) => {
   if (!version) return json({ error: 'Asset version not found.' }, 404);
 
   const expectedPrefix = userId + '/' + asset.vyral_id + '/' + asset.id + '/';
-  if (typeof version.storage_path !== 'string' || !version.storage_path.startsWith(expectedPrefix)) {
+  if (!isCanonicalOwnedStoragePath(version.storage_path, expectedPrefix)) {
     return json({ error: 'Asset storage ownership path is invalid.' }, 409);
   }
   const expectedSize = Number(version.size_bytes);
