@@ -26,7 +26,7 @@ const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
     }
     if (typeof item === 'string') {
       const text = item.trim();
-      if (text.length > 4000 || /^data:/i.test(text) || /https?:\/\/i.test(text)) {
+      if (text.length > 4000 || /^data:/i.test(text) || text.includes('://')) {
         throw new Error('Semantic DNA evidence cannot contain data URLs, remote media references, or oversized strings.');
       }
       return text;
@@ -261,7 +261,7 @@ export const validateVyralSemanticDnaV1 = (value: unknown): VyralSemanticDnaV1 =
     sanitizeSemanticEvidence(observation.evidence);
   }
   const descriptionText = value.creator_description.text;
-  if (descriptionText !== null && (typeof descriptionText !== 'string' || descriptionText.length > 4000 || /^data:/i.test(descriptionText) || /https?:\/\/i.test(descriptionText))) {
+  if (descriptionText !== null && (typeof descriptionText !== 'string' || descriptionText.length > 4000 || /^data:/i.test(descriptionText) || descriptionText.includes('://'))) {
     throw new Error('Semantic DNA description cannot contain media URLs or oversized payload text.');
   }
   return value as unknown as VyralSemanticDnaV1;
