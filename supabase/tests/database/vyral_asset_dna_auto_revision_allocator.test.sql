@@ -44,7 +44,7 @@ values
 insert into public.vyral_dna_records
   (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
 values
-  ('25000000-0000-4000-8000-000000000033','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,'{"writer":"legacy-c"}'::jsonb,'creator');
+  ('25000000-0000-4000-8000-000000000033','25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,'{"writer":"legacy-c"}'::jsonb,'creator');
 
 select is((select revision_number from public.vyral_dna_records where id='25000000-0000-4000-8000-000000000031'),1,'First legacy Asset DNA insert receives revision 1');
 select is((select revision_number from public.vyral_dna_records where id='25000000-0000-4000-8000-000000000032'),2,'Second legacy Asset DNA insert automatically receives revision 2');
