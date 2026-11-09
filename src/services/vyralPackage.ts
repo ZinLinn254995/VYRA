@@ -371,8 +371,9 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       if (manifest.exportMode === 'dna-only' && !dnaRecord.decoded_image.sample_layout) {
         throw new Error('DNA-only packages must declare the canonical decoded-sample byte layout.');
       }
+      const expectedRecoveryLevel = dnaRecord.encoded_file_payload ? 'source-file-exact' : 'decoded-samples-exact';
       if (record.id !== dnaRecord.record_id || record.asset_id !== dnaRecord.source.asset_id ||
-          record.recovery_level !== 'decoded-samples-exact' || !assetIds.has(dnaRecord.source.asset_id)) {
+          record.recovery_level !== expectedRecoveryLevel || !assetIds.has(dnaRecord.source.asset_id)) {
         throw new Error('A VYRA DNA v3 package record has inconsistent identity or recovery metadata.');
       }
       if (manifest.exportMode !== 'dna-only' && manifest.exportMode !== 'compact-only' && !versionById.has(dnaRecord.source.asset_version_id)) {
