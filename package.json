@@ -37,7 +37,8 @@
     "test:vyral-asset-dna-intent": "node --import tsx --test tests/vyral-asset-dna-assessment-intent-v1.spec.ts",
     "test:vyral-reconstruction-history": "node --import tsx --test tests/vyral-reconstruction-history-intent-v1.spec.ts",
     "test:vyral-system-files": "node --import tsx --test tests/vyral-system-files-v1.spec.ts",
-    "test:vyral-dna-change-set": "node --import tsx --test tests/vyral-dna-change-set-validation-v1.spec.ts"
+    "test:vyral-dna-change-set": "node --import tsx --test tests/vyral-dna-change-set-validation-v1.spec.ts",
+    "test:vyral-vision-evidence": "node --import tsx --test tests/vyral-ai-vision-contract.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
