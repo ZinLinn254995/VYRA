@@ -447,8 +447,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
           />
-          <div className="profile-subpage-content space-y-3 p-4 sm:p-5" onScroll={(event) => updateStoryboardCardBottomRadius(event.currentTarget)}>
-            <section className="rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
+          <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardCardBottomRadius(event.currentTarget)}>
+            <section className="space-y-3">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2>
                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</span>
@@ -476,14 +476,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
             </section>
 
-            <section className="rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
+            <section className="space-y-3 border-t border-[var(--vyra-border)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Add and arrange scenes after creating your storyboard.</p></div>
                 <Button type="button" variant="secondary" disabled><Plus size={14} /> Add Scene</Button>
               </div>
-              <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] px-3 py-5 text-center">
-                <Film size={22} className="mx-auto text-[var(--vyra-text-muted)]" />
-                <p className="mt-2 text-xs font-medium text-[var(--vyra-text-primary)]">No scenes yet</p>
+              <div className="flex items-center gap-3 py-3 text-left">
+                <Film size={20} className="shrink-0 text-[var(--vyra-text-muted)]" />
+                <p className="text-xs text-[var(--vyra-text-secondary)]">No scenes yet</p>
               </div>
             </section>
 
