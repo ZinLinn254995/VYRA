@@ -12,7 +12,10 @@ import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineE
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
-type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null };
+type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null };
+type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
+type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
+type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -457,6 +460,26 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           updatedAt: now,
         };
       });
+      const project = scene.project!;
+      const timeline: SceneProjectTimeline = project.timeline || {
+        duration: scene.duration, fps: 30, width: 1920, height: 1080, tracks: [],
+      };
+      const updateProjectTimeline = (next: SceneProjectTimeline) => updateActiveScene({
+        project: { ...project, timeline: next, updatedAt: new Date().toISOString() },
+      });
+      const addProjectTrack = (type: SceneProjectTrack['type']) => {
+        const count = timeline.tracks.filter((track) => track.type === type).length + 1;
+        const track: SceneProjectTrack = {
+          id: crypto.randomUUID(),
+          type,
+          name: (type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Text') + ' ' + count,
+          clips: [],
+        };
+        updateProjectTimeline({ ...timeline, tracks: [...timeline.tracks, track] });
+      };
+      const removeProjectTrack = (trackId: string) => updateProjectTimeline({
+        ...timeline, tracks: timeline.tracks.filter((track) => track.id !== trackId),
+      });
       return (
         <main className="profile-page-main w-full min-w-0 p-0">
           <div className="profile-subpage-scroll profile-subpage-viewport">
@@ -488,7 +511,39 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene description</span>
                     <textarea value={scene.description} onChange={(event) => updateActiveScene({ description: event.target.value })} className={inputClass + ' min-h-24 resize-y py-2'} rows={3} maxLength={1000} placeholder="Describe what happens in this Scene…" />
                   </label>
-                  <p className="text-[11px] text-[var(--vyra-text-muted)]">Independent Scene video editing, media tracks and immutable render revisions are the next implementation stage.</p>
+                  <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Timeline</h2>
+                      <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Independent editable tracks for this Scene Project</p>
+                    </div>
+                    <span className="text-xs tabular-nums text-[var(--vyra-text-muted)]">{timeline.duration.toFixed(1)}s</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(['video', 'audio', 'text'] as const).map((type) => (
+                      <button key={type} type="button" onClick={() => addProjectTrack(type)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">
+                        + {type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Text'} Track
+                      </button>
+                    ))}
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-[var(--vyra-border)]">
+                    <div className="flex items-center justify-between border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
+                      <span>Track</span><span>{timeline.fps} FPS · {timeline.width} × {timeline.height}</span>
+                    </div>
+                    {timeline.tracks.length ? timeline.tracks.map((track) => (
+                      <div key={track.id} className="flex min-h-14 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0">
+                        <div className="w-24 shrink-0">
+                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{track.name}</p>
+                          <p className="text-[10px] capitalize text-[var(--vyra-text-muted)]">{track.type} · {track.clips.length} clips</p>
+                        </div>
+                        <div className="flex min-h-9 flex-1 items-center rounded-md border border-dashed border-[var(--vyra-border)] px-3 text-[10px] text-[var(--vyra-text-muted)]">
+                          {track.clips.length ? track.clips.map((clip) => clip.name).join(' · ') : 'Empty track — add media from My Media Library'}
+                        </div>
+                        <button type="button" onClick={() => removeProjectTrack(track.id)} aria-label={'Remove ' + track.name} className="rounded p-2 text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={14} /></button>
+                      </div>
+                    )) : <div className="px-4 py-8 text-center text-xs text-[var(--vyra-text-muted)]">Add a track to begin building this Scene independently.</div>}
+                  </div>
+                  <p className="text-[11px] leading-5 text-[var(--vyra-text-muted)]">Track structure is saved with this Scene Project. Media placement, playback, and rendering will be connected in the next stage; no placeholder video is generated.</p>
                 </section>
               </div>
             </section>
