@@ -493,8 +493,11 @@ Deno.serve(async (request: Request) => {
     if (applyError) return reply({error:'Atomic DNA revision creation failed. Original DNA was not overwritten.',detail:applyError.message},409);
     const applied = Array.isArray(result) ? result[0] : result;
     if (!applied?.dna_record_id || applied.proposal_status !== 'applied') return reply({error:'Atomic DNA application returned an incomplete result.'},500);
+    const reused = Boolean(applied.reused);
     return reply({status:'applied',dnaRecord:{id:applied.dna_record_id,revisionNumber:applied.revision_number,parentDnaRecordId:proposal.dna_record_id},
-      reused:Boolean(applied.reused),dnaChanged:true,message:'A new immutable DNA revision was created. The parent revision and original Asset remain unchanged.'});
+      reused,dnaChanged:!reused,message:reused
+        ? 'The already-created immutable DNA revision was returned; no additional revision was created.'
+        : 'A new immutable DNA revision was created. The parent revision and original Asset remain unchanged.'});
   }
 
   if (action === 'approve' || action === 'reject') {

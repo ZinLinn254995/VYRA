@@ -38,6 +38,8 @@ test('database reconstructs exact patch and preserves parent lineage',()=>{
 test('application is idempotent',()=>{
  assert.ok(migration.includes("proposal.status = 'applied'"));
  assert.ok(migration.includes('return query select proposal.applied_dna_record_id'));
+ assert.ok(edge.includes('dnaChanged:!reused'));
+ assert.ok(edge.includes('no additional revision was created'));
 });
 test('AI Chat exposes explicit apply command',()=>{
  assert.ok(chat.includes('const applyDnaChangeSet'));
