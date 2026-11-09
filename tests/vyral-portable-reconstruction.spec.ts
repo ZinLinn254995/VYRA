@@ -81,6 +81,8 @@ test('portable decoder audits a DNA-only package without writing reconstructed A
     assert.equal(report.asset_count, 2);
     assert.equal(report.undeclared_entries, 0);
     assert.equal(report.integrity, 'passed');
+    assert.equal(report.contains_original_encoded_file_bytes, true);
+    assert.equal(report.assets.find((item: { asset_id: string }) => item.asset_id === 'asset-raster').payload_kind, 'decoded-pixel-samples');
     assert.deepEqual(report.assets.map((item: { asset_id: string }) => item.asset_id), ['asset-raster', 'asset-file']);
     assert.equal(existsSync(fixture.output), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
@@ -95,6 +97,9 @@ test('portable decoder audits only the explicitly selected Asset', () => {
     assert.equal(report.asset_count, 1);
     assert.equal(report.assets[0].asset_id, 'asset-file');
     assert.equal(report.assets[0].recovery_level, 'source-file-exact');
+    assert.equal(report.assets[0].payload_kind, 'original-file-bytes');
+    assert.equal(report.assets[0].original_encoded_file_bytes_included, true);
+    assert.equal(report.contains_original_encoded_file_bytes, true);
     assert.equal(existsSync(fixture.output), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
