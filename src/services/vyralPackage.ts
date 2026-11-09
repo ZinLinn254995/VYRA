@@ -369,6 +369,9 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   for (const record of manifest.dnaRecords ?? []) {
     if (record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3) {
       const dnaRecord = validateVyralDnaV3Record(record.dna_record);
+      if (manifest.exportMode === 'dna-only' && manifest.blindReconstruction === true && dnaRecord.encoded_file_payload) {
+        throw new Error('Blind DNA packages must not contain original encoded source-byte payloads.');
+      }
       if (manifest.exportMode === 'dna-only' && !dnaRecord.decoded_image.sample_layout) {
         throw new Error('DNA-only packages must declare the canonical decoded-sample byte layout.');
       }
@@ -385,6 +388,11 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       if (record.id !== fileDna.record_id || record.asset_id !== fileDna.source.asset_id ||
           !assetIds.has(fileDna.source.asset_id)) {
         throw new Error('A VYRA File DNA package record has inconsistent identity metadata.');
+      }
+      if (manifest.exportMode === 'dna-only' && manifest.blindReconstruction === true &&
+          (fileDna.reconstruction.claim !== 'unavailable' || fileDna.reconstruction.payload_encoding !== 'none' ||
+           fileDna.reconstruction.chunks.length !== 0 || record.recovery_level !== 'semantic-only')) {
+        throw new Error('Blind DNA packages must exclude all original File DNA binary chunks.');
       }
       if (manifest.exportMode === 'dna-only' && manifest.blindReconstruction !== true &&
           (fileDna.reconstruction.claim !== 'source_file_exact' || record.recovery_level !== 'source-file-exact')) {
