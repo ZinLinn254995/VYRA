@@ -455,8 +455,8 @@ def validate_manifest(manifest, archive_names, archive):
                 if counter[0] > 2048 or depth > 8:
                     raise ValueError("Semantic DNA evidence exceeds safe structured-data limits")
                 if isinstance(value, str):
-                    if len(value) > 4000 or value.lower().startswith("data:") or re.search(r"https?://", value, re.I):
-                        raise ValueError("Semantic DNA evidence contains media URLs or oversized payload text")
+                    if len(value) > 4000 or value.lower().startswith("data:") or "://" in value or re.search(r"[A-Za-z0-9+/]{128,}={0,2}", value):
+                        raise ValueError("Semantic DNA evidence contains media URLs, encoded payloads or oversized text")
                 elif isinstance(value, list):
                     if len(value) > 128:
                         raise ValueError("Semantic DNA evidence contains an oversized list")
@@ -478,8 +478,11 @@ def validate_manifest(manifest, archive_names, archive):
                     raise ValueError("Semantic DNA creator observation is not pinned to its source version and hash")
                 validate_semantic_value(observation.get("evidence"))
             description = record.get("creator_description", {}).get("text")
-            if isinstance(description, str) and (len(description) > 4000 or description.lower().startswith("data:") or re.search(r"https?://", description, re.I)):
-                raise ValueError("Semantic DNA description contains media URLs or oversized payload text")
+            semantic_texts = [description, identity.get("name"), identity.get("original_filename"), record.get("context", {}).get("vyral_name"), record.get("context", {}).get("vyral_description"), record.get("context", {}).get("purpose")]
+            semantic_texts.extend(record.get("context", {}).get("intended_uses", []))
+            for semantic_text in semantic_texts:
+                if semantic_text is not None and (not isinstance(semantic_text, str) or len(semantic_text) > 4000 or semantic_text.lower().startswith("data:") or "://" in semantic_text or re.search(r"[A-Za-z0-9+/]{128,}={0,2}", semantic_text)):
+                    raise ValueError("Semantic DNA text contains media URLs, encoded payloads or oversized text")
         else:
             raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
     if set(counts) != set(assets):
