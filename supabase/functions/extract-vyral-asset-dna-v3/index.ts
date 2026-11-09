@@ -35,12 +35,17 @@ Deno.serve(async (request: Request) => {
   const [a, v, existing] = await Promise.all([
     ctx.supabase.from('vyral_assets').select('id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', assetId).eq('user_id', userId).maybeSingle(),
     ctx.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type').eq('id', versionId).eq('asset_id', assetId).eq('user_id', userId).maybeSingle(),
-    ctx.supabase.from('vyral_dna_records').select('id').eq('asset_id', assetId).eq('schema_version', 3).limit(1),
+    ctx.supabase.from('vyral_dna_records').select('id,revision_number,payload').eq('asset_id', assetId).eq('scope', 'asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (a.error || v.error || existing.error) return reply({ error: 'Could not validate Asset ownership and extraction state.' }, 500);
-  const asset = a.data, version = v.data;
+  const asset = a.data, version = v.data, parentDna = existing.data;
   if (!asset || !version) return reply({ error: 'Asset or source Version was not found for this account.' }, 404);
-  if (existing.data?.length) return reply({ error: 'A DNA v3 record already exists. Existing DNA records are immutable.' }, 409);
+  const previousSourceVersionId = parentDna?.payload?.dna_record?.source?.asset_version_id;
+  if (parentDna && previousSourceVersionId === version.id) {
+    return reply({ error: 'This Asset Version already has a DNA record. Existing DNA records are immutable.', dnaRecordId: parentDna.id }, 409);
+  }
+  const revisionNumber = Number(parentDna?.revision_number ?? 0) + 1;
+  if (!Number.isSafeInteger(revisionNumber) || revisionNumber < 1) return reply({ error: 'Could not allocate the next immutable DNA revision.' }, 409);
   const mime = String(version.mime_type ?? '').toLowerCase();
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) return reply({ error: 'DNA v3 currently supports PNG, JPEG and WebP raster images.' }, 415);
   if (asset.vyral_id !== version.vyral_id || asset.storage_path !== version.storage_path ||
@@ -144,6 +149,7 @@ Deno.serve(async (request: Request) => {
   };
   const { data: row, error: insertError } = await ctx.supabaseAdmin.from('vyral_dna_records').insert({
     id: recordId, vyral_id: asset.vyral_id, user_id: userId, asset_id: assetId, scope: 'asset',
+    parent_dna_record_id: parentDna?.id ?? null, revision_number: revisionNumber,
     schema_version: 3, dna_status: 'evolving', source_kind: 'system', verification_status: 'observed',
     payload: { record_kind: 'lossless_decoded_samples_v3', dna_schema_id: 'vyra.asset-dna',
       dna_schema_version: 3, dna_record: record, storage_bucket: BUCKET, storage_prefix: storagePrefix,
@@ -158,6 +164,7 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'DNA record insert failed; uploaded tiles were rolled back.', detail: insertError?.message ?? 'No row returned.' }, 500);
   }
   return reply({ status: 'extracted', assetId, versionId, dnaRecordId: row.id, recordId,
+    parentDnaRecordId: parentDna?.id ?? null, revisionNumber,
     sourceSha256: sourceHash, decodedSamplesSha256: decodedHash, width, height, channelLayout: 'RGBA',
     tileCount: tileMetadata.length, decoder: 'ImageMagick WASM 0.0.30', originalAssetMutated: false });
 });
