@@ -160,8 +160,8 @@ const resolveCreatorEvidence = async (
       .eq('asset_version_id', proposal.asset_version_id).eq('source_sha256', proposal.source_sha256.toLowerCase()) : { data: [], error: null },
   ]);
   if (reviewResult.error || observationResult.error) throw new Error('Could not verify creator review records or their source Vision observations.');
-  const reviews = new Map((reviewResult.data ?? []).map((record: any) => [record.id, record]));
-  const observations = new Map((observationResult.data ?? []).map((record: any) => [record.id, record]));
+  const reviews = new Map<string, any>((reviewResult.data ?? []).map((record: any) => [record.id, record] as [string, any]));
+  const observations = new Map<string, any>((observationResult.data ?? []).map((record: any) => [record.id, record] as [string, any]));
   const verifiedEvidenceRefs: string[] = [];
   for (const ref of refs) {
     const record = evidenceRows.find((item: any) => item.id === ref);
