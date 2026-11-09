@@ -176,7 +176,7 @@ export const validateVyralDnaChangeSetV1 = async (input: {
       }
     }
     try { canonicalizeVyralJsonV1(operation.after); }
-    catch { if (operation.op !== 'remove') { fail('after value is not valid JSON.'); return; } }
+    catch { fail('after value is not valid JSON.'); return; }
     validCount += 1;
   });
 
