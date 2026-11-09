@@ -6,7 +6,7 @@ export function isCanonicalOwnedStoragePath(path: unknown, expectedPrefix: unkno
   }
 
   const segments = path.split('/');
-  const prefixSegments = expectedPrefix.split('/');
+  const prefixSegments = expectedPrefix.slice(0, -1).split('/');
   const isSafe = (segment: string) => segment.length > 0 && segment !== '.' && segment !== '..';
 
   return segments.every(isSafe) &&
