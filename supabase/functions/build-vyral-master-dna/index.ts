@@ -107,9 +107,9 @@ Deno.serve(async (request: Request) => {
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId)
       .order('version_number', { ascending: false }),
     context.supabase.from('vyral_dna_records')
-      .select('id,asset_id,vyral_id,user_id,scope,schema_version,payload,reconstruction_data,verification_status,created_at')
+      .select('id,asset_id,vyral_id,user_id,scope,schema_version,revision_number,parent_dna_record_id,payload,reconstruction_data,verification_status,created_at')
       .in('asset_id', assetIds).eq('vyral_id', vyral.id).eq('user_id', userId).eq('scope', 'asset')
-      .order('created_at', { ascending: false }),
+      .order('revision_number', { ascending: false }).order('created_at', { ascending: false }),
     context.supabase.from('vyral_asset_relationships')
       .select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,evidence_ref')
       .eq('vyral_id', vyral.id).eq('user_id', userId),
@@ -186,7 +186,7 @@ Deno.serve(async (request: Request) => {
       (schemaId === 'vyra.asset-file-dna' && Number(record.schema_version) === 1);
     const priority = matchesCurrentVersion && isSupportedReconstructionDna ? 2 : matchesCurrentVersion ? 1 : 0;
     const currentPriority = dnaPriorityByAsset.get(record.asset_id) ?? -1;
-    // Results are newest-first. Prefer a supported exact-reconstruction record
+    // Results are revision-first (then timestamp). Prefer a supported exact-reconstruction record
     // for the current immutable version over newer legacy/semantic records.
     if (priority > currentPriority) {
       dnaByAsset.set(record.asset_id, record);
