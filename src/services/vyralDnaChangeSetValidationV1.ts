@@ -80,6 +80,7 @@ const sameJson = (left: unknown, right: unknown): boolean => {
 export const validateVyralDnaChangeSetV1 = async (input: {
   changeSet: unknown;
   expectedSha256: string;
+  expectedProposalId: string;
   expectedSource: { assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string };
   currentDnaRecord: unknown;
   verifiedEvidenceRefs?: string[];
@@ -97,6 +98,10 @@ export const validateVyralDnaChangeSetV1 = async (input: {
   checks.schema = isObject && set?.schema === 'vyra.dna-change-set' && set.schemaVersion === 1 ? 'pass' : 'fail';
   if (checks.schema === 'fail') errors.push('Unsupported or malformed DNA change-set schema.');
 
+  const proposalMatches = Boolean(isObject && set?.proposalId === input.expectedProposalId);
+  checks.proposalBinding = proposalMatches ? 'pass' : 'fail';
+  if (!proposalMatches) errors.push('Change set is not bound to the exact expected approved proposal.');
+
   const source = set?.source;
   const sourceMatches = Boolean(source &&
     source.assetId === input.expectedSource.assetId &&
@@ -109,7 +114,7 @@ export const validateVyralDnaChangeSetV1 = async (input: {
   const operations = Array.isArray(set?.operations) ? set.operations : null;
   checks.operations = operations ? 'pass' : 'fail';
   if (!operations) errors.push('Change-set operations must be an array.');
-  if (checks.hash === 'fail' || checks.schema === 'fail' || checks.sourceBinding === 'fail' || !operations) {
+  if (checks.hash === 'fail' || checks.schema === 'fail' || checks.proposalBinding === 'fail' || checks.sourceBinding === 'fail' || !operations) {
     return { validatorVersion: 1, status: 'invalid', changeSetSha256: actualHash, checks, errors, validatedOperationCount: 0 };
   }
   if (operations.length === 0) {
