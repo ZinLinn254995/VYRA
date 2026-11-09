@@ -453,3 +453,57 @@ Do not replace the existing Master Timeline until a separate proof-of-concept pa
 7. Run the existing Storyboard tests and add adapter, persistence, media-relink, and export regression tests.
 
 Only after these gates pass should Elah become the production editing engine. If a capability is missing from its editing UI, build the required VYRA-owned control on its public engine API rather than silently removing the feature.
+
+
+
+## 18. Independent Scene Projects and Non-Destructive Master Editing
+
+This is a foundational product/data-model requirement. A Scene is an independently editable video project with its own canonical rendered video. The Master Editor is a separate composition that references those Scene videos as source media. Master edits must never rewrite a Scene's project or canonical render.
+
+### 18.1 Each Scene owns its video
+
+- Every Scene has its own stable Scene ID, independent Scene Editor project/document, media and asset references, edit history, and canonical rendered-video version.
+- A Scene's duration is its own actual rendered duration. If its editor project is 10 seconds, its canonical Scene video is 10 seconds. It must not be stretched, shortened, or reinterpreted just because the Master composition changes.
+- Scene Editor edits update that Scene's own project. Saving/rendering creates a new immutable Scene video revision; it does not mutate an older revision already referenced by a Master composition.
+- Scene projects must be independently reopenable and editable without opening or modifying the Master Editor.
+- Keep the Scene's source media and project data separate from the rendered output. The rendered video is a derived artifact, not a replacement for editable source data.
+
+### 18.2 Master Editor uses independent instances
+
+- The Master Editor is a non-destructive composition timeline. Each placed Scene is a clip/instance that references a specific Scene ID and a specific immutable rendered-video revision.
+- Store Master instance identity separately from Scene identity. The same Scene may be placed more than once, with independent trim, position, volume, transform, speed, and transition settings per instance.
+- Trimming, splitting, moving, duplicating, changing speed, muting, applying effects, or deleting a Scene instance in the Master changes only that Master composition instance and its metadata.
+- A Master trim changes the instance's source In/Out and/or timeline placement. It must never modify the referenced Scene project's duration, source In/Out, media, or canonical rendered video.
+- Splitting a Master clip creates two instance segments referencing the same immutable Scene video revision with different source ranges. It does not split or rewrite the original Scene project.
+- Deleting a Scene instance removes only that placement from the Master. It must not delete the Scene, its project, its rendered revisions, or its source assets.
+- Duplicating a Scene in the Master creates a new instance ID referencing the same Scene revision. The two placements can be edited independently.
+
+### 18.3 Version pinning and intentional updates
+
+- Every Master Scene instance must pin the exact Scene render revision it uses, not merely the latest Scene ID. This prevents a later Scene edit from silently changing an existing Master composition.
+- When a Scene receives a new render revision, existing Masters remain pinned to their previous revision by default.
+- Show a clear update-available state in the Master Editor. Only an explicit user action may replace an instance's pinned revision with the newer Scene revision.
+- If an update changes the source duration, preserve the existing Master instance's trim and placement where possible; clamp only when the new source duration makes the old range impossible, and show the user what changed.
+- Retain old render revisions while referenced by any Master composition. Garbage collection must respect references and must never delete a source revision still in use.
+
+### 18.4 Data model contract
+
+Use separate versioned records/documents for:
+- `sceneProject`: editable per-Scene editor document, project settings, tracks, clips, and references to VYRA Assets.
+- `sceneRenderRevision`: immutable rendered video artifact, revision ID, Scene ID, storage key, duration, dimensions, frame rate, codec/container metadata, checksum, and render provenance.
+- `masterComposition`: Master-level tracks, audio/text/overlay clips, transitions, and overall output settings.
+- `masterSceneInstance`: unique instance ID, Scene ID, pinned render revision ID, timeline start, source In/Out, playback speed, transform, volume, and instance-level effects.
+- `sceneRevisionReference`: explicit reference from each Master instance to the exact immutable Scene render revision.
+
+The existing `sceneInstances` / `sceneRanges` fields must be migrated compatibly. A legacy instance without a pinned revision must be resolved to its current canonical Scene render once and then saved with that explicit revision ID. Do not infer a different revision on every load.
+
+### 18.5 Required acceptance tests
+
+1. Create a Scene project with a 10-second timeline and render it. Its canonical Scene video reports 10 seconds.
+2. Add that Scene video to the Master and trim the Master instance to 6 seconds. Confirm the Scene project and canonical Scene video still report 10 seconds.
+3. Split the Master instance into two placements/segments. Confirm both still reference the same original Scene render revision and the Scene remains unchanged.
+4. Duplicate the Scene in the Master and change only one instance's trim, speed, volume, or position. Confirm the other instance and original Scene are unchanged.
+5. Delete the Scene from the Master. Confirm the Scene project, render revision, and source Assets still exist and can be reopened.
+6. Edit and re-render the Scene to a new revision. Confirm the existing Master remains pinned to the old revision until the user explicitly chooses Update.
+7. Save and reload both Scene and Master projects. Confirm all IDs, pinned revisions, durations, trims, and references round-trip exactly.
+8. Export the Master composition. Confirm the export combines the selected Scene render revisions and Master-level edits without modifying any source Scene project or render.
