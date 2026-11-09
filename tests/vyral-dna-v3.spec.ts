@@ -112,6 +112,8 @@ test('DNA v3 can carry and exactly recover the original encoded source file in a
   const sourceHash = createHash('sha256').update(original).digest('hex');
   const input = {
     ...makeInput(samples),
+    width: 1,
+    height: 1,
     source: { ...source, sha256: sourceHash, size_bytes: original.byteLength },
   };
   const { record, entries } = await createVyralDnaV3(input);
@@ -128,7 +130,7 @@ test('DNA v3 rejects an encoded source payload whose bytes do not match the orig
   const samples = new Uint8Array(3 * 2 * 4).fill(255);
   const original = new Uint8Array(Buffer.from('original source', 'utf8'));
   const sourceHash = createHash('sha256').update(original).digest('hex');
-  const input = { ...makeInput(samples), source: { ...source, sha256: sourceHash, size_bytes: original.byteLength } };
+  const input = { ...makeInput(samples), width: 1, height: 1, source: { ...source, sha256: sourceHash, size_bytes: original.byteLength } };
   const { record } = await createVyralDnaV3(input);
   const encoded = await createVyralDnaV3EncodedFilePayload(record, original, 'origin.png', 8);
   const files = new Map(encoded.entries.map((entry) => [entry.path, entry.data]));
