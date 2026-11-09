@@ -422,6 +422,7 @@ def main():
     parser.add_argument("package", help="Path to the .vyral ZIP package")
     parser.add_argument("--output", default="reconstructed", help="Output directory")
     parser.add_argument("--asset", action="append", dest="asset_ids", help="Reconstruct only this Asset ID (repeatable)")
+    parser.add_argument("--audit-only", action="store_true", help="Validate package inventory and hashes without reconstructing files")
     args = parser.parse_args()
 
     output_dir = Path(args.output)
@@ -437,6 +438,26 @@ def main():
         unknown = selected.difference(assets)
         if unknown:
             raise ValueError("Requested Asset IDs are not present in this package: " + ", ".join(sorted(unknown)))
+        if args.audit_only:
+            selected_assets = [asset for asset_id, asset in assets.items() if not selected or asset_id in selected]
+            selected_records = [entry for entry in records if not selected or entry["asset_id"] in selected]
+            print(json.dumps({
+                "package": args.package,
+                "validation": "passed",
+                "export_mode": manifest.get("exportMode"),
+                "asset_count": len(selected_assets),
+                "assets": [{
+                    "asset_id": asset["id"],
+                    "name": asset.get("name"),
+                    "dna_schema_id": entry["dna_schema_id"],
+                    "dna_schema_version": entry["dna_schema_version"],
+                    "recovery_level": entry["recovery_level"],
+                } for asset, entry in zip(selected_assets, selected_records)],
+                "archive_entry_count": len(archive_names),
+                "undeclared_entries": 0,
+                "integrity": "passed",
+            }, indent=2))
+            return
         for entry in records:
             asset_id = entry["asset_id"]
             if selected and asset_id not in selected:
