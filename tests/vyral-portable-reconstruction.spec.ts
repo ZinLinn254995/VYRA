@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -94,6 +95,28 @@ test('portable decoder audits only the explicitly selected Asset', () => {
     assert.equal(report.asset_count, 1);
     assert.equal(report.assets[0].asset_id, 'asset-file');
     assert.equal(report.assets[0].recovery_level, 'source-file-exact');
+    assert.equal(readdirSync(fixture.output).length, 0);
+  } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
+});
+
+test('portable decoder audit reports the package SHA-256 and exact byte length', () => {
+  const fixture = makeFixture();
+  try {
+    const result = runDecoder(fixture, ['--audit-only']);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    const packageBytes = readFileSync(fixture.packagePath);
+    assert.equal(report.package_size_bytes, packageBytes.length);
+    assert.equal(report.package_sha256, createHash('sha256').update(packageBytes).digest('hex'));
+  } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
+});
+
+test('portable decoder rejects undeclared hidden original files in a DNA-only package', () => {
+  const fixture = makeFixture('undeclared_original');
+  try {
+    const result = runDecoder(fixture, ['--audit-only']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Package entries do not match the declared reconstruction payloads/);
     assert.equal(readdirSync(fixture.output).length, 0);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
