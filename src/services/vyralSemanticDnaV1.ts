@@ -11,7 +11,7 @@ const cleanText = (value: unknown, max = 4000) =>
 const assertSafeSemanticText = (value: unknown, label: string, max = 4000) => {
   if (value === null || value === undefined) return;
   if (typeof value !== 'string' || value.length > max || /^data:/i.test(value) ||
-      value.includes('://') || /[A-Za-z0-9+/_-]{128,}={0,2}/.test(value.replace(/\\s+/g, ''))) {
+      value.includes('://') || /[A-Za-z0-9+/_-]{128,}={0,2}/.test(value.replace(/\s+/g, ''))) {
     throw new Error('Semantic DNA ' + label + ' contains a media URL, encoded payload, or oversized text.');
   }
 };
