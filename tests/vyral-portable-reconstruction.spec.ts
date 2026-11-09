@@ -68,3 +68,32 @@ test('portable decoder rejects ZIP path traversal before reading package content
     assert.match(result.stderr, /unsafe ZIP path/);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
+
+test('portable decoder audits a DNA-only package without writing reconstructed Assets', () => {
+  const fixture = makeFixture();
+  try {
+    const result = runDecoder(fixture, ['--audit-only']);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.validation, 'passed');
+    assert.equal(report.export_mode, 'dna-only');
+    assert.equal(report.asset_count, 2);
+    assert.equal(report.undeclared_entries, 0);
+    assert.equal(report.integrity, 'passed');
+    assert.deepEqual(report.assets.map((item: { asset_id: string }) => item.asset_id), ['asset-raster', 'asset-file']);
+    assert.equal(readdirSync(fixture.output).length, 0);
+  } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
+});
+
+test('portable decoder audits only the explicitly selected Asset', () => {
+  const fixture = makeFixture();
+  try {
+    const result = runDecoder(fixture, ['--audit-only', '--asset', 'asset-file']);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.asset_count, 1);
+    assert.equal(report.assets[0].asset_id, 'asset-file');
+    assert.equal(report.assets[0].recovery_level, 'source-file-exact');
+    assert.equal(readdirSync(fixture.output).length, 0);
+  } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
+});
