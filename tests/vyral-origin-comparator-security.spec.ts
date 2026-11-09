@@ -24,3 +24,15 @@ test('ORIGIN-01 comparator continues to pin exact source and candidate versions'
   assert.match(source, /const originalPrefix = userId \+ '\/' \+ ORIGIN\.vyralId/);
   assert.match(source, /const candidatePrefix = userId \+ '\/' \+ ORIGIN\.vyralId/);
 });
+
+test('ORIGIN-01 comparator only records creator-attested blindness for audited semantic-only packages', () => {
+  assert.match(source, /blindness_scope/);
+  assert.match(source, /package_audit_status/);
+  assert.match(source, /package_sha256/);
+  assert.match(source, /original_binary_payload_entries/);
+  assert.match(source, /blindnessScope === 'semantic_only_no_media_payload'/);
+  assert.match(source, /packageAuditStatus === 'passed'/);
+  assert.match(source, /originalBinaryPayloadEntries === 0/);
+  assert.match(source, /source_binary_provided_to_model === false && semanticPackageAuditPassed/);
+  assert.match(source, /independentlyVerified: false/);
+});
