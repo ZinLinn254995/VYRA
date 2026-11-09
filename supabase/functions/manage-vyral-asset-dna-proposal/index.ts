@@ -76,7 +76,7 @@ const applyPatchToPayload = (payload: unknown, operations: any[], newRecordId: s
   return next;
 };
 
-const validateChangeSet = async (changeSet: any, storedHash: string, expectedSource: any, currentPayload: unknown, verifiedEvidenceRefs: string[] = []) => {
+const validateChangeSet = async (changeSet: any, storedHash: string, expectedSource: { proposalId: string; assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string }, currentPayload: unknown, verifiedEvidenceRefs: string[] = []) => {
   const errors: string[] = [];
   const checks: Record<string, string> = {};
   let canonicalHash = '';
@@ -86,13 +86,15 @@ const validateChangeSet = async (changeSet: any, storedHash: string, expectedSou
   checks.hash = canonicalHash === storedHash || legacyHash === storedHash ? 'pass' : 'fail';
   if (checks.hash === 'fail') errors.push('Stored change-set SHA-256 does not match its payload.');
   checks.schema = object(changeSet) && changeSet.schema === 'vyra.dna-change-set' && changeSet.schemaVersion === 1 ? 'pass' : 'fail';
+  checks.proposalBinding = object(changeSet) && changeSet.proposalId === expectedSource.proposalId ? 'pass' : 'fail';
+  if (checks.proposalBinding === 'fail') errors.push('Change set is not bound to the exact approved proposal.');
   if (checks.schema === 'fail') errors.push('Unsupported DNA change-set schema.');
   const source = changeSet?.source;
   checks.sourceBinding = object(source) && source.assetId === expectedSource.assetId &&
     source.assetVersionId === expectedSource.assetVersionId && source.dnaRecordId === expectedSource.dnaRecordId &&
     source.sourceSha256 === expectedSource.sourceSha256 ? 'pass' : 'fail';
   if (checks.sourceBinding === 'fail') errors.push('Change set does not match the pinned Asset, Version, DNA revision and source SHA-256.');
-  if (checks.hash === 'fail' || checks.schema === 'fail' || checks.sourceBinding === 'fail' || !Array.isArray(changeSet?.operations)) {
+  if (checks.hash === 'fail' || checks.schema === 'fail' || checks.proposalBinding === 'fail' || checks.sourceBinding === 'fail' || !Array.isArray(changeSet?.operations)) {
     checks.operations = 'fail';
     return { validatorVersion: 1, status: 'invalid', changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: 0 };
   }
@@ -426,7 +428,7 @@ Deno.serve(async (request: Request) => {
       return reply({ error: resolutionError instanceof Error ? resolutionError.message : 'Creator evidence resolution failed.' }, 500);
     }
     const report = await validateChangeSet(proposal.change_set, proposal.change_set_sha256, {
-      assetId: proposal.asset_id, assetVersionId: proposal.asset_version_id,
+      proposalId: proposal.id, assetId: proposal.asset_id, assetVersionId: proposal.asset_version_id,
       dnaRecordId: proposal.dna_record_id, sourceSha256: proposal.source_sha256,
     }, latestDna.data?.payload, evidenceResolution.verifiedEvidenceRefs);
     (report as any).evidenceResolution = evidenceResolution.report;
@@ -467,7 +469,7 @@ Deno.serve(async (request: Request) => {
     const report = proposal.change_set_validation_report;
     if (proposal.status !== 'approved' || proposal.change_set_status !== 'validated' || !object(report) ||
       report.status !== 'validated' || report.changeSetSha256 !== proposal.change_set_sha256 ||
-      report.checks?.hash !== 'pass' || report.checks?.schema !== 'pass' ||
+      report.checks?.hash !== 'pass' || report.checks?.schema !== 'pass' || report.checks?.proposalBinding !== 'pass' ||
       report.checks?.sourceBinding !== 'pass' || report.checks?.operations !== 'pass' || report.checks?.evidence !== 'pass') {
       return reply({ error:'Only a fully validated, evidence-backed DNA change set can be applied.',status:proposal.change_set_status },409);
     }
