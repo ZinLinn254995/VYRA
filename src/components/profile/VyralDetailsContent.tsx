@@ -852,6 +852,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             .from('vyral_vision_creator_evidence')
             .select('id,observation_id,decision,evidence_kind,note')
             .in('observation_id', observationIds)
+            .eq('user_id', auth.user.id)
             .eq('evidence_kind', 'observation_review')
             .eq('decision', 'creator_confirmed');
           if (reviewError) throw new Error('Could not verify creator-confirmed observations for semantic DNA export: ' + reviewError.message);
