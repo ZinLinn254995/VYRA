@@ -117,7 +117,7 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Original file byte hash or size changed; verification stopped.' }, 409);
   }
 
-  let png;
+  let png: ReturnType<typeof inspectPng>;
   let independentlyDecoded: Uint8Array;
   try {
     png = inspectPng(originalBytes);
