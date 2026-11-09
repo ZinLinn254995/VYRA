@@ -667,7 +667,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       const next = [...scenes];
                       next.splice(Math.max(0, Math.min(index, next.length)), 0, copy);
                       updateScenes(next);
-                      return { id: copy.id, title: copy.title, duration: copy.duration };
+                      return { id: copy.id, title: copy.title, duration: copy.duration, projectId: copy.project?.id, latestRenderRevisionId: copy.project?.latestRenderRevisionId ?? null };
                     }}
                     onSceneDelete={(sceneId) => {
                       updateScenes(scenes.filter((scene) => scene.id !== sceneId));
