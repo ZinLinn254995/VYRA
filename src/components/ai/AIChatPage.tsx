@@ -422,6 +422,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
     const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
+    const prepareDnaChangeSet = /^\s*(?:prepare(?: dna)? change set|build(?: dna)? change set|ပြင်ဆင်ချက်(?:များ)? ပြင်ဆင်|change set ပြင်ဆင်)\s*$/i.test(text);
     const proposalAction = /^\s*(?:approve(?: dna (?:improvement )?plan)?|အတည်ပြု(?:မယ်)?|လက်ခံမယ်)\s*$/i.test(text)
       ? 'approve'
       : /^\s*(?:reject(?: dna (?:improvement )?plan)?|decline|မလုပ်တော့|ပယ်ချမယ်)\s*$/i.test(text)
@@ -466,6 +467,39 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+      if (prepareDnaChangeSet) {
+        if (selectedAssets.length !== 1) throw new Error('To prepare the DNA change set, select the same Asset whose improvement proposal you approved.');
+        if (!supabase) throw new Error('Secure DNA change-set preparation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: approved, error: approvedError } = await supabase
+          .from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,created_at')
+          .eq('asset_id', selectedAsset.id).eq('status','approved')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (approvedError) throw new Error('Could not load the approved DNA proposal: ' + approvedError.message);
+        if (!approved) throw new Error('No approved DNA improvement proposal exists for this Asset yet. Approve the proposal first.');
+        const { data: prepared, error: prepareError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          body: { action: 'prepare_change_set', proposalId: approved.id },
+        });
+        if (prepareError) {
+          let message = 'VYRA could not prepare the DNA change set.';
+          try { const payload = await (prepareError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        const changeSet = prepared?.changeSet;
+        if (!changeSet) throw new Error('The DNA change-set response was incomplete.');
+        const report = [
+          'DNA Change Set prepared and hash-pinned.',
+          'Status: ' + String(prepared.status ?? 'unknown'),
+          'SHA-256: ' + String(prepared.sha256 ?? 'not returned'),
+          'Remediation tasks: ' + String(Array.isArray(changeSet.tasks) ? changeSet.tasks.length : 0),
+          'Executable DNA operations: ' + String(Array.isArray(changeSet.operations) ? changeSet.operations.length : 0),
+          'DNA changed: No.',
+          'This change set is blocked because the current assessment contains remediation/evidence tasks but no justified before/after DNA values. VYRA will not invent a patch or create an empty DNA revision. The next step is to collect the required evidence and generate a validated, exact patch.',
+        ].join('\\n');
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: report, status: 'preview' }]);
+        return;
+      }
       if (proposalAction) {
         if (selectedAssets.length !== 1) throw new Error('To approve or reject a DNA improvement plan, select the same Asset and send “Approve” or “Reject”.');
         if (!supabase) throw new Error('Secure DNA proposal review is unavailable in this environment.');
