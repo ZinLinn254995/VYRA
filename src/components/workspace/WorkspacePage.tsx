@@ -440,6 +440,22 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   if (activeStoryboard && activeSceneId) {
     const scene = (activeStoryboard.details?.scenes || []).find((item) => item.id === activeSceneId);
     if (scene) {
+      const updateActiveScene = (patch: Partial<StoryboardScene>) => setActiveStoryboard((current) => {
+        if (!current) return current;
+        const now = new Date().toISOString();
+        return {
+          ...current,
+          details: {
+            ...current.details,
+            scenes: (current.details?.scenes || []).map((item) => item.id === scene.id ? {
+              ...item,
+              ...patch,
+              project: item.project ? { ...item.project, updatedAt: now } : item.project,
+            } : item),
+          },
+          updatedAt: now,
+        };
+      });
       return (
         <main className="profile-page-main w-full min-w-0 p-0">
           <div className="profile-subpage-scroll profile-subpage-viewport">
@@ -458,9 +474,20 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     <div className="text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scene.description || 'Add media to this scene.'}</p></div>
                   </div>
                 </section>
-                <section className="space-y-2 border-t border-[var(--vyra-border)] pt-5">
-                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Workspace</h2>
-                  <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">This is the dedicated workspace for this Scene. Media, Vyral Assets, prompts and AI-assisted editing will be added here.</p>
+                <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Project</h2>
+                    <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">This Scene has its own independent project record. Changes here belong to this Scene, not to the Master timeline trim.</p>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene title</span>
+                    <input value={scene.title} onChange={(event) => updateActiveScene({ title: event.target.value })} className={inputClass + ' min-h-10'} maxLength={100} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene description</span>
+                    <textarea value={scene.description} onChange={(event) => updateActiveScene({ description: event.target.value })} className={inputClass + ' min-h-24 resize-y py-2'} rows={3} maxLength={1000} placeholder="Describe what happens in this Scene…" />
+                  </label>
+                  <p className="text-[11px] text-[var(--vyra-text-muted)]">Independent Scene video editing, media tracks and immutable render revisions are the next implementation stage.</p>
                 </section>
               </div>
             </section>
