@@ -8,10 +8,11 @@ import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
+import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string };
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
 type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
@@ -569,7 +570,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
                   </section>
 
-
+                  <MasterTimelineEditor
+                    scenes={scenes}
+                    value={details.masterTimeline}
+                    onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
+                      ...current,
+                      details: { ...current.details, masterTimeline },
+                      updatedAt: new Date().toISOString(),
+                    } : current)}
+                  />
                 </div>
               );
             })()}
