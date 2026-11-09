@@ -84,8 +84,7 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
 
 const updateProfileHeaderCompact = (content: HTMLElement) => {
   const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
-  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
-  const header = card.querySelector<HTMLElement>('.profile-collapse-header');
+  const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (header) {
     const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
