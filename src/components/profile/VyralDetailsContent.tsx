@@ -1225,7 +1225,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 decoded_sample_stream_also_available: true,
               },
             } as (typeof sourceVersions)[number];
-            if (importAssets.length === 1) reconstructionDownload = { blob: new Blob([restoredBytes], { type: mimeType }), filename };
+            if (importAssets.length === 1) {
+              const restoredBuffer = new ArrayBuffer(restoredBytes.byteLength);
+              new Uint8Array(restoredBuffer).set(restoredBytes);
+              reconstructionDownload = { blob: new Blob([restoredBuffer], { type: mimeType }), filename };
+            }
             preparedVersions.push({ source: syntheticSource, bytes: restoredBytes, sha256, id: versionId, storagePath, versionNumber: 1 });
             reconstructedFromDnaV3 = true;
             reconstructedSourceSha256 = sha256;
