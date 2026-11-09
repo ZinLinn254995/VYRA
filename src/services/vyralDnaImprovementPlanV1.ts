@@ -55,6 +55,7 @@ export type VyralDnaImprovementPlanV1 = {
   sourceAssessmentVersion: number;
   sourceIdentity: { assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string };
   improvements: VyralDnaImprovementV1[];
+  unmappedBlockers: string[];
   informational: string[];
   safety: string[];
 };
@@ -72,6 +73,7 @@ export const buildVyralDnaImprovementPlanV1 = (assessment: {
   const improvements = assessment.blockers
     .map((code) => RULES[code])
     .filter((item): item is VyralDnaImprovementV1 => Boolean(item));
+  const unmappedBlockers = [...new Set(assessment.blockers.filter((code) => !RULES[code]))];
   const informational: string[] = [];
   if (assessment.limitations.includes('provenance_not_independently_verified')) {
     informational.push('Collect independent provenance evidence; creator declarations alone do not establish source history.');
@@ -93,12 +95,13 @@ export const buildVyralDnaImprovementPlanV1 = (assessment: {
     sourceAssessmentVersion: assessment.assessmentVersion,
     sourceIdentity: { ...assessment.identity },
     improvements,
+    unmappedBlockers,
     informational,
     safety: [
       'This plan is advisory and requires review; it does not mutate Asset DNA.',
       'Any accepted change must create a new immutable DNA version linked to the same or explicitly updated Asset Version.',
       'Reassess and retest the new snapshot; never rewrite historical assessments or reconstruction attempts.',
-      'Unknown blocker codes are not silently interpreted or auto-fixed.',
+      'Unknown blocker codes are preserved in unmappedBlockers and require engineering review; they are never silently interpreted or auto-fixed.',
     ],
   };
 };
