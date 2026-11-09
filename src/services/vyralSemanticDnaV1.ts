@@ -258,6 +258,11 @@ export const validateVyralSemanticDnaV1 = (value: unknown): VyralSemanticDnaV1 =
         observation.source_sha256 !== value.source.sha256 || !isObject(observation.evidence)) {
       throw new Error('Semantic DNA contains creator evidence that is not pinned to its source.');
     }
+    sanitizeSemanticEvidence(observation.evidence);
+  }
+  const descriptionText = value.creator_description.text;
+  if (descriptionText !== null && (typeof descriptionText !== 'string' || descriptionText.length > 4000 || /^data:/i.test(descriptionText) || /https?:\\/\\//i.test(descriptionText))) {
+    throw new Error('Semantic DNA description cannot contain media URLs or oversized payload text.');
   }
   return value as unknown as VyralSemanticDnaV1;
 };
