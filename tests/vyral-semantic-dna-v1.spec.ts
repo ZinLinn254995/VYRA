@@ -14,6 +14,7 @@ const base = {
     asset_type: 'image',
     original_filename: 'origin.png',
     description: 'One solid red circle centered on a white square canvas.',
+    descriptionProvenance: 'creator_confirmed',
     mime_type: 'image/png',
   },
   source: { assetVersionId: 'origin-version', sha256: SHA, sizeBytes: 1046585 },
@@ -86,4 +87,13 @@ test('semantic DNA rejects embedded binary, media URLs and hidden payload fields
       }],
     }), /cannot include media payloads|cannot contain data URLs/);
   }
+});
+
+test('semantic DNA never upgrades an unverified description to creator-declared evidence', () => {
+  const record = createVyralSemanticDnaV1({
+    ...base,
+    asset: { ...base.asset, descriptionProvenance: 'unverified' },
+  });
+  assert.equal(record.creator_description.evidence_status, 'unverified');
+  assert.ok(record.reconstruction.missing_information.includes('creator_description_attestation'));
 });
