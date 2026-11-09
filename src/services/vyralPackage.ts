@@ -37,6 +37,7 @@ export type VyralPackageManifest = {
   packageId: string;
   exportedAt: string;
   exportMode?: 'full' | 'dna-only' | 'compact-only';
+  blindReconstruction?: boolean;
   exportComponents?: { assets: boolean; fullDna: boolean; compactDna: boolean };
   reconstructionCapabilities?: Record<string, unknown>;
   vyral: Record<string, unknown>;
@@ -385,7 +386,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
           !assetIds.has(fileDna.source.asset_id)) {
         throw new Error('A VYRA File DNA package record has inconsistent identity metadata.');
       }
-      if (manifest.exportMode === 'dna-only' &&
+      if (manifest.exportMode === 'dna-only' && manifest.blindReconstruction !== true &&
           (fileDna.reconstruction.claim !== 'source_file_exact' || record.recovery_level !== 'source-file-exact')) {
         throw new Error('DNA-only packages require lossless source-byte payloads for every non-raster Asset.');
       }
@@ -403,6 +404,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   }
   if (manifest.exportMode === 'dna-only') {
     const capabilities = manifest.reconstructionCapabilities;
+    const blind = manifest.blindReconstruction === true;
     const dnaRecords = manifest.dnaRecords ?? [];
     const v3Records = dnaRecords.filter((record) =>
       record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3
@@ -412,11 +414,11 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     );
     const supportedRecords = [...v3Records, ...fileRecords];
     const expectedDecoded = v3Records.length > 0;
-    const expectedEncodedSource = supportedRecords.length > 0 && supportedRecords.every((record) => record.recovery_level === 'source-file-exact');
+    const expectedEncodedSource = !blind && supportedRecords.length > 0 && supportedRecords.every((record) => record.recovery_level === 'source-file-exact');
     if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== expectedDecoded ||
         capabilities.source_decode_independently_verified !== false ||
         capabilities.encoded_source_bytes_recoverable !== expectedEncodedSource ||
-        (fileRecords.length > 0 ? capabilities.binary_source_bytes_reconstructable !== true : (capabilities.binary_source_bytes_reconstructable !== undefined && capabilities.binary_source_bytes_reconstructable !== false)) ||
+        (blind ? capabilities.binary_source_bytes_reconstructable !== false : (fileRecords.length > 0 ? capabilities.binary_source_bytes_reconstructable !== true : (capabilities.binary_source_bytes_reconstructable !== undefined && capabilities.binary_source_bytes_reconstructable !== false))) ||
         typeof capabilities.color_space_fully_characterized !== 'boolean') {
       throw new Error('DNA-only reconstruction capability boundaries are missing or invalid.');
     }
@@ -917,7 +919,9 @@ export const createVyralDnaOnlyPackage = async (
   validateVyralManifest(dnaOnlyManifest);
   const entries: VyralPackageEntry[] = [
     ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
-    { path: 'README.txt', data: 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
+    { path: 'README.txt', data: blindReconstruction
+      ? 'VYRAL BLIND DNA package. Original source binary bytes are intentionally excluded. Raster Assets contain decoded pixel samples; non-raster Assets contain structural DNA only and require modality-specific semantic reconstruction.'
+      : 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
     { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
     { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
   ];
@@ -937,6 +941,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   dnaRecords: Array<VyralDnaV3Record | VyralFileDnaRecord>,
   payloadEntries: Array<VyralDnaV3PackageEntry | VyralFileDnaEntry>,
   includeCompactDna = true,
+  blindReconstruction = false,
 ) => {
   if (!Array.isArray(dnaRecords) || dnaRecords.length === 0) throw new Error('DNA-only export requires at least one supported Asset DNA record.');
   if (!Array.isArray(payloadEntries)) throw new Error('DNA-only export payload entries must be an array.');
@@ -960,6 +965,7 @@ export const createVyralAssetDnaOnlyPackage = async (
       hasV3 = true;
       const recordWithLayout: VyralDnaV3Record = {
         ...record,
+        ...(blindReconstruction ? { encoded_file_payload: undefined } : {}),
         decoded_image: {
           ...record.decoded_image,
           sample_layout: {
@@ -994,9 +1000,12 @@ export const createVyralAssetDnaOnlyPackage = async (
       }
       normalized.push({ schemaId: 'vyra.asset-dna', schemaVersion: 3, recordId: record.record_id, assetId: record.source.asset_id, value: recordWithLayout });
     } else {
-      const record = validateVyralFileDnaV1Record(raw);
+      const validatedRecord = validateVyralFileDnaV1Record(raw);
       hasFile = true;
-      if (record.reconstruction.claim !== 'source_file_exact') throw new Error('DNA-only export requires lossless source-byte chunks for each non-raster Asset.');
+      const record: VyralFileDnaRecord = blindReconstruction
+        ? { ...validatedRecord, reconstruction: { claim: 'unavailable', payload_encoding: 'none', chunk_size: null, chunks: [] } }
+        : validatedRecord;
+      if (!blindReconstruction && record.reconstruction.claim !== 'source_file_exact') throw new Error('DNA-only export requires lossless source-byte chunks for each non-raster Asset.');
       for (const chunk of record.reconstruction.chunks) {
         if (declaredPaths.has(chunk.package_path)) throw new Error('DNA-only export contains a duplicate declared payload path.');
         declaredPaths.add(chunk.package_path);
@@ -1011,6 +1020,9 @@ export const createVyralAssetDnaOnlyPackage = async (
     if (recordIds.has(last.recordId) || assetIds.has(last.assetId)) throw new Error('DNA-only export contains duplicate DNA record or Asset identities.');
     recordIds.add(last.recordId);
     assetIds.add(last.assetId);
+  }
+  if (blindReconstruction) {
+    for (const path of [...payloadByPath.keys()]) if (!declaredPaths.has(path)) payloadByPath.delete(path);
   }
   if (payloadByPath.size !== declaredPaths.size) throw new Error('DNA-only export contains undeclared DNA payload entries.');
   const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
@@ -1032,13 +1044,16 @@ export const createVyralAssetDnaOnlyPackage = async (
     }
     const packageClaims = new Map<string, VyralMasterDnaAsset['reconstruction_claim']>();
     for (const item of normalized) {
-      packageClaims.set(item.assetId, item.schemaId === 'vyra.asset-file-dna' || (item.value as VyralDnaV3Record).encoded_file_payload ? 'source_file_exact' : 'lossless_decoded');
+      packageClaims.set(item.assetId, item.schemaId === 'vyra.asset-file-dna'
+        ? (blindReconstruction ? 'semantic_only' : 'source_file_exact')
+        : (item.value as VyralDnaV3Record).encoded_file_payload ? 'source_file_exact' : 'lossless_decoded');
     }
     portableBase.masterDna = await updateMasterDnaClaimsForPackage(masterDna, packageClaims);
   }
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
     exportMode: 'dna-only',
+    ...(blindReconstruction ? { blindReconstruction: true } : {}),
     exportComponents: { assets: false, fullDna: true, compactDna: includeCompactDna && Boolean(portableBase.masterDna) },
     folders: [],
     versions: [],
@@ -1046,10 +1061,12 @@ export const createVyralAssetDnaOnlyPackage = async (
     reconstructionCapabilities: {
       decoded_sample_stream_reconstructable: hasV3,
       source_decode_independently_verified: false,
-      encoded_source_bytes_recoverable: hasRasterEncodedSource || (!hasV3 && hasFile),
-      binary_source_bytes_reconstructable: hasRasterEncodedSource || hasFile,
+      encoded_source_bytes_recoverable: !blindReconstruction && (hasRasterEncodedSource || (!hasV3 && hasFile)),
+      binary_source_bytes_reconstructable: !blindReconstruction && (hasRasterEncodedSource || hasFile),
       color_space_fully_characterized: normalized.filter((item) => item.schemaId === 'vyra.asset-dna').every((item) => (item.value as VyralDnaV3Record).decoded_image.color_space !== 'unknown'),
-      verification_note: 'Each Asset has its own exact reconstruction payload: decoded sample streams for raster DNA v3 and original source bytes for File DNA v1. Claims remain per-Asset and do not imply independent source-decoder verification.',
+      verification_note: blindReconstruction
+        ? 'Blind DNA export: original encoded source bytes are excluded. Raster DNA v3 contains decoded pixel samples; File DNA v1 contains structural facts only and cannot restore original binary bytes.'
+        : 'Each Asset has its own exact reconstruction payload: decoded sample streams for raster DNA v3 and original source bytes for File DNA v1. Claims remain per-Asset and do not imply independent source-decoder verification.',
     },
     dnaRecords: normalized.map((item) => ({
       id: item.recordId,
@@ -1057,7 +1074,7 @@ export const createVyralAssetDnaOnlyPackage = async (
       asset_id: item.assetId,
       dna_schema_id: item.schemaId,
       dna_schema_version: item.schemaVersion,
-      recovery_level: item.schemaId === 'vyra.asset-dna' ? 'decoded-samples-exact' : 'source-file-exact',
+      recovery_level: item.schemaId === 'vyra.asset-dna' ? 'decoded-samples-exact' : blindReconstruction ? 'semantic-only' : 'source-file-exact',
       dna_record: item.value,
     })),
     fingerprints: [],
