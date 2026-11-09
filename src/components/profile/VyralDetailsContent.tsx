@@ -2048,7 +2048,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 if (typeof payload?.error === 'string') detail = payload.error;
               } catch { /* Keep the SDK error when the response is not JSON. */ }
             }
-            const { data: committedDna, error: reconcileError } = await supabase
+            const { data: committedDna, error: reconcileError } = await db
               .from('vyral_dna_records')
               .select('id')
               .eq('asset_id', assetId)
@@ -2058,13 +2058,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if ((committedDna?.length ?? 0) > 0) {
               throw new Error('Image DNA extraction may already have committed. Refresh the Asset before retrying.');
             }
-            await saveFileDnaIdentity(detail);
-          } else {
-            dnaCommitted = true;
+            throw new Error('Required raster DNA v3 extraction failed: ' + detail + '. The original upload was not marked ready with identity-only File DNA.');
           }
+          dnaCommitted = true;
         } else {
           await saveFileDnaIdentity();
         }
+
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
         // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
