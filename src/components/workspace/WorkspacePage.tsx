@@ -460,7 +460,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           updatedAt: now,
         };
       });
-      const project = scene.project!;
+      const project: SceneProjectData = scene.project || { id: crypto.randomUUID(), schemaVersion: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), renderRevisionIds: [] };
       const timeline: SceneProjectTimeline = project.timeline || {
         duration: scene.duration, fps: 30, width: 1920, height: 1080, tracks: [],
       };
@@ -511,7 +511,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene description</span>
                     <textarea value={scene.description} onChange={(event) => updateActiveScene({ description: event.target.value })} className={inputClass + ' min-h-24 resize-y py-2'} rows={3} maxLength={1000} placeholder="Describe what happens in this Scene…" />
                   </label>
-                  <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                </section>
+                <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Timeline</h2>
