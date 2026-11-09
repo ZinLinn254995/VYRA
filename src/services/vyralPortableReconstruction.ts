@@ -78,6 +78,14 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def safe_name(value):
     value = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "asset")).strip(".-_")
     return (value or "asset")[:100]
@@ -440,9 +448,13 @@ def main():
             raise ValueError("Requested Asset IDs are not present in this package: " + ", ".join(sorted(unknown)))
         if args.audit_only:
             selected_assets = [asset for asset_id, asset in assets.items() if not selected or asset_id in selected]
-            selected_records = [entry for entry in records if not selected or entry["asset_id"] in selected]
+            records_by_asset = {entry["asset_id"]: entry for entry in records}
+            selected_records = [records_by_asset[asset["id"]] for asset in selected_assets]
+            package_path = Path(args.package)
             print(json.dumps({
                 "package": args.package,
+                "package_size_bytes": package_path.stat().st_size,
+                "package_sha256": sha256_file(package_path),
                 "validation": "passed",
                 "export_mode": manifest.get("exportMode"),
                 "asset_count": len(selected_assets),
