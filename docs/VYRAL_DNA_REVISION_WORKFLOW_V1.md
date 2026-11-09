@@ -26,7 +26,7 @@ Every Asset-DNA insert is assigned its lineage by a database trigger, not by a c
 - caller-supplied revision and parent values are ignored;
 - Vyral-scope DNA records are outside this per-Asset sequence.
 
-A partial unique index also binds each extracted DNA record to one source Asset Version ID. This prevents retries or concurrent extraction requests from creating two immutable DNA records for the same source Version. The extractor checks for an existing source-version record before processing and handles a concurrent uniqueness conflict by rolling back newly uploaded tiles. Its response returns the database-assigned revision and parent.
+A partial unique index binds each canonical extraction to one source Asset Version ID across both raster DNA v3 (`lossless_decoded_samples_v3`) and File DNA v1 (`vyra.asset-file-dna`). This prevents a retry or fallback path from creating a second canonical DNA extraction for the same source Version, including cross-format duplicates. Append-only Vision observations and creator-evidence revisions are intentionally excluded because multiple observations may validly refer to one source Version. The raster extractor checks for an existing source-version record before processing and handles a concurrent uniqueness conflict by rolling back newly uploaded tiles. Its response returns the database-assigned revision and parent.
 
 ## Permitted operations
 
