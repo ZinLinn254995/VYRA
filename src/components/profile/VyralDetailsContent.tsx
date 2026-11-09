@@ -919,7 +919,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             },
             source: {
               assetVersionId: sourceVersion.id,
-              sha256: sourceVersion.sha256.toLowerCase(),
+              sha256: sourceVersion.sha256!.toLowerCase(),
               sizeBytes: Number(sourceVersion.size_bytes),
             },
             technicalMetadata: technical,
