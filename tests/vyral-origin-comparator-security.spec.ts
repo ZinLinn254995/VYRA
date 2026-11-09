@@ -19,8 +19,8 @@ test('shared path validator rejects traversal, empty segments and backslashes fo
 });
 
 test('ORIGIN-01 comparator continues to pin exact source and candidate versions', () => {
-  assert.match(source, /originalVersion\.storage_path !== original\.storage_path/);
-  assert.match(source, /candidateVersion\.storage_path !== candidate\.storage_path/);
+  assert.match(source, /original\.storage_path !== originalVersion\.storage_path/);
+  assert.match(source, /candidate\.storage_path !== candidateVersion\.storage_path/);
   assert.match(source, /const originalPrefix = userId \+ '\/' \+ ORIGIN\.vyralId/);
   assert.match(source, /const candidatePrefix = userId \+ '\/' \+ ORIGIN\.vyralId/);
 });
