@@ -90,7 +90,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         detailsScope: 'storyboard',
         messages: [{ role: 'user', content: [
           'Suggest useful default metadata for a storyboard. Return JSON only. Use title, topic, category, style, mood and tags where supported. Put each field in the shape {"value":"..."}; tags may use {"value":["tag"]}.',
-          'Do not invent facts. If the idea is unclear, omit uncertain details. The creator can edit every field.',
+          'Do not invent facts when an idea is supplied. If both title and idea are blank, invent one suitable original short-video concept and concise metadata. The creator can edit every field.',
           'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
         ].join('\n') }],
       }),
@@ -270,6 +270,53 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setIsSuggesting(false);
   };
 
+  const createDefaultStoryboard = () => {
+    if (!isAuthenticated) { onLoginRequired(); return; }
+    const now = new Date().toISOString();
+    const next: Storyboard = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
+      title: 'Untitled Storyboard',
+      topic: '',
+      createdAt: now,
+      updatedAt: now,
+      details: { origins: {} },
+    };
+    setStoryboards((current) => [next, ...current]);
+    void persistStoryboard(next);
+    setStoryboardAiMessage('Storyboard created. AI is preparing suggested details…');
+
+    // Create immediately; fill suggested metadata in the background.
+    void requestStoryboardSuggestion('', '', true).then((suggestion) => {
+      if (!suggestion) return;
+      const updated: Storyboard = {
+        ...next,
+        title: suggestion.title || next.title,
+        topic: suggestion.topic || next.topic,
+        updatedAt: new Date().toISOString(),
+        details: {
+          category: suggestion.category,
+          style: suggestion.style,
+          mood: suggestion.mood,
+          tags: suggestion.tags,
+          origins: {
+            ...(suggestion.title ? { title: 'ai_suggested' as const } : {}),
+            ...(suggestion.topic ? { topic: 'ai_suggested' as const } : {}),
+            ...(suggestion.category ? { category: 'ai_suggested' as const } : {}),
+            ...(suggestion.style ? { style: 'ai_suggested' as const } : {}),
+            ...(suggestion.mood ? { mood: 'ai_suggested' as const } : {}),
+            ...(suggestion.tags.length ? { tags: 'ai_suggested' as const } : {}),
+          },
+          ai_provenance: { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt },
+        },
+      };
+      setStoryboards((current) => current.map((item) => item.id === next.id ? updated : item));
+      void persistStoryboard(updated);
+      setStoryboardAiMessage('');
+    }).catch(() => {
+      setStoryboardAiMessage('Storyboard created. You can add or edit its details anytime.');
+    });
+  };
+
   return (
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
       <section className="mb-7">
@@ -299,7 +346,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         {storyboardAiMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
         {cloudSyncMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{cloudSyncMessage}</p>}
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
+        <Button onClick={createDefaultStoryboard} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
       </section>
 
       {storyboards.length ? (
