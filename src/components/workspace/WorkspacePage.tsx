@@ -437,9 +437,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setStoryboardAiMessage('');
     };
     return (
-      <main className="profile-page-main mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
+      <main className="profile-page-main w-full min-w-0 p-0">
         <div className="profile-subpage-scroll profile-subpage-viewport">
-          <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+          <section className="profile-subpage-card storyboard-fullscreen-card">
           <ProfileSubpageHeader
             onBack={leaveStoryboardPage}
             backLabel="Workspace"
