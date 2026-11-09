@@ -638,7 +638,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string) => {
+  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false) => {
     const dnaOnly = !components.assets && components.fullDna;
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
@@ -912,16 +912,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile for ' + asset.name + ': ' + (tileError?.message ?? 'tile missing'));
               dnaPayloadEntries.push({ path: tile.package_path, data: new Uint8Array(await tileBlob.arrayBuffer()) });
             }
-            const encodedSource = await createVyralDnaV3EncodedFilePayload(
-              dnaRecord,
-              sourceBytes,
-              asset.original_filename || asset.name || 'original-image',
-            );
-            dnaPayloadEntries.push(...encodedSource.entries);
-            dnaRecordsForExport.push({
-              ...(dnaRecord as unknown as VyralDnaV3Record),
-              encoded_file_payload: encodedSource.payload,
-            });
+            if (blindReconstruction) {
+              dnaRecordsForExport.push({ ...(dnaRecord as unknown as VyralDnaV3Record), encoded_file_payload: undefined });
+            } else {
+              const encodedSource = await createVyralDnaV3EncodedFilePayload(
+                dnaRecord,
+                sourceBytes,
+                asset.original_filename || asset.name || 'original-image',
+              );
+              dnaPayloadEntries.push(...encodedSource.entries);
+              dnaRecordsForExport.push({ ...(dnaRecord as unknown as VyralDnaV3Record), encoded_file_payload: encodedSource.payload });
+            }
           } else {
             const identityRecord = asRecord(dnaRecord);
             const source = asRecord(identityRecord.source);
@@ -937,7 +938,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               bytes: sourceBytes,
               mime_type: sourceVersion.mime_type || asset.mime_type || 'application/octet-stream',
               filename: asset.original_filename || asset.name,
-              include_payload: true,
+              include_payload: !blindReconstruction,
             });
             const actualSourceHash = fileDna.record.file.sha256.toLowerCase();
             const expectedDnaHash = String(source.sha256 ?? asRecord(identityRecord.file).sha256 ?? '').toLowerCase();
@@ -948,7 +949,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 (expectedAssetHash && actualSourceHash !== expectedAssetHash)) {
               throw new Error('The original binary for ' + asset.name + ' no longer matches its DNA, Asset version, and stored Asset fingerprints.');
             }
-            dnaPayloadEntries.push(...fileDna.entries);
+            if (!blindReconstruction) dnaPayloadEntries.push(...fileDna.entries);
             dnaRecordsForExport.push(fileDna.record);
           }
         }
@@ -957,6 +958,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dnaRecordsForExport,
           dnaPayloadEntries,
           components.compactDna,
+          blindReconstruction,
         );
       } else {
         archive = createVyralZip(packageEntries);
@@ -3149,6 +3151,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   {label}
                 </button>
               ))}
+              <button
+                type="button"
+                disabled={busy || packageBusy}
+                onClick={(event) => {
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                  void exportVyralPackage({ assets: false, fullDna: true, compactDna: true }, undefined, true);
+                }}
+                className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
+              >
+                Blind DNA export · no original binary
+              </button>
             </div>
           </details>
         </div>
