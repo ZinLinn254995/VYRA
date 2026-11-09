@@ -549,9 +549,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       {scenes.map((scene, index) => <div key={scene.id} className={'min-w-0 overflow-hidden rounded-xl border ' + (selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]')}>
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
                           <span className="text-[10px] font-medium text-[var(--vyra-text-secondary)]">Scene {index + 1}</span>
-                          <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 text-xs text-[var(--vyra-text-secondary)]" onClick={(event) => event.stopPropagation()}>
-                            <input type="checkbox" checked={selectedSceneIds.includes(scene.id)} onChange={(event) => setSelectedSceneIds((current) => event.target.checked ? [...current, scene.id] : current.filter((id) => id !== scene.id))} aria-label={'Select ' + scene.title} className="size-4 accent-[var(--vyra-accent-primary)]" />
-                            <span>Select</span>
+                          <label className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full" onClick={(event) => event.stopPropagation()}>
+                            <input type="checkbox" checked={selectedSceneIds.includes(scene.id)} onChange={(event) => setSelectedSceneIds((current) => event.target.checked ? [...current, scene.id] : current.filter((id) => id !== scene.id))} aria-label={'Select ' + scene.title} className="peer sr-only" />
+                            <span className="flex size-5 items-center justify-center rounded-full border border-[var(--vyra-text-muted)]/45 bg-transparent text-white transition-colors peer-checked:border-[var(--vyra-accent-primary)] peer-checked:bg-[var(--vyra-accent-primary)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--vyra-accent-primary)]/40">
+                              <Check size={12} strokeWidth={3} className="opacity-0 transition-opacity peer-checked:opacity-100" />
+                            </span>
                           </label>
                         </div>
                         <button type="button" onClick={() => setActiveSceneId(scene.id)} aria-label={'Open Scene Editor: ' + scene.title} className="block w-full p-3 pt-1 text-left">
