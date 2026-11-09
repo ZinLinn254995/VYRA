@@ -440,10 +440,39 @@ def validate_manifest(manifest, archive_names, archive):
                 raise ValueError("Semantic DNA source identity or no-media-payload guarantee is invalid")
             if any(key in record for key in ("lossless_payload", "encoded_file_payload", "binary_payload", "decoded_samples")):
                 raise ValueError("Semantic DNA must not contain media reconstruction payloads")
+            forbidden_evidence_keys = {"image", "image_url", "image_uri", "image_data", "media", "media_url", "media_uri", "binary", "binary_data", "payload", "raw_payload", "encoded", "encoded_bytes", "base64", "data_url", "bytes", "file_bytes", "file_data", "storage_path", "signed_url", "download_url", "source_url", "asset_url", "tile", "tiles", "samples", "decoded_samples", "pixel_buffer", "audio_buffer", "video_frames"}
+            def validate_semantic_value(value, depth=0, counter=None):
+                if counter is None:
+                    counter = [0]
+                counter[0] += 1
+                if counter[0] > 2048 or depth > 8:
+                    raise ValueError("Semantic DNA evidence exceeds safe structured-data limits")
+                if isinstance(value, str):
+                    if len(value) > 4000 or value.lower().startswith("data:") or re.search(r"https?://", value, re.I):
+                        raise ValueError("Semantic DNA evidence contains media URLs or oversized payload text")
+                elif isinstance(value, list):
+                    if len(value) > 128:
+                        raise ValueError("Semantic DNA evidence contains an oversized list")
+                    for child in value:
+                        validate_semantic_value(child, depth + 1, counter)
+                elif isinstance(value, dict):
+                    if len(value) > 128:
+                        raise ValueError("Semantic DNA evidence contains too many fields")
+                    for key, child in value.items():
+                        normalized_key = re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
+                        if normalized_key in forbidden_evidence_keys:
+                            raise ValueError("Semantic DNA evidence contains a forbidden media payload or source reference")
+                        validate_semantic_value(child, depth + 1, counter)
+                elif value is not None and not isinstance(value, (bool, int, float)):
+                    raise ValueError("Semantic DNA evidence is not JSON-compatible")
             for observation in record.get("creator_confirmed_observations", []):
                 if (observation.get("source_asset_version_id") != source.get("asset_version_id")
                         or observation.get("source_sha256") != source.get("sha256")):
                     raise ValueError("Semantic DNA creator observation is not pinned to its source version and hash")
+                validate_semantic_value(observation.get("evidence"))
+            description = record.get("creator_description", {}).get("text")
+            if isinstance(description, str) and (len(description) > 4000 or description.lower().startswith("data:") or re.search(r"https?://", description, re.I)):
+                raise ValueError("Semantic DNA description contains media URLs or oversized payload text")
         else:
             raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
     if set(counts) != set(assets):
