@@ -187,7 +187,7 @@ def reconstruct_raster(archive, record, asset, output_dir):
         "note": "The raw sample stream is the exact decoded-sample recovery. The PNG is a viewable encoding and is not the original encoded source file.",
     }
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    return {
+    result = {
         "asset_id": asset_id,
         "name": asset.get("name"),
         "result": "decoded-samples-exact",
@@ -196,6 +196,30 @@ def reconstruct_raster(archive, record, asset, output_dir):
         "metadata": str(metadata_path),
         "sha256": sample_hash,
     }
+    encoded = record.get("encoded_file_payload")
+    if encoded:
+        original = bytearray()
+        for chunk in encoded["chunks"]:
+            original.extend(read_entry(archive, chunk["package_path"], chunk["byte_length"], chunk["sha256"]))
+        if len(original) != encoded["size_bytes"] or sha256(original) != encoded["sha256"]:
+            raise ValueError("Original encoded raster file failed its final source SHA-256 check")
+        filename = safe_name(Path(encoded["filename"]).name)
+        suffix = Path(filename).suffix
+        if not re.fullmatch(r"\.[A-Za-z0-9]{1,12}", suffix):
+            suffix = ".bin"
+        original_path = output_dir / (stem + "-original" + suffix.lower())
+        original_path.write_bytes(original)
+        result["source_file_exact"] = {
+            "file": str(original_path),
+            "sha256": sha256(original),
+            "size_bytes": len(original),
+            "mime_type": encoded["mime_type"],
+            "original_filename": filename,
+        }
+        result["original_encoded_file_bytes_recovered"] = True
+    else:
+        result["original_encoded_file_bytes_recovered"] = False
+    return result
 
 
 def reconstruct_file(archive, record, asset, output_dir):
@@ -329,6 +353,34 @@ def validate_manifest(manifest, archive_names, archive):
                 if path in reserved_system_paths:
                     raise ValueError("Raster DNA payload path collides with a protected System File")
                 expected_paths.add(path)
+            encoded = record.get("encoded_file_payload")
+            if encoded is not None:
+                if (not isinstance(encoded, dict) or encoded.get("encoding") != "raw-chunks-v1"
+                        or not isinstance(encoded.get("filename"), str) or not encoded["filename"]
+                        or len(encoded["filename"]) > 255
+                        or encoded.get("mime_type") != record.get("source", {}).get("mime_type")
+                        or encoded.get("size_bytes") != record.get("source", {}).get("size_bytes")
+                        or encoded.get("sha256") != record.get("source", {}).get("sha256")
+                        or not isinstance(encoded.get("chunk_size"), int)
+                        or encoded["chunk_size"] < 1 or encoded["chunk_size"] > 8 * 1024 * 1024
+                        or not isinstance(encoded.get("chunks"), list) or not encoded["chunks"]):
+                    raise ValueError("Raster DNA exact encoded-file payload metadata is invalid")
+                if len(encoded["chunks"]) != (encoded["size_bytes"] + encoded["chunk_size"] - 1) // encoded["chunk_size"]:
+                    raise ValueError("Raster DNA exact encoded-file chunk count is incomplete")
+                source_bytes = bytearray()
+                for index, chunk in enumerate(encoded["chunks"]):
+                    expected_length = min(encoded["chunk_size"], encoded["size_bytes"] - index * encoded["chunk_size"])
+                    path = "dna/v3/" + record["record_id"] + "/source/" + str(index) + ".bin"
+                    if (not isinstance(chunk, dict) or chunk.get("index") != index
+                            or chunk.get("byte_length") != expected_length
+                            or chunk.get("package_path") != path
+                            or path in expected_paths
+                            or not isinstance(chunk.get("sha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", chunk["sha256"])):
+                        raise ValueError("Raster DNA exact encoded-file chunk metadata is invalid")
+                    expected_paths.add(path)
+                    source_bytes.extend(read_entry(archive, path, expected_length, chunk["sha256"]))
+                if len(source_bytes) != encoded["size_bytes"] or sha256(source_bytes) != encoded["sha256"]:
+                    raise ValueError("Raster DNA exact encoded-file source SHA-256 verification failed")
         elif schema == "vyra.asset-file-dna" and version == 1:
             if entry.get("recovery_level") != "source-file-exact":
                 raise ValueError("File DNA must declare exact source-file recovery")
@@ -464,10 +516,21 @@ def main():
                     "dna_schema_id": entry["dna_schema_id"],
                     "dna_schema_version": entry["dna_schema_version"],
                     "recovery_level": entry["recovery_level"],
-                    "payload_kind": "original-file-bytes" if entry["recovery_level"] == "source-file-exact" else "decoded-pixel-samples",
-                    "original_encoded_file_bytes_included": entry["recovery_level"] == "source-file-exact",
+                    "payload_kind": (
+                        "decoded-pixel-samples+original-file-bytes"
+                        if entry["dna_schema_id"] == "vyra.asset-dna" and entry["dna_record"].get("encoded_file_payload")
+                        else "original-file-bytes" if entry["recovery_level"] == "source-file-exact"
+                        else "decoded-pixel-samples"
+                    ),
+                    "original_encoded_file_bytes_included": (
+                        entry["recovery_level"] == "source-file-exact" or
+                        bool(entry["dna_record"].get("encoded_file_payload"))
+                    ),
                 } for asset, entry in zip(selected_assets, selected_records)],
-                "contains_original_encoded_file_bytes": any(entry["recovery_level"] == "source-file-exact" for entry in selected_records),
+                "contains_original_encoded_file_bytes": any(
+                    entry["recovery_level"] == "source-file-exact" or bool(entry["dna_record"].get("encoded_file_payload"))
+                    for entry in selected_records
+                ),
                 "archive_entry_count": len(archive_names),
                 "undeclared_entries": 0,
                 "integrity": "passed",
