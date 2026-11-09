@@ -67,6 +67,20 @@ python tools/reconstruct_vyral.py path/to/export.vyral --audit-only
 
 The audit validates ZIP safety limits, exact declared-entry inventory, protected System Files policy and hashes, each Asset's DNA payload hashes, and reconstruction-payload coverage without writing reconstructed files. Legacy `dna-only` packages may contain original binary chunks and are therefore **not automatically blind**. The new Binary-free DNA export is marked `blindReconstruction: true` with `blindnessScope: original_encoded_binary_excluded`: it excludes raster `encoded_file_payload` chunks and all File DNA v1 source chunks. **It is not yet a blind generative-reconstruction package.** Raster DNA v3 still contains the complete decoded pixel sample stream, so an external tool can reproduce those pixels deterministically without inferring the image from semantic DNA. Non-raster File DNA v1 retains deterministic structural facts only and is labelled `semantic-only`; it cannot restore arbitrary original binary files. The audit reports the exact exclusion scope, per-Asset payload kinds, `contains_original_encoded_file_bytes: false`, and `original_binary_payload_entries: 0`. Preserve this report with the external attempt evidence. It proves the package contains no original encoded source bytes; it does not prove a model session was blind or that a generative reconstruction is accurate.
 
+### 3B. Semantic-only DNA export
+
+The workspace now has a separate **Semantic-only DNA** export. It uses the `vyra.asset-semantic-dna` v1 record and the package scope `semantic_only_no_media_payload`. It includes Asset/Vyral identity, creator-declared description, technical metadata when already known, and only creator-confirmed observations pinned to the exact source Asset Version ID and SHA-256.
+
+This package deliberately excludes:
+- original encoded media bytes and file chunks;
+- decoded raster pixel tiles and sample streams;
+- storage paths, signed URLs, remote media URLs, and credentials;
+- unreviewed or disputed vision observations.
+
+Both the TypeScript package validator and the portable Python audit reject embedded binary/media fields, remote URLs, and evidence that does not match the pinned source Version and hash. The package has no media reconstruction payload, so its output is a **new AI-generated approximation**, not source-byte or pixel-exact recovery. Missing descriptions, measurements, or creator-confirmed observations remain explicit blockers/gaps; they are not fabricated. Importing this reference package as an original media Asset is intentionally blocked.
+
+A semantic-only export is now available from the Vyral package export menu. Run the included audit first and preserve its package SHA-256 report with every external AI attempt. A successful package audit proves package scope and integrity only; it does not prove that an external model was blind, that the generated result is accurate, or that different models will produce the same result.
+
 ## 4. Modality-specific scoring
 
 ### Raster images
