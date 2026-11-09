@@ -116,7 +116,7 @@ test('portable decoder rejects undeclared hidden original files in a DNA-only pa
   try {
     const result = runDecoder(fixture, ['--audit-only']);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Package entries do not match the declared reconstruction payloads/);
+    assert.match(result.stderr, /(Vyral package integrity inventory does not match its ZIP entries|Package entries do not match the declared reconstruction payloads)/);
     assert.equal(existsSync(fixture.output), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
