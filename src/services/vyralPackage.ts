@@ -1110,6 +1110,26 @@ export const reconstructVyralDnaV3FromPackage = async (
   return reconstructVyralDnaV3(dnaRecord, tileFiles);
 };
 
+export const reconstructVyralDnaV3EncodedFileFromPackage = async (
+  files: Map<string, Uint8Array>,
+  recordId: string,
+) => {
+  const manifest = parseVyralManifest(files);
+  const entry = manifest.dnaRecords.find((record) =>
+    record.id === recordId && record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3,
+  );
+  if (!entry) throw new Error('The VYRAL package does not contain the requested DNA v3 record.');
+  const dnaRecord = validateVyralDnaV3Record(entry.dna_record);
+  if (!dnaRecord.encoded_file_payload) throw new Error('The DNA v3 package does not include exact original encoded-file bytes.');
+  const chunkFiles = new Map<string, Uint8Array>();
+  for (const chunk of dnaRecord.encoded_file_payload.chunks) {
+    const bytes = files.get(chunk.package_path);
+    if (!bytes) throw new Error('DNA v3 exact source-file payload is missing: ' + chunk.package_path);
+    chunkFiles.set(chunk.package_path, bytes);
+  }
+  return reconstructVyralDnaV3EncodedFile(dnaRecord, chunkFiles);
+};
+
 const pngUint32 = (value: number) => new Uint8Array([
   (value >>> 24) & 0xff,
   (value >>> 16) & 0xff,
