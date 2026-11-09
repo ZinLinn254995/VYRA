@@ -304,3 +304,39 @@ These are examples, not a requirement that every user must manually adjust every
 **Core principle: “AI Does the Work. You Make the Decisions.”**
 
 This is an approved product direction, not a claim that all listed AI capabilities are already implemented. The exact capabilities, tool permissions, review points, and reliability requirements must be designed and validated before implementation.
+
+
+## 14. Chat-First Editing and Child-Friendly Controls
+
+**The AI Chat Box is the primary way to create, add, arrange, and edit content at all three editor levels.** The visible editor controls must remain minimal and understandable to a first-time user, including children.
+
+### 14.1 AI Chat is the main control
+
+- Keep the AI Chat Box easy to find and use in the Master Editor, Scene Editor, and Individual Media Editor.
+- Creators should be able to ask in ordinary language to add, create, remove, move, shorten, change, improve, or revise content.
+- AI should perform the requested work and show the result for the creator to review.
+- Do not require users to learn editing terminology, navigate complex menus, or perform long sequences of manual steps when AI can do the work reliably.
+- Preserve the creator's intent and approved content; ask for confirmation before destructive or consequential changes when needed.
+
+### 14.2 Only simple, contextual controls
+
+Show only a small number of familiar actions relevant to the current editor and selected content. Examples include:
+
+- **Add** — add a Scene, media item, music, or text where appropriate.
+- **Move** — change the order or position of a Scene or item.
+- **Cut** — remove an unwanted part when supported.
+- **Play / Preview** — watch or listen to the result.
+- **Back** — return to the parent editor.
+- **Done** — finish the current edit and return to the parent editor.
+
+These are examples of simple actions, not a requirement to display every button at once. Show controls only when they are relevant and available.
+
+### 14.3 Hide professional complexity
+
+- Do not expose crowded professional toolbars, complicated parameter panels, technical jargon, or advanced editing controls by default.
+- Keep detailed timing, rendering, synchronization, media processing, and other technical operations behind the scenes or let AI handle them.
+- Offer a simple direct adjustment only when it is genuinely useful; advanced capability must not make the interface intimidating.
+- Use clear labels, recognizable icons with text where helpful, and predictable interactions across all three editor levels.
+- The Master Editor should remain focused on the complete Storyboard; the Scene Editor on one Scene; and the Media Editor on one selected media item.
+
+**The goal is professional-quality creative power with controls simple enough for a child to understand. AI Chat does most of the work; visible buttons are only for the few actions users may want to do directly.**
