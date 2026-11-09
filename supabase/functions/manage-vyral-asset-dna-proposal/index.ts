@@ -147,13 +147,21 @@ const resolveCreatorEvidence = async (
   if (evidenceResult.error) throw new Error('Could not resolve owner-scoped creator-confirmed field evidence.');
   const evidenceRows = evidenceResult.data ?? [];
   const reviewIds = [...new Set(evidenceRows.map((record: any) => record.review_evidence_id).filter((id: unknown) => typeof id === 'string' && UUID.test(id)))];
-  const reviewResult = reviewIds.length ? await admin.from('vyral_vision_creator_evidence')
-    .select('id,user_id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256')
-    .in('id', reviewIds).eq('user_id', userId).eq('asset_id', proposal.asset_id)
-    .eq('asset_version_id', proposal.asset_version_id).eq('source_sha256', proposal.source_sha256.toLowerCase())
-    .eq('evidence_kind','observation_review').eq('decision','creator_confirmed') : { data: [], error: null };
-  if (reviewResult.error) throw new Error('Could not verify the creator review records attached to field evidence.');
+  const observationIds = [...new Set(evidenceRows.map((record: any) => record.observation_id).filter((id: unknown) => typeof id === 'string' && UUID.test(id)))];
+  const [reviewResult, observationResult] = await Promise.all([
+    reviewIds.length ? admin.from('vyral_vision_creator_evidence')
+      .select('id,user_id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256')
+      .in('id', reviewIds).eq('user_id', userId).eq('asset_id', proposal.asset_id)
+      .eq('asset_version_id', proposal.asset_version_id).eq('source_sha256', proposal.source_sha256.toLowerCase())
+      .eq('evidence_kind','observation_review').eq('decision','creator_confirmed') : { data: [], error: null },
+    observationIds.length ? admin.from('vyral_vision_observations')
+      .select('id,user_id,asset_id,asset_version_id,source_sha256')
+      .in('id', observationIds).eq('user_id', userId).eq('asset_id', proposal.asset_id)
+      .eq('asset_version_id', proposal.asset_version_id).eq('source_sha256', proposal.source_sha256.toLowerCase()) : { data: [], error: null },
+  ]);
+  if (reviewResult.error || observationResult.error) throw new Error('Could not verify creator review records or their source Vision observations.');
   const reviews = new Map((reviewResult.data ?? []).map((record: any) => [record.id, record]));
+  const observations = new Map((observationResult.data ?? []).map((record: any) => [record.id, record]));
   const verifiedEvidenceRefs: string[] = [];
   for (const ref of refs) {
     const record = evidenceRows.find((item: any) => item.id === ref);
@@ -161,7 +169,8 @@ const resolveCreatorEvidence = async (
     let reason = 'No matching owner-scoped, creator-confirmed field evidence exists for this reference and exact source version.';
     let valid = Boolean(record && record.field_path && record.review_evidence_id &&
       reviews.has(record.review_evidence_id) &&
-      reviews.get(record.review_evidence_id)?.observation_id === record.observation_id);
+      reviews.get(record.review_evidence_id)?.observation_id === record.observation_id &&
+      observations.has(record.observation_id));
     if (valid) {
       const review = reviews.get(record.review_evidence_id);
       valid = review.asset_version_id === record.asset_version_id && review.source_sha256 === record.source_sha256;
