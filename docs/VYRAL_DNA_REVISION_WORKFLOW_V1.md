@@ -16,6 +16,18 @@ Each Change Set is bound to:
 
 The Change Set payload is canonicalized as JSON before SHA-256 hashing. The stored payload and hash are immutable after preparation. A mismatched hash, Proposal ID, source identity, version, or DNA revision blocks validation or application.
 
+## Database-owned revision allocation and extraction uniqueness
+
+Every Asset-DNA insert is assigned its lineage by a database trigger, not by a caller:
+
+- the allocator locks the owning Asset row, serializing concurrent DNA writers for that Asset;
+- the first Asset-DNA record receives revision 1 and no parent;
+- each later record receives the next revision and the latest record as its parent;
+- caller-supplied revision and parent values are ignored;
+- Vyral-scope DNA records are outside this per-Asset sequence.
+
+A partial unique index also binds each extracted DNA record to one source Asset Version ID. This prevents retries or concurrent extraction requests from creating two immutable DNA records for the same source Version. The extractor checks for an existing source-version record before processing and handles a concurrent uniqueness conflict by rolling back newly uploaded tiles. Its response returns the database-assigned revision and parent.
+
 ## Permitted operations
 
 Version 1 is deliberately narrow:
