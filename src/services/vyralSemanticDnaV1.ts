@@ -8,6 +8,14 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const cleanText = (value: unknown, max = 4000) =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
 
+const assertSafeSemanticText = (value: unknown, label: string, max = 4000) => {
+  if (value === null || value === undefined) return;
+  if (typeof value !== 'string' || value.length > max || /^data:/i.test(value) ||
+      value.includes('://') || /[A-Za-z0-9+/]{128,}={0,2}/.test(value)) {
+    throw new Error('Semantic DNA ' + label + ' contains a media URL, encoded payload, or oversized text.');
+  }
+};
+
 const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
   const forbiddenKeys = new Set([
     'image', 'image_url', 'image_uri', 'image_data', 'media', 'media_url', 'media_uri',
@@ -26,7 +34,7 @@ const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
     }
     if (typeof item === 'string') {
       const text = item.trim();
-      if (text.length > 4000 || /^data:/i.test(text) || text.includes('://')) {
+      assertSafeSemanticText(text, 'evidence text');
         throw new Error('Semantic DNA evidence cannot contain data URLs, remote media references, or oversized strings.');
       }
       return text;
@@ -262,9 +270,13 @@ export const validateVyralSemanticDnaV1 = (value: unknown): VyralSemanticDnaV1 =
     }
     sanitizeSemanticEvidence(observation.evidence);
   }
-  const descriptionText = value.creator_description.text;
-  if (descriptionText !== null && (typeof descriptionText !== 'string' || descriptionText.length > 4000 || /^data:/i.test(descriptionText) || descriptionText.includes('://'))) {
-    throw new Error('Semantic DNA description cannot contain media URLs or oversized payload text.');
-  }
+  assertSafeSemanticText(value.creator_description.text, 'description');
+  assertSafeSemanticText(value.identity.name, 'identity name', 255);
+  assertSafeSemanticText(value.identity.original_filename, 'filename', 255);
+  assertSafeSemanticText(value.context.vyral_name, 'Vyral name', 255);
+  assertSafeSemanticText(value.context.vyral_description, 'Vyral description');
+  assertSafeSemanticText(value.context.purpose, 'purpose', 2000);
+  if (!Array.isArray(value.context.intended_uses)) throw new Error('Semantic DNA intended uses must be a list.');
+  value.context.intended_uses.forEach((item) => assertSafeSemanticText(item, 'intended use', 255));
   return value as unknown as VyralSemanticDnaV1;
 };
