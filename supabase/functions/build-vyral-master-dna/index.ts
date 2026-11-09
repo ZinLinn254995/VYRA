@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { createVyralMasterDnaV1 } from '../../../src/services/vyralMasterDnaV1.ts';
 import { preflightVyralMasterDna } from '../../../src/services/vyralMasterDnaPreflight.ts';
 import { validateVyralDnaV3Record } from '../../../src/services/vyralDnaV3.ts';
@@ -254,7 +255,7 @@ Deno.serve(async (request: Request) => {
     const version = latestVersionByAsset.get(asset.id);
     if (!version) return json({ error: 'An Asset has no immutable source version.', status: 'missing_asset_version', assetId: asset.id }, 409);
     const expectedStoragePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
-    if (typeof version.storage_path !== 'string' || !version.storage_path.startsWith(expectedStoragePrefix)) {
+    if (!isCanonicalOwnedStoragePath(version.storage_path, expectedStoragePrefix)) {
       return json({ error: 'An Asset version has an invalid canonical storage path.', status: 'invalid_asset_version', assetId: asset.id }, 409);
     }
     if (!isSha256(version.sha256)) return json({ error: 'An Asset version is missing its SHA-256 fingerprint.', status: 'missing_asset_fingerprint', assetId: asset.id }, 409);
@@ -289,13 +290,12 @@ Deno.serve(async (request: Request) => {
         validateVyralDnaV3Record(nestedDna);
         const assetStoragePrefix = userId + '/' + vyral.id + '/' + asset.id + '/';
         const firstPath = tilePaths[0];
-        if (typeof firstPath !== 'string' || !firstPath.startsWith(assetStoragePrefix)) {
+        if (!isCanonicalOwnedStoragePath(firstPath, assetStoragePrefix)) {
           throw new Error('DNA tile storage path escaped its canonical Asset prefix.');
         }
         const directory = firstPath.slice(0, firstPath.lastIndexOf('/'));
         const requiredNames = tilePaths.map((path) => {
-          if (typeof path !== 'string' || !path.startsWith(assetStoragePrefix) ||
-              path.split('/').some((part) => part === '.' || part === '..') ||
+          if (!isCanonicalOwnedStoragePath(path, assetStoragePrefix) ||
               path.slice(0, path.lastIndexOf('/')) !== directory) {
             throw new Error('DNA tile storage paths must remain in one canonical private Asset folder.');
           }
