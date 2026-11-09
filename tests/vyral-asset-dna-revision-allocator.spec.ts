@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const migration = readFileSync('supabase/migrations/20261109280000_vyral_asset_dna_auto_revision_allocator.sql', 'utf8').toLowerCase();
+const authorityMigration = readFileSync('supabase/migrations/20261109290000_vyral_asset_dna_revision_allocator_authority.sql', 'utf8').toLowerCase();
 const extractor = readFileSync('supabase/functions/extract-vyral-asset-dna-v3/index.ts', 'utf8');
 const visionWriter = readFileSync('supabase/functions/record-vyral-vision-observation/index.ts', 'utf8');
 const creatorWriter = readFileSync('supabase/functions/promote-vyral-vision-knowledge/index.ts', 'utf8');
