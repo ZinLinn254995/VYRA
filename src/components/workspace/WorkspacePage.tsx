@@ -573,6 +573,28 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <MasterTimelineEditor
                     scenes={scenes}
                     value={details.masterTimeline}
+                    onSceneOrderChange={(sceneIds) => {
+                      const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+                      const ordered = sceneIds.map((id) => byId.get(id)).filter((scene): scene is StoryboardScene => Boolean(scene));
+                      if (ordered.length === scenes.length && ordered.some((scene, index) => scene.id !== scenes[index]?.id)) updateScenes(ordered);
+                    }}
+                    onSceneDuplicate={(source, index) => {
+                      const original = scenes.find((scene) => scene.id === source.id);
+                      const copy: StoryboardScene = {
+                        ...(original || { id: source.id, title: source.title, description: '', duration: source.duration, transition: 'Fade' }),
+                        id: crypto.randomUUID(),
+                        title: (original?.title || source.title) + ' copy',
+                      };
+                      const next = [...scenes];
+                      next.splice(Math.max(0, Math.min(index, next.length)), 0, copy);
+                      updateScenes(next);
+                      return { id: copy.id, title: copy.title, duration: copy.duration };
+                    }}
+                    onSceneDelete={(sceneId) => {
+                      updateScenes(scenes.filter((scene) => scene.id !== sceneId));
+                      setSelectedSceneIds((current) => current.filter((id) => id !== sceneId));
+                      if (activeSceneId === sceneId) setActiveSceneId(null);
+                    }}
                     onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
                       ...current,
                       details: { ...current.details, masterTimeline },
