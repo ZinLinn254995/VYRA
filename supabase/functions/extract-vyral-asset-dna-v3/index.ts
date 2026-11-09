@@ -143,8 +143,10 @@ Deno.serve(async (request: Request) => {
     for (let offset = 0, index = 0; offset < original.byteLength; offset += SOURCE_CHUNK_BYTES, index += 1) {
       const chunk = original.slice(offset, Math.min(offset + SOURCE_CHUNK_BYTES, original.byteLength));
       const storagePath = sourceStoragePrefix + index + '.bin';
+      const chunkBuffer = new ArrayBuffer(chunk.byteLength);
+      new Uint8Array(chunkBuffer).set(chunk);
       const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(
-        storagePath, new Blob([chunk], { type: 'application/octet-stream' }),
+        storagePath, new Blob([chunkBuffer], { type: 'application/octet-stream' }),
         { contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0' },
       );
       if (error) throw new Error(error.message);
