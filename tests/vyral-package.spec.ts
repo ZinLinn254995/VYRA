@@ -1254,6 +1254,7 @@ test('blind DNA export excludes original raster and non-raster binary chunks', a
   const files = await readVyralZip(archive);
   const manifest = parseVyralManifest(files);
   assert.equal(manifest.blindReconstruction, true);
+  assert.equal(manifest.blindnessScope, 'original_encoded_binary_excluded');
   assert.equal(manifest.reconstructionCapabilities?.encoded_source_bytes_recoverable, false);
   assert.equal(manifest.reconstructionCapabilities?.binary_source_bytes_reconstructable, false);
   assert.equal(files.has(rasterOriginalPath), false);
@@ -1277,6 +1278,7 @@ test('blind DNA export excludes original raster and non-raster binary chunks', a
     const audit = JSON.parse(execFileSync('python', [scriptPath, packagePath, '--audit-only'], { encoding: 'utf8' }));
     assert.equal(audit.validation, 'passed');
     assert.equal(audit.blind_reconstruction, true);
+    assert.equal(audit.blindness_scope, 'original_encoded_binary_excluded');
     assert.equal(audit.contains_original_encoded_file_bytes, false);
     assert.equal(audit.original_binary_payload_entries, 0);
     assert.equal(audit.assets.find((item: { asset_id: string }) => item.asset_id === 'blind-file').payload_kind, 'structural-dna-only');
