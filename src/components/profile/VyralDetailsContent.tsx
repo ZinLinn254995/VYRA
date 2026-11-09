@@ -6,11 +6,11 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
+import { createVyralAssetDnaOnlyPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { VYRAL_SYSTEM_FILES_VERSION, verifyVyralSystemFileIntegrityV1 } from '../../services/vyralSystemFilesV1';
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
-import type { VyralDnaV3Record } from '../../services/vyralDnaV3';
+import { createVyralDnaV3EncodedFilePayload, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
@@ -912,7 +912,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               if (tileError || !tileBlob) throw new Error('Could not read DNA v3 tile for ' + asset.name + ': ' + (tileError?.message ?? 'tile missing'));
               dnaPayloadEntries.push({ path: tile.package_path, data: new Uint8Array(await tileBlob.arrayBuffer()) });
             }
-            dnaRecordsForExport.push(dnaRecord as unknown as VyralDnaV3Record);
+            const encodedSource = await createVyralDnaV3EncodedFilePayload(
+              dnaRecord,
+              sourceBytes,
+              asset.original_filename || asset.name || 'original-image',
+            );
+            dnaPayloadEntries.push(...encodedSource.entries);
+            dnaRecordsForExport.push({
+              ...(dnaRecord as unknown as VyralDnaV3Record),
+              encoded_file_payload: encodedSource.payload,
+            });
           } else {
             const identityRecord = asRecord(dnaRecord);
             const source = asRecord(identityRecord.source);
