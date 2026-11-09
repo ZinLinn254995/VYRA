@@ -467,6 +467,42 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     try {
+
+      if (validateDnaChangeSet) {
+        if (selectedAssets.length !== 1) throw new Error('To validate a DNA change set, select the Asset whose approved change set you want VYRA to check.');
+        if (!supabase) throw new Error('Secure DNA change-set validation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: approved, error: approvedError } = await supabase
+          .from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,created_at,change_set_sha256')
+          .eq('asset_id', selectedAsset.id).eq('status','approved').not('change_set','is',null)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (approvedError) throw new Error('Could not load the prepared DNA change set: ' + approvedError.message);
+        if (!approved) throw new Error('No prepared DNA change set exists for this Asset. Approve its proposal and prepare the change set first.');
+        const { data: validated, error: validationError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          body: { action: 'validate_change_set', proposalId: approved.id },
+        });
+        if (validationError) {
+          let message = 'VYRA could not validate the DNA change set.';
+          try { const payload = await (validationError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        const report = validated?.report;
+        if (!report) throw new Error('The deterministic validation response was incomplete.');
+        const lines = [
+          'DNA Change Set deterministic validation complete.',
+          'Result: ' + String(validated.status ?? report.status ?? 'unknown'),
+          'Validator: v' + String(report.validatorVersion ?? 'unknown'),
+          'SHA-256: ' + String(report.changeSetSha256 ?? approved.change_set_sha256),
+          'Checks: ' + Object.entries(report.checks ?? {}).map(([key, value]) => key + '=' + String(value)).join(', '),
+          'Validated operations: ' + String(report.validatedOperationCount ?? 0),
+          ...(Array.isArray(report.errors) && report.errors.length ? ['Findings:', ...report.errors.map((item: unknown) => '- ' + String(item))] : []),
+          'DNA changed: No. No revision was created.',
+          validated.nextStep ?? 'A separate revision-creation step is required; validation alone never applies a change.',
+        ];
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: lines.join('\\n'), status: report.status === 'validated' ? 'success' : 'preview' }]);
+        return;
+      }
       if (prepareDnaChangeSet) {
         if (selectedAssets.length !== 1) throw new Error('To prepare the DNA change set, select the same Asset whose improvement proposal you approved.');
         if (!supabase) throw new Error('Secure DNA change-set preparation is unavailable in this environment.');
