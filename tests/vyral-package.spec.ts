@@ -13,6 +13,7 @@ import {
   VYRAL_PACKAGE_FORMAT,
   createVyralDnaOnlyPackage,
   createVyralAssetDnaOnlyPackage,
+  createVyralSemanticDnaPackage,
   getVyralPackageAssetsForImport,
   selectVyralPackageComponents,
   reconstructVyralDnaV3FromPackage,
@@ -1288,5 +1289,94 @@ test('blind DNA export excludes original raster and non-raster binary chunks', a
     assert.equal(audit.assets.find((item: { asset_id: string }) => item.asset_id === 'blind-raster').payload_kind, 'decoded-pixel-samples');
   } finally {
     await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test('semantic-only DNA package contains descriptions and confirmed observations but no media payload', async () => {
+  const { createVyralSemanticDnaV1 } = await import('../src/services/vyralSemanticDnaV1.ts');
+  const sourceSha = 'c'.repeat(64);
+  const semantic = createVyralSemanticDnaV1({
+    recordId: 'semantic-red-circle',
+    asset: {
+      id: 'semantic-asset',
+      name: 'Red Circle',
+      asset_type: 'image',
+      original_filename: 'red-circle.png',
+      description: 'A solid red circle centered on a white square canvas.',
+      mime_type: 'image/png',
+    },
+    source: { assetVersionId: 'semantic-version', sha256: sourceSha, sizeBytes: 1024 },
+    technicalMetadata: { width: 64, height: 64, colorSpace: 'sRGB', channelLayout: 'RGBA' },
+    confirmedObservations: [{
+      observationId: 'semantic-observation',
+      reviewId: 'semantic-review',
+      decision: 'creator_confirmed',
+      taskKind: 'description',
+      assetVersionId: 'semantic-version',
+      sourceSha256: sourceSha,
+      evidence: { summary: 'One filled red circle; no outline; centered.' },
+    }],
+    context: { vyralName: 'Semantic Test', purpose: 'Validate descriptive-only export' },
+  });
+  const archive = await createVyralSemanticDnaPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'semantic-package-test',
+    exportedAt: '2026-11-09T00:00:00.000Z',
+    exportMode: 'full',
+    exportComponents: { assets: true, fullDna: true, compactDna: false },
+    vyral: { id: 'semantic-vyral', name: 'Semantic Test' },
+    folders: [],
+    assets: [{
+      id: 'semantic-asset',
+      vyral_id: 'semantic-vyral',
+      folder_id: null,
+      name: 'Red Circle',
+      asset_type: 'image',
+      mime_type: 'image/png',
+      size_bytes: 1024,
+      sha256: sourceSha,
+      description: 'A solid red circle centered on a white square canvas.',
+    }],
+    versions: [{
+      id: 'semantic-version',
+      asset_id: 'semantic-asset',
+      version_number: 1,
+      size_bytes: 1024,
+      sha256: sourceSha,
+      mime_type: 'image/png',
+    }],
+    dnaRecords: [],
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+  } as never, [semantic]);
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  assert.equal(manifest.blindnessScope, 'semantic_only_no_media_payload');
+  assert.equal(manifest.dnaRecords.length, 1);
+  assert.equal(manifest.dnaRecords[0].dna_schema_id, 'vyra.asset-semantic-dna');
+  assert.equal(manifest.dnaRecords[0].recovery_level, 'semantic-only');
+  assert.equal(manifest.versions.length, 0);
+  assert.equal([...files.keys()].some((path) => path.startsWith('assets/') || path.includes('/tiles/') || path.endsWith('.bin')), false);
+  const record = manifest.dnaRecords[0].dna_record as Record<string, unknown>;
+  assert.equal((record.reconstruction as Record<string, unknown>).decoded_sample_payload_included, false);
+  await verifyVyralSystemFileIntegrityV1(files);
+  const auditDir = await mkdtemp(join(tmpdir(), 'vyra-semantic-audit-'));
+  try {
+    const packagePath = join(auditDir, 'semantic.vyral');
+    await writeFile(packagePath, archive);
+    const scriptPath = join(auditDir, 'reconstruct_vyral.py');
+    await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT);
+    const output = execFileSync('python', [scriptPath, packagePath, '--audit-only'], { encoding: 'utf8' });
+    const audit = JSON.parse(output);
+    assert.equal(audit.semantic_only, true);
+    assert.equal(audit.blindness_scope, 'semantic_only_no_media_payload');
+    assert.equal(audit.assets[0].payload_kind, 'semantic-description-only');
+    assert.equal(audit.integrity.passed, true);
+  } finally {
+    await rm(auditDir, { recursive: true, force: true });
   }
 });
