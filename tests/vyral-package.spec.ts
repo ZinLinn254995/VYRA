@@ -1267,4 +1267,20 @@ test('blind DNA export excludes original raster and non-raster binary chunks', a
   assert.equal((fileRecord.dna_record as { reconstruction: { claim: string; chunks: unknown[] } }).reconstruction.claim, 'unavailable');
   assert.deepEqual((await reconstructVyralDnaV3FromPackage(files, 'blind-raster-record')).samples, samples);
   assert.equal([...files.keys()].some((name) => name.includes('/source/')), false);
+
+  const tempDir = await mkdtemp(join(tmpdir(), 'vyra-blind-dna-audit-'));
+  try {
+    const packagePath = join(tempDir, 'blind.vyral');
+    const scriptPath = join(tempDir, 'reconstruct_vyral.py');
+    await writeFile(packagePath, new Uint8Array(await archive.arrayBuffer()));
+    await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT);
+    const audit = JSON.parse(execFileSync('python', [scriptPath, packagePath, '--audit-only'], { encoding: 'utf8' }));
+    assert.equal(audit.validation, 'passed');
+    assert.equal(audit.blind_reconstruction, true);
+    assert.equal(audit.contains_original_encoded_file_bytes, false);
+    assert.equal(audit.original_binary_payload_entries, 0);
+    assert.equal(audit.assets.find((item: { asset_id: string }) => item.asset_id === 'blind-file').payload_kind, 'structural-dna-only');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
