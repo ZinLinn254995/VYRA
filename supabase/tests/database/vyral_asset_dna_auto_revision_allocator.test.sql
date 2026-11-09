@@ -59,13 +59,11 @@ values
    '{"dna_schema_id":"vyra.asset-file-dna","source_version_id":"25000000-0000-4000-8000-000000000099"}'::jsonb,'system');
 
 select throws_ok(
-  $
-    insert into public.vyral_dna_records
-      (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
-    values
-      ('25000000-0000-4000-8000-000000000035','25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,
-       '{"dna_schema_id":"vyra.asset-file-dna","source_version_id":"25000000-0000-4000-8000-000000000099"}'::jsonb,'system')
-  $,
+  'insert into public.vyral_dna_records
+    (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
+   values
+    (''25000000-0000-4000-8000-000000000035'',''25000000-0000-4000-8000-000000000011'',''25000000-0000-4000-8000-000000000001'',''25000000-0000-4000-8000-000000000021'',''asset'',1,
+     ''{"dna_schema_id":"vyra.asset-file-dna","source_version_id":"25000000-0000-4000-8000-000000000099"}''::jsonb,''system'')',
   '23505',
   'A second File DNA v1 extraction for the same source Version is rejected'
 );
