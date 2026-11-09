@@ -69,6 +69,8 @@ jobs:
         run: npm run test:vyral-vision-evidence
       - name: Vyral Asset DNA assessment tests
         run: npm run test:vyral-asset-dna-assessment
+      - name: Vyral Asset DNA revision allocator tests
+        run: npm run test:vyral-dna-revision-allocator
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
       - name: Vyral reconstruction history intent tests
