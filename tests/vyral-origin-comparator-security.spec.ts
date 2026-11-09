@@ -11,8 +11,8 @@ test('ORIGIN-01 comparator validates both storage paths with canonical owner pre
 });
 
 test('ORIGIN-01 comparator rejects traversal, empty segments and backslashes', () => {
+  assert.ok(source.includes("path.includes('\\\\')"));
   assert.match(source, /path\.startsWith\('\/'\)/);
-  assert.match(source, /path\.includes\('\\\\\\\\'\)/);
   assert.match(source, /segments\.every\(\(segment\) => segment\.length > 0 && segment !== '\.' && segment !== '\.\.'\)/);
 });
 
