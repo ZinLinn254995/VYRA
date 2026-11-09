@@ -1,3 +1,4 @@
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
@@ -53,9 +54,7 @@ Deno.serve(async (request: Request) => {
   }
   const prefix = userId + '/' + asset.vyral_id + '/' + assetId + '/';
   const sourcePath = typeof version.storage_path === 'string' ? version.storage_path : '';
-  const pathSegments = sourcePath.split('/');
-  if (!sourcePath.startsWith(prefix) || sourcePath.startsWith('/') || sourcePath.includes('\\') ||
-      pathSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
+  if (!isCanonicalOwnedStoragePath(sourcePath, prefix)) {
     return reply({ error: 'Private Storage path failed owner-prefix and canonical-path validation.' }, 409);
   }
   const size = Number(version.size_bytes);
