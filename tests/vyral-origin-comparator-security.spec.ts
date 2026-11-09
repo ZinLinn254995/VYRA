@@ -33,6 +33,8 @@ test('ORIGIN-01 comparator only records creator-attested blindness for audited s
   assert.match(source, /blindnessScope === 'semantic_only_no_media_payload'/);
   assert.match(source, /packageAuditStatus === 'passed'/);
   assert.match(source, /originalBinaryPayloadEntries === 0/);
+  assert.match(source, /typeof originalBinaryPayloadEntriesRaw === 'number'/);
+  assert.match(source, /Number.isSafeInteger\(originalBinaryPayloadEntriesRaw\)/);
   assert.match(source, /source_binary_provided_to_model === false && semanticPackageAuditPassed/);
   assert.match(source, /independentlyVerified: false/);
 });
