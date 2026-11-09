@@ -1133,6 +1133,96 @@ export const createVyralAssetDnaOnlyPackage = async (
   return archive;
 };
 
+export const createVyralSemanticDnaPackage = async (
+  baseManifest: VyralPackageManifest,
+  semanticRecords: VyralSemanticDnaV1[],
+) => {
+  if (!Array.isArray(semanticRecords) || semanticRecords.length === 0) {
+    throw new Error('Semantic DNA export requires at least one descriptive Asset DNA record.');
+  }
+  const normalized = semanticRecords.map((record) => validateVyralSemanticDnaV1(record));
+  const recordIds = new Set<string>();
+  const assetIds = new Set<string>();
+  for (const record of normalized) {
+    if (recordIds.has(record.record_id) || assetIds.has(record.source.asset_id)) {
+      throw new Error('Semantic DNA export contains duplicate record or Asset identities.');
+    }
+    recordIds.add(record.record_id);
+    assetIds.add(record.source.asset_id);
+    const sourceVersion = baseManifest.versions.find((version) =>
+      version.id === record.source.asset_version_id && version.asset_id === record.source.asset_id,
+    );
+    if (!sourceVersion || Number(sourceVersion.size_bytes) !== record.source.size_bytes ||
+        String(sourceVersion.sha256 ?? '').toLowerCase() !== record.source.sha256) {
+      throw new Error('Semantic DNA must be pinned to the exact Asset Version and SHA-256 in the source manifest.');
+    }
+  }
+  const portableBase = removeNonPortableReferences(baseManifest) as VyralPackageManifest;
+  const selectedAssets = portableBase.assets.filter((asset) => assetIds.has(String(asset.id)));
+  if (selectedAssets.length !== normalized.length || selectedAssets.length !== portableBase.assets.length) {
+    throw new Error('Semantic DNA export requires exactly one semantic record for every exported Asset.');
+  }
+  const semanticManifest: VyralPackageManifest = {
+    ...portableBase,
+    exportMode: 'dna-only',
+    blindReconstruction: true,
+    blindnessScope: 'semantic_only_no_media_payload',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    reconstructionCapabilities: {
+      decoded_sample_stream_reconstructable: false,
+      source_decode_independently_verified: false,
+      encoded_source_bytes_recoverable: false,
+      binary_source_bytes_reconstructable: false,
+      semantic_dna_available: true,
+      color_space_fully_characterized: false,
+      verification_note: 'Semantic-only DNA contains descriptive evidence and source identity references only. It contains no original encoded bytes and no decoded pixel samples; generated reconstructions are not pixel- or byte-exact.',
+    },
+    masterDna: null,
+    folders: [],
+    versions: [],
+    assets: selectedAssets.map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+      asset_type: asset.asset_type,
+      mime_type: asset.mime_type,
+      size_bytes: asset.size_bytes,
+      sha256: asset.sha256,
+      description: asset.description,
+      description_provenance: 'creator_declared',
+      description_is_visual_measurement: false,
+      folder_id: null,
+    })),
+    dnaRecords: normalized.map((record) => ({
+      id: record.record_id,
+      scope: 'asset',
+      asset_id: record.source.asset_id,
+      dna_schema_id: 'vyra.asset-semantic-dna',
+      dna_schema_version: 1,
+      recovery_level: 'semantic-only',
+      dna_record: record,
+    })),
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+  };
+  validateVyralManifest(semanticManifest);
+  const entries: VyralPackageEntry[] = [
+    { path: 'README.txt', data: 'VYRAL SEMANTIC DNA PACKAGE. No original media bytes or decoded pixel samples are included. Read manifest.json and AI_RECONSTRUCTION_GUIDE.md. Treat evidence status and missing-information lists as binding; never claim exact recovery.' },
+    { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
+    { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
+  ];
+  const systemPackage = await buildVyralSystemFilesV1(semanticManifest as unknown as Record<string, unknown>, entries);
+  semanticManifest.systemFiles = systemPackage.descriptors;
+  entries.push(...systemPackage.entries);
+  entries.push({ path: VYRAL_PACKAGE_MANIFEST, data: JSON.stringify(semanticManifest) });
+  const archive = createVyralZip(entries);
+  const packagedFiles = await readVyralZip(archive);
+  parseVyralManifest(packagedFiles);
+  await verifyVyralSystemFileIntegrityV1(packagedFiles);
+  return archive;
+};
+
 export const reconstructVyralFileDnaFromPackage = async (files: Map<string, Uint8Array>, recordId: string) => {
   const manifest = parseVyralManifest(files);
   const entry = manifest.dnaRecords.find((record) =>
