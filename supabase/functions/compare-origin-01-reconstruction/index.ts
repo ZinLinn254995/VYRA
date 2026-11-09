@@ -319,7 +319,7 @@ Deno.serve(async (request: Request) => {
   const originalPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.originalAssetId + '/';
   const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + candidateAssetId + '/';
   const isCanonicalOwnedStoragePath = (path: string, expectedPrefix: string) => {
-    if (!path.startsWith(expectedPrefix) || path.startsWith('/') || path.includes('\\\\')) return false;
+    if (!path.startsWith(expectedPrefix) || path.startsWith('/') || path.includes('\\')) return false;
     const segments = path.split('/');
     return segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
   };
