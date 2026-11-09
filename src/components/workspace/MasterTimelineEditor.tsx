@@ -26,6 +26,8 @@ export type SceneTimelineInstance = {
   sceneId: string;
   sourceIn: number;
   sourceOut: number;
+  sceneProjectId?: string;
+  renderRevisionId?: string | null;
 };
 export type MasterTimelineData = {
   sceneRanges: Record<string, { sourceIn: number; sourceOut: number }>;
@@ -34,7 +36,7 @@ export type MasterTimelineData = {
   audioTracks: TimelineTrack[];
   textTracks: TimelineTrack[];
 };
-type Scene = { id: string; title: string; duration: number };
+type Scene = { id: string; title: string; duration: number; projectId?: string; latestRenderRevisionId?: string | null };
 type ClipType = 'audio' | 'text';
 type Props = { scenes: Scene[]; value?: MasterTimelineData; onChange: (next: MasterTimelineData) => void; onSceneOrderChange: (sceneIds: string[]) => void; onSceneDuplicate: (scene: Scene, index: number) => Scene; onSceneDelete: (sceneId: string) => void };
 type SelectedClip = { type: ClipType; trackId: string; clipId: string };
@@ -81,7 +83,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const minimumRange = Math.min(0.1, Math.max(0.001, scene.duration));
       const sourceIn = clamp(Number(instance.sourceIn) || 0, 0, Math.max(0, scene.duration - minimumRange));
       const sourceOut = clamp(Number(instance.sourceOut) || scene.duration, sourceIn + minimumRange, scene.duration);
-      return { ...instance, sourceIn, sourceOut };
+      return {
+        ...instance,
+        sourceIn,
+        sourceOut,
+        sceneProjectId: instance.sceneProjectId || scene.projectId,
+        // Pin an existing revision forever; only newly placed Scene instances inherit the latest render.
+        renderRevisionId: instance.renderRevisionId ?? scene.latestRenderRevisionId ?? null,
+      };
     });
     const included = new Set(instances.map((instance) => instance.sceneId));
     for (const scene of scenes) {
@@ -90,7 +99,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const minimumRange = Math.min(0.1, Math.max(0.001, scene.duration));
       const sourceIn = clamp(Number(legacy?.sourceIn) || 0, 0, Math.max(0, scene.duration - minimumRange));
       const sourceOut = clamp(Number(legacy?.sourceOut) || scene.duration, sourceIn + minimumRange, scene.duration);
-      instances.push({ id: scene.id, sceneId: scene.id, sourceIn, sourceOut });
+      instances.push({ id: scene.id, sceneId: scene.id, sourceIn, sourceOut, sceneProjectId: scene.projectId, renderRevisionId: scene.latestRenderRevisionId ?? null });
     }
     return instances;
   }, [scenes, data.sceneInstances, data.sceneRanges]);
