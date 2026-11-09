@@ -1,0 +1,12 @@
+begin;
+select plan(8);
+select has_column('public','vyral_dna_records','revision_number','DNA revision sequence exists');
+select has_column('public','vyral_dna_records','supersedes_record_id','DNA lineage parent exists');
+select has_column('public','vyral_dna_records','change_set_sha256','Change-set digest exists');
+select has_index('public','vyral_dna_records','vyral_dna_records_asset_revision_uidx','Asset revision is unique');
+select has_index('public','vyral_dna_records','vyral_dna_records_id_asset_uidx','Composite identity supports same-Asset lineage');
+select has_check('public','vyral_dna_records','vyral_dna_records_revision_number_positive','Revision numbers are positive');
+select has_check('public','vyral_dna_records','vyral_dna_records_change_set_sha256_format','Change-set digest is SHA-256');
+select has_trigger('public','vyral_dna_records','vyral_dna_revision_lineage_guard','DNA revision lineage cannot be rewritten');
+select * from finish();
+rollback;
