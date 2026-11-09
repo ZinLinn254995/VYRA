@@ -1,65 +1,28 @@
--- Explicit immutable lineage for successive Asset DNA records.
--- schema_version remains the document format version, not the DNA revision number.
+-- Add immutable, explicit revision lineage to Asset DNA records.
 alter table public.vyral_dna_records
-  add column if not exists revision_number integer,
-  add column if not exists supersedes_record_id uuid,
-  add column if not exists change_set_sha256 text;
-
+  add column if not exists parent_dna_record_id uuid,
+  add column if not exists revision_number integer;
 with ranked as (
-  select id, row_number() over (
-    partition by asset_id order by created_at asc, id asc
-  )::integer as revision
+  select id, asset_id,
+         row_number() over (partition by asset_id order by created_at asc, id asc) as revision,
+         lag(id) over (partition by asset_id order by created_at asc, id asc) as parent_id
   from public.vyral_dna_records
-  where asset_id is not null
+  where scope = 'asset' and asset_id is not null
 )
-update public.vyral_dna_records r
-set revision_number = ranked.revision
+update public.vyral_dna_records d
+set revision_number = ranked.revision, parent_dna_record_id = ranked.parent_id
 from ranked
-where ranked.id = r.id and r.revision_number is null;
-
-create unique index if not exists vyral_dna_records_asset_revision_uidx
-  on public.vyral_dna_records(asset_id, revision_number)
-  where asset_id is not null and revision_number is not null;
-
-create unique index if not exists vyral_dna_records_id_asset_uidx
-  on public.vyral_dna_records(id, asset_id);
-
+where d.id = ranked.id and (d.revision_number is null or d.parent_dna_record_id is distinct from ranked.parent_id);
+update public.vyral_dna_records set revision_number = 1 where revision_number is null;
 alter table public.vyral_dna_records
-  drop constraint if exists vyral_dna_records_revision_number_positive,
-  add constraint vyral_dna_records_revision_number_positive
-    check (revision_number is null or revision_number > 0),
-  drop constraint if exists vyral_dna_records_change_set_sha256_format,
-  add constraint vyral_dna_records_change_set_sha256_format
-    check (change_set_sha256 is null or change_set_sha256 ~ '^[a-f0-9]{64}$'),
-  drop constraint if exists vyral_dna_records_supersedes_same_asset_fk,
-  add constraint vyral_dna_records_supersedes_same_asset_fk
-    foreign key (supersedes_record_id, asset_id)
-    references public.vyral_dna_records(id, asset_id)
-    on delete restrict;
-
-create or replace function public.guard_vyral_dna_revision_lineage()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if new.revision_number is distinct from old.revision_number
-    or new.supersedes_record_id is distinct from old.supersedes_record_id
-    or new.change_set_sha256 is distinct from old.change_set_sha256 then
-    raise exception 'Asset DNA revision lineage is immutable';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists vyral_dna_revision_lineage_guard on public.vyral_dna_records;
-create trigger vyral_dna_revision_lineage_guard
-  before update on public.vyral_dna_records
-  for each row execute function public.guard_vyral_dna_revision_lineage();
-
-comment on column public.vyral_dna_records.revision_number is
-  'Per-Asset immutable DNA revision sequence; distinct from schema_version.';
-comment on column public.vyral_dna_records.supersedes_record_id is
-  'Previous DNA record in this Asset revision chain; null for the first revision.';
-comment on column public.vyral_dna_records.change_set_sha256 is
-  'SHA-256 of the validated, approved change-set that produced this revision; null for legacy records.';
+  alter column revision_number set default 1,
+  alter column revision_number set not null,
+  add constraint vyral_dna_records_revision_positive check (revision_number > 0),
+  add constraint vyral_dna_records_parent_not_self check (parent_dna_record_id is null or parent_dna_record_id <> id),
+  add constraint vyral_dna_records_parent_fk foreign key (parent_dna_record_id) references public.vyral_dna_records(id) on delete restrict;
+create unique index if not exists vyral_dna_records_asset_revision_unique
+  on public.vyral_dna_records(asset_id, revision_number) where scope = 'asset' and asset_id is not null;
+create index if not exists vyral_dna_records_parent_idx
+  on public.vyral_dna_records(parent_dna_record_id) where parent_dna_record_id is not null;
+comment on column public.vyral_dna_records.revision_number is 'Monotonic immutable Asset-DNA revision sequence per Asset; independent of DNA schema version.';
+comment on column public.vyral_dna_records.parent_dna_record_id is 'Previous immutable Asset-DNA revision. Null only for the first revision.';
