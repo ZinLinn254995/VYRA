@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1041,6 +1042,44 @@ test('exports and reconstructs a single raster Asset DNA-only package without Ma
 });
 
 
+
+test('raster DNA-only export preserves optional original encoded bytes and upgrades its recovery claim', async () => {
+  const samples = new Uint8Array([254, 253, 254, 255, 220, 12, 18, 255, 254, 253, 254, 255]);
+  const raster = await createVyralDnaV3({
+    record_id: 'raster-with-original-bytes',
+    source: { asset_id: 'asset-raster-exact', asset_version_id: 'version-raster-exact',
+      sha256: 'd'.repeat(64), size_bytes: 1024, mime_type: 'image/png' },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 3, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 2, tile_height: 1, decoded_samples: samples,
+  });
+  const original = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 7]);
+  const packagePath = 'dna/v3/raster-with-original-bytes/source/0.bin';
+  const digest = createHash('sha256').update(original).digest('hex');
+  const record = {
+    ...raster.record,
+    encoded_file_payload: {
+      encoding: 'raw-chunks-v1' as const, filename: 'original.png', mime_type: 'image/png',
+      size_bytes: original.byteLength, sha256: digest, chunk_size: 1024,
+      chunks: [{ index: 0, byte_length: original.byteLength, sha256: digest, package_path: packagePath }],
+    },
+  };
+  const archive = await createVyralDnaOnlyPackage({
+    ...manifest,
+    assets: [{ id: 'asset-raster-exact', name: 'Raster exact', asset_type: 'image', mime_type: 'image/png' }],
+    versions: [], masterDna: null,
+  }, record, [
+    ...raster.entries,
+    { path: packagePath, data: original },
+  ]);
+  const files = await readVyralZip(new Uint8Array(await archive.arrayBuffer()));
+  const parsed = parseVyralManifest(files);
+  assert.equal(parsed.dnaRecords[0].recovery_level, 'source-file-exact');
+  assert.equal(parsed.reconstructionCapabilities?.encoded_source_bytes_recoverable, true);
+  assert.deepEqual(files.get(packagePath), original);
+});
 
 test('imports legacy DNA-only packages after dropping version-bound evidence while preserving exact Asset DNA', async () => {
   const sourceBytes = new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3, 4, 5, 6]);
