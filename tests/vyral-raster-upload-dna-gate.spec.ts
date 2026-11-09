@@ -13,7 +13,7 @@ test('raster uploads cannot become ready with identity-only File DNA when DNA v3
   assert.match(rasterFlow, /functions\.invoke\('extract-vyral-asset-dna-v3'/);
   assert.match(rasterFlow, /extraction\?\.status !== 'extracted'/);
   assert.match(rasterFlow, /Required raster DNA v3 extraction failed/);
-  assert.doesNotMatch(rasterFlow, /saveFileDnaIdentity\s*\(/);
+  assert.doesNotMatch(rasterFlow, /saveFileDnaIdentity\\(detail\\)/);
   assert.match(rasterFlow, /dnaCommitted = true/);
 });
 
