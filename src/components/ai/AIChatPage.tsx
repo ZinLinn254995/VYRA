@@ -16,6 +16,7 @@ import { requestsVyralQualityHistoryV1 } from '../../services/vyralQualityHistor
 import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaAssessmentIntentV1.ts';
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
+import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -481,6 +482,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           throw new Error(message);
         }
         const assessment = data?.assessment as {
+          assessmentVersion: number;
+          identity: { assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string };
           status?: 'ready' | 'partial' | 'blocked';
           recoveryLevel?: string;
           checks?: {
@@ -496,6 +499,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           limitations?: string[];
         } | undefined;
         if (!assessment) throw new Error('The Asset DNA assessment response was incomplete.');
+        const improvementPlan = buildVyralDnaImprovementPlanV1({
+          assessmentVersion: assessment.assessmentVersion,
+          identity: assessment.identity,
+          blockers: assessment.blockers ?? [],
+          limitations: assessment.limitations ?? [],
+        });
         const statusLabel = assessment.status === 'ready' ? 'READY'
           : assessment.status === 'blocked' ? 'BLOCKED' : 'PARTIAL';
         const report = [
@@ -512,6 +521,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           `• Exact reconstruction test: ${assessment.checks?.exactReconstruction ?? 'not available'}`,
           ...(assessment.blockers?.length ? ['Blockers:', ...assessment.blockers.map((item) => `• ${item}`)] : []),
           ...(assessment.limitations?.length ? ['Limitations:', ...assessment.limitations.map((item) => `• ${item}`)] : []),
+          ...(improvementPlan.improvements.length ? ['', 'Evidence-backed improvement plan:', ...improvementPlan.improvements.map((item) => `• [${item.priority.toUpperCase()}] ${item.action} Acceptance: ${item.acceptanceEvidence}`)] : []),
+          ...(improvementPlan.informational.length ? ['', 'Additional improvements:', ...improvementPlan.informational.map((item) => '• ' + item)] : []),
+          '',
+          ...improvementPlan.safety.map((item) => '• ' + item),
           '',
           'This result evaluates only the selected Asset Version and its DNA record. It is not the Vyral collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
           `Assessment history ID: ${data.assessmentId ?? 'not returned'}`,
