@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { isCanonicalOwnedStoragePath } from '../supabase/functions/_shared/canonical-storage-path.ts';
 
 test('accepts a canonical owner-scoped storage object path', () => {
