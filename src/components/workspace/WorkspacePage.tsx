@@ -23,7 +23,20 @@ const readStoryboards = (key: string): Storyboard[] => {
     return Array.isArray(value) ? value.filter((item): item is Storyboard =>
       Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
       typeof item.topic === 'string' && typeof item.createdAt === 'string' && typeof item.updatedAt === 'string'
-    ) : [];
+    ).map((storyboard) => ({
+      ...storyboard,
+      details: storyboard.details ? {
+        ...storyboard.details,
+        scenes: (storyboard.details.scenes || []).map((scene) => {
+          if (scene.project?.id) return scene;
+          const now = new Date().toISOString();
+          return {
+            ...scene,
+            project: { id: crypto.randomUUID(), schemaVersion: 1 as const, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+          };
+        }),
+      } : storyboard.details,
+    })) : [];
   } catch { return []; }
 };
 
