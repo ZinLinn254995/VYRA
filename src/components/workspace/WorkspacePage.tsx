@@ -78,6 +78,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
@@ -421,6 +423,41 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setStoryboardAiMessage('Changes saved.');
   };
 
+  if (activeStoryboard && activeSceneId) {
+    const scene = (activeStoryboard.details?.scenes || []).find((item) => item.id === activeSceneId);
+    if (!scene) {
+      setActiveSceneId(null);
+    } else {
+      return (
+        <main className="profile-page-main w-full min-w-0 p-0">
+          <div className="profile-subpage-scroll profile-subpage-viewport">
+            <section className="profile-subpage-card storyboard-fullscreen-card">
+              <ProfileSubpageHeader
+                onBack={() => setActiveSceneId(null)}
+                backLabel="Storyboard"
+                icon={<Film size={22} />}
+                title={scene.title}
+                description={'Scene Editor · ' + scene.duration + ' seconds'}
+              />
+              <div className="profile-subpage-content space-y-5 p-4 sm:p-5">
+                <section className="space-y-3">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Preview</h2>
+                  <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-[var(--vyra-bg-subtle)]">
+                    <div className="text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scene.description || 'Add media to this scene.'}</p></div>
+                  </div>
+                </section>
+                <section className="space-y-2 border-t border-[var(--vyra-border)] pt-5">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Workspace</h2>
+                  <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">This is the dedicated workspace for this Scene. Media, Vyral Assets, prompts and AI-assisted editing will be added here.</p>
+                </section>
+              </div>
+            </section>
+          </div>
+        </main>
+      );
+    }
+  }
+
   if (activeStoryboard) {
     const details = activeStoryboard.details || {};
     const leaveStoryboardPage = () => {
@@ -475,14 +512,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
-              const selectedScene = scenes.find((scene) => scene.id === selectedSceneId) || scenes[0] || null;
+              const selectedScene = scenes[0] || null;
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => current ? {
                 ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString(),
               } : current);
               const addScene = () => {
                 const scene: StoryboardScene = { id: crypto.randomUUID(), title: 'Scene ' + (scenes.length + 1), description: '', duration: 5, transition: 'Fade' };
                 updateScenes([...scenes, scene]);
-                setSelectedSceneId(scene.id);
               };
               const updateScene = (id: string, patch: Partial<StoryboardScene>) => updateScenes(scenes.map((scene) => scene.id === id ? { ...scene, ...patch } : scene));
               const moveScene = (index: number, offset: number) => {
@@ -493,11 +529,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               const duplicateScene = (scene: StoryboardScene) => {
                 const copy = { ...scene, id: crypto.randomUUID(), title: scene.title + ' copy' };
                 const index = scenes.findIndex((item) => item.id === scene.id);
-                const next = [...scenes]; next.splice(index + 1, 0, copy); updateScenes(next); setSelectedSceneId(copy.id);
+                const next = [...scenes]; next.splice(index + 1, 0, copy); updateScenes(next);
               };
               const removeScene = (id: string) => {
                 const next = scenes.filter((scene) => scene.id !== id); updateScenes(next);
-                if (selectedSceneId === id) setSelectedSceneId(next[0]?.id || null);
+                setSelectedSceneIds((current) => current.filter((sceneId) => sceneId !== id));
               };
               return (
                 <div className="space-y-5 border-t border-[var(--vyra-border)] pt-5">
@@ -507,17 +543,24 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     </div>
                     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                      {selectedScene ? <div className="relative z-10 max-w-[80%] text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{selectedScene.title}</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{selectedScene.description || 'Add media and details in this scene.'}</p></div> : <div className="relative z-10 text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-medium text-[var(--vyra-text-primary)]">Your video preview</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Add your first scene to begin.</p></div>}
+                      {<div className="relative z-10 text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-medium text-[var(--vyra-text-primary)]">Your video preview</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scenes.length ? scenes.length + ' scenes in this Storyboard' : 'Add your first scene to begin.'}</p></div>}
                     </div>
                   </section>
 
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Build the story in the order you want.</p></div><Button type="button" onClick={addScene}><Plus size={14} /> Add Scene</Button></div>
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {scenes.map((scene, index) => <div key={scene.id} className={'min-w-0 overflow-hidden rounded-xl border ' + ((selectedScene?.id === scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]')}>
-                        <button type="button" onClick={() => setSelectedSceneId(scene.id)} className="block w-full p-3 text-left">
-                          <div className="mb-2 flex aspect-video items-center justify-center rounded-lg bg-[var(--vyra-bg-subtle)]"><Film size={22} className="text-[var(--vyra-text-muted)]" /></div>
-                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-[10px] text-[var(--vyra-text-secondary)]">{scene.duration}s · Scene {index + 1}</p>
+                      {scenes.map((scene, index) => <div key={scene.id} className={'min-w-0 overflow-hidden rounded-xl border ' + (selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]')}>
+                        <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
+                          <span className="text-[10px] font-medium text-[var(--vyra-text-secondary)]">Scene {index + 1}</span>
+                          <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 text-xs text-[var(--vyra-text-secondary)]" onClick={(event) => event.stopPropagation()}>
+                            <input type="checkbox" checked={selectedSceneIds.includes(scene.id)} onChange={(event) => setSelectedSceneIds((current) => event.target.checked ? [...current, scene.id] : current.filter((id) => id !== scene.id))} aria-label={'Select ' + scene.title} className="size-4 accent-[var(--vyra-accent-primary)]" />
+                            <span>Select</span>
+                          </label>
+                        </div>
+                        <button type="button" onClick={() => setActiveSceneId(scene.id)} aria-label={'Open Scene Editor: ' + scene.title} className="block w-full p-3 pt-1 text-left">
+                          <div className="mb-2 flex aspect-video items-center justify-center rounded-lg bg-[var(--vyra-bg-subtle)] transition hover:bg-[var(--vyra-bg-hover)]"><Film size={22} className="text-[var(--vyra-text-muted)]" /></div>
+                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-[10px] text-[var(--vyra-text-secondary)]">{scene.duration}s · Open Scene Editor</p>
                         </button>
                         <div className="flex items-center justify-between border-t border-[var(--vyra-border-subtle)] px-2 py-1">
                           <button type="button" onClick={() => moveScene(index, -1)} disabled={index === 0} aria-label="Move scene left" className="rounded p-1.5 text-[var(--vyra-text-secondary)] disabled:opacity-30"><ChevronDown className="rotate-90" size={14} /></button>
