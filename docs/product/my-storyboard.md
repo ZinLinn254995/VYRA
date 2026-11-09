@@ -340,3 +340,16 @@ These are examples of simple actions, not a requirement to display every button 
 - The Master Editor should remain focused on the complete Storyboard; the Scene Editor on one Scene; and the Media Editor on one selected media item.
 
 **The goal is professional-quality creative power with controls simple enough for a child to understand. AI Chat does most of the work; visible buttons are only for the few actions users may want to do directly.**
+
+
+## 15. Master Editor Content Scope — Preserve Existing Header and Creation Details
+
+The existing Storyboard Editor page header and its compact-header behavior are approved and must remain unchanged while the Master Editor content is developed.
+
+- Preserve the existing Card Header, Back navigation, logo, title, compact styling, scroll behavior, and compact animation exactly as they are.
+- Preserve the existing Create Storyboard flow and the Title, Description, and Details area shown immediately after entering a newly created Storyboard.
+- Do not redesign, replace, move, or otherwise modify those existing header and creation-detail sections as part of the Master Editor implementation.
+- The new Storyboard Master Editor begins **below the existing Title, Description, and Details section**. Only the content beneath that point is in scope for the new implementation.
+- Keep the existing creation/confirmation and auto-save behavior intact.
+
+This is a strict implementation boundary: build the Master Editor inside the existing page structure without disturbing the already-approved header, compact behavior, or Storyboard details experience.
