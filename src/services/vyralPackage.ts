@@ -409,7 +409,7 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       }
     } else if (record.dna_schema_id === 'vyra.asset-semantic-dna' && record.dna_schema_version === 1) {
       const semanticDna = validateVyralSemanticDnaV1(record.dna_record);
-      const semanticAsset = assetById.get(semanticDna.source.asset_id);
+      const semanticAsset = assets.find((asset) => asset.id === semanticDna.source.asset_id);
       if (!semanticAsset || Number(semanticAsset.size_bytes) !== semanticDna.source.size_bytes ||
           String(semanticAsset.sha256 ?? '').toLowerCase() !== semanticDna.source.sha256) {
         throw new Error('Semantic DNA source binding does not match its Asset inventory SHA-256 and size.');
