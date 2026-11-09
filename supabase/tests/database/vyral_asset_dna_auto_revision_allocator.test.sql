@@ -1,0 +1,10 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(5);
+select ok(exists (select 1 from pg_trigger where tgrelid='public.vyral_dna_records'::regclass and tgname='vyral_dna_records_allocate_asset_revision' and not tgisinternal),'Every Asset DNA insert passes through the database revision allocator');
+select ok((select column_default is null and is_nullable='YES' from information_schema.columns where table_schema='public' and table_name='vyral_dna_records' and column_name='revision_number'),'Omitted revision numbers reach the allocator instead of silently defaulting to 1');
+select ok(position('for update' in lower(pg_get_functiondef('public.allocate_vyral_asset_dna_revision()'::regprocedure))) > 0,'Allocator locks the owning Asset row to serialize concurrent writers');
+select ok(position('latest_revision + 1' in lower(pg_get_functiondef('public.allocate_vyral_asset_dna_revision()'::regprocedure))) > 0,'Allocator increments from the latest immutable revision');
+select ok(position('new.parent_dna_record_id := latest_id' in lower(pg_get_functiondef('public.allocate_vyral_asset_dna_revision()'::regprocedure))) > 0,'Allocator assigns the previous DNA record as parent');
+select * from finish();
+rollback;
