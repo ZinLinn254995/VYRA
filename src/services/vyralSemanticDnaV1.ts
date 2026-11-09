@@ -191,7 +191,7 @@ export const createVyralSemanticDnaV1 = (input: CreateVyralSemanticDnaInput): Vy
   if (input.asset.asset_type === 'image' && !technical.colorSpace) missing.push('color_space');
   if (input.asset.asset_type === 'image' && !observations.length) missing.push('measured_visual_attributes');
   const evidenceCount = (description ? 1 : 0) + observations.length;
-  return {
+  const record: VyralSemanticDnaV1 = {
     schema_id: VYRAL_SEMANTIC_DNA_SCHEMA_ID,
     schema_version: VYRAL_SEMANTIC_DNA_SCHEMA_VERSION,
     record_id: input.recordId,
@@ -241,6 +241,7 @@ export const createVyralSemanticDnaV1 = (input: CreateVyralSemanticDnaInput): Vy
       ],
     },
   };
+  return validateVyralSemanticDnaV1(record);
 };
 
 export const validateVyralSemanticDnaV1 = (value: unknown): VyralSemanticDnaV1 => {
