@@ -517,7 +517,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         </div>
       </section>
 
-      <section className="mb-7 flex items-center justify-between gap-3">
+      <section className="sticky top-[var(--vyra-global-header-height,64px)] z-30 -mx-4 mb-7 flex items-center justify-between gap-3 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
           <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
