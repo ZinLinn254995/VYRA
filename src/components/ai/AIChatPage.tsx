@@ -14,6 +14,7 @@ import { buildVyralCreatorInventoryContextV1 } from '../../services/vyralCreator
 import { requestsVyralQualityEvaluationV1 } from '../../services/vyralQualityIntentV1.ts';
 import { requestsVyralQualityHistoryV1 } from '../../services/vyralQualityHistoryIntentV1.ts';
 import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaAssessmentIntentV1.ts';
+import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -419,6 +420,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
     const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
+    const requestsVyralReconstructionHistory = requestsVyralReconstructionHistoryV1(text);
     const qualityVyralIds = [...new Set([
       ...selectedAssets.map((asset) => asset.vyralId),
       ...(selectedFile?.name.toLowerCase().endsWith('.vyral') && selectedVyralId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedVyralId) ? [selectedVyralId] : []),
@@ -518,6 +520,72 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           role: 'assistant',
           content: report,
           status: assessment.status === 'ready' ? 'success' : 'preview',
+        }]);
+        return;
+      }
+      if (requestsVyralReconstructionHistory) {
+        if (qualityVyralIds.length !== 1) {
+          throw new Error('To inspect reconstruction attempts, select an Asset from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+        }
+        if (!supabase) throw new Error('Secure reconstruction evidence is unavailable in this environment.');
+        const { data, error } = await supabase
+          .from('vyral_reconstruction_tests')
+          .select('id,asset_id,model_provider,model_id,model_version,prompt_sha256,session_reference,tool_access,blindness_status,attempt_evidence,protocol_version,comparison_mode,test_status,exact_match,similarity_score,created_at')
+          .eq('vyral_id', qualityVyralIds[0])
+          .eq('protocol_version', 'ORIGIN-01-v3')
+          .order('created_at', { ascending: false })
+          .limit(30);
+        if (error) throw new Error('Could not load saved reconstruction evidence: ' + error.message);
+        const attempts = (data ?? []) as Array<{
+          id: string; asset_id: string; model_provider: string; model_id: string; model_version: string | null;
+          prompt_sha256: string | null; session_reference: string | null; tool_access: Record<string, unknown>;
+          blindness_status: string; attempt_evidence: Record<string, unknown>; protocol_version: string;
+          comparison_mode: string; test_status: string; exact_match: boolean | null;
+          similarity_score: number | null; created_at: string;
+        }>;
+        const exactCount = attempts.filter((item) => item.exact_match === true).length;
+        const report = attempts.length ? [
+          `Vyral DNA-only reconstruction evidence — ${attempts.length} saved attempt(s)`,
+          `Exact decoded-pixel matches: ${exactCount}/${attempts.length}`,
+          `Different outputs: ${attempts.filter((item) => item.test_status === 'failed').length}`,
+          `Inconclusive: ${attempts.filter((item) => item.test_status === 'inconclusive').length}`,
+          '',
+          ...attempts.map((item, index) => {
+            const evidence = item.attempt_evidence && typeof item.attempt_evidence === 'object' ? item.attempt_evidence : {};
+            const blindness = evidence.blindness && typeof evidence.blindness === 'object'
+              ? evidence.blindness as Record<string, unknown> : {};
+            const modelVersion = item.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : 'not recorded');
+            const promptHash = item.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
+            const result = item.exact_match === true ? 'EXACT DECODED-PIXEL MATCH'
+              : item.test_status === 'inconclusive' ? 'INCONCLUSIVE'
+              : item.test_status.toUpperCase();
+            const similarity = typeof item.similarity_score === 'number'
+              ? (item.similarity_score * 100).toFixed(2) + '%' : 'not available';
+            const date = item.created_at && Number.isFinite(Date.parse(item.created_at))
+              ? new Date(item.created_at).toLocaleString() : 'date unavailable';
+            const toolNames = Object.keys(item.tool_access ?? {}).join(', ') || 'not recorded';
+            return [
+              `${index + 1}. ${item.model_provider} / ${item.model_id} (${modelVersion})`,
+              `   Result: ${result} · RGB similarity: ${similarity} · ${date}`,
+              `   Blindness evidence: ${item.blindness_status ?? 'unverified'}`,
+              `   Prompt SHA-256: ${promptHash ? promptHash.slice(0, 16) + '…' : 'not recorded'} · Tool access: ${toolNames}`,
+              item.session_reference ? `   External session reference: ${item.session_reference}` : '',
+              blindness.independentlyVerified === false ? '   Note: original-file isolation is creator-attested, not independently audited.' : '',
+            ].filter(Boolean).join('\\n');
+          }),
+          '',
+          'Interpretation rules:',
+          '• Exact success requires identical decoded RGB pixels at identical dimensions.',
+          '• RGB similarity is a separate metric; a high score is not an exact match.',
+          '• Creator-attested blindness does not prove the external model never saw the original. No attempt is independently blind-verified unless separate audit evidence exists.',
+          '• Missing model version, prompt hash or tool-access details remain missing evidence; they are not inferred.',
+          '• These records compare reconstruction outputs. They do not automatically modify DNA records.',
+        ].join('\\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Vyral yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: attempts.length ? 'success' : 'preview',
         }]);
         return;
       }
