@@ -1216,7 +1216,7 @@ test('blind DNA export excludes original raster and non-raster binary chunks', a
     decoder_contract: { name: 'blind-test', version: '1.0.0', color_management: 'preserve-declared-samples' },
     tile_width: 1, tile_height: 1, decoded_samples: samples,
   });
-  const rasterOriginalPath = 'dna/v3/blind-raster-record/source/00000000.bin';
+  const rasterOriginalPath = 'dna/v3/blind-raster-record/source/0.bin';
   const rasterWithOriginal = {
     ...raster.record,
     encoded_file_payload: {
