@@ -63,6 +63,8 @@ jobs:
         run: npm run test:workspace-storyboards
       - name: Vyral DNA change-set deterministic validation tests
         run: npm run test:vyral-dna-change-set
+      - name: Vyral DNA change-set atomic application tests
+        run: npm run test:vyral-dna-change-set-apply
       - name: Vyral creator-confirmed Vision evidence tests
         run: npm run test:vyral-vision-evidence
       - name: Vyral Asset DNA assessment tests

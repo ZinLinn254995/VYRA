@@ -424,6 +424,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
     const prepareDnaChangeSet = /^\s*(?:prepare(?: dna)? change set|build(?: dna)? change set|ပြင်ဆင်ချက်(?:များ)? ပြင်ဆင်|change set ပြင်ဆင်)\s*$/i.test(text);
     const validateDnaChangeSet = /^\s*(?:validate(?: dna)? change set|check(?: dna)? change set|DNA change set စစ်ဆေး)\s*$/i.test(text);
+    const applyDnaChangeSet = /^\s*(?:apply(?: dna)? change set|apply dna revision|DNA change set အသုံးချ)\s*$/i.test(text);
     const reviewDnaEvidence = /^\s*(?:review|list|show) (?:vision )?(?:dna )?evidence\s*$/i.test(text);
     const creatorObservationAction = text.match(/^\s*(confirm|dispute) observation ([0-9a-f-]{36})\s*$/i);
     const promoteObservationField = text.match(/^\s*promote observation ([0-9a-f-]{36}) field ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)(?: as ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*))?\s*$/i);
@@ -556,6 +557,37 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             '\\nEvidence ID: ' + String(result?.evidenceId ?? 'unavailable') +
             '\\nThe evidence is pinned to the original Asset Version and SHA-256. DNA has not been changed.',
           status: 'success' }]);
+        return;
+      }
+
+      if (applyDnaChangeSet) {
+        if (selectedAssets.length !== 1) throw new Error('To apply a DNA change set, select exactly one Asset.');
+        if (!supabase) throw new Error('Secure DNA revision creation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const {data: approved,error: approvedError} = await supabase.from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,change_set_status,change_set_validation_report').eq('asset_id',selectedAsset.id)
+          .eq('status','approved').eq('change_set_status','validated').not('change_set_validation_report','is',null)
+          .order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if (approvedError) throw new Error('Could not load the validated DNA change set: '+approvedError.message);
+        if (!approved) throw new Error('No fully validated DNA change set exists for this Asset. Validate its approved change set first.');
+        const {data: applied,error: applyError} = await supabase.functions.invoke('manage-vyral-asset-dna-proposal',{body:{action:'apply_change_set',proposalId:approved.id}});
+        if (applyError) {
+          let message='VYRA could not create the new DNA revision.';
+          try { const payload=await (applyError as {context?:Response}).context?.clone().json() as {error?:string}|undefined; if(payload?.error) message=payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        if (!applied?.dnaRecord?.id) throw new Error('The atomic DNA revision response was incomplete.');
+        const lines=[
+          'Validated DNA change set applied successfully.',
+          'New DNA Record: '+String(applied.dnaRecord.id),
+          'Revision: '+String(applied.dnaRecord.revisionNumber ?? 'unknown'),
+          'Parent DNA Record: '+String(applied.dnaRecord.parentDnaRecordId ?? 'unknown'),
+          'Proposal status: '+String(applied.status ?? 'applied'),
+          applied.reused ? 'This is the existing result of an earlier successful application.' : 'A new immutable DNA revision was created.',
+          'Original Asset bytes and parent DNA revision were not modified.',
+          'Run a fresh DNA assessment and reconstruction test against this new revision.',
+        ];
+        setMessages((previous)=>[...previous,{id:makeId(),role:'assistant',content:lines.join('\\n'),status:'success'}]);
         return;
       }
       if (validateDnaChangeSet) {

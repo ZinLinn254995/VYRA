@@ -53,6 +53,29 @@ const getOwnJsonPath = (root: unknown, parts: string[]) => {
 const sameJson = (a: unknown, b: unknown) => {
   try { return canonicalJson(a) === canonicalJson(b); } catch { return false; }
 };
+
+const applyPatchToPayload = (payload: unknown, operations: any[], newRecordId: string): Record<string, any> => {
+  if (!object(payload)) throw new Error('Current DNA payload is unavailable.');
+  const next = structuredClone(payload) as Record<string, any>;
+  for (const operation of operations) {
+    if (!object(operation) || !['add','replace'].includes(String(operation.op)) || typeof operation.path !== 'string') throw new Error('Only validated add/replace operations can be applied.');
+    const parts = operation.path.slice(1).split('/').map((part: string) => part.replace(/~1/g,'/').replace(/~0/g,'~'));
+    let parent: any = next;
+    for (const part of parts.slice(0,-1)) {
+      if (!object(parent) || !Object.prototype.hasOwnProperty.call(parent,part)) throw new Error('Validated DNA patch parent no longer exists.');
+      parent = parent[part];
+    }
+    if (!object(parent)) throw new Error('Validated DNA patch parent is not an object.');
+    const leaf = parts[parts.length-1], exists = Object.prototype.hasOwnProperty.call(parent,leaf);
+    if (operation.op === 'add' && exists) throw new Error('DNA add target already exists.');
+    if (operation.op === 'replace' && (!exists || !sameJson(parent[leaf],operation.before) || sameJson(operation.before,operation.after))) throw new Error('DNA replacement before value no longer matches the source.');
+    parent[leaf] = structuredClone(operation.after);
+  }
+  if (!object(next.dna_record)) throw new Error('DNA record root is missing.');
+  next.dna_record.record_id = newRecordId;
+  return next;
+};
+
 const validateChangeSet = async (changeSet: any, storedHash: string, expectedSource: any, currentPayload: unknown, verifiedEvidenceRefs: string[] = []) => {
   const errors: string[] = [];
   const checks: Record<string, string> = {};
@@ -101,6 +124,8 @@ const validateChangeSet = async (changeSet: any, storedHash: string, expectedSou
     if (!Array.isArray(op.evidenceRefs) || op.evidenceRefs.length === 0 || op.evidenceRefs.some((ref: unknown) => typeof ref !== 'string' || !ref.trim())) {
       fail('at least one evidence reference is required.'); continue;
     }
+    const parent = getOwnJsonPath(dnaRoot, parts.slice(1,-1));
+    if (!parent.exists || !object(parent.value)) { fail('parent path must already exist as an object.'); continue; }
     const current = getOwnJsonPath(dnaRoot, parts.slice(1));
     if (op.op === 'add') {
       if (current.exists || !Object.prototype.hasOwnProperty.call(op,'after')) { fail('add requires a missing target and explicit after value.'); continue; }
@@ -418,6 +443,53 @@ Deno.serve(async (request: Request) => {
       operationsApplied: 0, nextStep: report.status === 'validated'
         ? 'The patch passed deterministic validation. It has not been applied; a separate reviewed revision-creation step is required.'
         : 'The change set remains blocked or invalid. No DNA revision was created.' });
+  }
+
+
+  if (action === 'apply_change_set') {
+    const proposalId = typeof body.proposalId === 'string' ? body.proposalId : '';
+    if (!UUID.test(proposalId)) return reply({ error: 'A valid proposal ID is required.' }, 400);
+    const { data: proposal, error } = await context.supabaseAdmin.from('vyral_asset_dna_improvement_proposals')
+      .select('id,user_id,asset_id,asset_version_id,dna_record_id,source_sha256,status,change_set,change_set_sha256,change_set_status,change_set_validation_report,applied_dna_record_id')
+      .eq('id',proposalId).eq('user_id',userId).maybeSingle();
+    if (error) return reply({ error: 'Could not load the owner-scoped DNA proposal.' },500);
+    if (!proposal) return reply({ error: 'DNA proposal was not found.' },404);
+    if (proposal.status === 'applied' && proposal.applied_dna_record_id) {
+      const { data: applied } = await context.supabaseAdmin.from('vyral_dna_records')
+        .select('id,revision_number,parent_dna_record_id').eq('id',proposal.applied_dna_record_id).maybeSingle();
+      return reply({ status:'applied',dnaRecord:applied,reused:true,dnaChanged:false });
+    }
+    const report = proposal.change_set_validation_report;
+    if (proposal.status !== 'approved' || proposal.change_set_status !== 'validated' || !object(report) ||
+      report.status !== 'validated' || report.changeSetSha256 !== proposal.change_set_sha256 ||
+      report.checks?.hash !== 'pass' || report.checks?.schema !== 'pass' ||
+      report.checks?.sourceBinding !== 'pass' || report.checks?.operations !== 'pass' || report.checks?.evidence !== 'pass') {
+      return reply({ error:'Only a fully validated, evidence-backed DNA change set can be applied.',status:proposal.change_set_status },409);
+    }
+    const [latestVersion,latestDna] = await Promise.all([
+      context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id',proposal.asset_id).eq('user_id',userId).order('version_number',{ascending:false}).limit(1).maybeSingle(),
+      context.supabaseAdmin.from('vyral_dna_records').select('id,revision_number,payload').eq('asset_id',proposal.asset_id).eq('user_id',userId).eq('scope','asset').order('revision_number',{ascending:false}).limit(1).maybeSingle(),
+    ]);
+    if (latestVersion.error || latestDna.error) return reply({error:'Could not verify the current DNA source snapshot.'},500);
+    if (latestVersion.data?.id !== proposal.asset_version_id || latestDna.data?.id !== proposal.dna_record_id) {
+      await context.supabaseAdmin.from('vyral_asset_dna_improvement_proposals').update({status:'stale'}).eq('id',proposalId).eq('user_id',userId).eq('status','approved');
+      return reply({error:'The Asset Version or DNA revision changed after validation. Reassess before applying.',status:'stale'},409);
+    }
+    const operations = Array.isArray(proposal.change_set?.operations) ? proposal.change_set.operations : [];
+    if (!operations.length || Number(report.validatedOperationCount) !== operations.length) return reply({error:'Validated operation count does not match the immutable Change Set.'},409);
+    const newRecordId = crypto.randomUUID();
+    let newPayload: Record<string,any>;
+    try { newPayload = applyPatchToPayload(latestDna.data?.payload,operations,newRecordId); }
+    catch (e) { return reply({error:e instanceof Error ? e.message : 'Could not apply deterministic DNA patch.'},409); }
+    const {data: result,error: applyError} = await context.supabaseAdmin.rpc('apply_vyral_asset_dna_change_set',{
+      p_proposal_id:proposalId,p_user_id:userId,p_expected_change_set_sha256:proposal.change_set_sha256,
+      p_new_dna_record_id:newRecordId,p_new_payload:newPayload,
+    });
+    if (applyError) return reply({error:'Atomic DNA revision creation failed. Original DNA was not overwritten.',detail:applyError.message},409);
+    const applied = Array.isArray(result) ? result[0] : result;
+    if (!applied?.dna_record_id || applied.proposal_status !== 'applied') return reply({error:'Atomic DNA application returned an incomplete result.'},500);
+    return reply({status:'applied',dnaRecord:{id:applied.dna_record_id,revisionNumber:applied.revision_number,parentDnaRecordId:proposal.dna_record_id},
+      reused:Boolean(applied.reused),dnaChanged:true,message:'A new immutable DNA revision was created. The parent revision and original Asset remain unchanged.'});
   }
 
   if (action === 'approve' || action === 'reject') {
