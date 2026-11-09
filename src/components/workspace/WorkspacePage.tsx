@@ -149,6 +149,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
   }, [storageKey, loadedStorageKey, storyboards]);
 
+  useEffect(() => {
+    if (!activeStoryboard || !activeStoryboardConfirmed) return;
+    const snapshot = activeStoryboard;
+    const timer = window.setTimeout(() => {
+      const saved = { ...snapshot, updatedAt: new Date().toISOString() };
+      setStoryboards((current) => current.map((item) => item.id === saved.id ? saved : item));
+      void persistStoryboard(saved);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [activeStoryboard, activeStoryboardConfirmed]);
+
   const persistStoryboard = async (item: Storyboard) => {
     const client = supabase;
     if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id)) return;
@@ -378,6 +389,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   if (activeStoryboard) {
     const details = activeStoryboard.details || {};
     const leaveStoryboardPage = () => {
+      if (activeStoryboardConfirmed) {
+        const latest = { ...activeStoryboard, updatedAt: new Date().toISOString() };
+        setStoryboards((current) => current.map((item) => item.id === latest.id ? latest : item));
+        void persistStoryboard(latest);
+      }
       setActiveStoryboard(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardAiMessage('');
@@ -436,19 +452,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           </div>
         </section>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
-          {activeStoryboardConfirmed ? (
-            <>
-              <Button type="button" variant="ghost" onClick={leaveStoryboardPage}>Back</Button>
-              <Button type="button" onClick={saveActiveStoryboard}><Check size={15} /> Save changes</Button>
-            </>
-          ) : (
-            <>
-              <Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={15} /> Cancel</Button>
-              <Button type="button" onClick={confirmStoryboardDraft}><Check size={15} /> Create</Button>
-            </>
-          )}
-        </div>
+        {!activeStoryboardConfirmed && (
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
+            <Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={15} /> Cancel</Button>
+            <Button type="button" onClick={confirmStoryboardDraft}><Check size={15} /> Create</Button>
+          </div>
+        )}
       </main>
     );
   }
@@ -489,6 +498,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         <section aria-label="Your storyboards" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {storyboards.map((item) => (
             <Card key={item.id} padding="none" className="overflow-hidden">
+              <button type="button" onClick={() => openStoryboardEditor(item)} aria-label={`Open storyboard: ${item.title}`} className="block w-full text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
               <div className="flex aspect-[16/9] items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.20),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]"><Film size={34} className="text-[var(--vyra-accent-primary)]" strokeWidth={1.5} /></div>
               <div className="p-4">
                 <h2 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.title}</h2>
@@ -496,8 +506,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 {item.details?.category && <p className="mt-2 text-[11px] text-[var(--vyra-text-secondary)]">{item.details.category}{item.details.style ? ' · ' + item.details.style : ''}</p>}
                 {item.details?.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.details.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] text-[var(--vyra-text-secondary)]">{tag}</span>)}</div> : null}
                 <p className="mt-3 text-[10px] text-[var(--vyra-text-muted)]">Updated {new Date(item.updatedAt).toLocaleDateString()}</p>
-                <button type="button" onClick={() => openStoryboardEditor(item)} className="mt-3 min-h-9 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] transition hover:bg-[var(--vyra-bg-hover)]">Edit details</button>
               </div>
+              </button>
             </Card>
           ))}
         </section>
