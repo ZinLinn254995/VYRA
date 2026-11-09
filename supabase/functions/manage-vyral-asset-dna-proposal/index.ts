@@ -139,54 +139,46 @@ const resolveCreatorEvidence = async (
       operationIndexes: operations.map((op, index) => Array.isArray(op?.evidenceRefs) && op.evidenceRefs.includes(reference) ? index : -1).filter((index) => index >= 0),
     })) };
   }
-  const [promotionsResult] = await Promise.all([
-    admin.from('vyral_dna_records')
-      .select('id,asset_id,user_id,scope,source_kind,verification_status,payload')
-      .in('id', refs).eq('user_id', userId).eq('asset_id', proposal.asset_id)
-      .eq('scope','asset').eq('source_kind','creator').eq('verification_status','creator_confirmed'),
-  ]);
-  if (promotionsResult.error) throw new Error('Could not resolve owner-scoped creator-confirmed DNA evidence.');
-  const promotions = promotionsResult.data ?? [];
-  const reviewIds = [...new Set(promotions.map((record: any) => record.payload?.promotion_review_record_id).filter((id: unknown) => typeof id === 'string' && UUID.test(id)))];
-  const reviewsResult = reviewIds.length ? await admin.from('vyral_dna_records')
-    .select('id,asset_id,user_id,scope,source_kind,verification_status,payload')
+  const evidenceResult = await admin.from('vyral_vision_creator_evidence')
+    .select('id,user_id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256,field_path,accepted_value,review_evidence_id')
+    .in('id', refs).eq('user_id', userId).eq('asset_id', proposal.asset_id)
+    .eq('asset_version_id', proposal.asset_version_id).eq('source_sha256', proposal.source_sha256.toLowerCase())
+    .eq('evidence_kind','field_confirmation').eq('decision','creator_confirmed');
+  if (evidenceResult.error) throw new Error('Could not resolve owner-scoped creator-confirmed field evidence.');
+  const evidenceRows = evidenceResult.data ?? [];
+  const reviewIds = [...new Set(evidenceRows.map((record: any) => record.review_evidence_id).filter((id: unknown) => typeof id === 'string' && UUID.test(id)))];
+  const reviewResult = reviewIds.length ? await admin.from('vyral_vision_creator_evidence')
+    .select('id,user_id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256')
     .in('id', reviewIds).eq('user_id', userId).eq('asset_id', proposal.asset_id)
-    .eq('scope','asset').eq('source_kind','creator').eq('verification_status','creator_confirmed') : { data: [], error: null };
-  if (reviewsResult.error) throw new Error('Could not verify the creator review records attached to DNA evidence.');
-  const reviews = new Map((reviewsResult.data ?? []).map((record: any) => [record.id, record]));
+    .eq('asset_version_id', proposal.asset_version_id).eq('source_sha256', proposal.source_sha256.toLowerCase())
+    .eq('evidence_kind','observation_review').eq('decision','creator_confirmed') : { data: [], error: null };
+  if (reviewResult.error) throw new Error('Could not verify the creator review records attached to field evidence.');
+  const reviews = new Map((reviewResult.data ?? []).map((record: any) => [record.id, record]));
   const verifiedEvidenceRefs: string[] = [];
   for (const ref of refs) {
-    const record = promotions.find((item: any) => item.id === ref);
-    const payload = record?.payload;
+    const record = evidenceRows.find((item: any) => item.id === ref);
     const operationIndexes = operations.map((op, index) => Array.isArray(op?.evidenceRefs) && op.evidenceRefs.includes(ref) ? index : -1).filter((index) => index >= 0);
-    let reason = 'No owner-scoped creator-confirmed field promotion exists for this reference.';
-    let valid = Boolean(record && payload && payload.promotion_source === 'creator_approved_vision_field' &&
-      payload.scope === 'single_observation_field_only' && payload.does_not_certify_entire_asset_or_vyral === true &&
-      payload.source_asset_id === proposal.asset_id && payload.source_asset_version_id === proposal.asset_version_id &&
-      typeof payload.source_sha256 === 'string' && payload.source_sha256.toLowerCase() === proposal.source_sha256.toLowerCase() &&
-      typeof payload.promotion_observation_id === 'string' && UUID.test(payload.promotion_observation_id) &&
-      typeof payload.promotion_review_record_id === 'string' && UUID.test(payload.promotion_review_record_id));
-    const review = valid ? reviews.get(payload.promotion_review_record_id) : null;
-    valid = Boolean(valid && review && review.payload?.review_source === 'server_creator_review' &&
-      review.payload?.vision_observation_review_id === payload.promotion_observation_id &&
-      review.payload?.decision === 'creator_confirmed' && review.payload?.scope === 'single_observation_only');
-    if (!valid) {
-      report.push({ reference: ref, status: 'rejected', reason, operationIndexes });
-      continue;
+    let reason = 'No matching owner-scoped, creator-confirmed field evidence exists for this reference and exact source version.';
+    let valid = Boolean(record && record.field_path && record.review_evidence_id &&
+      reviews.has(record.review_evidence_id) &&
+      reviews.get(record.review_evidence_id)?.observation_id === record.observation_id);
+    if (valid) {
+      const review = reviews.get(record.review_evidence_id);
+      valid = review.asset_version_id === record.asset_version_id && review.source_sha256 === record.source_sha256;
     }
-    const matchingOperations = operationIndexes.every((index) => {
+    const matchingOperations = valid && operationIndexes.length > 0 && operationIndexes.every((index) => {
       const operation = operations[index];
       if (!operation || !['add','replace'].includes(operation.op) || typeof operation.path !== 'string') return false;
       const pathParts = operation.path.slice(1).split('/').map((part: string) => part.replace(/~1/g,'/').replace(/~0/g,'~'));
       const fieldPath = pathParts.slice(1).join('.');
-      return fieldPath === payload.promotion_field_path && sameJson(operation.after, payload.accepted_value);
+      return fieldPath === record.field_path && sameJson(operation.after, record.accepted_value);
     });
     if (!matchingOperations) {
-      report.push({ reference: ref, status: 'rejected', reason: 'Creator-approved field path or accepted value does not exactly match the proposed DNA operation.', operationIndexes });
+      report.push({ reference: ref, status: 'rejected', reason, operationIndexes });
       continue;
     }
     verifiedEvidenceRefs.push(ref);
-    report.push({ reference: ref, status: 'verified', reason: 'Owner-scoped creator confirmation, source version, source SHA-256, field path and accepted value all match.', operationIndexes });
+    report.push({ reference: ref, status: 'verified', reason: 'Creator confirmation, review record, exact Asset Version, source SHA-256, field path and accepted value all match.', operationIndexes });
   }
   return { verifiedEvidenceRefs, report };
 };
@@ -271,7 +263,7 @@ Deno.serve(async (request: Request) => {
     const [latestVersion, latestDna] = await Promise.all([
       context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', proposal.asset_id)
         .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
-      context.supabaseAdmin.from('vyral_dna_records').select('id').eq('asset_id', proposal.asset_id)
+      context.supabaseAdmin.from('vyral_dna_records').select('id,payload').eq('asset_id', proposal.asset_id)
         .eq('user_id', userId).eq('scope','asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (latestVersion.error || latestDna.error) return reply({ error: 'Could not verify the pinned source snapshot.' }, 500);
@@ -284,8 +276,49 @@ Deno.serve(async (request: Request) => {
     const improvements = Array.isArray(snapshot.improvements) ? snapshot.improvements : [];
     const unmapped = Array.isArray(snapshot.unmappedBlockers) ? snapshot.unmappedBlockers : [];
     const informational = Array.isArray(snapshot.informational) ? snapshot.informational : [];
-    // A proposal plan is not a safe executable patch. Persist remediation tasks,
-    // but keep operations empty and the set blocked until evidence supplies exact before/after values.
+    const dnaRoot = object(latestDna.data?.payload) && object(latestDna.data.payload.dna_record)
+      ? latestDna.data.payload.dna_record : null;
+    if (!dnaRoot) return reply({ error: 'The pinned DNA payload does not contain a supported structured dna_record object.' }, 409);
+    const { data: fieldEvidence, error: fieldEvidenceError } = await context.supabaseAdmin
+      .from('vyral_vision_creator_evidence')
+      .select('id,asset_version_id,observation_id,source_sha256,field_path,accepted_value,review_evidence_id')
+      .eq('user_id', userId).eq('asset_id', proposal.asset_id).eq('asset_version_id', proposal.asset_version_id)
+      .eq('source_sha256', proposal.source_sha256.toLowerCase()).eq('evidence_kind','field_confirmation')
+      .eq('decision','creator_confirmed').order('created_at', { ascending: true });
+    if (fieldEvidenceError) return reply({ error: 'Could not load source-pinned creator field confirmations.' }, 500);
+    const allowedSections = new Set(['knowledge','reconstruction','description','attributes','visual','audio','video','document','geometry','style','content']);
+    const protectedSegments = new Set(['id','asset_id','asset_version_id','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','created_at','updated_at','revision_number','parent_dna_record_id']);
+    const byField = new Map<string, any[]>();
+    for (const evidence of fieldEvidence ?? []) {
+      if (typeof evidence.field_path !== 'string') continue;
+      const parts = evidence.field_path.split('.');
+      if (parts.length < 2 || !allowedSections.has(parts[0]) ||
+          parts.some((part: string) => !part || protectedSegments.has(part.toLowerCase()) || ['__proto__','prototype','constructor'].includes(part))) continue;
+      byField.set(evidence.field_path, [...(byField.get(evidence.field_path) ?? []), evidence]);
+    }
+    const operations: any[] = [];
+    const conflictedFields: string[] = [];
+    for (const [fieldPath, records] of byField) {
+      const values = [...new Set(records.map((record) => canonicalJson(record.accepted_value)))];
+      if (values.length !== 1) { conflictedFields.push(fieldPath); continue; }
+      const parts = fieldPath.split('.');
+      const current = getOwnJsonPath(dnaRoot, parts);
+      const acceptedValue = records[0].accepted_value;
+      if (current.exists && sameJson(current.value, acceptedValue)) continue;
+      const pointer = '/dna_record/' + parts.map((part) => part.replace(/~/g,'~0').replace(/\\//g,'~1')).join('/');
+      operations.push({
+        op: current.exists ? 'replace' : 'add',
+        path: pointer,
+        ...(current.exists ? { before: current.value } : {}),
+        after: acceptedValue,
+        evidenceRefs: records.map((record) => record.id),
+      });
+    }
+    const candidateResolution = await resolveCreatorEvidence(context.supabaseAdmin, userId, {
+      asset_id: proposal.asset_id, asset_version_id: proposal.asset_version_id, source_sha256: proposal.source_sha256,
+    }, operations);
+    const operationsWithVerifiedEvidence = operations.filter((operation) =>
+      operation.evidenceRefs.every((ref: string) => candidateResolution.verifiedEvidenceRefs.includes(ref)));
     const changeSet = {
       schema: 'vyra.dna-change-set',
       schemaVersion: 1,
@@ -297,9 +330,12 @@ Deno.serve(async (request: Request) => {
           target: item.target ?? 'review_required', requiredEvidence: item.acceptanceEvidence ?? 'Engineering review and deterministic validation required.' })),
         ...unmapped.map((code: unknown) => ({ kind: 'unmapped_blocker', code: String(code), requiredEvidence: 'Explicit engineering mapping and test required.' })),
         ...informational.map((code: unknown) => ({ kind: 'evidence_gap', code: String(code), requiredEvidence: 'Collect and validate the missing evidence.' })),
+        ...conflictedFields.map((fieldPath) => ({ kind: 'evidence_conflict', fieldPath, requiredEvidence: 'Resolve conflicting creator-confirmed values using a new observation and explicit review.' })),
       ],
-      operations: [],
-      applicability: { status: 'blocked', reason: 'No exact before/after DNA patch is justified by the current assessment snapshot. Verification tasks cannot be applied as DNA mutations.' },
+      operations: operationsWithVerifiedEvidence,
+      applicability: operationsWithVerifiedEvidence.length
+        ? { status: 'ready', reason: 'Exact field values are pinned to creator-confirmed evidence for this Asset Version. Deterministic validation is still required before any revision can be created.' }
+        : { status: 'blocked', reason: 'No non-conflicting, source-pinned creator-confirmed field evidence is available for an exact DNA patch.' },
       createdAt: new Date().toISOString(),
     };
     const canonical = canonicalJson(changeSet);
@@ -307,7 +343,7 @@ Deno.serve(async (request: Request) => {
     const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2,'0')).join('');
     const { data: updated, error: saveError } = await context.supabaseAdmin
       .from('vyral_asset_dna_improvement_proposals')
-      .update({ change_set: changeSet, change_set_sha256: sha256, change_set_status: 'blocked', change_set_prepared_at: new Date().toISOString() })
+      .update({ change_set: changeSet, change_set_sha256: sha256, change_set_status: changeSet.operations.length ? 'ready' : 'blocked', change_set_prepared_at: new Date().toISOString() })
       .eq('id', proposalId).eq('user_id', userId).eq('status','approved').is('change_set', null)
       .select('id,change_set,change_set_sha256,change_set_status').maybeSingle();
     if (saveError || !updated) return reply({ error: 'Change set could not be saved; refresh the proposal before retrying.' }, 409);
