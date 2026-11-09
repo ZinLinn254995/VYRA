@@ -9,6 +9,7 @@ export type VyralReconstructionAttemptV1 = {
   blindness_status?: string | null;
   prompt_sha256?: string | null;
   tool_access?: Record<string, unknown> | null;
+  attempt_evidence?: Record<string, unknown> | null;
   created_at?: string | null;
 };
 
@@ -44,6 +45,17 @@ export const summarizeVyralReconstructionEvidenceV1 = (
   if (attempts.some((item) => !item.prompt_sha256)) evidenceGaps.add('prompt_hash_missing');
   if (attempts.some((item) => !item.tool_access || Object.keys(item.tool_access).length === 0)) evidenceGaps.add('tool_access_missing');
   if (attempts.some((item) => item.blindness_status !== 'independently_verified')) evidenceGaps.add('blindness_not_independently_verified');
+  if (attempts.some((item) => {
+    const evidence = item.attempt_evidence && typeof item.attempt_evidence === 'object' ? item.attempt_evidence : {};
+    const blindness = evidence.blindness && typeof evidence.blindness === 'object' ? evidence.blindness as Record<string, unknown> : {};
+    const packageAudit = blindness.packageAudit && typeof blindness.packageAudit === 'object' ? blindness.packageAudit as Record<string, unknown> : {};
+    return blindness.scope !== 'semantic_only_no_media_payload' ||
+      packageAudit.status !== 'passed' ||
+      packageAudit.acceptedAsSemanticOnly !== true ||
+      packageAudit.originalBinaryPayloadEntries !== 0 ||
+      typeof packageAudit.packageSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(packageAudit.packageSha256);
+  })) evidenceGaps.add('semantic_package_audit_missing_or_invalid');
   if (attempts.length > 0 && attempts.length < 3) evidenceGaps.add('fewer_than_three_attempts');
 
   const interpretation = [
@@ -59,6 +71,7 @@ export const summarizeVyralReconstructionEvidenceV1 = (
     if (evidenceGaps.has('model_version_missing')) nextActions.push('Record the exact model version for every new attempt.');
     if (evidenceGaps.has('prompt_hash_missing')) nextActions.push('Record the SHA-256 hash of the exact reconstruction prompt.');
     if (evidenceGaps.has('tool_access_missing')) nextActions.push('Record whether browsing, file access, code execution, and external retrieval were available.');
+    if (evidenceGaps.has('semantic_package_audit_missing_or_invalid')) nextActions.push('Attach the semantic-only package audit SHA-256 and zero-binary-entry report to every attempt.');
     if (evidenceGaps.has('blindness_not_independently_verified')) nextActions.push('Use an independently controlled clean-session protocol to verify that the original Asset was not exposed.');
     if (evidenceGaps.has('fewer_than_three_attempts')) nextActions.push('Collect at least three independent attempts before drawing a model-level conclusion.');
     if (exactMatches < attempts.length) nextActions.push('Inspect failed outputs by modality and improve only the DNA fields linked to measured errors; preserve the prior DNA version.');
