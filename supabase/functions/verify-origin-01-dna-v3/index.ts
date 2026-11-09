@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
 
 const BUCKET = 'vyral-assets';
@@ -18,7 +19,9 @@ const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.
   status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
 });
 const sha256Hex = async (bytes: Uint8Array) => {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 const inspectPng = (bytes: Uint8Array) => {
@@ -97,6 +100,9 @@ Deno.serve(async (request: Request) => {
     .from('vyral_asset_versions').select('id,storage_path,sha256,size_bytes,mime_type')
     .eq('id', ORIGIN.versionId).eq('asset_id', ORIGIN.assetId).eq('user_id', userId).maybeSingle();
   if (assetError || versionError || !asset || !version) return json({ error: 'Could not validate protected original metadata.' }, 500);
+  const sourcePrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.assetId + '/';
+  if (!isCanonicalOwnedStoragePath(version.storage_path, sourcePrefix)) return json({ error: 'Protected source path failed canonical owner-path validation.' }, 409);
+  if (!isCanonicalOwnedStoragePath(prefix + 'tile.raw', expectedPrefix)) return json({ error: 'Protected DNA tile prefix failed canonical owner-path validation.' }, 409);
   if (asset.storage_path !== version.storage_path || asset.sha256 !== version.sha256 ||
       Number(asset.size_bytes) !== Number(version.size_bytes) || asset.mime_type !== 'image/png' ||
       asset.processing_status !== 'ready' || version.mime_type !== 'image/png') {
@@ -147,7 +153,7 @@ Deno.serve(async (request: Request) => {
     }
     const fileName = x + '_' + y + '.raw';
     const storagePath = prefix + fileName;
-    if (!paths.includes(storagePath) || expectedPaths.has(storagePath)) {
+    if (!isCanonicalOwnedStoragePath(storagePath, expectedPrefix) || !paths.includes(storagePath) || expectedPaths.has(storagePath)) {
       return json({ error: 'Tile storage mapping is missing or duplicated.' }, 409);
     }
     expectedPaths.add(storagePath);
