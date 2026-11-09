@@ -9,6 +9,8 @@ const chat=await readFile('src/components/ai/AIChatPage.tsx','utf8');
 test('application requires validated evidence and matching hash',()=>{
  assert.match(edge,/report\.status !== 'validated'/);
  assert.match(edge,/report\.checks\?\.evidence !== 'pass'/);
+ assert.match(edge,/report\.checks\?\.proposalBinding !== 'pass'/);
+ assert.match(edge,/checks\.proposalBinding = object\(changeSet\)/);
  assert.match(edge,/only add and replace operations are supported/);
  assert.match(edge,/duplicate target path is not allowed/);
  assert.match(edge,/p_expected_change_set_sha256:proposal\.change_set_sha256/);
