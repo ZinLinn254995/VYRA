@@ -842,6 +842,20 @@ export const createVyralDnaOnlyPackage = async (
     }
     const recordPayload = new Map(record.lossless_payload.tiles.map((tile) => [tile.package_path, payloadByPath.get(tile.package_path)!]));
     await reconstructVyralDnaV3(record, recordPayload);
+    if (record.encoded_file_payload) {
+      for (const chunk of record.encoded_file_payload.chunks) {
+        if (declaredPaths.has(chunk.package_path)) throw new Error('DNA-only export contains a duplicate declared source-file chunk path.');
+        declaredPaths.add(chunk.package_path);
+        const bytes = payloadByPath.get(chunk.package_path);
+        if (!bytes || bytes.byteLength !== chunk.byte_length) {
+          throw new Error('DNA-only export is missing a correctly sized original-file chunk: ' + chunk.package_path);
+        }
+      }
+      const encoded = await reconstructVyralDnaV3EncodedFile(record, payloadByPath);
+      if (encoded.byteLength !== record.encoded_file_payload.size_bytes) {
+        throw new Error('DNA-only export original-file payload size does not match its source record.');
+      }
+    }
   }
   if (payloadByPath.size !== declaredPaths.size) {
     throw new Error('DNA-only export contains undeclared DNA payload entries.');
@@ -862,7 +876,7 @@ export const createVyralDnaOnlyPackage = async (
       throw new Error('Master DNA inventory does not match the DNA-only asset reconstruction set.');
     }
     const packageClaims = new Map<string, VyralMasterDnaAsset['reconstruction_claim']>(
-      records.map((record) => [record.source.asset_id, 'lossless_decoded'] as const),
+      records.map((record) => [record.source.asset_id, record.encoded_file_payload ? 'source_file_exact' : 'lossless_decoded'] as const),
     );
     portableBase.masterDna = await updateMasterDnaClaimsForPackage(masterDna, packageClaims);
   }
@@ -881,7 +895,7 @@ export const createVyralDnaOnlyPackage = async (
     reconstructionCapabilities: {
       decoded_sample_stream_reconstructable: true,
       source_decode_independently_verified: false,
-      encoded_source_bytes_recoverable: false,
+      encoded_source_bytes_recoverable: records.every((record) => Boolean(record.encoded_file_payload)),
       color_space_fully_characterized: records.every((record) => record.decoded_image.color_space !== 'unknown'),
       verification_note: 'Package-level reconstruction capability only; source verification must be established by a separate trusted verifier. Each asset has its own decoded-sample digest.',
     },
@@ -891,7 +905,7 @@ export const createVyralDnaOnlyPackage = async (
       asset_id: record.source.asset_id,
       dna_schema_id: 'vyra.asset-dna',
       dna_schema_version: 3,
-      recovery_level: 'decoded-samples-exact',
+      recovery_level: record.encoded_file_payload ? 'source-file-exact' : 'decoded-samples-exact',
       dna_record: record,
     })),
     fingerprints: [],
