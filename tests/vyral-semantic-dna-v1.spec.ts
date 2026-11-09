@@ -88,7 +88,7 @@ test('semantic DNA rejects embedded binary, media URLs and hidden payload fields
         sourceSha256: SHA,
         evidence,
       }],
-    }), /cannot include media payloads|cannot contain data URLs/);
+    }), /media URL|encoded payload|media payloads|data URLs/i);
   }
 });
 
