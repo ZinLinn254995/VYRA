@@ -1201,7 +1201,36 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (!sourceVersions.length && manifest.exportMode === 'dna-only' && sourceDnaEntry) {
           const dnaEntry = sourceDnaEntry;
           if (!dnaEntry) throw new Error('The DNA-only package has no v3 record for its selected asset.');
-          const reconstruction = await encodeVyralDnaV3PngFromPackage(archiveFiles, String(dnaEntry.id));
+          const v3Record = asRecord(dnaEntry.dna_record);
+          const encodedFile = asRecord(v3Record.encoded_file_payload);
+          if (encodedFile.encoding === 'raw-chunks-v1') {
+            const restoredBytes = await reconstructVyralDnaV3EncodedFileFromPackage(archiveFiles, String(dnaEntry.id));
+            if (restoredBytes.byteLength > 100 * 1024 * 1024) throw new Error('A reconstructed source file exceeds the 100 MB storage limit.');
+            const digestBuffer = new ArrayBuffer(restoredBytes.byteLength);
+            new Uint8Array(digestBuffer).set(restoredBytes);
+            const digest = await crypto.subtle.digest('SHA-256', digestBuffer);
+            const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+            if (sha256 !== String(encodedFile.sha256 ?? '').toLowerCase()) throw new Error('Reconstructed original raster bytes failed their source SHA-256 check.');
+            const versionId = crypto.randomUUID();
+            const filename = safeName(encodedFile.filename ?? sourceAsset.original_filename ?? sourceAsset.name, 'restored-original', 120);
+            const storagePath = userId + '/' + vyral.id + '/' + assetId + '/v1/' + versionId + '-' + encodeURIComponent(filename);
+            const mimeType = safeMimeType(encodedFile.mime_type, 'application/octet-stream');
+            const syntheticSource = {
+              id: versionId, asset_id: oldAssetId, version_number: 1, package_path: '',
+              mime_type: mimeType, source_kind: 'restored',
+              metadata: {
+                reconstruction_method: 'vyra-dna-v3-raw-chunks-v1',
+                original_encoded_source_sha256: sha256,
+                original_encoded_source_bytes_recovered: true,
+                decoded_sample_stream_also_available: true,
+              },
+            } as (typeof sourceVersions)[number];
+            if (importAssets.length === 1) reconstructionDownload = { blob: new Blob([restoredBytes], { type: mimeType }), filename };
+            preparedVersions.push({ source: syntheticSource, bytes: restoredBytes, sha256, id: versionId, storagePath, versionNumber: 1 });
+            reconstructedFromDnaV3 = true;
+            reconstructedSourceSha256 = sha256;
+          } else {
+            const reconstruction = await encodeVyralDnaV3PngFromPackage(archiveFiles, String(dnaEntry.id));
           const pngBytes = reconstruction.pngBytes;
           const digestBuffer = new ArrayBuffer(pngBytes.byteLength);
           new Uint8Array(digestBuffer).set(pngBytes);
@@ -1231,6 +1260,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           preparedVersions.push({ source: syntheticSource, bytes: pngBytes, sha256, id: versionId, storagePath, versionNumber: 1 });
           reconstructedFromDnaV3 = true;
           reconstructedSourceSha256 = String(asRecord(asRecord(dnaEntry.dna_record).source).sha256 ?? '');
+          }
         } else if (!sourceVersions.length && manifest.exportMode === 'dna-only' && sourceFileDnaEntry) {
           const fileRecord = asRecord(sourceFileDnaEntry.dna_record);
           const fileMeta = asRecord(fileRecord.file);
