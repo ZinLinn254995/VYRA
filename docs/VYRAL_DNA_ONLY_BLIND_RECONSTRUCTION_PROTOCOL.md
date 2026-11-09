@@ -81,6 +81,8 @@ Both the TypeScript package validator and the portable Python audit reject embed
 
 A semantic-only export is now available from the Vyral package export menu. Run the included audit first and preserve its package SHA-256 report with every external AI attempt. A successful package audit proves package scope and integrity only; it does not prove that an external model was blind, that the generated result is accurate, or that different models will produce the same result.
 
+For every semantic-only external attempt, preserve the audit JSON and record these fields in candidate DNA provenance: `input_package_id`, `input_package_mode=dna-only`, `blindness_scope=semantic_only_no_media_payload`, `package_audit_status=passed`, `package_sha256`, `original_binary_payload_entries=0`, `source_binary_provided_to_model=false`, source Asset/Vyral/Master DNA IDs, provider, exact model identifier/version, prompt SHA-256, session reference, and tool-access details. The comparator marks the attempt `creator_attested` only when the scope, passed audit, valid package hash, zero-binary count, and no-source-binary claim are all present. This is still not independent proof of what an external AI session received; missing or contradictory fields remain unverified.
+
 ## 4. Modality-specific scoring
 
 ### Raster images
