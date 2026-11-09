@@ -1375,7 +1375,7 @@ test('semantic-only DNA package contains descriptions and confirmed observations
     assert.equal(audit.semantic_only, true);
     assert.equal(audit.blindness_scope, 'semantic_only_no_media_payload');
     assert.equal(audit.assets[0].payload_kind, 'semantic-description-only');
-    assert.equal(audit.integrity.passed, true);
+    assert.equal(audit.integrity, 'passed');
   } finally {
     await rm(auditDir, { recursive: true, force: true });
   }
