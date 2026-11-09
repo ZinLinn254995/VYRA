@@ -517,12 +517,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         </div>
       </section>
 
-      <section className="sticky top-[var(--vyra-global-header-height,64px)] z-30 -mx-4 mb-7 flex items-center justify-between gap-3 border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
+      <section className="sticky top-0 z-30 -mx-4 mb-7 flex items-center justify-between gap-3 bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
           <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
         {storyboardAiMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
-        {cloudSyncMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{cloudSyncMessage}</p>}
         </div>
         <Button onClick={createDefaultStoryboard} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
       </section>
