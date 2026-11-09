@@ -1,6 +1,6 @@
 # My Storyboard
 
-**Status:** Approved product direction and planning document; implementation has not started.  
+**Status:** Approved product direction; Master Timeline UI foundation implemented on `feature/my-storyboard` (not merged to Main). Media-backed editing and final rendering remain future work.  
 **Branch:** `feature/my-storyboard`  
 **Scope:** Product structure, three-level editor responsibilities, and simple-user-experience principles. Detailed implementation behavior remains subject to future design.
 
@@ -201,19 +201,36 @@ The following principles apply to all three levels:
 
 The editor levels must not become three layers of increasingly technical interfaces. They are three focused workspaces, each designed to make one kind of task easier.
 
-## 8. Conceptual Master Timeline
+## 8. Master Timeline — One Shared Timebase
 
-The following is a planning model for the Master Editor:
+The Storyboard Master Editor uses one shared horizontal timeline and one time ruler for the complete production.
 
-| Track / layer | Responsibility |
-|---|---|
-| Scenes | The ordered Scene sequence |
-| Transitions | Effects between adjacent Scenes |
-| Global Audio | Shared music or audio across the Storyboard |
-| Global Voice / Sound | Shared voice or sound elements, if needed |
-| Global Text | Storyboard-wide titles, text, or subtitles |
+### 8.1 Scene sequence
 
-Scene-specific tracks remain inside each Individual Scene Editor. Media-item adjustments remain inside the matching Individual Media Editor. Storyboard-wide layers belong in the Master Editor.
+- Scenes appear as compact items in one horizontal row.
+- Transition slots sit between adjacent Scenes. Selecting a slot allows a transition effect and duration to be chosen.
+- The Scene row is responsible for sequence and transitions; the existing Scene cards remain the place to open, manage, and select Scenes.
+- A Scene's original source duration is immutable from the Master Timeline.
+- Each timeline Scene instance stores a separate source In/Out range. For example, a 10-second source Scene can be trimmed to 3–6 seconds, producing a 3-second timeline instance. It cannot be extended beyond its original source duration.
+- Changing a timeline trim must never modify the original Scene or its source media.
+
+### 8.2 Audio and Text tracks
+
+- The Master Timeline has independently addable Audio tracks and Text tracks. Creators may add as many as needed.
+- Audio tracks can contain multiple positioned clips for music, voice, sound effects, and other audio.
+- Text tracks can contain multiple positioned text clips for titles, dialogue, captions, and other text overlays. The track category is **Text**, not a dedicated Subtitle track.
+- Audio and Text clips support position and duration adjustment, split at the playhead, duplicate/copy, and delete. Clip-level controls remain contextual.
+- All clips use the same timeline timebase as the Scene sequence.
+
+### 8.3 Shared time and navigation
+
+- One playhead and one time ruler coordinate Scenes, Audio, and Text.
+- Zoom changes the horizontal scale for the shared timeline.
+- The overall timeline duration is derived from the trimmed Scene instances and transition overlaps; Audio and Text clips are positioned against that same duration.
+- The initial UI provides horizontal timeline scrolling, zoom controls, playhead positioning, clip selection, and drag-to-reposition for Audio and Text clips.
+- Future editing work can extend the controls with waveform rendering, media-backed trim handles, snapping, undo/redo, and playback/render integration without changing the shared timebase.
+
+This Master Timeline is separate from the content timeline inside an Individual Scene Editor.
 
 ## 9. Editing and Return Flow
 
@@ -258,9 +275,9 @@ The following details remain for later discussion before implementation:
 
 ## 12. Implementation Status
 
-This document records the approved product direction for the three-level editor architecture and its simplicity-first UX principle. It does not mean that My Storyboard, any of the editors, timeline behavior, rendering, or export has been implemented.
+This document records the approved product direction for the three-level editor architecture and its simplicity-first UX principle. The Master Timeline UI foundation described in section 8 has now been implemented on the feature branch. This does not mean that media ingestion, real audio/video playback, waveform generation, final rendering, or export is complete.
 
-Implementation should begin only after the remaining workflows and detailed requirements have been discussed and approved.
+Further implementation should preserve the approved page header, creation flow, Storyboard details, and existing auto-save behavior.
 
 
 ## 13. AI-First Creation — AI Does the Work, You Make the Decisions
@@ -353,3 +370,17 @@ The existing Storyboard Editor page header and its compact-header behavior are a
 - Keep the existing creation/confirmation and auto-save behavior intact.
 
 This is a strict implementation boundary: build the Master Editor inside the existing page structure without disturbing the already-approved header, compact behavior, or Storyboard details experience.
+
+
+## 16. Master Timeline UI Foundation — Implemented
+
+The first Master Timeline UI foundation is now present below the existing Scenes section on `feature/my-storyboard`.
+
+- Compact horizontal Scene sequence with transition insertion slots.
+- Per-Scene source In/Out controls stored separately from the original Scene duration.
+- Separate Audio and Text track creation, with multiple clips per track.
+- Shared timeline ruler, playhead position, zoom controls, and common overall time calculation.
+- Audio/Text clip selection, drag-to-reposition, start/duration adjustment, split-at-playhead, duplicate, and delete.
+- Timeline data is stored in the Storyboard details and follows the existing Storyboard auto-save/persistence path.
+
+This is an interactive UI/data foundation. It does not yet connect clip blocks to actual media files, render waveforms, provide real-time video/audio playback, or export a finished video. Those capabilities must be added without changing the shared timebase or modifying original Scene source data.
