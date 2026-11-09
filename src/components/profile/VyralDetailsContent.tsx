@@ -680,7 +680,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       }
-      if (components.compactDna && !portableMasterDna) throw new Error('Collection reference data is not ready yet. Please try again after the Vyral finishes updating.');
+      if (components.compactDna && !portableMasterDna && !blindReconstruction) throw new Error('Collection reference data is not ready yet. Please try again after the Vyral finishes updating.');
       let totalMediaBytes = 0;
       const ownerless = <T extends Record<string, unknown>>(record: T) => {
         const { user_id: _userId, vyral_id: _vyralId, storage_path: _storagePath, ...safe } = record;
