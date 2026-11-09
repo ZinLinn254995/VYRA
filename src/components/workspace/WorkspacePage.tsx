@@ -56,7 +56,8 @@ const updateStoryboardCardBottomRadius = (content: HTMLElement) => {
   if (header) {
     const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+    // Storyboard has no search field, so collapse the unused search-row space completely.
+    const collapseDistance = 76;
     header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
