@@ -45,14 +45,9 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
-const updateStoryboardCardBottomRadius = (content: HTMLElement) => {
-  const card = content.closest<HTMLElement>('.profile-subpage-card');
-  if (!card) return;
-  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
-  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
+const updateStoryboardHeaderCompact = (content: HTMLElement) => {
   const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
-  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
-  const header = card.querySelector<HTMLElement>('.profile-collapse-header');
+  const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (header) {
     const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
@@ -195,7 +190,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   useLayoutEffect(() => {
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
-    if (content) updateStoryboardCardBottomRadius(content);
+    if (content) updateStoryboardHeaderCompact(content);
   }, [activeStoryboard?.id, activeStoryboard?.title, activeStoryboard?.topic, activeStoryboardConfirmed]);
 
   const persistStoryboard = async (item: Storyboard) => {
@@ -447,7 +442,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
           />
-          <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardCardBottomRadius(event.currentTarget)}>
+          <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
             <section className="space-y-3">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2>
