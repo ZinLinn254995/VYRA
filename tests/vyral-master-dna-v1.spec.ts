@@ -202,3 +202,11 @@ test('Master DNA Builder orders Asset DNA by database-assigned revision before t
   assert.match(source, /\.order\('revision_number', \{ ascending: false \}\)\.order\('created_at', \{ ascending: false \}\)/);
   assert.match(source, /revision-first \(then timestamp\)/);
 });
+
+
+test('Master DNA Builder applies canonical owner-path validation to source versions and DNA tiles', () => {
+  const source = readFileSync('supabase/functions/build-vyral-master-dna/index.ts', 'utf8');
+  assert.match(source, /isCanonicalOwnedStoragePath\(version\.storage_path, expectedStoragePrefix\)/);
+  assert.match(source, /isCanonicalOwnedStoragePath\(firstPath, assetStoragePrefix\)/);
+  assert.match(source, /isCanonicalOwnedStoragePath\(path, assetStoragePrefix\)/);
+});
