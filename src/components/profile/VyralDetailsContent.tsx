@@ -1172,7 +1172,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         versionsByAsset.set(assetId, group);
       }
 
-      const importedDnaSources = new Map<string, { version_id: string; sha256: string; size_bytes: number; mime_type: string; tile_storage_paths: string[]; file_dna_record?: VyralFileDnaRecord }>();
+      const importedDnaSources = new Map<string, { version_id: string; sha256: string; size_bytes: number; mime_type: string; tile_storage_paths: string[]; original_bytes_recovered?: boolean; file_dna_record?: VyralFileDnaRecord }>();
       let completedAssets = 0;
       for (const sourceAsset of importAssets) {
         const oldAssetId = stringValue(sourceAsset.id);
@@ -1354,6 +1354,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             size_bytes: sourceVersion.bytes.byteLength,
             mime_type: safeMimeType(sourceVersion.source.mime_type, reconstructedFromDnaV3 ? 'image/png' : mimeType),
             tile_storage_paths: tileStoragePaths,
+            ...(reconstructedFromDnaV3 ? { original_bytes_recovered: reconstructedOriginalBytes } : {}),
             ...(importedFileDna ? { file_dna_record: importedFileDna.record } : {}),
           });
         }
@@ -1570,7 +1571,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               original_dna_record_id: sourceRecord.id ?? null,
               original_source: originalDnaSource,
               reconstructed_asset_sha256: importedDnaSource?.sha256 ?? null,
-              original_encoded_source_bytes_recovered: isFileDnaRecord,
+              original_encoded_source_bytes_recovered: isFileDnaRecord || importedDnaSource?.original_bytes_recovered === true,
             } : {}),
             package_id: manifest.packageId,
             import_run_id: importRunId,
@@ -1585,7 +1586,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           reconstruction_ready: false,
           recovery_level: 'identity-only',
           encoded_source_bytes_recoverable: false,
-        } : objectValue(sourceRecord.reconstruction_data), isDnaV3Record ? 3 : 1, remappedDnaRecordId);
+        } : (isDnaV3Record && importedDnaSource?.original_bytes_recovered ? {
+          ...objectValue(sourceRecord.reconstruction_data),
+          source_preservation: 'original_binary_retained',
+          recovery_level: 'source-file-exact',
+          encoded_source_bytes_recoverable: true,
+        } : objectValue(sourceRecord.reconstruction_data)), isDnaV3Record ? 3 : 1, remappedDnaRecordId);
       }
 
       for (const sourceFingerprint of manifest.fingerprints) {
