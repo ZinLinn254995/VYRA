@@ -101,6 +101,7 @@ Deno.serve(async (request: Request) => {
     context.supabaseAdmin.from('vyral_dna_records')
       .select('id,vyral_id,user_id,asset_id,schema_version,payload,reconstruction_data,verification_status,created_at')
       .eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset')
+      .eq('payload->dna_record->source->>asset_version_id', versionResult.data?.id ?? '')
       .order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (versionResult.error || dnaResult.error) return reply({ error: 'Could not resolve the latest owner-scoped Asset Version and DNA record.' }, 500);
@@ -173,13 +174,19 @@ Deno.serve(async (request: Request) => {
 
   const { data: tests, error: testsError } = await context.supabaseAdmin
     .from('vyral_reconstruction_tests')
-    .select('id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,model_id,created_at')
+    .select('id,asset_version_id,dna_record_id,comparison_mode,test_status,exact_match,model_id,verifier,created_at')
     .eq('asset_id', assetId).eq('asset_version_id', versionId).eq('dna_record_id', dnaRecordId)
     .order('created_at', { ascending: false }).limit(100);
   if (testsError) return reply({ error: 'Could not load pinned reconstruction test history.' }, 500);
-  const trusted = (tests ?? []).filter((row: any) =>
-    ['universal-file-dna-v1-readback-verifier','vyral-dna-v3-readback-verifier','ORIGIN-01-readback-verifier'].includes(row.model_id)
-  );
+  // Never infer verifier trust from model_id: that field identifies the external
+  // model and is not an authenticated verifier identity. Only server-written
+  // verifier metadata with an allowlisted engine and execution mode is eligible.
+  const trusted = (tests ?? []).filter((row: any) => {
+    const verifier = isObject(row.verifier) ? row.verifier : {};
+    return verifier.execution === 'server_edge_function' &&
+      ['ImageMagick WASM', 'VYRA Binary Readback'].includes(String(verifier.engine)) &&
+      ['0.0.30', '1'].includes(String(verifier.version));
+  });
   const latestByVerifier = new Map<string, any>();
   for (const row of trusted) {
     if (!Number.isFinite(Date.parse(row.created_at))) return reply({ error: 'Trusted reconstruction test timestamp is invalid.' }, 409);
