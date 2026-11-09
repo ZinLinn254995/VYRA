@@ -1,23 +1,26 @@
 # My Storyboard
 
-**Status:** Product concept and planning document  
+**Status:** Approved product direction and planning document; implementation has not started.  
 **Branch:** `feature/my-storyboard`  
-**Scope:** Product structure and editor responsibilities; implementation details remain open for future design.
+**Scope:** Product structure, three-level editor responsibilities, and simple-user-experience principles. Detailed implementation behavior remains subject to future design.
 
 ## 1. Overview
 
 My Storyboard is VYRA's workspace for producing longer videos made up of multiple scenes.
 
-A creator starts a Storyboard, creates multiple Scenes inside it, edits each Scene independently, and then assembles the complete production in the Storyboard Master Editor.
+A creator starts a Storyboard, creates multiple Scenes inside it, edits each Scene independently, edits individual media items within each Scene, and then assembles the complete production in the Storyboard Master Editor.
 
-The product has two distinct editing levels:
+The product has **three distinct editing levels**:
 
-1. **Individual Scene Editor** — edits the content and timeline of one Scene.
-2. **Storyboard Master Editor** — arranges and edits all Scenes together as one complete production.
+1. **Storyboard Master Editor** — edits and coordinates the complete Storyboard, including all Scenes and shared elements.
+2. **Individual Scene Editor** — edits the content and timeline of one Scene.
+3. **Individual Media Editor** — edits one selected media item (such as one video, image, audio, voice recording, or text item) independently.
 
 The intended high-level flow is:
 
-`My Storyboard → Multiple Scenes → Individual Scene Editors → Storyboard Master Editor → Final Video`
+`My Storyboard → Storyboard Master Editor → Individual Scene Editor → Individual Media Editor → back to Scene Editor → back to Master Editor → Final Video`
+
+The hierarchy exists to make the experience simpler, not to expose more technical complexity. Each level has a focused responsibility and should show only the controls relevant to that task.
 
 ## 2. Keep AI Chat Generation Separate
 
@@ -44,74 +47,163 @@ A Storyboard should provide a way to:
 - Return to the parent Storyboard and continue working on the full production.
 - Open the Storyboard Master Editor to arrange the complete sequence.
 
-## 4. Individual Scene Editor
+## 4. Level 1 — Storyboard Master Editor
 
-Each Scene opens in its own dedicated video editor.
+The Storyboard itself has its own editor: the **Storyboard Master Editor**.
 
-The Scene Editor is responsible for editing the selected Scene without requiring the creator to work on the entire Storyboard at once.
+This is the editing workspace for the complete production. It coordinates all Scenes together and is not a replacement for the Individual Scene Editors.
 
-A Scene may contain multiple media elements and editing layers. The intended capability area includes:
-
-- Video clips and images.
-- Audio, voice, and music.
-- A Scene-level timeline.
-- Editing and arrangement of the Scene's media.
-- AI-assisted generation as part of the Scene workflow.
-- Other scene-specific editing controls as the product design develops.
-
-These are capability areas for future product design, not a claim that every listed tool has already been implemented or finalized.
-
-### Scene-level independence
-
-- Each Scene has its own content and editing context.
-- Editing one Scene should not unintentionally overwrite another Scene.
-- Scene-level audio, text, and other elements belong to that Scene unless deliberately promoted or recreated as shared Storyboard elements.
-
-## 5. Storyboard Master Editor
-
-The Storyboard itself must also have its own editor: the **Storyboard Master Editor**.
-
-This is the editing workspace for the complete production. It is not a replacement for the Individual Scene Editors. It works at the Storyboard level and allows the creator to coordinate all Scenes together.
-
-The Master Editor must support these core responsibilities:
-
-### 5.1 Arrange Scenes
+### 4.1 Arrange Scenes
 
 - Show all Scenes belonging to the Storyboard.
-- Allow the creator to arrange their order.
-- Make the overall sequence understandable and editable.
+- Add, move, reorder, duplicate, and remove Scenes.
+- Make the overall sequence understandable and easy to change.
+- Preview an individual Scene.
 
-### 5.2 Add transitions between Scenes
+### 4.2 Add transitions between Scenes
 
-- Allow transition effects to be added between Scenes.
+- Add transition effects between Scenes.
 - Make it clear which transition belongs to which Scene boundary.
 - Keep transition editing at the Storyboard level.
 
-### 5.3 Add shared audio
+### 4.3 Add shared audio
 
-- Allow common or global audio to be applied across the Storyboard.
+- Add common or global music/audio across the Storyboard.
 - Keep shared audio separate from each Scene's own audio.
-- Avoid overwriting the original audio or voice content inside individual Scenes.
+- Avoid overwriting original audio or voice content inside individual Scenes.
 
-### 5.4 Add shared text and subtitles
+### 4.4 Add shared text and subtitles
 
-- Allow common titles, text, or subtitles to be added at the Storyboard level.
-- Keep these shared elements separate from Scene-level text and subtitles.
+- Add common titles, text, or subtitles at the Storyboard level.
+- Keep shared elements separate from Scene-level text and subtitles.
 - Support elements intended to span one or more Scenes.
 
-### 5.5 Add other shared elements
+### 4.5 Add other shared elements
 
-The Master Editor may support additional elements that apply across multiple Scenes or to the complete production. Their exact types and controls will be defined in later design work.
+Support additional elements that apply across multiple Scenes or to the complete production as the product design develops.
 
-### 5.6 Move between the two editor levels
+### 4.6 Preview and export
 
-The creator should be able to select a Scene from the Master Editor and open that Scene in its Individual Scene Editor.
+- Preview the complete Storyboard as one video.
+- Export the assembled final video.
 
-After the Scene is edited, the Storyboard-level view should reflect the updated Scene output. The Master Editor remains the place to coordinate the complete production.
+Potential validation checks before export include Scene readiness, transition continuity, audio synchronization, subtitle timing, estimated export size, and estimated generation or processing cost. The exact checks and export options remain to be specified.
 
-## 6. Conceptual Master Timeline
+### 4.7 Move between editor levels
 
-The following is a proposed way to organize the Master Editor timeline. It is a planning model, not a finalized UI specification.
+The creator can select a Scene from the Master Editor and open it in its Individual Scene Editor. After editing, the Master Editor should reflect the updated Scene output.
+
+## 5. Level 2 — Individual Scene Editor
+
+Each Scene opens in its own dedicated editor. This workspace is responsible for creating and editing the selected Scene without requiring the creator to work on the entire Storyboard at once.
+
+A Scene may contain multiple media items, such as:
+
+- Video clips.
+- Images.
+- Audio and music.
+- Voice recordings.
+- Text and subtitles.
+- Other supported media types as VYRA grows.
+
+### 5.1 Scene-level features
+
+The approved capability list for the Scene Editor includes:
+
+- Add media.
+- Choose existing items from My Media Library.
+- Create new media with AI.
+- Move and arrange media items.
+- Cut or remove unwanted portions where supported by the media type.
+- Duplicate or delete a media item.
+- Add text.
+- Record or add voice.
+- Add music.
+- Preview the current Scene.
+
+Each Scene has its own content, editing context, and timeline. Editing one Scene must not unintentionally overwrite another Scene.
+
+Scene-level audio, text, and other elements belong to that Scene unless deliberately created as shared Storyboard elements in the Master Editor.
+
+### 5.2 Open an Individual Media Editor
+
+Selecting a media item in the Scene Editor opens the matching Level 3 editor for that single item. When the creator saves or finishes editing, the updated media result returns to the Scene and is reflected in its timeline.
+
+## 6. Level 3 — Individual Media Editors
+
+Each media item can be opened in its own dedicated editor. The editor is selected according to the media type. It edits the selected item, rather than the entire Scene or Storyboard.
+
+The approved initial editor categories and feature areas are:
+
+### 6.1 Video Editor
+
+- Trim or cut the video.
+- Change its duration.
+- Adjust playback speed.
+- Resize or crop the frame.
+- Adjust color, brightness, and contrast.
+- Adjust the video's volume.
+- Use AI-assisted editing.
+
+### 6.2 Image Editor
+
+- Crop and rotate.
+- Resize.
+- Adjust color.
+- Adjust brightness and contrast.
+- Remove the background.
+- Use AI-assisted editing.
+
+### 6.3 Audio Editor
+
+- Cut audio.
+- Adjust duration.
+- Adjust volume.
+- Make the beginning or ending fade smoothly.
+- Reduce noise.
+- Use AI-assisted audio editing.
+
+### 6.4 Voice Editor
+
+- Listen to the recording.
+- Remove unwanted words or sections.
+- Improve voice clarity.
+- Adjust volume.
+- Remove silent sections.
+- Use AI voice enhancement.
+
+### 6.5 Text Editor
+
+- Write or edit text.
+- Change the font.
+- Change text color.
+- Change text size.
+- Set when the text appears.
+- Choose a simple animation.
+
+These categories are the approved starting scope. The architecture should allow additional media-specific editors later, such as editors for 3D objects, animation, characters, and other supported Asset types, without forcing those controls into unrelated editors.
+
+## 7. Core UX Principle — Professional Power, Child-Friendly Simplicity
+
+**The three-level editor architecture exists specifically to keep each editor simple and easy to understand.**
+
+The underlying technology may be highly advanced, but the user-facing experience must remain approachable—even for a child or a first-time creator.
+
+The following principles apply to all three levels:
+
+1. **Simple language:** Avoid technical jargon in visible labels and instructions. Prefer familiar action words such as “Cut,” “Move,” “Add,” “Make,” “Listen,” “Preview,” and “Save.”
+2. **Only relevant controls:** Show the tools needed for the current task. Do not crowd an editor with unrelated features.
+3. **Clear actions:** Make each button's purpose immediately understandable.
+4. **Progressive guidance:** Help users understand what to do next without requiring them to learn professional editing terminology.
+5. **Hide technical complexity:** Advanced processing and complex implementation should happen behind the scenes wherever possible.
+6. **Consistent experience:** Keep navigation, saving, previews, and basic interactions consistent across all editor levels.
+7. **Powerful results without a complicated interface:** Simplicity must not mean removing the capability to produce professional-quality work.
+
+The editor levels must not become three layers of increasingly technical interfaces. They are three focused workspaces, each designed to make one kind of task easier.
+
+## 8. Conceptual Master Timeline
+
+The following is a planning model for the Master Editor:
 
 | Track / layer | Responsibility |
 |---|---|
@@ -121,50 +213,51 @@ The following is a proposed way to organize the Master Editor timeline. It is a 
 | Global Voice / Sound | Shared voice or sound elements, if needed |
 | Global Text | Storyboard-wide titles, text, or subtitles |
 
-Scene-specific tracks remain inside each Individual Scene Editor. Storyboard-wide layers belong in the Master Editor.
+Scene-specific tracks remain inside each Individual Scene Editor. Media-item adjustments remain inside the matching Individual Media Editor. Storyboard-wide layers belong in the Master Editor.
 
-## 7. Final Preview and Export
+## 9. Editing and Return Flow
 
-The Master Editor is the natural place to review the assembled production as one complete video.
+The intended editing flow is:
 
-A proposed finalization flow is:
+1. Open the Storyboard Master Editor.
+2. Select a Scene and open its Scene Editor.
+3. Select an individual media item and open its matching Media Editor.
+4. Edit that one item and save the result.
+5. Return to the Scene Editor, where the updated item appears in the Scene.
+6. Return to the Master Editor, where the updated Scene is reflected in the complete production.
+7. Preview and export the final video.
 
-1. Arrange the Scenes.
-2. Configure transitions and shared elements.
-3. Preview the complete Storyboard.
-4. Resolve any detected production issues.
-5. Export the final video.
+Edits at a lower level should update the corresponding item or Scene in the parent level without silently overwriting unrelated content. The exact versioning, undo, and conflict behavior remains future design work.
 
-Potential validation checks before export include Scene readiness, transition continuity, audio synchronization, subtitle timing, estimated export size, and estimated generation or processing cost. The exact checks and export options remain to be specified.
-
-## 8. Product Boundaries and Principles
-
-The following boundaries are important:
+## 10. Product Boundaries and Principles
 
 - **AI Chat is not Storyboard.** Standalone AI Chat generations go to My Media Library.
 - **My Media Library is not a Vyral.** Library storage does not automatically create a Vyral relationship.
 - **A Storyboard is not one Scene.** It is the parent workspace for a multi-scene production.
-- **A Scene Editor is not the Master Editor.** Each has a separate responsibility and editing context.
+- **The Master Editor is not the Scene Editor.** They have separate responsibilities and editing contexts.
+- **The Scene Editor is not the Individual Media Editor.** The Scene Editor manages the Scene; the Media Editor focuses on one selected media item.
 - **Scene-level content and Storyboard-wide elements remain distinct.** Shared elements must not silently replace original Scene content.
-- **The Master Editor coordinates the complete video.** It arranges Scenes and manages transitions and shared elements.
+- **Each media editor is media-specific.** Video controls belong in the Video Editor, image controls in the Image Editor, and so on.
+- **Simple UI is mandatory.** The underlying system may be complex; the user-facing editor should not be.
 
-## 9. Open Design Work
+## 11. Open Design Work
 
-The following details are intentionally left open for future discussion before implementation:
+The following details remain for later discussion before implementation:
 
 - Storyboard creation, naming, duplication, and deletion behavior.
 - Scene creation, duplication, deletion, and reordering interactions.
-- Exact Scene Editor tools and timeline capabilities.
-- Exact Master Editor layout and timeline interaction model.
+- Exact layouts and interaction models for all three editor levels.
+- The detailed behavior of each media-specific editing control.
 - Supported transition types and their configuration.
 - Global audio and text behavior, including timing and scope.
 - Preview, rendering, export formats, and quality settings.
 - Asset selection and reuse from My Media Library and Vyrals.
 - Cost estimation and credit handling across generation, rendering, and export.
-- Saving, version history, recovery, and collaboration behavior.
+- Saving, auto-save, undo/redo, version history, recovery, and collaboration behavior.
+- How additional media types receive their own simple, focused editors.
 
-## 10. Implementation Status
+## 12. Implementation Status
 
-This document records the agreed product direction and a set of proposed design areas. It does not mean that My Storyboard, either editor, timeline behavior, rendering, or export has been implemented.
+This document records the approved product direction for the three-level editor architecture and its simplicity-first UX principle. It does not mean that My Storyboard, any of the editors, timeline behavior, rendering, or export has been implemented.
 
-Implementation should begin only after the relevant workflows and detailed requirements have been discussed and approved.
+Implementation should begin only after the remaining workflows and detailed requirements have been discussed and approved.
