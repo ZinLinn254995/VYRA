@@ -29,13 +29,8 @@ const readLegacyVyrals = (): LegacyVyral[] => {
   } catch { return []; }
 };
 
-const updateProfileCardBottomRadius = (content: HTMLElement) => {
-  const card = content.closest<HTMLElement>('.profile-subpage-card');
-  if (!card) return;
-  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
-  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
+const updateProfileHeaderCompact = (content: HTMLElement) => {
   const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
-  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
   const header = card.querySelector<HTMLElement>('.profile-collapse-header');
   if (header) {
     const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 204;
@@ -153,7 +148,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
 
   useLayoutEffect(() => {
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
-    if (content) updateProfileCardBottomRadius(content);
+    if (content) updateProfileHeaderCompact(content);
   }, [activeId, vyrals, query]);
 
   const createVyral = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -229,7 +224,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   };
 
   if (active) return (
-    <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+    <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
       <ProfileSubpageHeader
         onBack={() => { setActiveId(null); setQuery(''); }}
         backLabel="Back to My Vyrals"
@@ -238,7 +233,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
-      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
+      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)}>
         <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} onSendAssetsToChat={onSendAssetsToChat} />
       </div>
     </section></div>
