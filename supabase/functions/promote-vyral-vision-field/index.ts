@@ -33,7 +33,9 @@ Deno.serve(async (request: Request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
   if (!isUuid(body.observationId)) return json({ error: 'A valid observationId is required.' }, 400);
-  if (typeof body.fieldPath !== 'string' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(body.fieldPath) || body.fieldPath.length > 240) return json({ error: 'A valid dotted fieldPath is required.' }, 400);
+  if (typeof body.fieldPath !== 'string' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(body.fieldPath) || body.fieldPath.length > 240) return json({ error: 'A valid dotted DNA fieldPath is required.' }, 400);
+  const observationFieldPath = typeof body.observationFieldPath === 'string' ? body.observationFieldPath : body.fieldPath;
+  if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(observationFieldPath) || observationFieldPath.length > 240) return json({ error: 'A valid dotted observationFieldPath is required.' }, 400);
   if (body.acceptedValue === undefined) return json({ error: 'acceptedValue is required.' }, 400);
   const serialized = JSON.stringify(body.acceptedValue);
   if (!serialized || serialized.length > 8000) return json({ error: 'Accepted value must be valid JSON and no larger than 8KB.' }, 400);
@@ -46,7 +48,7 @@ Deno.serve(async (request: Request) => {
     .eq('id', body.observationId).eq('user_id', userId).maybeSingle();
   if (observationError) return json({ error: 'Could not load Vision observation.' }, 500);
   if (!observation) return json({ error: 'Vision observation not found.' }, 404);
-  const field = getPath(observation.observation, body.fieldPath);
+  const field = getPath(observation.observation, observationFieldPath);
   if (!field.found || stableJson(field.value) !== stableJson(body.acceptedValue)) return json({ error: 'Accepted value must exactly match the selected observation field. Creator edits must be recorded as a separate creator statement.', status: 'value_mismatch' }, 409);
 
   const { data: asset, error: assetError } = await context.supabase
@@ -88,5 +90,5 @@ Deno.serve(async (request: Request) => {
   if (insertError?.code === '23505') return json({ error: 'This observation field already has immutable creator confirmation evidence.', status: 'promotion_exists' }, 409);
   if (insertError || !record) return json({ error: 'Could not save field confirmation evidence.' }, 500);
   return json({ status: 'field_confirmed', evidenceId: record.id, observationId: observation.id, fieldPath: body.fieldPath,
-    sourceVersionId: version.id, sourceSha256: observation.source_sha256, dnaChanged: false }, 201);
+    sourceVersionId: version.id, sourceSha256: observation.source_sha256, observationFieldPath, dnaChanged: false }, 201);
 });

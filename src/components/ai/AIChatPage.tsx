@@ -426,7 +426,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const validateDnaChangeSet = /^\s*(?:validate(?: dna)? change set|check(?: dna)? change set|DNA change set စစ်ဆေး)\s*$/i.test(text);
     const reviewDnaEvidence = /^\s*(?:review|list|show) (?:vision )?(?:dna )?evidence\s*$/i.test(text);
     const creatorObservationAction = text.match(/^\s*(confirm|dispute) observation ([0-9a-f-]{36})\s*$/i);
-    const promoteObservationField = text.match(/^\s*promote observation ([0-9a-f-]{36}) field ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)\s*$/i);
+    const promoteObservationField = text.match(/^\s*promote observation ([0-9a-f-]{36}) field ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)(?: as ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*))?\s*$/i);
     const proposalAction = /^\s*(?:approve(?: dna (?:improvement )?plan)?|အတည်ပြု(?:မယ်)?|လက်ခံမယ်)\s*$/i.test(text)
       ? 'approve'
       : /^\s*(?:reject(?: dna (?:improvement )?plan)?|decline|မလုပ်တော့|ပယ်ချမယ်)\s*$/i.test(text)
@@ -531,19 +531,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (!supabase) throw new Error('Field confirmation is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
         const observationId = promoteObservationField[1];
-        const fieldPath = promoteObservationField[2];
+        const observationFieldPath = promoteObservationField[2];
+        const fieldPath = promoteObservationField[3] || ('knowledge.' + observationFieldPath);
         const { data: observation, error: observationError } = await supabase
           .from('vyral_vision_observations').select('id,asset_id,observation')
           .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle();
         if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
         let acceptedValue: unknown = observation.observation;
-        for (const part of fieldPath.split('.')) {
+        for (const part of observationFieldPath.split('.')) {
           if (!acceptedValue || typeof acceptedValue !== 'object' || Array.isArray(acceptedValue) ||
               !Object.prototype.hasOwnProperty.call(acceptedValue, part)) throw new Error('The requested field does not exist in this Vision observation.');
           acceptedValue = (acceptedValue as Record<string, unknown>)[part];
         }
         const { data: result, error: promoteError } = await supabase.functions.invoke('promote-vyral-vision-field', {
-          body: { observationId, fieldPath, acceptedValue },
+          body: { observationId, fieldPath, observationFieldPath, acceptedValue },
         });
         if (promoteError) {
           let message = 'Creator field confirmation could not be saved.';
