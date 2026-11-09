@@ -610,10 +610,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     }}
                     onSceneDuplicate={(source, index) => {
                       const original = scenes.find((scene) => scene.id === source.id);
+                      const now = new Date().toISOString();
                       const copy: StoryboardScene = {
                         ...(original || { id: source.id, title: source.title, description: '', duration: source.duration, transition: 'Fade' }),
                         id: crypto.randomUUID(),
                         title: (original?.title || source.title) + ' copy',
+                        project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] },
                       };
                       const next = [...scenes];
                       next.splice(Math.max(0, Math.min(index, next.length)), 0, copy);
