@@ -5,7 +5,7 @@ This package is self-describing. Read \`manifest.json\` and use the included \`t
 ## What is inside
 
 - \`manifest.json\` identifies the Vyral, its Asset inventory, each Asset DNA record, and the exact reconstruction payload paths.
-- \`vyra.asset-dna\` version 3 describes raster image samples. Its raw tiles are lossless decoded samples, not the original encoded PNG/JPEG/WebP file bytes.
+- \`vyra.asset-dna\` version 3 describes raster image samples. Its raw tiles are lossless decoded samples, not the original encoded PNG/JPEG/WebP file bytes. It may additionally include \`encoded_file_payload\` chunks; when present, those independently hashed chunks restore the exact original encoded file bytes.
 - \`vyra.asset-file-dna\` version 1 describes original file bytes. When its claim is \`source_file_exact\`, the ordered raw chunks can recover the exact original file and must pass each chunk hash plus the aggregate SHA-256.
 - A compact collection reference is a derived inventory and reference map. It is not a reconstruction payload and does not grant access to private VYRA files.
 
