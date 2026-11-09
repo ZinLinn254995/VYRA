@@ -11,7 +11,7 @@ const cleanText = (value: unknown, max = 4000) =>
 const assertSafeSemanticText = (value: unknown, label: string, max = 4000) => {
   if (value === null || value === undefined) return;
   if (typeof value !== 'string' || value.length > max || /^data:/i.test(value) ||
-      value.includes('://') || /[A-Za-z0-9+/]{128,}={0,2}/.test(value)) {
+      value.includes('://') || /[A-Za-z0-9+/_-]{128,}={0,2}/.test(value.replace(/\\s+/g, ''))) {
     throw new Error('Semantic DNA ' + label + ' contains a media URL, encoded payload, or oversized text.');
   }
 };
@@ -22,7 +22,7 @@ const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
     'binary', 'binary_data', 'payload', 'raw_payload', 'encoded', 'encoded_bytes',
     'base64', 'data_url', 'bytes', 'file_bytes', 'file_data', 'storage_path',
     'signed_url', 'download_url', 'source_url', 'asset_url', 'tile', 'tiles',
-    'samples', 'decoded_samples', 'pixel_buffer', 'audio_buffer', 'video_frames',
+    'samples', 'decoded_samples', 'pixel_buffer', 'audio_buffer', 'video_frames', 'source_file', 'original_file', 'attachment', 'content_bytes',
   ]);
   let nodes = 0;
   const visit = (item: unknown, depth: number): unknown => {
@@ -46,8 +46,8 @@ const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
     if (entries.length > 128) throw new Error('Semantic DNA evidence contains too many fields.');
     const output: Record<string, unknown> = {};
     for (const [key, child] of entries) {
-      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-      if (forbiddenKeys.has(normalizedKey)) {
+      const normalizedKey = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      if (forbiddenKeys.has(normalizedKey) || /(^|_)(image|media|binary|payload|encoded|base64|bytes|tiles|samples)(_|$)/.test(normalizedKey) || /^(storage|signed|download|source|asset)_(url|uri|path)$/.test(normalizedKey)) {
         throw new Error('Semantic DNA evidence cannot include media payloads or source-file references.');
       }
       output[key.slice(0, 128)] = visit(child, depth + 1);
