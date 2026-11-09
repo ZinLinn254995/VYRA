@@ -417,6 +417,9 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   if (manifest.exportMode === 'dna-only') {
     const capabilities = manifest.reconstructionCapabilities;
     const blind = manifest.blindReconstruction === true;
+    if (blind && manifest.blindnessScope !== 'original_encoded_binary_excluded') {
+      throw new Error('Blind DNA package must declare the exact scope of excluded source bytes.');
+    }
     const dnaRecords = manifest.dnaRecords ?? [];
     const v3Records = dnaRecords.filter((record) =>
       record.dna_schema_id === 'vyra.asset-dna' && record.dna_schema_version === 3
@@ -1065,7 +1068,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   const dnaOnlyManifest: VyralPackageManifest = {
     ...portableBase,
     exportMode: 'dna-only',
-    ...(blindReconstruction ? { blindReconstruction: true } : {}),
+    ...(blindReconstruction ? { blindReconstruction: true, blindnessScope: 'original_encoded_binary_excluded' } : {}),
     exportComponents: { assets: false, fullDna: true, compactDna: includeCompactDna && Boolean(portableBase.masterDna) },
     folders: [],
     versions: [],
