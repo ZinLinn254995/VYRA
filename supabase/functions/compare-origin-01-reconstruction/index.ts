@@ -282,7 +282,26 @@ Deno.serve(async (request: Request) => {
   const sessionReference = asNonEmptyString(dnaProvenance.session_reference) ??
     asNonEmptyString(modelReport.session_reference);
   const toolAccess = asJsonObject(dnaProvenance.tool_access ?? modelReport.tool_access);
-  const blindnessStatus = dnaProvenance.source_binary_provided_to_model === false ? 'creator_attested' : 'unverified';
+  const blindnessScope = asNonEmptyString(dnaProvenance.blindness_scope) ??
+    asNonEmptyString(modelReport.blindness_scope);
+  const packageAuditStatus = asNonEmptyString(dnaProvenance.package_audit_status) ??
+    asNonEmptyString(modelReport.package_audit_status);
+  const packageSha256Raw = asNonEmptyString(dnaProvenance.package_sha256) ??
+    asNonEmptyString(modelReport.package_sha256);
+  const packageSha256 = packageSha256Raw && /^[a-f0-9]{64}$/i.test(packageSha256Raw)
+    ? packageSha256Raw.toLowerCase() : null;
+  const originalBinaryPayloadEntries = Number(
+    dnaProvenance.original_binary_payload_entries ?? modelReport.original_binary_payload_entries,
+  );
+  const semanticPackageAuditPassed =
+    blindnessScope === 'semantic_only_no_media_payload' &&
+    packageAuditStatus === 'passed' &&
+    !!packageSha256 &&
+    Number.isSafeInteger(originalBinaryPayloadEntries) &&
+    originalBinaryPayloadEntries === 0;
+  const blindnessStatus =
+    dnaProvenance.source_binary_provided_to_model === false && semanticPackageAuditPassed
+      ? 'creator_attested' : 'unverified';
   const attemptEvidence = {
     provider: selectedCandidate.provider,
     modelIdentifier,
@@ -293,9 +312,16 @@ Deno.serve(async (request: Request) => {
     toolAccess,
     blindness: {
       status: blindnessStatus,
+      scope: blindnessScope ?? 'not_recorded',
       sourceBinaryClaim: dnaProvenance.source_binary_provided_to_model === false ? 'creator_attested_not_provided' : 'not_recorded',
+      packageAudit: {
+        status: packageAuditStatus ?? 'not_recorded',
+        packageSha256,
+        originalBinaryPayloadEntries: Number.isSafeInteger(originalBinaryPayloadEntries) ? originalBinaryPayloadEntries : null,
+        acceptedAsSemanticOnly: semanticPackageAuditPassed,
+      },
       independentlyVerified: false,
-      note: 'The comparator cannot independently observe an external AI session. This field records creator-supplied provenance only.',
+      note: 'The comparator cannot independently observe an external AI session or inspect the package after sharing. A semantic-only scope and zero-binary package audit are creator-attested provenance, not independent proof.',
     },
     candidateOutput: {
       uploadedSha256: candidateVersion.sha256,
