@@ -151,6 +151,11 @@
 .storyboard-fullscreen-card .profile-subpage-content {
   background: transparent !important;
 }
+.storyboard-fullscreen-card {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  transition: none !important;
+}
 
 /* Bottom corners emerge gradually as the final content approaches the scroll edge. */
 .profile-subpage-card {
