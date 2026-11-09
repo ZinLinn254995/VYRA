@@ -97,3 +97,18 @@ test('semantic DNA never upgrades an unverified description to creator-declared 
   assert.equal(record.creator_description.evidence_status, 'unverified');
   assert.ok(record.reconstruction.missing_information.includes('creator_description_attestation'));
 });
+
+test('semantic DNA rejects media references and encoded payloads in descriptions and Vyral context', () => {
+  assert.throws(() => createVyralSemanticDnaV1({
+    ...base,
+    asset: { ...base.asset, description: 'See https://example.test/original.png' },
+  }), /media URL|encoded payload/);
+  assert.throws(() => createVyralSemanticDnaV1({
+    ...base,
+    context: { ...base.context, purpose: 'A'.repeat(160) + '==' },
+  }), /media URL|encoded payload/);
+  assert.throws(() => createVyralSemanticDnaV1({
+    ...base,
+    context: { ...base.context, intendedUses: ['data:image/png;base64,AAAA'] },
+  }), /media URL|encoded payload/);
+});
