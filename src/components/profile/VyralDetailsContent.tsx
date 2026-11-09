@@ -877,11 +877,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             sha256: sourceVersion.sha256,
             mime_type: sourceVersion.mime_type || asset.mime_type,
           });
+          const sourceSha256 = sourceVersion.sha256.toLowerCase();
           const confirmedObservations = selectedObservations
             .filter((observation) => observation.asset_id === asset.id && observation.asset_version_id === sourceVersion.id)
             .flatMap((observation) => {
               const review = reviewByObservation.get(observation.id);
-              if (!review || observation.source_sha256.toLowerCase() !== sourceVersion.sha256.toLowerCase()) return [];
+              if (!review || observation.source_sha256.toLowerCase() !== sourceSha256) return [];
               return [{
                 observationId: observation.id,
                 reviewId: review.id,
@@ -920,7 +921,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             },
             source: {
               assetVersionId: sourceVersion.id,
-              sha256: sourceVersion.sha256!.toLowerCase(),
+              sha256: sourceSha256,
               sizeBytes: Number(sourceVersion.size_bytes),
             },
             technicalMetadata: technical,
