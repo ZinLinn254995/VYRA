@@ -123,6 +123,74 @@ const validateChangeSet = async (changeSet: any, storedHash: string, expectedSou
   return { validatorVersion: 1, status, changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: status === 'validated' ? validCount : 0 };
 };
 
+
+const resolveCreatorEvidence = async (
+  admin: any,
+  userId: string,
+  proposal: { asset_id: string; asset_version_id: string; source_sha256: string },
+  operations: any[],
+) => {
+  const refs = [...new Set(operations.flatMap((op) => Array.isArray(op?.evidenceRefs) ? op.evidenceRefs : []))];
+  const report: { reference: string; status: 'verified' | 'rejected'; reason: string; operationIndexes: number[] }[] = [];
+  if (!refs.length) return { verifiedEvidenceRefs: [], report };
+  if (refs.length > 100 || refs.some((ref) => typeof ref !== 'string' || !UUID.test(ref))) {
+    return { verifiedEvidenceRefs: [], report: refs.map((reference) => ({
+      reference: String(reference), status: 'rejected' as const, reason: 'Evidence reference must be a UUID and no more than 100 references may be resolved.',
+      operationIndexes: operations.map((op, index) => Array.isArray(op?.evidenceRefs) && op.evidenceRefs.includes(reference) ? index : -1).filter((index) => index >= 0),
+    })) };
+  }
+  const [promotionsResult] = await Promise.all([
+    admin.from('vyral_dna_records')
+      .select('id,asset_id,user_id,scope,source_kind,verification_status,payload')
+      .in('id', refs).eq('user_id', userId).eq('asset_id', proposal.asset_id)
+      .eq('scope','asset').eq('source_kind','creator').eq('verification_status','creator_confirmed'),
+  ]);
+  if (promotionsResult.error) throw new Error('Could not resolve owner-scoped creator-confirmed DNA evidence.');
+  const promotions = promotionsResult.data ?? [];
+  const reviewIds = [...new Set(promotions.map((record: any) => record.payload?.promotion_review_record_id).filter((id: unknown) => typeof id === 'string' && UUID.test(id)))];
+  const reviewsResult = reviewIds.length ? await admin.from('vyral_dna_records')
+    .select('id,asset_id,user_id,scope,source_kind,verification_status,payload')
+    .in('id', reviewIds).eq('user_id', userId).eq('asset_id', proposal.asset_id)
+    .eq('scope','asset').eq('source_kind','creator').eq('verification_status','creator_confirmed') : { data: [], error: null };
+  if (reviewsResult.error) throw new Error('Could not verify the creator review records attached to DNA evidence.');
+  const reviews = new Map((reviewsResult.data ?? []).map((record: any) => [record.id, record]));
+  const verifiedEvidenceRefs: string[] = [];
+  for (const ref of refs) {
+    const record = promotions.find((item: any) => item.id === ref);
+    const payload = record?.payload;
+    const operationIndexes = operations.map((op, index) => Array.isArray(op?.evidenceRefs) && op.evidenceRefs.includes(ref) ? index : -1).filter((index) => index >= 0);
+    let reason = 'No owner-scoped creator-confirmed field promotion exists for this reference.';
+    let valid = Boolean(record && payload && payload.promotion_source === 'creator_approved_vision_field' &&
+      payload.scope === 'single_observation_field_only' && payload.does_not_certify_entire_asset_or_vyral === true &&
+      payload.source_asset_id === proposal.asset_id && payload.source_asset_version_id === proposal.asset_version_id &&
+      typeof payload.source_sha256 === 'string' && payload.source_sha256.toLowerCase() === proposal.source_sha256.toLowerCase() &&
+      typeof payload.promotion_observation_id === 'string' && UUID.test(payload.promotion_observation_id) &&
+      typeof payload.promotion_review_record_id === 'string' && UUID.test(payload.promotion_review_record_id));
+    const review = valid ? reviews.get(payload.promotion_review_record_id) : null;
+    valid = Boolean(valid && review && review.payload?.review_source === 'server_creator_review' &&
+      review.payload?.vision_observation_review_id === payload.promotion_observation_id &&
+      review.payload?.decision === 'creator_confirmed' && review.payload?.scope === 'single_observation_only');
+    if (!valid) {
+      report.push({ reference: ref, status: 'rejected', reason, operationIndexes });
+      continue;
+    }
+    const matchingOperations = operationIndexes.every((index) => {
+      const operation = operations[index];
+      if (!operation || !['add','replace'].includes(operation.op) || typeof operation.path !== 'string') return false;
+      const pathParts = operation.path.slice(1).split('/').map((part: string) => part.replace(/~1/g,'/').replace(/~0/g,'~'));
+      const fieldPath = pathParts.slice(1).join('.');
+      return fieldPath === payload.promotion_field_path && sameJson(operation.after, payload.accepted_value);
+    });
+    if (!matchingOperations) {
+      report.push({ reference: ref, status: 'rejected', reason: 'Creator-approved field path or accepted value does not exactly match the proposed DNA operation.', operationIndexes });
+      continue;
+    }
+    verifiedEvidenceRefs.push(ref);
+    report.push({ reference: ref, status: 'verified', reason: 'Owner-scoped creator confirmation, source version, source SHA-256, field path and accepted value all match.', operationIndexes });
+  }
+  return { verifiedEvidenceRefs, report };
+};
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return reply({ error: 'Method not allowed.' }, 405);
@@ -274,10 +342,20 @@ Deno.serve(async (request: Request) => {
         .update({ status: 'stale' }).eq('id', proposalId).eq('user_id', userId).eq('status','approved');
       return reply({ error: 'The pinned Asset or DNA revision is no longer current. A fresh assessment is required.', status: 'stale' }, 409);
     }
+    const operations = Array.isArray(proposal.change_set.operations) ? proposal.change_set.operations : [];
+    let evidenceResolution: { verifiedEvidenceRefs: string[]; report: any[] };
+    try {
+      evidenceResolution = await resolveCreatorEvidence(context.supabaseAdmin, userId, {
+        asset_id: proposal.asset_id, asset_version_id: proposal.asset_version_id, source_sha256: proposal.source_sha256,
+      }, operations);
+    } catch (resolutionError) {
+      return reply({ error: resolutionError instanceof Error ? resolutionError.message : 'Creator evidence resolution failed.' }, 500);
+    }
     const report = await validateChangeSet(proposal.change_set, proposal.change_set_sha256, {
       assetId: proposal.asset_id, assetVersionId: proposal.asset_version_id,
       dnaRecordId: proposal.dna_record_id, sourceSha256: proposal.source_sha256,
-    }, latestDna.data?.payload);
+    }, latestDna.data?.payload, evidenceResolution.verifiedEvidenceRefs);
+    (report as any).evidenceResolution = evidenceResolution.report;
     const checkedAt = new Date().toISOString();
     const { data: saved, error: saveError } = await context.supabaseAdmin
       .from('vyral_asset_dna_improvement_proposals')
