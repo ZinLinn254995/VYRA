@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Clapperboard, Film, Images, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
@@ -53,21 +53,26 @@ const updateStoryboardCardBottomRadius = (content: HTMLElement) => {
   const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
   card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
   const header = card.querySelector<HTMLElement>('.profile-collapse-header');
-  if (!header) return;
-  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
-  const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
-  header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
-  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-  header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
-  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+  if (header) {
+    const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
+    header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
+    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
+    header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
+    header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
+    header.style.setProperty('--profile-create-button-width', (148 - 64 * headerProgress) + 'px');
+    header.style.setProperty('--profile-create-extra-width', (100 * (1 - headerProgress)) + 'px');
+    header.style.setProperty('--profile-create-extra-opacity', (1 - headerProgress).toFixed(3));
+    header.style.setProperty('--profile-create-extra-shift', (12 * headerProgress) + 'px');
+    header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
+    header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+  }
 };
 
 
@@ -186,6 +191,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     }, 500);
     return () => window.clearTimeout(timer);
   }, [activeStoryboard, activeStoryboardConfirmed]);
+
+  useLayoutEffect(() => {
+    const content = document.querySelector<HTMLElement>('.profile-subpage-content');
+    if (content) updateStoryboardCardBottomRadius(content);
+  }, [activeStoryboard?.id, activeStoryboard?.title, activeStoryboard?.topic, activeStoryboardConfirmed]);
 
   const persistStoryboard = async (item: Storyboard) => {
     const client = supabase;
@@ -488,7 +498,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }
 
   return (
-    <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
+    <main className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 overflow-y-auto px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
       <section className="mb-7">
         <div className="mb-5">
           <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
