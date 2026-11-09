@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Clapperboard, Film, Images, Plus, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Clapperboard, Film, Images, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -46,6 +46,8 @@ const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)
 
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
+  const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
+  const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
@@ -273,7 +275,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const createDefaultStoryboard = () => {
     if (!isAuthenticated) { onLoginRequired(); return; }
     const now = new Date().toISOString();
-    const next: Storyboard = {
+    const draft: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: 'Untitled Storyboard',
       topic: '',
@@ -281,41 +283,146 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       updatedAt: now,
       details: { origins: {} },
     };
-    setStoryboards((current) => [next, ...current]);
-    void persistStoryboard(next);
-    setStoryboardAiMessage('Storyboard created. AI is preparing suggested details…');
+    // Keep the new storyboard provisional until the creator confirms it.
+    // It is not written to local storage or Supabase yet.
+    setActiveStoryboard(draft);
+    setActiveStoryboardConfirmed(false);
+    setStoryboardAiMessage('AI is preparing suggested storyboard details…');
 
-    // Create immediately; fill suggested metadata in the background.
     void requestStoryboardSuggestion('', '', true).then((suggestion) => {
-      if (!suggestion) return;
-      const updated: Storyboard = {
-        ...next,
-        title: suggestion.title || next.title,
-        topic: suggestion.topic || next.topic,
-        updatedAt: new Date().toISOString(),
-        details: {
-          category: suggestion.category,
-          style: suggestion.style,
-          mood: suggestion.mood,
-          tags: suggestion.tags,
-          origins: {
-            ...(suggestion.title ? { title: 'ai_suggested' as const } : {}),
-            ...(suggestion.topic ? { topic: 'ai_suggested' as const } : {}),
-            ...(suggestion.category ? { category: 'ai_suggested' as const } : {}),
-            ...(suggestion.style ? { style: 'ai_suggested' as const } : {}),
-            ...(suggestion.mood ? { mood: 'ai_suggested' as const } : {}),
-            ...(suggestion.tags.length ? { tags: 'ai_suggested' as const } : {}),
+      if (!suggestion) { setStoryboardAiMessage('You can edit the storyboard details or confirm it as-is.'); return; }
+      setActiveStoryboard((current) => {
+        if (!current || current.id !== draft.id) return current;
+        const origins = current.details?.origins || {};
+        return {
+          ...current,
+          title: origins.title === 'creator_edited' ? current.title : (suggestion.title || current.title),
+          topic: origins.topic === 'creator_edited' ? current.topic : (suggestion.topic || current.topic),
+          updatedAt: new Date().toISOString(),
+          details: {
+            ...current.details,
+            category: origins.category === 'creator_edited' ? current.details?.category : suggestion.category,
+            style: origins.style === 'creator_edited' ? current.details?.style : suggestion.style,
+            mood: origins.mood === 'creator_edited' ? current.details?.mood : suggestion.mood,
+            tags: origins.tags === 'creator_edited' ? current.details?.tags : suggestion.tags,
+            origins: {
+              ...origins,
+              ...(suggestion.title && origins.title !== 'creator_edited' ? { title: 'ai_suggested' as const } : {}),
+              ...(suggestion.topic && origins.topic !== 'creator_edited' ? { topic: 'ai_suggested' as const } : {}),
+              ...(suggestion.category && origins.category !== 'creator_edited' ? { category: 'ai_suggested' as const } : {}),
+              ...(suggestion.style && origins.style !== 'creator_edited' ? { style: 'ai_suggested' as const } : {}),
+              ...(suggestion.mood && origins.mood !== 'creator_edited' ? { mood: 'ai_suggested' as const } : {}),
+              ...(suggestion.tags.length && origins.tags !== 'creator_edited' ? { tags: 'ai_suggested' as const } : {}),
+            },
+            ai_provenance: { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt },
           },
-          ai_provenance: { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt },
-        },
-      };
-      setStoryboards((current) => current.map((item) => item.id === next.id ? updated : item));
-      void persistStoryboard(updated);
+        };
+      });
       setStoryboardAiMessage('');
     }).catch(() => {
-      setStoryboardAiMessage('Storyboard created. You can add or edit its details anytime.');
+      setStoryboardAiMessage('AI suggestions are unavailable right now. You can edit the details yourself or confirm this draft.');
     });
   };
+
+  const cancelStoryboardDraft = () => {
+    setActiveStoryboard(null);
+    setActiveStoryboardConfirmed(false);
+    setStoryboardAiMessage('');
+  };
+
+  const confirmStoryboardDraft = () => {
+    if (!activeStoryboard) return;
+    const confirmed: Storyboard = {
+      ...activeStoryboard,
+      title: activeStoryboard.title.trim() || 'Untitled Storyboard',
+      topic: activeStoryboard.topic.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+    setStoryboards((current) => [confirmed, ...current.filter((item) => item.id !== confirmed.id)]);
+    void persistStoryboard(confirmed);
+    setActiveStoryboard(confirmed);
+    setActiveStoryboardConfirmed(true);
+    setStoryboardAiMessage('Storyboard confirmed and saved. You can continue building it below.');
+  };
+
+  const updateActiveStoryboard = (field: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
+    setActiveStoryboard((current) => {
+      if (!current) return current;
+      const details = current.details || {};
+      const isDetail = field !== 'title' && field !== 'topic';
+      const origins = { ...details.origins, [field]: 'creator_edited' as const };
+      return {
+        ...current,
+        ...(field === 'title' ? { title: value } : {}),
+        ...(field === 'topic' ? { topic: value } : {}),
+        details: {
+          ...details,
+          ...(field === 'category' || field === 'style' || field === 'mood' ? { [field]: value } : {}),
+          ...(field === 'tags' ? { tags: value.split(',').map((tag) => tag.trim()).filter(Boolean) } : {}),
+          origins,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  };
+
+  const saveActiveStoryboard = () => {
+    if (!activeStoryboard || !activeStoryboardConfirmed) return;
+    const saved = { ...activeStoryboard, updatedAt: new Date().toISOString() };
+    setActiveStoryboard(saved);
+    setStoryboards((current) => current.map((item) => item.id === saved.id ? saved : item));
+    void persistStoryboard(saved);
+    setStoryboardAiMessage('Changes saved.');
+  };
+
+  if (activeStoryboard) {
+    const details = activeStoryboard.details || {};
+    return (
+      <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-6 sm:px-6 sm:pt-8">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={activeStoryboardConfirmed ? () => { setActiveStoryboard(null); setActiveStoryboardConfirmed(false); } : cancelStoryboardDraft} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+            <ArrowLeft size={17} /> Back to Workspace
+          </button>
+          <span className="rounded-full border border-[var(--vyra-border)] px-3 py-1 text-xs text-[var(--vyra-text-secondary)]">{activeStoryboardConfirmed ? 'Storyboard saved' : 'Draft · Not yet created'}</span>
+        </div>
+
+        <section className="mb-6">
+          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)]"><Clapperboard size={14} /> STORYBOARD WORKSPACE</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-3xl">Storyboard</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--vyra-text-secondary)]">Review the AI-prepared details. You can edit anything before confirming your storyboard.</p>
+        </section>
+
+        <section className="mb-5 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:p-6">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">AI suggestions are editable. Your changes take priority.</p></div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--vyra-bg-subtle)] px-3 py-1.5 text-xs text-[var(--vyra-text-secondary)]"><Sparkles size={13} /> AI-assisted</span>
+          </div>
+          <div className="space-y-4">
+            <div><label className="mb-1.5 block text-xs font-semibold text-[var(--vyra-text-primary)]">Title</label><input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass} placeholder="Untitled Storyboard" /></div>
+            <div><label className="mb-1.5 block text-xs font-semibold text-[var(--vyra-text-primary)]">Description</label><textarea rows={4} maxLength={500} value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} className={inputClass + ' min-h-28 resize-y px-3 py-2.5'} placeholder="AI will suggest a description, or you can write one." /></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(['category', 'style', 'mood'] as const).map((key) => <div key={key}><label className="mb-1.5 block text-xs font-semibold capitalize text-[var(--vyra-text-primary)]">{key === 'style' ? 'Visual style' : key}</label><input value={details[key] || ''} onChange={(event) => updateActiveStoryboard(key, event.target.value)} className={inputClass} placeholder="AI suggestion" /></div>)}
+              <div><label className="mb-1.5 block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass} placeholder="AI suggested tags" /></div>
+            </div>
+            {storyboardAiMessage && <p role="status" className="text-xs text-[var(--vyra-text-secondary)]">{storyboardAiMessage}</p>}
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Your video will be organized into scenes here.</p></div><Button type="button" variant="secondary" disabled><Plus size={15} /> Add Scene</Button></div>
+          <div className="mt-5 flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-8 text-center"><Film size={28} className="text-[var(--vyra-text-muted)]" /><p className="mt-3 text-sm font-medium text-[var(--vyra-text-primary)]">No scenes yet</p><p className="mt-1 max-w-sm text-xs leading-5 text-[var(--vyra-text-secondary)]">After confirming this storyboard, you can continue planning and adding scenes.</p></div>
+        </section>
+
+        <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 p-3 shadow-lg backdrop-blur">
+          {activeStoryboardConfirmed ? (
+            <><Button type="button" variant="ghost" onClick={() => { setActiveStoryboard(null); setActiveStoryboardConfirmed(false); }}>Back to Workspace</Button><Button type="button" onClick={saveActiveStoryboard}><Check size={16} /> Save changes</Button></>
+          ) : (
+            <><Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={16} /> Cancel</Button><Button type="button" onClick={confirmStoryboardDraft}><Check size={16} /> Confirm & Continue</Button></>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
