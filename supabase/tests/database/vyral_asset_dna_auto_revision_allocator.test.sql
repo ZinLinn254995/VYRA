@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 select ok(exists (select 1 from pg_trigger where tgrelid='public.vyral_dna_records'::regclass and tgname='vyral_dna_records_allocate_asset_revision' and not tgisinternal),'Every Asset DNA insert passes through the database revision allocator');
 select ok((select column_default is null and is_nullable='YES' from information_schema.columns where table_schema='public' and table_name='vyral_dna_records' and column_name='revision_number'),'Omitted revision numbers reach the allocator instead of silently defaulting to 1');
 select ok(position('for update' in lower(pg_get_functiondef('public.allocate_vyral_asset_dna_revision()'::regprocedure))) > 0,'Allocator locks the owning Asset row to serialize concurrent writers');
@@ -50,6 +50,25 @@ select is((select revision_number from public.vyral_dna_records where id='250000
 select is((select revision_number from public.vyral_dna_records where id='25000000-0000-4000-8000-000000000032'),2,'Second legacy Asset DNA insert automatically receives revision 2');
 select is((select parent_dna_record_id from public.vyral_dna_records where id='25000000-0000-4000-8000-000000000032'),'25000000-0000-4000-8000-000000000031'::uuid,'Second DNA revision automatically points to its parent');
 select is((select parent_dna_record_id from public.vyral_dna_records where id='25000000-0000-4000-8000-000000000033'),'25000000-0000-4000-8000-000000000032'::uuid,'Third DNA revision automatically extends the immutable lineage');
+
+
+insert into public.vyral_dna_records
+  (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
+values
+  ('25000000-0000-4000-8000-000000000034','25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,
+   '{"dna_schema_id":"vyra.asset-file-dna","source_version_id":"25000000-0000-4000-8000-000000000099"}'::jsonb,'system');
+
+select throws_ok(
+  $
+    insert into public.vyral_dna_records
+      (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
+    values
+      ('25000000-0000-4000-8000-000000000035','25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,
+       '{"dna_schema_id":"vyra.asset-file-dna","source_version_id":"25000000-0000-4000-8000-000000000099"}'::jsonb,'system')
+  $,
+  '23505',
+  'A second File DNA v1 extraction for the same source Version is rejected'
+);
 
 select * from finish();
 rollback;
