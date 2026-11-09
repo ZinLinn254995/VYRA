@@ -82,7 +82,7 @@ export type VyralSemanticDnaV1 = {
   };
   creator_description: {
     text: string | null;
-    evidence_status: 'creator_declared' | 'missing';
+    evidence_status: 'creator_declared' | 'unverified' | 'missing';
   };
   technical_metadata: {
     width: number | null;
@@ -117,6 +117,7 @@ export type CreateVyralSemanticDnaInput = {
     asset_type: string;
     original_filename?: string | null;
     description?: string | null;
+    descriptionProvenance?: 'creator_confirmed' | 'creator_declared' | 'unverified' | 'system_default' | null;
     mime_type: string;
   };
   source: { assetVersionId: string; sha256: string; sizeBytes: number };
@@ -176,6 +177,7 @@ export const createVyralSemanticDnaV1 = (input: CreateVyralSemanticDnaInput): Vy
   }
   const missing: string[] = [];
   if (!description) missing.push('creator_description');
+  else if (input.asset.descriptionProvenance !== 'creator_confirmed' && input.asset.descriptionProvenance !== 'creator_declared') missing.push('creator_description_attestation');
   if (!observations.length) missing.push('creator_confirmed_visual_observations');
   if (input.asset.asset_type === 'image' && (technical.width == null || technical.height == null)) missing.push('image_dimensions');
   if (input.asset.asset_type === 'image' && !technical.colorSpace) missing.push('color_space');
@@ -199,7 +201,7 @@ export const createVyralSemanticDnaV1 = (input: CreateVyralSemanticDnaInput): Vy
     },
     creator_description: {
       text: description || null,
-      evidence_status: description ? 'creator_declared' : 'missing',
+      evidence_status: !description ? 'missing' : (input.asset.descriptionProvenance === 'creator_confirmed' || input.asset.descriptionProvenance === 'creator_declared') ? 'creator_declared' : 'unverified',
     },
     technical_metadata: {
       width: nullableDimension(technical.width),
