@@ -47,7 +47,7 @@ test('portable decoder honors explicit Asset selection and does not emit unselec
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.reconstructed_assets.map((item: { asset_id: string }) => item.asset_id), ['asset-raster']);
-    assert.equal(readdirSync(fixture.output).some((name) => name.startsWith('Binary-Sample-')), false);
+    assert.equal(readdirSync(fixture.output).some((name) => name.startsWith('sample-asset-fi')), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
 
