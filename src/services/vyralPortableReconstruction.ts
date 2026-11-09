@@ -532,7 +532,8 @@ def main():
                     "dna_schema_version": entry["dna_schema_version"],
                     "recovery_level": entry["recovery_level"],
                     "payload_kind": (
-                        "decoded-pixel-samples+original-file-bytes"
+                        "structural-dna-only" if blind and entry["dna_schema_id"] == "vyra.asset-file-dna"
+                        else "decoded-pixel-samples+original-file-bytes"
                         if entry["dna_schema_id"] == "vyra.asset-dna" and entry["dna_record"].get("encoded_file_payload")
                         else "original-file-bytes" if entry["recovery_level"] == "source-file-exact"
                         else "decoded-pixel-samples"
