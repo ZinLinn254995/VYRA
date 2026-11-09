@@ -476,7 +476,7 @@ This is a foundational product/data-model requirement. A Scene is an independent
 - A Master trim changes the instance's source In/Out and/or timeline placement. It must never modify the referenced Scene project's duration, source In/Out, media, or canonical rendered video.
 - Splitting a Master clip creates two instance segments referencing the same immutable Scene video revision with different source ranges. It does not split or rewrite the original Scene project.
 - Deleting a Scene instance removes only that placement from the Master. It must not delete the Scene, its project, its rendered revisions, or its source assets.
-- Duplicating a Scene in the Master creates a new instance ID referencing the same Scene revision. The two placements can be edited independently.
+- Cloning a Scene from the Master creates a new Storyboard Scene record and a new independent Scene Project ID, then inserts that new Scene into the shared Storyboard/Master order. It must not be treated as a second placement of the original Scene. If the creator wants a second placement of the same Scene without cloning its Storyboard identity, that must be a separate explicit Add Instance action.
 
 ### 18.3 Version pinning and intentional updates
 
@@ -507,3 +507,22 @@ The existing `sceneInstances` / `sceneRanges` fields must be migrated compatibly
 6. Edit and re-render the Scene to a new revision. Confirm the existing Master remains pinned to the old revision until the user explicitly chooses Update.
 7. Save and reload both Scene and Master projects. Confirm all IDs, pinned revisions, durations, trims, and references round-trip exactly.
 8. Export the Master composition. Confirm the export combines the selected Scene render revisions and Master-level edits without modifying any source Scene project or render.
+
+
+### 19. Current implementation checkpoint — Storyboard synchronization and revision identity
+
+The current implementation on `feature/my-storyboard` establishes the following foundations:
+
+- Storyboard Scene records are the canonical ordered Scene inventory. The Master timeline derives its Scene order from the same Scene IDs.
+- Master reorder updates the Storyboard Scene order; Storyboard reorder updates the Master instance order.
+- Master Scene delete removes the corresponding Storyboard Scene and its Master references. It does not delete a Scene project record from any external asset store or source media.
+- Master Scene clone creates a new Storyboard Scene ID and a new independent Scene Project ID, then inserts it into the shared order.
+- Newly created and cloned Scenes receive independent Scene Project IDs. Existing saved Scenes are migrated on read to receive a project identity.
+- Scene Project metadata currently contains a schema version, timestamps, render revision ID inventory, optional immutable revision metadata, and a latest revision pointer.
+- Master Scene instances carry optional Scene Project ID and pinned render revision ID fields. Existing pinned IDs are preserved; a newly created instance may inherit the current latest revision ID once one exists.
+- Master source In/Out remains instance-level data and is clamped against the canonical Scene duration. It must never write back to the Scene project's own duration.
+
+Important implementation boundary:
+- The current Scene Editor still does not create real rendered video revisions. Revision metadata is a forward-compatible data contract only; do not create fake ready revisions or pretend a Scene has rendered media.
+- Actual project timeline editing, media relinking, immutable render creation/storage, explicit update-to-new-revision UX, and Master export remain pending.
+- CI/build and browser behavior must be verified before merge. This checkpoint is not approval to merge or deploy.
