@@ -65,7 +65,7 @@ Before giving a DNA-only package to an external model, run its bundled verifier 
 python tools/reconstruct_vyral.py path/to/export.vyral --audit-only
 ```
 
-The audit validates the ZIP safety limits, exact declared-entry inventory, protected System Files policy and hashes, each Asset's DNA payload hashes, and full reconstruction-payload coverage without writing reconstructed files. It also explicitly distinguishes recovery paths: File DNA v1 `source-file-exact` contains the original file bytes as hashed chunks; raster DNA v3 always contains decoded pixel samples and may additionally carry an optional `encoded_file_payload` of exact original encoded bytes. If that optional payload is absent, raster reconstruction recovers decoded samples only, not the original PNG/JPEG/WebP container. The audit reports this distinction per Asset. DNA-only describes the export's omission of source-version/folder records; it does not promise that exact source-file bytes are absent. Its JSON report includes the package byte length and SHA-256, selected Asset identities, DNA schema versions, declared recovery levels, and an explicit zero count for undeclared archive entries. Preserve this report with the external attempt evidence. It proves package integrity and inventory only; it does not prove that an external model session was blind or that a generative reconstruction is accurate.
+The audit validates ZIP safety limits, exact declared-entry inventory, protected System Files policy and hashes, each Asset's DNA payload hashes, and reconstruction-payload coverage without writing reconstructed files. Legacy `dna-only` packages may contain original binary chunks and are therefore **not automatically blind**. The new Blind DNA export is explicitly marked `blindReconstruction: true`: it excludes raster `encoded_file_payload` chunks and all File DNA v1 source chunks. Raster DNA v3 retains decoded pixel samples, which can reproduce the exact decoded sample stream but not the original PNG/JPEG/WebP container. Non-raster File DNA v1 retains deterministic structural facts only and is labelled `semantic-only`; it cannot restore arbitrary original binary files. The audit reports `blind_reconstruction`, per-Asset payload kinds, `contains_original_encoded_file_bytes: false`, and `original_binary_payload_entries: 0` for a valid blind package. Preserve this report with the external attempt evidence. It verifies package inventory and absence of declared/hidden binary payload entries; it still cannot prove what a third-party model session accessed or that a generative reconstruction is accurate.
 
 ## 4. Modality-specific scoring
 
@@ -116,11 +116,11 @@ No universal visual/perceptual threshold is declared here. Thresholds must first
 
 1. Pin the existing ORIGIN-01 source Version and DNA v3 record.
 2. Run the authenticated Development Asset DNA Assessment and retain its server-side evidence for source bytes and all DNA payload tiles.
-3. Export a fresh DNA-only package and verify its package integrity.
+3. Export a fresh **Blind DNA** package (`blindReconstruction: true`) and verify its package integrity, including zero original-binary payload entries. Do not use a legacy `dna-only` package for a blind test.
 4. Start a clean external session and supply only that package.
 5. Ask the external AI to reconstruct the selected Asset without supplying any image reference.
 6. Preserve all attempts and score them using the raster-image measurements above.
-7. Compare exact decoded recovery separately from blind generative similarity. The existing DNA v3 raster tiles can prove decoded-sample recovery when the decoder contract and complete sample hash match; they do not, by themselves, restore the original encoded PNG bytes.
+7. Compare exact decoded recovery separately from blind generative similarity. The Blind DNA package's raster tiles can prove decoded-sample recovery when the decoder contract and complete sample hash match; they do not restore the original encoded PNG bytes. Non-raster File DNA currently supplies structural facts only, so those Assets remain incomplete for blind reconstruction until modality-specific DNA extractors exist.
 8. Update the DNA design only from measured failure evidence. Repeat the same pinned test after each DNA revision so results remain comparable.
 
 ## 7. Release reporting
