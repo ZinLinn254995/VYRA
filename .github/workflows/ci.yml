@@ -71,6 +71,8 @@ jobs:
         run: npm run test:vyral-asset-dna-assessment
       - name: Vyral Asset DNA revision allocator tests
         run: npm run test:vyral-dna-revision-allocator
+      - name: Vyral portable DNA-only reconstruction runtime tests
+        run: npm run test:vyral-portable-reconstruction
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
       - name: Vyral reconstruction history intent tests
