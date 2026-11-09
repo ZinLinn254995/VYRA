@@ -526,8 +526,10 @@ export const parseVyralManifest = (files: Map<string, Uint8Array>) => {
       const schemaId = entry.dna_schema_id ?? payload.dna_schema_id;
       const schemaVersion = Number(entry.dna_schema_version ?? payload.dna_schema_version);
       if (!dnaRecord || typeof dnaRecord !== 'object' || Array.isArray(dnaRecord)) return [];
+      const semanticScope = legacy.blindReconstruction === true && legacy.blindnessScope === 'semantic_only_no_media_payload';
       if (!((schemaId === 'vyra.asset-dna' && schemaVersion === 3) ||
-            (schemaId === 'vyra.asset-file-dna' && schemaVersion === 1))) return [];
+            (schemaId === 'vyra.asset-file-dna' && schemaVersion === 1) ||
+            (semanticScope && schemaId === 'vyra.asset-semantic-dna' && schemaVersion === 1))) return [];
       const dnaValue = dnaRecord as Record<string, unknown>;
       const source = dnaValue.source && typeof dnaValue.source === 'object' && !Array.isArray(dnaValue.source)
         ? dnaValue.source as Record<string, unknown>
