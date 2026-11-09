@@ -35,6 +35,12 @@ Deno.serve(async (request: Request) => {
   if (!isUuid(body.observationId)) return json({ error: 'A valid observationId is required.' }, 400);
   if (typeof body.fieldPath !== 'string' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(body.fieldPath) || body.fieldPath.length > 240) return json({ error: 'A valid dotted DNA fieldPath is required.' }, 400);
   const observationFieldPath = typeof body.observationFieldPath === 'string' ? body.observationFieldPath : body.fieldPath;
+  const dnaPathParts = body.fieldPath.split('.');
+  const forbiddenDnaSegments = new Set(['__proto__','prototype','constructor','id','asset_id','asset_version_id','dna_record_id','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','revision_number','parent_dna_record_id']);
+  if (dnaPathParts[0] !== 'knowledge' || dnaPathParts.length < 2 ||
+      dnaPathParts.some((part) => forbiddenDnaSegments.has(part.toLowerCase()))) {
+    return json({ error: 'Vision field promotion is limited to non-identity knowledge fields. Protected DNA identity, provenance, integrity and licensing fields cannot be promoted.' }, 400);
+  }
   if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(observationFieldPath) || observationFieldPath.length > 240) return json({ error: 'A valid dotted observationFieldPath is required.' }, 400);
   if (body.acceptedValue === undefined) return json({ error: 'acceptedValue is required.' }, 400);
   const serialized = JSON.stringify(body.acceptedValue);
