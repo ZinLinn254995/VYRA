@@ -32,9 +32,9 @@ insert into public.vyral_assets (
 );
 
 insert into public.vyral_dna_records
-  (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
+  (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind,revision_number)
 values
-  ('25000000-0000-4000-8000-000000000031','25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,'{"writer":"legacy-a"}'::jsonb,'creator');
+  ('25000000-0000-4000-8000-000000000031','25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-000000000001','25000000-0000-4000-8000-000000000021','asset',1,'{"writer":"legacy-a"}'::jsonb,'creator',99);
 
 insert into public.vyral_dna_records
   (id,vyral_id,user_id,asset_id,scope,schema_version,payload,source_kind)
