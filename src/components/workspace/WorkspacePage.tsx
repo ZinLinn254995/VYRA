@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
@@ -43,6 +44,32 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 };
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
+
+const updateStoryboardCardBottomRadius = (content: HTMLElement) => {
+  const card = content.closest<HTMLElement>('.profile-subpage-card');
+  if (!card) return;
+  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
+  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
+  const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
+  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
+  const header = card.querySelector<HTMLElement>('.profile-collapse-header');
+  if (!header) return;
+  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
+  const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+  header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
+  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
+  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
+  header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
+  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+};
+
 
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
@@ -399,47 +426,43 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setStoryboardAiMessage('');
     };
     return (
-      <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-8 pt-4 sm:px-6 sm:pt-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <button type="button" onClick={leaveStoryboardPage} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
-            <ArrowLeft size={16} /> Workspace
-          </button>
-          <span className="text-[11px] text-[var(--vyra-text-muted)]">{activeStoryboardConfirmed ? 'Saved Storyboard' : 'New Storyboard'}</span>
-        </div>
-
-        <section className="mb-4">
-          <p className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--vyra-accent-primary)]"><Clapperboard size={13} /> STORYBOARD</p>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">{activeStoryboardConfirmed ? 'Your Storyboard' : 'Create Storyboard'}</h1>
-          <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">AI prepares the details. You can edit them whenever you need.</p>
-        </section>
-
-        <section className="mb-4 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2>
-            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Title</label>
-              <input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Storyboard title" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Description</label>
-              <textarea rows={2} maxLength={500} value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} className={inputClass + ' min-h-[4.5rem] resize-y py-2'} placeholder="What is this story about?" />
-            </div>
-            {(['category', 'style', 'mood'] as const).map((key) => (
-              <div key={key}>
-                <label className="mb-1 block text-[11px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{key === 'style' ? 'Visual style' : key}</label>
-                <input value={details[key] || ''} onChange={(event) => updateActiveStoryboard(key, event.target.value)} className={inputClass + ' min-h-9'} placeholder="AI suggested" />
+      <div className="profile-subpage-scroll profile-subpage-viewport">
+        <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+          <ProfileSubpageHeader
+            onBack={leaveStoryboardPage}
+            backLabel="Workspace"
+            icon={<Clapperboard size={22} />}
+            title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
+            description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
+          />
+          <div className="profile-subpage-content space-y-3 p-4 sm:p-5" onScroll={(event) => updateStoryboardCardBottomRadius(event.currentTarget)}>
+            <section className="rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2>
+                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</span>
               </div>
-            ))}
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Tags</label>
-              <input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Tags" />
-            </div>
-          </div>
-          {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
-        </section>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Title</label>
+                  <input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Storyboard title" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Description</label>
+                  <textarea rows={2} maxLength={500} value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} className={inputClass + ' min-h-[4.5rem] resize-y py-2'} placeholder="What is this story about?" />
+                </div>
+                {(['category', 'style', 'mood'] as const).map((key) => (
+                  <div key={key}>
+                    <label className="mb-1 block text-[11px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{key === 'style' ? 'Visual style' : key}</label>
+                    <input value={details[key] || ''} onChange={(event) => updateActiveStoryboard(key, event.target.value)} className={inputClass + ' min-h-9'} placeholder="AI suggested" />
+                  </div>
+                ))}
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Tags</label>
+                  <input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Tags" />
+                </div>
+              </div>
+              {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
+            </section>
 
         <section className="mb-4 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
           <div className="flex items-center justify-between gap-3">
@@ -452,13 +475,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           </div>
         </section>
 
-        {!activeStoryboardConfirmed && (
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
-            <Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={15} /> Cancel</Button>
-            <Button type="button" onClick={confirmStoryboardDraft}><Check size={15} /> Create</Button>
+            {!activeStoryboardConfirmed && (
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
+                <Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={15} /> Cancel</Button>
+                <Button type="button" onClick={confirmStoryboardDraft}><Check size={15} /> Create</Button>
+              </div>
+            )}
           </div>
-        )}
-      </main>
+        </section>
+      </div>
     );
   }
 
