@@ -1,6 +1,6 @@
 export const VYRAL_AI_RECONSTRUCTION_GUIDE = String.raw`# VYRAL Portable Reconstruction Guide
 
-This package is self-describing. Read \`manifest.json\` and use the included \`tools/reconstruct_vyral.py\` when code execution is available. Before sharing or reconstructing, run \`python tools/reconstruct_vyral.py package.vyral --audit-only\` to verify the exact package inventory and hashes without writing files.
+This package is self-describing. Read \`manifest.json\` and use the included \`tools/reconstruct_vyral.py\` when code execution is available. Before sharing or reconstructing, run \`python tools/reconstruct_vyral.py package.vyral --audit-only\` to verify the exact package inventory and hashes without writing files. A package with \`blindReconstruction: true\` and \`blindnessScope: original_encoded_binary_excluded\` omits original encoded source bytes, but its raster DNA v3 tiles still contain the complete decoded pixel samples. That mode proves source-byte exclusion, not semantic blind generation. A true semantic blind package must omit decoded sample tiles too and provide descriptive DNA sufficient for the requested modality.
 
 ## What is inside
 
