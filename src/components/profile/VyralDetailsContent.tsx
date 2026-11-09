@@ -1096,6 +1096,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const archiveFiles = await readVyralZip(file);
       const manifest = parseVyralManifest(archiveFiles);
       await verifyVyralSystemFileIntegrityV1(archiveFiles);
+      if (manifest.blindnessScope === 'semantic_only_no_media_payload') {
+        throw new Error('This is a semantic-only DNA reference package, not an Asset file. Ask an AI to generate a new reconstruction, then upload the generated file as a new Asset. Exact pixels and original file bytes are not included.');
+      }
       if (String(manifest.exportMode) === 'compact-only') {
         if (manifest.exportComponents?.assets !== false || manifest.exportComponents?.fullDna !== false ||
             manifest.exportComponents?.compactDna !== true || manifest.assets.length || manifest.folders.length ||
