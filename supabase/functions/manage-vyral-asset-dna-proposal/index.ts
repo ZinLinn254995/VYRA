@@ -457,7 +457,8 @@ Deno.serve(async (request: Request) => {
     if (proposal.status === 'applied' && proposal.applied_dna_record_id) {
       const { data: applied } = await context.supabaseAdmin.from('vyral_dna_records')
         .select('id,revision_number,parent_dna_record_id').eq('id',proposal.applied_dna_record_id).maybeSingle();
-      return reply({ status:'applied',dnaRecord:applied,reused:true,dnaChanged:false });
+      if (!applied) return reply({ error:'Applied DNA revision reference could not be resolved.' },500);
+      return reply({ status:'applied',dnaRecord:{id:applied.id,revisionNumber:applied.revision_number,parentDnaRecordId:applied.parent_dna_record_id},reused:true,dnaChanged:false });
     }
     const report = proposal.change_set_validation_report;
     if (proposal.status !== 'approved' || proposal.change_set_status !== 'validated' || !object(report) ||

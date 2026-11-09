@@ -566,7 +566,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const selectedAsset = selectedAssets[0];
         const {data: approved,error: approvedError} = await supabase.from('vyral_asset_dna_improvement_proposals')
           .select('id,status,change_set_status,change_set_validation_report').eq('asset_id',selectedAsset.id)
-          .eq('status','approved').eq('change_set_status','validated').not('change_set_validation_report','is',null)
+          .in('status',['approved','applied']).eq('change_set_status','validated').not('change_set_validation_report','is',null)
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if (approvedError) throw new Error('Could not load the validated DNA change set: '+approvedError.message);
         if (!approved) throw new Error('No fully validated DNA change set exists for this Asset. Validate its approved change set first.');
