@@ -138,7 +138,7 @@
   overflow-anchor: none;
 }
 /* Storyboard editor uses the full available screen area, not the decorative Profile card shell. */
-.storyboard-fullscreen-card {
+.profile-subpage-card.storyboard-fullscreen-card {
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
