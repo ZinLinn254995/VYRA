@@ -496,8 +496,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }
 
   return (
-    <main className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 overflow-y-auto px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
-      <section className="mb-7">
+    <main className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+      <section className="mb-7 pt-8 sm:pt-10">
         <div className="mb-5">
           <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
           <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Workspace</h1>
