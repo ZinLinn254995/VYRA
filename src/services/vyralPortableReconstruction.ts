@@ -311,7 +311,9 @@ def validate_manifest(manifest, archive_names, archive):
         raise ValueError("Every Asset must have exactly one supported reconstruction record")
 
     blind = manifest.get("blindReconstruction") is True
-    if blind and manifest.get("blindnessScope") != "original_encoded_binary_excluded":
+    blindness_scope = manifest.get("blindnessScope")
+    semantic_only = blind and blindness_scope == "semantic_only_no_media_payload"
+    if blind and blindness_scope not in ("original_encoded_binary_excluded", "semantic_only_no_media_payload"):
         raise ValueError("Blind DNA package must declare the exact scope of excluded source bytes")
     counts = {}
     expected_paths = {"manifest.json", "README.txt", "AI_RECONSTRUCTION_GUIDE.md", "tools/reconstruct_vyral.py"}
@@ -344,6 +346,8 @@ def validate_manifest(manifest, archive_names, archive):
         schema = entry.get("dna_schema_id")
         version = entry.get("dna_schema_version")
         if schema == "vyra.asset-dna" and version == 3:
+            if semantic_only:
+                raise ValueError("Semantic-only packages must not contain raster pixel sample records")
             if entry.get("recovery_level") != "decoded-samples-exact":
                 raise ValueError("Raster DNA must declare exact decoded-sample recovery")
             if record.get("record_id") != entry.get("id") or record.get("source", {}).get("asset_id") != asset_id:
@@ -389,6 +393,8 @@ def validate_manifest(manifest, archive_names, archive):
                 if len(source_bytes) != encoded["size_bytes"] or sha256(source_bytes) != encoded["sha256"]:
                     raise ValueError("Raster DNA exact encoded-file source SHA-256 verification failed")
         elif schema == "vyra.asset-file-dna" and version == 1:
+            if semantic_only:
+                raise ValueError("Semantic-only packages must not contain File DNA binary records")
             if blind:
                 reconstruction = record.get("reconstruction", {})
                 if (entry.get("recovery_level") != "semantic-only" or reconstruction.get("claim") != "unavailable"
@@ -418,6 +424,26 @@ def validate_manifest(manifest, archive_names, archive):
                 if path in reserved_system_paths:
                     raise ValueError("File DNA payload path collides with a protected System File")
                 expected_paths.add(path)
+        elif schema == "vyra.asset-semantic-dna" and version == 1:
+            if not semantic_only or entry.get("recovery_level") != "semantic-only":
+                raise ValueError("Semantic DNA is valid only in a semantic-only package")
+            source = record.get("source", {})
+            reconstruction = record.get("reconstruction", {})
+            if (record.get("schema_id") != "vyra.asset-semantic-dna" or record.get("schema_version") != 1
+                    or record.get("record_id") != entry.get("id") or source.get("asset_id") != asset_id
+                    or not isinstance(source.get("asset_version_id"), str)
+                    or not isinstance(source.get("sha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", source.get("sha256", ""))
+                    or not isinstance(source.get("size_bytes"), int) or source.get("size_bytes") <= 0
+                    or reconstruction.get("mode") != "semantic_generation"
+                    or reconstruction.get("exact_binary_recovery") is not False
+                    or reconstruction.get("decoded_sample_payload_included") is not False):
+                raise ValueError("Semantic DNA source identity or no-media-payload guarantee is invalid")
+            if any(key in record for key in ("lossless_payload", "encoded_file_payload", "binary_payload", "decoded_samples")):
+                raise ValueError("Semantic DNA must not contain media reconstruction payloads")
+            for observation in record.get("creator_confirmed_observations", []):
+                if (observation.get("source_asset_version_id") != source.get("asset_version_id")
+                        or observation.get("source_sha256") != source.get("sha256")):
+                    raise ValueError("Semantic DNA creator observation is not pinned to its source version and hash")
         else:
             raise ValueError("Unsupported reconstruction record for Asset " + asset_id)
     if set(counts) != set(assets):
@@ -528,6 +554,7 @@ def main():
                 "export_mode": manifest.get("exportMode"),
                 "blind_reconstruction": blind,
                 "blindness_scope": manifest.get("blindnessScope") if blind else None,
+                "semantic_only": semantic_only,
                 "asset_count": len(selected_assets),
                 "assets": [{
                     "asset_id": asset["id"],
@@ -536,7 +563,8 @@ def main():
                     "dna_schema_version": entry["dna_schema_version"],
                     "recovery_level": entry["recovery_level"],
                     "payload_kind": (
-                        "structural-dna-only" if blind and entry["dna_schema_id"] == "vyra.asset-file-dna"
+                        "semantic-description-only" if semantic_only and entry["dna_schema_id"] == "vyra.asset-semantic-dna"
+                        else "structural-dna-only" if blind and entry["dna_schema_id"] == "vyra.asset-file-dna"
                         else "decoded-pixel-samples+original-file-bytes"
                         if entry["dna_schema_id"] == "vyra.asset-dna" and entry["dna_record"].get("encoded_file_payload")
                         else "original-file-bytes" if entry["recovery_level"] == "source-file-exact"
@@ -576,6 +604,8 @@ def main():
                     results.append(reconstruct_file(archive, record, asset, output_dir))
                 else:
                     results.append({"asset_id": asset_id, "name": asset.get("name"), "result": "structural-dna-only", "original_file_reconstructed": False})
+            elif schema == "vyra.asset-semantic-dna" and version == 1:
+                results.append({"asset_id": asset_id, "name": asset.get("name"), "result": "semantic-description-only", "exact_reconstruction": False, "missing_information": record.get("reconstruction", {}).get("missing_information", [])})
 
     print(json.dumps({"package": args.package, "reconstructed_assets": results}, indent=2))
     if not results:
