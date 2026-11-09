@@ -3139,7 +3139,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const selected = selectedAssetIds.includes(asset.id);
     const visibility = asset.metadata?.visibility === 'public' ? 'public' : 'private';
     return (
-      <article key={asset.id} className={surface + ' min-w-0 overflow-hidden '}>
+      <article key={asset.id} className={surface + ' min-w-0 overflow-hidden ' + (selected ? 'ring-2 ring-[var(--vyra-accent-primary)]/40 ring-inset' : '')}>
         <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[4/3] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]" aria-label={'Open ' + asset.name}>
           <Icon size={36} strokeWidth={1.5} />
         </button>
