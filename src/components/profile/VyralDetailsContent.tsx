@@ -1086,11 +1086,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             throw new Error('The Master DNA inventory does not match the DNA-only package assets.');
           }
         }
-        setPackageStatus('Verifying all raster and binary DNA payloads…');
+        setPackageStatus(manifest.blindReconstruction === true
+          ? 'Verifying blind DNA payloads (original binary excluded)…'
+          : 'Verifying all raster and binary DNA payloads…');
         for (const dnaEntry of dnaEntries) {
           if (dnaEntry.dna_schema_id === 'vyra.asset-dna') {
             await reconstructVyralDnaV3FromPackage(archiveFiles, String(dnaEntry.id));
-          } else {
+          } else if (manifest.blindReconstruction !== true) {
             await reconstructVyralFileDnaFromPackage(archiveFiles, String(dnaEntry.id));
           }
         }
