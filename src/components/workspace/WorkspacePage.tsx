@@ -436,8 +436,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setStoryboardAiMessage('');
     };
     return (
-      <div className="profile-subpage-scroll profile-subpage-viewport">
-        <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+      <main className="profile-page-main mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
+        <div className="profile-subpage-scroll profile-subpage-viewport">
+          <section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <ProfileSubpageHeader
             onBack={leaveStoryboardPage}
             backLabel="Workspace"
@@ -492,8 +493,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               </div>
             )}
           </div>
-        </section>
-      </div>
+          </section>
+        </div>
+      </main>
     );
   }
 
