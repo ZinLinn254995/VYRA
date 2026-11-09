@@ -423,6 +423,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
     const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
     const prepareDnaChangeSet = /^\s*(?:prepare(?: dna)? change set|build(?: dna)? change set|ပြင်ဆင်ချက်(?:များ)? ပြင်ဆင်|change set ပြင်ဆင်)\s*$/i.test(text);
+    const validateDnaChangeSet = /^\s*(?:validate(?: dna)? change set|check(?: dna)? change set|DNA change set စစ်ဆေး)\s*$/i.test(text);
     const proposalAction = /^\s*(?:approve(?: dna (?:improvement )?plan)?|အတည်ပြု(?:မယ်)?|လက်ခံမယ်)\s*$/i.test(text)
       ? 'approve'
       : /^\s*(?:reject(?: dna (?:improvement )?plan)?|decline|မလုပ်တော့|ပယ်ချမယ်)\s*$/i.test(text)
