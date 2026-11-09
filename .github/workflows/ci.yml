@@ -86,7 +86,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check Supabase Edge Functions
-        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts supabase/functions/compare-origin-01-reconstruction/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts supabase/functions/compare-origin-01-reconstruction/index.ts supabase/functions/verify-origin-01-dna-v3/index.ts
       - name: SEO discovery and canonical contract tests
         run: npm run test:seo
       - name: Production build
