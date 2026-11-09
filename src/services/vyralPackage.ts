@@ -38,6 +38,7 @@ export type VyralPackageManifest = {
   exportedAt: string;
   exportMode?: 'full' | 'dna-only' | 'compact-only';
   blindReconstruction?: boolean;
+  blindnessScope?: 'original_encoded_binary_excluded';
   exportComponents?: { assets: boolean; fullDna: boolean; compactDna: boolean };
   reconstructionCapabilities?: Record<string, unknown>;
   vyral: Record<string, unknown>;
