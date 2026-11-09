@@ -915,6 +915,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               asset_type: asset.asset_type,
               original_filename: asset.original_filename,
               description: asset.description,
+              descriptionProvenance: asset.metadata?.description_provenance === 'creator_confirmed' || asset.metadata?.description_provenance === 'creator_declared' ? asset.metadata.description_provenance : 'unverified',
               mime_type: asset.mime_type,
             },
             source: {
