@@ -6,7 +6,6 @@ const migration = readFileSync('supabase/migrations/20261109280000_vyral_asset_d
 const authorityMigration = readFileSync('supabase/migrations/20261109290000_vyral_asset_dna_revision_allocator_authority.sql', 'utf8').toLowerCase();
 const uniqueVersionMigration = readFileSync('supabase/migrations/20261109300000_vyral_asset_dna_source_version_unique.sql', 'utf8').toLowerCase();
 const extractorSource = readFileSync('supabase/functions/extract-vyral-asset-dna-v3/index.ts', 'utf8');
-const extractor = readFileSync('supabase/functions/extract-vyral-asset-dna-v3/index.ts', 'utf8');
 const visionWriter = readFileSync('supabase/functions/record-vyral-vision-observation/index.ts', 'utf8');
 const creatorWriter = readFileSync('supabase/functions/promote-vyral-vision-knowledge/index.ts', 'utf8');
 
@@ -26,7 +25,7 @@ test('allocator serializes writes and derives parent plus next revision from dat
 test('legacy Asset DNA writers can omit revision fields and are covered by the trigger', () => {
   assert.doesNotMatch(visionWriter, /revision_number\s*:/);
   assert.doesNotMatch(creatorWriter, /revision_number\s*:/);
-  assert.match(extractor, /revision_number:\s*revisionNumber/);
+  assert.doesNotMatch(extractorSource, /revision_number:\s*revisionNumber/);
   assert.match(migration, /before insert on public\.vyral_dna_records/);
 });
 
@@ -36,7 +35,7 @@ test('Vyral-scope DNA records remain outside Asset revision allocation', () => {
 
 test('each source Asset Version can have only one immutable DNA record', () => {
   assert.match(uniqueVersionMigration, /create unique index/);
-  assert.match(uniqueVersionMigration, /payload #>> '\\{dna_record,source,asset_version_id\\}'/);
+  assert.ok(uniqueVersionMigration.includes("payload #>> '{dna_record,source,asset_version_id}'"));
   assert.match(extractorSource, /payload->dna_record->source->>asset_version_id/);
   assert.match(extractorSource, /DNA_SOURCE_VERSION_ALREADY_EXISTS/);
 });
