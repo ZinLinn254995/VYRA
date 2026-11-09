@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "VYRA Asset DNA v3",
-  "description": "Portable lossless decoded-sample representation. Does not by itself promise original encoded-file byte identity.",
+  "description": "Portable lossless decoded-sample representation with optional exact original encoded-file chunks.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -260,6 +260,78 @@
               "package_path": {
                 "type": "string",
                 "pattern": "^dna/v3/[A-Za-z0-9_-]{1,128}/tiles/[0-9]+_[0-9]+\\.raw$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "encoded_file_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encoding",
+        "filename",
+        "mime_type",
+        "size_bytes",
+        "sha256",
+        "chunk_size",
+        "chunks"
+      ],
+      "properties": {
+        "encoding": {
+          "const": "raw-chunks-v1"
+        },
+        "filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mime_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "chunk_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "chunks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "byte_length",
+              "sha256",
+              "package_path"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "byte_length": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "package_path": {
+                "type": "string",
+                "pattern": "^dna/v3/[A-Za-z0-9_-]{1,128}/source/[0-9]+\\.bin$"
               }
             }
           }
