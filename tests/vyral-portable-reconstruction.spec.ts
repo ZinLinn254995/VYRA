@@ -37,7 +37,7 @@ test('portable DNA-only decoder restores exact raster samples and exact original
     assert.equal(readFileSync(raster.raw_samples).length, 8);
     assert.equal(readFileSync(raster.viewable_png).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
     assert.equal(raster.original_encoded_file_bytes_recovered, true);
-    assert.deepEqual(readFileSync(raster.source_file_exact.file), Buffer.from('original PNG bytes, encoded and compressed\\x00'));
+    assert.deepEqual(readFileSync(raster.source_file_exact.file), Buffer.from('original PNG bytes, encoded and compressed\x00'));
     assert.equal(file.result, 'source-file-exact');
     assert.deepEqual(readFileSync(file.file), Buffer.from('VYRA exact source bytes\x00\x01'));
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
