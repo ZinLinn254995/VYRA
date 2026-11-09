@@ -1024,8 +1024,10 @@ export const createVyralAssetDnaOnlyPackage = async (
         const bytes = payloadByPath.get(chunk.package_path);
         if (!bytes || bytes.byteLength !== chunk.byte_length) throw new Error('DNA-only export is missing a correctly sized source-byte chunk: ' + chunk.package_path);
       }
-      const chunks = new Map(record.reconstruction.chunks.map((chunk) => [chunk.package_path, payloadByPath.get(chunk.package_path)!]));
-      await reconstructVyralFileDnaV1(record, chunks);
+      if (!blindReconstruction) {
+        const chunks = new Map(record.reconstruction.chunks.map((chunk) => [chunk.package_path, payloadByPath.get(chunk.package_path)!]));
+        await reconstructVyralFileDnaV1(record, chunks);
+      }
       normalized.push({ schemaId: 'vyra.asset-file-dna', schemaVersion: 1, recordId: record.record_id, assetId: record.source.asset_id, value: record });
     }
     const last = normalized[normalized.length - 1];
@@ -1096,7 +1098,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   };
   validateVyralManifest(dnaOnlyManifest);
   const entries: VyralPackageEntry[] = [
-    ...payloadEntries.map((entry) => ({ path: entry.path, data: entry.data })),
+    ...[...payloadByPath.entries()].map(([path, data]) => ({ path, data })),
     { path: 'README.txt', data: 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
     { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
     { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
