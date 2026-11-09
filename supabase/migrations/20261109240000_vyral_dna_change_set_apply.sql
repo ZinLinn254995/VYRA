@@ -68,7 +68,7 @@ begin
   ) then raise exception 'Only an approved proposal with a validated change set and new DNA revision can be applied'; end if;
   return new;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.apply_vyral_asset_dna_change_set(p_proposal_id uuid, p_user_id uuid, p_expected_change_set_sha256 text, p_new_dna_record_id uuid, p_new_payload jsonb)
  RETURNS TABLE(dna_record_id uuid, revision_number integer, proposal_status text, reused boolean)
@@ -260,7 +260,7 @@ begin
 
   return query select new_record_id,new_revision,'applied'::text,false;
 end;
-$function$
+$function$;
 
 revoke all on function public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb) from public,anon,authenticated;
 grant execute on function public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb) to service_role;

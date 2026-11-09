@@ -108,7 +108,7 @@ const validateChangeSet = async (changeSet: any, storedHash: string, expectedSou
     return { validatorVersion: 1, status: 'invalid', changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: 0 };
   }
   checks.currentDna = 'pass';
-  const allowedSections = new Set(['knowledge','reconstruction','description','attributes','visual','audio','video','document','geometry','style','content']);
+  const allowedSections = new Set(['knowledge']);
   const protectedParts = new Set(['id','asset_id','assetid','asset_version_id','assetversionid','dna_record_id','dnarecordid','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','created_at','updated_at','revision_number','parent_dna_record_id']);
   let validCount = 0;
   for (let i = 0; i < changeSet.operations.length; i++) {
@@ -255,7 +255,7 @@ Deno.serve(async (request: Request) => {
       context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', assessmentRow.asset_id)
         .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
       context.supabaseAdmin.from('vyral_dna_records').select('id').eq('asset_id', assessmentRow.asset_id)
-        .eq('user_id', userId).eq('scope','asset').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        .eq('user_id', userId).eq('scope','asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (latestVersion.error || latestDna.error) return reply({ error: 'Could not verify the latest Asset snapshot.' }, 500);
     if (latestVersion.data?.id !== assessmentRow.asset_version_id || latestDna.data?.id !== assessmentRow.dna_record_id) {
@@ -320,7 +320,7 @@ Deno.serve(async (request: Request) => {
       .eq('source_sha256', proposal.source_sha256.toLowerCase()).eq('evidence_kind','field_confirmation')
       .eq('decision','creator_confirmed').order('created_at', { ascending: true });
     if (fieldEvidenceError) return reply({ error: 'Could not load source-pinned creator field confirmations.' }, 500);
-    const allowedSections = new Set(['knowledge','reconstruction','description','attributes','visual','audio','video','document','geometry','style','content']);
+    const allowedSections = new Set(['knowledge']);
     const protectedSegments = new Set(['id','asset_id','asset_version_id','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','created_at','updated_at','revision_number','parent_dna_record_id']);
     const byField = new Map<string, any[]>();
     for (const evidence of fieldEvidence ?? []) {

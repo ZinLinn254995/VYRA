@@ -22,6 +22,7 @@ test('database rechecks creator review and exact accepted field value',()=>{
 test('database reconstructs exact patch and preserves parent lineage',()=>{
  assert.ok(migration.includes('Submitted DNA payload does not equal the validated deterministic patch result'));
  assert.ok(migration.includes('parent_dna_record_id'));
+ assert.ok(migration.includes("pointer_parts[2] <> 'knowledge'"));
  assert.ok(migration.includes('revision_number'));
 });
 test('application is idempotent',()=>{
