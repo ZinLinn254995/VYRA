@@ -507,6 +507,7 @@ def main():
         if manifest_info.file_size > 32 * 1024 * 1024:
             raise ValueError("VYRAL manifest exceeds the 32 MiB safety limit")
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+        blind = manifest.get("blindReconstruction") is True
         assets, records = validate_manifest(manifest, archive_names, archive)
         selected = set(args.asset_ids or [])
         unknown = selected.difference(assets)
