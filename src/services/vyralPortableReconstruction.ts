@@ -24,11 +24,12 @@ For each \`vyra.asset-dna\` v3 record:
 
 For each \`vyra.asset-file-dna\` v1 record:
 
-- If the claim is \`source_file_exact\`, sort chunks by their integer \`index\`.
-2. Verify every chunk's byte length and SHA-256.
-3. Concatenate chunks in index order.
-4. Verify the final byte length and SHA-256 against \`dna_record.file\`.
-5. Save the exact original bytes using the Asset's original filename when available.
+- If the claim is \`source_file_exact\`:
+  1. Sort chunks by their integer \`index\`.
+  2. Verify every chunk's byte length and SHA-256.
+  3. Concatenate chunks in index order.
+  4. Verify the final byte length and SHA-256 against \`dna_record.file\`.
+  5. Save the exact original bytes using the Asset's original filename when available.
 - If the claim is \`unavailable\`, do not invent or fabricate file bytes. Report the Asset as structural-DNA-only and require a modality-specific extractor/reconstructor before claiming a reconstruction.
 
 ## Public retrieval
