@@ -311,6 +311,8 @@ def validate_manifest(manifest, archive_names, archive):
         raise ValueError("Every Asset must have exactly one supported reconstruction record")
 
     blind = manifest.get("blindReconstruction") is True
+    if blind and manifest.get("blindnessScope") != "original_encoded_binary_excluded":
+        raise ValueError("Blind DNA package must declare the exact scope of excluded source bytes")
     counts = {}
     expected_paths = {"manifest.json", "README.txt", "AI_RECONSTRUCTION_GUIDE.md", "tools/reconstruct_vyral.py"}
     reserved_system_paths = {
@@ -525,6 +527,7 @@ def main():
                 "validation": "passed",
                 "export_mode": manifest.get("exportMode"),
                 "blind_reconstruction": blind,
+                "blindness_scope": manifest.get("blindnessScope") if blind else None,
                 "asset_count": len(selected_assets),
                 "assets": [{
                     "asset_id": asset["id"],
