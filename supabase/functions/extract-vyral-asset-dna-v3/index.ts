@@ -54,7 +54,7 @@ Deno.serve(async (request: Request) => {
   const prefix = userId + '/' + asset.vyral_id + '/' + assetId + '/';
   const sourcePath = typeof version.storage_path === 'string' ? version.storage_path : '';
   const pathSegments = sourcePath.split('/');
-  if (!sourcePath.startsWith(prefix) || sourcePath.startsWith('/') || sourcePath.includes('\\\\') ||
+  if (!sourcePath.startsWith(prefix) || sourcePath.startsWith('/') || sourcePath.includes('\\') ||
       pathSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
     return reply({ error: 'Private Storage path failed owner-prefix and canonical-path validation.' }, 409);
   }
