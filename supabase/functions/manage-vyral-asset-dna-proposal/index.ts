@@ -53,7 +53,7 @@ const getOwnJsonPath = (root: unknown, parts: string[]) => {
 const sameJson = (a: unknown, b: unknown) => {
   try { return canonicalJson(a) === canonicalJson(b); } catch { return false; }
 };
-const validateChangeSet = async (changeSet: any, storedHash: string, expectedSource: any, currentPayload: unknown) => {
+const validateChangeSet = async (changeSet: any, storedHash: string, expectedSource: any, currentPayload: unknown, verifiedEvidenceRefs: string[] = []) => {
   const errors: string[] = [];
   const checks: Record<string, string> = {};
   let canonicalHash = '';
@@ -107,12 +107,19 @@ const validateChangeSet = async (changeSet: any, storedHash: string, expectedSou
     } else {
       if (!current.exists || !Object.prototype.hasOwnProperty.call(op,'before') || !sameJson(current.value,op.before)) { fail('before value does not exactly match the current DNA snapshot.'); continue; }
       if (op.op === 'replace' && !Object.prototype.hasOwnProperty.call(op,'after')) { fail('replace requires an explicit after value.'); continue; }
+      if (op.op === 'replace' && sameJson(op.before,op.after)) { fail('no-op replacement cannot create a DNA revision.'); continue; }
     }
     try { if (op.op !== 'remove') canonicalJson(op.after); } catch { fail('after value is not valid JSON.'); continue; }
     validCount++;
   }
   checks.operations = errors.some((error) => error.startsWith('Operation ')) ? 'fail' : 'pass';
-  const status = checks.operations === 'pass' && validCount === changeSet.operations.length ? 'validated' : 'invalid';
+  const referencedEvidence = changeSet.operations.flatMap((op: any) => Array.isArray(op?.evidenceRefs) ? op.evidenceRefs : []);
+  const verified = new Set(verifiedEvidenceRefs);
+  const evidenceVerified = referencedEvidence.length > 0 && referencedEvidence.every((ref: unknown) => typeof ref === 'string' && verified.has(ref));
+  checks.evidence = evidenceVerified ? 'pass' : 'blocked';
+  if (!evidenceVerified) errors.push('Evidence references have not yet been resolved to trusted, owner-scoped evidence records.');
+  const status = checks.operations !== 'pass' || validCount !== changeSet.operations.length
+    ? 'invalid' : evidenceVerified ? 'validated' : 'blocked';
   return { validatorVersion: 1, status, changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: status === 'validated' ? validCount : 0 };
 };
 

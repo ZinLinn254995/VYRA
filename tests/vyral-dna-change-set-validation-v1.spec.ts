@@ -8,8 +8,8 @@ const makeSet = (operations: unknown[]) => ({
   schema: 'vyra.dna-change-set', schemaVersion: 1, proposalId: 'proposal-1', source,
   operations,
 });
-const validate = async (changeSet: unknown, currentDnaRecord: unknown = dna) =>
-  validateVyralDnaChangeSetV1({ changeSet, expectedSha256: await sha256VyralJsonV1(changeSet), expectedSource: source, currentDnaRecord });
+const validate = async (changeSet: unknown, currentDnaRecord: unknown = dna, verifiedEvidenceRefs: string[] = []) =>
+  validateVyralDnaChangeSetV1({ changeSet, expectedSha256: await sha256VyralJsonV1(changeSet), expectedSource: source, currentDnaRecord, verifiedEvidenceRefs });
 
 test('blocks empty change sets instead of allowing empty DNA revisions', async () => {
   const result = await validate(makeSet([]));
@@ -20,7 +20,7 @@ test('blocks empty change sets instead of allowing empty DNA revisions', async (
 test('validates a before/after patch with an evidence reference', async () => {
   const result = await validate(makeSet([{
     op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'crimson', evidenceRefs: ['observation:vision-42'],
-  }]));
+  }]), dna, ['observation:vision-42']);
   assert.equal(result.status, 'validated');
   assert.equal(result.validatedOperationCount, 1);
 });
@@ -74,4 +74,21 @@ test('rejects malformed JSON Pointer escape sequences', async () => {
   const result = await validate(makeSet([{ op: 'replace', path: '/dna_record/knowledge/bad~2key', before: 'red', after: 'blue', evidenceRefs: ['evidence-1'] }]));
   assert.equal(result.status, 'invalid');
   assert.match(result.errors.join(' '), /path is outside/);
+});
+
+test('blocks syntactically valid patches until evidence references are independently resolved', async () => {
+  const result = await validate(makeSet([{
+    op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'crimson', evidenceRefs: ['observation:not-yet-verified'],
+  }]));
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.checks.evidence, 'blocked');
+  assert.equal(result.validatedOperationCount, 0);
+});
+
+test('rejects no-op replacement operations', async () => {
+  const result = await validate(makeSet([{
+    op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'red', evidenceRefs: ['evidence-1'],
+  }]), dna, ['evidence-1']);
+  assert.equal(result.status, 'invalid');
+  assert.match(result.errors.join(' '), /no-op operations/);
 });

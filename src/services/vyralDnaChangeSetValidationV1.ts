@@ -85,6 +85,7 @@ export const validateVyralDnaChangeSetV1 = async (input: {
   expectedSha256: string;
   expectedSource: { assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string };
   currentDnaRecord: unknown;
+  verifiedEvidenceRefs?: string[];
 }): Promise<VyralDnaChangeSetValidationV1> => {
   const errors: string[] = [];
   const checks: Record<string, 'pass' | 'fail' | 'blocked'> = {};
@@ -165,6 +166,10 @@ export const validateVyralDnaChangeSetV1 = async (input: {
         fail('replace requires an explicit after value.');
         return;
       }
+      if (operation.op === 'replace' && sameJson(operation.before, operation.after)) {
+        fail('replace must change the value; no-op operations cannot create DNA revisions.');
+        return;
+      }
     }
     try { canonicalizeVyralJsonV1(operation.after); }
     catch { if (operation.op !== 'remove') { fail('after value is not valid JSON.'); return; } }
@@ -172,6 +177,13 @@ export const validateVyralDnaChangeSetV1 = async (input: {
   });
 
   checks.operations = errors.some((error) => error.startsWith('Operation ')) ? 'fail' : 'pass';
-  const status = checks.operations === 'pass' && validCount === operations.length ? 'validated' : 'invalid';
+  const referencedEvidence = operations.flatMap((operation: VyralDnaChangeOperationV1) => operation.evidenceRefs);
+  const verified = new Set(input.verifiedEvidenceRefs ?? []);
+  const evidenceVerified = referencedEvidence.length > 0 && referencedEvidence.every((ref) => verified.has(ref));
+  checks.evidence = evidenceVerified ? 'pass' : 'blocked';
+  if (!evidenceVerified) errors.push('Evidence references have not been resolved to trusted, owner-scoped evidence records.');
+  const status = checks.operations !== 'pass' || validCount !== operations.length
+    ? 'invalid'
+    : evidenceVerified ? 'validated' : 'blocked';
   return { validatorVersion: 1, status, changeSetSha256: actualHash, checks, errors, validatedOperationCount: status === 'validated' ? validCount : 0 };
 };
