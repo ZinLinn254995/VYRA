@@ -1,5 +1,5 @@
 export type VyralDnaChangeOperationV1 = {
-  op: 'add' | 'replace' | 'remove';
+  op: 'add' | 'replace';
   path: string;
   before?: unknown;
   after?: unknown;
@@ -53,10 +53,7 @@ const PROTECTED_SEGMENTS = new Set([
   'created_at', 'updated_at', 'revision_number', 'parent_dna_record_id',
 ]);
 
-const ALLOWED_DNA_SECTIONS = new Set([
-  'knowledge', 'reconstruction', 'description', 'attributes', 'visual',
-  'audio', 'video', 'document', 'geometry', 'style', 'content',
-]);
+const ALLOWED_DNA_SECTIONS = new Set(['knowledge']);
 
 const parsePointer = (path: string): string[] | null => {
   if (!path.startsWith('/') || path.length < 2 || /~(?![01])/.test(path)) return null;
@@ -133,10 +130,11 @@ export const validateVyralDnaChangeSetV1 = async (input: {
   checks.currentDna = 'pass';
 
   let validCount = 0;
+  const seenPaths = new Set<string>();
   operations.forEach((raw, index) => {
     const operation = raw as Partial<VyralDnaChangeOperationV1> | null;
     const fail = (reason: string) => errors.push('Operation ' + index + ': ' + reason);
-    if (!operation || typeof operation !== 'object' || !['add', 'replace', 'remove'].includes(String(operation.op))) {
+    if (!operation || typeof operation !== 'object' || !['add', 'replace'].includes(String(operation.op))) {
       fail('unsupported operation.');
       return;
     }
@@ -146,6 +144,12 @@ export const validateVyralDnaChangeSetV1 = async (input: {
       fail('path is outside the editable DNA allowlist or targets a protected identity/integrity field.');
       return;
     }
+    const normalizedPath = '/' + parts.map((part) => part.replace(/~/g, '~0').replace(/\//g, '~1')).join('/');
+    if (seenPaths.has(normalizedPath)) {
+      fail('duplicate target path is not allowed.');
+      return;
+    }
+    seenPaths.add(normalizedPath);
     if (!Array.isArray(operation.evidenceRefs) || operation.evidenceRefs.length === 0 ||
         operation.evidenceRefs.some((ref) => typeof ref !== 'string' || !ref.trim())) {
       fail('at least one non-empty evidence reference is required.');

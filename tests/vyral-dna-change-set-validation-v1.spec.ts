@@ -92,3 +92,24 @@ test('rejects no-op replacement operations', async () => {
   assert.equal(result.status, 'invalid');
   assert.match(result.errors.join(' '), /no-op operations/);
 });
+
+test('rejects patches outside knowledge fields even when they are non-identity metadata', async () => {
+  for (const path of ['/dna_record/visual/palette', '/dna_record/description/summary', '/dna_record/reconstruction/method']) {
+    const result = await validate(makeSet([{ op: 'replace', path, before: 'red', after: 'blue', evidenceRefs: ['evidence-1'] }]));
+    assert.equal(result.status, 'invalid');
+  }
+});
+
+test('rejects unsupported remove operations before application', async () => {
+  const result = await validate(makeSet([{ op: 'remove', path: '/dna_record/knowledge/color', before: 'red', evidenceRefs: ['evidence-1'] }]));
+  assert.equal(result.status, 'invalid');
+});
+
+test('rejects duplicate operations targeting the same DNA field', async () => {
+  const result = await validate(makeSet([
+    { op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'crimson', evidenceRefs: ['evidence-1'] },
+    { op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'scarlet', evidenceRefs: ['evidence-2'] },
+  ]));
+  assert.equal(result.status, 'invalid');
+  assert.match(result.errors.join(' '), /duplicate target path/);
+});
