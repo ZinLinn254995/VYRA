@@ -6,7 +6,7 @@ This package is self-describing. Read \`manifest.json\` and use the included \`t
 
 - \`manifest.json\` identifies the Vyral, its Asset inventory, each Asset DNA record, and the exact reconstruction payload paths.
 - \`vyra.asset-dna\` version 3 describes raster image samples. Its raw tiles are lossless decoded samples, not the original encoded PNG/JPEG/WebP file bytes. It may additionally include \`encoded_file_payload\` chunks; when present, those independently hashed chunks restore the exact original encoded file bytes.
-- \`vyra.asset-file-dna\` version 1 describes original file bytes. When its claim is \`source_file_exact\`, the ordered raw chunks can recover the exact original file and must pass each chunk hash plus the aggregate SHA-256.
+- \`vyra.asset-file-dna\` version 1 records deterministic file identity and structural facts. In a normal DNA-only package, \`source_file_exact\` chunks can restore original bytes. In a blind package, the claim is \`unavailable\` and no original binary chunks are present; structural facts are not enough to recreate arbitrary binary files.
 - A compact collection reference is a derived inventory and reference map. It is not a reconstruction payload and does not grant access to private VYRA files.
 
 ## Raster reconstruction
@@ -22,13 +22,14 @@ For each \`vyra.asset-dna\` v3 record:
 
 ## Non-raster and binary reconstruction
 
-For each \`vyra.asset-file-dna\` v1 record with \`source_file_exact\`:
+For each \`vyra.asset-file-dna\` v1 record:
 
-1. Sort chunks by their integer \`index\`.
+- If the claim is \`source_file_exact\`, sort chunks by their integer \`index\`.
 2. Verify every chunk's byte length and SHA-256.
 3. Concatenate chunks in index order.
 4. Verify the final byte length and SHA-256 against \`dna_record.file\`.
 5. Save the exact original bytes using the Asset's original filename when available.
+- If the claim is \`unavailable\`, do not invent or fabricate file bytes. Report the Asset as structural-DNA-only and require a modality-specific extractor/reconstructor before claiming a reconstruction.
 
 ## Public retrieval
 
@@ -308,6 +309,7 @@ def validate_manifest(manifest, archive_names, archive):
     if len(records) != len(assets):
         raise ValueError("Every Asset must have exactly one supported reconstruction record")
 
+    blind = manifest.get("blindReconstruction") is True
     counts = {}
     expected_paths = {"manifest.json", "README.txt", "AI_RECONSTRUCTION_GUIDE.md", "tools/reconstruct_vyral.py"}
     reserved_system_paths = {
@@ -354,6 +356,8 @@ def validate_manifest(manifest, archive_names, archive):
                     raise ValueError("Raster DNA payload path collides with a protected System File")
                 expected_paths.add(path)
             encoded = record.get("encoded_file_payload")
+            if blind and encoded is not None:
+                raise ValueError("Blind DNA package must not contain original encoded raster bytes")
             if encoded is not None:
                 if (not isinstance(encoded, dict) or encoded.get("encoding") != "raw-chunks-v1"
                         or not isinstance(encoded.get("filename"), str) or not encoded["filename"]
@@ -382,11 +386,20 @@ def validate_manifest(manifest, archive_names, archive):
                 if len(source_bytes) != encoded["size_bytes"] or sha256(source_bytes) != encoded["sha256"]:
                     raise ValueError("Raster DNA exact encoded-file source SHA-256 verification failed")
         elif schema == "vyra.asset-file-dna" and version == 1:
-            if entry.get("recovery_level") != "source-file-exact":
+            if blind:
+                reconstruction = record.get("reconstruction", {})
+                if (entry.get("recovery_level") != "semantic-only" or reconstruction.get("claim") != "unavailable"
+                        or reconstruction.get("payload_encoding") != "none" or reconstruction.get("chunks") != []):
+                    raise ValueError("Blind DNA package must exclude all original File DNA binary chunks")
+            elif entry.get("recovery_level") != "source-file-exact":
                 raise ValueError("File DNA must declare exact source-file recovery")
             if record.get("record_id") != entry.get("id") or record.get("source", {}).get("asset_id") != asset_id:
                 raise ValueError("File DNA identity does not match its Asset inventory entry")
             reconstruction = record.get("reconstruction", {})
+            if blind and reconstruction.get("claim") == "unavailable":
+                if reconstruction.get("payload_encoding") != "none" or reconstruction.get("chunks") != []:
+                    raise ValueError("Blind File DNA must not declare original source-byte chunks")
+                continue
             if reconstruction.get("claim") != "source_file_exact":
                 raise ValueError("File DNA does not contain an exact source-byte claim")
             chunks = reconstruction.get("chunks")
@@ -509,6 +522,7 @@ def main():
                 "package_sha256": sha256_file(package_path),
                 "validation": "passed",
                 "export_mode": manifest.get("exportMode"),
+                "blind_reconstruction": blind,
                 "asset_count": len(selected_assets),
                 "assets": [{
                     "asset_id": asset["id"],
@@ -531,6 +545,11 @@ def main():
                     entry["recovery_level"] == "source-file-exact" or bool(entry["dna_record"].get("encoded_file_payload"))
                     for entry in selected_records
                 ),
+                "original_binary_payload_entries": sum(
+                    len(entry["dna_record"].get("reconstruction", {}).get("chunks", [])) +
+                    len(entry["dna_record"].get("encoded_file_payload", {}).get("chunks", []))
+                    for entry in selected_records
+                ),
                 "archive_entry_count": len(archive_names),
                 "undeclared_entries": 0,
                 "integrity": "passed",
@@ -547,7 +566,10 @@ def main():
             if schema == "vyra.asset-dna" and version == 3:
                 results.append(reconstruct_raster(archive, record, asset, output_dir))
             elif schema == "vyra.asset-file-dna" and version == 1:
-                results.append(reconstruct_file(archive, record, asset, output_dir))
+                if record.get("reconstruction", {}).get("claim") == "source_file_exact":
+                    results.append(reconstruct_file(archive, record, asset, output_dir))
+                else:
+                    results.append({"asset_id": asset_id, "name": asset.get("name"), "result": "structural-dna-only", "original_file_reconstructed": False})
 
     print(json.dumps({"package": args.package, "reconstructed_assets": results}, indent=2))
     if not results:
