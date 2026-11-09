@@ -1195,7 +1195,7 @@ export const createVyralSemanticDnaPackage = async (
       size_bytes: asset.size_bytes,
       sha256: asset.sha256,
       description: asset.description,
-      description_provenance: 'creator_declared',
+      description_provenance: normalized.find((record) => record.source.asset_id === String(asset.id))?.creator_description.evidence_status ?? 'missing',
       description_is_visual_measurement: false,
       folder_id: null,
     })),
