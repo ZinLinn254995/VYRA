@@ -69,6 +69,9 @@ test('semantic DNA explicitly blocks reconstruction when creator descriptions an
 test('semantic DNA rejects embedded binary, media URLs and hidden payload fields', () => {
   const invalidEvidence = [
     { summary: 'red circle', image_url: 'https://example.test/original.png' },
+    { summary: 'red circle', imageUrl: 'https://example.test/original.png' },
+    { summary: 'red circle', originalFile: 'AQIDBA==' },
+    { summary: 'red circle', note: 'A'.repeat(140) + '___' },
     { summary: 'red circle', binary_data: 'AQIDBA==' },
     { summary: 'red circle', nested: { decoded_samples: [1, 2, 3] } },
     { summary: 'red circle', reference: 'data:image/png;base64,AAAA' },
