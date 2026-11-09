@@ -111,12 +111,16 @@ const validateChangeSet = async (changeSet: any, storedHash: string, expectedSou
   const allowedSections = new Set(['knowledge']);
   const protectedParts = new Set(['id','asset_id','assetid','asset_version_id','assetversionid','dna_record_id','dnarecordid','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','created_at','updated_at','revision_number','parent_dna_record_id']);
   let validCount = 0;
+  const seenPaths = new Set<string>();
   for (let i = 0; i < changeSet.operations.length; i++) {
     const op = changeSet.operations[i];
     const fail = (message: string) => errors.push('Operation ' + i + ': ' + message);
-    if (!object(op) || !['add','replace','remove'].includes(String(op.op)) || typeof op.path !== 'string') { fail('unsupported operation.'); continue; }
+    if (!object(op) || !['add','replace'].includes(String(op.op)) || typeof op.path !== 'string') { fail('only add and replace operations are supported.'); continue; }
     if (!op.path.startsWith('/') || /~(?![01])/.test(op.path)) { fail('malformed JSON Pointer.'); continue; }
     const parts = op.path.slice(1).split('/').map((part: string) => part.replace(/~1/g,'/').replace(/~0/g,'~'));
+    const normalizedPath = '/' + parts.map((part: string) => part.replace(/~/g,'~0').replace(/\//g,'~1')).join('/');
+    if (seenPaths.has(normalizedPath)) { fail('duplicate target path is not allowed.'); continue; }
+    seenPaths.add(normalizedPath);
     if (parts.length < 3 || parts[0] !== 'dna_record' || !allowedSections.has(parts[1]) ||
         parts.some((part: string) => !part || ['__proto__','prototype','constructor'].includes(part) || protectedParts.has(part.toLowerCase()))) {
       fail('path is outside the editable DNA allowlist or targets a protected field.'); continue;
@@ -397,9 +401,6 @@ Deno.serve(async (request: Request) => {
     if (proposal.status !== 'approved' || !proposal.change_set || !proposal.change_set_sha256) {
       return reply({ error: 'An approved proposal with a prepared change set is required.' }, 409);
     }
-    if (proposal.change_set_validation_report) {
-      return reply({ report: proposal.change_set_validation_report, status: proposal.change_set_status, reused: true, dnaChanged: false });
-    }
     const [latestVersion, latestDna] = await Promise.all([
       context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', proposal.asset_id)
         .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
@@ -411,6 +412,9 @@ Deno.serve(async (request: Request) => {
       await context.supabaseAdmin.from('vyral_asset_dna_improvement_proposals')
         .update({ status: 'stale' }).eq('id', proposalId).eq('user_id', userId).eq('status','approved');
       return reply({ error: 'The pinned Asset or DNA revision is no longer current. A fresh assessment is required.', status: 'stale' }, 409);
+    }
+    if (proposal.change_set_validation_report) {
+      return reply({ report: proposal.change_set_validation_report, status: proposal.change_set_status, reused: true, dnaChanged: false });
     }
     const operations = Array.isArray(proposal.change_set.operations) ? proposal.change_set.operations : [];
     let evidenceResolution: { verifiedEvidenceRefs: string[]; report: any[] };
@@ -508,7 +512,7 @@ Deno.serve(async (request: Request) => {
         context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', proposal.asset_id)
           .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
         context.supabaseAdmin.from('vyral_dna_records').select('id').eq('asset_id', proposal.asset_id)
-          .eq('user_id', userId).eq('scope','asset').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          .eq('user_id', userId).eq('scope','asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (latestVersion.error || latestDna.error) return reply({ error: 'Could not verify the latest Asset snapshot.' }, 500);
       if (latestVersion.data?.id !== proposal.asset_version_id || latestDna.data?.id !== proposal.dna_record_id) {
