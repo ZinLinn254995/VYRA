@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AudioLines, Check, ChevronDown, Copy, GripVertical, Minus, Plus, Scissors, Trash2, Type, ZoomIn, ZoomOut } from 'lucide-react';
+import { AudioLines, Copy, Plus, Scissors, Trash2, Type, ZoomIn, ZoomOut } from 'lucide-react';
 
 export type TimelineClip = { id: string; name: string; start: number; duration: number };
 export type TimelineTrack = { id: string; name: string; clips: TimelineClip[] };
@@ -38,7 +38,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange 
       const duration = sourceOut - sourceIn;
       const start = cursor;
       const transition = data.transitions[scene.id];
-      const overlap = transition ? Math.min(Math.max(0, transition.duration), duration / 2) : 0;
+      const overlap = transition && transition.effect !== 'None' ? Math.min(Math.max(0, transition.duration), duration / 2) : 0;
       cursor += duration - overlap;
       return { scene, sourceIn, sourceOut, duration, start, overlap };
     });
