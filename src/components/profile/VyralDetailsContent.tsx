@@ -1196,6 +1196,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }[] = [];
         let reconstructedFromDnaV3 = false;
         let reconstructedFromFileDna = false;
+        let reconstructedOriginalBytes = false;
+        let reconstructedSourceFilename: string | null = null;
+        let reconstructedSourceMimeType: string | null = null;
         let reconstructedSourceSha256: string | null = null;
 
         if (!sourceVersions.length && manifest.exportMode === 'dna-only' && sourceDnaEntry) {
@@ -1232,6 +1235,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             }
             preparedVersions.push({ source: syntheticSource, bytes: restoredBytes, sha256, id: versionId, storagePath, versionNumber: 1 });
             reconstructedFromDnaV3 = true;
+            reconstructedOriginalBytes = true;
+            reconstructedSourceFilename = filename;
+            reconstructedSourceMimeType = mimeType;
             reconstructedSourceSha256 = sha256;
           } else {
             const reconstruction = await encodeVyralDnaV3PngFromPackage(archiveFiles, String(dnaEntry.id));
@@ -1310,7 +1316,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
 
         const latest = preparedVersions[preparedVersions.length - 1];
-        const mimeType = reconstructedFromDnaV3 ? 'image/png' : safeMimeType(sourceAsset.mime_type, 'application/octet-stream');
+        const mimeType = reconstructedFromDnaV3 && !reconstructedOriginalBytes
+          ? 'image/png'
+          : safeMimeType(reconstructedSourceMimeType ?? sourceAsset.mime_type, 'application/octet-stream');
         const pendingDnaTileUploads: { storagePath: string; bytes: Uint8Array }[] = [];
         if (sourceDnaEntry || sourceFileDnaEntry) {
           const isFileDna = Boolean(sourceFileDnaEntry);
@@ -1350,9 +1358,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           });
         }
         const assetName = safeName(sourceAsset.name, 'Imported asset', 180);
-        const originalFilename = reconstructedFromDnaV3
+        const originalFilename = reconstructedFromDnaV3 && !reconstructedOriginalBytes
           ? safeName(sourceAsset.original_filename ?? sourceAsset.name, 'reconstructed-image', 120).replace(/\.[^.]+$/, '') + '.reconstructed.png'
-          : safeName(sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
+          : safeName(reconstructedSourceFilename ?? sourceAsset.original_filename ?? sourceAsset.name, assetName, 255);
         const assetTypeValue = reconstructedFromDnaV3 ? 'image' : stringValue(sourceAsset.asset_type, 'other');
         const assetTypeValueSafe = allowedAssetTypes.includes(assetTypeValue) ? assetTypeValue : 'other';
         const { error: assetError } = await supabase.from('vyral_assets').insert({
@@ -1370,7 +1378,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           processing_status: 'uploading',
           description: stringValue(sourceAsset.description).slice(0, 2000),
           license_override: objectValue(sourceAsset.license_override),
-          metadata: { ...objectValue(sourceAsset.metadata), visibility: 'private', identity_name_origin: objectValue(sourceAsset.metadata).identity_name_origin ?? 'creator_confirmed', identity_description_origin: objectValue(sourceAsset.metadata).identity_description_origin ?? (stringValue(sourceAsset.description).trim() ? 'creator_confirmed' : 'system_default'), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}), ...(reconstructedFromFileDna ? { reconstructed_from_file_dna_v1: true, original_source_sha256: reconstructedSourceSha256, original_source_bytes_recovered: true } : {}) },
+          metadata: { ...objectValue(sourceAsset.metadata), visibility: 'private', identity_name_origin: objectValue(sourceAsset.metadata).identity_name_origin ?? 'creator_confirmed', identity_description_origin: objectValue(sourceAsset.metadata).identity_description_origin ?? (stringValue(sourceAsset.description).trim() ? 'creator_confirmed' : 'system_default'), imported_from_package: manifest.packageId, imported_original_asset_id: oldAssetId, imported_original_created_at: sourceAsset.created_at ?? null, imported_original_updated_at: sourceAsset.updated_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: reconstructedOriginalBytes } : {}), ...(reconstructedFromFileDna ? { reconstructed_from_file_dna_v1: true, original_source_sha256: reconstructedSourceSha256, original_source_bytes_recovered: true } : {}) },
         });
         if (assetError) throw assetError;
         createdAssetIds.push(assetId);
@@ -1409,7 +1417,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             sha256: item.sha256,
             source_kind: allowedVersionSources.includes(String(item.source.source_kind)) ? item.source.source_kind : 'restored',
             parent_version_id: item.source.parent_version_id ? versionMap.get(String(item.source.parent_version_id)) ?? null : null,
-            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId, imported_original_created_at: item.source.created_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: false } : {}) },
+            metadata: { ...objectValue(item.source.metadata), imported_from_package: manifest.packageId, imported_original_created_at: item.source.created_at ?? null, ...(reconstructedFromDnaV3 ? { reconstructed_from_dna_v3: true, original_encoded_source_sha256: reconstructedSourceSha256, original_encoded_source_bytes_recovered: reconstructedOriginalBytes } : {}) },
           });
           fingerprintRows.push({
             asset_id: assetId,
