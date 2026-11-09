@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -47,7 +47,7 @@ test('portable decoder honors explicit Asset selection and does not emit unselec
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.reconstructed_assets.map((item: { asset_id: string }) => item.asset_id), ['asset-raster']);
-    assert.equal(existsSync(join(fixture.output, 'Binary-Sample-asset-fil.bin')), false);
+    assert.equal(readdirSync(fixture.output).some((name) => name.startsWith('Binary-Sample-')), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
 
