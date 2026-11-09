@@ -69,7 +69,7 @@ The audit validates ZIP safety limits, exact declared-entry inventory, protected
 
 ### 3B. Semantic-only DNA export
 
-The workspace now has a separate **Semantic-only DNA** export. It uses the `vyra.asset-semantic-dna` v1 record and the package scope `semantic_only_no_media_payload`. It includes Asset/Vyral identity, creator-declared description, technical metadata when already known, and only creator-confirmed observations pinned to the exact source Asset Version ID and SHA-256.
+The workspace now has a separate **Semantic-only DNA** export. It uses the `vyra.asset-semantic-dna` v1 record and the package scope `semantic_only_no_media_payload`. It includes Asset/Vyral identity, description with explicit creator provenance (otherwise marked unverified), technical metadata when already known, and only creator-confirmed observations pinned to the exact source Asset Version ID and SHA-256.
 
 This package deliberately excludes:
 - original encoded media bytes and file chunks;
