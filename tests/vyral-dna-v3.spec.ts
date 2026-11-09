@@ -107,7 +107,7 @@ test('DNA v3 reconstruction rejects undeclared tile payloads', async () => {
 });
 
 test('DNA v3 can carry and exactly recover the original encoded source file in addition to decoded samples', async () => {
-  const samples = new Uint8Array(3 * 2 * 4).fill(255);
+  const samples = new Uint8Array(4).fill(255);
   const original = new Uint8Array(Buffer.from('PNG encoded source bytes with metadata\\x00', 'utf8'));
   const sourceHash = createHash('sha256').update(original).digest('hex');
   const input = {
@@ -127,7 +127,7 @@ test('DNA v3 can carry and exactly recover the original encoded source file in a
 });
 
 test('DNA v3 rejects an encoded source payload whose bytes do not match the original source hash', async () => {
-  const samples = new Uint8Array(3 * 2 * 4).fill(255);
+  const samples = new Uint8Array(4).fill(255);
   const original = new Uint8Array(Buffer.from('original source', 'utf8'));
   const sourceHash = createHash('sha256').update(original).digest('hex');
   const input = { ...makeInput(samples), width: 1, height: 1, source: { ...source, sha256: sourceHash, size_bytes: original.byteLength } };
