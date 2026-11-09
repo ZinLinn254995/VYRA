@@ -261,3 +261,46 @@ The following details remain for later discussion before implementation:
 This document records the approved product direction for the three-level editor architecture and its simplicity-first UX principle. It does not mean that My Storyboard, any of the editors, timeline behavior, rendering, or export has been implemented.
 
 Implementation should begin only after the remaining workflows and detailed requirements have been discussed and approved.
+
+
+## 13. AI-First Creation — AI Does the Work, You Make the Decisions
+
+**My Storyboard should be AI-first, with manual editing available when the creator wants or needs it.**
+
+VYRA's Global AI Chat is intended to be the primary way to create and coordinate work across the experience. The creator should be able to describe the desired result in natural language and let AI handle most of the production work.
+
+For My Storyboard, the intended direction is for AI to handle as much of the following as the supported tools and permissions allow:
+
+- Create and organize a Storyboard and its Scenes.
+- Plan and arrange the Scene sequence.
+- Generate or select suitable video, image, audio, voice, and text content.
+- Place and coordinate media within Scenes.
+- Suggest or apply transitions and shared music, voice, titles, and subtitles.
+- Revise content or scenes in response to the creator's feedback.
+- Prepare the complete production for preview and final export.
+
+The creator should mainly review the result, make creative decisions, and request changes through Global VYRA AI Chat. The creator should not have to perform every production step manually.
+
+### 13.1 Manual editing is for necessary adjustments
+
+Editors remain important, but their purpose is to give the creator direct control over details that need human judgment or precise adjustment. Examples include:
+
+- Adjusting the timing or position of an item.
+- Trimming a part that does not feel right.
+- Changing a volume level.
+- Moving or resizing text and images.
+- Inspecting an AI-generated result and making a small correction.
+
+These are examples, not a requirement that every user must manually adjust every item. The creator should be able to accept a satisfactory AI result without entering an editor.
+
+### 13.2 Keep the AI-first experience simple
+
+- Prefer a natural-language instruction to a long sequence of manual controls when AI can reliably perform the task.
+- Do not force users into an editor for work that Global VYRA AI Chat can complete.
+- Keep manual controls focused on the adjustments that genuinely benefit from direct human control.
+- Preserve the three editor levels as optional, focused workspaces—not as mandatory steps in every creation workflow.
+- Keep the interface simple and uncluttered while allowing advanced capabilities to operate behind the scenes.
+
+**Core principle: “AI Does the Work. You Make the Decisions.”**
+
+This is an approved product direction, not a claim that all listed AI capabilities are already implemented. The exact capabilities, tool permissions, review points, and reliability requirements must be designed and validated before implementation.
