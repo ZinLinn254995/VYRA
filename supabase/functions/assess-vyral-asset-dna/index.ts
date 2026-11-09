@@ -1,3 +1,4 @@
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { assessVyralAssetDnaV1, type VyralAssetDnaAssessmentInput } from '../../../src/services/vyralAssetDnaAssessmentV1.ts';
@@ -119,8 +120,7 @@ Deno.serve(async (request: Request) => {
   const sourcePath = String(version.storage_path ?? '');
   let sourceFileIntegrityVerified = false;
   if (sourcePath && sourcePath === String(asset.storage_path ?? '') &&
-      sourcePath.startsWith(expectedSourcePrefix) && !sourcePath.includes('..') &&
-      !sourcePath.startsWith('/') && !sourcePath.includes('\\') &&
+      isCanonicalOwnedStoragePath(sourcePath, expectedSourcePrefix) &&
       Number(version.size_bytes) <= 64 * 1024 * 1024) {
     const { data: sourceFile, error: sourceFileError } = await context.supabaseAdmin.storage.from(BUCKET).download(sourcePath);
     if (!sourceFileError && sourceFile && sourceFile.size === Number(version.size_bytes)) {
