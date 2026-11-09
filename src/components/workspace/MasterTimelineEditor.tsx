@@ -1,230 +1,454 @@
-import React, { useMemo, useState } from 'react';
-import { AudioLines, Copy, Plus, Scissors, Trash2, Type, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AudioLines, ChevronDown, Copy, Eye, EyeOff, Film, Magnet, Maximize2,
+  Pause, Play, Plus, Redo2, Scissors, Trash2, Type, Undo2, Volume2,
+  VolumeX, ZoomIn, ZoomOut,
+} from 'lucide-react';
 
-export type TimelineClip = { id: string; name: string; start: number; duration: number };
-export type TimelineTrack = { id: string; name: string; clips: TimelineClip[] };
+export type TimelineClip = {
+  id: string;
+  name: string;
+  start: number;
+  duration: number;
+  waveform?: number[];
+};
+export type TimelineTrack = {
+  id: string;
+  name: string;
+  clips: TimelineClip[];
+  muted?: boolean;
+  volume?: number;
+  visible?: boolean;
+  collapsed?: boolean;
+};
+export type SceneTimelineInstance = {
+  id: string;
+  sceneId: string;
+  sourceIn: number;
+  sourceOut: number;
+};
 export type MasterTimelineData = {
   sceneRanges: Record<string, { sourceIn: number; sourceOut: number }>;
+  sceneInstances?: SceneTimelineInstance[];
   transitions: Record<string, { effect: string; duration: number }>;
   audioTracks: TimelineTrack[];
   textTracks: TimelineTrack[];
 };
 type Scene = { id: string; title: string; duration: number };
+type ClipType = 'audio' | 'text';
 type Props = { scenes: Scene[]; value?: MasterTimelineData; onChange: (next: MasterTimelineData) => void };
+type SelectedClip = { type: ClipType; trackId: string; clipId: string };
+type DragState = SelectedClip & {
+  pointerId: number;
+  mode: 'move' | 'left' | 'right';
+  startX: number;
+  initialStart: number;
+  initialDuration: number;
+};
 
-const makeId = () => crypto.randomUUID();
-const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const makeId = () => typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'timeline-' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+const clamp = (number: number, min: number, max: number) => Math.max(min, Math.min(max, number));
 const emptyData = (): MasterTimelineData => ({ sceneRanges: {}, transitions: {}, audioTracks: [], textTracks: [] });
+const formatTime = (seconds: number) => {
+  const whole = Math.floor(Math.max(0, seconds));
+  const hours = Math.floor(whole / 3600).toString().padStart(2, '0');
+  const minutes = Math.floor((whole % 3600) / 60).toString().padStart(2, '0');
+  const secs = (whole % 60).toString().padStart(2, '0');
+  const tenths = Math.floor((Math.max(0, seconds) % 1) * 10);
+  return `${hours}:${minutes}:${secs}.${tenths}`;
+};
+const trackLabelWidth = 96;
 
 export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange }) => {
-  const data = value || emptyData();
+  const data = value ?? emptyData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const historyRef = useRef<{ past: MasterTimelineData[]; future: MasterTimelineData[] }>({ past: [], future: [] });
+  const dragRef = useRef<DragState | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [historyVersion, setHistoryVersion] = useState(0);
   const [zoom, setZoom] = useState(48);
   const [playhead, setPlayhead] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [snapEnabled, setSnapEnabled] = useState(true);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const [selectedClip, setSelectedClip] = useState<{ type: 'audio' | 'text'; trackId: string; clipId: string } | null>(null);
+  const [selectedClip, setSelectedClip] = useState<SelectedClip | null>(null);
 
-  const ranges = scenes.map((scene) => {
-    const saved = data.sceneRanges[scene.id];
-    const sourceIn = clamp(Number(saved?.sourceIn ?? 0), 0, Math.max(0, scene.duration - 0.1));
-    const sourceOut = clamp(Number(saved?.sourceOut ?? scene.duration), sourceIn + 0.1, Math.max(sourceIn + 0.1, scene.duration));
-    return { scene, sourceIn, sourceOut, duration: sourceOut - sourceIn };
-  });
-  const scenePositions = useMemo(() => {
+  const sceneInstances = useMemo(() => {
+    const sceneById = new Map(scenes.map((scene) => [scene.id, scene]));
+    const instances = (data.sceneInstances || []).filter((instance) => sceneById.has(instance.sceneId)).map((instance) => {
+      const scene = sceneById.get(instance.sceneId)!;
+      const minimumRange = Math.min(0.1, Math.max(0.001, scene.duration));
+      const sourceIn = clamp(Number(instance.sourceIn) || 0, 0, Math.max(0, scene.duration - minimumRange));
+      const sourceOut = clamp(Number(instance.sourceOut) || scene.duration, sourceIn + minimumRange, scene.duration);
+      return { ...instance, sourceIn, sourceOut };
+    });
+    const included = new Set(instances.map((instance) => instance.sceneId));
+    for (const scene of scenes) {
+      if (included.has(scene.id)) continue;
+      const legacy = data.sceneRanges?.[scene.id];
+      const minimumRange = Math.min(0.1, Math.max(0.001, scene.duration));
+      const sourceIn = clamp(Number(legacy?.sourceIn) || 0, 0, Math.max(0, scene.duration - minimumRange));
+      const sourceOut = clamp(Number(legacy?.sourceOut) || scene.duration, sourceIn + minimumRange, scene.duration);
+      instances.push({ id: scene.id, sceneId: scene.id, sourceIn, sourceOut });
+    }
+    return instances;
+  }, [scenes, data.sceneInstances, data.sceneRanges]);
+
+  const positionedScenes = useMemo(() => {
     let cursor = 0;
-    return scenes.map((scene) => {
-      const saved = data.sceneRanges[scene.id];
-      const sourceIn = clamp(Number(saved?.sourceIn ?? 0), 0, Math.max(0, scene.duration - 0.1));
-      const sourceOut = clamp(Number(saved?.sourceOut ?? scene.duration), sourceIn + 0.1, Math.max(sourceIn + 0.1, scene.duration));
-      const duration = sourceOut - sourceIn;
+    return sceneInstances.map((instance, index) => {
+      const scene = scenes.find((item) => item.id === instance.sceneId)!;
+      const duration = Math.max(0, instance.sourceOut - instance.sourceIn);
+      const transition = data.transitions?.[instance.id] ?? (instance.id === instance.sceneId ? data.transitions?.[instance.sceneId] : undefined);
+      const overlap = index < sceneInstances.length - 1 && transition && transition.effect !== 'None'
+        ? Math.min(Math.max(0, transition.duration), duration / 2)
+        : 0;
       const start = cursor;
-      const transition = data.transitions[scene.id];
-      const overlap = transition && transition.effect !== 'None' ? Math.min(Math.max(0, transition.duration), duration / 2) : 0;
       cursor += duration - overlap;
-      return { scene, sourceIn, sourceOut, duration, start, overlap };
+      return { ...instance, scene, duration, start, overlap, transition };
     });
-  }, [scenes, data.sceneRanges, data.transitions]);
-  const totalDuration = Math.max(1, scenePositions.length ? scenePositions[scenePositions.length - 1].start + scenePositions[scenePositions.length - 1].duration : 0);
+  }, [sceneInstances, scenes, data.transitions]);
+
+  const audioTracks = data.audioTracks || [];
+  const textTracks = data.textTracks || [];
+  const totalDuration = Math.max(1, positionedScenes.length ? positionedScenes[positionedScenes.length - 1].start + positionedScenes[positionedScenes.length - 1].duration : 1);
   const timelineWidth = Math.max(640, totalDuration * zoom);
-  const ticks = Array.from({ length: Math.floor(totalDuration / 5) + 2 }, (_, i) => i * 5).filter((n) => n <= totalDuration + 0.01);
-  const update = (patch: Partial<MasterTimelineData>) => onChange({ ...data, ...patch });
-  const updateRange = (id: string, patch: Partial<{ sourceIn: number; sourceOut: number }>) => {
-    const scene = scenes.find((item) => item.id === id);
-    if (!scene) return;
-    const current = data.sceneRanges[id] || { sourceIn: 0, sourceOut: scene.duration };
-    let sourceIn = patch.sourceIn ?? current.sourceIn;
-    let sourceOut = patch.sourceOut ?? current.sourceOut;
-    sourceIn = clamp(sourceIn, 0, Math.max(0, scene.duration - 0.1));
-    sourceOut = clamp(sourceOut, sourceIn + 0.1, scene.duration);
-    update({ sceneRanges: { ...data.sceneRanges, [id]: { sourceIn, sourceOut } } });
+  const timeToPixel = (seconds: number) => seconds * zoom;
+  const tickInterval = zoom >= 60 ? 1 : zoom >= 25 ? 5 : zoom >= 10 ? 10 : 30;
+  const ticks = Array.from({ length: Math.floor(totalDuration / tickInterval) + 2 }, (_, index) => index * tickInterval).filter((time) => time <= totalDuration + 0.01);
+  const selectedClipValue = selectedClip
+    ? (selectedClip.type === 'audio' ? audioTracks : textTracks).find((track) => track.id === selectedClip.trackId)?.clips.find((clip) => clip.id === selectedClip.clipId)
+    : null;
+
+  const commit = (patch: Partial<MasterTimelineData>, recordHistory = true) => {
+    const current = dataRef.current;
+    if (recordHistory) {
+      historyRef.current.past = [...historyRef.current.past.slice(-79), current];
+      historyRef.current.future = [];
+      setHistoryVersion((version) => version + 1);
+    }
+    const next = { ...current, ...patch };
+    dataRef.current = next;
+    onChange(next);
   };
-  const addTrack = (type: 'audio' | 'text') => {
-    const tracks = type === 'audio' ? data.audioTracks : data.textTracks;
-    const next = [...tracks, { id: makeId(), name: (type === 'audio' ? 'Audio ' : 'Text ') + (tracks.length + 1), clips: [] }];
-    update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
+  const recordGestureStart = () => {
+    historyRef.current.past = [...historyRef.current.past.slice(-79), dataRef.current];
+    historyRef.current.future = [];
+    setHistoryVersion((version) => version + 1);
   };
-  const addClip = (type: 'audio' | 'text', trackId: string) => {
-    const tracks = type === 'audio' ? data.audioTracks : data.textTracks;
+  const undo = () => {
+    const previous = historyRef.current.past.pop();
+    if (!previous) return;
+    historyRef.current.future.push(dataRef.current);
+    dataRef.current = previous;
+    onChange(previous);
+    setHistoryVersion((version) => version + 1);
+  };
+  const redo = () => {
+    const next = historyRef.current.future.pop();
+    if (!next) return;
+    historyRef.current.past.push(dataRef.current);
+    dataRef.current = next;
+    onChange(next);
+    setHistoryVersion((version) => version + 1);
+  };
+  const updateInstances = (next: SceneTimelineInstance[]) => {
+    const ranges = { ...dataRef.current.sceneRanges };
+    for (const instance of next) {
+      if (!ranges[instance.sceneId]) ranges[instance.sceneId] = { sourceIn: instance.sourceIn, sourceOut: instance.sourceOut };
+    }
+    commit({ sceneInstances: next, sceneRanges: ranges });
+  };
+  const updateRange = (instanceId: string, patch: Partial<Pick<SceneTimelineInstance, 'sourceIn' | 'sourceOut'>>) => {
+    const instance = sceneInstances.find((item) => item.id === instanceId);
+    const scene = instance && scenes.find((item) => item.id === instance.sceneId);
+    if (!instance || !scene) return;
+    const minimumRange = Math.min(0.1, Math.max(0.001, scene.duration));
+    let sourceIn = clamp(patch.sourceIn ?? instance.sourceIn, 0, Math.max(0, scene.duration - minimumRange));
+    let sourceOut = clamp(patch.sourceOut ?? instance.sourceOut, sourceIn + minimumRange, scene.duration);
+    if (patch.sourceIn !== undefined && sourceOut - sourceIn < minimumRange) sourceIn = Math.max(0, sourceOut - minimumRange);
+    if (patch.sourceOut !== undefined && sourceOut - sourceIn < minimumRange) sourceOut = Math.min(scene.duration, sourceIn + minimumRange);
+    updateInstances(sceneInstances.map((item) => item.id === instanceId ? { ...item, sourceIn, sourceOut } : item));
+  };
+  const getTracks = (type: ClipType) => type === 'audio' ? (dataRef.current.audioTracks || []) : (dataRef.current.textTracks || []);
+  const updateTracks = (type: ClipType, tracks: TimelineTrack[], recordHistory = true) => commit(type === 'audio' ? { audioTracks: tracks } : { textTracks: tracks }, recordHistory);
+  const updateClip = (type: ClipType, trackId: string, clipId: string, patch: Partial<TimelineClip>, recordHistory = true) => {
+    const tracks = getTracks(type);
     const next = tracks.map((track) => track.id !== trackId ? track : {
-      ...track, clips: [...track.clips, { id: makeId(), name: type === 'audio' ? 'New audio clip' : 'New text', start: clamp(playhead, 0, Math.max(0, totalDuration - 0.1)), duration: Math.max(0.5, Math.min(3, totalDuration - playhead || 3)) }],
+      ...track,
+      clips: track.clips.map((clip) => {
+        if (clip.id !== clipId) return clip;
+        let start = clamp(patch.start ?? clip.start, 0, Math.max(0, totalDuration - 0.1));
+        let duration = clamp(patch.duration ?? clip.duration, 0.1, Math.max(0.1, totalDuration - start));
+        if (patch.start !== undefined && patch.duration === undefined) duration = Math.min(clip.duration, Math.max(0.1, totalDuration - start));
+        if (patch.duration !== undefined && patch.start === undefined) start = Math.min(start, Math.max(0, totalDuration - duration));
+        return { ...clip, ...patch, start, duration };
+      }),
     });
-    update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
+    updateTracks(type, next, recordHistory);
   };
-  const updateClip = (type: 'audio' | 'text', trackId: string, clipId: string, patch: Partial<TimelineClip>) => {
-    const tracks = type === 'audio' ? data.audioTracks : data.textTracks;
-    const next = tracks.map((track) => track.id !== trackId ? track : {
-      ...track, clips: track.clips.map((clip) => clip.id === clipId ? {
-        ...clip, ...patch,
-        start: clamp(patch.start ?? clip.start, 0, Math.max(0, totalDuration - 0.1)),
-        duration: clamp(patch.duration ?? clip.duration, 0.1, Math.max(0.1, totalDuration)),
-      } : clip),
-    });
-    update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
+  const addTrack = (type: ClipType, withClip = false) => {
+    const tracks = getTracks(type);
+    const track: TimelineTrack = { id: makeId(), name: (type === 'audio' ? 'Audio ' : 'Text ') + (tracks.length + 1), clips: [], muted: false, volume: 1, visible: true, collapsed: false };
+    const clip: TimelineClip = { id: makeId(), name: type === 'audio' ? 'New audio clip' : 'New text', start: clamp(playhead, 0, Math.max(0, totalDuration - 0.5)), duration: Math.min(3, totalDuration) };
+    updateTracks(type, [...tracks, { ...track, clips: withClip ? [clip] : [] }]);
+    if (withClip) setSelectedClip({ type, trackId: track.id, clipId: clip.id });
   };
-  const removeClip = (type: 'audio' | 'text', trackId: string, clipId: string) => {
-    const tracks = type === 'audio' ? data.audioTracks : data.textTracks;
-    const next = tracks.map((track) => track.id === trackId ? { ...track, clips: track.clips.filter((clip) => clip.id !== clipId) } : track);
-    update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
-    setSelectedClip(null);
+  const addClip = (type: ClipType, trackId: string) => {
+    const tracks = getTracks(type);
+    const clip: TimelineClip = { id: makeId(), name: type === 'audio' ? 'New audio clip' : 'New text', start: clamp(playhead, 0, Math.max(0, totalDuration - 0.5)), duration: Math.min(3, totalDuration) };
+    updateTracks(type, tracks.map((track) => track.id === trackId ? { ...track, clips: [...track.clips, clip] } : track));
+    setSelectedClip({ type, trackId, clipId: clip.id });
   };
-  const duplicateClip = (type: 'audio' | 'text', trackId: string, clip: TimelineClip) => {
-    const tracks = type === 'audio' ? data.audioTracks : data.textTracks;
-    const next = tracks.map((track) => track.id === trackId ? { ...track, clips: [...track.clips, { ...clip, id: makeId(), start: Math.min(totalDuration - clip.duration, clip.start + clip.duration) }] } : track);
-    update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
+  const duplicateClip = (selection: SelectedClip, clip: TimelineClip) => {
+    const tracks = getTracks(selection.type);
+    const copy = { ...clip, id: makeId(), name: clip.name + ' copy', start: clamp(clip.start + clip.duration, 0, Math.max(0, totalDuration - clip.duration)) };
+    updateTracks(selection.type, tracks.map((track) => track.id === selection.trackId ? { ...track, clips: [...track.clips, copy] } : track));
+    setSelectedClip({ ...selection, clipId: copy.id });
   };
-  const splitClip = (type: 'audio' | 'text', trackId: string, clip: TimelineClip) => {
+  const splitClip = (selection: SelectedClip, clip: TimelineClip) => {
     if (playhead <= clip.start + 0.05 || playhead >= clip.start + clip.duration - 0.05) return;
     const firstDuration = playhead - clip.start;
     const second = { ...clip, id: makeId(), name: clip.name + ' (2)', start: playhead, duration: clip.duration - firstDuration };
-    const tracks = type === 'audio' ? data.audioTracks : data.textTracks;
-    const next = tracks.map((track) => track.id !== trackId ? track : { ...track, clips: track.clips.flatMap((item) => item.id === clip.id ? [{ ...item, duration: firstDuration }, second] : [item]) });
-    update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
+    const tracks = getTracks(selection.type);
+    updateTracks(selection.type, tracks.map((track) => track.id !== selection.trackId ? track : {
+      ...track,
+      clips: track.clips.flatMap((item) => item.id === clip.id ? [{ ...item, duration: firstDuration }, second] : [item]),
+    }));
+    setSelectedClip({ ...selection, clipId: second.id });
   };
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>, type: 'audio' | 'text', trackId: string) => {
+  const removeSelectedClip = (selection: SelectedClip) => {
+    const tracks = getTracks(selection.type);
+    updateTracks(selection.type, tracks.map((track) => track.id === selection.trackId ? { ...track, clips: track.clips.filter((clip) => clip.id !== selection.clipId) } : track));
+    setSelectedClip(null);
+  };
+  const snapTime = (time: number, ignoredClipId?: string) => {
+    const bounded = clamp(time, 0, totalDuration);
+    if (!snapEnabled) return bounded;
+    const candidates = [Math.round(bounded * 4) / 4];
+    for (const track of [...audioTracks, ...textTracks]) {
+      for (const clip of track.clips) {
+        if (clip.id === ignoredClipId) continue;
+        candidates.push(clip.start, clip.start + clip.duration);
+      }
+    }
+    for (const scene of positionedScenes) candidates.push(scene.start, scene.start + scene.duration);
+    const closest = candidates.reduce((best, candidate) => Math.abs(candidate - bounded) < Math.abs(best - bounded) ? candidate : best, candidates[0]);
+    return Math.abs(closest - bounded) * zoom <= 9 ? clamp(closest, 0, totalDuration) : bounded;
+  };
+  const onClipPointerDown = (event: React.PointerEvent<HTMLDivElement>, selection: SelectedClip, clip: TimelineClip) => {
+    if (event.button !== 0) return;
+    const edge = (event.target as HTMLElement).closest<HTMLElement>('[data-trim]')?.dataset.trim;
+    const mode = edge === 'left' || edge === 'right' ? edge : 'move';
+    setSelectedClip(selection);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { ...selection, pointerId: event.pointerId, mode, startX: event.clientX, initialStart: clip.start, initialDuration: clip.duration };
+    recordGestureStart();
     event.preventDefault();
-    const raw = event.dataTransfer.getData('application/x-vyra-clip');
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as { type: 'audio' | 'text'; trackId: string; clipId: string };
-    if (parsed.type !== type || parsed.trackId !== trackId) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const start = clamp((event.clientX - rect.left) / zoom, 0, Math.max(0, totalDuration - 0.1));
-    updateClip(type, trackId, parsed.clipId, { start });
   };
-  const selected = selectedClip ? (selectedClip.type === 'audio' ? data.audioTracks : data.textTracks).find((track) => track.id === selectedClip.trackId)?.clips.find((clip) => clip.id === selectedClip.clipId) : null;
+  const onClipPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const delta = (event.clientX - drag.startX) / zoom;
+    if (drag.mode === 'move') {
+      const start = snapTime(drag.initialStart + delta, drag.clipId);
+      updateClip(drag.type, drag.trackId, drag.clipId, { start }, false);
+    } else if (drag.mode === 'left') {
+      const end = drag.initialStart + drag.initialDuration;
+      const start = clamp(snapTime(drag.initialStart + delta, drag.clipId), 0, end - 0.1);
+      updateClip(drag.type, drag.trackId, drag.clipId, { start, duration: end - start }, false);
+    } else {
+      const end = clamp(snapTime(drag.initialStart + drag.initialDuration + delta, drag.clipId), drag.initialStart + 0.1, totalDuration);
+      updateClip(drag.type, drag.trackId, drag.clipId, { duration: end - drag.initialStart }, false);
+    }
+  };
+  const onClipPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+  };
+  const reorderScene = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const from = sceneInstances.findIndex((instance) => instance.id === sourceId);
+    const to = sceneInstances.findIndex((instance) => instance.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...sceneInstances];
+    const [instance] = next.splice(from, 1);
+    next.splice(to, 0, instance);
+    updateInstances(next);
+  };
+  const moveScene = (instanceId: string, offset: number) => {
+    const from = sceneInstances.findIndex((instance) => instance.id === instanceId);
+    const to = from + offset;
+    if (from < 0 || to < 0 || to >= sceneInstances.length) return;
+    const next = [...sceneInstances];
+    [next[from], next[to]] = [next[to], next[from]];
+    updateInstances(next);
+  };
+  const selectedScene = positionedScenes.find((scene) => scene.id === selectedSceneId);
+  const setTransition = (sceneId: string, patch: { effect?: string; duration?: number }) => {
+    const current = dataRef.current.transitions || {};
+    const existing = current[sceneId] ?? { effect: 'Fade', duration: 0.5 };
+    commit({ transitions: { ...current, [sceneId]: { ...existing, ...patch } } });
+  };
+  const fitTimeline = () => {
+    const availableWidth = Math.max(240, (scrollerRef.current?.clientWidth || 480) - trackLabelWidth - 24);
+    setZoom(clamp(availableWidth / totalDuration, 10, 120));
+    if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
+  };
 
-  const renderTracks = (type: 'audio' | 'text', tracks: TimelineTrack[]) => (
-    <div className="space-y-2">
-      {tracks.map((track, index) => (
-        <div key={track.id} className="flex min-w-0 overflow-hidden rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-          <div className="flex w-28 shrink-0 flex-col justify-between border-r border-[var(--vyra-border)] p-2 sm:w-36">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--vyra-text-primary)]">{type === 'audio' ? <AudioLines size={13} /> : <Type size={13} />}<span className="truncate">{track.name}</span></div>
-            <div className="mt-2 flex items-center gap-1">
-              <button type="button" onClick={() => addClip(type, track.id)} aria-label={'Add clip to ' + track.name} className="rounded-md p-1.5 text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={14} /></button>
-              <button type="button" onClick={() => {
-                const next = tracks.filter((item) => item.id !== track.id);
-                update(type === 'audio' ? { audioTracks: next } : { textTracks: next });
-              }} aria-label={'Remove ' + track.name} className="rounded-md p-1.5 text-[var(--vyra-text-muted)] hover:text-[var(--vyra-danger)]"><Trash2 size={13} /></button>
-            </div>
-          </div>
-          <div className="relative h-[58px] min-w-0 flex-1 overflow-hidden bg-[var(--vyra-bg-canvas)]" style={{ minWidth: timelineWidth }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, type, track.id)}>
-            {ticks.map((tick) => <div key={tick} className="pointer-events-none absolute inset-y-0 border-l border-[var(--vyra-border-subtle)]" style={{ left: tick * zoom }} />)}
-            {track.clips.map((clip) => {
-              const isSelected = selectedClip?.trackId === track.id && selectedClip.clipId === clip.id;
-              return <div key={clip.id} draggable onDragStart={(event) => event.dataTransfer.setData('application/x-vyra-clip', JSON.stringify({ type, trackId: track.id, clipId: clip.id }))} onClick={() => setSelectedClip({ type, trackId: track.id, clipId: clip.id })} title={clip.name} className={'absolute top-2 flex h-[42px] cursor-grab items-center overflow-hidden rounded-md border px-2 text-[10px] font-semibold text-white active:cursor-grabbing ' + (type === 'audio' ? 'border-teal-300/40 bg-teal-700' : 'border-purple-300/40 bg-purple-700') + (isSelected ? ' ring-2 ring-[var(--vyra-accent-primary)] ring-offset-1 ring-offset-[var(--vyra-bg-canvas)]' : '')} style={{ left: clip.start * zoom, width: Math.max(34, clip.duration * zoom) }}><span className="truncate">{clip.name}</span></div>;
-            })}
-          </div>
-        </div>
-      ))}
-      {!tracks.length && <div className="rounded-lg border border-dashed border-[var(--vyra-border)] px-3 py-4 text-center text-[11px] text-[var(--vyra-text-muted)]">No {type === 'audio' ? 'audio' : 'text'} tracks yet. Add one when you need it.</div>}
-    </div>
-  );
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setInterval(() => {
+      setPlayhead((current) => {
+        const next = current + 0.04;
+        if (next >= totalDuration) {
+          setPlaying(false);
+          return totalDuration;
+        }
+        return next;
+      });
+    }, 40);
+    return () => window.clearInterval(timer);
+  }, [playing, totalDuration]);
 
-  return (
-    <section className="space-y-4 border-t border-[var(--vyra-border)] pt-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Timeline Editor</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">One shared timeline for Scenes, Audio and Text.</p></div>
-        <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
-          <button type="button" onClick={() => setZoom((current) => Math.max(18, current - 8))} aria-label="Zoom out" className="rounded-md p-1.5 text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><ZoomOut size={15} /></button>
-          <span className="min-w-10 text-center text-[10px] tabular-nums text-[var(--vyra-text-muted)]">{Math.round(zoom / 48 * 100)}%</span>
-          <button type="button" onClick={() => setZoom((current) => Math.min(120, current + 8))} aria-label="Zoom in" className="rounded-md p-1.5 text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><ZoomIn size={15} /></button>
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = target?.matches('input, textarea, select, [contenteditable="true"]');
+      if (typing) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo(); else undo();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        redo();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd' && selectedClip && selectedClipValue) {
+        event.preventDefault();
+        duplicateClip(selectedClip, selectedClipValue);
+      } else if (event.code === 'Space') {
+        event.preventDefault();
+        setPlaying((current) => !current);
+      } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedClip) {
+        event.preventDefault();
+        removeSelectedClip(selectedClip);
+      } else if (event.key === 'ArrowLeft') setPlayhead((current) => Math.max(0, current - (event.shiftKey ? 1 : 0.1)));
+      else if (event.key === 'ArrowRight') setPlayhead((current) => Math.min(totalDuration, current + (event.shiftKey ? 1 : 0.1)));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
+  const renderTrack = (type: ClipType, track: TimelineTrack) => {
+    const Icon = type === 'audio' ? AudioLines : Type;
+    const muted = Boolean(track.muted);
+    return <React.Fragment key={track.id}>
+      <div className="sticky left-0 z-30 flex min-h-16 flex-col justify-center border-b border-r border-[#30353b] bg-[#191d22] px-2 py-1.5 sm:px-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Icon size={13} className={type === 'audio' ? 'shrink-0 text-cyan-300' : 'shrink-0 text-amber-300'} />
+          <span className="truncate text-[10px] font-semibold text-[#e5e9ed]">{track.name}</span>
         </div>
+        <div className="mt-1 flex items-center gap-0.5">
+          <button type="button" title="Add clip" aria-label={'Add clip to ' + track.name} onClick={() => addClip(type, track.id)} className="grid size-7 place-items-center rounded text-[#aeb6bf] hover:bg-[#2b3037] hover:text-white"><Plus size={14} /></button>
+          {type === 'audio' && <button type="button" title={muted ? 'Unmute track' : 'Mute track'} aria-label={muted ? 'Unmute ' + track.name : 'Mute ' + track.name} onClick={() => updateTracks(type, getTracks(type).map((item) => item.id === track.id ? { ...item, muted: !item.muted } : item))} className="grid size-7 place-items-center rounded text-[#aeb6bf] hover:bg-[#2b3037] hover:text-white">{muted ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>}
+          <button type="button" title={track.visible === false ? 'Show track' : 'Hide track'} aria-label={(track.visible === false ? 'Show ' : 'Hide ') + track.name} onClick={() => updateTracks(type, getTracks(type).map((item) => item.id === track.id ? { ...item, visible: item.visible === false } : item))} className="grid size-7 place-items-center rounded text-[#aeb6bf] hover:bg-[#2b3037] hover:text-white">{track.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}</button>
+          <button type="button" title={track.collapsed ? 'Expand track' : 'Collapse track'} aria-label={(track.collapsed ? 'Expand ' : 'Collapse ') + track.name} onClick={() => updateTracks(type, getTracks(type).map((item) => item.id === track.id ? { ...item, collapsed: !item.collapsed } : item))} className="grid size-7 place-items-center rounded text-[#aeb6bf] hover:bg-[#2b3037] hover:text-white"><ChevronDown size={13} className={track.collapsed ? '-rotate-90' : ''} /></button>
+          <button type="button" title="Remove track" aria-label={'Remove ' + track.name} onClick={() => { updateTracks(type, getTracks(type).filter((item) => item.id !== track.id)); if (selectedClip?.trackId === track.id) setSelectedClip(null); }} className="grid size-7 place-items-center rounded text-[#808a94] hover:bg-[#39282b] hover:text-rose-300"><Trash2 size={13} /></button>
+        </div>
+        {type === 'audio' && !track.collapsed && <label className="mt-0.5 flex items-center gap-1 text-[9px] text-[#929ca6]" title="Track volume">
+          <Volume2 size={11} />
+          <input aria-label={track.name + ' volume'} type="range" min="0" max="1" step="0.01" value={track.volume ?? 1} onChange={(event) => updateTracks(type, getTracks(type).map((item) => item.id === track.id ? { ...item, volume: Number(event.target.value) } : item))} className="h-1 w-full accent-cyan-400" />
+        </label>}
       </div>
-
-      <div className="overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-        <div className="border-b border-[var(--vyra-border)] px-3 py-2">
-          <div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-semibold tracking-wide text-[var(--vyra-text-secondary)]">SCENES</span><span className="text-[10px] tabular-nums text-[var(--vyra-text-muted)]">{totalDuration.toFixed(1)}s total</span></div>
-          <div className="overflow-x-auto pb-1">
-            <div className="flex min-w-max items-stretch gap-1.5">
-              {scenePositions.map((item, index) => (
-                <React.Fragment key={item.scene.id}>
-                  <button type="button" onClick={() => setSelectedSceneId(item.scene.id)} className={'relative flex h-[66px] shrink-0 flex-col justify-between overflow-hidden rounded-lg border p-2 text-left transition ' + (selectedSceneId === item.scene.id ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]')} style={{ width: Math.max(92, item.duration * Math.max(18, zoom * 0.72)) }}>
-                    <span className="truncate text-[10px] font-semibold text-[var(--vyra-text-primary)]">{item.scene.title}</span>
-                    <span className="text-[10px] tabular-nums text-[var(--vyra-text-secondary)]">{item.duration.toFixed(1)}s</span>
-                    <span className="absolute bottom-0 left-0 h-1 bg-[var(--vyra-accent-primary)]/70" style={{ width: '100%' }} />
-                  </button>
-                  {index < scenePositions.length - 1 && <div className="flex w-9 shrink-0 flex-col items-center justify-center gap-1">
-                    <button type="button" onClick={() => update({ transitions: { ...data.transitions, [item.scene.id]: { effect: data.transitions[item.scene.id]?.effect || 'Fade', duration: data.transitions[item.scene.id]?.duration || 0.5 } } })} title="Add transition" className="flex size-7 items-center justify-center rounded-full border border-dashed border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-accent-primary)]"><Plus size={13} /></button>
-                    <span className="text-[8px] text-[var(--vyra-text-muted)]">FX</span>
-                  </div>}
-                </React.Fragment>
-              ))}
-              {!scenePositions.length && <span className="py-5 text-[11px] text-[var(--vyra-text-muted)]">Add a Scene above to start your timeline.</span>}
-            </div>
-          </div>
-        </div>
-
-        {selectedSceneId && (() => {
-          const item = scenePositions.find((entry) => entry.scene.id === selectedSceneId);
-          if (!item) return null;
-          const transition = data.transitions[selectedSceneId];
-          return <div className="grid gap-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] p-3 sm:grid-cols-2">
-            <div><label className="mb-1 block text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Source range · Original {item.scene.duration}s</label><div className="flex items-center gap-2"><label className="flex-1 text-[10px] text-[var(--vyra-text-muted)]">In <input type="number" min="0" max={item.scene.duration - 0.1} step="0.1" value={item.sourceIn} onChange={(event) => updateRange(item.scene.id, { sourceIn: Number(event.target.value) })} className="mt-1 min-h-8 w-full rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)]" /></label><label className="flex-1 text-[10px] text-[var(--vyra-text-muted)]">Out <input type="number" min={item.sourceIn + 0.1} max={item.scene.duration} step="0.1" value={item.sourceOut} onChange={(event) => updateRange(item.scene.id, { sourceOut: Number(event.target.value) })} className="mt-1 min-h-8 w-full rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)]" /></label></div></div>
-            <div><label className="mb-1 block text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Transition to next Scene</label><div className="flex gap-2"><select value={transition?.effect || 'None'} onChange={(event) => update({ transitions: { ...data.transitions, [selectedSceneId]: { effect: event.target.value, duration: transition?.duration || 0.5 } } })} className="min-h-8 flex-1 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)]"><option>None</option><option>Fade</option><option>Dissolve</option><option>Wipe</option><option>Slide</option><option>Zoom</option></select><label className="w-20 text-[10px] text-[var(--vyra-text-muted)]">Duration<input type="number" min="0" max={Math.min(item.duration / 2, 3)} step="0.1" value={transition?.duration ?? 0.5} disabled={!transition || transition.effect === 'None'} onChange={(event) => update({ transitions: { ...data.transitions, [selectedSceneId]: { effect: transition?.effect || 'Fade', duration: Number(event.target.value) } } })} className="mt-1 min-h-8 w-full rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)] disabled:opacity-40" /></label></div></div>
+      <div className={'relative border-b border-[#30353b] bg-[#15191e] ' + (track.collapsed ? 'h-8' : 'h-16')} style={{ width: timelineWidth, opacity: track.visible === false ? 0.4 : 1 }}>
+        {ticks.map((tick) => <div key={tick} className="pointer-events-none absolute inset-y-0 border-l border-[#ffffff0b]" style={{ left: timeToPixel(tick) }} />)}
+        {!track.collapsed && track.clips.map((clip) => {
+          const isSelected = selectedClip?.trackId === track.id && selectedClip.clipId === clip.id;
+          const waveform = type === 'audio' && clip.waveform?.length ? clip.waveform : null;
+          return <div key={clip.id} role="button" tabIndex={0} aria-label={`${type === 'audio' ? 'Audio' : 'Text'} clip: ${clip.name}`} onClick={() => setSelectedClip({ type, trackId: track.id, clipId: clip.id })} onPointerDown={(event) => onClipPointerDown(event, { type, trackId: track.id, clipId: clip.id }, clip)} onPointerMove={onClipPointerMove} onPointerUp={onClipPointerUp} onPointerCancel={onClipPointerUp} className={'absolute top-2 flex h-12 touch-none select-none items-center overflow-hidden rounded border text-left shadow-sm ' + (type === 'audio' ? 'border-cyan-300/40 bg-[#16585b]' : 'border-amber-300/40 bg-[#674819]') + (isSelected ? ' z-20 ring-1 ring-white/80' : ' z-10 hover:brightness-110')} style={{ left: timeToPixel(clip.start), width: Math.max(30, timeToPixel(clip.duration)), cursor: dragRef.current?.clipId === clip.id ? 'grabbing' : 'grab' }} title={clip.name}>
+            <button type="button" data-trim="left" aria-label={'Trim start of ' + clip.name} className="absolute inset-y-0 left-0 z-20 w-3 cursor-ew-resize border-r border-white/30 bg-black/10" />
+            {waveform ? <div className="pointer-events-none absolute inset-x-3 inset-y-1 flex items-center justify-around opacity-80">{waveform.slice(0, 32).map((height, index) => <i key={index} className="w-px rounded-full bg-cyan-100" style={{ height: `${clamp(Number(height) || 0, 4, 100)}%` }} />)}</div> : null}
+            <span className="pointer-events-none z-10 truncate px-4 text-[10px] font-semibold text-white">{clip.name}</span>
+            <button type="button" data-trim="right" aria-label={'Trim end of ' + clip.name} className="absolute inset-y-0 right-0 z-20 w-3 cursor-ew-resize border-l border-white/30 bg-black/10" />
           </div>;
-        })()}
+        })}
+      </div>
+    </React.Fragment>;
+  };
 
-        <div className="flex min-w-0 overflow-x-auto">
-          <div className="w-28 shrink-0 border-r border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] p-2 sm:w-36"><span className="text-[10px] font-semibold text-[var(--vyra-text-secondary)]">TRACKS</span></div>
-          <div className="relative h-8 bg-[var(--vyra-bg-canvas)]" style={{ minWidth: timelineWidth }}>
-            {ticks.map((tick) => <div key={tick} className="absolute inset-y-0 border-l border-[var(--vyra-border-subtle)] pl-1 pt-1 text-[9px] tabular-nums text-[var(--vyra-text-muted)]" style={{ left: tick * zoom }}>{tick}s</div>)}
-          </div>
-        </div>
-        <div className="flex min-w-0 overflow-x-auto border-b border-[var(--vyra-border)]">
-          <div className="flex w-28 shrink-0 items-center border-r border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 sm:w-36"><span className="text-[10px] font-semibold text-[var(--vyra-text-secondary)]">PLAYHEAD</span></div>
-          <div className="relative h-8 bg-[var(--vyra-bg-canvas)]" style={{ minWidth: timelineWidth }}>
-            <input aria-label="Timeline playhead" type="range" min="0" max={totalDuration} step="0.1" value={Math.min(playhead, totalDuration)} onChange={(event) => setPlayhead(Number(event.target.value))} className="absolute inset-x-2 top-2 h-4 w-[calc(100%-16px)] accent-[var(--vyra-accent-primary)]" />
-          </div>
-        </div>
+  const buttonClass = 'grid size-9 shrink-0 place-items-center rounded text-[#c5cbd1] transition hover:bg-[#30363d] hover:text-white disabled:cursor-not-allowed disabled:opacity-40';
+  const headerClass = 'sticky left-0 z-30 flex items-center border-b border-r border-[#30353b] bg-[#191d22] px-2 text-[10px] font-semibold uppercase tracking-wide text-[#9ea8b2] sm:px-3';
 
-        <div className="space-y-2 p-2">
-          <div className="flex min-w-0 overflow-x-auto rounded-lg border border-[var(--vyra-border)]">
-            <div className="flex w-28 shrink-0 items-center border-r border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 sm:w-36"><span className="text-[10px] font-semibold text-[var(--vyra-text-secondary)]">SCENE ORDER</span></div>
-            <div className="relative flex h-[58px] items-center gap-1 bg-[var(--vyra-bg-canvas)] px-1" style={{ minWidth: timelineWidth }}>
-              {scenePositions.map((item) => <div key={item.scene.id} className="flex h-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-blue-300/30 bg-blue-800 px-2 text-[10px] font-semibold text-white" style={{ width: Math.max(24, item.duration * zoom) }} title={item.scene.title}>{item.scene.title}</div>)}
-            </div>
+  return <section aria-label="Master timeline editor" className="space-y-3 border-t border-[#30353b] pt-5 text-[#e7ebef]">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0"><h2 className="text-sm font-semibold text-[#f0f3f5]">Master Timeline</h2><p className="mt-0.5 text-[10px] text-[#929ca6]">Scenes, Audio and Text share one timeline.</p></div>
+      <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[#30353b] bg-[#191d22] p-1">
+        <button type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!historyRef.current.past.length} onClick={undo} className={buttonClass}><Undo2 size={15} /></button>
+        <button type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!historyRef.current.future.length} onClick={redo} className={buttonClass}><Redo2 size={15} /></button>
+        <span className="mx-1 h-5 w-px bg-[#343a40]" />
+        <button type="button" title={playing ? 'Pause' : 'Play'} aria-label={playing ? 'Pause' : 'Play'} onClick={() => setPlaying((current) => !current)} className={buttonClass}>{playing ? <Pause size={15} /> : <Play size={15} />}</button>
+        <span className="min-w-[94px] px-1 text-center font-mono text-[10px] tabular-nums text-[#d3d9df]">{formatTime(playhead)} <span className="text-[#7e8993]">/ {formatTime(totalDuration)}</span></span>
+        <span className="mx-1 h-5 w-px bg-[#343a40]" />
+        <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => setZoom((current) => Math.max(8, current * 0.8))} className={buttonClass}><ZoomOut size={15} /></button>
+        <button type="button" title="Fit timeline" aria-label="Fit timeline" onClick={fitTimeline} className={buttonClass}><Maximize2 size={14} /></button>
+        <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => setZoom((current) => Math.min(160, current * 1.25))} className={buttonClass}><ZoomIn size={15} /></button>
+        <button type="button" title={snapEnabled ? 'Snapping on' : 'Snapping off'} aria-label={snapEnabled ? 'Turn snapping off' : 'Turn snapping on'} aria-pressed={snapEnabled} onClick={() => setSnapEnabled((current) => !current)} className={buttonClass + (snapEnabled ? ' text-cyan-300' : '')}><Magnet size={15} /></button>
+      </div>
+    </div>
+
+    <div className="flex flex-wrap gap-2">
+      <button type="button" onClick={() => addTrack('audio', true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[#3b454e] bg-[#20262c] px-3 text-xs font-medium text-[#e1e7eb] transition hover:bg-[#2a3239]"><AudioLines size={14} className="text-cyan-300" /> Add Audio</button>
+      <button type="button" onClick={() => addTrack('text', true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[#3b454e] bg-[#20262c] px-3 text-xs font-medium text-[#e1e7eb] transition hover:bg-[#2a3239]"><Type size={14} className="text-amber-300" /> Add Text</button>
+    </div>
+
+    <div ref={scrollerRef} className="overflow-auto overscroll-x-contain rounded-lg border border-[#30353b] bg-[#15191e] [scrollbar-color:#58616b_#1b2025] [scrollbar-width:thin]">
+      <div className="relative" style={{ width: trackLabelWidth + timelineWidth, minWidth: '100%' }}>
+        <div className="pointer-events-none absolute bottom-0 top-8 z-20 w-px bg-rose-400 shadow-[0_0_8px_#fb7185]" style={{ left: trackLabelWidth + timeToPixel(playhead) }} />
+        <div className="grid" style={{ gridTemplateColumns: `${trackLabelWidth}px ${timelineWidth}px` }}>
+          <div className={headerClass}>Time</div>
+          <div className="relative h-8 cursor-crosshair border-b border-[#30353b] bg-[#1a1e23]" onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setPlayhead(clamp((event.clientX - rect.left) / zoom, 0, totalDuration)); }}>
+            {ticks.map((tick) => <div key={tick} className="pointer-events-none absolute inset-y-0 border-l border-[#ffffff13] pl-1 pt-1 text-[9px] font-mono tabular-nums text-[#8f9aa4]" style={{ left: timeToPixel(tick) }}>{formatTime(tick)}</div>)}
           </div>
-          {renderTracks('audio', data.audioTracks)}
-          {renderTracks('text', data.textTracks)}
+          <div className={headerClass + ' min-h-[76px]'}>Scenes</div>
+          <div className="relative h-[76px] border-b border-[#30353b] bg-[#171b20]">
+            {ticks.map((tick) => <div key={tick} className="pointer-events-none absolute inset-y-0 border-l border-[#ffffff0b]" style={{ left: timeToPixel(tick) }} />)}
+            {positionedScenes.map((scene, index) => <React.Fragment key={scene.id}>
+              <button type="button" draggable onDragStart={(event) => event.dataTransfer.setData('application/x-vyra-scene', scene.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); reorderScene(event.dataTransfer.getData('application/x-vyra-scene'), scene.id); }} onClick={() => setSelectedSceneId(scene.id)} title={`${scene.scene.title} · ${scene.duration.toFixed(1)} seconds`} className={'absolute top-2 flex h-[60px] flex-col justify-between overflow-hidden rounded border p-1.5 text-left transition ' + (selectedSceneId === scene.id ? 'z-10 border-sky-300 bg-[#263c50] ring-1 ring-sky-200/70' : 'border-[#476078] bg-[#243443] hover:border-sky-300/70')} style={{ left: timeToPixel(scene.start), width: Math.max(46, timeToPixel(scene.duration)) }}>
+                <span className="flex min-w-0 items-center gap-1.5"><span className="grid size-7 shrink-0 place-items-center rounded bg-[#31485b] text-sky-200"><Film size={14} /></span><span className="truncate text-[10px] font-semibold text-[#f0f4f7]">{scene.scene.title}</span></span>
+                <span className="flex items-center justify-between gap-1 text-[9px] tabular-nums text-[#bac8d2]"><span>Scene {index + 1}</span><span>{scene.duration.toFixed(1)}s</span></span>
+                <span className="absolute bottom-0 left-0 h-0.5 bg-sky-300/70" style={{ width: '100%' }} />
+              </button>
+              {index < positionedScenes.length - 1 && <button type="button" title="Configure transition" aria-label={'Transition after ' + scene.scene.title} onClick={() => setSelectedSceneId(scene.id)} className="absolute top-[27px] z-20 grid size-6 -translate-x-1/2 place-items-center rounded border border-dashed border-sky-300/70 bg-[#15191e] text-sky-200 hover:bg-[#293642]" style={{ left: timeToPixel(scene.start + scene.duration - scene.overlap / 2) }}><Plus size={12} /></button>}
+            </React.Fragment>)}
+            {!positionedScenes.length && <span className="px-3 py-5 text-[10px] text-[#89949e]">Add a Scene above to start the sequence.</span>}
+          </div>
+          <div className={headerClass + ' min-h-10'}>Audio</div>
+          {audioTracks.length ? audioTracks.map((track) => renderTrack('audio', track)) : <div className="flex h-10 items-center border-b border-[#30353b] bg-[#15191e] px-3 text-[10px] text-[#77828c]">Add an Audio track for music, voice or effects.</div>}
+          <div className={headerClass + ' min-h-10'}>Text</div>
+          {textTracks.length ? textTracks.map((track) => renderTrack('text', track)) : <div className="flex h-10 items-center border-b border-[#30353b] bg-[#15191e] px-3 text-[10px] text-[#77828c]">Add a Text track for titles, dialogue or captions.</div>}
         </div>
       </div>
+    </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => addTrack('audio')} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]"><AudioLines size={14} /> Add Audio Track</button>
-        <button type="button" onClick={() => addTrack('text')} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]"><Type size={14} /> Add Text Track</button>
+    {selectedScene && <div className="grid gap-3 rounded-lg border border-[#30353b] bg-[#1a1e23] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <div className="mb-2 flex items-center justify-between gap-2"><label className="text-[10px] font-semibold text-[#c4ccd3]">Source range <span className="font-normal text-[#7f8a94]">· original {selectedScene.scene.duration}s</span></label><div className="flex gap-1"><button type="button" title="Move Scene earlier" aria-label="Move Scene earlier" onClick={() => moveScene(selectedScene.id, -1)} className="grid size-8 place-items-center rounded text-[#abb5bd] hover:bg-[#30363b]"><ChevronDown size={14} className="rotate-180" /></button><button type="button" title="Move Scene later" aria-label="Move Scene later" onClick={() => moveScene(selectedScene.id, 1)} className="grid size-8 place-items-center rounded text-[#abb5bd] hover:bg-[#30363b]"><ChevronDown size={14} /></button><button type="button" title="Duplicate Scene instance" aria-label="Duplicate Scene instance" onClick={() => { const index = sceneInstances.findIndex((item) => item.id === selectedScene.id); const copy = { ...sceneInstances[index], id: makeId() }; const next = [...sceneInstances]; next.splice(index + 1, 0, copy); updateInstances(next); setSelectedSceneId(copy.id); }} className="grid size-8 place-items-center rounded text-[#abb5bd] hover:bg-[#30363b]"><Copy size={14} /></button><button type="button" title="Remove Scene from timeline" aria-label="Remove Scene from timeline" onClick={() => { const next = sceneInstances.filter((item) => item.id !== selectedScene.id); const transitions = { ...dataRef.current.transitions }; delete transitions[selectedScene.id]; commit({ sceneInstances: next, transitions }); setSelectedSceneId(null); }} className="grid size-8 place-items-center rounded text-rose-300 hover:bg-[#39282b]"><Trash2 size={14} /></button></div></div>
+        <div className="flex items-center gap-2"><label className="flex-1 text-[9px] text-[#89949e]">In<input aria-label="Scene source in" type="number" min="0" max={Math.max(0, selectedScene.scene.duration - 0.1)} step="0.1" value={Number(selectedScene.sourceIn.toFixed(2))} onChange={(event) => updateRange(selectedScene.id, { sourceIn: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef]" /></label><label className="flex-1 text-[9px] text-[#89949e]">Out<input aria-label="Scene source out" type="number" min={selectedScene.sourceIn + 0.1} max={selectedScene.scene.duration} step="0.1" value={Number(selectedScene.sourceOut.toFixed(2))} onChange={(event) => updateRange(selectedScene.id, { sourceOut: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef]" /></label></div>
       </div>
+      <div><label className="mb-2 block text-[10px] font-semibold text-[#c4ccd3]">Transition to next Scene</label><div className="flex gap-2"><select aria-label="Transition effect" value={selectedScene.transition?.effect || 'None'} onChange={(event) => setTransition(selectedScene.id, { effect: event.target.value })} className="min-h-9 min-w-0 flex-1 rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef]"><option>None</option><option>Fade</option><option>Dissolve</option><option>Wipe</option><option>Slide</option><option>Zoom</option></select><label className="w-24 text-[9px] text-[#89949e]">Duration<input aria-label="Transition duration" type="number" min="0" max={Math.min(selectedScene.duration / 2, 3)} step="0.1" value={selectedScene.transition?.duration ?? 0.5} disabled={!selectedScene.transition || selectedScene.transition.effect === 'None'} onChange={(event) => setTransition(selectedScene.id!, { duration: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef] disabled:opacity-40" /></label></div></div>
+    </div>}
 
-      {selected && selectedClip && <div className="grid gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:grid-cols-[1fr_auto]">
-        <div className="grid gap-2 sm:grid-cols-3">
-          <label className="text-[10px] text-[var(--vyra-text-muted)]">Clip name / text<input value={selected.name} onChange={(event) => updateClip(selectedClip.type, selectedClip.trackId, selected.id, { name: event.target.value })} className="mt-1 min-h-9 w-full rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]" /></label>
-          <label className="text-[10px] text-[var(--vyra-text-muted)]">Start position (s)<input type="number" min="0" step="0.1" value={selected.start} onChange={(event) => updateClip(selectedClip.type, selectedClip.trackId, selected.id, { start: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]" /></label>
-          <label className="text-[10px] text-[var(--vyra-text-muted)]">Duration (s)<input type="number" min="0.1" step="0.1" value={selected.duration} onChange={(event) => updateClip(selectedClip.type, selectedClip.trackId, selected.id, { duration: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]" /></label>
-        </div>
-        <div className="flex items-end gap-1">
-          <button type="button" onClick={() => splitClip(selectedClip.type, selectedClip.trackId, selected)} title="Split at playhead" className="rounded-lg p-2 text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Scissors size={15} /></button>
-          <button type="button" onClick={() => duplicateClip(selectedClip.type, selectedClip.trackId, selected)} title="Duplicate clip" className="rounded-lg p-2 text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Copy size={15} /></button>
-          <button type="button" onClick={() => removeClip(selectedClip.type, selectedClip.trackId, selected.id)} title="Delete clip" className="rounded-lg p-2 text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={15} /></button>
-        </div>
-      </div>}
-      <p className="text-[10px] leading-4 text-[var(--vyra-text-muted)]">Scene source ranges are trimmed from the original only; the original Scene duration is never changed. Audio and Text clips share this timeline ruler. Drag a clip horizontally to change its position.</p>
-    </section>
-  );
+    {selectedClipValue && selectedClip && <div className="grid gap-3 rounded-lg border border-[#30353b] bg-[#1a1e23] p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="grid gap-2 sm:grid-cols-3">
+        <label className="text-[9px] text-[#89949e]">{selectedClip.type === 'text' ? 'Text' : 'Clip name'}<input aria-label={selectedClip.type === 'text' ? 'Text content' : 'Clip name'} value={selectedClipValue.name} onChange={(event) => updateClip(selectedClip.type, selectedClip.trackId, selectedClipValue.id, { name: event.target.value })} className="mt-1 min-h-9 w-full rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef]" /></label>
+        <label className="text-[9px] text-[#89949e]">Start (seconds)<input aria-label="Clip start time" type="number" min="0" step="0.1" value={Number(selectedClipValue.start.toFixed(2))} onChange={(event) => updateClip(selectedClip.type, selectedClip.trackId, selectedClipValue.id, { start: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef]" /></label>
+        <label className="text-[9px] text-[#89949e]">Duration (seconds)<input aria-label="Clip duration" type="number" min="0.1" step="0.1" value={Number(selectedClipValue.duration.toFixed(2))} onChange={(event) => updateClip(selectedClip.type, selectedClip.trackId, selectedClipValue.id, { duration: Number(event.target.value) })} className="mt-1 min-h-9 w-full rounded border border-[#3a424a] bg-[#111519] px-2 text-xs text-[#e7ebef]" /></label>
+      </div>
+      <div className="flex items-end gap-1">
+        <button type="button" title="Split at playhead" aria-label="Split selected clip" onClick={() => splitClip(selectedClip, selectedClipValue)} className="grid size-9 place-items-center rounded text-[#b8c2ca] hover:bg-[#30363d]"><Scissors size={15} /></button>
+        <button type="button" title="Duplicate clip (Ctrl+D)" aria-label="Duplicate selected clip" onClick={() => duplicateClip(selectedClip, selectedClipValue)} className="grid size-9 place-items-center rounded text-[#b8c2ca] hover:bg-[#30363d]"><Copy size={15} /></button>
+        <button type="button" title="Delete clip" aria-label="Delete selected clip" onClick={() => removeSelectedClip(selectedClip)} className="grid size-9 place-items-center rounded text-rose-300 hover:bg-[#39282b]"><Trash2 size={15} /></button>
+      </div>
+    </div>}
+    <span className="sr-only" aria-live="polite">{historyVersion ? 'Timeline changed' : ''}</span>
+  </section>;
 };
