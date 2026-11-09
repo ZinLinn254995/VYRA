@@ -77,7 +77,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -425,9 +424,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   if (activeStoryboard && activeSceneId) {
     const scene = (activeStoryboard.details?.scenes || []).find((item) => item.id === activeSceneId);
-    if (!scene) {
-      setActiveSceneId(null);
-    } else {
+    if (scene) {
       return (
         <main className="profile-page-main w-full min-w-0 p-0">
           <div className="profile-subpage-scroll profile-subpage-viewport">
@@ -512,7 +509,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
-              const selectedScene = scenes[0] || null;
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => current ? {
                 ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString(),
               } : current);
