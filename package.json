@@ -41,7 +41,8 @@
     "test:vyral-vision-evidence": "node --import tsx --test tests/vyral-ai-vision-contract.spec.ts",
     "test:vyral-dna-change-set-apply": "node --import tsx --test tests/vyral-dna-change-set-apply-v1.spec.ts",
     "test:vyral-dna-revision-allocator": "node --import tsx --test tests/vyral-asset-dna-revision-allocator.spec.ts",
-    "test:vyral-portable-reconstruction": "node --import tsx --test tests/vyral-portable-reconstruction.spec.ts"
+    "test:vyral-portable-reconstruction": "node --import tsx --test tests/vyral-portable-reconstruction.spec.ts",
+    "test:vyral-origin-comparator-security": "node --import tsx --test tests/vyral-origin-comparator-security.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
