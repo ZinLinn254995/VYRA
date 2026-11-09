@@ -510,9 +510,33 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
-              const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => current ? {
-                ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString(),
-              } : current);
+              const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
+                if (!current) return current;
+                const master = current.details?.masterTimeline;
+                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString() };
+                const previousInstances = master.sceneInstances || [];
+                const instancesByScene = new Map(previousInstances.map((instance) => [instance.sceneId, instance]));
+                const orderedInstances = nextScenes.map((scene) => {
+                  const existing = instancesByScene.get(scene.id);
+                  if (existing) return existing;
+                  const legacyRange = master.sceneRanges?.[scene.id];
+                  return {
+                    id: scene.id,
+                    sceneId: scene.id,
+                    sourceIn: Math.max(0, Number(legacyRange?.sourceIn) || 0),
+                    sourceOut: Math.min(scene.duration, Math.max(0.1, Number(legacyRange?.sourceOut) || scene.duration)),
+                  };
+                });
+                return {
+                  ...current,
+                  details: {
+                    ...current.details,
+                    scenes: nextScenes,
+                    masterTimeline: { ...master, sceneInstances: orderedInstances },
+                  },
+                  updatedAt: new Date().toISOString(),
+                };
+              });
               const addScene = () => {
                 const scene: StoryboardScene = { id: crypto.randomUUID(), title: 'Scene ' + (scenes.length + 1), description: '', duration: 5, transition: 'Fade' };
                 updateScenes([...scenes, scene]);
