@@ -254,7 +254,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     return () => { cancelled = true; };
   }, [storageKey, isAuthenticated, loadedStorageKey]);
 
-  const openStoryboardEditor = (item: Storyboard) => { setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editDraft || !editingStoryboardId) return;
@@ -546,15 +546,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Build the story in the order you want.</p></div><Button type="button" onClick={addScene}><Plus size={14} /> Add Scene</Button></div>
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {scenes.map((scene, index) => <div key={scene.id} className={'min-w-0 overflow-hidden rounded-xl border ' + (selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]')}>
+                      {scenes.map((scene, index) => <div key={scene.id} className="min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
                           <span className="text-[10px] font-medium text-[var(--vyra-text-secondary)]">Scene {index + 1}</span>
-                          <label className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full" onClick={(event) => event.stopPropagation()}>
-                            <input type="checkbox" checked={selectedSceneIds.includes(scene.id)} onChange={(event) => setSelectedSceneIds((current) => event.target.checked ? [...current, scene.id] : current.filter((id) => id !== scene.id))} aria-label={'Select ' + scene.title} className="peer sr-only" />
-                            <span className="flex size-5 items-center justify-center rounded-full border border-[var(--vyra-text-muted)]/45 bg-transparent text-white transition-colors peer-checked:border-[var(--vyra-accent-primary)] peer-checked:bg-[var(--vyra-accent-primary)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--vyra-accent-primary)]/40">
+                          <button type="button" role="checkbox" aria-checked={selectedSceneIds.includes(scene.id)} aria-label={'Select ' + scene.title} onClick={() => setSelectedSceneIds((current) => current.includes(scene.id) ? current.filter((id) => id !== scene.id) : [...current, scene.id])} className="inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--vyra-accent-primary)]/40">
+                            <span className={'flex size-5 items-center justify-center rounded-full border transition-colors ' + (selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-text-muted)]/45 bg-transparent text-transparent')}>
                               {selectedSceneIds.includes(scene.id) && <Check size={12} strokeWidth={3} />}
                             </span>
-                          </label>
+                          </button>
                         </div>
                         <button type="button" onClick={() => setActiveSceneId(scene.id)} aria-label={'Open Scene Editor: ' + scene.title} className="block w-full p-3 pt-1 text-left">
                           <div className="mb-2 flex aspect-video items-center justify-center rounded-lg bg-[var(--vyra-bg-subtle)] transition hover:bg-[var(--vyra-bg-hover)]"><Film size={22} className="text-[var(--vyra-text-muted)]" /></div>
