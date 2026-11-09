@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -82,7 +82,7 @@ test('portable decoder audits a DNA-only package without writing reconstructed A
     assert.equal(report.undeclared_entries, 0);
     assert.equal(report.integrity, 'passed');
     assert.deepEqual(report.assets.map((item: { asset_id: string }) => item.asset_id), ['asset-raster', 'asset-file']);
-    assert.equal(readdirSync(fixture.output).length, 0);
+    assert.equal(existsSync(fixture.output), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
 
@@ -95,7 +95,7 @@ test('portable decoder audits only the explicitly selected Asset', () => {
     assert.equal(report.asset_count, 1);
     assert.equal(report.assets[0].asset_id, 'asset-file');
     assert.equal(report.assets[0].recovery_level, 'source-file-exact');
-    assert.equal(readdirSync(fixture.output).length, 0);
+    assert.equal(existsSync(fixture.output), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
 
@@ -117,6 +117,6 @@ test('portable decoder rejects undeclared hidden original files in a DNA-only pa
     const result = runDecoder(fixture, ['--audit-only']);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /Package entries do not match the declared reconstruction payloads/);
-    assert.equal(readdirSync(fixture.output).length, 0);
+    assert.equal(existsSync(fixture.output), false);
   } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
 });
