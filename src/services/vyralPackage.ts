@@ -3,6 +3,7 @@ import { buildVyralSystemFilesV1, validateVyralSystemFilesStructureV1, verifyVyr
 import { createVyralMasterDnaV1, validateVyralMasterDnaV1, type VyralMasterDnaAsset, type VyralMasterDnaV1 } from './vyralMasterDnaV1.ts';
 import { isSafePublicVyralResolverUriV1 } from './vyralResourceResolverV1.ts';
 import { reconstructVyralFileDnaV1, validateVyralFileDnaV1Record, type VyralFileDnaRecord, type VyralFileDnaEntry } from './vyralFileDnaV1.ts';
+import { validateVyralSemanticDnaV1, type VyralSemanticDnaV1 } from './vyralSemanticDnaV1.ts';
 import {
   reconstructVyralDnaV3,
   reconstructVyralDnaV3EncodedFile,
@@ -38,7 +39,7 @@ export type VyralPackageManifest = {
   exportedAt: string;
   exportMode?: 'full' | 'dna-only' | 'compact-only';
   blindReconstruction?: boolean;
-  blindnessScope?: 'original_encoded_binary_excluded';
+  blindnessScope?: 'original_encoded_binary_excluded' | 'semantic_only_no_media_payload';
   exportComponents?: { assets: boolean; fullDna: boolean; compactDna: boolean };
   reconstructionCapabilities?: Record<string, unknown>;
   vyral: Record<string, unknown>;
@@ -406,6 +407,14 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
       if (manifest.exportMode !== 'dna-only' && manifest.exportMode !== 'compact-only' && !versionById.has(fileDna.source.asset_version_id)) {
         throw new Error('A VYRA File DNA record references a source version missing from the package.');
       }
+    } else if (record.dna_schema_id === 'vyra.asset-semantic-dna' && record.dna_schema_version === 1) {
+      const semanticDna = validateVyralSemanticDnaV1(record.dna_record);
+      if (manifest.exportMode !== 'dna-only' || manifest.blindReconstruction !== true ||
+          manifest.blindnessScope !== 'semantic_only_no_media_payload' ||
+          record.id !== semanticDna.record_id || record.asset_id !== semanticDna.source.asset_id ||
+          record.recovery_level !== 'semantic-only' || !assetIds.has(semanticDna.source.asset_id)) {
+        throw new Error('Semantic DNA records are allowed only in a strict semantic-only package with matching Asset identity.');
+      }
     }
   }
   if (manifest.exportMode === 'compact-only') {
@@ -418,7 +427,8 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   if (manifest.exportMode === 'dna-only') {
     const capabilities = manifest.reconstructionCapabilities;
     const blind = manifest.blindReconstruction === true;
-    if (blind && manifest.blindnessScope !== 'original_encoded_binary_excluded') {
+    const semanticOnlyScope = blind && manifest.blindnessScope === 'semantic_only_no_media_payload';
+    if (blind && !['original_encoded_binary_excluded','semantic_only_no_media_payload'].includes(String(manifest.blindnessScope))) {
       throw new Error('Blind DNA package must declare the exact scope of excluded source bytes.');
     }
     const dnaRecords = manifest.dnaRecords ?? [];
@@ -428,13 +438,17 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
     const fileRecords = dnaRecords.filter((record) =>
       record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1
     );
-    const supportedRecords = [...v3Records, ...fileRecords];
+    const semanticRecords = dnaRecords.filter((record) =>
+      record.dna_schema_id === 'vyra.asset-semantic-dna' && record.dna_schema_version === 1
+    );
+    const supportedRecords = [...v3Records, ...fileRecords, ...semanticRecords];
     const expectedDecoded = v3Records.length > 0;
     const expectedEncodedSource = !blind && supportedRecords.length > 0 && supportedRecords.every((record) => record.recovery_level === 'source-file-exact');
     if (!capabilities || capabilities.decoded_sample_stream_reconstructable !== expectedDecoded ||
         capabilities.source_decode_independently_verified !== false ||
         capabilities.encoded_source_bytes_recoverable !== expectedEncodedSource ||
         (blind ? capabilities.binary_source_bytes_reconstructable !== false : (fileRecords.length > 0 ? capabilities.binary_source_bytes_reconstructable !== true : (capabilities.binary_source_bytes_reconstructable !== undefined && capabilities.binary_source_bytes_reconstructable !== false))) ||
+        (semanticOnlyScope ? (semanticRecords.length !== dnaRecords.length || v3Records.length !== 0 || fileRecords.length !== 0 || capabilities.semantic_dna_available !== true) : semanticRecords.length !== 0) ||
         typeof capabilities.color_space_fully_characterized !== 'boolean') {
       throw new Error('DNA-only reconstruction capability boundaries are missing or invalid.');
     }
