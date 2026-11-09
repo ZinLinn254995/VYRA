@@ -314,7 +314,7 @@ Deno.serve(async (request: Request) => {
       const current = getOwnJsonPath(dnaRoot, parts);
       const acceptedValue = records[0].accepted_value;
       if (current.exists && sameJson(current.value, acceptedValue)) continue;
-      const pointer = '/dna_record/' + parts.map((part) => part.replace(/~/g,'~0').replace(/\\//g,'~1')).join('/');
+      const pointer = '/dna_record/' + parts.map((part) => part.replace(/~/g,'~0').split('/').join('~1')).join('/');
       operations.push({
         op: current.exists ? 'replace' : 'add',
         path: pointer,
