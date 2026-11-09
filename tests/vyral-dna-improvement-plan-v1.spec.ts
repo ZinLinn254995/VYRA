@@ -11,6 +11,7 @@ test('maps deterministic blockers to prioritized, measurable improvements', () =
     limitations: ['no_structured_knowledge_facts'],
   });
   assert.equal(plan.improvements.length, 2);
+  assert.deepEqual(plan.unmappedBlockers, ['unknown_future_blocker']);
   assert.equal(plan.improvements[0].priority, 'critical');
   assert.match(plan.improvements[1].acceptanceEvidence, /predeclared exactness criteria/);
   assert.equal(plan.informational.length, 1);
