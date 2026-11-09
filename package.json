@@ -44,7 +44,8 @@
     "test:vyral-dna-revision-allocator": "node --import tsx --test tests/vyral-asset-dna-revision-allocator.spec.ts",
     "test:vyral-portable-reconstruction": "node --import tsx --test tests/vyral-portable-reconstruction.spec.ts",
     "test:vyral-origin-comparator-security": "node --import tsx --test tests/vyral-origin-comparator-security.spec.ts",
-    "test:vyral-storage-path-security": "node --import tsx --test tests/vyral-storage-path-security.spec.ts"
+    "test:vyral-storage-path-security": "node --import tsx --test tests/vyral-storage-path-security.spec.ts",
+    "test:vyral-raster-upload-dna-gate": "node --import tsx --test tests/vyral-raster-upload-dna-gate.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
