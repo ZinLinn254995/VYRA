@@ -50,3 +50,12 @@ test('DNA extractor returns database-assigned revision lineage', () => {
   assert.match(extractorSource, /revisionNumber: row\.revision_number/);
   assert.doesNotMatch(extractorSource, /revision_number: revisionNumber/);
 });
+
+test('ORIGIN-01 legacy extractor uses canonical owner paths and database-assigned revision lineage', () => {
+  const source = readFileSync('supabase/functions/extract-origin-01-dna-v3/index.ts', 'utf8');
+  assert.match(source, /isCanonicalOwnedStoragePath\(version\.storage_path, expectedPrefix\)/);
+  assert.match(source, /isCanonicalOwnedStoragePath\(storagePrefix \+ 'tile\.bin', expectedPrefix\)/);
+  assert.match(source, /payload->dna_record->source->>asset_version_id/);
+  assert.match(source, /\.select\('id,revision_number,parent_dna_record_id'\)/);
+  assert.match(source, /DNA_SOURCE_VERSION_ALREADY_EXISTS/);
+});
