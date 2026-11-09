@@ -1,6 +1,5 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
-import { buildVyralDnaImprovementPlanV1 } from '../../../src/services/vyralDnaImprovementPlanV1.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const reply = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), {
@@ -8,6 +7,23 @@ const reply = (body: Record<string, unknown>, status = 200) => new Response(JSON
 });
 const object = (value: unknown): value is Record<string, any> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const buildPlan = (assessment: Record<string, any>, assessmentVersion: number, identity: { assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string }) => {
+  const rules: Record<string, any> = {
+    source_binding_mismatch: { code:'source_binding_mismatch', priority:'critical', target:'source_binding', action:'Rebind the DNA record to the exact Asset ID, Version ID, byte length and SHA-256.', acceptanceEvidence:'Asset, Version and DNA source identifiers, size and SHA-256 match exactly.' },
+    source_file_storage_integrity_unverified: { code:'source_file_storage_integrity_unverified', priority:'critical', target:'source_integrity', action:'Verify original stored file bytes against immutable Asset Version size and SHA-256.', acceptanceEvidence:'Downloaded source byte length and computed SHA-256 match the pinned Asset Version.' },
+    dna_schema_invalid: { code:'dna_schema_invalid', priority:'high', target:'schema', action:'Repair the DNA record to the declared schema version and rerun deterministic validation.', acceptanceEvidence:'Schema validator passes with no missing required fields or invalid types.' },
+    reconstruction_payload_integrity_unverified: { code:'reconstruction_payload_integrity_unverified', priority:'critical', target:'payload', action:'Regenerate or re-upload the reconstruction payload, then verify every chunk/tile hash, byte length and coverage.', acceptanceEvidence:'All payload component hashes and aggregate integrity checks pass.' },
+    declared_reconstruction_payload_missing: { code:'declared_reconstruction_payload_missing', priority:'high', target:'payload', action:'Generate the payload required by the declared recovery level, or downgrade the recovery declaration.', acceptanceEvidence:'Declared recovery level is backed by a present, validated payload.' },
+    reconstruction_test_snapshot_mismatch: { code:'reconstruction_test_snapshot_mismatch', priority:'critical', target:'reconstruction', action:'Discard this test as evidence and rerun against the exact Asset Version, DNA record and source SHA-256.', acceptanceEvidence:'Test record pins the current Asset Version ID, DNA record ID and source SHA-256.' },
+    exact_reconstruction_test_failed: { code:'exact_reconstruction_test_failed', priority:'high', target:'reconstruction', action:'Compare failed output using modality-specific metrics; update only evidence-supported DNA fields in a new DNA version.', acceptanceEvidence:'New-version reconstruction passes predeclared exactness criteria; historical records remain unchanged.' },
+    reconstruction_test_mode_or_payload_mismatch: { code:'reconstruction_test_mode_or_payload_mismatch', priority:'high', target:'reconstruction', action:'Align recovery level, test mode and payload type; decoded-sample success cannot claim original-file byte recovery.', acceptanceEvidence:'Test mode equals the declared recovery level and payload proves that level.' },
+  };
+  const blockers: string[] = Array.isArray(assessment.blockers) ? assessment.blockers.filter((x: unknown) => typeof x === 'string') : [];
+  const limitations: string[] = Array.isArray(assessment.limitations) ? assessment.limitations.filter((x: unknown) => typeof x === 'string') : [];
+  const notes: Record<string,string> = { provenance_not_independently_verified:'Collect independent provenance evidence; creator declarations alone do not establish source history.', no_structured_knowledge_facts:'Capture verifiable structured facts with observation source and confidence.', decoded_sample_recovery_does_not_restore_original_encoded_file_bytes:'Decoded-sample exactness is not original-file byte exactness.', semantic_description_is_not_binary_reconstruction:'Semantic DNA may guide regeneration but does not contain a verified binary payload.', source_file_exact_claim_not_test_verified:'Do not advertise source-file exact recovery until a byte-exact test passes.' };
+  return { planVersion:1, sourceAssessmentVersion:assessmentVersion, sourceIdentity:identity, improvements:blockers.filter((code) => rules[code]).map((code) => rules[code]), unmappedBlockers:[...new Set(blockers.filter((code) => !rules[code]))], informational:limitations.filter((code) => notes[code]).map((code) => notes[code]), safety:['This plan is advisory and does not mutate Asset DNA.','Accepted changes must create a new immutable DNA version.','Reassess and retest; never rewrite historical assessments or attempts.','Unknown blockers require engineering review and are never silently auto-fixed.'] };
+};
 
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -53,14 +69,9 @@ Deno.serve(async (request: Request) => {
     if (latestVersion.data?.id !== assessmentRow.asset_version_id || latestDna.data?.id !== assessmentRow.dna_record_id) {
       return reply({ error: 'The assessment is no longer pinned to the latest Asset and DNA snapshot. Run a fresh assessment.' }, 409);
     }
-    const plan = buildVyralDnaImprovementPlanV1({
-      assessmentVersion: Number(assessmentRow.assessment_version),
-      identity: {
-        assetId: String(identity.assetId), assetVersionId: String(identity.assetVersionId),
-        dnaRecordId: String(identity.dnaRecordId), sourceSha256: String(identity.sourceSha256),
-      },
-      blockers: Array.isArray(assessmentRow.assessment.blockers) ? assessmentRow.assessment.blockers : [],
-      limitations: Array.isArray(assessmentRow.assessment.limitations) ? assessmentRow.assessment.limitations : [],
+    const plan = buildPlan(assessmentRow.assessment, Number(assessmentRow.assessment_version), {
+      assetId: String(identity.assetId), assetVersionId: String(identity.assetVersionId),
+      dnaRecordId: String(identity.dnaRecordId), sourceSha256: String(identity.sourceSha256),
     });
     const snapshot = { ...plan, assessmentId, createdFromAssessmentAt: new Date().toISOString() };
     const { data: inserted, error: insertError } = await context.supabaseAdmin
