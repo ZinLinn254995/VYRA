@@ -1079,6 +1079,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             manifest.assets.some((asset) => !dnaAssetIds.has(String(asset.id)))) {
           throw new Error('Invalid whole-Vyral DNA-only package: every asset must have exactly one supported exact-reconstruction DNA record.');
         }
+        if (manifest.blindReconstruction === true && dnaEntries.some((entry) =>
+          entry.dna_schema_id === 'vyra.asset-file-dna' &&
+          asRecord(entry.dna_record).reconstruction &&
+          asRecord(asRecord(entry.dna_record).reconstruction).claim === 'unavailable'
+        )) {
+          throw new Error('This Blind DNA package contains non-raster Assets with structural DNA only. It is suitable for external AI analysis, but cannot be imported as a restorable Vyral until modality-specific DNA reconstruction is available.');
+        }
         if (manifest.masterDna) {
           const masterDna = await validateVyralMasterDnaV1(manifest.masterDna);
           const masterAssetIds = new Set(masterDna.assets.map((asset) => asset.asset_id));
