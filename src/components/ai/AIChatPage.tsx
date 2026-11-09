@@ -586,6 +586,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           'SHA-256: ' + String(report.changeSetSha256 ?? approved.change_set_sha256),
           'Checks: ' + Object.entries(report.checks ?? {}).map(([key, value]) => key + '=' + String(value)).join(', '),
           'Validated operations: ' + String(report.validatedOperationCount ?? 0),
+          ...(Array.isArray(report.evidenceResolution) && report.evidenceResolution.length
+            ? ['Creator evidence:', ...report.evidenceResolution.map((item: any) =>
+                '- ' + String(item.status) + ' · ' + String(item.reference) + ' · ' + String(item.reason))]
+            : ['Creator evidence: none resolved']),
           ...(Array.isArray(report.errors) && report.errors.length ? ['Findings:', ...report.errors.map((item: unknown) => '- ' + String(item))] : []),
           'DNA changed: No. No revision was created.',
           validated.nextStep ?? 'A separate revision-creation step is required; validation alone never applies a change.',
