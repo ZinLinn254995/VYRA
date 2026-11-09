@@ -3,7 +3,7 @@ name: VYRA CI
 on:
   pull_request:
   push:
-    branches: [main, 'rebuild/**']
+    branches: [main, 'rebuild/**', 'feat/vyral-100-percent-acceptance']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,20 +47,50 @@ jobs:
         run: npm run test:audio-export
       - name: VYRAL package archive tests
         run: npm run test:vyral-package
+      - name: Vyral descriptive semantic DNA v1 tests
+        run: npm run test:vyral-semantic-dna
       - name: VYRA DNA v3 lossless reconstruction tests
         run: npm run test:vyral-dna-v3
+      - name: Protected Vyral System Files export, import and integrity tests
+        run: npm run test:vyral-system-files
       - name: Vyral Master DNA v1 validation and fingerprint tests
         run: npm run test:vyral-master-dna
       - name: Vyral Universal File DNA v1 exact binary tests
         run: npm run test:vyral-file-dna
       - name: Vyral AI Vision safety contract tests
         run: npm run test:vyral-ai-vision
+      - name: Vyral AI-generated details and creator-edit preservation tests
+        run: npm run test:vyral-ai-details
+      - name: Workspace storyboard cloud sync reconciliation tests
+        run: npm run test:workspace-storyboards
+      - name: Vyral DNA change-set deterministic validation tests
+        run: npm run test:vyral-dna-change-set
+      - name: Vyral DNA change-set atomic application tests
+        run: npm run test:vyral-dna-change-set-apply
+      - name: Vyral creator-confirmed Vision evidence tests
+        run: npm run test:vyral-vision-evidence
+      - name: Vyral Asset DNA assessment tests
+        run: npm run test:vyral-asset-dna-assessment
+      - name: Vyral Asset DNA revision allocator tests
+        run: npm run test:vyral-dna-revision-allocator
+      - name: Vyral portable DNA-only reconstruction runtime tests
+        run: npm run test:vyral-portable-reconstruction
+      - name: ORIGIN-01 comparator storage path security tests
+        run: npm run test:vyral-origin-comparator-security
+      - name: Shared Vyral storage path security tests
+        run: npm run test:vyral-storage-path-security
+      - name: Vyral raster upload DNA readiness gate tests
+        run: npm run test:vyral-raster-upload-dna-gate
+      - name: Vyral Asset DNA assessment intent tests
+        run: npm run test:vyral-asset-dna-intent
+      - name: Vyral reconstruction history intent tests
+        run: npm run test:vyral-reconstruction-history
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - name: Type-check Supabase Edge Functions
-        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts supabase/functions/compare-origin-01-reconstruction/index.ts supabase/functions/verify-origin-01-dna-v3/index.ts
       - name: SEO discovery and canonical contract tests
         run: npm run test:seo
       - name: Production build
@@ -70,3 +100,6 @@ jobs:
         run: npm run test:vyral-license
       - name: Vyral resource resolver security policy tests
         run: npm run test:vyral-resource-resolver
+
+      - name: Vyral deterministic quality grading, snapshot applicability, creator context and trusted evidence tests
+        run: npm run test:vyral-quality

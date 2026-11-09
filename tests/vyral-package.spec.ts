@@ -1,5 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   createVyralZip,
   parseVyralManifest,
@@ -8,6 +13,9 @@ import {
   VYRAL_PACKAGE_FORMAT,
   createVyralDnaOnlyPackage,
   createVyralAssetDnaOnlyPackage,
+  createVyralSemanticDnaPackage,
+  getVyralPackageAssetsForImport,
+  selectVyralPackageComponents,
   reconstructVyralDnaV3FromPackage,
   reconstructVyralFileDnaFromPackage,
   encodeVyralDnaV3PngFromPackage,
@@ -15,6 +23,182 @@ import {
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
+import { VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../src/services/vyralPortableReconstruction.ts';
+import { verifyVyralSystemFileIntegrityV1 } from '../src/services/vyralSystemFilesV1.ts';
+
+test('included portable decoder reconstructs raster samples and exact binary Assets from the DNA-only package', async () => {
+  const rasterSamples = new Uint8Array([255, 0, 0, 255, 0, 128, 255, 255]);
+  const raster = await createVyralDnaV3({
+    record_id: 'decoder-raster-dna',
+    source: {
+      asset_id: 'asset-raster',
+      asset_version_id: 'version-raster',
+      sha256: 'a'.repeat(64),
+      size_bytes: 128,
+      mime_type: 'image/png',
+    },
+    extractor: { name: 'decoder-test', version: '1.0.0' },
+    width: 2,
+    height: 1,
+    channel_layout: 'RGBA',
+    color_space: 'sRGB',
+    icc_profile_sha256: null,
+    alpha_mode: 'straight',
+    decoder_contract: { name: 'decoder-test', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 2,
+    tile_height: 1,
+    decoded_samples: rasterSamples,
+  });
+  const originalBinary = new Uint8Array([0, 1, 2, 3, 254, 255, 19, 88]);
+  const binary = await createVyralFileDnaV1({
+    record_id: 'decoder-binary-dna',
+    source: { asset_id: 'asset-binary', asset_version_id: 'version-binary' },
+    bytes: originalBinary,
+    mime_type: 'application/octet-stream',
+    filename: 'sample.bin',
+    include_payload: true,
+  });
+  const archive = await createVyralAssetDnaOnlyPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'portable-decoder-test',
+    exportedAt: '2026-11-08T00:00:00.000Z',
+    exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    vyral: {
+      id: 'vyral-decoder-test',
+      name: 'Portable Decoder Test',
+      metadata: {
+        ai_details: {
+          schema_version: 1, scope: 'vyral', source_version_id: null, source_revision: 2,
+          provider: 'google', model: 'gemini-test', generated_at: '2026-11-08T00:00:00.000Z',
+          stale: false,
+          fields: {
+            category: { value: 'Creative collection', origin: 'creator_edited', updated_at: '2026-11-08T00:00:00.000Z' },
+          },
+        },
+        identity_name_origin: 'creator_edited',
+      },
+    },
+    folders: [],
+    assets: [
+      {
+        id: 'asset-raster', name: 'Raster sample', original_filename: 'raster.png',
+        metadata: {
+          ai_details: {
+            schema_version: 1, scope: 'asset', source_version_id: 'version-raster', source_revision: 1,
+            provider: 'google', model: 'gemini-test', generated_at: '2026-11-08T00:00:00.000Z',
+            stale: false,
+            fields: {
+              style: { value: 'Minimal geometric', origin: 'creator_edited', updated_at: '2026-11-08T00:00:00.000Z' },
+            },
+          },
+          identity_description_origin: 'creator_confirmed',
+        },
+      },
+      { id: 'asset-binary', name: 'Binary sample', original_filename: 'sample.bin', metadata: { visibility: 'private' } },
+    ],
+    versions: [],
+    dnaRecords: [],
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+    masterDna: null,
+  }, [raster.record, binary.record], [...raster.entries, ...binary.entries]);
+
+  const temp = await mkdtemp(join(tmpdir(), 'vyra-portable-'));
+  try {
+    const packagePath = join(temp, 'test.vyral');
+    const scriptPath = join(temp, 'reconstruct_vyral.py');
+    const outputDir = join(temp, 'output');
+    await writeFile(packagePath, Buffer.from(await archive.arrayBuffer()));
+    await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT, 'utf8');
+    const report = execFileSync('python3', [scriptPath, packagePath, '--output', outputDir], { encoding: 'utf8' });
+    const parsedReport = JSON.parse(report) as { reconstructed_assets: Array<{ asset_id: string; result: string }> };
+    const exportedFiles = await readVyralZip(archive);
+    const exportedManifest = parseVyralManifest(exportedFiles);
+    assert.equal(exportedManifest.systemFiles?.length, 13);
+    for (const path of ['system/identity.json','system/asset-index.json','system/asset-dna/index.json','system/integrity.json','system/system-files.json']) assert.ok(exportedFiles.has(path));
+    await verifyVyralSystemFileIntegrityV1(exportedFiles);
+    const tamperedFiles = new Map(exportedFiles);
+    tamperedFiles.set('tools/reconstruct_vyral.py', new TextEncoder().encode('tampered'));
+    await assert.rejects(() => verifyVyralSystemFileIntegrityV1(tamperedFiles), /SHA-256 verification failed/);
+    assert.equal((exportedManifest.vyral.metadata as { identity_name_origin: string }).identity_name_origin, 'creator_edited');
+    assert.equal(
+      (((exportedManifest.vyral.metadata as { ai_details: { fields: Record<string, { value: string; origin: string }> } }).ai_details.fields).category).origin,
+      'creator_edited',
+    );
+    const rasterMetadata = exportedManifest.assets.find((asset) => asset.id === 'asset-raster')?.metadata as {
+      ai_details: { fields: Record<string, { value: string; origin: string }> };
+    };
+    assert.equal(rasterMetadata.ai_details.fields.style.value, 'Minimal geometric');
+    assert.equal(rasterMetadata.ai_details.fields.style.origin, 'creator_edited');
+    assert.deepEqual(parsedReport.reconstructed_assets.map((item) => item.asset_id).sort(), ['asset-binary', 'asset-raster']);
+    assert.equal(parsedReport.reconstructed_assets.find((item) => item.asset_id === 'asset-raster')?.result, 'decoded-samples-exact');
+    assert.equal(parsedReport.reconstructed_assets.find((item) => item.asset_id === 'asset-binary')?.result, 'source-file-exact');
+    const outputs = await readdir(outputDir);
+    const rawName = outputs.find((name) => name.endsWith('.rgba'));
+    const pngName = outputs.find((name) => name.endsWith('.png'));
+    const binaryName = outputs.find((name) => name.endsWith('.bin'));
+    assert.ok(rawName && pngName && binaryName);
+    assert.deepEqual(new Uint8Array(await readFile(join(outputDir, rawName))), rasterSamples);
+    assert.deepEqual(new Uint8Array(await readFile(join(outputDir, binaryName))), originalBinary);
+    const png = new Uint8Array(await readFile(join(outputDir, pngName)));
+    assert.deepEqual(Array.from(png.slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+
+    const files = await readVyralZip(new Uint8Array(await archive.arrayBuffer()));
+    const originalManifest = JSON.parse(new TextDecoder().decode(files.get('manifest.json')!)) as Record<string, any>;
+    const wrongAssetManifest = {
+      ...originalManifest,
+      dnaRecords: originalManifest.dnaRecords.map((entry: Record<string, any>, index: number) =>
+        index === 0 ? { ...entry, asset_id: 'missing-asset' } : entry),
+    };
+    const wrongAssetArchive = await createVyralZip([...files.entries()].map(([path, data]) =>
+      path === 'manifest.json' ? { path, data: JSON.stringify(wrongAssetManifest) } : { path, data }));
+    const wrongAssetPath = join(temp, 'wrong-asset.vyral');
+    await writeFile(wrongAssetPath, Buffer.from(await wrongAssetArchive.arrayBuffer()));
+    assert.throws(
+      () => execFileSync('python3', [scriptPath, wrongAssetPath, '--output', join(temp, 'wrong-asset-output')], { encoding: 'utf8' }),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('DNA record references an Asset missing from the manifest'),
+    );
+
+    const extraEntryArchive = await createVyralZip([
+      ...Array.from(files.entries()).map(([path, data]) => ({ path, data })),
+      { path: 'unlisted-extra.bin', data: new Uint8Array([1, 2, 3]) },
+    ]);
+    const extraEntryPath = join(temp, 'extra-entry.vyral');
+    await writeFile(extraEntryPath, Buffer.from(await extraEntryArchive.arrayBuffer()));
+    assert.throws(
+      () => execFileSync('python3', [scriptPath, extraEntryPath, '--output', join(temp, 'extra-entry-output')], { encoding: 'utf8' }),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('Vyral package integrity inventory does not match its ZIP entries'),
+    );
+
+    const collidingManifest = JSON.parse(new TextDecoder().decode(files.get('manifest.json')!)) as Record<string, any>;
+    collidingManifest.dnaRecords[0].dna_record.lossless_payload.tiles[0].package_path = 'system/identity.json';
+    const collidingArchive = await createVyralZip([...files.entries()].map(([path, data]) =>
+      path === 'manifest.json' ? { path, data: JSON.stringify(collidingManifest) } : { path, data }));
+    const collidingPath = join(temp, 'system-file-collision.vyral');
+    await writeFile(collidingPath, Buffer.from(await collidingArchive.arrayBuffer()));
+    assert.throws(
+      () => execFileSync('python3', [scriptPath, collidingPath, '--output', join(temp, 'collision-output')], { encoding: 'utf8' }),
+      (error: unknown) => String((error as { stderr?: Buffer }).stderr ?? '').includes('payload path collides with a protected System File'),
+    );
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('does not duplicate the exact .vyral container but preserves other package Assets', () => {
+  const assets = [
+    { id: 'package-container', name: 'source.vyral', mime_type: VYRAL_PACKAGE_FORMAT },
+    { id: 'nested-package', name: 'previous-export.vyral', mime_type: VYRAL_PACKAGE_FORMAT },
+    { id: 'image-asset', name: 'Original image', mime_type: 'image/png' },
+  ];
+  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'package-container'), [assets[1], assets[2]]);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets, 'not-in-package'), assets);
+  assert.deepEqual(getVyralPackageAssetsForImport(assets), assets);
+});
 
 const manifest = {
   format: VYRAL_PACKAGE_FORMAT,
@@ -268,6 +452,8 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   // bytes and creates a fresh file map with no source asset or shared state.
   const files = await readVyralZip(archiveBytes.slice());
   const parsed = parseVyralManifest(files);
+  assert.equal(parsed.systemFiles?.length, 13);
+  await verifyVyralSystemFileIntegrityV1(files);
   const packageWithHiddenSource = new Map(files);
   packageWithHiddenSource.set('assets/asset-test/versions/hidden-original.png', new Uint8Array([1, 2, 3]));
   assert.throws(() => parseVyralManifest(packageWithHiddenSource), /DNA-only package contains an undeclared file/);
@@ -305,7 +491,10 @@ test('exports and reconstructs a DNA v3-only package without source media or der
   });
   assert.equal(files.has('assets/asset-test/versions/1.bin'), false);
   assert.equal([...files.keys()].some((path) => /preview|thumbnail|derivative|original/i.test(path)), false);
-  assert.equal([...files.keys()].every((path) => path === 'manifest.json' || path.startsWith('dna/v3/')), true);
+  assert.equal([...files.keys()].every((path) =>
+    path === 'manifest.json' || path === 'README.txt' || path === 'AI_RECONSTRUCTION_GUIDE.md' ||
+    path === 'tools/reconstruct_vyral.py' || path.startsWith('dna/v3/') || path.startsWith('system/')
+  ), true);
   const serializedManifest = new TextDecoder().decode(files.get('manifest.json'));
   assert.equal(serializedManifest.includes('private.invalid'), false);
   assert.equal(serializedManifest.includes('storage_path'), false);
@@ -491,24 +680,120 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
       {
         asset_id: 'asset-support', asset_version_id: 'version-1', role: 'supporting', purpose: 'Supporting detail',
         media_type: 'image/png', dna_ref: { record_id: 'dna-record-1', schema_id: 'vyra.asset-dna', schema_version: 3 },
-        asset_fingerprint: 'b'.repeat(64), reconstruction_claim: 'lossless_decoded',
+        asset_fingerprint: 'b'.repeat(64), reconstruction_claim: 'semantic_only',
       },
     ],
     relationships: [{
       relationship_id: 'relationship-1', type: 'supports', rationale: 'The supporting visual complements the main subject.',
       from: { kind: 'asset', asset_id: 'asset-support' }, to: { kind: 'asset', asset_id: 'asset-main' },
     }],
-    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['Each asset has its own exact decoded-sample stream.'] },
+    reconstruction_profile: { overall_claim: 'semantic_only', notes: ['The source collection snapshot had not yet been upgraded to the included sample payloads.'] },
     provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
-    source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
-    portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
+    source_resolution: { visibility: 'public', canonical_uri: null, resolution_policy: 'public_assets' },
+    portable_projection: {
+      profile: 'compact',
+      includes_full_reconstruction_payloads: false,
+      resolver_uri: 'https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource',
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
   });
   const base = {
     ...manifest,
     assets,
     versions: [],
     masterDna,
+    exportComponents: { assets: false, fullDna: true, compactDna: true },
   };
+
+  const sourceMedia = assets.map((asset, index) => ({
+    path: 'assets/' + asset.id + '/versions/1.bin',
+    data: new Uint8Array([index + 1, 7, 9]),
+  }));
+  const fullRecords = sourceRecords.map((record) => ({
+    id: record.record_id,
+    scope: 'asset',
+    asset_id: record.source.asset_id,
+    dna_schema_id: 'vyra.asset-dna',
+    dna_schema_version: 3,
+    recovery_level: 'decoded-samples-exact',
+    dna_record: record,
+  }));
+  const fullArchive = createVyralZip([
+    { path: 'README.txt', data: 'Test Vyral export package' },
+    ...sourceMedia,
+    ...payloadEntries,
+    {
+      path: 'manifest.json',
+      data: JSON.stringify({
+        ...base,
+        exportMode: 'full',
+        exportComponents: { assets: true, fullDna: true, compactDna: true },
+        versions: assets.map((asset, index) => ({
+          id: 'version-' + index,
+          asset_id: asset.id,
+          version_number: 1,
+          sha256: String(index + 1).repeat(64),
+          size_bytes: 3,
+          mime_type: 'image/png',
+          package_path: sourceMedia[index].path,
+        })),
+        dnaRecords: fullRecords,
+      }),
+    },
+  ]);
+  const assetExportCases = [
+    { assets: true, fullDna: false, compactDna: false },
+    { assets: true, fullDna: true, compactDna: false },
+    { assets: true, fullDna: false, compactDna: true },
+    { assets: true, fullDna: true, compactDna: true },
+  ] as const;
+  for (const components of assetExportCases) {
+    const selectedArchive = await selectVyralPackageComponents(fullArchive, components);
+    const selectedFiles = await readVyralZip(selectedArchive);
+    const selectedManifest = parseVyralManifest(selectedFiles);
+    assert.deepEqual(selectedManifest.exportComponents, components);
+    assert.equal(selectedManifest.versions.length, components.assets ? 2 : 0);
+    assert.equal(selectedManifest.dnaRecords.length, components.fullDna ? 2 : 0);
+    assert.equal(Boolean(selectedManifest.masterDna), components.compactDna);
+    if (components.compactDna) {
+      assert.equal(selectedManifest.masterDna?.purpose, undefined);
+      assert.equal(selectedManifest.masterDna?.relationships, undefined);
+      assert.deepEqual(selectedManifest.masterDna?.main_asset_ids, []);
+      assert.equal(selectedManifest.masterDna?.assets.every((asset) =>
+        asset.name === undefined && asset.role === undefined && asset.purpose === undefined &&
+        asset.provenance_ref === undefined && asset.license_ref === undefined &&
+        asset.dna_ref.package_prefix === undefined), true);
+      assert.equal(selectedManifest.masterDna?.provenance.creator_ref, null);
+      assert.equal(selectedManifest.masterDna?.provenance.license_ref, null);
+    }
+    assert.equal(sourceMedia.every((entry) => selectedFiles.has(entry.path)) , true);
+    assert.equal(payloadEntries.every((entry) => selectedFiles.has(entry.path)), components.fullDna);
+  }
+  const compactOnlyArchive = await selectVyralPackageComponents(fullArchive, {
+    assets: false, fullDna: false, compactDna: true,
+  });
+  const compactOnlyFiles = await readVyralZip(compactOnlyArchive);
+  const compactOnlyManifest = parseVyralManifest(compactOnlyFiles);
+  assert.equal(compactOnlyManifest.exportMode, 'compact-only');
+  assert.equal(compactOnlyManifest.assets.length, 0);
+  assert.equal(compactOnlyManifest.folders.length, 0);
+  assert.equal(compactOnlyManifest.versions.length, 0);
+  assert.equal(compactOnlyManifest.dnaRecords.length, 0);
+  assert.ok(compactOnlyManifest.masterDna);
+  assert.equal(compactOnlyManifest.masterDna.purpose, undefined);
+  assert.equal(compactOnlyManifest.masterDna.relationships, undefined);
+  assert.deepEqual(compactOnlyManifest.masterDna.main_asset_ids, []);
+  assert.equal(compactOnlyManifest.masterDna.vyral.owner_ref, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].name, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].role, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].purpose, undefined);
+  assert.equal(compactOnlyManifest.masterDna.assets[0].dna_ref.package_prefix, undefined);
+  assert.deepEqual(compactOnlyManifest.masterDna.reconstruction_profile.notes, []);
+  assert.equal(compactOnlyManifest.masterDna.provenance.creator_ref, null);
+  assert.equal(compactOnlyManifest.masterDna.provenance.license_ref, null);
+  assert.equal(compactOnlyManifest.masterDna.provenance.evidence_status, 'unknown');
+  assert.equal(compactOnlyManifest.masterDna.integrity.manifest_sha256 === masterDna.integrity.manifest_sha256, false);
+  assert.equal(compactOnlyFiles.size, 14); // README + manifest + 12 protected System Files
   const tamperedMasterDna = {
     ...masterDna,
     integrity: { ...masterDna.integrity, vyral_fingerprint: '0'.repeat(64) },
@@ -523,12 +808,35 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   assert.equal(parsed.assets.length, 2);
   assert.equal(parsed.dnaRecords.length, 2);
   assert.equal(parsed.masterDna?.assets.length, 2);
+  assert.equal(parsed.masterDna?.portable_projection.resolver_uri, 'https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource');
+  assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
+  assert.ok(parsed.masterDna?.assets.every((asset) => asset.reconstruction_claim === 'lossless_decoded'));
+  const repeatedArchive = await createVyralDnaOnlyPackage(
+    { ...base, masterDna: parsed.masterDna },
+    sourceRecords,
+    payloadEntries,
+  );
+  const repeatedFiles = await readVyralZip(repeatedArchive);
+  const repeatedManifest = parseVyralManifest(repeatedFiles);
+  assert.equal(repeatedManifest.masterDna?.integrity.manifest_sha256, parsed.masterDna?.integrity.manifest_sha256);
+  assert.equal(repeatedManifest.masterDna?.reconstruction_profile.notes.length, parsed.masterDna?.reconstruction_profile.notes.length);
   assert.equal(parsed.exportMode, 'dna-only');
   for (const record of parsed.dnaRecords) {
     const reconstructed = await reconstructVyralDnaV3FromPackage(files, String(record.id));
     const source = sourceRecords.find((item) => item.record_id === record.id)!;
     assert.equal(reconstructed.decoded_samples_sha256, source.decoded_image.decoded_samples_sha256);
   }
+
+  const withoutCollectionSnapshot = await createVyralDnaOnlyPackage({
+    ...base,
+    masterDna: null,
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+  }, sourceRecords, payloadEntries);
+  const withoutSnapshotFiles = await readVyralZip(withoutCollectionSnapshot);
+  const withoutSnapshotManifest = parseVyralManifest(withoutSnapshotFiles);
+  assert.equal(withoutSnapshotManifest.assets.length, 2);
+  assert.equal(withoutSnapshotManifest.masterDna, null);
+  assert.deepEqual(withoutSnapshotManifest.exportComponents, { assets: false, fullDna: true, compactDna: false });
 });
 
 
@@ -628,10 +936,10 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
     main_asset_ids: ['asset-image'],
     assets: [
       { asset_id: 'asset-image', asset_version_id: 'version-image', role: 'main', purpose: 'Primary visual reference', media_type: 'image/png', dna_ref: { record_id: 'mixed-raster-dna', schema_id: 'vyra.asset-dna', schema_version: 3 }, asset_fingerprint: 'a'.repeat(64), reconstruction_claim: 'lossless_decoded' },
-      { asset_id: 'asset-audio', asset_version_id: 'version-audio', role: 'supporting', purpose: 'Narration paired with the visual', media_type: 'audio/mpeg', dna_ref: { record_id: 'mixed-audio-dna', schema_id: 'vyra.asset-file-dna', schema_version: 1 }, asset_fingerprint: binary.record.file.sha256, reconstruction_claim: 'source_file_exact' },
+      { asset_id: 'asset-audio', asset_version_id: 'version-audio', role: 'supporting', purpose: 'Narration paired with the visual', media_type: 'audio/mpeg', dna_ref: { record_id: 'mixed-audio-dna', schema_id: 'vyra.asset-file-dna', schema_version: 1 }, asset_fingerprint: binary.record.file.sha256, reconstruction_claim: 'unavailable' },
     ],
     relationships: [{ relationship_id: 'mixed-supports', type: 'supports', rationale: 'The voice recording narrates the primary visual.', from: { kind: 'asset', asset_id: 'asset-audio' }, to: { kind: 'asset', asset_id: 'asset-image' } }],
-    reconstruction_profile: { overall_claim: 'lossless_decoded', notes: ['Raster samples and original binary source bytes are independently verified.'] },
+    reconstruction_profile: { overall_claim: 'unavailable', notes: ['The source DNA snapshot did not yet contain reconstruction payloads.'] },
     provenance: { creator_ref: null, license_ref: null, evidence_status: 'partially_verified' },
     source_resolution: { visibility: 'private', canonical_uri: null, resolution_policy: 'no_remote_resolution' },
     portable_projection: { profile: 'compact', includes_full_reconstruction_payloads: false, resolver_uri: null, retrieval_policy: 'no_remote_resolution' },
@@ -653,10 +961,27 @@ test('exports a single mixed-media Vyral with raster and exact binary DNA record
   assert.equal(parsed.reconstructionCapabilities?.decoded_sample_stream_reconstructable, true);
   assert.equal(parsed.reconstructionCapabilities?.encoded_source_bytes_recoverable, false);
   assert.equal(parsed.reconstructionCapabilities?.binary_source_bytes_reconstructable, true);
+  assert.equal(parsed.masterDna?.reconstruction_profile.overall_claim, 'lossless_decoded');
+  assert.equal(parsed.masterDna?.assets.find((asset) => asset.asset_id === 'asset-audio')?.reconstruction_claim, 'source_file_exact');
+  assert.deepEqual(parsed.exportComponents, { assets: false, fullDna: true, compactDna: true });
+  const fullDnaOnlyArchive = await createVyralAssetDnaOnlyPackage(
+    base, [raster.record, binary.record], [...raster.entries, ...binary.entries], false,
+  );
+  const fullDnaOnlyFiles = await readVyralZip(new Uint8Array(await fullDnaOnlyArchive.arrayBuffer()));
+  const fullDnaOnlyManifest = parseVyralManifest(fullDnaOnlyFiles);
+  assert.equal(fullDnaOnlyManifest.dnaRecords.length, 2);
+  assert.equal(fullDnaOnlyManifest.masterDna, null);
+  assert.deepEqual(fullDnaOnlyManifest.exportComponents, { assets: false, fullDna: true, compactDna: false });
   const restoredBinary = await reconstructVyralFileDnaFromPackage(files, 'mixed-audio-dna');
   assert.deepEqual(restoredBinary, originalAudio);
   const restoredRaster = await reconstructVyralDnaV3FromPackage(files, 'mixed-raster-dna');
   assert.equal(restoredRaster.decoded_samples_sha256, raster.record.decoded_image.decoded_samples_sha256);
+
+  const withoutCollectionSnapshot = await createVyralAssetDnaOnlyPackage({ ...base, masterDna: null }, [raster.record, binary.record], [...raster.entries, ...binary.entries]);
+  const withoutSnapshotFiles = await readVyralZip(new Uint8Array(await withoutCollectionSnapshot.arrayBuffer()));
+  const withoutSnapshotManifest = parseVyralManifest(withoutSnapshotFiles);
+  assert.equal(withoutSnapshotManifest.assets.length, 2);
+  assert.equal(withoutSnapshotManifest.masterDna, null);
 });
 
 test('exports and reconstructs a single raster Asset DNA-only package without Master DNA', async () => {
@@ -718,6 +1043,44 @@ test('exports and reconstructs a single raster Asset DNA-only package without Ma
 });
 
 
+
+test('raster DNA-only export preserves optional original encoded bytes and upgrades its recovery claim', async () => {
+  const samples = new Uint8Array([254, 253, 254, 255, 220, 12, 18, 255, 254, 253, 254, 255]);
+  const original = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 7]);
+  const digest = createHash('sha256').update(original).digest('hex');
+  const raster = await createVyralDnaV3({
+    record_id: 'raster-with-original-bytes',
+    source: { asset_id: 'asset-raster-exact', asset_version_id: 'version-raster-exact',
+      sha256: digest, size_bytes: original.byteLength, mime_type: 'image/png' },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 3, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 2, tile_height: 1, decoded_samples: samples,
+  });
+  const packagePath = 'dna/v3/raster-with-original-bytes/source/0.bin';
+  const record = {
+    ...raster.record,
+    encoded_file_payload: {
+      encoding: 'raw-chunks-v1' as const, filename: 'original.png', mime_type: 'image/png',
+      size_bytes: original.byteLength, sha256: digest, chunk_size: 1024,
+      chunks: [{ index: 0, byte_length: original.byteLength, sha256: digest, package_path: packagePath }],
+    },
+  };
+  const archive = await createVyralDnaOnlyPackage({
+    ...manifest,
+    assets: [{ id: 'asset-raster-exact', name: 'Raster exact', asset_type: 'image', mime_type: 'image/png' }],
+    versions: [], masterDna: null,
+  }, record, [
+    ...raster.entries,
+    { path: packagePath, data: original },
+  ]);
+  const files = await readVyralZip(new Uint8Array(await archive.arrayBuffer()));
+  const parsed = parseVyralManifest(files);
+  assert.equal(parsed.dnaRecords[0].recovery_level, 'source-file-exact');
+  assert.equal(parsed.reconstructionCapabilities?.encoded_source_bytes_recoverable, true);
+  assert.deepEqual(files.get(packagePath), original);
+});
 
 test('imports legacy DNA-only packages after dropping version-bound evidence while preserving exact Asset DNA', async () => {
   const sourceBytes = new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3, 4, 5, 6]);
@@ -781,4 +1144,242 @@ test('imports legacy DNA-only packages after dropping version-bound evidence whi
   assert.deepEqual(imported.lineage, []);
   assert.deepEqual(imported.reconstructionTests, []);
   assert.deepEqual(await reconstructVyralFileDnaFromPackage(legacyFiles, 'portable-file-dna-legacy-compat'), sourceBytes);
+});
+
+
+
+test('single public Asset DNA can be packaged as a standalone AI-ready Vyral without source media or collection metadata', async () => {
+  const samples = new Uint8Array([12, 34, 56, 255]);
+  const sourceSha256 = 'a'.repeat(64);
+  const { record, entries } = await createVyralDnaV3({
+    record_id: 'public-single-asset-dna',
+    source: {
+      asset_id: 'asset-public-single', asset_version_id: 'version-public-single',
+      sha256: sourceSha256, size_bytes: 11, mime_type: 'image/png',
+    },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const archive = await createVyralAssetDnaOnlyPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'public-single-asset-package',
+    exportedAt: '2026-11-08T00:00:00.000Z',
+    exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    vyral: { id: 'source-public-vyral', name: 'Public source collection' },
+    folders: [],
+    assets: [{
+      id: 'asset-public-single',
+      name: 'Public sample image',
+      original_filename: 'public-sample.png',
+      asset_type: 'image',
+      mime_type: 'image/png',
+      size_bytes: 11,
+      sha256: sourceSha256,
+      metadata: { visibility: 'public' },
+    }],
+    versions: [],
+    dnaRecords: [],
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+    masterDna: null,
+  }, [record], entries, false);
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  assert.equal(manifest.exportMode, 'dna-only');
+  assert.equal(manifest.assets.length, 1);
+  assert.equal(manifest.assets[0].id, 'asset-public-single');
+  assert.equal(manifest.versions.length, 0);
+  assert.equal(manifest.masterDna, null);
+  assert.equal(manifest.dnaRecords.length, 1);
+  assert.equal(manifest.dnaRecords[0].dna_schema_id, 'vyra.asset-dna');
+  assert.equal(files.has('assets/asset-public-single/versions/1.bin'), false);
+  assert.equal(files.has(record.lossless_payload.tiles[0].package_path), true);
+});
+
+
+test('blind DNA export excludes original raster and non-raster binary chunks', async () => {
+  const samples = new Uint8Array([240, 241, 242, 255]);
+  const originalRaster = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 9, 8, 7]);
+  const rasterHash = createHash('sha256').update(originalRaster).digest('hex');
+  const raster = await createVyralDnaV3({
+    record_id: 'blind-raster-record',
+    source: { asset_id: 'blind-raster', asset_version_id: 'blind-raster-version', sha256: rasterHash, size_bytes: originalRaster.length, mime_type: 'image/png' },
+    extractor: { name: 'blind-test', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'blind-test', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const rasterOriginalPath = 'dna/v3/blind-raster-record/source/0.bin';
+  const rasterWithOriginal = {
+    ...raster.record,
+    encoded_file_payload: {
+      encoding: 'raw-chunks-v1' as const, filename: 'original.png', mime_type: 'image/png',
+      size_bytes: originalRaster.length, sha256: rasterHash, chunk_size: 1024,
+      chunks: [{ index: 0, byte_length: originalRaster.length, sha256: rasterHash, package_path: rasterOriginalPath }],
+    },
+  };
+  const originalBinary = new Uint8Array([73, 68, 51, 4, 5, 6, 7, 8]);
+  const binary = await createVyralFileDnaV1({
+    record_id: 'blind-file-record',
+    source: { asset_id: 'blind-file', asset_version_id: 'blind-file-version' },
+    bytes: originalBinary,
+    mime_type: 'audio/mpeg',
+    filename: 'voice.mp3',
+    include_payload: true,
+    chunk_size: 4,
+  });
+  const archive = await createVyralAssetDnaOnlyPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'blind-dna-package',
+    exportedAt: '2026-11-09T00:00:00.000Z',
+    exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    vyral: { id: 'blind-vyral', name: 'Blind test' },
+    folders: [],
+    assets: [
+      { id: 'blind-raster', name: 'Raster', asset_type: 'image', mime_type: 'image/png', size_bytes: originalRaster.length, sha256: rasterHash },
+      { id: 'blind-file', name: 'Audio', asset_type: 'audio', mime_type: 'audio/mpeg', size_bytes: originalBinary.length, sha256: binary.record.file.sha256 },
+    ],
+    versions: [], dnaRecords: [], fingerprints: [], visionObservations: [], lineage: [], reconstructionTests: [], masterDna: null,
+  }, [rasterWithOriginal, binary.record], [...raster.entries, { path: rasterOriginalPath, data: originalRaster }, ...binary.entries], false, true);
+
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  assert.equal(manifest.blindReconstruction, true);
+  assert.equal(manifest.blindnessScope, 'original_encoded_binary_excluded');
+  const invalidScope = structuredClone(manifest);
+  invalidScope.blindnessScope = 'semantic_blind' as never;
+  assert.throws(() => validateVyralManifest(invalidScope), /exact scope of excluded source bytes/);
+  assert.equal(manifest.reconstructionCapabilities?.encoded_source_bytes_recoverable, false);
+  assert.equal(manifest.reconstructionCapabilities?.binary_source_bytes_reconstructable, false);
+  assert.equal(files.has(rasterOriginalPath), false);
+  for (const chunk of binary.record.reconstruction.chunks) assert.equal(files.has(chunk.package_path), false);
+  const rasterRecord = manifest.dnaRecords.find((item) => item.id === 'blind-raster-record');
+  const fileRecord = manifest.dnaRecords.find((item) => item.id === 'blind-file-record');
+  assert.ok(rasterRecord);
+  assert.ok(fileRecord);
+  assert.equal((rasterRecord.dna_record as { encoded_file_payload?: unknown }).encoded_file_payload, undefined);
+  assert.equal(fileRecord.recovery_level, 'semantic-only');
+  assert.equal((fileRecord.dna_record as { reconstruction: { claim: string; chunks: unknown[] } }).reconstruction.claim, 'unavailable');
+  assert.deepEqual((await reconstructVyralDnaV3FromPackage(files, 'blind-raster-record')).samples, samples);
+  assert.equal([...files.keys()].some((name) => name.includes('/source/')), false);
+
+  const tempDir = await mkdtemp(join(tmpdir(), 'vyra-blind-dna-audit-'));
+  try {
+    const packagePath = join(tempDir, 'blind.vyral');
+    const scriptPath = join(tempDir, 'reconstruct_vyral.py');
+    await writeFile(packagePath, new Uint8Array(await archive.arrayBuffer()));
+    await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT);
+    const audit = JSON.parse(execFileSync('python', [scriptPath, packagePath, '--audit-only'], { encoding: 'utf8' }));
+    assert.equal(audit.validation, 'passed');
+    assert.equal(audit.blind_reconstruction, true);
+    assert.equal(audit.blindness_scope, 'original_encoded_binary_excluded');
+    assert.equal(audit.contains_original_encoded_file_bytes, false);
+    assert.equal(audit.original_binary_payload_entries, 0);
+    assert.equal(audit.assets.find((item: { asset_id: string }) => item.asset_id === 'blind-file').payload_kind, 'structural-dna-only');
+    assert.equal(audit.assets.find((item: { asset_id: string }) => item.asset_id === 'blind-raster').payload_kind, 'decoded-pixel-samples');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+
+test('semantic-only DNA package contains descriptions and confirmed observations but no media payload', async () => {
+  const { createVyralSemanticDnaV1 } = await import('../src/services/vyralSemanticDnaV1.ts');
+  const sourceSha = 'c'.repeat(64);
+  const semantic = createVyralSemanticDnaV1({
+    recordId: 'semantic-red-circle',
+    asset: {
+      id: 'semantic-asset',
+      name: 'Red Circle',
+      asset_type: 'image',
+      original_filename: 'red-circle.png',
+      description: 'A solid red circle centered on a white square canvas.',
+      mime_type: 'image/png',
+    },
+    source: { assetVersionId: 'semantic-version', sha256: sourceSha, sizeBytes: 1024 },
+    technicalMetadata: { width: 64, height: 64, colorSpace: 'sRGB', channelLayout: 'RGBA' },
+    confirmedObservations: [{
+      observationId: 'semantic-observation',
+      reviewId: 'semantic-review',
+      decision: 'creator_confirmed',
+      taskKind: 'description',
+      assetVersionId: 'semantic-version',
+      sourceSha256: sourceSha,
+      evidence: { summary: 'One filled red circle; no outline; centered.' },
+    }],
+    context: { vyralName: 'Semantic Test', purpose: 'Validate descriptive-only export' },
+  });
+  const archive = await createVyralSemanticDnaPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'semantic-package-test',
+    exportedAt: '2026-11-09T00:00:00.000Z',
+    exportMode: 'full',
+    exportComponents: { assets: true, fullDna: true, compactDna: false },
+    vyral: { id: 'semantic-vyral', name: 'Semantic Test' },
+    folders: [],
+    assets: [{
+      id: 'semantic-asset',
+      vyral_id: 'semantic-vyral',
+      folder_id: null,
+      name: 'Red Circle',
+      asset_type: 'image',
+      mime_type: 'image/png',
+      size_bytes: 1024,
+      sha256: sourceSha,
+      description: 'A solid red circle centered on a white square canvas.',
+    }],
+    versions: [{
+      id: 'semantic-version',
+      asset_id: 'semantic-asset',
+      version_number: 1,
+      size_bytes: 1024,
+      sha256: sourceSha,
+      mime_type: 'image/png',
+    }],
+    dnaRecords: [],
+    fingerprints: [],
+    visionObservations: [],
+    lineage: [],
+    reconstructionTests: [],
+  } as never, [semantic]);
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  assert.equal(manifest.blindnessScope, 'semantic_only_no_media_payload');
+  assert.equal(manifest.dnaRecords.length, 1);
+  assert.equal(manifest.dnaRecords[0].dna_schema_id, 'vyra.asset-semantic-dna');
+  assert.equal(manifest.dnaRecords[0].recovery_level, 'semantic-only');
+  assert.equal(manifest.versions.length, 0);
+  assert.equal([...files.keys()].some((path) => path.startsWith('assets/') || path.includes('/tiles/') || path.endsWith('.bin')), false);
+  const record = manifest.dnaRecords[0].dna_record as Record<string, unknown>;
+  assert.equal((record.reconstruction as Record<string, unknown>).decoded_sample_payload_included, false);
+  await verifyVyralSystemFileIntegrityV1(files);
+  const auditDir = await mkdtemp(join(tmpdir(), 'vyra-semantic-audit-'));
+  try {
+    const packagePath = join(auditDir, 'semantic.vyral');
+    await writeFile(packagePath, new Uint8Array(await archive.arrayBuffer()));
+    const scriptPath = join(auditDir, 'reconstruct_vyral.py');
+    await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT);
+    const output = execFileSync('python', [scriptPath, packagePath, '--audit-only'], { encoding: 'utf8' });
+    const audit = JSON.parse(output);
+    assert.equal(audit.semantic_only, true);
+    assert.equal(audit.blindness_scope, 'semantic_only_no_media_payload');
+    assert.equal(audit.assets[0].payload_kind, 'semantic-description-only');
+    assert.equal(audit.contains_original_encoded_file_bytes, false);
+    assert.equal(audit.original_binary_payload_entries, 0);
+    assert.equal(audit.undeclared_entries, 0);
+    assert.equal(audit.integrity, 'passed');
+  } finally {
+    await rm(auditDir, { recursive: true, force: true });
+  }
 });

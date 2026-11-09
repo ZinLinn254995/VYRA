@@ -204,6 +204,8 @@ export interface ProjectAudioTrack {
 }
 
 export interface Project {
+  /** Optional type-aware AI suggestions and creator-edited descriptive metadata. */
+  metadata?: Record<string, unknown>;
   id: string;
   title: string;
   topic: string;

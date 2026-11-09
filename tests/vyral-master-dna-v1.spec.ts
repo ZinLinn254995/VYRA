@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createVyralMasterDnaV1, validateVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 
 const input = {
@@ -29,7 +30,7 @@ const input = {
   reconstruction_profile: { overall_claim: 'semantic_only' as const, notes: ['Image samples are losslessly decoded; voice is semantic only.'] },
   provenance: { creator_ref: null, license_ref: null, evidence_status: 'creator_attested' as const },
   source_resolution: { visibility: 'private' as const, canonical_uri: null, resolution_policy: 'authenticated_owner' as const },
-  portable_projection: { profile: 'compact' as const, includes_full_reconstruction_payloads: false as const, resolver_uri: null, retrieval_policy: 'authorized_selective_retrieval' as const, max_assets_per_request: 4 },
+  portable_projection: { profile: 'compact' as const, includes_full_reconstruction_payloads: false as const, resolver_uri: null, retrieval_policy: 'no_remote_resolution' as const, max_assets_per_request: 4 },
 };
 
 test('creates and verifies a canonical Master DNA snapshot and Vyral fingerprint', async () => {
@@ -39,23 +40,53 @@ test('creates and verifies a canonical Master DNA snapshot and Vyral fingerprint
   assert.equal((await validateVyralMasterDnaV1(record)).master_dna_id, 'master-1');
 });
 
-test('rejects a modified snapshot and a modified asset purpose', async () => {
+test('rejects a modified snapshot and an invalid optional asset purpose', async () => {
   const record = await createVyralMasterDnaV1(input);
-  await assert.rejects(() => validateVyralMasterDnaV1({ ...record, purpose: { ...record.purpose, summary: 'tampered' } }), /manifest digest verification failed/);
+  await assert.rejects(() => validateVyralMasterDnaV1({ ...record, purpose: { ...(record.purpose ?? {}), summary: 'tampered' } }), /manifest digest verification failed/);
   await assert.rejects(() => createVyralMasterDnaV1({ ...input, assets: input.assets.map((asset, i) => i === 0 ? { ...asset, purpose: '  ' } : asset) }), /asset entry is invalid/);
 });
 
-test('requires every asset to have an explicit relationship to another asset or the Vyral root', async () => {
-  const invalid = { ...input, relationships: input.relationships.slice(0, 1) };
-  await assert.rejects(() => createVyralMasterDnaV1(invalid), /Every Master DNA asset/);
-  const selfOnly = {
+test('keeps collection identity stable while inventory labels affect the snapshot fingerprint', async () => {
+  const first = await createVyralMasterDnaV1(input);
+  const renamed = await createVyralMasterDnaV1({
     ...input,
-    relationships: [
-      input.relationships[0],
-      { relationship_id: 'self-edge', type: 'references', from: { kind: 'asset' as const, asset_id: 'voice' }, to: { kind: 'asset' as const, asset_id: 'voice' }, rationale: 'Self references are not membership relationships.' },
-    ],
+    assets: input.assets.map((asset, index) => index === 0 ? { ...asset, name: 'Renamed character' } : asset),
+  });
+  assert.equal(renamed.master_dna_id, first.master_dna_id);
+  assert.notEqual(renamed.integrity.manifest_sha256, first.integrity.manifest_sha256);
+});
+
+test('allows a single Asset Vyral without roles, purpose, or relationships', async () => {
+  const { purpose: _purpose, relationships: _relationships, ...base } = input;
+  const single = {
+    ...base,
+    main_asset_ids: [],
+    assets: [{
+      asset_id: 'one', asset_version_id: 'one-v1', media_type: 'image/png',
+      dna_ref: { record_id: 'dna-one', schema_id: 'vyra.asset-dna', schema_version: 3 },
+      asset_fingerprint: 'e'.repeat(64), reconstruction_claim: 'lossless_decoded' as const,
+    }],
+    reconstruction_profile: { overall_claim: 'lossless_decoded' as const, notes: [] },
   };
-  await assert.rejects(() => createVyralMasterDnaV1(selfOnly), /Every Master DNA asset/);
+  const record = await createVyralMasterDnaV1(single);
+  assert.equal(record.assets.length, 1);
+  assert.deepEqual(record.relationships ?? [], []);
+  assert.deepEqual(record.main_asset_ids, []);
+  assert.equal((await validateVyralMasterDnaV1(record)).vyral.vyral_id, 'vyral-1');
+});
+
+test('allows multiple unrelated Assets with no creator context or relationships', async () => {
+  const unrelated = {
+    ...input,
+    purpose: { summary: null, intended_uses: [] },
+    main_asset_ids: [],
+    assets: input.assets.map(({ role: _role, purpose: _purpose, ...asset }) => asset),
+    relationships: [],
+  };
+  const record = await createVyralMasterDnaV1(unrelated);
+  assert.equal(record.assets.length, 2);
+  assert.deepEqual(record.relationships ?? [], []);
+  assert.deepEqual(record.main_asset_ids, []);
 });
 
 test('rejects cross-Vyral links, stale asset versions, and private public-asset resolution', async () => {
@@ -78,57 +109,104 @@ test('private and unlisted Vyrals cannot expose public resolver metadata', async
   );
   await assert.rejects(
     () => createVyralMasterDnaV1({ ...input, portable_projection: { ...input.portable_projection, retrieval_policy: 'public_metadata_only' as const } }),
-    /cannot publish metadata-only resolution/,
+    /Private or unlisted compact DNA cannot publish/,
   );
 });
 
-test('requires at least one declared intended use for a Vyral', async () => {
-  await assert.rejects(
-    () => createVyralMasterDnaV1({ ...input, purpose: { ...input.purpose, intended_uses: [] } }),
-    /purpose, asset inventory, or relationships are invalid/,
-  );
+test('allows omitted or empty optional Vyral purpose and intended uses', async () => {
+  const record = await createVyralMasterDnaV1({ ...input, purpose: { summary: null, intended_uses: [] } });
+  assert.deepEqual(record.purpose, { summary: null, intended_uses: [] });
 });
 
 
 import { preflightVyralMasterDna } from '../src/services/vyralMasterDnaPreflight.ts';
 
-test('Master DNA preflight reports every missing requirement across all assets at once', () => {
-  const blockers = preflightVyralMasterDna({
-    vyralPurpose: '',
-    intendedUses: [],
+test('preflight accepts single and unrelated Assets without optional metadata', () => {
+  assert.deepEqual(preflightVyralMasterDna({
+    assets: [{ asset_id: 'single', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true }],
+  }), []);
+  assert.deepEqual(preflightVyralMasterDna({
     assets: [
-      { asset_id: 'hero', role: null, purpose: '', has_latest_version: true, has_matching_dna: false },
-      { asset_id: 'voice', role: 'supporting', purpose: 'Character voice', has_latest_version: false, has_matching_dna: false },
+      { asset_id: 'unrelated-a', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true },
+      { asset_id: 'unrelated-b', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true },
     ],
-    relationships: [],
-  });
-  assert.deepEqual(blockers.map((item) => item.code), [
-    'missing_vyral_purpose',
-    'missing_intended_uses',
-    'missing_main_asset',
-    'needs_classification',
-    'missing_asset_dna',
-    'missing_asset_relationship',
-    'missing_asset_version',
-    'missing_asset_dna',
-    'missing_asset_relationship',
-  ]);
-  assert.equal(blockers.filter((item) => item.asset_id === 'hero').length, 3);
-  assert.equal(blockers.filter((item) => item.asset_id === 'voice').length, 3);
+  }), []);
 });
 
-test('Master DNA preflight passes when root, versions, DNA, classifications and relationships are complete', () => {
+test('preflight blocks unsupported or version-mismatched DNA as incomplete Asset DNA', () => {
+  assert.deepEqual(preflightVyralMasterDna({
+    assets: [{ asset_id: 'needs-supported-dna', has_latest_version: true, has_matching_dna: false, has_exact_reconstruction: false }],
+  }).map((item) => item.code), ['missing_asset_dna']);
+});
+
+test('preflight blocks only missing source versions or matching Asset DNA', () => {
   const blockers = preflightVyralMasterDna({
-    vyralPurpose: 'A reusable character production kit.',
-    intendedUses: ['storyboarding', 'video generation'],
     assets: [
-      { asset_id: 'hero', role: 'main', purpose: 'Primary character appearance', has_latest_version: true, has_matching_dna: true },
-      { asset_id: 'voice', role: 'supporting', purpose: 'Character voice identity', has_latest_version: true, has_matching_dna: true },
-    ],
-    relationships: [
-      { from_kind: 'asset', from_asset_id: 'hero', to_kind: 'vyral', to_asset_id: null },
-      { from_kind: 'asset', from_asset_id: 'voice', to_kind: 'asset', to_asset_id: 'hero' },
+      { asset_id: 'needs-version', has_latest_version: false, has_matching_dna: true, has_exact_reconstruction: true },
+      { asset_id: 'needs-dna', has_latest_version: true, has_matching_dna: false, has_exact_reconstruction: false },
     ],
   });
-  assert.deepEqual(blockers, []);
+  assert.deepEqual(blockers.map((item) => item.code), ['missing_asset_version', 'missing_asset_dna']);
+});
+
+
+test('publishes only a canonical public resolver URI and never exposes one for private Vyrals', async () => {
+  const resolverUri = 'https://wbqheogfoahnjvgkwhxe.supabase.co/functions/v1/resolve-public-vyral-resource';
+  const publicRecord = await createVyralMasterDnaV1({
+    ...input,
+    source_resolution: { visibility: 'public', canonical_uri: null, resolution_policy: 'public_assets' },
+    portable_projection: {
+      profile: 'compact',
+      includes_full_reconstruction_payloads: false,
+      resolver_uri: resolverUri,
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
+  });
+  assert.equal(publicRecord.portable_projection.resolver_uri, resolverUri);
+  await assert.rejects(() => createVyralMasterDnaV1({
+    ...input,
+    source_resolution: { visibility: 'public', canonical_uri: null, resolution_policy: 'public_assets' },
+    portable_projection: {
+      ...input.portable_projection,
+      resolver_uri: 'https://attacker.example/collect',
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
+  }), /unsafe resolver URI/);
+  await assert.rejects(() => createVyralMasterDnaV1({
+    ...input,
+    portable_projection: {
+      ...input.portable_projection,
+      resolver_uri: resolverUri,
+      retrieval_policy: 'authorized_selective_retrieval',
+    },
+  }), /A public resolver URI requires public visibility/);
+});
+
+
+test('preflight refuses to mark a Vyral ready until every Asset has exact reconstruction evidence', () => {
+  const blockers = preflightVyralMasterDna({
+    assets: [
+      { asset_id: 'verified', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: true },
+      { asset_id: 'unverified', has_latest_version: true, has_matching_dna: true, has_exact_reconstruction: false },
+    ],
+  });
+  assert.deepEqual(blockers.map((item) => [item.code, item.asset_id]), [
+    ['reconstruction_not_verified', 'unverified'],
+  ]);
+});
+
+
+test('Master DNA Builder orders Asset DNA by database-assigned revision before timestamp', () => {
+  const source = readFileSync('supabase/functions/build-vyral-master-dna/index.ts', 'utf8');
+  assert.match(source, /revision_number,parent_dna_record_id/);
+  assert.match(source, /\.order\('revision_number', \{ ascending: false \}\)\.order\('created_at', \{ ascending: false \}\)/);
+  assert.match(source, /revision-first \(then timestamp\)/);
+});
+
+
+test('Master DNA Builder applies canonical owner-path validation to source versions and DNA tiles', () => {
+  const source = readFileSync('supabase/functions/build-vyral-master-dna/index.ts', 'utf8');
+  assert.match(source, /isCanonicalOwnedStoragePath\(version\.storage_path, expectedStoragePrefix\)/);
+  assert.match(source, /isCanonicalOwnedStoragePath\(firstPath, assetStoragePrefix\)/);
+  assert.match(source, /isCanonicalOwnedStoragePath\(path, assetStoragePrefix\)/);
 });

@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
 
 const BUCKET = 'vyral-assets';
@@ -24,7 +25,9 @@ const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.
 });
 
 const sha256Hex = async (bytes: Uint8Array) => {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const owned = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(owned).set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', owned);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
@@ -83,7 +86,7 @@ Deno.serve(async (request: Request) => {
     context.supabase.from('vyrals').select('id,metadata').eq('id', ORIGIN.vyralId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_assets').select('id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', ORIGIN.assetId).eq('user_id', userId).maybeSingle(),
     context.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,version_number').eq('id', ORIGIN.versionId).eq('asset_id', ORIGIN.assetId).eq('user_id', userId).maybeSingle(),
-    context.supabase.from('vyral_dna_records').select('id').eq('asset_id', ORIGIN.assetId).eq('schema_version', 3).limit(1),
+    context.supabase.from('vyral_dna_records').select('id').eq('asset_id', ORIGIN.assetId).eq('vyral_id', ORIGIN.vyralId).eq('user_id', userId).eq('scope', 'asset').eq('payload->dna_record->source->>asset_version_id', ORIGIN.versionId).maybeSingle(),
   ]);
   const queryError = [vyralResult, assetResult, versionResult, existingResult].find((result) => result.error)?.error;
   if (queryError) return json({ error: 'Could not validate ORIGIN-01 ownership and extraction state.' }, 500);
@@ -93,7 +96,7 @@ Deno.serve(async (request: Request) => {
   if (!vyral || vyral.metadata?.protected !== true || !asset || !version) {
     return json({ error: 'Protected ORIGIN-01 asset metadata or source version is missing.' }, 409);
   }
-  if (existingResult.data?.length) return json({ error: 'A DNA v3 record already exists for ORIGIN-01. Existing DNA records are immutable; do not overwrite them.' }, 409);
+  if (existingResult.data) return json({ error: 'DNA already exists for this exact ORIGIN-01 source version. Existing DNA records are immutable; do not overwrite them.' }, 409);
   if (
     asset.vyral_id !== ORIGIN.vyralId || version.vyral_id !== ORIGIN.vyralId ||
     asset.storage_path !== version.storage_path || asset.sha256 !== version.sha256 ||
@@ -102,7 +105,7 @@ Deno.serve(async (request: Request) => {
   ) return json({ error: 'ORIGIN-01 asset and version metadata do not match the protected source contract.' }, 409);
 
   const expectedPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.assetId + '/';
-  if (typeof version.storage_path !== 'string' || !version.storage_path.startsWith(expectedPrefix)) {
+  if (!isCanonicalOwnedStoragePath(version.storage_path, expectedPrefix) || asset.storage_path !== version.storage_path) {
     return json({ error: 'ORIGIN-01 private storage path failed owner-prefix validation.' }, 409);
   }
   const expectedSize = Number(version.size_bytes);
@@ -145,6 +148,9 @@ Deno.serve(async (request: Request) => {
   const tileMetadata: Record<string, unknown>[] = [];
   const uploadedPaths: string[] = [];
   const storagePrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.assetId + '/dna/v3/' + recordId + '/tiles/';
+  if (!isCanonicalOwnedStoragePath(storagePrefix + 'tile.bin', expectedPrefix)) {
+    return json({ error: 'ORIGIN-01 DNA tile storage prefix failed canonical owner-path validation.' }, 409);
+  }
 
   for (let y = 0; y < png.height; y += TILE_SIZE) {
     for (let x = 0; x < png.width; x += TILE_SIZE) {
@@ -239,10 +245,11 @@ Deno.serve(async (request: Request) => {
     },
     source_kind: 'system',
     verification_status: 'observed',
-  }).select('id').single();
+  }).select('id,revision_number,parent_dna_record_id').single();
 
   if (insertError || !dnaRow) {
     await context.supabaseAdmin.storage.from(BUCKET).remove(uploadedPaths);
+    if (insertError?.code === '23505') return json({ error: 'DNA already exists for this exact ORIGIN-01 source version. Newly uploaded tiles were rolled back.', code: 'DNA_SOURCE_VERSION_ALREADY_EXISTS' }, 409);
     return json({ error: 'DNA tiles were extracted but the DNA registry record could not be saved. Newly uploaded DNA tiles were rolled back.', detail: insertError?.message ?? 'Missing inserted row.' }, 500);
   }
 
@@ -251,6 +258,8 @@ Deno.serve(async (request: Request) => {
     assetId: ORIGIN.assetId,
     versionId: ORIGIN.versionId,
     dnaRecordId: dnaRow.id,
+    revisionNumber: dnaRow.revision_number,
+    parentDnaRecordId: dnaRow.parent_dna_record_id,
     recordId,
     sourceSha256,
     sourceSizeBytes: originalBytes.byteLength,

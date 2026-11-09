@@ -48,7 +48,7 @@ export const CreateVideoView: React.FC = () => {
   ]);
 
   // Step 2: Content & Topic
-  const [workingTitle, setWorkingTitle] = useState<string>('Neural Horizons: The Synthetic Frontier');
+  const [workingTitle, setWorkingTitle] = useState<string>('');
   const [topic, setTopic] = useState<string>(
     'How photonic neural processors and autonomous robotic logistics will reshape manufacturing in 2030'
   );
@@ -64,6 +64,15 @@ export const CreateVideoView: React.FC = () => {
   // Step 4: Generated Outline state
   const [isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
   const [generatedScenes, setGeneratedScenes] = useState<Scene[]>([]);
+  const [storyboardDetails, setStoryboardDetails] = useState({
+    title: '', description: '', videoType: '', visualStyleDescription: '', audioDirection: '',
+    mood: '', pacing: '', tags: '',
+  });
+  const [storyboardDetailOrigins, setStoryboardDetailOrigins] = useState<Record<string, 'system_default' | 'ai_suggested' | 'creator_confirmed' | 'creator_edited'>>({});
+  const updateStoryboardDetail = (key: keyof typeof storyboardDetails, value: string) => {
+    setStoryboardDetails((current) => ({ ...current, [key]: value }));
+    setStoryboardDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
+  };
   const [outlineError, setOutlineError] = useState<string>('');
 
   // Validation
@@ -85,7 +94,6 @@ export const CreateVideoView: React.FC = () => {
 
   const handleNextToStep3 = () => {
     const errs: Record<string, string> = {};
-    if (!workingTitle.trim()) errs.title = 'Please enter a working title';
     if (!topic.trim()) errs.topic = 'Please describe the core video topic';
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -109,11 +117,11 @@ export const CreateVideoView: React.FC = () => {
       if (!apiKey || !model) throw new Error('Connect OpenRouter and select a Text model in Settings before generating a storyboard.');
       const prompt = [
         'Create a production-ready storyboard for the following video.',
-        'Return ONLY valid JSON with this shape: {"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}',
+        'Return ONLY valid JSON with this shape: {"metadata":{"title":"...","description":"...","videoType":"...","visualStyleDescription":"...","audioDirection":"...","mood":"...","pacing":"...","tags":["..."]},"scenes":[{"narration":"...","visualPrompt":"...","cameraMovement":"...","duration":10}]}',
         'Do not wrap JSON in Markdown fences. Do not include media URLs or claim any media has been rendered.',
         'Use 3 to 8 scenes. Scene durations must be positive integers and add up as closely as possible to the target duration.',
-        'Write narration in clear, natural English. Make each visual prompt specific and visually distinct.',
-        'Video title: ' + workingTitle,
+        'Write narration in clear, natural English. Make each visual prompt specific and visually distinct. Suggest concise metadata that describes this storyboard; do not invent unsupported facts or relationships.',
+        'Working title (optional; suggest one if blank): ' + workingTitle,
         'Topic: ' + topic,
         'Category: ' + category,
         'Audience: ' + targetAudience,
@@ -154,7 +162,7 @@ export const CreateVideoView: React.FC = () => {
       if (!data.text) throw new Error('The selected model returned an empty storyboard.');
       const fence = String.fromCharCode(96).repeat(3);
       const jsonText = data.text.trim().startsWith(fence) ? data.text.trim().split('\n').slice(1).join('\n').split(fence)[0].trim() : data.text.trim();
-      const parsed = JSON.parse(jsonText) as { scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
+      const parsed = JSON.parse(jsonText) as { metadata?: Record<string, unknown>; scenes?: Array<{ narration?: unknown; visualPrompt?: unknown; cameraMovement?: unknown; duration?: unknown }> };
       if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 3) throw new Error('The model returned fewer than 3 scenes. Please retry or choose another Text model.');
       const placeholderImages = [
         sceneQuantumChip,
@@ -179,6 +187,25 @@ export const CreateVideoView: React.FC = () => {
           status: 'scripted',
         };
       });
+      const suggested = parsed.metadata ?? {};
+      const toText = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 2000) : '';
+      const suggestedTags = Array.isArray(suggested.tags) ? suggested.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 20).join(', ') : '';
+      const suggestedTitle = toText(suggested.title);
+      setStoryboardDetails({
+        title: workingTitle.trim() || suggestedTitle || topic.trim().slice(0, 100),
+        description: toText(suggested.description),
+        videoType: toText(suggested.videoType),
+        visualStyleDescription: toText(suggested.visualStyleDescription),
+        audioDirection: toText(suggested.audioDirection),
+        mood: toText(suggested.mood),
+        pacing: toText(suggested.pacing),
+        tags: suggestedTags,
+      });
+      setStoryboardDetailOrigins({
+        title: workingTitle.trim() ? 'creator_edited' : (suggestedTitle ? 'ai_suggested' : 'system_default'),
+        description: 'ai_suggested', videoType: 'ai_suggested', visualStyleDescription: 'ai_suggested',
+        audioDirection: 'ai_suggested', mood: 'ai_suggested', pacing: 'ai_suggested', tags: 'ai_suggested',
+      });
       setGeneratedScenes(scenes);
       setCurrentStep(4);
     } catch (error) {
@@ -196,7 +223,7 @@ export const CreateVideoView: React.FC = () => {
         : heroCyberCity);
 
     const projectId = createProject({
-      title: workingTitle,
+      title: (storyboardDetails.title || workingTitle || topic).trim().slice(0, 120),
       topic,
       category,
       format,
@@ -204,10 +231,29 @@ export const CreateVideoView: React.FC = () => {
       visualStyle,
       narrationStyle,
       subtitleStyle,
+      videoType: storyboardDetails.videoType || undefined,
+      creativeDirection: storyboardDetails.description || undefined,
+      visualStyleDescription: storyboardDetails.visualStyleDescription || undefined,
+      audioDirection: storyboardDetails.audioDirection || undefined,
+      metadata: {
+        storyboard_details: {
+          schema_version: 1,
+          scope: 'storyboard',
+          provider: 'openrouter',
+          model: (() => {
+            try { return (JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: string }).text || 'unknown'; }
+            catch { return 'unknown'; }
+          })(),
+          generated_at: new Date().toISOString(),
+          fields: Object.fromEntries(Object.entries(storyboardDetails).map(([key, value]) => [
+            key, { value: key === 'tags' ? value.split(',').map((tag) => tag.trim()).filter(Boolean) : value, origin: storyboardDetailOrigins[key] ?? 'ai_suggested' },
+          ])),
+        },
+      },
       targetDuration,
       targetPlatforms: selectedPlatforms,
       coverImage: cover,
-      publishingCaption: `${workingTitle} — ${topic.slice(0, 120)}... #FutureTech #Innovation #VYRAStudio`,
+      publishingCaption: `${(storyboardDetails.title || workingTitle || topic).trim()} — ${topic.slice(0, 120)}... #FutureTech #Innovation #VYRAStudio`,
       selectedPlatformsForPublishing: selectedPlatforms.map((p) =>
         p.toLowerCase().includes('youtube')
           ? 'youtube'
@@ -425,7 +471,7 @@ export const CreateVideoView: React.FC = () => {
           {/* Working Title */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 light:text-slate-700">
-              Working Title <span className="text-red-400">*</span>
+              Working Title <span className="font-normal text-slate-400 light:text-slate-500">(optional — AI can suggest one)</span>
             </label>
             <input
               type="text"
@@ -683,6 +729,19 @@ export const CreateVideoView: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
+              <section className="rounded-xl border border-[#2B3058] light:border-slate-200 bg-[#090B18]/70 light:bg-slate-50 p-4 space-y-3">
+                <div><h3 className="text-sm font-semibold text-white light:text-slate-900">Suggested storyboard details</h3><p className="mt-1 text-[11px] text-slate-400 light:text-slate-500">VYRA filled these from your topic and scenes. Edit any field you want.</p></div>
+                <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Storyboard title</span><input value={storyboardDetails.title} onChange={(event)=>updateStoryboardDetail('title',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Description</span><textarea rows={2} value={storyboardDetails.description} onChange={(event)=>updateStoryboardDetail('description',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Video type</span><input value={storyboardDetails.videoType} onChange={(event)=>updateStoryboardDetail('videoType',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                  <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Mood</span><input value={storyboardDetails.mood} onChange={(event)=>updateStoryboardDetail('mood',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                  <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Visual style</span><input value={storyboardDetails.visualStyleDescription} onChange={(event)=>updateStoryboardDetail('visualStyleDescription',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                  <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Pacing</span><input value={storyboardDetails.pacing} onChange={(event)=>updateStoryboardDetail('pacing',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                </div>
+                <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Audio direction</span><input value={storyboardDetails.audioDirection} onChange={(event)=>updateStoryboardDetail('audioDirection',event.target.value)} className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+                <label className="block space-y-1"><span className="text-[11px] font-medium text-slate-300 light:text-slate-700">Tags</span><input value={storyboardDetails.tags} onChange={(event)=>updateStoryboardDetail('tags',event.target.value)} placeholder="Comma-separated tags" className="w-full rounded-lg border border-[#2B3058] light:border-slate-300 bg-[#171A35] light:bg-white px-3 py-2 text-xs text-white light:text-slate-900"/></label>
+              </section>
               {generatedScenes.map((sc, index) => (
                 <div
                   key={sc.id}

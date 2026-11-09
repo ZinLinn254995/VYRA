@@ -1,3 +1,4 @@
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
@@ -52,7 +53,9 @@ const json = (body: Record<string, unknown>, status = 200) =>
   });
 
 const sha256Hex = async (bytes: Uint8Array) => {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
@@ -265,6 +268,71 @@ Deno.serve(async (request: Request) => {
     comparisonUses: 'verified_uploaded_storage_bytes',
     note: 'The verifier compares the actual uploaded bytes against the protected original. It does not claim those bytes are identical to the model-reported output unless their hash and size reconcile.',
   };
+  const asNonEmptyString = (value: unknown) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+  const asJsonObject = (value: unknown): Record<string, unknown> =>
+    value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const modelIdentifier = asNonEmptyString(dnaProvenance.model_identifier) ??
+    asNonEmptyString(modelReport.model_identifier) ?? selectedCandidate.modelName + '_model_not_recorded';
+  const modelVersion = asNonEmptyString(dnaProvenance.model_version) ??
+    asNonEmptyString(modelReport.model_version);
+  const promptSha256Raw = asNonEmptyString(dnaProvenance.prompt_sha256) ??
+    asNonEmptyString(modelReport.prompt_sha256);
+  const promptSha256 = promptSha256Raw && /^[a-f0-9]{64}$/i.test(promptSha256Raw) ? promptSha256Raw.toLowerCase() : null;
+  const sessionReference = asNonEmptyString(dnaProvenance.session_reference) ??
+    asNonEmptyString(modelReport.session_reference);
+  const toolAccess = asJsonObject(dnaProvenance.tool_access ?? modelReport.tool_access);
+  const blindnessScope = asNonEmptyString(dnaProvenance.blindness_scope) ??
+    asNonEmptyString(modelReport.blindness_scope);
+  const packageAuditStatus = asNonEmptyString(dnaProvenance.package_audit_status) ??
+    asNonEmptyString(modelReport.package_audit_status);
+  const packageSha256Raw = asNonEmptyString(dnaProvenance.package_sha256) ??
+    asNonEmptyString(modelReport.package_sha256);
+  const packageSha256 = packageSha256Raw && /^[a-f0-9]{64}$/i.test(packageSha256Raw)
+    ? packageSha256Raw.toLowerCase() : null;
+  const originalBinaryPayloadEntriesRaw =
+    dnaProvenance.original_binary_payload_entries ?? modelReport.original_binary_payload_entries;
+  const originalBinaryPayloadEntries =
+    typeof originalBinaryPayloadEntriesRaw === 'number' &&
+    Number.isSafeInteger(originalBinaryPayloadEntriesRaw)
+      ? originalBinaryPayloadEntriesRaw : null;
+  const semanticPackageAuditPassed =
+    blindnessScope === 'semantic_only_no_media_payload' &&
+    packageAuditStatus === 'passed' &&
+    !!packageSha256 &&
+    originalBinaryPayloadEntries === 0;
+  const blindnessStatus =
+    dnaProvenance.source_binary_provided_to_model === false && semanticPackageAuditPassed
+      ? 'creator_attested' : 'unverified';
+  const attemptEvidence = {
+    provider: selectedCandidate.provider,
+    modelIdentifier,
+    modelVersion,
+    promptSha256,
+    promptHashStatus: !promptSha256Raw ? 'not_recorded' : promptSha256 ? 'valid_sha256' : 'invalid_format',
+    sessionReference,
+    toolAccess,
+    blindness: {
+      status: blindnessStatus,
+      scope: blindnessScope ?? 'not_recorded',
+      sourceBinaryClaim: dnaProvenance.source_binary_provided_to_model === false ? 'creator_attested_not_provided' : 'not_recorded',
+      packageAudit: {
+        status: packageAuditStatus ?? 'not_recorded',
+        packageSha256,
+        originalBinaryPayloadEntries,
+        acceptedAsSemanticOnly: semanticPackageAuditPassed,
+      },
+      independentlyVerified: false,
+      note: 'The comparator cannot independently observe an external AI session or inspect the package after sharing. A semantic-only scope and zero-binary package audit are creator-attested provenance, not independent proof.',
+    },
+    candidateOutput: {
+      uploadedSha256: candidateVersion.sha256,
+      uploadedSizeBytes: Number(candidateVersion.size_bytes),
+      modelReportedSha256Prefix: modelReport.reported_sha256_prefix ?? null,
+      modelReportedSizeBytes: modelReport.reported_size_bytes ?? null,
+      uploadReconciliationStatus: uploadReconciliation.status ?? 'not_recorded',
+    },
+  };
   if (
     dna.source_kind !== 'generation' ||
     dnaProvenance.provider !== selectedCandidate.provider ||
@@ -281,8 +349,11 @@ Deno.serve(async (request: Request) => {
 
   const originalPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.originalAssetId + '/';
   const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + candidateAssetId + '/';
-  if (!originalVersion.storage_path.startsWith(originalPrefix) || !candidateVersion.storage_path.startsWith(candidatePrefix)) {
-    return json({ error: 'A stored asset path failed its ownership-prefix validation.' }, 409);
+  if (
+    !isCanonicalOwnedStoragePath(originalVersion.storage_path, originalPrefix) ||
+    !isCanonicalOwnedStoragePath(candidateVersion.storage_path, candidatePrefix)
+  ) {
+    return json({ error: 'A stored asset path failed its owner-prefix or canonical-path validation.' }, 409);
   }
   const expectedSizes = [Number(originalVersion.size_bytes), Number(candidateVersion.size_bytes)];
   if (expectedSizes.some((size) => !Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES)) {
@@ -307,9 +378,10 @@ Deno.serve(async (request: Request) => {
 
   if (!originalIntegrity || !candidateIntegrity) {
     const report = {
-      protocol: 'ORIGIN-01-blind-reconstruction-comparison-v2',
+      protocol: 'ORIGIN-01-blind-reconstruction-comparison-v3',
       testedAt,
       candidateUploadReconciliation,
+      attemptEvidence,
       integrity: {
         original: { expectedSizeBytes: Number(originalVersion.size_bytes), actualSizeBytes: originalBytes.byteLength, expectedSha256: originalVersion.sha256, actualSha256: originalHash, matched: originalIntegrity },
         candidate: { expectedSizeBytes: Number(candidateVersion.size_bytes), actualSizeBytes: candidateBytes.byteLength, expectedSha256: candidateVersion.sha256, actualSha256: candidateHash, matched: candidateIntegrity },
@@ -329,8 +401,10 @@ Deno.serve(async (request: Request) => {
     };
     const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
       vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
-      dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: selectedCandidate.modelName + '_model_not_recorded',
-      protocol_version: 'ORIGIN-01-v2', comparison_mode: 'decoded_exact', test_status: 'inconclusive',
+      dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: modelIdentifier,
+      model_version: modelVersion, prompt_sha256: promptSha256, session_reference: sessionReference,
+      tool_access: toolAccess, blindness_status: blindnessStatus, attempt_evidence: attemptEvidence,
+      protocol_version: 'ORIGIN-01-v3', comparison_mode: 'decoded_exact', test_status: 'inconclusive',
       exact_match: null, similarity_score: null, verifier: { engine: 'ImageMagick WASM', version: '0.0.30', execution: 'server_edge_function' },
       report, tested_at: testedAt,
     }).select('id,test_status').single();
@@ -380,9 +454,10 @@ Deno.serve(async (request: Request) => {
     ? round(Math.sqrt(originalDescription.backgroundCornerAverageRgb.reduce((sum, value, index) => sum + Math.pow(value - candidateDescription.backgroundCornerAverageRgb![index], 2), 0)))
     : null;
   const report = {
-    protocol: 'ORIGIN-01-blind-reconstruction-comparison-v2',
+    protocol: 'ORIGIN-01-blind-reconstruction-comparison-v3',
     testedAt,
       candidateUploadReconciliation,
+      attemptEvidence,
     integrity: {
       original: { expectedSizeBytes: Number(originalVersion.size_bytes), actualSizeBytes: originalBytes.byteLength, expectedSha256: originalVersion.sha256, actualSha256: originalHash, matched: originalIntegrity },
       candidate: { expectedSizeBytes: Number(candidateVersion.size_bytes), actualSizeBytes: candidateBytes.byteLength, expectedSha256: candidateVersion.sha256, actualSha256: candidateHash, matched: candidateIntegrity },
@@ -424,8 +499,10 @@ Deno.serve(async (request: Request) => {
   };
   const { data: test, error: insertError } = await context.supabaseAdmin.from('vyral_reconstruction_tests').insert({
     vyral_id: ORIGIN.vyralId, user_id: userId, asset_id: candidate.id, asset_version_id: candidateVersion.id,
-    dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: selectedCandidate.modelName + '_model_not_recorded',
-    protocol_version: 'ORIGIN-01-v2', comparison_mode: sameDimensions ? 'decoded_exact' : 'perceptual',
+    dna_record_id: dna.id, model_provider: selectedCandidate.provider, model_id: modelIdentifier,
+    model_version: modelVersion, prompt_sha256: promptSha256, session_reference: sessionReference,
+    tool_access: toolAccess, blindness_status: blindnessStatus, attempt_evidence: attemptEvidence,
+    protocol_version: 'ORIGIN-01-v3', comparison_mode: sameDimensions ? 'decoded_exact' : 'perceptual',
     test_status: exactMatch === true ? 'passed' : 'failed',
     exact_match: exactMatch, similarity_score: similarityScore,
     verifier: { engine: 'ImageMagick WASM', version: '0.0.30', execution: 'server_edge_function', pixel_format: 'RGB8' },

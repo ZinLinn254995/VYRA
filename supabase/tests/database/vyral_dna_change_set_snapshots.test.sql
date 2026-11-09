@@ -1,0 +1,12 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(7);
+select has_column('public','vyral_asset_dna_improvement_proposals','change_set','Proposal stores a canonical change set');
+select has_column('public','vyral_asset_dna_improvement_proposals','change_set_sha256','Change set is hash pinned');
+select has_column('public','vyral_asset_dna_improvement_proposals','change_set_status','Change set has explicit validation state');
+select ok(exists(select 1 from pg_constraint where conrelid='public.vyral_asset_dna_improvement_proposals'::regclass and conname='vyral_asset_dna_proposal_change_set_pair'),'Change set and hash must be present together');
+select ok(exists(select 1 from pg_constraint where conrelid='public.vyral_asset_dna_improvement_proposals'::regclass and conname='vyral_asset_dna_proposal_change_set_hash'),'Change set hash must be lowercase SHA-256');
+select ok(exists(select 1 from pg_trigger where tgrelid='public.vyral_asset_dna_improvement_proposals'::regclass and tgname='vyral_asset_dna_proposal_update_guard'),'Proposal update guard remains installed');
+select ok(exists(select 1 from pg_proc where proname='guard_vyral_asset_dna_proposal_update'),'Proposal guard prevents mutation of prepared change sets');
+select * from finish();
+rollback;

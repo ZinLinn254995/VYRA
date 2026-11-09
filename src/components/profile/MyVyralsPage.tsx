@@ -5,6 +5,7 @@ import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { VyralDetailsContent } from './VyralDetailsContent';
 import { supabase } from '../../context/AuthContext';
+import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type VyralFolder = { id: string; name: string; parentId: string | null; createdAt: string };
 type LegacyVyral = { id: string; name: string; description: string; visibility: 'private' | 'public'; createdAt: string; updatedAt: string; folders: VyralFolder[] };
@@ -13,7 +14,7 @@ type VyralRecord = {
   dna_status: string; license_policy: Record<string, unknown>; created_at: string; updated_at: string;
   assetCount: number; folderCount: number; metadata?: Record<string, unknown>;
 };
-type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string };
+type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 const STORAGE_KEY = 'vyra:my-vyrals:v1';
 const MIGRATION_KEY = 'vyra:my-vyrals:cloud-migrated:v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -60,7 +61,7 @@ const updateProfileCardBottomRadius = (content: HTMLElement) => {
 
 const fieldClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
 
-export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired, onBack, backLabel }) => {
+export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired, onBack, backLabel, onSendAssetsToChat }) => {
   const [vyrals, setVyrals] = useState<VyralRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -157,7 +158,6 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
 
   const createVyral = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
     if (!isAuthenticated) { onLoginRequired(); return; }
     if (!supabase) { setError('Cloud storage is not configured for this environment.'); return; }
     const { data: auth } = await supabase.auth.getUser();
@@ -167,11 +167,18 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
       allow_ai_analysis: true, allow_ai_generation: true, allow_remix: false,
       allow_redistribution: false, commercial_use: false, require_attribution: true,
     };
+    const creatorNamedVyral = Boolean(name.trim());
+    const initialName = name.trim().slice(0, 100) || 'New Vyral';
     const { data: created, error: createError } = await supabase.from('vyrals').insert({
-      user_id: auth.user.id, name: name.trim(), description: description.trim(),
+      user_id: auth.user.id, name: initialName, description: description.trim().slice(0, 1000),
       visibility: 'private', lifecycle_status: 'draft', dna_status: 'evolving',
       dna_schema_version: 1, license_policy: initialLicense,
-      metadata: { identity_initialized: true, package_format: '.vyral' },
+      metadata: {
+        identity_initialized: true, package_format: '.vyral',
+        identity_name_origin: creatorNamedVyral ? 'creator_edited' : 'system_default',
+        identity_description_origin: description.trim() ? 'creator_edited' : 'system_default',
+        ai_details_status: 'pending',
+      },
     }).select('*').single();
     if (createError || !created) {
       setError(createError?.message ?? 'Could not create this Vyral.');
@@ -181,7 +188,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
       vyral_id: created.id, user_id: auth.user.id, scope: 'vyral', schema_version: 1,
       dna_status: 'evolving', source_kind: 'creator', verification_status: 'creator_confirmed',
       payload: {
-        identity: { name: name.trim(), description: description.trim() },
+        identity: { name: initialName, description: description.trim() },
         authority: { creator_is_source_of_truth: true },
         knowledge: { creator_defined: [], vision_observations: [], relationships: [] },
         reconstruction: { dna_only_test: 'not_tested', exact_reconstruction_verified: false },
@@ -227,12 +234,12 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         onBack={() => { setActiveId(null); setQuery(''); }}
         backLabel="Back to My Vyrals"
         icon={<VyralIdentityIcon size={22} />}
-        title={active.name}
-        description={active.description || 'Your creative Vyral identity and asset library.'}
+        title={active.name.toLowerCase().endsWith('.vyral') ? active.name : active.name + '.vyral'}
+        description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
       <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
-        <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} />
+        <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} onSendAssetsToChat={onSendAssetsToChat} />
       </div>
     </section></div>
   );
@@ -245,7 +252,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
           backLabel={backLabel}
           icon={<VyralIdentityIcon size={22} />}
           title="My Vyrals"
-          description="Your creative libraries, identity and knowledge."
+          description="Your Vyral packages and their original Assets."
           action={<Button size="sm" onClick={() => setCreateOpen(true)} startIcon={<Plus size={14} />} className="profile-create-button" aria-label="Create New Vyral"><span className="profile-create-copy"><span className="profile-create-label">Create</span><span className="profile-create-extra">New Vyral</span></span></Button>}
           search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
         />
@@ -254,14 +261,24 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
           {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Vyrals…</div> :
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
               <article key={item.id} className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-                <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">VYRAL COLLECTION</span></button>
-                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A private creative asset library.'}</p></button>{isProtectedVyral(item) ? <span title="Protected sample — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={12}/> Protected</span> : <button type="button" onClick={() => void deleteVyral(item)} aria-label={'Delete '+item.name} disabled={busy} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15}/></button>}</div>
+                <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">VYRAL PACKAGE · .VYRAL</span></button>
+                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name.toLowerCase().endsWith('.vyral') ? item.name : item.name + '.vyral'}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A private creative asset library.'}</p>
+                    {(() => {
+                      const fields = (item.metadata?.ai_details as { fields?: Record<string, { value?: unknown }> } | undefined)?.fields ?? {};
+                      const category = typeof fields.category?.value === 'string' ? fields.category.value : '';
+                      const style = typeof fields.style?.value === 'string' ? fields.style.value : '';
+                      const tagValue = fields.tags?.value;
+                      const tags = Array.isArray(tagValue) ? tagValue.filter((tag): tag is string => typeof tag === 'string').slice(0, 2) : [];
+                      const values = [category, style, ...tags].filter(Boolean).slice(0, 4);
+                      return values.length ? <div className="mt-2 flex flex-wrap gap-1">{values.map((value, index) => <span key={value + index} className="max-w-full truncate rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-0.5 text-[9px] text-[var(--vyra-text-secondary)]">{value}</span>)}</div> : null;
+                    })()}
+                  </button>{isProtectedVyral(item) ? <span title="Protected sample — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={12}/> Protected</span> : <button type="button" onClick={() => void deleteVyral(item)} aria-label={'Delete '+item.name} disabled={busy} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15}/></button>}</div>
                   <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--vyra-text-muted)]"><span>{item.assetCount} assets · {item.folderCount} folders</span><span className="capitalize">{item.dna_status.replaceAll('_',' ')}</span></div>
                   <button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Vyral <ChevronRight size={14}/></button>
                 </div>
               </article>
             ))}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] px-6 py-10 text-center"><div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={28}/></div><h3 className="mt-4 text-base font-semibold text-[var(--vyra-text-primary)]">{query?'No matching Vyrals':'Create your first Vyral'}</h3><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">{query?'Try another search term.':'Give your creative assets a home with their own identity, folders and knowledge.'}</p><button type="button" onClick={()=>setCreateOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-4 py-2 text-xs font-semibold text-slate-950"><Plus size={14}/> Create Vyral</button></div>}
-          {createOpen && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/65 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setCreateOpen(false);}}><section role="dialog" aria-modal="true" aria-labelledby="create-vyral-title" className="w-full max-w-md rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]"><div className="flex items-start justify-between gap-3"><div><h3 id="create-vyral-title" className="text-xl font-bold text-[var(--vyra-text-primary)]">Create New Vyral</h3><p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">Create a new identity-aware asset collection.</p></div><button type="button" onClick={()=>setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={17} className="rotate-45"/></button></div><form onSubmit={(event)=>void createVyral(event)} className="mt-5 space-y-4"><div><label htmlFor="new-vyral-name" className="mb-2 block text-xs font-semibold text-[var(--vyra-text-primary)]">Vyral name *</label><input id="new-vyral-name" autoFocus required maxLength={100} value={name} onChange={(event)=>setName(event.target.value)} placeholder="e.g. The Northern Kingdom" className={fieldClass}/></div><div><label htmlFor="new-vyral-description" className="mb-2 block text-xs font-semibold text-[var(--vyra-text-primary)]">Description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label><textarea id="new-vyral-description" rows={3} maxLength={1000} value={description} onChange={(event)=>setDescription(event.target.value)} placeholder="What is this Vyral about?" className={fieldClass+' min-h-24 resize-y py-2.5'}/></div><div className="flex justify-end gap-2 pt-1"><Button type="button" variant="ghost" onClick={()=>setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={busy||!name.trim()}>{busy?'Creating…':'Create Vyral'}</Button></div></form></section></div>}
+          {createOpen && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/65 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setCreateOpen(false);}}><section role="dialog" aria-modal="true" aria-labelledby="create-vyral-title" className="w-full max-w-md rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]"><div className="flex items-start justify-between gap-3"><div><h3 id="create-vyral-title" className="text-xl font-bold text-[var(--vyra-text-primary)]">Create New Vyral</h3><p className="mt-1 text-sm text-[var(--vyra-text-secondary)]">Create a new identity-aware asset collection.</p></div><button type="button" onClick={()=>setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={17} className="rotate-45"/></button></div><form onSubmit={(event)=>void createVyral(event)} className="mt-5 space-y-4"><div><label htmlFor="new-vyral-name" className="mb-2 block text-xs font-semibold text-[var(--vyra-text-primary)]">Vyral name <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label><input id="new-vyral-name" autoFocus maxLength={100} value={name} onChange={(event)=>setName(event.target.value)} placeholder="Leave blank; VYRA will suggest a name after you add Assets" className={fieldClass}/></div><div><label htmlFor="new-vyral-description" className="mb-2 block text-xs font-semibold text-[var(--vyra-text-primary)]">Description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label><textarea id="new-vyral-description" rows={3} maxLength={1000} value={description} onChange={(event)=>setDescription(event.target.value)} placeholder="Optional — VYRA can suggest details from your Assets" className={fieldClass+' min-h-24 resize-y py-2.5'}/></div><div className="flex justify-end gap-2 pt-1"><Button type="button" variant="ghost" onClick={()=>setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={busy}>{busy?'Creating…':'Create Vyral'}</Button></div></form></section></div>}
         </div>
       </section>
     </div>

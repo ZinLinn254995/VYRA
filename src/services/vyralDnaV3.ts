@@ -14,6 +14,23 @@ export type VyralDnaV3Tile = {
   package_path: string;
 };
 
+export type VyralDnaV3SourceFileChunk = {
+  index: number;
+  byte_length: number;
+  sha256: string;
+  package_path: string;
+};
+
+export type VyralDnaV3EncodedFilePayload = {
+  encoding: 'raw-chunks-v1';
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  chunk_size: number;
+  chunks: VyralDnaV3SourceFileChunk[];
+};
+
 export type VyralDnaV3Record = {
   schema_id: typeof VYRAL_DNA_V3_SCHEMA_ID;
   schema_version: typeof VYRAL_DNA_V3_SCHEMA_VERSION;
@@ -52,6 +69,7 @@ export type VyralDnaV3Record = {
     tile_height: number;
     tiles: VyralDnaV3Tile[];
   };
+  encoded_file_payload?: VyralDnaV3EncodedFilePayload;
 };
 
 export type VyralDnaV3PackageEntry = { path: string; data: Uint8Array };
@@ -276,7 +294,91 @@ export const validateVyralDnaV3Record = (value: unknown): VyralDnaV3Record => {
   if (!Number.isSafeInteger(expectedTileCount) || payload.tiles.length !== expectedTileCount) {
     throw new Error('DNA v3 tile count does not cover the declared image grid.');
   }
+  if (record.encoded_file_payload !== undefined) {
+    const encoded = record.encoded_file_payload;
+    if (!isObject(encoded) || encoded.encoding !== 'raw-chunks-v1' ||
+        !isNonEmptyString(encoded.filename) || encoded.filename.length > 255 ||
+        encoded.mime_type !== record.source.mime_type ||
+        encoded.size_bytes !== record.source.size_bytes ||
+        encoded.sha256 !== record.source.sha256 ||
+        !Number.isSafeInteger(encoded.chunk_size) || encoded.chunk_size < 1 || encoded.chunk_size > 8 * 1024 * 1024 ||
+        !Array.isArray(encoded.chunks) || encoded.chunks.length === 0) {
+      throw new Error('DNA v3 exact encoded-file payload metadata is invalid.');
+    }
+    const expectedChunks = Math.ceil(encoded.size_bytes / encoded.chunk_size);
+    if (encoded.chunks.length !== expectedChunks) throw new Error('DNA v3 encoded-file chunk count is incomplete.');
+    for (let index = 0; index < encoded.chunks.length; index += 1) {
+      const chunk = encoded.chunks[index];
+      const expectedLength = Math.min(encoded.chunk_size, encoded.size_bytes - index * encoded.chunk_size);
+      if (!isObject(chunk) || chunk.index !== index || chunk.byte_length !== expectedLength ||
+          typeof chunk.sha256 !== 'string' || !SHA256_PATTERN.test(chunk.sha256) ||
+          chunk.package_path !== `dna/v3/${record.record_id}/source/${index}.bin`) {
+        throw new Error('DNA v3 exact encoded-file chunk metadata is invalid.');
+      }
+    }
+  }
   return record;
+};
+
+
+export const createVyralDnaV3EncodedFilePayload = async (
+  recordValue: unknown,
+  bytes: Uint8Array,
+  filename: string,
+  chunkSize = 1024 * 1024,
+): Promise<{ payload: VyralDnaV3EncodedFilePayload; entries: VyralDnaV3PackageEntry[] }> => {
+  const record = validateVyralDnaV3Record(recordValue);
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength !== record.source.size_bytes ||
+      !isNonEmptyString(filename) || filename.length > 255 ||
+      !Number.isSafeInteger(chunkSize) || chunkSize < 1 || chunkSize > 8 * 1024 * 1024 ||
+      await sha256Hex(bytes) !== record.source.sha256) {
+    throw new Error('Exact encoded-file payload does not match the pinned DNA v3 source bytes.');
+  }
+  const chunks: VyralDnaV3SourceFileChunk[] = [];
+  const entries: VyralDnaV3PackageEntry[] = [];
+  for (let offset = 0, index = 0; offset < bytes.byteLength; offset += chunkSize, index += 1) {
+    const part = bytes.slice(offset, Math.min(offset + chunkSize, bytes.byteLength));
+    const packagePath = `dna/v3/${record.record_id}/source/${index}.bin`;
+    chunks.push({ index, byte_length: part.byteLength, sha256: await sha256Hex(part), package_path: packagePath });
+    entries.push({ path: packagePath, data: part });
+  }
+  return {
+    payload: {
+      encoding: 'raw-chunks-v1',
+      filename,
+      mime_type: record.source.mime_type,
+      size_bytes: bytes.byteLength,
+      sha256: record.source.sha256,
+      chunk_size: chunkSize,
+      chunks,
+    },
+    entries,
+  };
+};
+
+export const reconstructVyralDnaV3EncodedFile = async (
+  recordValue: unknown,
+  files: Map<string, Uint8Array>,
+): Promise<Uint8Array> => {
+  const record = validateVyralDnaV3Record(recordValue);
+  const payload = record.encoded_file_payload;
+  if (!payload) throw new Error('DNA v3 package does not include exact original encoded-file bytes.');
+  if (!(files instanceof Map)) throw new Error('DNA v3 source-file reconstruction requires a package file map.');
+  const output = new Uint8Array(payload.size_bytes);
+  let offset = 0;
+  for (const chunk of payload.chunks) {
+    const bytes = files.get(chunk.package_path);
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength !== chunk.byte_length ||
+        await sha256Hex(bytes) !== chunk.sha256) {
+      throw new Error('DNA v3 encoded-file chunk integrity check failed: ' + chunk.package_path);
+    }
+    output.set(bytes, offset);
+    offset += bytes.byteLength;
+  }
+  if (offset !== payload.size_bytes || await sha256Hex(output) !== record.source.sha256) {
+    throw new Error('DNA v3 exact encoded-file reconstruction failed its source SHA-256 check.');
+  }
+  return output;
 };
 
 export const reconstructVyralDnaV3 = async (value: unknown, files: Map<string, Uint8Array>) => {

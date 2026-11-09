@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [chat, service, server, entry] = await Promise.all([
+const [chat, service, server, entry, promotion] = await Promise.all([
   readFile(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/services/aiService.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/server/ai.ts', import.meta.url), 'utf8'),
   readFile(new URL('../server.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/functions/promote-vyral-vision-field/index.ts', import.meta.url), 'utf8'),
 ]);
 
 test('Vyral chat verifies DNA before creating a separate vision derivative', () => {
@@ -51,5 +52,24 @@ test('server rejects oversized, malformed, or MIME-mismatched vision payloads', 
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
   assert.match(server, /MIME type does not match its file signature/);
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
-  assert.match(entry, /express\.json\(\{ limit: '4mb' \}\)/);
+  assert.match(entry, /express\.json\(\{ limit: '8mb' \}\)/);
+});
+
+
+test('Vision field promotion is limited to editable knowledge fields and exact source evidence', () => {
+  assert.match(promotion, /dnaPathParts\[0\] !== 'knowledge'/);
+  assert.match(promotion, /forbiddenDnaSegments/);
+  assert.match(promotion, /Protected DNA identity, provenance, integrity and licensing fields cannot be promoted/);
+  assert.match(promotion, /stableJson\(field\.value\) !== stableJson\(body\.acceptedValue\)/);
+  assert.match(promotion, /creator confirmation before field promotion/);
+  assert.match(promotion, /review\.asset_version_id !== version\.id/);
+  assert.match(promotion, /review\.source_sha256 !== observation\.source_sha256\.toLowerCase\(\)/);
+});
+
+test('Creator evidence resolver verifies both the review and original Vision observation', async () => {
+  const proposal = await readFile(new URL('../supabase/functions/manage-vyral-asset-dna-proposal/index.ts', import.meta.url), 'utf8');
+  assert.match(proposal, /observationResult/);
+  assert.match(proposal, /observations\.has\(record\.observation_id\)/);
+  assert.match(proposal, /reviews\.get\(record\.review_evidence_id\)\?\.observation_id === record\.observation_id/);
+  assert.match(proposal, /fieldPath === record\.field_path && sameJson\(operation\.after, record\.accepted_value\)/);
 });

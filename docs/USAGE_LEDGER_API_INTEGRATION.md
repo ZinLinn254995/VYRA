@@ -4,7 +4,7 @@
 
 This document defines the safe integration boundary for the usage and credit ledger foundation. It does not enable credit charging or change generation behavior.
 
-**Current status (2026-11-03):** the full eight-migration chain, including the usage ledger, is applied to the separate `VYRA Development` project. All five database pgTAP suites pass there and GitHub CI passes. The production Supabase project has not received these migrations. The generation-to-ledger server lifecycle described below remains a contract, not a completed provider-to-database implementation. No service-role key is exposed to the browser.
+**Current status (2026-11-03):** the full eight-migration chain, including the usage ledger, is applied to the separate `VYRA Development` project. All five database pgTAP suites pass there and GitHub CI passes. The production Supabase project has not received these migrations. The OpenRouter Text lifecycle is implemented, and a separate Google Gemini Text recorder is now implemented for automatic Asset/Vyral metadata suggestions. Full authenticated Development E2E testing remains in progress. No service-role key is exposed to the browser.
 
 ## Current provider behavior
 
@@ -19,7 +19,7 @@ A missing cost is represented as unknown/null. Estimates must never be copied in
 
 ## First server integration increment
 
-The OpenRouter Text chat route now has an opt-in usage-ledger integration behind `VYRA_USAGE_LEDGER_ENABLED=true`.
+The OpenRouter Text chat route and the Google Gemini metadata-suggestion task now have opt-in usage-ledger integrations behind `VYRA_USAGE_LEDGER_ENABLED=true`.
 
 When enabled, the route:
 - Requires a valid Supabase access token and a request `Idempotency-Key`.
@@ -28,7 +28,7 @@ When enabled, the route:
 - Records actual provider-reported cost through the service-role-only RPC when the provider returns a finite, non-negative cost. Unknown cost remains absent.
 - Marks failed or uncertain jobs distinctly. A repeated idempotency key is rejected before another provider request can be sent.
 
-This increment records usage only. It does **not** reserve or charge customer credits, and it does not yet cover Gemini, Image, Audio, or Video generation routes. Keep the feature flag disabled until authenticated Development E2E testing is complete and the other generation capabilities have their own verified recording paths.
+This increment records usage only. It does **not** reserve or charge customer credits. Google Gemini is tracked only for the `suggest_details` metadata task: a verified customer session and idempotency key are required, a `google` provider attempt is recorded, and Gemini token counts are stored when returned. Gemini does not currently return an actual USD cost in this integration, so actual cost remains unknown and no cost row is fabricated. Ordinary Gemini chat, Image, Audio, and Video generation remain blocked while the ledger is enabled until their own recording paths are verified. Keep the feature flag disabled until authenticated Development E2E testing is complete.
 
 The Development schema already includes the service-role-only `apply_credit_ledger_entry()` RPC for `grant`, `reserve`, `commit`, `release`, `refund`, and audited `adjustment` entries. A server-only TypeScript wrapper now exists at `src/server/creditLedger.ts`, with typed validation and unit coverage. It is not mounted as a public API route and no provider-generation route calls it. This preserves the explicit boundary: BYOK requests are not charged VYRA credits, and VYRA-managed credit charging remains disabled until pricing, actual-cost reconciliation, customer consent, and refund rules are approved. See `docs/CREDIT_LEDGER_LIFECYCLE.md`.
 
@@ -74,7 +74,7 @@ The Development schema already includes the service-role-only `apply_credit_ledg
 
 ## Safe rollout sequence
 
-1. Implement server-side authentication and job/attempt persistence behind a disabled feature flag.
+1. Implement server-side authentication and job/attempt persistence behind a disabled feature flag (OpenRouter Text and Gemini metadata suggestions are implemented; remaining capabilities are gated).
 2. Add mocked provider integration tests and authenticated tenant-isolation tests.
 3. Verify each capability's provider request/response contract, especially asynchronous video and binary speech.
 4. Deploy code with ledger writes disabled; confirm health and logs contain no secrets.

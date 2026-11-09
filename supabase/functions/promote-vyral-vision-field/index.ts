@@ -33,7 +33,15 @@ Deno.serve(async (request: Request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
   if (!isUuid(body.observationId)) return json({ error: 'A valid observationId is required.' }, 400);
-  if (typeof body.fieldPath !== 'string' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(body.fieldPath) || body.fieldPath.length > 240) return json({ error: 'A valid dotted fieldPath is required.' }, 400);
+  if (typeof body.fieldPath !== 'string' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(body.fieldPath) || body.fieldPath.length > 240) return json({ error: 'A valid dotted DNA fieldPath is required.' }, 400);
+  const observationFieldPath = typeof body.observationFieldPath === 'string' ? body.observationFieldPath : body.fieldPath;
+  const dnaPathParts = body.fieldPath.split('.');
+  const forbiddenDnaSegments = new Set(['__proto__','prototype','constructor','id','asset_id','asset_version_id','dna_record_id','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','revision_number','parent_dna_record_id']);
+  if (dnaPathParts[0] !== 'knowledge' || dnaPathParts.length < 2 ||
+      dnaPathParts.some((part) => forbiddenDnaSegments.has(part.toLowerCase()))) {
+    return json({ error: 'Vision field promotion is limited to non-identity knowledge fields. Protected DNA identity, provenance, integrity and licensing fields cannot be promoted.' }, 400);
+  }
+  if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(observationFieldPath) || observationFieldPath.length > 240) return json({ error: 'A valid dotted observationFieldPath is required.' }, 400);
   if (body.acceptedValue === undefined) return json({ error: 'acceptedValue is required.' }, 400);
   const serialized = JSON.stringify(body.acceptedValue);
   if (!serialized || serialized.length > 8000) return json({ error: 'Accepted value must be valid JSON and no larger than 8KB.' }, 400);
@@ -46,7 +54,7 @@ Deno.serve(async (request: Request) => {
     .eq('id', body.observationId).eq('user_id', userId).maybeSingle();
   if (observationError) return json({ error: 'Could not load Vision observation.' }, 500);
   if (!observation) return json({ error: 'Vision observation not found.' }, 404);
-  const field = getPath(observation.observation, body.fieldPath);
+  const field = getPath(observation.observation, observationFieldPath);
   if (!field.found || stableJson(field.value) !== stableJson(body.acceptedValue)) return json({ error: 'Accepted value must exactly match the selected observation field. Creator edits must be recorded as a separate creator statement.', status: 'value_mismatch' }, 409);
 
   const { data: asset, error: assetError } = await context.supabase
@@ -54,38 +62,39 @@ Deno.serve(async (request: Request) => {
   if (assetError) return json({ error: 'Could not verify source asset.' }, 500);
   if (!asset) return json({ error: 'Source asset not found.' }, 404);
 
+  if (!observation.asset_version_id || typeof observation.source_sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(observation.source_sha256)) {
+    return json({ error: 'This observation is not pinned to a verifiable source Asset Version and SHA-256.', status: 'source_binding_missing' }, 409);
+  }
+  const { data: version, error: versionError } = await context.supabase
+    .from('vyral_asset_versions').select('id,sha256').eq('id', observation.asset_version_id)
+    .eq('asset_id', asset.id).eq('user_id', userId).maybeSingle();
+  if (versionError) return json({ error: 'Could not verify the observation source version.' }, 500);
+  if (!version || typeof version.sha256 !== 'string' || version.sha256.toLowerCase() !== observation.source_sha256.toLowerCase()) {
+    return json({ error: 'Observation source hash does not match the immutable Asset Version.', status: 'source_binding_mismatch' }, 409);
+  }
   const { data: review, error: reviewError } = await context.supabaseAdmin
-    .from('vyral_dna_records').select('id,payload,verification_status')
-    .eq('asset_id', asset.id).eq('user_id', userId)
-    .contains('payload', { vision_observation_review_id: observation.id, review_source: 'server_creator_review', decision: 'creator_confirmed' })
-    .eq('source_kind', 'creator').eq('verification_status', 'creator_confirmed').maybeSingle();
-  if (reviewError) return json({ error: 'Could not verify creator review.' }, 500);
-  if (!review) return json({ error: 'This observation needs an explicit creator confirmation before promotion.', status: 'creator_confirmation_required' }, 403);
+    .from('vyral_vision_creator_evidence').select('id,asset_version_id,source_sha256')
+    .eq('asset_id', asset.id).eq('user_id', userId).eq('observation_id', observation.id)
+    .eq('evidence_kind','observation_review').eq('decision','creator_confirmed').maybeSingle();
+  if (reviewError) return json({ error: 'Could not verify creator review evidence.' }, 500);
+  if (!review) return json({ error: 'This observation needs an explicit creator confirmation before field promotion.', status: 'creator_confirmation_required' }, 403);
+  if (review.asset_version_id !== version.id || review.source_sha256 !== observation.source_sha256.toLowerCase()) {
+    return json({ error: 'Creator review evidence is not bound to this exact source version.', status: 'review_source_mismatch' }, 409);
+  }
 
-  const payload = {
-    promotion_source: 'creator_approved_vision_field',
-    promotion_observation_id: observation.id,
-    promotion_review_record_id: review.id,
-    promotion_field_path: body.fieldPath,
-    accepted_value: body.acceptedValue,
-    source_asset_id: observation.asset_id,
-    source_asset_version_id: observation.asset_version_id,
-    source_sha256: observation.source_sha256,
-    task_kind: observation.task_kind,
-    model_provider_claim: observation.model_provider,
-    model_id_claim: observation.model_id,
-    creator_note: note || null,
-    promoted_at: new Date().toISOString(),
-    promoted_by: userId,
-    scope: 'single_observation_field_only',
-    does_not_certify_entire_asset_or_vyral: true,
-  };
-  const { data: record, error: insertError } = await context.supabaseAdmin.from('vyral_dna_records')
-    .insert({ vyral_id: asset.vyral_id, user_id: userId, asset_id: asset.id, scope: 'asset', schema_version: 1,
-      dna_status: 'evolving', source_kind: 'creator', verification_status: 'creator_confirmed',
-      payload, reconstruction_data: { eligible_for_dna_only_reconstruction: false, reason: 'A field-level creator promotion does not establish complete or lossless DNA.' } })
+  const { data: existing, error: existingError } = await context.supabaseAdmin
+    .from('vyral_vision_creator_evidence').select('id')
+    .eq('observation_id', observation.id).eq('evidence_kind','field_confirmation').eq('field_path',body.fieldPath).maybeSingle();
+  if (existingError) return json({ error: 'Could not check existing field confirmation.' }, 500);
+  if (existing) return json({ error: 'This observation field already has immutable creator confirmation evidence.', status: 'promotion_exists' }, 409);
+
+  const { data: record, error: insertError } = await context.supabaseAdmin.from('vyral_vision_creator_evidence')
+    .insert({ user_id: userId, asset_id: asset.id, asset_version_id: version.id, observation_id: observation.id,
+      evidence_kind: 'field_confirmation', decision: 'creator_confirmed', source_sha256: observation.source_sha256.toLowerCase(),
+      field_path: body.fieldPath, accepted_value: body.acceptedValue, review_evidence_id: review.id, note: note || null })
     .select('id').single();
-  if (insertError?.code === '23505') return json({ error: 'This observation field has already been promoted. Promotion records are immutable.', status: 'promotion_exists' }, 409);
-  if (insertError || !record) return json({ error: 'Could not save Knowledge DNA promotion.' }, 500);
-  return json({ status: 'field_promoted', dnaRecordId: record.id, observationId: observation.id, fieldPath: body.fieldPath }, 201);
+  if (insertError?.code === '23505') return json({ error: 'This observation field already has immutable creator confirmation evidence.', status: 'promotion_exists' }, 409);
+  if (insertError || !record) return json({ error: 'Could not save field confirmation evidence.' }, 500);
+  return json({ status: 'field_confirmed', evidenceId: record.id, observationId: observation.id, fieldPath: body.fieldPath,
+    sourceVersionId: version.id, sourceSha256: observation.source_sha256, observationFieldPath, dnaChanged: false }, 201);
 });

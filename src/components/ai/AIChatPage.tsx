@@ -1,14 +1,22 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp, Archive, Clock3, Copy, History, Lock, MessageSquare,
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { getCurrentAccessToken } from '../../context/AuthContext';
+import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
+import type { VyralChatAssetContext } from '../../types/vyralChat';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
 import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
+import { buildVyralCreatorInventoryContextV1 } from '../../services/vyralCreatorInventoryContextV1.ts';
+import { requestsVyralQualityEvaluationV1 } from '../../services/vyralQualityIntentV1.ts';
+import { requestsVyralQualityHistoryV1 } from '../../services/vyralQualityHistoryIntentV1.ts';
+import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaAssessmentIntentV1.ts';
+import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
+import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
+import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -23,6 +31,8 @@ type ChatSession = {
 type AIChatPageProps = {
   isAuthenticated: boolean;
   onLoginRequired: () => void;
+  initialSelectedAssets?: VyralChatAssetContext[];
+  onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -65,6 +75,107 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
     return { mimeType: 'image/jpeg', data: dataUrl.slice(separator + 1), width, height };
   } finally {
     bitmap.close();
+  }
+};
+
+
+const createSelectedAssetVisionPreview = async (source: Blob): Promise<VyralVisionImage> => {
+  const bitmap = await createImageBitmap(source);
+  try {
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('Could not prepare the selected Asset for AI Vision.');
+    context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); context.drawImage(bitmap, 0, 0, width, height);
+    let preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode selected Asset preview.')), 'image/jpeg', 0.82));
+    if (preview.size > 600 * 1024) preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not compress selected Asset preview.')), 'image/jpeg', 0.55));
+    if (preview.size > 600 * 1024) throw new Error('A selected image preview exceeds the AI Vision size limit.');
+    const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('Could not read selected Asset preview.')); reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid selected Asset preview.')); reader.readAsDataURL(preview); });
+    const separator = dataUrl.indexOf(',');
+    if (separator < 0) throw new Error('Invalid selected Asset preview encoding.');
+    return { mimeType: 'image/jpeg', data: dataUrl.slice(separator + 1), width, height };
+  } finally { bitmap.close(); }
+};
+
+const readBlobAsBase64 = async (blob: Blob): Promise<string> => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the selected media file.'));
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid media file encoding.'));
+    reader.readAsDataURL(blob);
+  });
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) throw new Error('Invalid media file encoding.');
+  return dataUrl.slice(comma + 1);
+};
+
+const extractSelectedVideoFrames = async (
+  source: Blob,
+  assetId: string,
+  assetName: string,
+  maxFrames: number,
+): Promise<(VyralVisionImage & { assetId: string; assetName: string })[]> => {
+  if (maxFrames <= 0) return [];
+  const objectUrl = URL.createObjectURL(source);
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = objectUrl;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('This video format could not be opened for frame inspection.'));
+    });
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await new Promise<void>((resolve, reject) => {
+        video.onloadeddata = () => resolve();
+        video.onerror = () => reject(new Error('The first video frame could not be decoded.'));
+      });
+    }
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error('This video has no readable duration.');
+    const frameCount = Math.min(4, maxFrames);
+    const timestamps = Array.from({ length: frameCount }, (_, index) =>
+      frameCount === 1 ? 0 : Math.min(Math.max(0, duration - 0.05), duration * index / frameCount)
+    ).filter((time, index, all) => all.indexOf(time) === index);
+    const frames: (VyralVisionImage & { assetId: string; assetName: string })[] = [];
+    for (const time of timestamps) {
+      if (Math.abs(video.currentTime - time) > 0.02) {
+        await new Promise<void>((resolve, reject) => {
+          const onSeeked = () => { cleanup(); resolve(); };
+          const onError = () => { cleanup(); reject(new Error('A video frame could not be decoded.')); };
+          const cleanup = () => { video.removeEventListener('seeked', onSeeked); video.removeEventListener('error', onError); };
+          video.addEventListener('seeked', onSeeked, { once: true });
+          video.addEventListener('error', onError, { once: true });
+          video.currentTime = time;
+        });
+      }
+      const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Could not prepare a video frame for AI Vision.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frameBlob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode a video frame.')), 'image/jpeg', 0.78)
+      );
+      const preview = await createSelectedAssetVisionPreview(frameBlob);
+      const minutes = Math.floor(time / 60).toString().padStart(2, '0');
+      const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+      frames.push({ ...preview, assetId, assetName: `${assetName} · ${minutes}:${seconds}` });
+    }
+    return frames;
+  } finally {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(objectUrl);
   }
 };
 
@@ -170,6 +281,19 @@ const inspectVyralAttachment = async (file: File) => {
     });
   }
   const masterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
+  const creatorInventoryContext = buildVyralCreatorInventoryContextV1({
+    assets: manifest.assets.map((item) => {
+      const dnaAsset = masterDna?.assets.find((entry) => entry.asset_id === String(item.id));
+      return {
+        id: String(item.id),
+        name: typeof item.name === 'string' ? item.name : null,
+        asset_type: dnaAsset?.asset_type ?? null,
+        mime_type: typeof item.mime_type === 'string' ? item.mime_type : null,
+      };
+    }),
+    purpose: masterDna?.purpose ?? null,
+    relationships: masterDna?.relationships ?? [],
+  });
   if (masterDna && masterDna.vyral.vyral_id !== String(manifest.vyral.id)) {
     throw new Error('Vyral Master DNA identity does not match this package.');
   }
@@ -187,10 +311,16 @@ const inspectVyralAttachment = async (file: File) => {
   const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
   const lines = [
     `Package: ${String(manifest.vyral.name)} (${mode})`,
+    'VYRA CREATOR CONTEXT: Treat this Vyral as a creator-defined collection of Assets. Any supported asset types may be mixed, and Assets may be related or unrelated. No Main/Supporting role, purpose, story, character, world, style, or relationship is mandatory. An unclassified Asset is valid; do not invent missing metadata or relationships.',
+    'COMPACT DNA POLICY: Compact DNA is a navigation/reference map, not the canonical Original Asset, a complete substitute for Original DNA, or an access credential. Use only the Assets relevant to the user’s request. Do not claim to have inspected or retrieved an Original Asset unless its bytes/content are actually present in this request or returned by an authorized VYRA resolver.',
+    'EVIDENCE POLICY: Distinguish verified DNA/fingerprint facts, creator-declared metadata, AI suggestions, and untested assumptions. Reconstruction claims describe only the stated evidence level; visual similarity or semantic interpretation is not exact source-file recovery.',
+    'CREATOR ASSISTANCE: If asked to improve this Vyral, first understand the creator’s intended task, then recommend only useful optional Assets, metadata, relationships, instructions, or tests. Explain why each recommendation helps; never turn suggestions into confirmed facts or require unrelated structure.',
     `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
+    `Creator inventory summary (verified package metadata only): ${creatorInventoryContext.assetCount} Assets; types ${Object.entries(creatorInventoryContext.typeCounts).map(([type, count]) => type + '=' + count).join(', ')}; declared purpose ${creatorInventoryContext.declaredPurpose ?? 'not provided'}; intended uses ${creatorInventoryContext.intendedUses.join(', ') || 'not provided'}; declared relationships ${creatorInventoryContext.relationshipsCount}`,
+    'QUALITY STATUS: This inventory summary is not a grade. Do not invent a score or grade. A grade requires a versioned applicable standard and evidence for every applicable rule; missing evidence must remain incomplete.',
     `Asset inventory (showing up to 64 of ${manifest.assets.length}): ${manifest.assets.slice(0, 64).map((item) => `${String(item.name ?? item.id)} [${String(item.asset_type ?? 'unknown type')}; ${String(item.mime_type ?? 'unknown MIME')}]`).join('; ')}`,
     masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
-    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose.summary}`, `Intended uses: ${masterDna.purpose.intended_uses.join(', ')}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role}; ${item.media_type}; purpose: ${item.purpose}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${masterDna.relationships.length}): ${masterDna.relationships.slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} raster DNA v3 asset previews are attached to this Vision request (maximum four); File DNA binaries are integrity-checked but their audio/video/document contents are not decoded or attached to Vision.`]; })() : []),
+    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose?.summary ?? 'Not provided'}`, `Intended uses: ${(masterDna.purpose?.intended_uses ?? []).join(', ') || 'None declared'}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role ?? 'unclassified'}; ${item.media_type}; purpose: ${item.purpose ?? 'Not provided'}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${(masterDna.relationships ?? []).length}): ${(masterDna.relationships ?? []).slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} raster DNA v3 asset previews are attached to this Vision request (maximum four); File DNA binaries are integrity-checked but their audio/video/document contents are not decoded or attached to Vision.`]; })() : []),
     ...verified.map((item) =>
       `Raster DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
     ),
@@ -201,10 +331,10 @@ const inspectVyralAttachment = async (file: File) => {
     asset?.name ? `Selected asset: ${String(asset.name)}` : '',
     ...visionImages.map((item, index) => `AI Vision preview ${index + 1}: ${item.assetName} (${item.assetId}), ${item.width}×${item.height} JPEG derivative; lossless DNA remains unchanged`),
   ].filter(Boolean);
-  return { context: lines.join('\n'), visionImages };
+  return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -216,10 +346,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
+  const [selectedVyralId, setSelectedVyralId] = useState<string | null>(null);
   const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setSelectedAssets(initialSelectedAssets); }, [initialSelectedAssets]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -260,7 +394,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
+    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -272,7 +408,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
+    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setDraft('');
     setHistoryOpen(false);
@@ -280,20 +418,45 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
   const sendMessage = async (value = draft) => {
     const text = value.trim();
-    if ((!text && !selectedFile) || isLocked || isSending) return;
+    if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
+    const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
+    const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
+    const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
+    const prepareDnaChangeSet = /^\s*(?:prepare(?: dna)? change set|build(?: dna)? change set|ပြင်ဆင်ချက်(?:များ)? ပြင်ဆင်|change set ပြင်ဆင်)\s*$/i.test(text);
+    const validateDnaChangeSet = /^\s*(?:validate(?: dna)? change set|check(?: dna)? change set|DNA change set စစ်ဆေး)\s*$/i.test(text);
+    const applyDnaChangeSet = /^\s*(?:apply(?: dna)? change set|apply dna revision|DNA change set အသုံးချ)\s*$/i.test(text);
+    const reviewDnaEvidence = /^\s*(?:review|list|show) (?:vision )?(?:dna )?evidence\s*$/i.test(text);
+    const creatorObservationAction = text.match(/^\s*(confirm|dispute) observation ([0-9a-f-]{36})\s*$/i);
+    const promoteObservationField = text.match(/^\s*promote observation ([0-9a-f-]{36}) field ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)(?: as ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*))?\s*$/i);
+    const proposalAction = /^\s*(?:approve(?: dna (?:improvement )?plan)?|အတည်ပြု(?:မယ်)?|လက်ခံမယ်)\s*$/i.test(text)
+      ? 'approve'
+      : /^\s*(?:reject(?: dna (?:improvement )?plan)?|decline|မလုပ်တော့|ပယ်ချမယ်)\s*$/i.test(text)
+        ? 'reject' : null;
+    const requestsVyralReconstructionHistory = requestsVyralReconstructionHistoryV1(text);
+    const qualityVyralIds = [...new Set([
+      ...selectedAssets.map((asset) => asset.vyralId),
+      ...(selectedFile?.name.toLowerCase().endsWith('.vyral') && selectedVyralId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedVyralId) ? [selectedVyralId] : []),
+    ])];
     if (selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext) return;
     if (!isAuthenticated) {
       onLoginRequired();
       return;
     }
-    const visionImages = selectedVyralImages;
+    let visionImages = [...selectedVyralImages];
+    const mediaFiles: {
+      mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac';
+      data: string;
+      assetId?: string;
+      assetName?: string;
+    }[] = [];
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
+    const assetContextText = selectedAssets.length ? '\n\nSelected VYRA Assets (explicit user-selected context):\n' + selectedAssets.map((asset, index) => `${index + 1}. ${asset.name} [${asset.assetType}; ${asset.mimeType}] — Vyral: ${asset.vyralName}; Asset ID: ${asset.id}; Visibility: ${asset.visibility}; Description: ${asset.description || 'Not provided'}`).join('\n') + '\nUse only these selected Assets as the requested VYRA library context. This selection does not grant public access; private Assets are owner-authorized context only.' : '';
     const userMessage: ChatMessage = {
       id: makeId(),
       role: 'user',
-      content: (text || 'Please inspect this attachment.') + attachmentText,
+      content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
     };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
@@ -301,18 +464,588 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
+    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!activeSessionId) setActiveSessionId(makeId());
 
     setIsSending(true);
     try {
+
+
+      if (reviewDnaEvidence) {
+        if (selectedAssets.length !== 1) throw new Error('Select one Asset before reviewing its Vision evidence.');
+        if (!supabase) throw new Error('Vision evidence review is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: observations, error: observationsError } = await supabase
+          .from('vyral_vision_observations')
+          .select('id,asset_version_id,task_kind,model_provider,model_id,observation,source_sha256,verification_status,created_at')
+          .eq('asset_id', selectedAsset.id).order('created_at', { ascending: false }).limit(10);
+        if (observationsError) throw new Error('Could not load Vision observations: ' + observationsError.message);
+        const lines = ['Recent Vision observations for ' + selectedAsset.name + ':'];
+        if (!observations?.length) lines.push('No Vision observations have been recorded for this Asset.');
+        for (const item of observations ?? []) {
+          const summary = typeof item.observation?.summary === 'string' ? item.observation.summary : 'No summary provided.';
+          const sourceMatches = Boolean(item.asset_version_id && item.source_sha256);
+          lines.push(
+            '',
+            'Observation ID: ' + item.id,
+            'Task: ' + item.task_kind + ' · status: ' + item.verification_status,
+            'Source version pinned: ' + (sourceMatches ? item.asset_version_id : 'No — cannot be promoted'),
+            'Source SHA-256: ' + (item.source_sha256 ?? 'Missing'),
+            'Summary: ' + summary,
+            'Model claim: ' + item.model_provider + ' / ' + item.model_id,
+          );
+        }
+        lines.push('', 'To confirm or dispute one, send: confirm observation <ID> or dispute observation <ID>.');
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: lines.join('\\n'), status: 'preview' }]);
+        return;
+      }
+      if (creatorObservationAction) {
+        if (selectedAssets.length !== 1) throw new Error('Select the Asset that owns the Vision observation before reviewing it.');
+        if (!supabase) throw new Error('Creator evidence review is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const observationId = creatorObservationAction[2];
+        const { data: observation, error: observationError } = await supabase
+          .from('vyral_vision_observations').select('id,asset_id').eq('id', observationId)
+          .eq('asset_id', selectedAsset.id).maybeSingle();
+        if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
+        const decision = creatorObservationAction[1].toLowerCase() === 'confirm' ? 'creator_confirmed' : 'disputed';
+        const { data: result, error: reviewError } = await supabase.functions.invoke('record-vyral-vision-review', {
+          body: { observationId, decision },
+        });
+        if (reviewError) {
+          let message = 'Creator review could not be recorded.';
+          try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
+          content: 'Creator review recorded: ' + decision + '\\nEvidence ID: ' + String(result?.reviewId ?? 'unavailable') +
+            '\\nPinned to Asset Version: ' + String(result?.sourceVersionId ?? 'unavailable') +
+            '\\nSource SHA-256: ' + String(result?.sourceSha256 ?? 'unavailable') +
+            '\\nAsset DNA changed: No.', status: 'success' }]);
+        return;
+      }
+      if (promoteObservationField) {
+        if (selectedAssets.length !== 1) throw new Error('Select the Asset that owns the Vision observation before confirming a DNA field.');
+        if (!supabase) throw new Error('Field confirmation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const observationId = promoteObservationField[1];
+        const observationFieldPath = promoteObservationField[2];
+        const fieldPath = promoteObservationField[3] || ('knowledge.' + observationFieldPath);
+        const { data: observation, error: observationError } = await supabase
+          .from('vyral_vision_observations').select('id,asset_id,observation')
+          .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle();
+        if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
+        let acceptedValue: unknown = observation.observation;
+        for (const part of observationFieldPath.split('.')) {
+          if (!acceptedValue || typeof acceptedValue !== 'object' || Array.isArray(acceptedValue) ||
+              !Object.prototype.hasOwnProperty.call(acceptedValue, part)) throw new Error('The requested field does not exist in this Vision observation.');
+          acceptedValue = (acceptedValue as Record<string, unknown>)[part];
+        }
+        const { data: result, error: promoteError } = await supabase.functions.invoke('promote-vyral-vision-field', {
+          body: { observationId, fieldPath, observationFieldPath, acceptedValue },
+        });
+        if (promoteError) {
+          let message = 'Creator field confirmation could not be saved.';
+          try { const payload = await (promoteError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
+          content: 'Creator-confirmed field evidence saved.\\nField: ' + fieldPath +
+            '\\nEvidence ID: ' + String(result?.evidenceId ?? 'unavailable') +
+            '\\nThe evidence is pinned to the original Asset Version and SHA-256. DNA has not been changed.',
+          status: 'success' }]);
+        return;
+      }
+
+      if (applyDnaChangeSet) {
+        if (selectedAssets.length !== 1) throw new Error('To apply a DNA change set, select exactly one Asset.');
+        if (!supabase) throw new Error('Secure DNA revision creation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const {data: approved,error: approvedError} = await supabase.from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,change_set_status,change_set_validation_report').eq('asset_id',selectedAsset.id)
+          .in('status',['approved','applied']).eq('change_set_status','validated').not('change_set_validation_report','is',null)
+          .order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if (approvedError) throw new Error('Could not load the validated DNA change set: '+approvedError.message);
+        if (!approved) throw new Error('No fully validated DNA change set exists for this Asset. Validate its approved change set first.');
+        const {data: applied,error: applyError} = await supabase.functions.invoke('manage-vyral-asset-dna-proposal',{body:{action:'apply_change_set',proposalId:approved.id}});
+        if (applyError) {
+          let message='VYRA could not create the new DNA revision.';
+          try { const payload=await (applyError as {context?:Response}).context?.clone().json() as {error?:string}|undefined; if(payload?.error) message=payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        if (!applied?.dnaRecord?.id) throw new Error('The atomic DNA revision response was incomplete.');
+        const lines=[
+          'Validated DNA change set applied successfully.',
+          'New DNA Record: '+String(applied.dnaRecord.id),
+          'Revision: '+String(applied.dnaRecord.revisionNumber ?? 'unknown'),
+          'Parent DNA Record: '+String(applied.dnaRecord.parentDnaRecordId ?? 'unknown'),
+          'Proposal status: '+String(applied.status ?? 'applied'),
+          applied.reused ? 'This is the existing result of an earlier successful application.' : 'A new immutable DNA revision was created.',
+          'Original Asset bytes and parent DNA revision were not modified.',
+          'Run a fresh DNA assessment and reconstruction test against this new revision.',
+        ];
+        setMessages((previous)=>[...previous,{id:makeId(),role:'assistant',content:lines.join('\\n'),status:'success'}]);
+        return;
+      }
+      if (validateDnaChangeSet) {
+        if (selectedAssets.length !== 1) throw new Error('To validate a DNA change set, select the Asset whose approved change set you want VYRA to check.');
+        if (!supabase) throw new Error('Secure DNA change-set validation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: approved, error: approvedError } = await supabase
+          .from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,created_at,change_set_sha256')
+          .eq('asset_id', selectedAsset.id).eq('status','approved').not('change_set','is',null)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (approvedError) throw new Error('Could not load the prepared DNA change set: ' + approvedError.message);
+        if (!approved) throw new Error('No prepared DNA change set exists for this Asset. Approve its proposal and prepare the change set first.');
+        const { data: validated, error: validationError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          body: { action: 'validate_change_set', proposalId: approved.id },
+        });
+        if (validationError) {
+          let message = 'VYRA could not validate the DNA change set.';
+          try { const payload = await (validationError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        const report = validated?.report;
+        if (!report) throw new Error('The deterministic validation response was incomplete.');
+        const lines = [
+          'DNA Change Set deterministic validation complete.',
+          'Result: ' + String(validated.status ?? report.status ?? 'unknown'),
+          'Validator: v' + String(report.validatorVersion ?? 'unknown'),
+          'SHA-256: ' + String(report.changeSetSha256 ?? approved.change_set_sha256),
+          'Checks: ' + Object.entries(report.checks ?? {}).map(([key, value]) => key + '=' + String(value)).join(', '),
+          'Validated operations: ' + String(report.validatedOperationCount ?? 0),
+          ...(Array.isArray(report.evidenceResolution) && report.evidenceResolution.length
+            ? ['Creator evidence:', ...report.evidenceResolution.map((item: any) =>
+                '- ' + String(item.status) + ' · ' + String(item.reference) + ' · ' + String(item.reason))]
+            : ['Creator evidence: none resolved']),
+          ...(Array.isArray(report.errors) && report.errors.length ? ['Findings:', ...report.errors.map((item: unknown) => '- ' + String(item))] : []),
+          'DNA changed: No. No revision was created.',
+          validated.nextStep ?? 'A separate revision-creation step is required; validation alone never applies a change.',
+        ];
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: lines.join('\\n'), status: report.status === 'validated' ? 'success' : 'preview' }]);
+        return;
+      }
+      if (prepareDnaChangeSet) {
+        if (selectedAssets.length !== 1) throw new Error('To prepare the DNA change set, select the same Asset whose improvement proposal you approved.');
+        if (!supabase) throw new Error('Secure DNA change-set preparation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: approved, error: approvedError } = await supabase
+          .from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,created_at')
+          .eq('asset_id', selectedAsset.id).eq('status','approved')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (approvedError) throw new Error('Could not load the approved DNA proposal: ' + approvedError.message);
+        if (!approved) throw new Error('No approved DNA improvement proposal exists for this Asset yet. Approve the proposal first.');
+        const { data: prepared, error: prepareError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          body: { action: 'prepare_change_set', proposalId: approved.id },
+        });
+        if (prepareError) {
+          let message = 'VYRA could not prepare the DNA change set.';
+          try { const payload = await (prepareError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        const changeSet = prepared?.changeSet;
+        if (!changeSet) throw new Error('The DNA change-set response was incomplete.');
+        const report = [
+          'DNA Change Set prepared and hash-pinned.',
+          'Status: ' + String(prepared.status ?? 'unknown'),
+          'SHA-256: ' + String(prepared.sha256 ?? 'not returned'),
+          'Remediation tasks: ' + String(Array.isArray(changeSet.tasks) ? changeSet.tasks.length : 0),
+          'Executable DNA operations: ' + String(Array.isArray(changeSet.operations) ? changeSet.operations.length : 0),
+          'DNA changed: No.',
+          'This change set is blocked because the current assessment contains remediation/evidence tasks but no justified before/after DNA values. VYRA will not invent a patch or create an empty DNA revision. The next step is to collect the required evidence and generate a validated, exact patch.',
+        ].join('\\n');
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: report, status: 'preview' }]);
+        return;
+      }
+      if (proposalAction) {
+        if (selectedAssets.length !== 1) throw new Error('To approve or reject a DNA improvement plan, select the same Asset and send “Approve” or “Reject”.');
+        if (!supabase) throw new Error('Secure DNA proposal review is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: pending, error: pendingError } = await supabase
+          .from('vyral_asset_dna_improvement_proposals')
+          .select('id,status,created_at')
+          .eq('asset_id', selectedAsset.id).eq('status','proposed')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (pendingError) throw new Error('Could not load the pending DNA improvement proposal: ' + pendingError.message);
+        if (!pending) throw new Error('There is no pending DNA improvement proposal for this Asset. Run a fresh DNA assessment first.');
+        const { data: review, error: reviewError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          body: { action: proposalAction, proposalId: pending.id },
+        });
+        if (reviewError) {
+          let message = 'VYRA could not save this proposal review.';
+          try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        const result = review?.proposal;
+        const report = proposalAction === 'approve'
+          ? 'DNA improvement proposal approved. The approved plan is saved against the exact Asset Version and DNA snapshot. Canonical DNA has NOT been changed. The next step is to prepare and validate the proposed changes, then create a separate immutable DNA version.'
+          : 'DNA improvement proposal rejected. Canonical DNA remains unchanged.';
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: report + '\nProposal: ' + (result?.id ?? pending.id) + '\nStatus: ' + (result?.status ?? proposalAction), status: 'success' }]);
+        return;
+      }
+      if (requestsAssetDnaAssessment) {
+        if (selectedAssets.length !== 1) {
+          throw new Error('To assess Asset DNA, select exactly one Asset in My Vyrals or My Media Library, then ask VYRA AI Chat to check its DNA.');
+        }
+        if (!supabase) throw new Error('Secure Asset DNA assessment is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data, error } = await supabase.functions.invoke('assess-vyral-asset-dna', {
+          body: { assetId: selectedAsset.id },
+        });
+        if (error) {
+          let message = 'VYRA could not assess this Asset DNA.';
+          try {
+            const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the safe generic message when the function response is unavailable.
+          }
+          throw new Error(message);
+        }
+        const assessment = data?.assessment as {
+          assessmentVersion: number;
+          identity: { assetId: string; assetVersionId: string; dnaRecordId: string; sourceSha256: string };
+          status?: 'ready' | 'partial' | 'blocked';
+          recoveryLevel?: string;
+          checks?: {
+            sourceBinding?: string;
+            sourceFileIntegrity?: string;
+            schemaValidity?: string;
+            provenance?: string;
+            knowledge?: string;
+            payloadIntegrity?: string;
+            exactReconstruction?: string;
+          };
+          blockers?: string[];
+          limitations?: string[];
+        } | undefined;
+        if (!assessment) throw new Error('The Asset DNA assessment response was incomplete.');
+        let proposalStatus = 'not saved';
+        let proposalId = '';
+        if (data.assessmentId) {
+          const { data: proposalData, error: proposalError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+            body: { action: 'create', assessmentId: data.assessmentId },
+          });
+          if (!proposalError && proposalData?.proposal?.id) {
+            proposalId = String(proposalData.proposal.id);
+            proposalStatus = String(proposalData.proposal.status ?? 'proposed');
+          }
+        }
+        const improvementPlan = buildVyralDnaImprovementPlanV1({
+          assessmentVersion: assessment.assessmentVersion,
+          identity: assessment.identity,
+          blockers: assessment.blockers ?? [],
+          limitations: assessment.limitations ?? [],
+        });
+        const statusLabel = assessment.status === 'ready' ? 'READY'
+          : assessment.status === 'blocked' ? 'BLOCKED' : 'PARTIAL';
+        const report = [
+          `Asset DNA assessment — ${selectedAsset.name}`,
+          `Status: ${statusLabel}`,
+          `Recovery capability: ${assessment.recoveryLevel ?? 'unknown'}`,
+          'Evidence checks:',
+          `• Source identity: ${assessment.checks?.sourceBinding ?? 'not available'}`,
+          `• Original file bytes (Storage SHA-256): ${assessment.checks?.sourceFileIntegrity ?? 'not available'}`,
+          `• DNA schema: ${assessment.checks?.schemaValidity ?? 'not available'}`,
+          `• Provenance: ${assessment.checks?.provenance ?? 'not available'}`,
+          `• Structured knowledge: ${assessment.checks?.knowledge ?? 'not available'}`,
+          `• Stored payload integrity: ${assessment.checks?.payloadIntegrity ?? 'not available'}`,
+          `• Exact reconstruction test: ${assessment.checks?.exactReconstruction ?? 'not available'}`,
+          ...(assessment.blockers?.length ? ['Blockers:', ...assessment.blockers.map((item) => `• ${item}`)] : []),
+          ...(assessment.limitations?.length ? ['Limitations:', ...assessment.limitations.map((item) => `• ${item}`)] : []),
+          ...(improvementPlan.improvements.length ? ['', 'Evidence-backed improvement plan:', ...improvementPlan.improvements.map((item) => `• [${item.priority.toUpperCase()}] ${item.action} Acceptance: ${item.acceptanceEvidence}`)] : []),
+          ...(improvementPlan.unmappedBlockers.length ? ['', 'Unmapped blockers — engineering review required:', ...improvementPlan.unmappedBlockers.map((item) => '• ' + item)] : []),
+          ...(improvementPlan.informational.length ? ['', 'Additional improvements:', ...improvementPlan.informational.map((item) => '• ' + item)] : []),
+          '',
+          ...improvementPlan.safety.map((item) => '• ' + item),
+          '',
+          'This result evaluates only the selected Asset Version and its DNA record. It is not the Vyral collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
+          `Assessment history ID: ${data.assessmentId ?? 'not returned'}`,
+          `Improvement proposal: ${proposalId || proposalStatus}`,
+          ...(proposalId && proposalStatus === 'proposed' ? ['To approve this plan, select this same Asset and send “Approve”. To reject it, send “Reject”. Approval does not change DNA; it authorizes the next reviewed version-creation step.'] : []),
+        ].join('\n');
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: assessment.status === 'ready' ? 'success' : 'preview',
+        }]);
+        return;
+      }
+      if (requestsVyralReconstructionHistory) {
+        if (qualityVyralIds.length !== 1) {
+          throw new Error('To inspect reconstruction attempts, select an Asset from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+        }
+        if (!supabase) throw new Error('Secure reconstruction evidence is unavailable in this environment.');
+        const { data, error } = await supabase
+          .from('vyral_reconstruction_tests')
+          .select('id,asset_id,model_provider,model_id,model_version,prompt_sha256,session_reference,tool_access,blindness_status,attempt_evidence,protocol_version,comparison_mode,test_status,exact_match,similarity_score,created_at')
+          .eq('vyral_id', qualityVyralIds[0])
+          .eq('protocol_version', 'ORIGIN-01-v3')
+          .order('created_at', { ascending: false })
+          .limit(30);
+        if (error) throw new Error('Could not load saved reconstruction evidence: ' + error.message);
+        const attempts = (data ?? []) as Array<{
+          id: string; asset_id: string; model_provider: string; model_id: string; model_version: string | null;
+          prompt_sha256: string | null; session_reference: string | null; tool_access: Record<string, unknown>;
+          blindness_status: string; attempt_evidence: Record<string, unknown>; protocol_version: string;
+          comparison_mode: string; test_status: string; exact_match: boolean | null;
+          similarity_score: number | null; created_at: string;
+        }>;
+        const evidenceSummary = summarizeVyralReconstructionEvidenceV1(attempts);
+        const report = attempts.length ? [
+          `Vyral DNA-only reconstruction evidence — ${evidenceSummary.totalAttempts} saved attempt(s)`,
+          `Exact decoded-pixel matches: ${evidenceSummary.exactMatches}/${evidenceSummary.totalAttempts}`,
+          `Best recorded RGB similarity (not an exact pass): ${evidenceSummary.bestSimilarity === null ? 'not available' : (evidenceSummary.bestSimilarity * 100).toFixed(2) + '%'}`,
+          `Evidence gaps: ${evidenceSummary.evidenceGaps.length ? evidenceSummary.evidenceGaps.join(', ') : 'none detected in recorded fields'}`,
+          `Different outputs: ${attempts.filter((item) => item.test_status === 'failed').length}`,
+          `Inconclusive: ${attempts.filter((item) => item.test_status === 'inconclusive').length}`,
+          '',
+          ...attempts.map((item, index) => {
+            const evidence = item.attempt_evidence && typeof item.attempt_evidence === 'object' ? item.attempt_evidence : {};
+            const blindness = evidence.blindness && typeof evidence.blindness === 'object'
+              ? evidence.blindness as Record<string, unknown> : {};
+            const modelVersion = item.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : 'not recorded');
+            const promptHash = item.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
+            const result = item.exact_match === true ? 'EXACT DECODED-PIXEL MATCH'
+              : item.test_status === 'inconclusive' ? 'INCONCLUSIVE'
+              : item.test_status.toUpperCase();
+            const similarity = typeof item.similarity_score === 'number'
+              ? (item.similarity_score * 100).toFixed(2) + '%' : 'not available';
+            const date = item.created_at && Number.isFinite(Date.parse(item.created_at))
+              ? new Date(item.created_at).toLocaleString() : 'date unavailable';
+            const toolNames = Object.keys(item.tool_access ?? {}).join(', ') || 'not recorded';
+            return [
+              `${index + 1}. ${item.model_provider} / ${item.model_id} (${modelVersion})`,
+              `   Result: ${result} · RGB similarity: ${similarity} · ${date}`,
+              `   Blindness evidence: ${item.blindness_status ?? 'unverified'}`,
+              `   Prompt SHA-256: ${promptHash ? promptHash.slice(0, 16) + '…' : 'not recorded'} · Tool access: ${toolNames}`,
+              item.session_reference ? `   External session reference: ${item.session_reference}` : '',
+              blindness.independentlyVerified === false ? '   Note: original-file isolation is creator-attested, not independently audited.' : '',
+            ].filter(Boolean).join('\n');
+          }),
+          '',
+          'Interpretation rules:',
+          '• Exact success requires identical decoded RGB pixels at identical dimensions.',
+          '• RGB similarity is a separate metric; a high score is not an exact match.',
+          '• Creator-attested blindness does not prove the external model never saw the original. No attempt is independently blind-verified unless separate audit evidence exists.',
+          '• Missing model version, prompt hash or tool-access details remain missing evidence; they are not inferred.',
+          '• These records compare reconstruction outputs. They do not automatically modify DNA records.',
+          '',
+          'Evidence-guided next actions:',
+          ...evidenceSummary.nextActions.map((item) => '• ' + item),
+        ].join('\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Vyral yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: attempts.length ? 'success' : 'preview',
+        }]);
+        return;
+      }
+      if (requestsVyralQualityHistory) {
+        if (qualityVyralIds.length !== 1) {
+          throw new Error('To view quality history, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+        }
+        if (!supabase) throw new Error('Secure Vyral quality history is unavailable in this environment.');
+        const { data, error } = await supabase.functions.invoke('get-vyral-quality-history', {
+          body: { vyralId: qualityVyralIds[0] },
+        });
+        if (error) {
+          let message = 'VYRA could not load this Vyral’s quality history.';
+          try {
+            const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the safe generic message when the function response is unavailable.
+          }
+          throw new Error(message);
+        }
+        const history = Array.isArray(data?.history) ? data.history as Array<{
+          id: string;
+          createdAt: string;
+          snapshotRevision: number;
+          standardId: string;
+          standardVersion: number;
+          status: string;
+          score: number | null;
+          grade: string | null;
+        }> : [];
+        const report = history.length
+          ? [
+              `Vyral quality history — latest ${history.length} evaluation(s)`,
+              ...history.map((item, index) => {
+                const date = item.createdAt && Number.isFinite(Date.parse(item.createdAt))
+                  ? new Date(item.createdAt).toLocaleString()
+                  : 'Date unavailable';
+                const result = item.status === 'graded'
+                  ? `${item.grade ?? '—'} (${item.score ?? '—'}/100)`
+                  : `${String(item.status).toUpperCase()} — no grade issued`;
+                return `${index + 1}. ${date} · ${result} · snapshot r${item.snapshotRevision} · standard ${item.standardId} v${item.standardVersion}`;
+              }),
+              '',
+              'History is ordered newest first. Each result is tied to its own immutable snapshot and versioned standard.',
+            ].join('\n')
+          : 'No saved quality evaluations exist for this Vyral yet. Ask VYRA AI Chat to evaluate its quality after an approved standard is published.';
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: 'success',
+        }]);
+        return;
+      }
+      if (requestsVyralQuality) {
+        if (qualityVyralIds.length !== 1) {
+          throw new Error('To evaluate quality, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+        }
+        if (!supabase) throw new Error('Secure Vyral quality evaluation is unavailable in this environment.');
+        const { data, error } = await supabase.functions.invoke('evaluate-vyral-quality', {
+          body: { vyralId: qualityVyralIds[0] },
+        });
+        if (error) {
+          let message = 'VYRA could not complete the quality evaluation.';
+          try {
+            const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the safe generic message when the function response is unavailable.
+          }
+          throw new Error(message);
+        }
+        const evaluation = data?.evaluation as {
+          status?: 'graded' | 'incomplete_evidence' | 'blocked';
+          grade?: string | null;
+          score?: number | null;
+          hardGateFailures?: string[];
+          missingApplicableEvidence?: string[];
+          rules?: Array<{ title: string; status: string; recommendation?: string | null }>;
+        } | undefined;
+        if (!evaluation) throw new Error('The quality evaluation response was incomplete.');
+        const report = [
+          evaluation.status === 'graded'
+            ? `Vyral quality: ${evaluation.grade ?? '—'} (${evaluation.score ?? '—'}/100)`
+            : evaluation.status === 'blocked'
+              ? 'Vyral quality evaluation: BLOCKED — no grade issued.'
+              : 'Vyral quality evaluation: INCOMPLETE — no grade issued.',
+          `Snapshot revision: ${data.snapshot?.revision ?? 'unknown'}`,
+          `Standard: ${data.evaluation?.standard?.name ?? 'versioned standard'} v${data.evaluation?.standard?.version ?? '?'}`,
+          ...(evaluation.hardGateFailures?.length ? [`Hard-gate failures: ${evaluation.hardGateFailures.join(', ')}`] : []),
+          ...(evaluation.missingApplicableEvidence?.length ? [`Evidence still needed: ${evaluation.missingApplicableEvidence.join(', ')}`] : []),
+          ...(evaluation.rules ?? []).filter((rule) => rule.recommendation).map((rule) => `• ${rule.title}: ${rule.recommendation}`),
+          '',
+          'This grade reflects only the pinned snapshot, selected standard and verified evidence available at evaluation time. It does not guarantee identical results across external AI models.',
+        ].join('\n');
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: report,
+          status: evaluation.status === 'graded' ? 'success' : 'preview',
+        }]);
+        return;
+      }
+      if (selectedAssets.length) {
+        if (!supabase) throw new Error('Secure Asset access is unavailable in this environment.');
+        const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
+        const { data: assetRows, error: assetError } = await supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id));
+        if (assetError) throw new Error('Could not verify selected Asset access: ' + assetError.message);
+        if ((assetRows ?? []).length !== selectedAssets.length) throw new Error('One or more selected Assets are no longer accessible. Please select them again.');
+        if ((assetRows ?? []).some((asset) => !selectedAssets.some((selected) => selected.id === asset.id && selected.vyralId === asset.vyral_id))) throw new Error('A selected Asset no longer belongs to its declared Vyral.');
+        const { data: parentVyrals, error: vyralError } = await supabase.from('vyrals').select('id,license_policy').in('id', uniqueVyrals);
+        if (vyralError) throw new Error('Could not verify Vyral permissions: ' + vyralError.message);
+        if ((parentVyrals ?? []).length !== uniqueVyrals.length) throw new Error('One or more selected Vyrals are no longer accessible.');
+        if ((parentVyrals ?? []).some((item) => (item.license_policy as Record<string, unknown> | null)?.allow_ai_analysis === false)) throw new Error('AI analysis is not permitted by one of the selected Vyrals.');
+
+        // Resolve immutable latest versions instead of trusting the Asset row's legacy storage_path.
+        const selectedIds = (assetRows ?? []).map((asset) => asset.id);
+        const { data: versionRows, error: versionError } = await supabase
+          .from('vyral_asset_versions')
+          .select('id,asset_id,vyral_id,storage_path,mime_type,size_bytes,version_number')
+          .in('asset_id', selectedIds)
+          .order('version_number', { ascending: false });
+        if (versionError) throw new Error('Could not resolve current selected Asset versions: ' + versionError.message);
+        const latestVersionByAsset = new Map<string, { vyral_id: string; storage_path: string; mime_type: string | null; size_bytes: number; version_number: number }>();
+        for (const version of versionRows ?? []) {
+          if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
+        }
+        if (selectedIds.some((id) => !latestVersionByAsset.has(id))) throw new Error('A selected Asset has no available source version. Please refresh the Vyral and select it again.');
+
+        for (const asset of assetRows ?? []) {
+          const license = asset.license_override && typeof asset.license_override === 'object' ? asset.license_override as Record<string, unknown> : {};
+          if (license.allow_ai_analysis === false) throw new Error('AI analysis is not permitted for selected Asset: ' + asset.name);
+          const version = latestVersionByAsset.get(asset.id)!;
+          if (version.vyral_id !== asset.vyral_id) throw new Error('A selected Asset version no longer belongs to its Vyral: ' + asset.name);
+          const mimeType = String(version.mime_type || asset.mime_type || '').toLowerCase();
+          const filename = String(asset.name || '').toLowerCase();
+          const extension = filename.split('.').pop() || '';
+          const isTextLike = mimeType.startsWith('text/') ||
+            ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
+            /\.(txt|md|csv|json|xml|log)$/i.test(filename);
+          const isPdf = mimeType === 'application/pdf' || extension === 'pdf';
+          const audioMime = (mimeType === 'audio/mp3' || mimeType === 'audio/x-mp3') ? 'audio/mpeg'
+            : mimeType === 'audio/x-wav' ? 'audio/wav'
+              : mimeType === 'audio/x-flac' ? 'audio/flac'
+                : mimeType.startsWith('audio/') ? mimeType
+                  : ({ mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac', aac: 'audio/aac' } as Record<string, string>)[extension] ?? mimeType;
+          const isAudio = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(audioMime) ||
+            ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(extension);
+          const isVideo = mimeType.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v'].includes(extension);
+          const needsSource = mimeType.startsWith('image/') || isTextLike || isPdf || isAudio || isVideo;
+          if (!needsSource) continue;
+          const sourceLimit = isPdf || isAudio ? 2 * 1024 * 1024 : 20 * 1024 * 1024;
+          if (Number(version.size_bytes) > sourceLimit) throw new Error(`Selected Asset exceeds the ${isPdf || isAudio ? '2 MB document/audio' : '20 MB media'} inspection limit: ${asset.name}`);
+          const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60);
+          if (signedError || !signed?.signedUrl) throw new Error('Could not securely open the current version of selected Asset: ' + asset.name);
+          const response = await fetch(signed.signedUrl);
+          if (!response.ok) throw new Error('Could not load the current version of selected Asset: ' + asset.name);
+          const blob = await response.blob();
+          if (blob.size > sourceLimit) throw new Error('Selected Asset exceeds its safe inspection limit: ' + asset.name);
+          if (mimeType.startsWith('image/')) {
+            if (visionImages.length < 4) {
+              const preview = await createSelectedAssetVisionPreview(blob);
+              visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
+            }
+          } else if (isTextLike) {
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
+            const bounded = decoded.slice(0, 24000);
+            const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
+            const currentMessage = nextMessages[nextMessages.length - 1];
+            currentMessage.content += `\n\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\n${bounded}${marker}`;
+          } else if (isPdf || isAudio) {
+            if (mediaFiles.length >= 4) throw new Error('Select no more than four PDF/audio files for one AI request.');
+            const mediaMime = isPdf ? 'application/pdf' : audioMime;
+            if (!['application/pdf', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(mediaMime)) {
+              throw new Error('This audio format is not supported for direct AI inspection: ' + asset.name);
+            }
+            mediaFiles.push({
+              mimeType: mediaMime as typeof mediaFiles[number]['mimeType'],
+              data: await readBlobAsBase64(blob),
+              assetId: asset.id,
+              assetName: asset.name,
+            });
+            const currentMessage = nextMessages[nextMessages.length - 1];
+            currentMessage.content += `\n\nAttached source for direct AI inspection: ${asset.name} (${isPdf ? 'PDF document' : 'audio'}; current version ${version.version_number}).`;
+          } else if (isVideo) {
+            const remaining = Math.max(0, 4 - visionImages.length);
+            const frames = await extractSelectedVideoFrames(blob, asset.id, asset.name, remaining);
+            visionImages.push(...frames);
+            const currentMessage = nextMessages[nextMessages.length - 1];
+            currentMessage.content += `\n\nVideo frames attached for visual inspection: ${asset.name}; ${frames.length} sampled frames from the current version (${version.version_number}). Audio track transcription is not included.`;
+          }
+        }
+      }
       const accessToken = await getCurrentAccessToken();
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
+        ...(mediaFiles.length ? { mediaFiles } : {}),
       });
       setMessages((previous) => [...previous, {
         id: makeId(),
@@ -336,6 +1069,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const handleFileSelection = async (file: File | null) => {
     setSelectedFile(file);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     if (!file) {
       setSelectedFileStatus(null);
@@ -346,6 +1080,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       try {
         const inspection = await inspectVyralAttachment(file);
         setSelectedVyralContext(inspection.context);
+        setSelectedVyralId(inspection.vyralId);
         setSelectedVyralImages(inspection.visionImages);
         setSelectedFileStatus(inspection.visionImages.length ? `Vyral package validated · DNA v3 checked · ${inspection.visionImages.length} AI Vision previews ready` : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
       } catch (error) {
@@ -379,6 +1114,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
@@ -395,6 +1131,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
+    setSelectedVyralId(null);
     setSelectedVyralImages([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
@@ -493,10 +1230,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
         <form onSubmit={(event) => { event.preventDefault(); void sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
+          {selectedAssets.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5 px-1" aria-label="Selected VYRA Assets">{selectedAssets.map((asset) => <span key={asset.id} className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] text-[var(--vyra-text-primary)]"><span className="max-w-36 truncate">{asset.name}</span><span className="text-[var(--vyra-text-muted)]">{asset.visibility}</span><button type="button" onClick={() => { const next = selectedAssets.filter((item) => item.id !== asset.id); setSelectedAssets(next); onSelectedAssetsChange?.(next); }} aria-label={'Remove '+asset.name} className="rounded-full p-0.5 hover:bg-[var(--vyra-bg-hover)]"><X size={11}/></button></span>)}<button type="button" onClick={() => { setSelectedAssets([]); onSelectedAssetsChange?.([]); }} className="px-1 text-[10px] text-[var(--vyra-text-muted)] underline">Clear</button></div>}
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
               <span className="min-w-0 flex-1 truncate">{selectedFile.name}{selectedFileStatus ? ` · ${selectedFileStatus}` : ''}</span>
-              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null); setSelectedVyralImages([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
+              <button type="button" onClick={() => { setSelectedFile(null); setSelectedFileStatus(null); setSelectedVyralContext(null);
+    setSelectedVyralId(null); setSelectedVyralImages([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} aria-label="Remove attachment" className="grid size-6 shrink-0 place-items-center rounded-full hover:bg-[var(--vyra-bg-hover)]">
                 <X size={13} />
               </button>
             </div>
@@ -535,7 +1274,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               type="submit"
               size="sm"
               className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
-              disabled={(!draft.trim() && !selectedFile) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
+              disabled={(!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
               aria-label="Send message"
             >
               {isSending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <ArrowUp size={17} />}

@@ -3,8 +3,15 @@ export {
   hasValidVyralMasterDnaRevisionBindingV1,
   isSafeVyralStoragePathV1,
   isVyralAssetDnaPinnedToVersionV1,
-} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
+  isPublicVyralResourceAllowedV1,
+  isPublicVyralAssetVisibilityAllowedV1,
+  isPublicVyralMasterDnaSnapshotAllowedV1,
+  isSafePublicVyralResolverUriV1,
+  createPublicVyralMasterDnaProjectionV1,
+  canonicalizeVyralPublicProjectionV1,
+} from '../../supabase/functions/_shared/vyralResourceResolverV1.ts';
 export type {
   VyralResolverSnapshotAssetV1,
   VyralResolverRevisionBindingV1,
-} from '../../supabase/functions/resolve-vyral-resource/vyralResourceResolverV1.ts';
+  VyralPublicResolverActionV1,
+} from '../../supabase/functions/_shared/vyralResourceResolverV1.ts';

@@ -223,3 +223,55 @@ Added the first deterministic license decision helper and focused automated test
 - Owner bypass is explicit and must be supplied only by a trusted server-side ownership check.
 
 **Boundary:** this is a pure policy evaluator and test suite, not production enforcement. Purchase, Marketplace, branch, export, and resale APIs are not yet wired to it; grants are not yet persisted; Master DNA snapshots do not yet include effective license grant references. Existing assets remain unlicensed/unknown until explicit creator or rights-holder evidence is recorded. No licenses or permissions are inferred from filenames or asset ownership metadata.
+
+
+## 2026-11-08 — Creator-guided Vyral building and rule-based quality grading
+
+**Accepted clarification; additive to the existing Vyral 100% direction.** This is not a scope pivot or replacement of the current DNA, Original Storage, Compact DNA, Master DNA, fingerprint, package, resolver, or licensing work.
+
+- VYRA AI Chat remains the single conversational control center for all VYRA operations. Creator assistance, Vyral grading, Asset management, DNA operations, project/storyboard actions, and connected generation workflows are capabilities invoked through this one Chat surface. Existing Workspace/Library pages remain visual management surfaces, not separate AI control centers.
+- A Creator Assistant capability inside the same Chat helps creators understand, plan, build, evaluate, and improve Vyrals. It recommends optional Assets, metadata, relationships, instructions, and tests based on the creator's declared purpose. It must not force a fixed template or silently convert AI guesses into creator-confirmed facts.
+- Creators may freely build Vyrals from arbitrary supported file/Asset types. Unrelated Assets, a single Asset, and collections without relationships, story, character, world, role, or purpose metadata remain valid. Any profile-specific completeness requirements apply only when the creator selects or the requested task requires that profile.
+- Quality grading is based on versioned standards and explicit rules, not free-form AI opinion. Universal, asset-type, declared-purpose, and workflow/generation rule profiles are layered. Deterministic checks, creator declarations, AI rubric assessments, and observed generation tests remain separate evidence classes.
+- AI may assess semantic/qualitative criteria only through a declared rubric. A deterministic evaluator validates rule IDs, evidence, applicability, hard gates, weights, and score aggregation. Missing evidence is not a pass. Integrity, identity, authorization, licensing, and required reconstruction failures cannot be overridden by an AI score.
+- Proposed grade bands S/A/B/C/D/F and score ranges are provisional until a versioned standard is finalized. Every grade must be tied to an exact Vyral snapshot, standard version, rule-level evidence, and applicable purpose/profile. A grade is not a guarantee of identical results across generation models.
+- Creator-defined default generation instructions/workflows may travel in a .vyral package as declarative intent. They do not contain executable code or credentials and cannot bypass external AI tool availability, user authorization, VYRA access controls, or license policy. Third-party chat products are not guaranteed to execute them automatically.
+- Compact DNA remains a navigation/reference map; Original Assets and authoritative Full/Original DNA remain in VYRA storage. AI should select and retrieve only task-relevant authorized Assets through supported integrations.
+
+**Important reconciliation required before database/UI implementation:** Older decision-log sections and existing Master DNA persistence work describe Main/Supporting roles, purpose, and relationship coverage as mandatory for every Asset. The accepted product definition and current 100% architecture already allow arbitrary/unrelated Assets and optional relationships. The latest clarification confirms the optional/free-form product behavior. Do not silently impose the older mandatory classification model on all Vyrals. Review and reconcile the database readiness gates, builder, UI, schema, and tests additively; preserve existing records and ORIGIN-01 protections.
+
+**Implementation status:** The accepted contract is documented in `docs/product/VYRAL_CREATOR_ASSISTANT_AND_QUALITY_STANDARDS.md`. This documentation does not mean the Creator Assistant, deterministic grading engine, complete Chat orchestration, or external generation handoff is implemented. Each requires code and acceptance tests. Continue on the existing `feat/vyral-100-percent-acceptance` branch; no new branch, merge, Production deployment, or Production database mutation is authorized by this decision.
+
+
+## 2026-11-08 — Deterministic Quality Grading v1 foundation
+
+Added an initial pure TypeScript grading engine at `src/services/vyralQualityGradingV1.ts`, focused tests at `tests/vyral-quality-grading-v1.spec.ts`, the `test:vyral-quality` package script, and a CI step in `.github/workflows/ci.yml`.
+
+Current engine behavior:
+- pins each evaluation to a Vyral ID, snapshot SHA-256 fingerprint, and versioned standard profile;
+- validates unique rule IDs, unique findings, supported evidence classes/statuses, and evidence references for scored findings;
+- computes weighted scores deterministically (pass = 100% of rule weight, partial = 50%, fail = 0%; not-applicable rules are excluded);
+- withholds a grade when required evidence is missing or no applicable weighted evidence exists;
+- blocks a grade when a declared hard-gate rule fails;
+- records rule-level status, evidence references, explanation, recommendation, and awarded points;
+- uses provisional S/A/B/C/D/F bands only as a default; a versioned profile may override them.
+
+**Not yet implemented:** production standard-profile definitions and their approved rule weights/hard gates; AI rubric evaluation; database persistence/history; Chat UI and Creator Assistant integration; purpose/asset-type applicability resolver; generation test runner; and end-to-end grading acceptance tests.
+
+**Verification:** The new tests are registered in CI, but no GitHub Actions result has been confirmed for this push. The Vercel status currently reports a build-rate-limit failure; this is not evidence of a TypeScript/test failure. A Cloudflare Workers build check was observed in progress at the time of inspection. Do not claim the grading tests or full CI passed until a matching run reports success. No Production database mutation or intentional Production deployment was performed as part of this code change.
+
+
+## 2026-11-08 — Quality evaluator evidence hardening
+
+The deterministic grading engine now requires each finding to declare the same evidence class as its standard rule. A semantic AI assessment cannot be submitted as deterministic proof for an integrity rule. Hard-gate rules must be required deterministic rules. The evaluator also distinguishes missing required evidence from any applicable rule that remains unevaluated: an applicable rule must be explicitly evaluated or marked not applicable; an omitted optional rule is not silently treated as a pass. Added regression tests for evidence-class mismatch, non-deterministic hard gates, and unevaluated applicable optional rules.
+
+**Verification status:** Regression tests and CI wiring are present, but the GitHub Actions result for the latest commits has not yet been confirmed. The grading engine is still a pure foundation; it is not yet wired to authoritative database evidence or the VYRA AI Chat interface.
+
+
+## 2026-11-08 — Grade-band validation and Vyral Chat handoff context
+
+The quality evaluator now validates custom grade profiles before scoring: all six grades must be defined, ranges must stay within 0–100, and boundaries must be contiguous and non-overlapping. Upper boundaries are exclusive (except the top of S), so exact threshold scores map to exactly one grade. Runtime validation also rejects malformed hard-gate flags and duplicate evidence references. Added regression coverage for threshold scores and invalid custom profiles.
+
+The existing VYRA AI Chat `.vyral` attachment inspection context now communicates the accepted creator contract to the receiving model: free-form mixed/unrelated Asset collections are valid; unclassified Assets are not errors; Compact DNA is a navigation map rather than original content or an access credential; retrieval claims require actually available bytes or an authorized resolver; and creator recommendations must remain optional suggestions rather than invented facts. This is a first handoff-context improvement, not complete Creator Assistant orchestration or selective remote retrieval.
+
+**Verification:** The changes and regression tests are committed on the existing branch. No matching GitHub Actions run was returned for the latest commit, so tests are not confirmed as passing. The Vercel check reports a build-rate-limit failure; it does not establish a code/test failure. No merge, Production deployment, or Production database mutation was performed.

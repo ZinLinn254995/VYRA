@@ -193,6 +193,12 @@ Deno.serve(async (request: Request) => {
   }
 
   if (body.action === 'asset_source') {
+    if (typeof snapshotAsset.asset_fingerprint !== 'string' ||
+        !/^[a-f0-9]{64}$/i.test(snapshotAsset.asset_fingerprint) ||
+        typeof version.sha256 !== 'string' ||
+        snapshotAsset.asset_fingerprint.toLowerCase() !== version.sha256.toLowerCase()) {
+      return json({ error: 'The source version fingerprint does not match the pinned Vyral snapshot.' }, 409);
+    }
     const { data: signed, error: signedError } = await context.supabaseAdmin.storage
       .from('vyral-assets')
       .createSignedUrl(version.storage_path, SIGNED_URL_TTL_SECONDS, { download: true });
@@ -248,6 +254,7 @@ Deno.serve(async (request: Request) => {
     assetVersionId: version.id,
     assetSha256: version.sha256,
     dnaSource: nestedSource,
+    dnaFileSha256: asRecord(nestedDna.file).sha256,
   })) {
     return json({ error: 'Asset DNA, immutable source version, and pinned Master DNA inventory do not agree.' }, 409);
   }

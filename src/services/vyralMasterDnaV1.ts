@@ -1,3 +1,4 @@
+import { isSafePublicVyralResolverUriV1 } from './vyralResourceResolverV1.ts';
 export const VYRAL_MASTER_DNA_SCHEMA_ID = 'vyra.vyral-master-dna' as const;
 export const VYRAL_MASTER_DNA_SCHEMA_VERSION = 1 as const;
 
@@ -8,8 +9,11 @@ export type VyralMasterDnaEndpoint =
 export type VyralMasterDnaAsset = {
   asset_id: string;
   asset_version_id: string;
-  role: 'main' | 'supporting';
-  purpose: string;
+  name?: string;
+  asset_type?: string;
+  updated_at?: string | null;
+  role?: 'main' | 'supporting';
+  purpose?: string;
   media_type: string;
   dna_ref: { record_id: string; schema_id: string; schema_version: number; package_prefix?: string | null };
   asset_fingerprint: string;
@@ -24,10 +28,10 @@ export type VyralMasterDnaV1 = {
   master_dna_id: string;
   vyral: { vyral_id: string; name: string; owner_ref?: string | null; created_at?: string | null };
   snapshot: { revision: number; created_at: string; parent_master_dna_id?: string | null };
-  purpose: { summary: string; intended_uses: string[]; constraints?: string[] };
+  purpose?: { summary?: string | null; intended_uses?: string[]; constraints?: string[] };
   main_asset_ids: string[];
   assets: VyralMasterDnaAsset[];
-  relationships: Array<{
+  relationships?: Array<{
     relationship_id: string;
     type: string;
     from: VyralMasterDnaEndpoint;
@@ -124,21 +128,29 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   if (!isRecord(value.snapshot) || !Number.isSafeInteger(value.snapshot.revision) || Number(value.snapshot.revision) < 1 || !isDate(value.snapshot.created_at)) {
     throw new Error('Master DNA snapshot metadata is invalid.');
   }
-  if (!isRecord(value.purpose) || !isText(value.purpose.summary) || !Array.isArray(value.purpose.intended_uses) || value.purpose.intended_uses.length === 0 ||
-      !value.purpose.intended_uses.every(isText) || !Array.isArray(value.main_asset_ids) || !Array.isArray(value.assets) ||
-      value.assets.length === 0 || !Array.isArray(value.relationships)) {
-    throw new Error('Master DNA purpose, asset inventory, or relationships are invalid.');
+  if ((value.purpose !== undefined && (!isRecord(value.purpose) ||
+      (value.purpose.summary !== undefined && value.purpose.summary !== null && !isText(value.purpose.summary)) ||
+      (value.purpose.intended_uses !== undefined &&
+        (!Array.isArray(value.purpose.intended_uses) || !value.purpose.intended_uses.every(isText))))) ||
+      !Array.isArray(value.main_asset_ids) || !Array.isArray(value.assets) ||
+      value.assets.length === 0 ||
+      (value.relationships !== undefined && !Array.isArray(value.relationships))) {
+    throw new Error('Master DNA collection metadata or asset inventory is invalid.');
   }
   const assetMap = new Map<string, VyralMasterDnaAsset>();
   const versionIds = new Set<string>();
   for (const raw of value.assets) {
     if (!isRecord(raw) || !isId(raw.asset_id) || !isId(raw.asset_version_id) ||
-        !['main', 'supporting'].includes(String(raw.role)) || !isText(raw.purpose) || !isText(raw.media_type) ||
+        (raw.name !== undefined && !isText(raw.name)) ||
+        (raw.asset_type !== undefined && !isText(raw.asset_type)) ||
+        (raw.updated_at !== undefined && raw.updated_at !== null && !isDate(raw.updated_at)) ||
+        (raw.role !== undefined && !['main', 'supporting'].includes(String(raw.role))) ||
+        (raw.purpose !== undefined && !isText(raw.purpose)) || !isText(raw.media_type) ||
         !isRecord(raw.dna_ref) || !isId(raw.dna_ref.record_id) || !isText(raw.dna_ref.schema_id) ||
         !Number.isSafeInteger(raw.dna_ref.schema_version) || Number(raw.dna_ref.schema_version) < 1 ||
         typeof raw.asset_fingerprint !== 'string' || !SHA256.test(raw.asset_fingerprint) ||
         !CLAIMS.includes(raw.reconstruction_claim as typeof CLAIMS[number])) {
-      throw new Error('Master DNA asset entry is invalid or missing its purpose/DNA reference.');
+      throw new Error('Master DNA asset entry is invalid or missing its version/DNA reference.');
     }
     if (assetMap.has(raw.asset_id) || versionIds.has(raw.asset_version_id)) throw new Error('Master DNA contains duplicate asset or version IDs.');
     assetMap.set(raw.asset_id, raw as unknown as VyralMasterDnaAsset);
@@ -150,23 +162,18 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
     mainIds.add(id);
   }
   for (const asset of assetMap.values()) {
-    if ((asset.role === 'main') !== mainIds.has(asset.asset_id)) throw new Error('Master DNA must list every Main Asset exactly once.');
+    if (asset.role === 'main' && !mainIds.has(asset.asset_id)) throw new Error('Master DNA must list every declared Main Asset exactly once.');
+    if (asset.role !== 'main' && mainIds.has(asset.asset_id)) throw new Error('Master DNA main asset list includes an Asset not declared Main.');
   }
-  const connected = new Set<string>();
   const relationshipIds = new Set<string>();
-  for (const raw of value.relationships) {
+  for (const raw of value.relationships ?? []) {
     if (!isRecord(raw) || !isId(raw.relationship_id) || relationshipIds.has(raw.relationship_id) ||
         !/^[a-z][a-z0-9_]{1,63}$/.test(String(raw.type)) || !isText(raw.rationale)) {
       throw new Error('Master DNA relationship entry is invalid.');
     }
     relationshipIds.add(raw.relationship_id);
-    const from = validateEndpoint(raw.from, value.vyral.vyral_id as string, assetMap);
-    const to = validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
-    if (from.kind === 'asset' && (to.kind === 'vyral' || to.asset_id !== from.asset_id)) connected.add(from.asset_id);
-    if (to.kind === 'asset' && (from.kind === 'vyral' || from.asset_id !== to.asset_id)) connected.add(to.asset_id);
-  }
-  for (const asset of assetMap.values()) {
-    if (!connected.has(asset.asset_id)) throw new Error('Every Master DNA asset must have an explicit relationship to an asset or Vyral root.');
+    validateEndpoint(raw.from, value.vyral.vyral_id as string, assetMap);
+    validateEndpoint(raw.to, value.vyral.vyral_id as string, assetMap);
   }
   if (!isRecord(value.reconstruction_profile) ||
       !['lossless_decoded', 'source_file_exact', 'semantic_only', 'model_reconstructed', 'unavailable'].includes(String(value.reconstruction_profile.overall_claim)) ||
@@ -200,13 +207,22 @@ function validateStructure(value: unknown): asserts value is VyralMasterDnaV1 {
   }
   if (!isRecord(value.portable_projection) || value.portable_projection.profile !== 'compact' ||
       value.portable_projection.includes_full_reconstruction_payloads !== false ||
-      !(value.portable_projection.resolver_uri === null || typeof value.portable_projection.resolver_uri === 'string') ||
+      !(value.portable_projection.resolver_uri === null || isSafePublicVyralResolverUriV1(value.portable_projection.resolver_uri)) ||
       !['no_remote_resolution', 'public_metadata_only', 'authorized_selective_retrieval'].includes(String(value.portable_projection.retrieval_policy))) {
-    throw new Error('Master DNA compact portable projection is invalid.');
+    throw new Error('Master DNA compact portable projection is invalid or contains an unsafe resolver URI.');
+  }
+  if (value.portable_projection.resolver_uri !== null &&
+      (value.source_resolution.visibility !== 'public' ||
+       value.portable_projection.retrieval_policy !== 'authorized_selective_retrieval')) {
+    throw new Error('A public resolver URI requires public visibility and selective retrieval policy.');
+  }
+  if (value.portable_projection.retrieval_policy === 'authorized_selective_retrieval' &&
+      (value.source_resolution.visibility !== 'public' || value.portable_projection.resolver_uri === null)) {
+    throw new Error('Selective remote retrieval requires a valid public resolver URI.');
   }
   if (value.source_resolution.visibility !== 'public' &&
-      (value.portable_projection.retrieval_policy === 'public_metadata_only' || value.portable_projection.resolver_uri !== null)) {
-    throw new Error('Private or unlisted compact DNA cannot publish metadata-only resolution or a public resolver URI.');
+      (value.portable_projection.retrieval_policy !== 'no_remote_resolution' || value.portable_projection.resolver_uri !== null)) {
+    throw new Error('Private or unlisted compact DNA cannot publish a public resolver or remote retrieval policy.');
   }
 }
 

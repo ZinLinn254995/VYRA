@@ -15,6 +15,7 @@ export type OpenRouterTextJobInput = {
   model: string;
   messageCount: number;
   inputCharacters: number;
+  provider?: string;
 };
 
 export type OpenRouterTextJob = {
@@ -82,8 +83,10 @@ export async function beginOpenRouterTextJob(
   options: UsageLedgerServerOptions = {},
 ): Promise<UsageLedgerResult> {
   const { supabaseUrl, serviceRoleKey, fetcher } = readOptions(options);
+  const provider = input.provider?.trim() || 'openrouter';
   if (!supabaseUrl || !serviceRoleKey || !UUID_PATTERN.test(input.userId)
       || !/^[A-Za-z0-9._:-]{1,160}$/.test(input.idempotencyKey)
+      || !/^[A-Za-z0-9._:-]{1,100}$/.test(provider)
       || !input.model.trim() || input.model.length > 240) {
     return { ok: false, reason: 'unavailable' };
   }
@@ -129,7 +132,7 @@ export async function beginOpenRouterTextJob(
       body: JSON.stringify({
         user_id: input.userId,
         generation_job_id: jobId,
-        provider: 'openrouter',
+        provider,
         model_id: input.model.trim(),
         status: 'submitted',
         usage: {},
@@ -163,6 +166,7 @@ export async function finishOpenRouterTextJob(
     model: string;
     generationId?: string | null;
     usage?: unknown;
+    provider?: string;
   },
   options: UsageLedgerServerOptions = {},
 ): Promise<boolean> {
@@ -170,6 +174,8 @@ export async function finishOpenRouterTextJob(
   if (!supabaseUrl || !serviceRoleKey || !UUID_PATTERN.test(input.userId)
       || !UUID_PATTERN.test(input.job.jobId) || !UUID_PATTERN.test(input.job.attemptId)) return false;
 
+  const provider = input.provider?.trim() || 'openrouter';
+  if (!/^[A-Za-z0-9._:-]{1,100}$/.test(provider)) return false;
   const usage: NormalizedProviderUsage = normalizeProviderUsage(input.usage);
   const now = new Date().toISOString();
   const generationId = input.generationId && /^[A-Za-z0-9_-]{1,200}$/.test(input.generationId)
@@ -186,8 +192,8 @@ export async function finishOpenRouterTextJob(
           p_user_id: input.userId,
           p_generation_job_id: input.job.jobId,
           p_provider_attempt_id: input.job.attemptId,
-          p_idempotency_key: 'openrouter-text-cost:' + input.job.jobId,
-          p_provider: 'openrouter',
+          p_idempotency_key: provider + '-text-cost:' + input.job.jobId,
+          p_provider: provider,
           p_model_id: input.model,
           p_provider_generation_id: generationId,
           p_actual_cost_usd: usage.costUsd,

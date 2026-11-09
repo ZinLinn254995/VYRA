@@ -20,12 +20,14 @@ async function withApi(
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   };
   globalThis.fetch = fetcher;
   process.env.VYRA_USAGE_LEDGER_ENABLED = 'true';
   process.env.SUPABASE_URL = 'https://vyra-dev.supabase.co';
   process.env.SUPABASE_ANON_KEY = 'development-public-key';
   process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
+  process.env.GEMINI_API_KEY = 'server-only-gemini-test-key';
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -178,6 +180,141 @@ test('ledger-enabled mode blocks untracked image generation instead of bypassing
     assert.equal(payload.capability, 'image');
     assert.equal(providerCalls, 0);
   }, fetcher);
+});
+
+test('ledger-enabled Asset metadata suggestions record Google provider usage before returning', async () => {
+  const calls: Array<{ url: URL; method: string; body: Record<string, unknown> }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const method = init?.method || 'GET';
+    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    calls.push({ url, method, body });
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
+      return Response.json([{ id: JOB_ID }], { status: 201 });
+    }
+    if (url.pathname === '/rest/v1/provider_attempts' && method === 'POST') {
+      return Response.json([{ id: ATTEMPT_ID }], { status: 201 });
+    }
+    if (url.hostname === 'generativelanguage.googleapis.com') {
+      return Response.json({
+        candidates: [{ content: { role: 'model', parts: [{ text: '{"name":{"value":"Red Circle"},"category":{"value":"Illustration"}}' }] }, finishReason: 'STOP', index: 0 }],
+        usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 12, totalTokenCount: 42 },
+        responseId: 'gemini-generation-001',
+        modelVersion: 'gemini-2.5-flash',
+      });
+    }
+    if (url.pathname === '/rest/v1/provider_attempts' && method === 'PATCH') return new Response(null, { status: 204 });
+    if (url.pathname === '/rest/v1/generation_jobs' && method === 'PATCH') return new Response(null, { status: 204 });
+    throw new Error('Unexpected test endpoint: ' + method + ' ' + url.pathname);
+  };
+
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer verified-development-session',
+        'Idempotency-Key': 'asset-details-request-001',
+      },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'asset',
+        messages: [{ role: 'user', content: 'Suggest metadata for an image Asset.' }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { text: string; provider: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } };
+    assert.match(payload.text, /Red Circle/);
+    assert.equal(payload.provider, 'gemini');
+    assert.deepEqual(payload.usage, { promptTokens: 30, completionTokens: 12, totalTokens: 42 });
+  }, fetcher);
+
+  const job = calls.find((call) => call.url.pathname === '/rest/v1/generation_jobs' && call.method === 'POST');
+  assert.ok(job);
+  assert.equal(job.body.user_id, USER_ID);
+  assert.equal(job.body.idempotency_key, 'asset-details-request-001');
+  assert.equal(job.body.capability, 'text');
+  const attempt = calls.find((call) => call.url.pathname === '/rest/v1/provider_attempts' && call.method === 'POST');
+  assert.ok(attempt);
+  assert.equal(attempt.body.provider, 'google');
+  const attemptUpdate = calls.find((call) => call.url.pathname === '/rest/v1/provider_attempts' && call.method === 'PATCH');
+  assert.ok(attemptUpdate);
+  assert.deepEqual(attemptUpdate.body.usage, { promptTokens: 30, completionTokens: 12, totalTokens: 42 });
+  const jobUpdate = calls.find((call) => call.url.pathname === '/rest/v1/generation_jobs' && call.method === 'PATCH');
+  assert.ok(jobUpdate);
+  assert.equal(jobUpdate.body.status, 'succeeded');
+});
+
+test('Gemini metadata suggestions reject unsupported scopes before provider or ledger calls', async () => {
+  let providerCalls = 0;
+  let ledgerCalls = 0;
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname.startsWith('/rest/v1/')) ledgerCalls += 1;
+    if (url.hostname === 'generativelanguage.googleapis.com') providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer verified-development-session',
+        'Idempotency-Key': 'asset-details-invalid-scope-001',
+      },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'admin_override',
+        messages: [{ role: 'user', content: 'Suggest details.' }],
+      }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as { error: string }).error, 'Choose a supported metadata scope.');
+  }, fetcher);
+
+  assert.equal(providerCalls, 0);
+  assert.equal(ledgerCalls, 0);
+});
+
+test('Gemini metadata suggestions fail closed when the usage ledger cannot start', async () => {
+  let providerCalls = 0;
+  const calls: Array<{ path: string; method: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const method = init?.method || 'GET';
+    calls.push({ path: url.pathname, method });
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
+      return Response.json({ message: 'ledger unavailable' }, { status: 503 });
+    }
+    if (url.hostname === 'generativelanguage.googleapis.com') providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer verified-development-session',
+        'Idempotency-Key': 'asset-details-ledger-failure-001',
+      },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'asset',
+        messages: [{ role: 'user', content: 'Suggest metadata for this Asset.' }],
+      }),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(providerCalls, 0);
+    assert.equal((await response.json() as { error: string }).error, 'Usage tracking could not start safely. No metadata request was sent.');
+  }, fetcher);
+
+  assert.ok(calls.some((call) => call.path === '/rest/v1/generation_jobs' && call.method === 'POST'));
+  assert.equal(calls.some((call) => call.path === '/rest/v1/provider_attempts' && call.method === 'POST'), false);
 });
 
 test('ledger-enabled mode blocks authenticated Gemini generation until its usage recorder exists', async () => {
