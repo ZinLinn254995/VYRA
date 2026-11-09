@@ -79,6 +79,8 @@ jobs:
         run: npm run test:vyral-origin-comparator-security
       - name: Shared Vyral storage path security tests
         run: npm run test:vyral-storage-path-security
+      - name: Vyral raster upload DNA readiness gate tests
+        run: npm run test:vyral-raster-upload-dna-gate
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
       - name: Vyral reconstruction history intent tests
