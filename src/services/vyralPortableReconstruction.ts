@@ -429,11 +429,18 @@ def validate_manifest(manifest, archive_names, archive):
                 raise ValueError("Semantic DNA is valid only in a semantic-only package")
             source = record.get("source", {})
             reconstruction = record.get("reconstruction", {})
+            asset_info = assets[asset_id]
+            identity = record.get("identity", {})
             if (record.get("schema_id") != "vyra.asset-semantic-dna" or record.get("schema_version") != 1
                     or record.get("record_id") != entry.get("id") or source.get("asset_id") != asset_id
                     or not isinstance(source.get("asset_version_id"), str)
                     or not isinstance(source.get("sha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", source.get("sha256", ""))
                     or not isinstance(source.get("size_bytes"), int) or source.get("size_bytes") <= 0
+                    or source.get("sha256") != str(asset_info.get("sha256", "")).lower()
+                    or source.get("size_bytes") != asset_info.get("size_bytes")
+                    or identity.get("name") != asset_info.get("name")
+                    or identity.get("asset_type") != asset_info.get("asset_type")
+                    or source.get("mime_type") != str(asset_info.get("mime_type", "")).lower()
                     or reconstruction.get("mode") != "semantic_generation"
                     or reconstruction.get("exact_binary_recovery") is not False
                     or reconstruction.get("decoded_sample_payload_included") is not False):
