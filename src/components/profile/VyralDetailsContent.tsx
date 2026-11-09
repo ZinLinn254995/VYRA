@@ -1094,7 +1094,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
         setPackageStatus(manifest.blindReconstruction === true
-          ? 'Verifying blind DNA payloads (original binary excluded)…'
+          ? 'Verifying binary-free DNA payloads (original encoded bytes excluded)…'
           : 'Verifying all raster and binary DNA payloads…');
         for (const dnaEntry of dnaEntries) {
           if (dnaEntry.dna_schema_id === 'vyra.asset-dna') {
@@ -3169,7 +3169,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 }}
                 className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
               >
-                Blind DNA export · no original binary
+                Binary-free DNA export · excludes original file bytes, keeps decoded pixels
               </button>
             </div>
           </details>
