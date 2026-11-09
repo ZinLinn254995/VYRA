@@ -25,6 +25,97 @@ const buildPlan = (assessment: Record<string, any>, assessmentVersion: number, i
   return { planVersion:1, sourceAssessmentVersion:assessmentVersion, sourceIdentity:identity, improvements:blockers.filter((code) => rules[code]).map((code) => rules[code]), unmappedBlockers:[...new Set(blockers.filter((code) => !rules[code]))], informational:limitations.filter((code) => notes[code]).map((code) => notes[code]), safety:['This plan is advisory and does not mutate Asset DNA.','Accepted changes must create a new immutable DNA version.','Reassess and retest; never rewrite historical assessments or attempts.','Unknown blockers require engineering review and are never silently auto-fixed.'] };
 };
 
+
+const canonicalJson = (value: unknown): string => {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Non-finite JSON number.');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
+  if (object(value)) return '{' + Object.keys(value).sort().map((key) =>
+    JSON.stringify(key) + ':' + canonicalJson(value[key])
+  ).join(',') + '}';
+  throw new Error('Non-JSON value in DNA change set.');
+};
+const sha256Hex = async (value: string) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+const getOwnJsonPath = (root: unknown, parts: string[]) => {
+  let current = root;
+  for (const part of parts) {
+    if (!object(current) || !Object.prototype.hasOwnProperty.call(current, part)) return { exists: false };
+    current = current[part];
+  }
+  return { exists: true, value: current };
+};
+const sameJson = (a: unknown, b: unknown) => {
+  try { return canonicalJson(a) === canonicalJson(b); } catch { return false; }
+};
+const validateChangeSet = async (changeSet: any, storedHash: string, expectedSource: any, currentPayload: unknown) => {
+  const errors: string[] = [];
+  const checks: Record<string, string> = {};
+  let canonicalHash = '';
+  try { canonicalHash = await sha256Hex(canonicalJson(changeSet)); } catch { errors.push('Change set is not valid canonical JSON.'); }
+  // Accept the original v1 insertion-order hash for already-prepared sets during this migration window.
+  const legacyHash = await sha256Hex(JSON.stringify(changeSet));
+  checks.hash = canonicalHash === storedHash || legacyHash === storedHash ? 'pass' : 'fail';
+  if (checks.hash === 'fail') errors.push('Stored change-set SHA-256 does not match its payload.');
+  checks.schema = object(changeSet) && changeSet.schema === 'vyra.dna-change-set' && changeSet.schemaVersion === 1 ? 'pass' : 'fail';
+  if (checks.schema === 'fail') errors.push('Unsupported DNA change-set schema.');
+  const source = changeSet?.source;
+  checks.sourceBinding = object(source) && source.assetId === expectedSource.assetId &&
+    source.assetVersionId === expectedSource.assetVersionId && source.dnaRecordId === expectedSource.dnaRecordId &&
+    source.sourceSha256 === expectedSource.sourceSha256 ? 'pass' : 'fail';
+  if (checks.sourceBinding === 'fail') errors.push('Change set does not match the pinned Asset, Version, DNA revision and source SHA-256.');
+  if (checks.hash === 'fail' || checks.schema === 'fail' || checks.sourceBinding === 'fail' || !Array.isArray(changeSet?.operations)) {
+    checks.operations = 'fail';
+    return { validatorVersion: 1, status: 'invalid', changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: 0 };
+  }
+  if (changeSet.operations.length === 0) {
+    checks.operations = 'blocked';
+    errors.push('No evidence-backed operations exist; an empty change set cannot create a DNA revision.');
+    return { validatorVersion: 1, status: 'blocked', changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: 0 };
+  }
+  const dnaRoot = object(currentPayload) && object(currentPayload.dna_record) ? currentPayload.dna_record : currentPayload;
+  if (!object(dnaRoot)) {
+    checks.currentDna = 'fail';
+    errors.push('Current DNA payload is unavailable or malformed.');
+    return { validatorVersion: 1, status: 'invalid', changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: 0 };
+  }
+  checks.currentDna = 'pass';
+  const allowedSections = new Set(['knowledge','reconstruction','description','attributes','visual','audio','video','document','geometry','style','content']);
+  const protectedParts = new Set(['id','asset_id','assetid','asset_version_id','assetversionid','dna_record_id','dnarecordid','source','identity','provenance','fingerprint','fingerprints','integrity','licensing','signature','created_at','updated_at','revision_number','parent_dna_record_id']);
+  let validCount = 0;
+  for (let i = 0; i < changeSet.operations.length; i++) {
+    const op = changeSet.operations[i];
+    const fail = (message: string) => errors.push('Operation ' + i + ': ' + message);
+    if (!object(op) || !['add','replace','remove'].includes(String(op.op)) || typeof op.path !== 'string') { fail('unsupported operation.'); continue; }
+    if (!op.path.startsWith('/') || /~(?![01])/.test(op.path)) { fail('malformed JSON Pointer.'); continue; }
+    const parts = op.path.slice(1).split('/').map((part: string) => part.replace(/~1/g,'/').replace(/~0/g,'~'));
+    if (parts.length < 3 || parts[0] !== 'dna_record' || !allowedSections.has(parts[1]) ||
+        parts.some((part: string) => !part || ['__proto__','prototype','constructor'].includes(part) || protectedParts.has(part.toLowerCase()))) {
+      fail('path is outside the editable DNA allowlist or targets a protected field.'); continue;
+    }
+    if (!Array.isArray(op.evidenceRefs) || op.evidenceRefs.length === 0 || op.evidenceRefs.some((ref: unknown) => typeof ref !== 'string' || !ref.trim())) {
+      fail('at least one evidence reference is required.'); continue;
+    }
+    const current = getOwnJsonPath(dnaRoot, parts.slice(1));
+    if (op.op === 'add') {
+      if (current.exists || !Object.prototype.hasOwnProperty.call(op,'after')) { fail('add requires a missing target and explicit after value.'); continue; }
+    } else {
+      if (!current.exists || !Object.prototype.hasOwnProperty.call(op,'before') || !sameJson(current.value,op.before)) { fail('before value does not exactly match the current DNA snapshot.'); continue; }
+      if (op.op === 'replace' && !Object.prototype.hasOwnProperty.call(op,'after')) { fail('replace requires an explicit after value.'); continue; }
+    }
+    try { if (op.op !== 'remove') canonicalJson(op.after); } catch { fail('after value is not valid JSON.'); continue; }
+    validCount++;
+  }
+  checks.operations = errors.some((error) => error.startsWith('Operation ')) ? 'fail' : 'pass';
+  const status = checks.operations === 'pass' && validCount === changeSet.operations.length ? 'validated' : 'invalid';
+  return { validatorVersion: 1, status, changeSetSha256: canonicalHash, checks, errors, validatedOperationCount: status === 'validated' ? validCount : 0 };
+};
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return reply({ error: 'Method not allowed.' }, 405);
@@ -136,7 +227,7 @@ Deno.serve(async (request: Request) => {
       applicability: { status: 'blocked', reason: 'No exact before/after DNA patch is justified by the current assessment snapshot. Verification tasks cannot be applied as DNA mutations.' },
       createdAt: new Date().toISOString(),
     };
-    const canonical = JSON.stringify(changeSet);
+    const canonical = canonicalJson(changeSet);
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
     const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2,'0')).join('');
     const { data: updated, error: saveError } = await context.supabaseAdmin
@@ -148,6 +239,57 @@ Deno.serve(async (request: Request) => {
     return reply({ changeSet: updated.change_set, sha256: updated.change_set_sha256,
       status: updated.change_set_status, dnaChanged: false, operationsApplied: 0 });
   }
+
+  if (action === 'validate_change_set') {
+    const proposalId = typeof body.proposalId === 'string' ? body.proposalId : '';
+    if (!UUID.test(proposalId)) return reply({ error: 'A valid proposal ID is required.' }, 400);
+    const { data: proposal, error } = await context.supabaseAdmin
+      .from('vyral_asset_dna_improvement_proposals')
+      .select('id,user_id,asset_id,asset_version_id,dna_record_id,source_sha256,status,change_set,change_set_sha256,change_set_status,change_set_validation_report')
+      .eq('id', proposalId).eq('user_id', userId).maybeSingle();
+    if (error) return reply({ error: 'Could not load the owner-scoped proposal.' }, 500);
+    if (!proposal) return reply({ error: 'Proposal was not found.' }, 404);
+    if (proposal.status !== 'approved' || !proposal.change_set || !proposal.change_set_sha256) {
+      return reply({ error: 'An approved proposal with a prepared change set is required.' }, 409);
+    }
+    if (proposal.change_set_validation_report) {
+      return reply({ report: proposal.change_set_validation_report, status: proposal.change_set_status, reused: true, dnaChanged: false });
+    }
+    const [latestVersion, latestDna] = await Promise.all([
+      context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', proposal.asset_id)
+        .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
+      context.supabaseAdmin.from('vyral_dna_records').select('id,payload').eq('asset_id', proposal.asset_id)
+        .eq('user_id', userId).eq('scope','asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (latestVersion.error || latestDna.error) return reply({ error: 'Could not load the current source DNA snapshot.' }, 500);
+    if (latestVersion.data?.id !== proposal.asset_version_id || latestDna.data?.id !== proposal.dna_record_id) {
+      await context.supabaseAdmin.from('vyral_asset_dna_improvement_proposals')
+        .update({ status: 'stale' }).eq('id', proposalId).eq('user_id', userId).eq('status','approved');
+      return reply({ error: 'The pinned Asset or DNA revision is no longer current. A fresh assessment is required.', status: 'stale' }, 409);
+    }
+    const report = await validateChangeSet(proposal.change_set, proposal.change_set_sha256, {
+      assetId: proposal.asset_id, assetVersionId: proposal.asset_version_id,
+      dnaRecordId: proposal.dna_record_id, sourceSha256: proposal.source_sha256,
+    }, latestDna.data?.payload);
+    const checkedAt = new Date().toISOString();
+    const { data: saved, error: saveError } = await context.supabaseAdmin
+      .from('vyral_asset_dna_improvement_proposals')
+      .update({
+        change_set_status: report.status,
+        change_set_validation_report: report,
+        change_set_checked_at: checkedAt,
+        change_set_validator_version: 1,
+      })
+      .eq('id', proposalId).eq('user_id', userId).eq('status','approved')
+      .eq('change_set_sha256', proposal.change_set_sha256).is('change_set_validation_report', null)
+      .select('id,change_set_status,change_set_validation_report').maybeSingle();
+    if (saveError || !saved) return reply({ error: 'Validation evidence could not be saved; reload the proposal before retrying.' }, 409);
+    return reply({ report: saved.change_set_validation_report, status: saved.change_set_status, dnaChanged: false,
+      operationsApplied: 0, nextStep: report.status === 'validated'
+        ? 'The patch passed deterministic validation. It has not been applied; a separate reviewed revision-creation step is required.'
+        : 'The change set remains blocked or invalid. No DNA revision was created.' });
+  }
+
   if (action === 'approve' || action === 'reject') {
     const proposalId = typeof body.proposalId === 'string' ? body.proposalId : '';
     if (!UUID.test(proposalId)) return reply({ error: 'A valid proposal ID is required.' }, 400);
