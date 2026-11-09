@@ -1367,7 +1367,7 @@ test('semantic-only DNA package contains descriptions and confirmed observations
   const auditDir = await mkdtemp(join(tmpdir(), 'vyra-semantic-audit-'));
   try {
     const packagePath = join(auditDir, 'semantic.vyral');
-    await writeFile(packagePath, archive);
+    await writeFile(packagePath, new Uint8Array(await archive.arrayBuffer()));
     const scriptPath = join(auditDir, 'reconstruct_vyral.py');
     await writeFile(scriptPath, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT);
     const output = execFileSync('python', [scriptPath, packagePath, '--audit-only'], { encoding: 'utf8' });
