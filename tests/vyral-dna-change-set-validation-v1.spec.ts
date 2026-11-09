@@ -9,7 +9,7 @@ const makeSet = (operations: unknown[]) => ({
   operations,
 });
 const validate = async (changeSet: unknown, currentDnaRecord: unknown = dna, verifiedEvidenceRefs: string[] = []) =>
-  validateVyralDnaChangeSetV1({ changeSet, expectedSha256: await sha256VyralJsonV1(changeSet), expectedSource: source, currentDnaRecord, verifiedEvidenceRefs });
+  validateVyralDnaChangeSetV1({ changeSet, expectedSha256: await sha256VyralJsonV1(changeSet), expectedProposalId: 'proposal-1', expectedSource: source, currentDnaRecord, verifiedEvidenceRefs });
 
 test('blocks empty change sets instead of allowing empty DNA revisions', async () => {
   const result = await validate(makeSet([]));
@@ -49,7 +49,7 @@ test('rejects a change set whose pinned Asset or Version differs', async () => {
 
 test('rejects tampered change-set hashes', async () => {
   const set = makeSet([{ op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'crimson', evidenceRefs: ['evidence-1'] }]);
-  const result = await validateVyralDnaChangeSetV1({ changeSet: set, expectedSha256: '0'.repeat(64), expectedSource: source, currentDnaRecord: dna });
+  const result = await validateVyralDnaChangeSetV1({ changeSet: set, expectedSha256: '0'.repeat(64), expectedProposalId: 'proposal-1', expectedSource: source, currentDnaRecord: dna });
   assert.equal(result.status, 'invalid');
   assert.equal(result.checks.hash, 'fail');
 });
@@ -120,4 +120,14 @@ test('rejects malformed operation entries without crashing evidence resolution',
     assert.equal(result.status, 'invalid');
     assert.equal(result.checks.operations, 'fail');
   }
+});
+
+test('rejects a change set bound to a different proposal even when its hash is valid', async () => {
+  const set = { ...makeSet([{
+    op: 'replace', path: '/dna_record/knowledge/color', before: 'red', after: 'crimson', evidenceRefs: ['evidence-1'],
+  }]), proposalId: 'proposal-other' };
+  const result = await validate(set, dna, ['evidence-1']);
+  assert.equal(result.status, 'invalid');
+  assert.equal(result.checks.proposalBinding, 'fail');
+  assert.match(result.errors.join(' '), /exact expected approved proposal/);
 });
