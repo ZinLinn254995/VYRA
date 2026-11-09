@@ -15,6 +15,7 @@ import { requestsVyralQualityEvaluationV1 } from '../../services/vyralQualityInt
 import { requestsVyralQualityHistoryV1 } from '../../services/vyralQualityHistoryIntentV1.ts';
 import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaAssessmentIntentV1.ts';
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
+import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -543,10 +544,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           comparison_mode: string; test_status: string; exact_match: boolean | null;
           similarity_score: number | null; created_at: string;
         }>;
-        const exactCount = attempts.filter((item) => item.exact_match === true).length;
+        const evidenceSummary = summarizeVyralReconstructionEvidenceV1(attempts);
         const report = attempts.length ? [
-          `Vyral DNA-only reconstruction evidence — ${attempts.length} saved attempt(s)`,
-          `Exact decoded-pixel matches: ${exactCount}/${attempts.length}`,
+          `Vyral DNA-only reconstruction evidence — ${evidenceSummary.totalAttempts} saved attempt(s)`,
+          `Exact decoded-pixel matches: ${evidenceSummary.exactMatches}/${evidenceSummary.totalAttempts}`,
+          `Best recorded RGB similarity (not an exact pass): ${evidenceSummary.bestSimilarity === null ? 'not available' : (evidenceSummary.bestSimilarity * 100).toFixed(2) + '%'}`,
+          `Evidence gaps: ${evidenceSummary.evidenceGaps.length ? evidenceSummary.evidenceGaps.join(', ') : 'none detected in recorded fields'}`,
           `Different outputs: ${attempts.filter((item) => item.test_status === 'failed').length}`,
           `Inconclusive: ${attempts.filter((item) => item.test_status === 'inconclusive').length}`,
           '',
@@ -580,6 +583,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           '• Creator-attested blindness does not prove the external model never saw the original. No attempt is independently blind-verified unless separate audit evidence exists.',
           '• Missing model version, prompt hash or tool-access details remain missing evidence; they are not inferred.',
           '• These records compare reconstruction outputs. They do not automatically modify DNA records.',
+          '',
+          'Evidence-guided next actions:',
+          ...evidenceSummary.nextActions.map((item) => '• ' + item),
         ].join('\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Vyral yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
         setMessages((previous) => [...previous, {
           id: makeId(),
