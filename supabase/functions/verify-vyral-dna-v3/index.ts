@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
 
 const BUCKET = 'vyral-assets';
@@ -43,7 +44,7 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'Asset, version and DNA source bindings do not match the current immutable version.' }, 409);
   }
   const prefix = userId + '/' + asset.vyral_id + '/' + asset.id + '/';
-  if (typeof version.storage_path !== 'string' || !version.storage_path.startsWith(prefix)) return reply({ error: 'Private source path failed ownership validation.' }, 409);
+  if (!isCanonicalOwnedStoragePath(version.storage_path, prefix)) return reply({ error: 'Private source path failed ownership validation.' }, 409);
   const size = Number(version.size_bytes);
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return reply({ error: 'Raster verification supports source files up to 20 MB.' }, 413);
   const payload = row.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {};
@@ -73,7 +74,7 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'DNA v3 manifest does not describe a complete, unique tile grid for this exact source version.' }, 409);
   }
   const expectedPrefix = userId + '/' + asset.vyral_id + '/' + asset.id + '/dna/v3/' + row.id + '/tiles/';
-  if (storagePrefix !== expectedPrefix) return reply({ error: 'DNA tile storage prefix is invalid.' }, 409);
+  if (!isCanonicalOwnedStoragePath(storagePrefix + 'tile.bin', expectedPrefix)) return reply({ error: 'DNA tile storage prefix is invalid.' }, 409);
   const { data: blob, error: downloadError } = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
   if (downloadError || !blob) return reply({ error: 'Could not re-read the original Asset bytes.' }, 502);
   const original = new Uint8Array(await blob.arrayBuffer());
