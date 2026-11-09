@@ -59,7 +59,7 @@ const ALLOWED_DNA_SECTIONS = new Set([
 ]);
 
 const parsePointer = (path: string): string[] | null => {
-  if (!path.startsWith('/') || path.length < 2 || path.includes('~(?![01])')) return null;
+  if (!path.startsWith('/') || path.length < 2 || /~(?![01])/.test(path)) return null;
   const parts = path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'));
   if (parts.some((part) => !part || part === '__proto__' || part === 'prototype' || part === 'constructor')) return null;
   return parts;

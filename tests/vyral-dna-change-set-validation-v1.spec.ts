@@ -69,3 +69,9 @@ test('canonical hashing is independent of object key insertion order', async () 
   const right = { b: { y: 'z', x: true }, a: 1 };
   assert.equal(await sha256VyralJsonV1(left), await sha256VyralJsonV1(right));
 });
+
+test('rejects malformed JSON Pointer escape sequences', async () => {
+  const result = await validate(makeSet([{ op: 'replace', path: '/dna_record/knowledge/bad~2key', before: 'red', after: 'blue', evidenceRefs: ['evidence-1'] }]));
+  assert.equal(result.status, 'invalid');
+  assert.match(result.errors.join(' '), /path is outside/);
+});
