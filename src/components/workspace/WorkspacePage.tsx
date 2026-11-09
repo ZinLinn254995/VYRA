@@ -11,7 +11,8 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
-type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string };
+type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[] };
+type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
 type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
@@ -516,6 +517,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 if (!master) return { ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString() };
                 const previousInstances = master.sceneInstances || [];
                 const instancesByScene = new Map(previousInstances.map((instance) => [instance.sceneId, instance]));
+                const sceneIds = new Set(nextScenes.map((scene) => scene.id));
                 const orderedInstances = nextScenes.map((scene) => {
                   const existing = instancesByScene.get(scene.id);
                   if (existing) return existing;
@@ -527,18 +529,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     sourceOut: Math.min(scene.duration, Math.max(0.1, Number(legacyRange?.sourceOut) || scene.duration)),
                   };
                 });
+                const sceneRanges = Object.fromEntries(Object.entries(master.sceneRanges || {}).filter(([id]) => sceneIds.has(id)));
+                const transitions = Object.fromEntries(Object.entries(master.transitions || {}).filter(([id]) => sceneIds.has(id) || orderedInstances.some((instance) => instance.id === id)));
                 return {
                   ...current,
                   details: {
                     ...current.details,
                     scenes: nextScenes,
-                    masterTimeline: { ...master, sceneInstances: orderedInstances },
+                    masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges, transitions },
                   },
                   updatedAt: new Date().toISOString(),
                 };
               });
               const addScene = () => {
-                const scene: StoryboardScene = { id: crypto.randomUUID(), title: 'Scene ' + (scenes.length + 1), description: '', duration: 5, transition: 'Fade' };
+                const now = new Date().toISOString();
+                const scene: StoryboardScene = { id: crypto.randomUUID(), title: 'Scene ' + (scenes.length + 1), description: '', duration: 5, transition: 'Fade', project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] } };
                 updateScenes([...scenes, scene]);
               };
               const updateScene = (id: string, patch: Partial<StoryboardScene>) => updateScenes(scenes.map((scene) => scene.id === id ? { ...scene, ...patch } : scene));
@@ -548,7 +553,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 const next = [...scenes]; [next[index], next[target]] = [next[target], next[index]]; updateScenes(next);
               };
               const duplicateScene = (scene: StoryboardScene) => {
-                const copy = { ...scene, id: crypto.randomUUID(), title: scene.title + ' copy' };
+                const now = new Date().toISOString();
+                const copy: StoryboardScene = { ...scene, id: crypto.randomUUID(), title: scene.title + ' copy', project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] } };
                 const index = scenes.findIndex((item) => item.id === scene.id);
                 const next = [...scenes]; next.splice(index + 1, 0, copy); updateScenes(next);
               };
