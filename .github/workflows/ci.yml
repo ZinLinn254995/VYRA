@@ -75,6 +75,8 @@ jobs:
         run: npm run test:vyral-portable-reconstruction
       - name: ORIGIN-01 comparator storage path security tests
         run: npm run test:vyral-origin-comparator-security
+      - name: Shared Vyral storage path security tests
+        run: npm run test:vyral-storage-path-security
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
       - name: Vyral reconstruction history intent tests
