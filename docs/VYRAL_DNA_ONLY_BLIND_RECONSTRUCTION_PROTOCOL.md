@@ -56,6 +56,17 @@ The Development comparison record stores the available evidence in `public.vyral
 
 The comparator intentionally never upgrades a creator attestation to `independently_verified`: it cannot observe or authenticate what happened inside a third-party AI session. An absent model version, prompt hash, or tool-access record remains visibly missing rather than being inferred. Each successful comparison call inserts a separate test row; existing rows are not overwritten.
 
+
+## 3A. Pre-flight package audit
+
+Before giving a DNA-only package to an external model, run its bundled verifier in non-destructive audit mode:
+
+```bash
+python tools/reconstruct_vyral.py path/to/export.vyral --audit-only
+```
+
+The audit validates the ZIP safety limits, exact declared-entry inventory, protected System Files policy and hashes, each Asset's DNA payload hashes, and full reconstruction-payload coverage without writing reconstructed files. Its JSON report includes the package byte length and SHA-256, selected Asset identities, DNA schema versions, declared recovery levels, and an explicit zero count for undeclared archive entries. Preserve this report with the external attempt evidence. It proves package integrity and inventory only; it does not prove that an external model session was blind or that a generative reconstruction is accurate.
+
 ## 4. Modality-specific scoring
 
 ### Raster images
