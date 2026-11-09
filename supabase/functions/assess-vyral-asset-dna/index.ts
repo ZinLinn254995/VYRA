@@ -93,20 +93,21 @@ Deno.serve(async (request: Request) => {
   if (assetResult.error) return reply({ error: 'Could not load the owner-scoped Asset.' }, 500);
   const asset = assetResult.data;
   if (!asset) return reply({ error: 'Asset was not found for this account.' }, 404);
-  const [versionResult, dnaResult] = await Promise.all([
-    context.supabaseAdmin.from('vyral_asset_versions')
-      .select('id,asset_id,vyral_id,user_id,sha256,size_bytes,storage_path,version_number')
-      .eq('asset_id', assetId).eq('user_id', userId)
-      .order('version_number', { ascending: false }).limit(1).maybeSingle(),
-    context.supabaseAdmin.from('vyral_dna_records')
-      .select('id,vyral_id,user_id,asset_id,schema_version,payload,reconstruction_data,verification_status,created_at')
-      .eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset')
-      .eq('payload->dna_record->source->>asset_version_id', versionResult.data?.id ?? '')
-      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
-  ]);
-  if (versionResult.error || dnaResult.error) return reply({ error: 'Could not resolve the latest owner-scoped Asset Version and DNA record.' }, 500);
-  const version = versionResult.data, dnaRow = dnaResult.data;
-  if (!asset || !version || !dnaRow) return reply({ error: 'Asset, source Version, or DNA record was not found for this account.' }, 404);
+  const versionResult = await context.supabaseAdmin.from('vyral_asset_versions')
+    .select('id,asset_id,vyral_id,user_id,sha256,size_bytes,storage_path,version_number')
+    .eq('asset_id', assetId).eq('user_id', userId)
+    .order('version_number', { ascending: false }).limit(1).maybeSingle();
+  if (versionResult.error) return reply({ error: 'Could not resolve the latest owner-scoped Asset Version.' }, 500);
+  const version = versionResult.data;
+  if (!asset || !version) return reply({ error: 'Asset or source Version was not found for this account.' }, 404);
+  const dnaResult = await context.supabaseAdmin.from('vyral_dna_records')
+    .select('id,vyral_id,user_id,asset_id,schema_version,payload,reconstruction_data,verification_status,created_at')
+    .eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset')
+    .eq('payload->dna_record->source->>asset_version_id', version.id)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (dnaResult.error) return reply({ error: 'Could not resolve DNA for the current source Version.' }, 500);
+  const dnaRow = dnaResult.data;
+  if (!dnaRow) return reply({ error: 'DNA record for the current source Version was not found.' }, 404);
   const versionId = version.id;
   const dnaRecordId = dnaRow.id;
   if (asset.vyral_id !== version.vyral_id || dnaRow.vyral_id !== asset.vyral_id ||
