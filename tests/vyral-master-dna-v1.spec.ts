@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createVyralMasterDnaV1, validateVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 
 const input = {
@@ -192,4 +193,12 @@ test('preflight refuses to mark a Vyral ready until every Asset has exact recons
   assert.deepEqual(blockers.map((item) => [item.code, item.asset_id]), [
     ['reconstruction_not_verified', 'unverified'],
   ]);
+});
+
+
+test('Master DNA Builder orders Asset DNA by database-assigned revision before timestamp', () => {
+  const source = readFileSync('supabase/functions/build-vyral-master-dna/index.ts', 'utf8');
+  assert.match(source, /revision_number,parent_dna_record_id/);
+  assert.match(source, /\.order\('revision_number', \{ ascending: false \}\)\.order\('created_at', \{ ascending: false \}\)/);
+  assert.match(source, /revision-first \(then timestamp\)/);
 });
