@@ -639,7 +639,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false) => {
+  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false, semanticOnly = false) => {
     const dnaOnly = !components.assets && components.fullDna;
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
@@ -681,7 +681,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       }
-      if (components.compactDna && !portableMasterDna && !blindReconstruction) throw new Error('Collection reference data is not ready yet. Please try again after the Vyral finishes updating.');
+      if (components.compactDna && !portableMasterDna && !blindReconstruction && !semanticOnly) throw new Error('Collection reference data is not ready yet. Please try again after the Vyral finishes updating.');
       let totalMediaBytes = 0;
       const ownerless = <T extends Record<string, unknown>>(record: T) => {
         const { user_id: _userId, vyral_id: _vyralId, storage_path: _storagePath, ...safe } = record;
@@ -840,7 +840,103 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       }
-      if (dnaOnly) {
+      if (semanticOnly) {
+        if (!dnaOnly || components.compactDna || components.assets) {
+          throw new Error('Semantic-only export must exclude original media and compact collection snapshots.');
+        }
+        const selectedObservations = observations.filter((item) => packageAssets.some((asset) => asset.id === item.asset_id));
+        const observationIds = selectedObservations.map((item) => item.id);
+        let confirmedReviews: Array<{ id: string; observation_id: string; decision: string; evidence_kind: string; note?: string | null }> = [];
+        if (observationIds.length) {
+          const { data: reviewRows, error: reviewError } = await supabase
+            .from('vyral_vision_creator_evidence')
+            .select('id,observation_id,decision,evidence_kind,note')
+            .in('observation_id', observationIds)
+            .eq('evidence_kind', 'observation_review')
+            .eq('decision', 'creator_confirmed');
+          if (reviewError) throw new Error('Could not verify creator-confirmed observations for semantic DNA export: ' + reviewError.message);
+          confirmedReviews = (reviewRows ?? []) as typeof confirmedReviews;
+        }
+        const reviewByObservation = new Map(confirmedReviews.map((review) => [review.observation_id, review]));
+        const semanticRecords = [];
+        const semanticVersions: Record<string, unknown>[] = [];
+        for (const asset of packageAssets) {
+          const assetVersions = versions.filter((version) => version.asset_id === asset.id);
+          const sourceVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
+            ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
+          if (!sourceVersion?.id || !sourceVersion.sha256 || !Number.isSafeInteger(Number(sourceVersion.size_bytes)) ||
+              Number(sourceVersion.size_bytes) <= 0 || asset.sha256?.toLowerCase() !== sourceVersion.sha256.toLowerCase() ||
+              Number(asset.size_bytes) !== Number(sourceVersion.size_bytes)) {
+            throw new Error('Semantic DNA export is blocked because ' + asset.name + ' has no verified current Asset Version binding.');
+          }
+          semanticVersions.push({
+            id: sourceVersion.id,
+            asset_id: sourceVersion.asset_id,
+            version_number: sourceVersion.version_number,
+            size_bytes: sourceVersion.size_bytes,
+            sha256: sourceVersion.sha256,
+            mime_type: sourceVersion.mime_type || asset.mime_type,
+          });
+          const confirmedObservations = selectedObservations
+            .filter((observation) => observation.asset_id === asset.id && observation.asset_version_id === sourceVersion.id)
+            .flatMap((observation) => {
+              const review = reviewByObservation.get(observation.id);
+              if (!review || observation.source_sha256.toLowerCase() !== sourceVersion.sha256.toLowerCase()) return [];
+              return [{
+                observationId: observation.id,
+                reviewId: review.id,
+                decision: review.decision,
+                taskKind: observation.task_kind,
+                assetVersionId: observation.asset_version_id,
+                sourceSha256: observation.source_sha256,
+                evidence: {
+                  observation: observation.observation,
+                  evidence: observation.evidence ?? {},
+                  creator_review_note: review.note ?? null,
+                },
+              }];
+            });
+          const sourceDna = dnaRecords
+            .filter((record) => record.asset_id === asset.id && record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3)
+            .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+          const sourcePayload = asRecord(asRecord(sourceDna?.payload).dna_record);
+          const dimensions = asRecord(sourcePayload.dimensions);
+          const technical = {
+            width: Number.isSafeInteger(Number(dimensions.width)) && Number(dimensions.width) > 0 ? Number(dimensions.width) : null,
+            height: Number.isSafeInteger(Number(dimensions.height)) && Number(dimensions.height) > 0 ? Number(dimensions.height) : null,
+            colorSpace: typeof sourcePayload.color_space === 'string' ? sourcePayload.color_space : null,
+            channelLayout: typeof sourcePayload.channel_layout === 'string' ? sourcePayload.channel_layout : null,
+          };
+          semanticRecords.push(createVyralSemanticDnaV1({
+            recordId: crypto.randomUUID(),
+            asset: {
+              id: asset.id,
+              name: asset.name,
+              asset_type: asset.asset_type,
+              original_filename: asset.original_filename,
+              description: asset.description,
+              mime_type: asset.mime_type,
+            },
+            source: {
+              assetVersionId: sourceVersion.id,
+              sha256: sourceVersion.sha256.toLowerCase(),
+              sizeBytes: Number(sourceVersion.size_bytes),
+            },
+            technicalMetadata: technical,
+            confirmedObservations,
+            context: {
+              vyralName: vyral.name,
+              vyralDescription: vyral.description,
+              purpose: typeof (vyral.metadata ?? {}).purpose === 'string' ? String((vyral.metadata ?? {}).purpose) : null,
+              intendedUses: Array.isArray((vyral.metadata ?? {}).intended_uses) ? (vyral.metadata ?? {}).intended_uses as string[] : [],
+            },
+          }));
+        }
+        archive = await createVyralSemanticDnaPackage({
+          ...manifest,
+          versions: semanticVersions,
+        } as unknown as Parameters<typeof createVyralSemanticDnaPackage>[0], semanticRecords);
+      } else if (dnaOnly) {
         const supportedRows = dnaRecords.filter((record) =>
           (!selectedAssetId || record.asset_id === selectedAssetId) && record.asset_id &&
           ((record.payload?.dna_schema_id === 'vyra.asset-dna' && record.payload?.dna_schema_version === 3) ||
@@ -3167,6 +3263,16 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 onClick={(event) => {
                   event.currentTarget.closest('details')?.removeAttribute('open');
                   void exportVyralPackage({ assets: false, fullDna: true, compactDna: true }, undefined, true);
+                }}
+                className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
+              >
+                Semantic-only DNA export · no media or pixel payloads
+              </button>
+            </div>
+            <div className="border-t border-[var(--vyra-border-subtle)] pt-2">
+              <button type="button" disabled={packageBusy || loading || !assets.length} onClick={(event) => {
+                event.currentTarget.closest('details')?.removeAttribute('open');
+                void exportVyralPackage({ assets: false, fullDna: true, compactDna: false }, undefined, false, true);
                 }}
                 className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
               >
