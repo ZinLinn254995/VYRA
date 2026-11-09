@@ -73,6 +73,8 @@ jobs:
         run: npm run test:vyral-dna-revision-allocator
       - name: Vyral portable DNA-only reconstruction runtime tests
         run: npm run test:vyral-portable-reconstruction
+      - name: ORIGIN-01 comparator storage path security tests
+        run: npm run test:vyral-origin-comparator-security
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
       - name: Vyral reconstruction history intent tests
@@ -82,7 +84,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check Supabase Edge Functions
-        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts supabase/functions/compare-origin-01-reconstruction/index.ts
       - name: SEO discovery and canonical contract tests
         run: npm run test:seo
       - name: Production build
