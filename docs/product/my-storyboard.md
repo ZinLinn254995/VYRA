@@ -384,3 +384,72 @@ The first Master Timeline UI foundation is now present below the existing Scenes
 - Timeline data is stored in the Storyboard details and follows the existing Storyboard auto-save/persistence path.
 
 This is an interactive UI/data foundation. It does not yet connect clip blocks to actual media files, render waveforms, provide real-time video/audio playback, or export a finished video. Those capabilities must be added without changing the shared timebase or modifying original Scene source data.
+
+
+
+## 17. Video Editing Engine — Elah Evaluation and VYRA Integration Contract
+
+### 17.1 Selected technical candidate
+
+Evaluate `@elah/editor` (Elah) as the video-editing engine for the Storyboard Master Editor and the future media-backed Scene/Media editing workflows.
+
+- License: Apache-2.0; suitable for commercial embedding subject to retaining the applicable license notices.
+- Provides a React editor SDK, frame-based timeline engine, WebGL2 preview, media import/library, multiple video tracks, multi-track audio, image/text/shape clips, clip trimming/speed/crop, keyframes, transitions, undo/history, and browser export.
+- Its CSS token and component-slot APIs allow VYRA to apply its own Light/Dark/System design tokens. Do not expose the stock Elah branding or default styling as the VYRA product identity.
+- The published `@elah/editor` package is currently at 1.0.0. Treat this as a new dependency that requires a VYRA proof-of-concept and regression checks before it replaces any existing editor UI.
+
+### 17.2 Responsibility boundary
+
+Elah is the editing/rendering engine, not VYRA's product data model or media ownership system.
+
+- VYRA remains the source of truth for Storyboards, Scenes, Vyrals, Asset DNA, media ownership, provenance, permissions, and cloud persistence.
+- Elah owns the active editing session: frame-accurate clip placement, playback, preview, transforms, timeline interactions, and export rendering.
+- VYRA owns the mapping between VYRA Scene/Asset IDs and Elah track/clip IDs. Persist this mapping explicitly; never rely on array order or display names as identity.
+- Keep the existing Storyboard header, compact-header behavior, Title/Description/Details sections, Create/Cancel flow, and three-level editor hierarchy unchanged.
+- Keep a VYRA Scene sequence/scene-instance concept. Elah clips must not silently replace or mutate the original Scene source records.
+
+### 17.3 Project data and backward compatibility
+
+- Add a versioned Elah project document as a new field within the existing Storyboard master-timeline data. Keep the current `sceneRanges`, `sceneInstances`, `transitions`, `audioTracks`, and `textTracks` fields readable during migration.
+- Build a deterministic adapter between VYRA's existing timeline representation (seconds and VYRA IDs) and Elah's integer-frame Project representation. Define one project FPS and use explicit rounding rules at the boundary.
+- Preserve stable VYRA IDs in adapter metadata so an edit can be mapped back to the correct Scene, Asset, and media record.
+- On load, validate the saved Elah document before replacing the active editor project. Handle unsupported/newer document versions without discarding the existing VYRA timeline data.
+- On save, serialize the Elah project and media-library snapshot together with the VYRA mapping metadata. Keep the existing 500 ms Storyboard auto-save path, but debounce high-frequency timeline gestures so drag operations do not issue a cloud write on every pointer move.
+- Round-trip tests must prove that load → edit → save → reload preserves Scene order, source In/Out, transitions, audio/text positions, clip settings, IDs, and unknown VYRA metadata.
+
+### 17.4 Media persistence and relinking
+
+- Import media through VYRA's My Media Library / Asset storage flow. Elah's local browser media library is an editing cache, not the canonical VYRA library.
+- Persist stable VYRA storage references and relink them into Elah after reload. Do not persist temporary `blob:` or `data:` URLs as the only source of a media clip; those URLs cannot be recovered after the page session ends.
+- Store media-library snapshots and project documents together, then relink assets after the media library has hydrated.
+- Missing or inaccessible media must remain visible as a recoverable missing-media state. Never silently delete a clip or its timeline position.
+- Scene Editor must gain real media selection/import and asset references before the Master Editor can claim to provide real video editing.
+
+### 17.5 VYRA presentation and app integration
+
+- Embed Elah inside a VYRA-owned layout. Use VYRA's existing header and page shell; do not mount a second independent editor provider on the same page.
+- Map Elah's `--elah-*` design tokens to VYRA semantic tokens, including canvas/surface, border, text, accent, clip-type colors, playhead, selection, and overlays. Support both Light and Dark themes.
+- Use Elah's composable timeline/preview/panel APIs where they fit. Keep VYRA-specific Scene navigation, asset provenance, AI actions, and simplified controls in VYRA-owned components.
+- Configure Vite's module worker format and dependency pre-bundling exclusions exactly as required by Elah's installation guide. Do not add the package without also applying its documented worker configuration and regenerating the npm lockfile.
+- Only one active Elah EditorProvider may be mounted in the current page because its stores are module-level singletons. The current one-Storyboard-at-a-time page flow is compatible; do not mount independent nested editors for Master, Scene, and Media levels simultaneously.
+
+### 17.6 Browser and export constraints
+
+- Browser editing and export require WebGL2 and WebCodecs; Chromium-based browsers (Chrome/Edge) are the primary supported target. Firefox is partial and Safari support is limited.
+- Test export on real mobile devices and desktop browsers. Do not promise universal browser export until verified.
+- Long/high-resolution projects can hit browser memory and Blob-size limits. Add export progress, cancellation/recovery, and clear failure handling; evaluate server-side rendering for longer jobs rather than assuming all exports should run in the browser.
+- Verify audio/video synchronization, codec availability, font handling, transitions, and output dimensions before enabling final export for customers.
+
+### 17.7 Adoption gates
+
+Do not replace the existing Master Timeline until a separate proof-of-concept passes all of these checks:
+
+1. Vite production build succeeds with Elah's documented worker configuration.
+2. Import a real VYRA-stored video, image, and audio item; reload and relink them without losing thumbnails or clip positions.
+3. Add multiple video and audio tracks, text overlays, trim, split, move, crop, speed, transitions, undo, and redo.
+4. Save, reload, and round-trip the project through the existing Storyboard local/cloud persistence path.
+5. Export a real MP4 and compare the exported result with the preview for timing, dimensions, and audio synchronization.
+6. Verify VYRA Light/Dark themes, responsive layout, keyboard interactions, and touch gestures.
+7. Run the existing Storyboard tests and add adapter, persistence, media-relink, and export regression tests.
+
+Only after these gates pass should Elah become the production editing engine. If a capability is missing from its editing UI, build the required VYRA-owned control on its public engine API rather than silently removing the feature.
