@@ -61,6 +61,8 @@ jobs:
         run: npm run test:vyral-ai-details
       - name: Workspace storyboard cloud sync reconciliation tests
         run: npm run test:workspace-storyboards
+      - name: Vyral DNA change-set deterministic validation tests
+        run: npm run test:vyral-dna-change-set
       - name: Vyral Asset DNA assessment tests
         run: npm run test:vyral-asset-dna-assessment
       - name: Vyral Asset DNA assessment intent tests
