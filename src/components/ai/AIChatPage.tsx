@@ -522,6 +522,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           ...(assessment.blockers?.length ? ['Blockers:', ...assessment.blockers.map((item) => `• ${item}`)] : []),
           ...(assessment.limitations?.length ? ['Limitations:', ...assessment.limitations.map((item) => `• ${item}`)] : []),
           ...(improvementPlan.improvements.length ? ['', 'Evidence-backed improvement plan:', ...improvementPlan.improvements.map((item) => `• [${item.priority.toUpperCase()}] ${item.action} Acceptance: ${item.acceptanceEvidence}`)] : []),
+          ...(improvementPlan.unmappedBlockers.length ? ['', 'Unmapped blockers — engineering review required:', ...improvementPlan.unmappedBlockers.map((item) => '• ' + item)] : []),
           ...(improvementPlan.informational.length ? ['', 'Additional improvements:', ...improvementPlan.informational.map((item) => '• ' + item)] : []),
           '',
           ...improvementPlan.safety.map((item) => '• ' + item),
