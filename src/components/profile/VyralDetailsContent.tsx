@@ -864,7 +864,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           const assetVersions = versions.filter((version) => version.asset_id === asset.id);
           const sourceVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
             ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
-          if (!sourceVersion?.id || !sourceVersion.sha256 || !Number.isSafeInteger(Number(sourceVersion.size_bytes)) ||
+          if (!sourceVersion || !sourceVersion.id || typeof sourceVersion.sha256 !== 'string' || !sourceVersion.sha256 || !Number.isSafeInteger(Number(sourceVersion.size_bytes)) ||
               Number(sourceVersion.size_bytes) <= 0 || asset.sha256?.toLowerCase() !== sourceVersion.sha256.toLowerCase() ||
               Number(asset.size_bytes) !== Number(sourceVersion.size_bytes)) {
             throw new Error('Semantic DNA export is blocked because ' + asset.name + ' has no verified current Asset Version binding.');
