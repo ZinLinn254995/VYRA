@@ -514,7 +514,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           '',
           'This result evaluates only the selected Asset Version and its DNA record. It is not the Vyral collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
           `Assessment history ID: ${data.assessmentId ?? 'not returned'}`,
-        ].join('\\n');
+        ].join('\n');
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
@@ -571,7 +571,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               `   Prompt SHA-256: ${promptHash ? promptHash.slice(0, 16) + '…' : 'not recorded'} · Tool access: ${toolNames}`,
               item.session_reference ? `   External session reference: ${item.session_reference}` : '',
               blindness.independentlyVerified === false ? '   Note: original-file isolation is creator-attested, not independently audited.' : '',
-            ].filter(Boolean).join('\\n');
+            ].filter(Boolean).join('\n');
           }),
           '',
           'Interpretation rules:',
@@ -580,7 +580,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           '• Creator-attested blindness does not prove the external model never saw the original. No attempt is independently blind-verified unless separate audit evidence exists.',
           '• Missing model version, prompt hash or tool-access details remain missing evidence; they are not inferred.',
           '• These records compare reconstruction outputs. They do not automatically modify DNA records.',
-        ].join('\\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Vyral yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
+        ].join('\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Vyral yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
@@ -631,7 +631,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               }),
               '',
               'History is ordered newest first. Each result is tied to its own immutable snapshot and versioned standard.',
-            ].join('\\n')
+            ].join('\n')
           : 'No saved quality evaluations exist for this Vyral yet. Ask VYRA AI Chat to evaluate its quality after an approved standard is published.';
         setMessages((previous) => [...previous, {
           id: makeId(),
