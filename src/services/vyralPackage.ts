@@ -245,6 +245,10 @@ export const validateVyralManifest = (value: unknown): VyralPackageManifest => {
   const manifest = value as Partial<VyralPackageManifest>;
   if (manifest.format !== VYRAL_PACKAGE_FORMAT) throw new Error('This file is not a supported VYRAL package.');
   if (manifest.formatVersion !== VYRAL_PACKAGE_VERSION) throw new Error('Unsupported VYRAL package version: ' + String(manifest.formatVersion));
+  if (manifest.blindReconstruction !== undefined &&
+      (typeof manifest.blindReconstruction !== 'boolean' || manifest.blindReconstruction === true && manifest.exportMode !== 'dna-only')) {
+    throw new Error('Blind reconstruction metadata is valid only for DNA-only packages.');
+  }
   if (typeof manifest.packageId !== 'string' || !manifest.packageId.trim() || manifest.packageId.length > 128 || typeof manifest.exportedAt !== 'string' || !Number.isFinite(Date.parse(manifest.exportedAt))) throw new Error('VYRAL package identity metadata is missing or invalid.');
   if (!manifest.vyral || typeof manifest.vyral !== 'object' || typeof manifest.vyral.name !== 'string' || !manifest.vyral.name.trim()) throw new Error('VYRAL collection metadata is invalid.');
   if (manifest.exportComponents !== undefined) {
