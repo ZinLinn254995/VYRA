@@ -1101,7 +1101,7 @@ export const createVyralAssetDnaOnlyPackage = async (
   const entries: VyralPackageEntry[] = [
     ...[...payloadByPath.entries()].map(([path, data]) => ({ path, data })),
     { path: 'README.txt', data: blindReconstruction
-      ? 'VYRAL BLIND DNA package. Original source binary bytes are intentionally excluded. Raster Assets contain decoded pixel samples; non-raster Assets contain structural DNA only and require modality-specific semantic reconstruction.'
+      ? 'VYRAL BINARY-FREE DNA PACKAGE. Original encoded source bytes are excluded. Raster Assets still contain decoded pixel samples; non-raster Assets contain structural DNA only and require modality-specific semantic reconstruction. This is not a blind generative reconstruction test.'
       : 'VYRAL DNA-only package. Read AI_RECONSTRUCTION_GUIDE.md and run tools/reconstruct_vyral.py with Python 3 to verify and reconstruct the included Assets.' },
     { path: 'AI_RECONSTRUCTION_GUIDE.md', data: VYRAL_AI_RECONSTRUCTION_GUIDE },
     { path: 'tools/reconstruct_vyral.py', data: VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT },
