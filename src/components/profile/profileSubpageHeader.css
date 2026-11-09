@@ -137,6 +137,21 @@
   overflow: hidden;
   overflow-anchor: none;
 }
+/* Storyboard editor uses the full available screen area, not the decorative Profile card shell. */
+.storyboard-fullscreen-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.storyboard-fullscreen-card .profile-collapse-header {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.storyboard-fullscreen-card .profile-subpage-content {
+  background: transparent !important;
+}
+
 /* Bottom corners emerge gradually as the final content approaches the scroll edge. */
 .profile-subpage-card {
   border-bottom-left-radius: var(--profile-card-bottom-radius, 0px) !important;
