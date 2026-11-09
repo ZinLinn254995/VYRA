@@ -1,3 +1,4 @@
+import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
@@ -318,11 +319,6 @@ Deno.serve(async (request: Request) => {
 
   const originalPrefix = userId + '/' + ORIGIN.vyralId + '/' + ORIGIN.originalAssetId + '/';
   const candidatePrefix = userId + '/' + ORIGIN.vyralId + '/' + candidateAssetId + '/';
-  const isCanonicalOwnedStoragePath = (path: string, expectedPrefix: string) => {
-    if (!path.startsWith(expectedPrefix) || path.startsWith('/') || path.includes('\\')) return false;
-    const segments = path.split('/');
-    return segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
-  };
   if (
     !isCanonicalOwnedStoragePath(originalVersion.storage_path, originalPrefix) ||
     !isCanonicalOwnedStoragePath(candidateVersion.storage_path, candidatePrefix)
