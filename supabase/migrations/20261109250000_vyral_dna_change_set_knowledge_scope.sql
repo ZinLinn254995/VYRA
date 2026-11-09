@@ -1,4 +1,5 @@
 -- Restrict creator-confirmed DNA change sets to non-identity knowledge fields only.
+-- Bind atomic DNA revision application to the exact approved proposal snapshot.
 CREATE OR REPLACE FUNCTION public.apply_vyral_asset_dna_change_set(p_proposal_id uuid, p_user_id uuid, p_expected_change_set_sha256 text, p_new_dna_record_id uuid, p_new_payload jsonb)
  RETURNS TABLE(dna_record_id uuid, revision_number integer, proposal_status text, reused boolean)
  LANGUAGE plpgsql
@@ -43,6 +44,13 @@ begin
     return;
   end if;
   if proposal.status <> 'approved' or proposal.change_set is null
+    or proposal.change_set->>'proposalId' <> proposal.id::text
+    or proposal.change_set->>'schema' <> 'vyra.dna-change-set'
+    or (proposal.change_set->>'schemaVersion')::integer <> 1
+    or proposal.change_set#>>'{source,assetId}' <> proposal.asset_id::text
+    or proposal.change_set#>>'{source,assetVersionId}' <> proposal.asset_version_id::text
+    or proposal.change_set#>>'{source,dnaRecordId}' <> proposal.dna_record_id::text
+    or proposal.change_set#>>'{source,sourceSha256}' <> proposal.source_sha256
     or proposal.change_set_status <> 'validated'
     or proposal.change_set_sha256 <> p_expected_change_set_sha256
     or proposal.change_set_validation_report is null
