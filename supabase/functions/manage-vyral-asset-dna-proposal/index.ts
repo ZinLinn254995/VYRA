@@ -91,6 +91,63 @@ Deno.serve(async (request: Request) => {
     }
     return reply({ error: 'Could not persist the immutable improvement proposal.', detail: insertError?.message ?? null }, 500);
   }
+  if (action === 'prepare_change_set') {
+    const proposalId = typeof body.proposalId === 'string' ? body.proposalId : '';
+    if (!UUID.test(proposalId)) return reply({ error: 'A valid proposal ID is required.' }, 400);
+    const { data: proposal, error } = await context.supabaseAdmin
+      .from('vyral_asset_dna_improvement_proposals')
+      .select('id,user_id,asset_id,asset_version_id,dna_record_id,source_sha256,status,proposal_snapshot,change_set,change_set_sha256,change_set_status')
+      .eq('id', proposalId).eq('user_id', userId).maybeSingle();
+    if (error) return reply({ error: 'Could not load the owner-scoped proposal.' }, 500);
+    if (!proposal) return reply({ error: 'Proposal was not found.' }, 404);
+    if (proposal.status !== 'approved') return reply({ error: 'Only an approved proposal can prepare a change set.', status: proposal.status }, 409);
+    if (proposal.change_set) return reply({ changeSet: proposal.change_set, sha256: proposal.change_set_sha256, status: proposal.change_set_status, reused: true });
+    const [latestVersion, latestDna] = await Promise.all([
+      context.supabaseAdmin.from('vyral_asset_versions').select('id').eq('asset_id', proposal.asset_id)
+        .eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle(),
+      context.supabaseAdmin.from('vyral_dna_records').select('id').eq('asset_id', proposal.asset_id)
+        .eq('user_id', userId).eq('scope','asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (latestVersion.error || latestDna.error) return reply({ error: 'Could not verify the pinned source snapshot.' }, 500);
+    if (latestVersion.data?.id !== proposal.asset_version_id || latestDna.data?.id !== proposal.dna_record_id) {
+      await context.supabaseAdmin.from('vyral_asset_dna_improvement_proposals')
+        .update({ status: 'stale' }).eq('id', proposalId).eq('user_id', userId).eq('status','approved');
+      return reply({ error: 'The Asset or DNA revision changed after approval. A fresh assessment and proposal are required.', status: 'stale' }, 409);
+    }
+    const snapshot = object(proposal.proposal_snapshot) ? proposal.proposal_snapshot : {};
+    const improvements = Array.isArray(snapshot.improvements) ? snapshot.improvements : [];
+    const unmapped = Array.isArray(snapshot.unmappedBlockers) ? snapshot.unmappedBlockers : [];
+    const informational = Array.isArray(snapshot.informational) ? snapshot.informational : [];
+    // A proposal plan is not a safe executable patch. Persist remediation tasks,
+    // but keep operations empty and the set blocked until evidence supplies exact before/after values.
+    const changeSet = {
+      schema: 'vyra.dna-change-set',
+      schemaVersion: 1,
+      proposalId,
+      source: { assetId: proposal.asset_id, assetVersionId: proposal.asset_version_id,
+        dnaRecordId: proposal.dna_record_id, sourceSha256: proposal.source_sha256 },
+      tasks: [
+        ...improvements.map((item: any) => ({ kind: 'remediation', code: item.code ?? 'unclassified',
+          target: item.target ?? 'review_required', requiredEvidence: item.acceptanceEvidence ?? 'Engineering review and deterministic validation required.' })),
+        ...unmapped.map((code: unknown) => ({ kind: 'unmapped_blocker', code: String(code), requiredEvidence: 'Explicit engineering mapping and test required.' })),
+        ...informational.map((code: unknown) => ({ kind: 'evidence_gap', code: String(code), requiredEvidence: 'Collect and validate the missing evidence.' })),
+      ],
+      operations: [],
+      applicability: { status: 'blocked', reason: 'No exact before/after DNA patch is justified by the current assessment snapshot. Verification tasks cannot be applied as DNA mutations.' },
+      createdAt: new Date().toISOString(),
+    };
+    const canonical = JSON.stringify(changeSet);
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+    const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2,'0')).join('');
+    const { data: updated, error: saveError } = await context.supabaseAdmin
+      .from('vyral_asset_dna_improvement_proposals')
+      .update({ change_set: changeSet, change_set_sha256: sha256, change_set_status: 'blocked', change_set_prepared_at: new Date().toISOString() })
+      .eq('id', proposalId).eq('user_id', userId).eq('status','approved').is('change_set', null)
+      .select('id,change_set,change_set_sha256,change_set_status').maybeSingle();
+    if (saveError || !updated) return reply({ error: 'Change set could not be saved; refresh the proposal before retrying.' }, 409);
+    return reply({ changeSet: updated.change_set, sha256: updated.change_set_sha256,
+      status: updated.change_set_status, dnaChanged: false, operationsApplied: 0 });
+  }
   if (action === 'approve' || action === 'reject') {
     const proposalId = typeof body.proposalId === 'string' ? body.proposalId : '';
     if (!UUID.test(proposalId)) return reply({ error: 'A valid proposal ID is required.' }, 400);
