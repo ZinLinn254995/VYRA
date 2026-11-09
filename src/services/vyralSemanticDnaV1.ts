@@ -35,8 +35,6 @@ const sanitizeSemanticEvidence = (value: unknown): Record<string, unknown> => {
     if (typeof item === 'string') {
       const text = item.trim();
       assertSafeSemanticText(text, 'evidence text');
-        throw new Error('Semantic DNA evidence cannot contain data URLs, remote media references, or oversized strings.');
-      }
       return text;
     }
     if (Array.isArray(item)) {
