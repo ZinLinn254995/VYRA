@@ -207,7 +207,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     return () => { cancelled = true; };
   }, [storageKey, isAuthenticated, loadedStorageKey]);
 
-  const openStoryboardEditor = (item: Storyboard) => { setEditingStoryboardId(item.id); setEditDraft({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); };
+  const openStoryboardEditor = (item: Storyboard) => { setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editDraft || !editingStoryboardId) return;
@@ -377,47 +377,76 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   if (activeStoryboard) {
     const details = activeStoryboard.details || {};
+    const leaveStoryboardPage = () => {
+      setActiveStoryboard(null);
+      setActiveStoryboardConfirmed(false);
+      setStoryboardAiMessage('');
+    };
     return (
-      <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-6 sm:px-6 sm:pt-8">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={activeStoryboardConfirmed ? () => { setActiveStoryboard(null); setActiveStoryboardConfirmed(false); } : cancelStoryboardDraft} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
-            <ArrowLeft size={17} /> Back to Workspace
+      <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-8 pt-4 sm:px-6 sm:pt-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button type="button" onClick={leaveStoryboardPage} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+            <ArrowLeft size={16} /> Workspace
           </button>
-          <span className="rounded-full border border-[var(--vyra-border)] px-3 py-1 text-xs text-[var(--vyra-text-secondary)]">{activeStoryboardConfirmed ? 'Storyboard saved' : 'Draft · Not yet created'}</span>
+          <span className="text-[11px] text-[var(--vyra-text-muted)]">{activeStoryboardConfirmed ? 'Saved Storyboard' : 'New Storyboard'}</span>
         </div>
 
-        <section className="mb-6">
-          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)]"><Clapperboard size={14} /> STORYBOARD WORKSPACE</p>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-3xl">Storyboard</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--vyra-text-secondary)]">Review the AI-prepared details. You can edit anything before confirming your storyboard.</p>
+        <section className="mb-4">
+          <p className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--vyra-accent-primary)]"><Clapperboard size={13} /> STORYBOARD</p>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">{activeStoryboardConfirmed ? 'Your Storyboard' : 'Create Storyboard'}</h1>
+          <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">AI prepares the details. You can edit them whenever you need.</p>
         </section>
 
-        <section className="mb-5 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:p-6">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">AI suggestions are editable. Your changes take priority.</p></div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--vyra-bg-subtle)] px-3 py-1.5 text-xs text-[var(--vyra-text-secondary)]"><Sparkles size={13} /> AI-assisted</span>
+        <section className="mb-4 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2>
+            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</span>
           </div>
-          <div className="space-y-4">
-            <div><label className="mb-1.5 block text-xs font-semibold text-[var(--vyra-text-primary)]">Title</label><input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass} placeholder="Untitled Storyboard" /></div>
-            <div><label className="mb-1.5 block text-xs font-semibold text-[var(--vyra-text-primary)]">Description</label><textarea rows={4} maxLength={500} value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} className={inputClass + ' min-h-28 resize-y px-3 py-2.5'} placeholder="AI will suggest a description, or you can write one." /></div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {(['category', 'style', 'mood'] as const).map((key) => <div key={key}><label className="mb-1.5 block text-xs font-semibold capitalize text-[var(--vyra-text-primary)]">{key === 'style' ? 'Visual style' : key}</label><input value={details[key] || ''} onChange={(event) => updateActiveStoryboard(key, event.target.value)} className={inputClass} placeholder="AI suggestion" /></div>)}
-              <div><label className="mb-1.5 block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass} placeholder="AI suggested tags" /></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Title</label>
+              <input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Storyboard title" />
             </div>
-            {storyboardAiMessage && <p role="status" className="text-xs text-[var(--vyra-text-secondary)]">{storyboardAiMessage}</p>}
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Description</label>
+              <textarea rows={2} maxLength={500} value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} className={inputClass + ' min-h-[4.5rem] resize-y py-2'} placeholder="What is this story about?" />
+            </div>
+            {(['category', 'style', 'mood'] as const).map((key) => (
+              <div key={key}>
+                <label className="mb-1 block text-[11px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{key === 'style' ? 'Visual style' : key}</label>
+                <input value={details[key] || ''} onChange={(event) => updateActiveStoryboard(key, event.target.value)} className={inputClass + ' min-h-9'} placeholder="AI suggested" />
+              </div>
+            ))}
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Tags</label>
+              <input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Tags" />
+            </div>
+          </div>
+          {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
+        </section>
+
+        <section className="mb-4 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Add and arrange scenes after creating your storyboard.</p></div>
+            <Button type="button" variant="secondary" disabled><Plus size={14} /> Add Scene</Button>
+          </div>
+          <div className="mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] px-3 py-5 text-center">
+            <Film size={22} className="mx-auto text-[var(--vyra-text-muted)]" />
+            <p className="mt-2 text-xs font-medium text-[var(--vyra-text-primary)]">No scenes yet</p>
           </div>
         </section>
 
-        <section className="mb-6 rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Your video will be organized into scenes here.</p></div><Button type="button" variant="secondary" disabled><Plus size={15} /> Add Scene</Button></div>
-          <div className="mt-5 flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-8 text-center"><Film size={28} className="text-[var(--vyra-text-muted)]" /><p className="mt-3 text-sm font-medium text-[var(--vyra-text-primary)]">No scenes yet</p><p className="mt-1 max-w-sm text-xs leading-5 text-[var(--vyra-text-secondary)]">After confirming this storyboard, you can continue planning and adding scenes.</p></div>
-        </section>
-
-        <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 p-3 shadow-lg backdrop-blur">
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
           {activeStoryboardConfirmed ? (
-            <><Button type="button" variant="ghost" onClick={() => { setActiveStoryboard(null); setActiveStoryboardConfirmed(false); }}>Back to Workspace</Button><Button type="button" onClick={saveActiveStoryboard}><Check size={16} /> Save changes</Button></>
+            <>
+              <Button type="button" variant="ghost" onClick={leaveStoryboardPage}>Back</Button>
+              <Button type="button" onClick={saveActiveStoryboard}><Check size={15} /> Save changes</Button>
+            </>
           ) : (
-            <><Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={16} /> Cancel</Button><Button type="button" onClick={confirmStoryboardDraft}><Check size={16} /> Confirm & Continue</Button></>
+            <>
+              <Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={15} /> Cancel</Button>
+              <Button type="button" onClick={confirmStoryboardDraft}><Check size={15} /> Create</Button>
+            </>
           )}
         </div>
       </main>
