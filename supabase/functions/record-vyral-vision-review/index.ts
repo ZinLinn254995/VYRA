@@ -33,52 +33,38 @@ Deno.serve(async (request: Request) => {
   if (assetError) return json({ error: 'Could not verify source asset.' }, 500);
   if (!asset) return json({ error: 'Source asset not found.' }, 404);
 
+  if (!observation.asset_version_id || typeof observation.source_sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(observation.source_sha256)) {
+    return json({ error: 'This observation is not pinned to a verifiable source Asset Version and SHA-256.', status: 'source_binding_missing' }, 409);
+  }
+  const { data: version, error: versionError } = await context.supabase
+    .from('vyral_asset_versions').select('id,asset_id,user_id,sha256')
+    .eq('id', observation.asset_version_id).eq('asset_id', asset.id).eq('user_id', userId).maybeSingle();
+  if (versionError) return json({ error: 'Could not verify the observation source version.' }, 500);
+  if (!version || typeof version.sha256 !== 'string' || version.sha256.toLowerCase() !== observation.source_sha256.toLowerCase()) {
+    return json({ error: 'Observation source hash does not match the immutable Asset Version.', status: 'source_binding_mismatch' }, 409);
+  }
   const { data: prior, error: priorError } = await context.supabaseAdmin
-    .from('vyral_dna_records').select('id,payload,created_at')
-    .eq('asset_id', asset.id).eq('user_id', userId)
-    .contains('payload', { vision_observation_review_id: observation.id, review_source: 'server_creator_review' })
-    .order('created_at', { ascending: false }).limit(1);
+    .from('vyral_vision_creator_evidence').select('id')
+    .eq('observation_id', observation.id).eq('evidence_kind','observation_review').maybeSingle();
   if (priorError) return json({ error: 'Could not check previous creator review.' }, 500);
-  if (prior?.length) return json({ error: 'This observation already has a creator review. Reviews are immutable; create a new observation to submit a new claim.', status: 'review_exists' }, 409);
+  if (prior) return json({ error: 'This observation already has an immutable creator review.', status: 'review_exists' }, 409);
 
-  const payload = {
-    review_source: 'server_creator_review',
-    vision_observation_review_id: observation.id,
-    reviewed_observation: {
-      asset_id: observation.asset_id,
-      asset_version_id: observation.asset_version_id,
-      source_sha256: observation.source_sha256,
-      task_kind: observation.task_kind,
-      model_provider_claim: observation.model_provider,
-      model_id_claim: observation.model_id,
-    },
-    decision: body.decision,
-    note: note || null,
-    reviewed_at: new Date().toISOString(),
-    reviewer_user_id: userId,
-    scope: 'single_observation_only',
-    does_not_certify_entire_asset_or_vyral: true,
-  };
   const { data: review, error: insertError } = await context.supabaseAdmin
-    .from('vyral_dna_records')
+    .from('vyral_vision_creator_evidence')
     .insert({
-      vyral_id: asset.vyral_id,
       user_id: userId,
       asset_id: asset.id,
-      scope: 'asset',
-      schema_version: 1,
-      dna_status: 'evolving',
-      source_kind: 'creator',
-      verification_status: body.decision,
-      payload,
-      reconstruction_data: {
-        eligible_for_dna_only_reconstruction: false,
-        reason: 'A creator review of one observation is not proof of complete or lossless DNA.',
-      },
+      asset_version_id: version.id,
+      observation_id: observation.id,
+      evidence_kind: 'observation_review',
+      decision: body.decision,
+      source_sha256: observation.source_sha256.toLowerCase(),
+      note: note || null,
     })
     .select('id')
     .single();
-  if (insertError?.code === '23505') return json({ error: 'This observation already has a creator review. Reviews are immutable.', status: 'review_exists' }, 409);
-  if (insertError || !review) return json({ error: 'Could not save creator review.' }, 500);
-  return json({ status: 'review_recorded', reviewId: review.id, observationId: observation.id, decision: body.decision }, 201);
+  if (insertError?.code === '23505') return json({ error: 'This observation already has an immutable creator review.', status: 'review_exists' }, 409);
+  if (insertError || !review) return json({ error: 'Could not save creator review evidence.' }, 500);
+  return json({ status: 'review_recorded', reviewId: review.id, observationId: observation.id, decision: body.decision,
+    sourceVersionId: version.id, sourceSha256: observation.source_sha256, dnaChanged: false }, 201);
 });
