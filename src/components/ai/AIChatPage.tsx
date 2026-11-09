@@ -424,6 +424,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const requestsAssetDnaAssessment = requestsVyralAssetDnaAssessmentV1(text);
     const prepareDnaChangeSet = /^\s*(?:prepare(?: dna)? change set|build(?: dna)? change set|ပြင်ဆင်ချက်(?:များ)? ပြင်ဆင်|change set ပြင်ဆင်)\s*$/i.test(text);
     const validateDnaChangeSet = /^\s*(?:validate(?: dna)? change set|check(?: dna)? change set|DNA change set စစ်ဆေး)\s*$/i.test(text);
+    const reviewDnaEvidence = /^\s*(?:review|list|show) (?:vision )?(?:dna )?evidence\s*$/i.test(text);
+    const creatorObservationAction = text.match(/^\s*(confirm|dispute) observation ([0-9a-f-]{36})\s*$/i);
+    const promoteObservationField = text.match(/^\s*promote observation ([0-9a-f-]{36}) field ([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)\s*$/i);
     const proposalAction = /^\s*(?:approve(?: dna (?:improvement )?plan)?|အတည်ပြု(?:မယ်)?|လက်ခံမယ်)\s*$/i.test(text)
       ? 'approve'
       : /^\s*(?:reject(?: dna (?:improvement )?plan)?|decline|မလုပ်တော့|ပယ်ချမယ်)\s*$/i.test(text)
@@ -469,6 +472,91 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setIsSending(true);
     try {
 
+
+      if (reviewDnaEvidence) {
+        if (selectedAssets.length !== 1) throw new Error('Select one Asset before reviewing its Vision evidence.');
+        if (!supabase) throw new Error('Vision evidence review is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const { data: observations, error: observationsError } = await supabase
+          .from('vyral_vision_observations')
+          .select('id,asset_version_id,task_kind,model_provider,model_id,observation,source_sha256,verification_status,created_at')
+          .eq('asset_id', selectedAsset.id).order('created_at', { ascending: false }).limit(10);
+        if (observationsError) throw new Error('Could not load Vision observations: ' + observationsError.message);
+        const lines = ['Recent Vision observations for ' + selectedAsset.name + ':'];
+        if (!observations?.length) lines.push('No Vision observations have been recorded for this Asset.');
+        for (const item of observations ?? []) {
+          const summary = typeof item.observation?.summary === 'string' ? item.observation.summary : 'No summary provided.';
+          const sourceMatches = Boolean(item.asset_version_id && item.source_sha256);
+          lines.push(
+            '',
+            'Observation ID: ' + item.id,
+            'Task: ' + item.task_kind + ' · status: ' + item.verification_status,
+            'Source version pinned: ' + (sourceMatches ? item.asset_version_id : 'No — cannot be promoted'),
+            'Source SHA-256: ' + (item.source_sha256 ?? 'Missing'),
+            'Summary: ' + summary,
+            'Model claim: ' + item.model_provider + ' / ' + item.model_id,
+          );
+        }
+        lines.push('', 'To confirm or dispute one, send: confirm observation <ID> or dispute observation <ID>.');
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: lines.join('\\n'), status: 'preview' }]);
+        return;
+      }
+      if (creatorObservationAction) {
+        if (selectedAssets.length !== 1) throw new Error('Select the Asset that owns the Vision observation before reviewing it.');
+        if (!supabase) throw new Error('Creator evidence review is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const observationId = creatorObservationAction[2];
+        const { data: observation, error: observationError } = await supabase
+          .from('vyral_vision_observations').select('id,asset_id').eq('id', observationId)
+          .eq('asset_id', selectedAsset.id).maybeSingle();
+        if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
+        const decision = creatorObservationAction[1].toLowerCase() === 'confirm' ? 'creator_confirmed' : 'disputed';
+        const { data: result, error: reviewError } = await supabase.functions.invoke('record-vyral-vision-review', {
+          body: { observationId, decision },
+        });
+        if (reviewError) {
+          let message = 'Creator review could not be recorded.';
+          try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
+          content: 'Creator review recorded: ' + decision + '\\nEvidence ID: ' + String(result?.reviewId ?? 'unavailable') +
+            '\\nPinned to Asset Version: ' + String(result?.sourceVersionId ?? 'unavailable') +
+            '\\nSource SHA-256: ' + String(result?.sourceSha256 ?? 'unavailable') +
+            '\\nAsset DNA changed: No.', status: 'success' }]);
+        return;
+      }
+      if (promoteObservationField) {
+        if (selectedAssets.length !== 1) throw new Error('Select the Asset that owns the Vision observation before confirming a DNA field.');
+        if (!supabase) throw new Error('Field confirmation is unavailable in this environment.');
+        const selectedAsset = selectedAssets[0];
+        const observationId = promoteObservationField[1];
+        const fieldPath = promoteObservationField[2];
+        const { data: observation, error: observationError } = await supabase
+          .from('vyral_vision_observations').select('id,asset_id,observation')
+          .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle();
+        if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
+        let acceptedValue: unknown = observation.observation;
+        for (const part of fieldPath.split('.')) {
+          if (!acceptedValue || typeof acceptedValue !== 'object' || Array.isArray(acceptedValue) ||
+              !Object.prototype.hasOwnProperty.call(acceptedValue, part)) throw new Error('The requested field does not exist in this Vision observation.');
+          acceptedValue = (acceptedValue as Record<string, unknown>)[part];
+        }
+        const { data: result, error: promoteError } = await supabase.functions.invoke('promote-vyral-vision-field', {
+          body: { observationId, fieldPath, acceptedValue },
+        });
+        if (promoteError) {
+          let message = 'Creator field confirmation could not be saved.';
+          try { const payload = await (promoteError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          throw new Error(message);
+        }
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
+          content: 'Creator-confirmed field evidence saved.\\nField: ' + fieldPath +
+            '\\nEvidence ID: ' + String(result?.evidenceId ?? 'unavailable') +
+            '\\nThe evidence is pinned to the original Asset Version and SHA-256. DNA has not been changed.',
+          status: 'success' }]);
+        return;
+      }
       if (validateDnaChangeSet) {
         if (selectedAssets.length !== 1) throw new Error('To validate a DNA change set, select the Asset whose approved change set you want VYRA to check.');
         if (!supabase) throw new Error('Secure DNA change-set validation is unavailable in this environment.');
