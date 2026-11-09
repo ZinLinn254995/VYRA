@@ -1,6 +1,7 @@
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { createVyralDnaV3, reconstructVyralDnaV3, validateVyralDnaV3Record } from '../src/services/vyralDnaV3.ts';
+import { createVyralDnaV3, createVyralDnaV3EncodedFilePayload, reconstructVyralDnaV3, reconstructVyralDnaV3EncodedFile, validateVyralDnaV3Record } from '../src/services/vyralDnaV3.ts';
 
 const source = {
   asset_id: 'origin-asset',
@@ -103,4 +104,35 @@ test('DNA v3 reconstruction rejects undeclared tile payloads', async () => {
   const files = new Map(entries.map((entry) => [entry.path, entry.data]));
   files.set('dna/v3/dna-v3-test/tiles/extra_0.raw', new Uint8Array([1]));
   await assert.rejects(() => reconstructVyralDnaV3(record, files), /undeclared tile/);
+});
+
+test('DNA v3 can carry and exactly recover the original encoded source file in addition to decoded samples', async () => {
+  const samples = new Uint8Array([255, 0, 0, 255]);
+  const original = new Uint8Array(Buffer.from('PNG encoded source bytes with metadata\\x00', 'utf8'));
+  const sourceHash = createHash('sha256').update(original).digest('hex');
+  const input = {
+    ...makeInput(samples),
+    source: { ...source, sha256: sourceHash, size_bytes: original.byteLength },
+  };
+  const { record, entries } = await createVyralDnaV3(input);
+  const encoded = await createVyralDnaV3EncodedFilePayload(record, original, 'origin.png', 8);
+  const complete = { ...record, encoded_file_payload: encoded.payload };
+  validateVyralDnaV3Record(complete);
+  const files = new Map(encoded.entries.map((entry) => [entry.path, entry.data]));
+  const restored = await reconstructVyralDnaV3EncodedFile(complete, files);
+  assert.deepEqual(restored, original);
+  assert.equal(createHash('sha256').update(restored).digest('hex'), sourceHash);
+});
+
+test('DNA v3 rejects an encoded source payload whose bytes do not match the original source hash', async () => {
+  const samples = new Uint8Array([255, 0, 0, 255]);
+  const original = new Uint8Array(Buffer.from('original source', 'utf8'));
+  const sourceHash = createHash('sha256').update(original).digest('hex');
+  const input = { ...makeInput(samples), source: { ...source, sha256: sourceHash, size_bytes: original.byteLength } };
+  const { record } = await createVyralDnaV3(input);
+  const encoded = await createVyralDnaV3EncodedFilePayload(record, original, 'origin.png', 8);
+  const files = new Map(encoded.entries.map((entry) => [entry.path, entry.data]));
+  const first = encoded.payload.chunks[0];
+  files.set(first.package_path, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+  await assert.rejects(() => reconstructVyralDnaV3EncodedFile({ ...record, encoded_file_payload: encoded.payload }, files), /chunk integrity check failed/);
 });
