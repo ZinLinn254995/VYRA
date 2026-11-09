@@ -52,6 +52,22 @@ The resolver independently checks current public visibility, the creator's AI-an
 - Compact references do not authorize remote access. Public retrieval still follows creator permissions; private retrieval requires an authorized integration or scoped share.
 - If the environment cannot read ZIP entries or execute the included decoder, state that limitation. Never pretend to have inspected hidden binary payloads or fabricate a reconstruction.
 
+## External blind-attempt evidence
+
+For a semantic-only reconstruction attempt, preserve the complete `--audit-only` JSON report and attach the following provenance fields to the candidate Asset's DNA record. Copy values from the audit output; do not guess them:
+
+- `input_package_id`: the exact `manifest.json` package ID;
+- `input_package_mode`: `dna-only`;
+- `blindness_scope`: `semantic_only_no_media_payload`;
+- `package_audit_status`: `passed` only when the audit reports `validation: passed` and `integrity: passed`;
+- `package_sha256`: the exact audit `package_sha256`;
+- `original_binary_payload_entries`: the exact audit value, which must be `0`;
+- `source_binary_provided_to_model`: `false` only when the model session received this audited package and no original Asset, screenshot, URL, or external source;
+- `source_asset_id`, `source_vyral_id`, and `source_master_dna_record_id`: exact source identifiers from the package;
+- `provider`, `model_identifier`, `model_version`, `prompt_sha256`, `session_reference`, and `tool_access`: exact attempt details.
+
+The comparator records a blindness status of `creator_attested` only when the semantic-only scope, passed package audit, valid package SHA-256, zero original-binary entries, and explicit no-source-binary claim are all present. This remains a creator attestation: the comparator cannot independently inspect the external model's session or prove what the provider received. Missing or contradictory fields remain `unverified`; never edit the report to force a pass.
+
 ## Run the included decoder
 
 \`\`\`bash
