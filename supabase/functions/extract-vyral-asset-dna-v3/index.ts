@@ -52,7 +52,12 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'Asset and source Version metadata do not match.' }, 409);
   }
   const prefix = userId + '/' + asset.vyral_id + '/' + assetId + '/';
-  if (typeof version.storage_path !== 'string' || !version.storage_path.startsWith(prefix)) return reply({ error: 'Private Storage path failed owner-prefix validation.' }, 409);
+  const sourcePath = typeof version.storage_path === 'string' ? version.storage_path : '';
+  const pathSegments = sourcePath.split('/');
+  if (!sourcePath.startsWith(prefix) || sourcePath.startsWith('/') || sourcePath.includes('\\\\') ||
+      pathSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    return reply({ error: 'Private Storage path failed owner-prefix and canonical-path validation.' }, 409);
+  }
   const size = Number(version.size_bytes);
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return reply({ error: 'Image exceeds the 20 MB extraction limit.' }, 413);
 
