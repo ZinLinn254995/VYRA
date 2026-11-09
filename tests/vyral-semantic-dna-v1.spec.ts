@@ -64,3 +64,26 @@ test('semantic DNA explicitly blocks reconstruction when creator descriptions an
   assert.equal(record.creator_description.evidence_status, 'missing');
   assert.ok(record.reconstruction.missing_information.includes('creator_description'));
 });
+
+test('semantic DNA rejects embedded binary, media URLs and hidden payload fields', () => {
+  const invalidEvidence = [
+    { summary: 'red circle', image_url: 'https://example.test/original.png' },
+    { summary: 'red circle', binary_data: 'AQIDBA==' },
+    { summary: 'red circle', nested: { decoded_samples: [1, 2, 3] } },
+    { summary: 'red circle', reference: 'data:image/png;base64,AAAA' },
+  ];
+  for (const evidence of invalidEvidence) {
+    assert.throws(() => createVyralSemanticDnaV1({
+      ...base,
+      confirmedObservations: [{
+        observationId: 'obs-safe',
+        reviewId: 'review-safe',
+        decision: 'creator_confirmed',
+        taskKind: 'description',
+        assetVersionId: 'origin-version',
+        sourceSha256: SHA,
+        evidence,
+      }],
+    }), /cannot include media payloads|cannot contain data URLs/);
+  }
+});
