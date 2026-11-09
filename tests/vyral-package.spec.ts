@@ -1201,3 +1201,70 @@ test('single public Asset DNA can be packaged as a standalone AI-ready Vyral wit
   assert.equal(files.has('assets/asset-public-single/versions/1.bin'), false);
   assert.equal(files.has(record.lossless_payload.tiles[0].package_path), true);
 });
+
+
+test('blind DNA export excludes original raster and non-raster binary chunks', async () => {
+  const samples = new Uint8Array([240, 241, 242, 255]);
+  const originalRaster = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 9, 8, 7]);
+  const rasterHash = createHash('sha256').update(originalRaster).digest('hex');
+  const raster = await createVyralDnaV3({
+    record_id: 'blind-raster-record',
+    source: { asset_id: 'blind-raster', asset_version_id: 'blind-raster-version', sha256: rasterHash, size_bytes: originalRaster.length, mime_type: 'image/png' },
+    extractor: { name: 'blind-test', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'blind-test', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    tile_width: 1, tile_height: 1, decoded_samples: samples,
+  });
+  const rasterOriginalPath = 'dna/v3/blind-raster-record/source/00000000.bin';
+  const rasterWithOriginal = {
+    ...raster.record,
+    encoded_file_payload: {
+      encoding: 'raw-chunks-v1' as const, filename: 'original.png', mime_type: 'image/png',
+      size_bytes: originalRaster.length, sha256: rasterHash, chunk_size: 1024,
+      chunks: [{ index: 0, byte_length: originalRaster.length, sha256: rasterHash, package_path: rasterOriginalPath }],
+    },
+  };
+  const originalBinary = new Uint8Array([73, 68, 51, 4, 5, 6, 7, 8]);
+  const binary = await createVyralFileDnaV1({
+    record_id: 'blind-file-record',
+    source: { asset_id: 'blind-file', asset_version_id: 'blind-file-version' },
+    bytes: originalBinary,
+    mime_type: 'audio/mpeg',
+    filename: 'voice.mp3',
+    include_payload: true,
+    chunk_size: 4,
+  });
+  const archive = await createVyralAssetDnaOnlyPackage({
+    format: VYRAL_PACKAGE_FORMAT,
+    formatVersion: 1,
+    packageId: 'blind-dna-package',
+    exportedAt: '2026-11-09T00:00:00.000Z',
+    exportMode: 'dna-only',
+    exportComponents: { assets: false, fullDna: true, compactDna: false },
+    vyral: { id: 'blind-vyral', name: 'Blind test' },
+    folders: [],
+    assets: [
+      { id: 'blind-raster', name: 'Raster', asset_type: 'image', mime_type: 'image/png', size_bytes: originalRaster.length, sha256: rasterHash },
+      { id: 'blind-file', name: 'Audio', asset_type: 'audio', mime_type: 'audio/mpeg', size_bytes: originalBinary.length, sha256: binary.record.file.sha256 },
+    ],
+    versions: [], dnaRecords: [], fingerprints: [], visionObservations: [], lineage: [], reconstructionTests: [], masterDna: null,
+  }, [rasterWithOriginal, binary.record], [...raster.entries, { path: rasterOriginalPath, data: originalRaster }, ...binary.entries], false, true);
+
+  const files = await readVyralZip(archive);
+  const manifest = parseVyralManifest(files);
+  assert.equal(manifest.blindReconstruction, true);
+  assert.equal(manifest.reconstructionCapabilities?.encoded_source_bytes_recoverable, false);
+  assert.equal(manifest.reconstructionCapabilities?.binary_source_bytes_reconstructable, false);
+  assert.equal(files.has(rasterOriginalPath), false);
+  for (const chunk of binary.record.reconstruction.chunks) assert.equal(files.has(chunk.package_path), false);
+  const rasterRecord = manifest.dnaRecords.find((item) => item.id === 'blind-raster-record');
+  const fileRecord = manifest.dnaRecords.find((item) => item.id === 'blind-file-record');
+  assert.ok(rasterRecord);
+  assert.ok(fileRecord);
+  assert.equal((rasterRecord.dna_record as { encoded_file_payload?: unknown }).encoded_file_payload, undefined);
+  assert.equal(fileRecord.recovery_level, 'semantic-only');
+  assert.equal((fileRecord.dna_record as { reconstruction: { claim: string; chunks: unknown[] } }).reconstruction.claim, 'unavailable');
+  assert.deepEqual((await reconstructVyralDnaV3FromPackage(files, 'blind-raster-record')).samples, samples);
+  assert.equal([...files.keys()].some((name) => name.includes('/source/')), false);
+});
