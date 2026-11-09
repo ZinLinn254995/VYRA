@@ -65,6 +65,8 @@ jobs:
         run: npm run test:vyral-asset-dna-assessment
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
+      - name: Vyral reconstruction history intent tests
+        run: npm run test:vyral-reconstruction-history
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
