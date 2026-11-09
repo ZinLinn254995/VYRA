@@ -546,7 +546,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Build the story in the order you want.</p></div><Button type="button" onClick={addScene}><Plus size={14} /> Add Scene</Button></div>
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {scenes.map((scene, index) => <div key={scene.id} className="min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+                      {scenes.map((scene, index) => <div key={scene.id} className={"min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "ring-2 ring-[var(--vyra-accent-primary)]/40 ring-inset" : "")}>
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
                           <span className="text-[10px] font-medium text-[var(--vyra-text-secondary)]">Scene {index + 1}</span>
                           <button type="button" role="checkbox" aria-checked={selectedSceneIds.includes(scene.id)} aria-label={'Select ' + scene.title} onClick={() => setSelectedSceneIds((current) => current.includes(scene.id) ? current.filter((id) => id !== scene.id) : [...current, scene.id])} className="inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--vyra-accent-primary)]/40">
