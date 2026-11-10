@@ -636,7 +636,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'Preparing your storyboard description…'}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd}>
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
