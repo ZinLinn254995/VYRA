@@ -89,6 +89,7 @@ const toolbarItems = [
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
 export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete }) => {
+  const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
@@ -184,6 +185,19 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const leadingSpace = viewportWidth / 2;
   const rulerTicks = Array.from({ length: Math.floor(totalDuration) + 1 }, (_, second) => second);
 
+  const selectedScenes = orderedScenes.filter((scene) => selectedSceneIds.includes(scene.id));
+  const runCloneSelected = () => {
+    selectedScenes.forEach((scene) => {
+      const index = orderedScenes.findIndex((item) => item.id === scene.id);
+      onSceneDuplicate(scene, index + 1);
+    });
+    setSelectedSceneIds([]);
+  };
+  const runDeleteSelected = () => {
+    selectedScenes.forEach((scene) => onSceneDelete(scene.id));
+    setSelectedSceneIds([]);
+  };
+
   const toolbar = (
     <nav
       className="master-editor-bottom-nav relative z-20 flex w-full shrink-0 items-center gap-2 px-3 pt-2"
@@ -191,7 +205,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-0">
-        {toolbarItems.map(({ label, Icon }) => (
+        {selectedSceneIds.length > 0 ? (
+          <>
+            <button type="button" title="Clone selected scenes" aria-label="Clone selected scenes" onClick={runCloneSelected} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+              <Copy size={22} strokeWidth={1.8} />
+              <span className="sr-only">Clone</span>
+            </button>
+            <button type="button" title="Delete selected scenes" aria-label="Delete selected scenes" onClick={runDeleteSelected} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)] transition-colors hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]">
+              <Trash2 size={22} strokeWidth={1.8} />
+              <span className="sr-only">Delete</span>
+            </button>
+          </>
+        ) : toolbarItems.map(({ label, Icon }) => (
           <button
             key={label}
             type="button"
@@ -231,18 +256,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 {orderedScenes.map((scene, index) => {
                   const segment = sceneSegments[index];
                   return (
-                    <div
+                    <button
                       key={scene.id}
+                      type="button"
                       title={scene.title}
-                      className="group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10 px-3"
+                      aria-pressed={selectedSceneIds.includes(scene.id)}
+                      onClick={() => setSelectedSceneIds((current) => current.includes(scene.id) ? current.filter((id) => id !== scene.id) : [...current, scene.id])}
+                      className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
                       style={{ width: Math.max(24, segment.duration * pixelsPerSecond) }}
                     >
                       <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{scene.title}</span>
-                      <div className="absolute right-1 top-0.5 z-20 flex gap-0.5">
-                        <button type="button" title="Clone scene" aria-label="Clone scene" onClick={() => onSceneDuplicate(scene, index + 1)} className="rounded bg-[var(--vyra-bg-surface)]/90 p-0.5 text-[var(--vyra-text-primary)]"><Copy size={11} /></button>
-                        <button type="button" title="Delete scene" aria-label="Delete scene" onClick={() => onSceneDelete(scene.id)} className="rounded bg-[var(--vyra-bg-surface)]/90 p-0.5 text-[var(--vyra-danger)]"><Trash2 size={11} /></button>
-                      </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
