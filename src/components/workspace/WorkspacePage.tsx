@@ -656,8 +656,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
             detailsAction={<button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-label="Toggle Storyboard Details" aria-expanded={storyboardDetailsExpanded} title="Storyboard Details" className="profile-storyboard-details-toggle"><Settings2 size={16} /><span>Storyboard Details</span></button>}
           />
-          <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
-            {storyboardDetailsExpanded && <section className="space-y-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4">
+          <div className="profile-subpage-content space-y-3 px-4 pb-4 pt-2 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
+            {storyboardDetailsExpanded && <section className="space-y-2.5 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3">
               {!activeStoryboardConfirmed && <div className="flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</div>}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -684,7 +684,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
-              const previewDuration = Math.max(10, Math.ceil(scenes.reduce((total, scene) => total + scene.duration, 0) / 10) * 10);
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
                 if (!current) return current;
                 const master = current.details?.masterTimeline;
@@ -739,10 +738,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 setSelectedSceneIds((current) => current.filter((sceneId) => sceneId !== id));
               };
               return (
-                <div className="space-y-5 border-t border-[var(--vyra-border)] pt-5">
-                  <div className="mb-2 flex items-end justify-between border-b border-[var(--vyra-border)] px-1 pb-1 text-[9px] tabular-nums text-[var(--vyra-text-muted)]" aria-label="Video timeline ruler">
-                    {Array.from({ length: 11 }, (_, index) => <div key={index} className="flex flex-col items-center gap-1"><span>{Math.round(index * previewDuration / 10 * 10) / 10}s</span><span className="h-2 w-px bg-[var(--vyra-border)]" /></div>)}
-                  </div>
+                <div className="space-y-3">
                   <section>
                     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
