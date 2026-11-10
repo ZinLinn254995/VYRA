@@ -262,7 +262,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   </div>
                 ))}
               </div>
-              <div className="flex h-16 items-center gap-px py-2">
+              <div className="flex h-16 items-center gap-0 py-2">
                 {orderedScenes.map((scene, index) => {
                   const segment = sceneSegments[index];
                   return (
