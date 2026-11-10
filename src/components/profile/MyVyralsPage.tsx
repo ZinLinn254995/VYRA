@@ -129,7 +129,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
   useLayoutEffect(() => {
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
     if (content) updateProfileHeaderCompact(content);
-  }, [activeId, vyrals, query]);
+  }, [activeId]);
 
   const createVyral = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
