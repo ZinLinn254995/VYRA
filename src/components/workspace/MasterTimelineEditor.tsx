@@ -9,6 +9,7 @@ import {
   Plus,
   Redo2,
   RotateCw,
+  Scissors,
   Sparkles,
   Trash2,
   Type,
@@ -99,6 +100,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
+  const [playheadTime, setPlayheadTime] = useState(0);
   const pixelsPerSecondRef = useRef(80);
   const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);
   const textDragRef = useRef<{
@@ -389,6 +391,37 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     textDragRef.current = null;
   };
 
+  const runSplitSelectedText = () => {
+    if (!selectedTextClip) return;
+    const tracks = value?.textTracks || [];
+    const selectedTrack = tracks.find((track) => track.id === selectedTextClip.trackId);
+    const selectedClip = selectedTrack?.clips.find((clip) => clip.id === selectedTextClip.clipId);
+    if (!selectedTrack || !selectedClip) return;
+
+    // The fixed center playhead maps directly to scrollLeft / pixelsPerSecond.
+    const splitTime = (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
+    const clipEnd = selectedClip.start + selectedClip.duration;
+    const minimumDuration = 0.2;
+    if (splitTime <= selectedClip.start + minimumDuration || splitTime >= clipEnd - minimumDuration) return;
+
+    const leftDuration = splitTime - selectedClip.start;
+    const rightClip = {
+      ...selectedClip,
+      id: crypto.randomUUID(),
+      start: splitTime,
+      duration: clipEnd - splitTime,
+    };
+    const nextTracks = tracks.map((track) => track.id !== selectedTrack.id ? track : {
+      ...track,
+      clips: track.clips.flatMap((clip) => clip.id !== selectedClip.id ? [clip] : [
+        { ...clip, duration: leftDuration },
+        rightClip,
+      ]),
+    });
+    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    setSelectedTextClip({ trackId: selectedTrack.id, clipId: rightClip.id });
+  };
+
   const runCloneSelectedText = () => {
     if (!selectedTextClip) return;
     const tracks = value?.textTracks || [];
@@ -462,6 +495,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           </>
         ) : selectedTextClip ? (
           <>
+            <button type="button" title="Split selected text at playhead" aria-label="Split selected text at playhead" onClick={runSplitSelectedText} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+              <Scissors size={22} strokeWidth={1.8} />
+              <span className="sr-only">Split</span>
+            </button>
             <button type="button" title="Clone selected text" aria-label="Clone selected text" onClick={runCloneSelectedText} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
               <Copy size={22} strokeWidth={1.8} />
               <span className="sr-only">Clone</span>
@@ -513,6 +550,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           }}
           onPointerUp={endTextLongPress}
           onPointerCancel={endTextLongPress}
+          onScroll={(event) => setPlayheadTime(event.currentTarget.scrollLeft / pixelsPerSecond)}
           onClick={(event) => {
             if (!(event.target as HTMLElement).closest("button")) {
               setSelectedSceneIds([]);
