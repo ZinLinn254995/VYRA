@@ -359,6 +359,7 @@
    gesture directly; transitions are reserved for the release snap. */
 html.is-header-dragging header,
 html.is-header-dragging .profile-collapse-header,
-html.is-header-dragging .profile-collapse-header * {
+html.is-header-dragging .profile-collapse-header *,
+html.is-header-dragging .vyra-global-header-spacer {
   transition: none !important;
 }
