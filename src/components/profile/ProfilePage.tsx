@@ -9,6 +9,7 @@ import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
+import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type ProfilePageProps = {
@@ -83,33 +84,7 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
 };
 
 const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
-  const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
-  if (!header) return;
-  // Compact on the first actual scroll movement; expand again only at the top.
-  const compactMode = scrollTop > 0;
-  const headerProgress = compactMode ? 1 : 0;
-  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
-  const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
-  header.style.setProperty('--profile-header-progress', String(headerProgress));
-  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-rotation', '0deg');
-  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-  header.style.setProperty('--profile-back-label-opacity', (1 - headerProgress).toFixed(3));
-  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
-  header.style.setProperty('--profile-full-action-events', compactMode ? 'none' : 'auto');
-  header.style.setProperty('--profile-compact-action-events', compactMode ? 'auto' : 'none');
-  const fullAction = header.querySelector<HTMLElement>('.profile-collapse-action-full');
-  const compactAction = header.querySelector<HTMLElement>('.profile-collapse-action-compact');
-  fullAction?.toggleAttribute('inert', compactMode);
-  fullAction?.setAttribute('aria-hidden', String(compactMode));
-  compactAction?.toggleAttribute('inert', !compactMode);
-  compactAction?.setAttribute('aria-hidden', String(!compactMode));
+  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
 };
 
 const searchableProfilePages = new Set<PageKey>(['my-media-library', 'saved', 'purchased', 'collections', 'following', 'notifications', 'settings', 'help']);
@@ -205,7 +180,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             description={pageInfo[activePage].description}
             search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />
-          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateProfileHeaderCompact(event.currentTarget, target.scrollTop); }} onWheel={(event) => { const el = event.currentTarget; if (el.dataset.headerWheelLocked === '1') return; el.dataset.headerWheelLocked = '1'; const header = el.closest('.profile-subpage-card')?.querySelector('.profile-collapse-header'); const compact = Number.parseFloat(header?.style.getPropertyValue('--profile-header-progress') || '0') >= 0.5; const hidden = document.querySelector('header[aria-hidden="true"]') !== null; const stage = compact || hidden ? 'main' : 'compact'; if (event.deltaY > 0) { if (stage === 'main' && compact) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: true })); else if (stage === 'compact') updateProfileHeaderCompact(el, 1); } else if (event.deltaY < 0) { if (hidden) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: false })); else if (el.scrollTop <= 0) updateProfileHeaderCompact(el, 0); } window.setTimeout(() => { delete el.dataset.headerWheelLocked; }, 220); }} onTouchStart={(event) => { const el = event.currentTarget; const header = el.closest('.profile-subpage-card')?.querySelector('.profile-collapse-header'); const compact = Number.parseFloat(header?.style.getPropertyValue('--profile-header-progress') || '0') >= 0.5; const hidden = document.querySelector('header[aria-hidden="true"]') !== null; el.dataset.compactTouchY = String(event.touches[0]?.clientY ?? 0); el.dataset.compactTouchStage = compact || hidden ? 'main' : 'compact'; }} onTouchMove={(event) => { const el = event.currentTarget; const start = Number(el.dataset.compactTouchY || 0); const current = event.touches[0]?.clientY ?? start; const stage = el.dataset.compactTouchStage; if (current < start - 4) { if (stage === 'main') window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: true })); else if (stage === 'compact') updateProfileHeaderCompact(el, 1); } else if (current > start + 4) { if (document.querySelector('header[aria-hidden="true"]')) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: false })); else if (el.scrollTop <= 0) updateProfileHeaderCompact(el, 0); } }} onTouchEnd={(event) => { delete event.currentTarget.dataset.compactTouchStage; }}>
+          <div className="profile-subpage-content p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd}>
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
