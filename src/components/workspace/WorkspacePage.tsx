@@ -943,25 +943,22 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 const sceneIds = new Set(nextScenes.map((scene) => scene.id));
                 const orderedInstances = nextScenes.map((scene) => {
                   const existing = instancesByScene.get(scene.id);
-                  if (existing) return existing;
-                  const legacyRange = master.sceneRanges?.[scene.id];
                   return {
-                    id: scene.id,
+                    ...(existing || { id: scene.id, sceneId: scene.id }),
                     sceneId: scene.id,
-                    sourceIn: Math.max(0, Number(legacyRange?.sourceIn) || 0),
-                    sourceOut: Math.min(scene.duration, Math.max(0.1, Number(legacyRange?.sourceOut) || scene.duration)),
+                    sourceIn: 0,
+                    sourceOut: scene.duration,
                     sceneProjectId: scene.project?.id,
                     renderRevisionId: scene.project?.latestRenderRevisionId ?? null,
                   };
                 });
-                const sceneRanges = Object.fromEntries(Object.entries(master.sceneRanges || {}).filter(([id]) => sceneIds.has(id)));
                 const transitions = Object.fromEntries(Object.entries(master.transitions || {}).filter(([id]) => sceneIds.has(id) || orderedInstances.some((instance) => instance.id === id)));
                 return {
                   ...current,
                   details: {
                     ...current.details,
                     scenes: nextScenes,
-                    masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges, transitions },
+                    masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges: {}, transitions },
                   },
                   updatedAt: new Date().toISOString(),
                 };
