@@ -111,6 +111,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     pointerId: number;
     clipId: string;
     trackId: string;
+    createdTrackId?: string | null;
     offsetX: number;
     startX: number;
     startY: number;
@@ -489,6 +490,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       pointerId: event.pointerId,
       clipId: clip.id,
       trackId,
+      createdTrackId: null,
       offsetX: event.clientX - rect.left,
       startX: event.clientX,
       startY: event.clientY,
@@ -561,25 +563,33 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const nextRowTop = lastRect.bottom;
       const nextRowBottom = nextRowTop + lastRect.height + rowTolerance;
       if (event.clientY >= nextRowTop - rowTolerance && event.clientY <= nextRowBottom) {
-        const newTrackId = crypto.randomUUID();
-        destinationTrackId = newTrackId;
         destinationCenterY = nextRowTop + lastRect.height / 2;
-        const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
-        const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
-        const nextTracks = textTracks
-          .filter((item) => item.id !== drag.trackId || item.clips.length > 1)
-          .map((item) => item.id !== drag.trackId ? item : {
-            ...item,
-            clips: item.clips.filter((entry) => entry.id !== clip.id),
+        if (drag.createdTrackId) {
+          // Reuse the row created earlier in this same drag; never create
+          // another row from repeated pointermove / auto-scroll frames.
+          destinationTrackId = drag.createdTrackId;
+        } else {
+          const newTrackId = crypto.randomUUID();
+          drag.createdTrackId = newTrackId;
+          destinationTrackId = newTrackId;
+          const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
+          const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
+          const nextTracks = textTracks
+            .filter((item) => item.id !== drag.trackId || item.clips.length > 1)
+            .map((item) => item.id !== drag.trackId ? item : {
+              ...item,
+              clips: item.clips.filter((entry) => entry.id !== clip.id),
+            });
+          nextTracks.push({
+            id: newTrackId,
+            name: 'Text',
+            clips: [{ ...clip, start: nextStart }],
           });
-        nextTracks.push({
-          id: newTrackId,
-          name: 'Text',
-          clips: [{ ...clip, start: nextStart }],
-        });
-        onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
-        drag.trackId = newTrackId;
-        setSelectedTextClip({ trackId: newTrackId, clipId: clip.id });
+          onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+          drag.trackId = newTrackId;
+          setSelectedTextClip({ trackId: newTrackId, clipId: clip.id });
+          return;
+        }
       }
     }
     if (!destinationTrackId) return;
