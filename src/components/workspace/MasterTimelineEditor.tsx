@@ -93,24 +93,24 @@ const toolbarItems = [
  * while the timeline and editing engine are being built.
  */
 export const MasterTimelineEditor: React.FC<Props> = () => (
-  <div className="relative flex min-h-[420px] w-full items-end justify-center pb-4 pt-6">
-    <div className="sticky bottom-3 z-10 w-full max-w-full">
-      <div
-        className="master-editor-toolbar-scroll flex w-full max-w-full items-center gap-3 overflow-x-auto px-3 py-2"
-        aria-label="Master Editor tools"
-      >
+  <div className="relative min-h-[420px] w-full pb-20 pt-6">
+    <nav
+      className="master-editor-bottom-nav sticky bottom-0 z-20 -mx-4 flex w-[calc(100%+2rem)] max-w-none items-center gap-2 border-t border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3 py-2 shadow-[0_-6px_18px_rgba(0,0,0,0.06)] sm:-mx-5 sm:w-[calc(100%+2.5rem)]"
+      aria-label="Master Editor tools"
+    >
+      <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
         {toolbarItems.map(({ label, Icon }) => (
           <button
             key={label}
             type="button"
             title={label}
             aria-label={label}
-            className="grid size-16 shrink-0 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)] shadow-sm transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+            className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
           >
-            <Icon size={24} strokeWidth={1.8} />
+            <Icon size={22} strokeWidth={1.8} />
           </button>
         ))}
       </div>
-    </div>
+    </nav>
   </div>
 );
