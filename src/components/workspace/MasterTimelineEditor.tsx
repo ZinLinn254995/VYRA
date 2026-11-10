@@ -14,8 +14,6 @@ import {
   Trash2,
   Type,
   Undo2,
-  ZoomIn,
-  ZoomOut,
   BetweenHorizontalStart,
 } from 'lucide-react';
 
@@ -100,6 +98,54 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
+  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number; midpointX: number } | null>(null);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    const distance = (touches: TouchList) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      const rect = element.getBoundingClientRect();
+      const midpointX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
+      pinchRef.current = {
+        startDistance: Math.max(1, distance(event.touches)),
+        startScale: pixelsPerSecond,
+        anchorTime: (element.scrollLeft + midpointX) / pixelsPerSecond,
+        midpointX,
+      };
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const pinch = pinchRef.current;
+      if (!pinch || event.touches.length !== 2) return;
+      event.preventDefault();
+      const nextScale = Math.min(176, Math.max(32, pinch.startScale * distance(event.touches) / pinch.startDistance));
+      setPixelsPerSecond(nextScale);
+      element.scrollLeft = pinch.anchorTime * nextScale - pinch.midpointX;
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) pinchRef.current = null;
+    };
+
+    element.addEventListener('touchstart', onTouchStart, { passive: true });
+    element.addEventListener('touchmove', onTouchMove, { passive: false });
+    element.addEventListener('touchend', onTouchEnd, { passive: true });
+    element.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      element.removeEventListener('touchstart', onTouchStart);
+      element.removeEventListener('touchmove', onTouchMove);
+      element.removeEventListener('touchend', onTouchEnd);
+      element.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [pixelsPerSecond]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -157,37 +203,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
 
   return (
     <div className="relative min-h-[420px] w-full space-y-3 pb-24 pt-2">
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => setPixelsPerSecond((current) => Math.max(32, current - 8))}
-          disabled={pixelsPerSecond <= 32}
-          aria-label="Zoom timeline out"
-          className="grid size-8 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] disabled:opacity-40"
-        >
-          <ZoomOut size={16} />
-        </button>
-        <input
-          type="range"
-          min="32"
-          max="176"
-          step="8"
-          value={pixelsPerSecond}
-          onChange={(event) => setPixelsPerSecond(Number(event.target.value))}
-          aria-label="Timeline width zoom"
-          className="w-24 accent-[var(--vyra-accent-primary)]"
-        />
-        <button
-          type="button"
-          onClick={() => setPixelsPerSecond((current) => Math.min(176, current + 8))}
-          disabled={pixelsPerSecond >= 176}
-          aria-label="Zoom timeline in"
-          className="grid size-8 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] disabled:opacity-40"
-        >
-          <ZoomIn size={16} />
-        </button>
-      </div>
-
       <div className="relative overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
         <div ref={scrollRef} className="master-timeline-scroll overflow-x-auto overflow-y-hidden">
           <div className="flex w-max items-start">
