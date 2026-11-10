@@ -526,3 +526,25 @@ Important implementation boundary:
 - The current Scene Editor still does not create real rendered video revisions. Revision metadata is a forward-compatible data contract only; do not create fake ready revisions or pretend a Scene has rendered media.
 - Actual project timeline editing, media relinking, immutable render creation/storage, explicit update-to-new-revision UX, and Master export remain pending.
 - CI/build and browser behavior must be verified before merge. This checkpoint is not approval to merge or deploy.
+
+
+### 20. Scene Project timeline foundation — implementation update
+
+The Scene Editor now persists an initial per-Scene timeline document inside its independent Scene Project:
+
+- Project timeline settings: canonical duration, FPS, width, and height.
+- Independently identified Video, Audio, and Text tracks.
+- Track creation and deletion.
+- Editable text clips with independent name, content, start time, and duration.
+- Clip deletion and time bounds constrained to the canonical Scene duration.
+- Canonical Scene duration can be edited in the Scene Editor. When shortened, existing project clips are constrained to remain within the new duration.
+- The project document is updated through the Storyboard state and existing debounced local/cloud persistence path.
+
+Current boundaries (not yet implemented):
+- Video/audio asset selection and source-file relinking from My Media Library.
+- Real media thumbnails, decoding, waveform generation, and preview playback.
+- Drag-and-drop timeline editing, snapping, transitions, effects, and compositing inside the Scene Editor.
+- A real rendering pipeline that creates immutable video files, checksums, and ready revision records.
+- Master export from pinned Scene render revisions.
+
+The Scene Timeline controls are a persisted project-data foundation, not a claim that the Scene Editor is already a complete video editor. Do not generate placeholder media or mark a render revision ready without a verified rendered artifact.
