@@ -85,7 +85,7 @@
   max-width: calc(106px - 112px * var(--profile-header-progress, 0)); overflow: hidden; opacity: calc(1 - var(--profile-header-progress, 0));
   transition: opacity 100ms linear, max-width 180ms ease-out;
 }
-.profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: 184px; }
+.profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: calc(184px - 112px * var(--profile-header-progress, 0)); }
 
 /* Keep one real button: fixed icon/text spacing, right edge anchored during collapse. */
 .profile-create-button {
@@ -247,5 +247,5 @@
   .profile-collapse-details-action { right: 12px; }
   .profile-storyboard-details-toggle { width: calc(132px - 96px * var(--profile-header-progress, 0)); }
   .profile-storyboard-details-toggle span { max-width: calc(90px - 96px * var(--profile-header-progress, 0)); }
-  .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: 56px; }
+  .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: calc(156px - 96px * var(--profile-header-progress, 0)); }
 }
