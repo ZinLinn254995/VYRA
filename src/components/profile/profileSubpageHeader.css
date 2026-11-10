@@ -322,3 +322,34 @@
   .profile-storyboard-preview { padding-left: 16px; padding-right: 16px; }
   .profile-storyboard-view-tabs { padding-left: 16px; padding-right: 16px; }
 }
+
+
+/* Storyboard playback controls stay pinned beneath the title header while
+   the Scenes or Master Editor workspace scrolls underneath. */
+.storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: -16px;
+  margin-right: -16px;
+  background: var(--vyra-bg-canvas);
+}
+.profile-storyboard-preview {
+  padding: 0 16px;
+}
+.profile-storyboard-view-tabs {
+  padding: 0 16px;
+}
+@media (min-width: 640px) {
+  .storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
+    margin-left: -20px;
+    margin-right: -20px;
+  }
+  .profile-storyboard-preview,
+  .profile-storyboard-view-tabs {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
