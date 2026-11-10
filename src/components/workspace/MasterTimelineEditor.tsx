@@ -90,6 +90,7 @@ const toolbarItems = [
  */
 export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
@@ -191,6 +192,28 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const rulerTicks = Array.from({ length: Math.floor(totalDuration) + 1 }, (_, second) => second);
 
   const selectedScenes = orderedScenes.filter((scene) => selectedSceneIds.includes(scene.id));
+  const transitionOptions = [
+    { label: 'Dissolve', value: 'dissolve' },
+    { label: 'Fade', value: 'fade' },
+    { label: 'Wipe', value: 'wipe' },
+    { label: 'Slide', value: 'slide' },
+    { label: 'Zoom', value: 'zoom' },
+    { label: 'Blur', value: 'blur' },
+  ];
+  const selectedTransition = selectedTransitionKey ? value?.transitions?.[selectedTransitionKey] : undefined;
+  const applyTransition = (effect: string) => {
+    if (!selectedTransitionKey) return;
+    onChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions: {
+        ...(value?.transitions || {}),
+        [selectedTransitionKey]: { effect, duration: selectedTransition?.duration ?? 0.5 },
+      },
+      audioTracks: value?.audioTracks || [],
+      textTracks: value?.textTracks || [],
+    });
+  };
   const runCloneSelected = () => {
     selectedScenes.forEach((scene) => {
       const index = orderedScenes.findIndex((item) => item.id === scene.id);
@@ -210,7 +233,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
-        {selectedSceneIds.length > 0 ? (
+        {selectedTransitionKey ? (
+          transitionOptions.map(({ label, value: effect }) => (
+            <button
+              key={effect}
+              type="button"
+              title={`${label} transition`}
+              aria-label={`${label} transition`}
+              aria-pressed={(selectedTransition?.effect || 'dissolve') === effect}
+              onClick={() => applyTransition(effect)}
+              className={`flex h-14 shrink-0 items-center justify-center rounded-xl border px-3 text-xs font-medium transition-colors ${(selectedTransition?.effect || 'dissolve') === effect ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-text-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)]'}`}
+            >
+              {label}
+            </button>
+          ))
+        ) : selectedSceneIds.length > 0 ? (
           <>
             <button type="button" title="Clone selected scenes" aria-label="Clone selected scenes" onClick={runCloneSelected} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
               <Copy size={22} strokeWidth={1.8} />
@@ -246,6 +283,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           onClick={(event) => {
             if (!(event.target as HTMLElement).closest("button")) {
               setSelectedSceneIds([]);
+              setSelectedTransitionKey(null);
             }
           }}
         >
@@ -262,7 +300,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   </div>
                 ))}
               </div>
-              <div className="flex h-16 items-center gap-0 py-2">
+              <div className="relative flex h-16 items-center gap-0 py-2">
                 {orderedScenes.map((scene, index) => {
                   const segment = sceneSegments[index];
                   return (
@@ -271,11 +309,38 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       type="button"
                       title={scene.title}
                       aria-pressed={selectedSceneIds.includes(scene.id)}
-                      onClick={() => setSelectedSceneIds((current) => current[0] === scene.id ? [] : [scene.id])}
+                      onClick={() => {
+                        setSelectedTransitionKey(null);
+                        setSelectedSceneIds((current) => current[0] === scene.id ? [] : [scene.id]);
+                      }}
                       className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
                       style={{ width: Math.max(24, segment.duration * pixelsPerSecond) }}
                     >
                       <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{scene.title}</span>
+                    </button>
+                  );
+                })}
+                {orderedScenes.slice(0, -1).map((scene, index) => {
+                  const nextScene = orderedScenes[index + 1];
+                  const transitionKey = `${scene.id}:${nextScene.id}`;
+                  const boundary = sceneSegments.slice(0, index + 1).reduce((sum, segment) => sum + segment.duration, 0) * pixelsPerSecond;
+                  const hiddenBySceneSelection = selectedSceneIds.includes(scene.id) || selectedSceneIds.includes(nextScene.id);
+                  if (hiddenBySceneSelection) return null;
+                  return (
+                    <button
+                      key={transitionKey}
+                      type="button"
+                      title="Choose transition"
+                      aria-label={`Transition between ${scene.title} and ${nextScene.title}`}
+                      aria-pressed={selectedTransitionKey === transitionKey}
+                      onClick={() => {
+                        setSelectedSceneIds([]);
+                        setSelectedTransitionKey(transitionKey);
+                      }}
+                      className={`absolute top-1/2 z-10 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border shadow-sm transition-colors ${selectedTransitionKey === transitionKey ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)]'}`}
+                      style={{ left: boundary }}
+                    >
+                      <Layers size={14} strokeWidth={2} />
                     </button>
                   );
                 })}
