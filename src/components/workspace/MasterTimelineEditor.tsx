@@ -657,6 +657,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       } as React.PointerEvent<HTMLDivElement>;
       if (pointer.kind === 'text') moveTextLongPress(syntheticEvent, pointer.clip);
       else moveAudioLongPress(syntheticEvent, pointer.clip);
+
+      // Keep scrolling while the pointer remains near an edge, even when
+      // the user holds it still and no new pointermove event is emitted.
+      dragAutoScrollFrameRef.current = requestAnimationFrame(tick);
     };
 
     dragAutoScrollFrameRef.current = requestAnimationFrame(tick);
