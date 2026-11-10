@@ -876,9 +876,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setStoryboardAiMessage('');
     };
     return (
-      <main className="profile-page-main w-full min-w-0 p-0">
-        <div className="profile-subpage-scroll profile-subpage-viewport">
-          <section className="profile-subpage-card storyboard-fullscreen-card">
+      <main className="profile-page-main h-full min-h-0 w-full min-w-0 overflow-hidden p-0">
+        <div className="profile-subpage-scroll profile-subpage-viewport !h-full !min-h-0 !overflow-hidden">
+          <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
           <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
               <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
@@ -900,7 +900,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               </div>
             </section>
           )}
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
@@ -988,9 +988,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 setSelectedSceneIds((current) => current.filter((sceneId) => sceneId !== id));
               };
               return (
-                <div className="space-y-4 pt-3">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3">
                     {storyboardEditorView === 'scenes' ? (
-<section className="space-y-3">
+<section className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-4">
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
@@ -1016,7 +1016,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
                   </section>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4">
 <MasterTimelineEditor
                     scenes={scenes.map((scene) => ({
                       ...scene,
