@@ -173,6 +173,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const storyboardBarRef = useRef<HTMLElement>(null);
   const workspaceTouchY = useRef<number | null>(null);
   const workspaceHeaderDirection = useRef(0);
+  const workspaceHeaderStartProgress = useRef(0);
   const workspaceHeaderHandoff = useRef(0);
   const workspaceHeaderSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
@@ -184,10 +185,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     }
     if (workspaceHeaderDirection.current === 0) return;
     const root = document.documentElement;
-    const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
-    window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
+    const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    const moved = Math.abs(current - workspaceHeaderStartProgress.current) > 0.001;
+    if (moved) {
+      const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
+    }
     root.classList.remove('is-header-dragging');
     workspaceHeaderDirection.current = 0;
+    workspaceHeaderStartProgress.current = current;
     workspaceHeaderHandoff.current = 0;
   };
 
@@ -197,13 +203,16 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const bar = storyboardBarRef.current;
     if (!scroller || !bar || bar.getBoundingClientRect().top > scroller.getBoundingClientRect().top + 1) return;
     const direction = deltaY > 0 ? 1 : -1;
-    if (workspaceHeaderDirection.current !== direction) workspaceHeaderHandoff.current = 0;
-    workspaceHeaderDirection.current = direction;
     const root = document.documentElement;
+    const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    if (workspaceHeaderDirection.current !== direction) {
+      workspaceHeaderHandoff.current = 0;
+      workspaceHeaderStartProgress.current = current;
+    }
+    workspaceHeaderDirection.current = direction;
     // Disable CSS easing before publishing every drag update. Otherwise the first
     // movement is animated separately and appears to jump instead of following the finger.
     root.classList.add('is-header-dragging');
-    const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
     const handoff = direction > 0 ? 28 : 64;
     const buffer = Math.min(Math.abs(deltaY), Math.max(0, handoff - workspaceHeaderHandoff.current));
     workspaceHeaderHandoff.current += buffer;
