@@ -186,12 +186,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (workspaceHeaderDirection.current === 0) return;
     const root = document.documentElement;
     const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
-    // Use the same directional release snap as Profile subpages. In particular,
-    // a downward pull that has crossed the handoff threshold should complete
-    // the reveal even if the finger is released before another move event.
+    // Match Profile subpages: finish the active direction after release.
     if (workspaceHeaderDirection.current < 0 && current > 0.001) {
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
-    } else if (workspaceHeaderDirection.current > 0 && current > 0.001) {
+    } else if (workspaceHeaderDirection.current > 0 && current < 0.999) {
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 1 }));
     }
     root.classList.remove('is-header-dragging');
@@ -200,48 +198,60 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     workspaceHeaderHandoff.current = 0;
   };
 
-  const updateWorkspaceMainHeader = (deltaY: number, scheduleSettle = true) => {
-    if (!deltaY) return;
+  // Returns the number of scroll pixels consumed by the two-header motion.
+  // The remaining pixels are applied to the Workspace scroller manually, so
+  // native scrolling cannot race the changing global-header spacer.
+  const updateWorkspaceMainHeader = (deltaY: number, scheduleSettle = true): number => {
+    if (!deltaY) return 0;
     const scroller = workspaceScrollRef.current;
     const bar = storyboardBarRef.current;
-    if (!scroller || !bar) return;
+    if (!scroller || !bar) return 0;
     const direction = deltaY > 0 ? 1 : -1;
     const root = document.documentElement;
     const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
-    // Match Profile subpages: once the Main Header starts hiding, keep the
-    // reverse gesture active even if the sticky Storyboard bar moves away
-    // from the exact contact point during the downward pull. Only the first
-    // upward handoff requires the Storyboard bar to have reached the top.
     const barReachedTop = bar.getBoundingClientRect().top <= scroller.getBoundingClientRect().top + 1;
-    if (direction > 0 && current <= 0.001 && !barReachedTop) return;
-    if (direction < 0 && current <= 0.001) return;
+    if (direction > 0 && current <= 0.001 && !barReachedTop) return 0;
+    if (direction < 0 && current <= 0.001) return 0;
+
     if (workspaceHeaderDirection.current !== direction) {
       workspaceHeaderHandoff.current = 0;
       workspaceHeaderStartProgress.current = current;
     }
     workspaceHeaderDirection.current = direction;
-    // Disable CSS easing before publishing every drag update. Otherwise the first
-    // movement is animated separately and appears to jump instead of following the finger.
     root.classList.add('is-header-dragging');
+
     const handoff = direction > 0 ? 28 : 64;
-    const buffer = Math.min(Math.abs(deltaY), Math.max(0, handoff - workspaceHeaderHandoff.current));
+    const total = Math.abs(deltaY);
+    const buffer = Math.min(total, Math.max(0, handoff - workspaceHeaderHandoff.current));
     workspaceHeaderHandoff.current += buffer;
-    const movement = Math.abs(deltaY) - buffer;
+    const movement = total - buffer;
+    let moved = 0;
     if (movement > 0) {
       const distance = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-global-header-height')) || 64;
-      const next = direction > 0 ? Math.min(1, current + movement / distance) : Math.max(0, current - movement / distance);
-      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: next }));
+      const next = direction > 0
+        ? Math.min(1, current + movement / distance)
+        : Math.max(0, current - movement / distance);
+      moved = Math.abs(next - current) * distance;
+      if (Math.abs(next - current) > 0.0001) {
+        window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: next }));
+      }
     }
-    // Touch dragging is controlled by touchend, never by a pause between move events.
-    // Wheel input has no end event, so it settles after the wheel gesture becomes idle.
+
     if (scheduleSettle) {
       if (workspaceHeaderSettleTimer.current !== null) window.clearTimeout(workspaceHeaderSettleTimer.current);
-      workspaceHeaderSettleTimer.current = window.setTimeout(settleWorkspaceMainHeader, 180);
+      workspaceHeaderSettleTimer.current = window.setTimeout(settleWorkspaceMainHeader, 140);
     }
+    return Math.min(total, buffer + moved);
   };
 
   const handleWorkspaceWheel = (event: React.WheelEvent<HTMLElement>) => {
-    updateWorkspaceMainHeader(event.deltaY);
+    const consumed = updateWorkspaceMainHeader(event.deltaY);
+    if (consumed <= 0) return;
+    event.preventDefault();
+    const remaining = Math.abs(event.deltaY) - consumed;
+    if (remaining > 0 && workspaceScrollRef.current) {
+      workspaceScrollRef.current.scrollTop = Math.max(0, workspaceScrollRef.current.scrollTop + Math.sign(event.deltaY) * remaining);
+    }
   };
   const handleWorkspaceTouchStart = (event: React.TouchEvent<HTMLElement>) => {
     if (workspaceHeaderSettleTimer.current !== null) {
@@ -252,10 +262,18 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   };
   const handleWorkspaceTouchMove = (event: React.TouchEvent<HTMLElement>) => {
     const y = event.touches[0]?.clientY;
-    if (y === undefined || workspaceTouchY.current === null) return;
+    const scroller = workspaceScrollRef.current;
+    if (y === undefined || workspaceTouchY.current === null || !scroller) return;
     const delta = workspaceTouchY.current - y;
     workspaceTouchY.current = y;
-    updateWorkspaceMainHeader(delta, false);
+    if (!delta) return;
+    const consumed = updateWorkspaceMainHeader(delta, false);
+    if (consumed <= 0) return;
+    event.preventDefault();
+    const remaining = Math.abs(delta) - consumed;
+    if (remaining > 0) {
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + Math.sign(delta) * remaining);
+    }
   };
   const handleWorkspaceTouchEnd = () => {
     workspaceTouchY.current = null;
