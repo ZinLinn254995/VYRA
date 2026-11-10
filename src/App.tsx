@@ -87,7 +87,18 @@ function MarketplaceApp() {
     return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
   }, []);
 
-  useLayoutEffect(() => { window.scrollTo(0, 0); document.documentElement.style.setProperty('--vyra-main-header-progress', '0'); document.documentElement.style.setProperty('--vyra-header-spacer-collapse', '0px'); window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 })); }, [activeSection, profileOpen]);
+  const resetMainHeaderVisibility = () => {
+    const root = document.documentElement;
+    root.style.setProperty('--vyra-main-header-progress', '0');
+    root.style.setProperty('--vyra-header-spacer-collapse', '0px');
+    root.classList.remove('is-header-dragging');
+    window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
+  };
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    resetMainHeaderVisibility();
+  }, [activeSection, profileOpen]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -103,11 +114,11 @@ function MarketplaceApp() {
       <MarketplaceHeader
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
-        onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
-        onWorkspaceRequest={() => { setProfileOpen(false); setActiveSection('workspace'); }}
-        onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
+        onMarketplaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('marketplace'); }}
+        onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
+        onAIChatRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
-        onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
+        onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
       <div aria-hidden="true" className="w-full shrink-0" style={{ height: 'calc(var(--vyra-global-header-height, 64px) - var(--vyra-header-spacer-collapse, 0px))', transition: 'height 180ms ease-out' }} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
