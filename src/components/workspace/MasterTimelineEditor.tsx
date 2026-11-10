@@ -98,7 +98,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const seededAudioRef = useRef(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
-  const audioDragRef = useRef<typeof textDragRef.current>(null);
   const [textDragYOffset, setTextDragYOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -114,6 +113,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     trackId: string;
     offsetX: number;
   } | null>(null);
+  const audioDragRef = useRef<typeof textDragRef.current>(null);
   const suppressTextClickRef = useRef(false);
 
   useEffect(() => {
