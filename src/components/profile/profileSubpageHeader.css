@@ -199,7 +199,7 @@
   max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  touch-action: pan-y;
+  touch-action: pan-x;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -352,4 +352,12 @@
     padding-left: 20px;
     padding-right: 20px;
   }
+}
+
+/* While a finger or wheel gesture is active, header geometry follows the
+   gesture directly; transitions are reserved for the release snap. */
+html.is-header-dragging header,
+html.is-header-dragging .profile-collapse-header,
+html.is-header-dragging .profile-collapse-header * {
+  transition: none !important;
 }
