@@ -85,8 +85,10 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
       }
     }
   } else {
-    if (content.scrollTop > 0) return 0;
     content.dataset.headerLastDirection = String(direction);
+    // Reveal the global Main Header as soon as the user pulls downward,
+    // even while the page content is still scrolling back toward the top.
+    // The Compact Header remains tied to the content's actual scroll start.
     if (main > 0) {
       const buffer = Math.min(remaining, Math.max(0, handoffDistance - handoffProgress));
       handoffProgress += buffer;
@@ -98,7 +100,7 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
         setMainProgress(main);
       }
     }
-    if (remaining > 0 && main <= 0.001 && compact > 0) {
+    if (remaining > 0 && content.scrollTop <= 0 && main <= 0.001 && compact > 0) {
       const amount = Math.min(remaining, compact * compactDistance);
       compact -= amount / compactDistance;
       remaining -= amount;
