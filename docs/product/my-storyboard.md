@@ -548,3 +548,16 @@ Current boundaries (not yet implemented):
 - Master export from pinned Scene render revisions.
 
 The Scene Timeline controls are a persisted project-data foundation, not a claim that the Scene Editor is already a complete video editor. Do not generate placeholder media or mark a render revision ready without a verified rendered artifact.
+
+
+### 21. Storyboard editor layout — collapsible details and dual workspace views
+
+After the creator fills in Title, Description, and optional details and confirms Create:
+
+- The Storyboard Details panel collapses automatically into a compact summary row. The creator can expand it at any time to review or edit the title, description, category, visual style, mood, and tags.
+- A wide 16:9 Video Preview area sits directly below the details summary. Until a verified render exists, it clearly reports that the video preview is not rendered yet; it must not pretend to play generated footage.
+- Below the preview, the editor has two switchable views: Scenes and Master Editor.
+- Scenes is the default view and retains the existing Storyboard Scene CRUD, ordering, cloning, selection, and Scene Editor navigation.
+- Master Editor hosts the current Master Timeline composition interface and is explicitly marked as a simulation while real media playback/rendering is not available. Its Scene synchronization still uses the same Storyboard Scene records.
+- Switching views does not create duplicate scene data or reset the other view's timeline state.
+- The Details panel and view selection are UI state; the Storyboard content and Master Timeline continue to use the existing autosave/persistence path.
