@@ -330,6 +330,40 @@
 }
 
 
+/* Storyboard Editor: preserve the shared subpage sizing contract, but keep
+   the outer content viewport fixed. Only the active workspace pane scrolls. */
+.storyboard-fullscreen-card > .profile-subpage-content {
+  display: flex !important;
+  flex: 1 1 0% !important;
+  flex-direction: column !important;
+  width: 100%;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 100%;
+  overflow: hidden !important;
+  touch-action: auto !important;
+  overscroll-behavior: contain;
+  padding-top: 0;
+}
+.storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
+  position: relative;
+  top: auto;
+  flex: 0 0 auto;
+}
+.storyboard-fullscreen-card > .profile-subpage-content > div:has(> section),
+.storyboard-fullscreen-card > .profile-subpage-content > div:has(> .master-editor-scroll-pane) {
+  min-height: 0;
+}
+.storyboard-fullscreen-card .storyboard-editor-pane {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
 /* Storyboard playback controls stay pinned beneath the title header while
    the Scenes or Master Editor workspace scrolls underneath. */
 .storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
