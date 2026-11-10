@@ -29,11 +29,11 @@ const readLegacyVyrals = (): LegacyVyral[] => {
   } catch { return []; }
 };
 
-const updateProfileHeaderCompact = (content: HTMLElement) => {
+const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (!header) return;
   const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
-  const compactMode = currentProgress >= 0.5 ? content.scrollTop > 16 : content.scrollTop >= 44;
+  const compactMode = currentProgress >= 0.5 ? scrollTop > 16 : scrollTop >= 44;
   const headerProgress = compactMode ? 1 : 0;
   const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
   const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
@@ -234,7 +234,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
-      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)}>
+      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateProfileHeaderCompact(event.currentTarget, target.scrollTop); }}>
         <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} onSendAssetsToChat={onSendAssetsToChat} />
       </div>
     </section></div>
