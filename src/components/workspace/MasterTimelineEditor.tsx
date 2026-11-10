@@ -215,6 +215,19 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       textTracks: value?.textTracks || [],
     });
   };
+  const removeTransition = () => {
+    if (!selectedTransitionKey) return;
+    const transitions = Object.fromEntries(
+      Object.entries(value?.transitions || {}).filter(([key]) => key !== selectedTransitionKey),
+    );
+    onChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions,
+      audioTracks: value?.audioTracks || [],
+      textTracks: value?.textTracks || [],
+    });
+  };
   const runCloneSelected = () => {
     selectedScenes.forEach((scene) => {
       const index = orderedScenes.findIndex((item) => item.id === scene.id);
@@ -235,7 +248,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
         {selectedTransitionKey ? (
-          transitionOptions.map(({ label, value: effect }) => (
+          <>
+            <button
+              type="button"
+              title="Remove transition"
+              aria-label="Remove transition"
+              aria-pressed={!selectedTransition}
+              onClick={removeTransition}
+              className={`flex h-14 shrink-0 items-center justify-center rounded-xl border px-4 text-xs font-medium transition-colors ${!selectedTransition ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-text-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)]'}`}
+            >
+              None
+            </button>
+            {transitionOptions.map(({ label, value: effect }) => (
             <button
               key={effect}
               type="button"
@@ -247,7 +271,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             >
               {label}
             </button>
-          ))
+            ))}
+          </>
         ) : selectedSceneIds.length > 0 ? (
           <>
             <button type="button" title="Clone selected scenes" aria-label="Clone selected scenes" onClick={runCloneSelected} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
