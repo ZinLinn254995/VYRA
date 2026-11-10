@@ -82,7 +82,15 @@ function MarketplaceApp() {
   };
 
   useEffect(() => {
-    const handleHeaderProgress = (event: Event) => { const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)); document.documentElement.style.setProperty('--vyra-main-header-progress', String(progress)); const headerHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64; document.documentElement.style.setProperty('--vyra-header-spacer-collapse', `${headerHeight * progress}px`); };
+    // This dimension is static for the mounted app. Cache it outside the
+    // progress listener to avoid a computed-style/layout read on every drag frame.
+    const headerHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64;
+    const handleHeaderProgress = (event: Event) => {
+      const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0));
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-main-header-progress', String(progress));
+      root.style.setProperty('--vyra-header-spacer-collapse', `${headerHeight * progress}px`);
+    };
     window.addEventListener('vyra:main-header-progress', handleHeaderProgress);
     return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
   }, []);
