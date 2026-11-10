@@ -3,6 +3,7 @@ import { Bot, Clapperboard, Coins, Store, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
+  hidden?: boolean;
   userEmail: string | null;
   creditBalance: string | null;
   creditLoading: boolean;
@@ -19,7 +20,7 @@ const BrandMark = ({ className = '' }: { className?: string }) => (
 );
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
-  userEmail, creditBalance, creditLoading, activeSection,
+  hidden = false, userEmail, creditBalance, creditLoading, activeSection,
   onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
   const headerRef = useRef<HTMLElement>(null);
@@ -73,7 +74,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
 
   return (
-    <header ref={headerRef} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
+    <header ref={headerRef} aria-hidden={hidden} className={`fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl transition-transform duration-200 ease-out ${hidden ? "-translate-y-full pointer-events-none" : "translate-y-0"}`}>
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
