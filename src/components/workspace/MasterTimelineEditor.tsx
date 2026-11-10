@@ -202,6 +202,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       { name: 'Bright Journey', duration: 30 },
       { name: 'Calm Piano', duration: 26 },
     ];
+    const existingTextEnd = (value?.textTracks || []).flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+    const existingTimelineLength = Math.max(1, scenes.reduce((sum, scene) => sum + Math.max(0.1, scene.duration), 0), existingTextEnd);
     const audioTracks = samples.map((sample, index) => ({
       id: crypto.randomUUID(),
       name: 'Audio',
@@ -210,7 +212,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         name: sample.name,
         content: sample.name,
         start: 0,
-        duration: sample.duration,
+        duration: Math.min(sample.duration, existingTimelineLength),
         waveform: Array.from({ length: 48 }, (_, point) => 0.2 + (((point * 17 + index * 13) % 29) / 40)),
       }],
     }));
@@ -221,7 +223,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       audioTracks,
       textTracks: value?.textTracks || [],
     });
-  }, [value?.audioTracks, value?.textTracks, value?.sceneRanges, value?.sceneInstances, value?.transitions, onChange]);
+  }, [value?.audioTracks, value?.textTracks, value?.sceneRanges, value?.sceneInstances, value?.transitions, scenes, onChange]);
 
   const orderedScenes = useMemo(() => {
     const instances = value?.sceneInstances || [];
