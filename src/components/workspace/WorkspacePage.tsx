@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -180,6 +180,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const workspaceHeaderHandoff = useRef(0);
   const workspaceHeaderSettleTimer = useRef<number | null>(null);
   const storyboardControlsRef = useRef<HTMLDivElement>(null);
+  const storyboardPreviewFrameRef = useRef<HTMLDivElement>(null);
   const storyboardPreviewProgress = useRef(0);
   const storyboardPreviewDrag = useRef<{ startY: number; lastY: number; lastAt: number; velocity: number; startProgress: number; moved: boolean; distance: number } | null>(null);
   const storyboardPreviewSettleTimer = useRef<number | null>(null);
@@ -886,10 +887,26 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
-                <div className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
+                <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
                   <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
                 </div>
+              </div>
+              <div className="flex h-12 items-center justify-between gap-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3">
+                <button type="button" disabled aria-label="Play preview (available when video media is connected)" title="Preview playback will be available when video media is connected" className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)] disabled:cursor-not-allowed disabled:opacity-60">
+                  <Play size={15} fill="currentColor" />
+                </button>
+                <span className="min-w-0 flex-1 text-center font-mono text-[11px] tabular-nums text-[var(--vyra-text-secondary)]">
+                  00:00 <span className="px-1 text-[var(--vyra-text-muted)]">/</span> {(() => {
+                    const total = (activeStoryboard?.details?.scenes || []).reduce((sum, scene) => sum + Math.max(0, Number(scene.duration) || 0), 0);
+                    const minutes = Math.floor(total / 60).toString().padStart(2, '0');
+                    const seconds = Math.floor(total % 60).toString().padStart(2, '0');
+                    return minutes + ':' + seconds;
+                  })()}
+                </span>
+                <button type="button" onClick={() => { const frame = storyboardPreviewFrameRef.current; if (frame?.requestFullscreen) void frame.requestFullscreen(); }} aria-label="Expand preview" title="Expand preview" className="grid size-8 shrink-0 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+                  <Maximize2 size={16} />
+                </button>
               </div>
               <div className="profile-storyboard-view-tabs flex items-center gap-1 border-b border-[var(--vyra-border)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
                 <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
