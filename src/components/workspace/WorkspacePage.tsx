@@ -86,7 +86,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement) => {
   header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
   header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
   header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
+  header.style.setProperty('--profile-header-icon-rotation', '0deg');
   header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
   header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
   header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
@@ -666,7 +666,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'Preparing your storyboard description…'}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateStoryboardHeaderCompact(event.currentTarget); }}>
           {activeStoryboardConfirmed && (
             <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
