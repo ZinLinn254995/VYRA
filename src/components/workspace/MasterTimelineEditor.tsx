@@ -116,6 +116,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     startY: number;
     lastX: number;
     lastY: number;
+    captureElement?: HTMLElement;
   } | null>(null);
   const audioDragRef = useRef<typeof textDragRef.current>(null);
   const suppressTextClickRef = useRef(false);
@@ -343,13 +344,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if ((event.target as HTMLElement).closest('[data-audio-trim-handle]')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (audioDragRef.current?.timer) clearTimeout(audioDragRef.current.timer);
-    const rect = event.currentTarget.getBoundingClientRect();
-    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY };
+    const clipElement = event.currentTarget;
+    const rect = clipElement.getBoundingClientRect();
+    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, captureElement: clipElement };
     audioDragRef.current = drag;
     drag.timer = setTimeout(() => {
       if (audioDragRef.current !== drag) return;
       drag.active = true;
-      scrollRef.current?.setPointerCapture(event.pointerId);
+      clipElement.setPointerCapture(event.pointerId);
       setDraggingTextClipId(clip.id);
       setTextDragYOffset(0);
       setSelectedSceneIds([]);
@@ -431,7 +433,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
     if (drag.moved) suppressTextClickRef.current = true;
-    if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
+    if (drag.captureElement?.hasPointerCapture(event.pointerId)) drag.captureElement.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null); setTextDragYOffset(0); audioDragRef.current = null;
   };
 
@@ -954,6 +956,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(null); setSelectedAudioClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }}
                         onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedAudioClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }}
                         onPointerDown={(event) => beginAudioLongPress(event, track.id, clip)}
+                        onPointerMove={(event) => moveAudioLongPress(event, clip)}
                         onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}
                         className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-sky-500/50 bg-sky-500/10'}`}
                         style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'pan-x pan-y pinch-zoom', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id ? `translateY(${textDragYOffset}px)` : undefined }}>
