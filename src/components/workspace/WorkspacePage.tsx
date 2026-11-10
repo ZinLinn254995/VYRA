@@ -562,27 +562,30 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const createDefaultStoryboard = () => {
     if (!isAuthenticated) { onLoginRequired(); return; }
     const now = new Date().toISOString();
-    const draft: Storyboard = {
+    const storyboard: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: 'A New Storyboard',
       topic: 'A new video story is ready to take shape. Create your scenes and build your story.',
       createdAt: now,
       updatedAt: now,
-      details: { origins: {} },
+      details: { category: '', style: '', mood: '', tags: [], origins: {} },
     };
-    // Keep the new storyboard provisional until the creator confirms it.
-    // It is not written to local storage or Supabase yet.
-    setActiveStoryboard(draft);
-    setActiveStoryboardConfirmed(false);
-    setStoryboardDetailsExpanded(true);
-    setStoryboardAiMessage('Preparing your storyboard title and description…');
+    setSelectedSceneIds([]);
+    setActiveSceneId(null);
+    setActiveStoryboard(storyboard);
+    setActiveStoryboardConfirmed(true);
+    setStoryboardDetailsExpanded(false);
+    setStoryboardEditorView('scenes');
+    setStoryboardAiMessage('Preparing default storyboard details…');
+    setStoryboards((current) => [storyboard, ...current.filter((item) => item.id !== storyboard.id)]);
+    void persistStoryboard(storyboard);
 
     void requestStoryboardSuggestion('', '', true).then((suggestion) => {
-      if (!suggestion) { setStoryboardAiMessage('Your default title and description are ready. Create to continue.'); return; }
+      if (!suggestion) { setStoryboardAiMessage('Default details are ready.'); return; }
       setActiveStoryboard((current) => {
-        if (!current || current.id !== draft.id) return current;
+        if (!current || current.id !== storyboard.id) return current;
         const origins = current.details?.origins || {};
-        return {
+        const updated: Storyboard = {
           ...current,
           title: origins.title === 'creator_edited' ? current.title : (suggestion.title || current.title),
           topic: origins.topic === 'creator_edited' ? current.topic : (suggestion.topic || current.topic),
@@ -605,11 +608,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             ai_provenance: { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt },
           },
         };
+        setStoryboards((items) => items.map((item) => item.id === updated.id ? updated : item));
+        void persistStoryboard(updated);
+        return updated;
       });
       setStoryboardAiMessage('');
-    }).catch(() => {
-      setStoryboardAiMessage('AI suggestions are unavailable right now. You can edit the details yourself or confirm this draft.');
-    });
+    }).catch(() => setStoryboardAiMessage('AI suggestions are unavailable. You can edit the default details anytime.'));
   };
 
   const cancelStoryboardDraft = () => {
@@ -875,14 +879,24 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       <main className="profile-page-main w-full min-w-0 p-0">
         <div className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card storyboard-fullscreen-card">
-          <ProfileSubpageHeader
-            onBack={leaveStoryboardPage}
-            backLabel="Workspace"
-            icon={<Clapperboard size={22} />}
-            title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
-            description={activeStoryboard.topic || 'Preparing your storyboard description…'}
-            storyboardTitle
-          />
+          <header className="sticky top-0 z-50 flex min-h-14 items-center justify-between border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
+            <button type="button" onClick={leaveStoryboardPage} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
+              <ChevronRight className="rotate-180" size={19} /><span>Workspace</span>
+            </button>
+            <button type="button" onClick={() => setStoryboardDetailsExpanded((expanded) => !expanded)} aria-label={storyboardDetailsExpanded ? 'Minimize storyboard details' : 'Open storyboard details'} aria-expanded={storyboardDetailsExpanded} className="grid size-10 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)]">
+              <ChevronDown className={'transition-transform ' + (storyboardDetailsExpanded ? 'rotate-180' : '')} size={19} />
+            </button>
+          </header>
+          {storyboardDetailsExpanded && (
+            <section className="space-y-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-4 sm:px-5">
+              <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Title</span><input value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} maxLength={100} className={inputClass} /></label>
+              <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Description</span><textarea value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} rows={2} maxLength={500} className={inputClass + ' min-h-20 resize-y py-2'} /></label>
+              <div className="grid grid-cols-2 gap-3">
+                {(['category', 'style', 'mood'] as const).map((field) => <label key={field} className="block min-w-0 space-y-1"><span className="text-xs font-semibold capitalize text-[var(--vyra-text-secondary)]">{field === 'style' ? 'Visual style' : field}</span><input value={details[field] || ''} onChange={(event) => updateActiveStoryboard(field, event.target.value)} className={inputClass} /></label>)}
+                <label className="block min-w-0 space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Tags</span><input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} placeholder="Comma-separated" className={inputClass} /></label>
+              </div>
+            </section>
+          )}
           <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 sm:-mx-5">
@@ -1043,12 +1057,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               );
             })()}
 
-            {!activeStoryboardConfirmed && (
-              <div className="flex items-center justify-between gap-3 border-t border-[var(--vyra-border)] pt-3">
-                <Button type="button" variant="ghost" onClick={cancelStoryboardDraft}><X size={15} /> Cancel</Button>
-                <Button type="button" onClick={confirmStoryboardDraft}><Check size={15} /> Create</Button>
-              </div>
-            )}
+
           </div>
           </section>
         </div>
