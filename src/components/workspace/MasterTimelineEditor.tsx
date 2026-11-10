@@ -94,7 +94,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
   const pixelsPerSecondRef = useRef(80);
-  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);\n
+  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);
+
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
