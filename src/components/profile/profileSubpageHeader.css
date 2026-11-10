@@ -38,11 +38,11 @@
   display: grid; width: var(--profile-header-icon-size, 44px); height: var(--profile-header-icon-size, 44px);
   place-items: center; border-radius: 12px; background: var(--vyra-bg-subtle);
   color: var(--vyra-accent-primary);
-  transform: rotate(var(--profile-header-icon-rotation, 0deg));
+  transform: none;
   transform-origin: center center;
   backface-visibility: hidden;
   will-change: transform;
-  transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out, transform 180ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out;
 }
 .profile-collapse-icon > * { width: 22px; height: 22px; }
 .profile-collapse-title {
