@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AudioLines, ChevronDown, Copy, Film, Maximize2, Pause, Play, Plus,
+  AudioLines, Copy, Film, Maximize2, Play, Plus,
   Scissors, Settings2, SkipBack, SkipForward, SlidersHorizontal, Trash2,
   Type, Undo2, Redo2, ZoomIn, ZoomOut,
 } from 'lucide-react';
