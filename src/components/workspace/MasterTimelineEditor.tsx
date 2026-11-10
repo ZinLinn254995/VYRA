@@ -71,6 +71,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [historyVersion, setHistoryVersion] = useState(0);
   const [zoom, setZoom] = useState(48);
   const [playhead, setPlayhead] = useState(0);
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(480);
   const [playing, setPlaying] = useState(false);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
@@ -122,8 +123,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const audioTracks = data.audioTracks || [];
   const textTracks = data.textTracks || [];
   const totalDuration = Math.max(1, positionedScenes.length ? positionedScenes[positionedScenes.length - 1].start + positionedScenes[positionedScenes.length - 1].duration : 1);
-  const timelineWidth = Math.max(640, totalDuration * zoom);
-  const timeToPixel = (seconds: number) => seconds * zoom;
+  const timelineInset = Math.max(120, (timelineViewportWidth - trackLabelWidth) / 2);
+  const timelineWidth = Math.max(640, totalDuration * zoom) + timelineInset * 2;
+  const timeToPixel = (seconds: number) => timelineInset + seconds * zoom;
   const tickInterval = zoom >= 60 ? 1 : zoom >= 25 ? 5 : zoom >= 10 ? 10 : 30;
   const ticks = Array.from({ length: Math.floor(totalDuration / tickInterval) + 2 }, (_, index) => index * tickInterval).filter((time) => time <= totalDuration + 0.01);
   const selectedClipValue = selectedClip
@@ -308,6 +310,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   };
 
   useEffect(() => {
+    const element = scrollerRef.current;
+    if (!element) return;
+    const updateWidth = () => setTimelineViewportWidth(element.clientWidth);
+    updateWidth();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateWidth) : null;
+    observer?.observe(element);
+    return () => observer?.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (scrollerRef.current) scrollerRef.current.scrollLeft = playhead * zoom;
+  }, [playhead, zoom]);
+
+  useEffect(() => {
     if (!playing) return;
     const timer = window.setInterval(() => {
       setPlayhead((current) => {
@@ -411,12 +427,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       <button type="button" onClick={() => addTrack('text', true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3 text-xs font-medium text-[var(--vyra-text-primary)] transition hover:bg-[var(--vyra-bg-hover)]"><Type size={14} className="text-[var(--vyra-warning)]" /> Add Text</button>
     </div>
 
-    <div ref={scrollerRef} className="overflow-auto overscroll-x-contain rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] [scrollbar-color:var(--vyra-text-muted)_var(--vyra-bg-canvas)] [scrollbar-width:thin]">
+    <div ref={scrollerRef} onScroll={(event) => setPlayhead(clamp(event.currentTarget.scrollLeft / zoom, 0, totalDuration))} className="relative overflow-auto overscroll-x-contain rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] [scrollbar-color:var(--vyra-text-muted)_var(--vyra-bg-canvas)] [scrollbar-width:thin]">
       <div className="relative" style={{ width: trackLabelWidth + timelineWidth, minWidth: '100%' }}>
-        <div className="pointer-events-none absolute bottom-0 top-8 z-20 w-px bg-[var(--vyra-danger)] shadow-[0_0_8px_var(--vyra-danger)]" style={{ left: trackLabelWidth + timeToPixel(playhead) }} />
+        <div className="pointer-events-none absolute bottom-0 top-8 z-40 w-px bg-[var(--vyra-danger)] shadow-[0_0_8px_var(--vyra-danger)]" style={{ left: trackLabelWidth + timelineInset + (timelineViewportWidth - trackLabelWidth) / 2 }} />
         <div className="grid" style={{ gridTemplateColumns: `${trackLabelWidth}px ${timelineWidth}px` }}>
           <div className={headerClass}>Time</div>
-          <div className="relative h-8 cursor-crosshair border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]" onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setPlayhead(clamp((event.clientX - rect.left) / zoom, 0, totalDuration)); }}>
+          <div className="relative h-8 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
             {ticks.map((tick) => <div key={tick} className="pointer-events-none absolute inset-y-0 border-l border-[var(--vyra-border-subtle)] pl-1 pt-1 text-[9px] font-mono tabular-nums text-[var(--vyra-text-muted)]" style={{ left: timeToPixel(tick) }}>{formatTime(tick)}</div>)}
           </div>
           <div className={headerClass + ' min-h-[76px]'}>Scenes</div>
