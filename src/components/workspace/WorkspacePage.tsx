@@ -72,10 +72,8 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
   // Snap between the two complete layouts. Do not tie the animation progress
   // to every scroll pixel: that can leave the header frozen halfway through
   // its transition when the user pauses scrolling.
-  const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
-  const compact = currentProgress >= 0.5
-    ? scrollTop > 16
-    : scrollTop >= 44;
+  // Any real upward scroll should compact the header, even when the page has little or no data.
+  const compact = scrollTop > 0;
   const headerProgress = compact ? 1 : 0;
 
   const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
