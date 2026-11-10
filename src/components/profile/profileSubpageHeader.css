@@ -65,6 +65,28 @@
   top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
   transition: top 180ms ease-out, right 180ms ease-out;
 }
+.profile-collapse-details-action {
+  position: absolute; z-index: 4;
+  top: calc(56px - var(--profile-header-action-shift, 0px));
+  right: 24px;
+  transition: top 180ms ease-out, right 180ms ease-out;
+}
+.profile-storyboard-details-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: 148px; height: 34px; overflow: hidden; white-space: nowrap;
+  border: 1px solid var(--vyra-border); border-radius: 10px;
+  padding: 0 10px; background: var(--vyra-bg-surface);
+  color: var(--vyra-text-secondary); font-size: 11px; font-weight: 600;
+  transition: width 180ms ease-out, padding 180ms ease-out, background 140ms ease-out;
+}
+.profile-storyboard-details-toggle:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
+.profile-storyboard-details-toggle svg { flex: 0 0 16px; }
+.profile-storyboard-details-toggle span {
+  max-width: calc(148px - 42px); overflow: hidden; opacity: calc(1 - var(--profile-header-progress, 0));
+  transition: opacity 100ms linear, max-width 180ms ease-out;
+}
+.profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: 184px; }
+
 /* Keep one real button: fixed icon/text spacing, right edge anchored during collapse. */
 .profile-create-button {
   box-sizing: border-box;
@@ -222,4 +244,8 @@
   .profile-collapse-header:has(.profile-collapse-action) .profile-collapse-title { right: 116px; }
   .profile-collapse-description { left: 64px; }
   .profile-collapse-action { right: 12px; }
+  .profile-collapse-details-action { right: 12px; }
+  .profile-storyboard-details-toggle { width: 132px; }
+  .profile-storyboard-details-toggle span { max-width: calc(132px - 42px); }
+  .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: 56px; }
 }
