@@ -684,6 +684,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
+              const previewDuration = Math.max(10, Math.ceil(scenes.reduce((total, scene) => total + scene.duration, 0) / 10) * 10);
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
                 if (!current) return current;
                 const master = current.details?.masterTimeline;
@@ -740,15 +741,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               return (
                 <div className="space-y-5 border-t border-[var(--vyra-border)] pt-5">
                   <div className="mb-2 flex items-end justify-between border-b border-[var(--vyra-border)] px-1 pb-1 text-[9px] tabular-nums text-[var(--vyra-text-muted)]" aria-label="Video timeline ruler">
-                    {Array.from({ length: 11 }, (_, index) => <div key={index} className="flex flex-col items-center gap-1"><span>{index * 2}s</span><span className="h-2 w-px bg-[var(--vyra-border)]" /></div>)}
+                    {Array.from({ length: 11 }, (_, index) => <div key={index} className="flex flex-col items-center gap-1"><span>{Math.round(index * previewDuration / 10 * 10) / 10}s</span><span className="h-2 w-px bg-[var(--vyra-border)]" /></div>)}
                   </div>
                   <section>
                     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                      <div className="relative z-10 text-center">
-                        <Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
-                        <p className="text-sm font-medium text-[var(--vyra-text-primary)]">Video preview is not rendered yet</p>
-                        <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scenes.length ? scenes.length + ' scenes in this Storyboard' : 'Add your first scene to begin.'}</p>
+                      <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder">
+                        <Film size={30} />
                       </div>
                     </div>
                   </section>
