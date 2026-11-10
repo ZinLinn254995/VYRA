@@ -912,7 +912,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           <div className="flex min-h-full w-max items-start">
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
             <div className="shrink-0" style={{ width: timelineWidth }}>
-              <div className="relative h-10 border-b border-[var(--vyra-border)]">
+              <div className="sticky top-0 z-20 relative h-10 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]">
                 {rulerTicks.map((second) => (
                   <div key={second} className="absolute bottom-0 h-full" style={{ left: second * pixelsPerSecond }}>
                     <span className="absolute bottom-2 left-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium tabular-nums text-[var(--vyra-text-secondary)]">
