@@ -190,11 +190,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
 
   const toolbar = (
     <nav
-      className="master-editor-bottom-nav relative z-20 flex w-full shrink-0 items-center gap-2 pt-2"
+      className="master-editor-bottom-nav relative z-20 flex w-full shrink-0 items-center gap-2 px-3 pt-2"
       style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
       aria-label="Master Editor tools"
     >
-      <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-3">
+      <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-0">
         {toolbarItems.map(({ label, Icon }) => (
           <button
             key={label}
