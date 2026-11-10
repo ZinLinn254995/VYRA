@@ -265,7 +265,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
               type="button"
               title={`${label} transition`}
               aria-label={`${label} transition`}
-              aria-pressed={(selectedTransition?.effect || 'dissolve') === effect}
+              aria-pressed={selectedTransition?.effect === effect}
               onClick={() => applyTransition(effect)}
               className={`flex h-14 shrink-0 items-center justify-center rounded-xl border px-3 text-xs font-medium transition-colors ${(selectedTransition?.effect || 'dissolve') === effect ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-text-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)]'}`}
             >
