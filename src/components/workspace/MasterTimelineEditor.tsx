@@ -314,12 +314,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const start = Math.min(totalDuration - 0.2, Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond));
     const duration = Math.min(10, totalDuration - start);
     if (duration < 0.2) return;
+    const nextTrackId = crypto.randomUUID();
     const nextTrack: TimelineTrack = {
-      id: crypto.randomUUID(),
+      id: nextTrackId,
       name: 'Audio',
       clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: Array.from({ length: 32 }, (_, point) => 0.25 + ((point * 11) % 19) / 30) }],
     };
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
+    revealNewTimelineRow('audio', nextTrackId);
   };
 
   const runDeleteSelectedAudio = () => {
@@ -463,8 +465,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const addTextClip = () => {
     const start = Math.max(0, scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
     const tracks = value?.textTracks || [];
+    const nextTrackId = crypto.randomUUID();
     const nextTrack: TimelineTrack = {
-      id: crypto.randomUUID(),
+      id: nextTrackId,
       name: 'Text',
       clips: [{ id: crypto.randomUUID(), name: 'Text', content: 'Text', start, duration: 3 }],
     };
@@ -475,6 +478,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       audioTracks: value?.audioTracks || [],
       textTracks: [...tracks, nextTrack],
     });
+    revealNewTimelineRow('text', nextTrackId);
   };
 
 
