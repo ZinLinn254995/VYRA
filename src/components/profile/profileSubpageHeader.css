@@ -385,3 +385,18 @@ html.is-header-dragging .vyra-global-header-spacer {
 html.is-storyboard-preview-dragging .profile-storyboard-preview-frame {
   transition: none !important;
 }
+
+
+/* Hide the horizontal Master Editor tool scroller in every browser. */
+.master-editor-toolbar-scroll {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.master-editor-toolbar-scroll::-webkit-scrollbar,
+.master-editor-toolbar-scroll::-webkit-scrollbar-track,
+.master-editor-toolbar-scroll::-webkit-scrollbar-thumb {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
