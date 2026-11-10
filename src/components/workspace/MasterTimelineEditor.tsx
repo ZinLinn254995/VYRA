@@ -428,8 +428,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     </div>
 
     <div ref={scrollerRef} onScroll={(event) => setPlayhead(clamp(event.currentTarget.scrollLeft / zoom, 0, totalDuration))} className="relative overflow-auto overscroll-x-contain rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] [scrollbar-color:var(--vyra-text-muted)_var(--vyra-bg-canvas)] [scrollbar-width:thin]">
+      <div className="pointer-events-none absolute bottom-0 top-8 z-40 w-px bg-[var(--vyra-danger)] shadow-[0_0_8px_var(--vyra-danger)]" style={{ left: trackLabelWidth + timelineInset + (timelineViewportWidth - trackLabelWidth) / 2 }} />
       <div className="relative" style={{ width: trackLabelWidth + timelineWidth, minWidth: '100%' }}>
-        <div className="pointer-events-none absolute bottom-0 top-8 z-40 w-px bg-[var(--vyra-danger)] shadow-[0_0_8px_var(--vyra-danger)]" style={{ left: trackLabelWidth + timelineInset + (timelineViewportWidth - trackLabelWidth) / 2 }} />
         <div className="grid" style={{ gridTemplateColumns: `${trackLabelWidth}px ${timelineWidth}px` }}>
           <div className={headerClass}>Time</div>
           <div className="relative h-8 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
