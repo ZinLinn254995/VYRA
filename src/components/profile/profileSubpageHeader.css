@@ -180,6 +180,36 @@
   transition: none !important;
 }
 
+/* Keep the Storyboard header fixed while giving the editor body a definite,
+   shrinkable scroll viewport on desktop and touch devices. */
+.storyboard-fullscreen-card {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+.storyboard-fullscreen-card > .profile-collapse-shell {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.storyboard-fullscreen-card > .profile-subpage-content {
+  display: block;
+  flex: 1 1 0%;
+  height: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.profile-collapse-header--storyboard {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+
 .profile-subpage-content {
   flex: 1 1 auto;
   min-height: 0;
