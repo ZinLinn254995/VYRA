@@ -398,7 +398,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   useEffect(() => {
     storyboardPreviewProgress.current = 0;
-    storyboardPreviewControlsReset();
+    storyboardControlsRef.current?.style.setProperty('--storyboard-preview-frame-width', '100%');
     return () => {
       if (storyboardPreviewSettleTimer.current !== null) {
         window.clearTimeout(storyboardPreviewSettleTimer.current);
@@ -409,9 +409,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     };
   }, [activeStoryboard?.id]);
 
-  const storyboardPreviewControlsReset = () => {
-    storyboardControlsRef.current?.style.setProperty('--storyboard-preview-frame-width', '100%');
-  };
 
   useEffect(() => {
     setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
