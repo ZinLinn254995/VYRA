@@ -73,7 +73,9 @@ const updateStoryboardHeaderCompact = (content: HTMLElement) => {
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
     // Storyboard has no search field, so collapse the unused search-row space completely.
     const collapseDistance = 76;
-    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+    if (!header.classList.contains('profile-collapse-header--storyboard')) {
+      header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+    }
     header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
@@ -785,8 +787,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                         </div>
                       </div>)}
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
-                  </section>
-
                   
                     ) : (
                       <div className="space-y-3">
