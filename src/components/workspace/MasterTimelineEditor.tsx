@@ -96,7 +96,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
-  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number; midpointX: number } | null>(null);
+  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -110,13 +110,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 2) return;
-      const rect = element.getBoundingClientRect();
-      const midpointX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
       pinchRef.current = {
         startDistance: Math.max(1, distance(event.touches)),
         startScale: pixelsPerSecond,
-        anchorTime: (element.scrollLeft + midpointX) / pixelsPerSecond,
-        midpointX,
+        // The leading spacer places timeline time zero directly under the
+        // centered playhead, so scrollLeft / scale is the playhead's time.
+        anchorTime: element.scrollLeft / pixelsPerSecond,
       };
     };
 
@@ -126,7 +125,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
       event.preventDefault();
       const nextScale = Math.min(176, Math.max(32, pinch.startScale * distance(event.touches) / pinch.startDistance));
       setPixelsPerSecond(nextScale);
-      element.scrollLeft = pinch.anchorTime * nextScale - pinch.midpointX;
+      // Zoom around the fixed center playhead, not the fingers' midpoint.
+      element.scrollLeft = pinch.anchorTime * nextScale;
     };
 
     const onTouchEnd = (event: TouchEvent) => {
