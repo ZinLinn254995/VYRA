@@ -205,8 +205,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const current = workspaceHeaderProgress.current;
     // Match Profile subpages: finish the active direction after release.
     if (workspaceHeaderDirection.current < 0 && current > 0.001) {
+      workspaceHeaderProgress.current = 0;
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
     } else if (workspaceHeaderDirection.current > 0 && current < 0.999) {
+      workspaceHeaderProgress.current = 1;
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 1 }));
     }
     root.classList.remove('is-header-dragging');
