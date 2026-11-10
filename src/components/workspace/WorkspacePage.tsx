@@ -288,9 +288,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     workspaceTouchY.current = y;
     if (!delta) return;
     const consumed = updateWorkspaceMainHeader(delta, false);
-    if (consumed <= 0) return;
+    // Keep vertical touch scrolling under one owner. Letting the browser's
+    // native pan compete with manual scrollTop updates causes the sticky bar
+    // and the global-header spacer to jump against each other.
     event.preventDefault();
-    const remaining = Math.abs(delta) - consumed;
+    const remaining = Math.max(0, Math.abs(delta) - consumed);
     if (remaining > 0) {
       scroller.scrollTop = Math.max(0, scroller.scrollTop + Math.sign(delta) * remaining);
     }
@@ -933,7 +935,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }
 
   return (
-    <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+    <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
         <div className="mb-5">
           <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
