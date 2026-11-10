@@ -348,7 +348,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (audioDragRef.current?.timer) clearTimeout(audioDragRef.current.timer);
     const clipElement = event.currentTarget;
     const rect = clipElement.getBoundingClientRect();
-    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, captureElement: clipElement };
+    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, createdTrackId: null as string | null, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, captureElement: clipElement };
     audioDragRef.current = drag;
     drag.timer = setTimeout(() => {
       if (audioDragRef.current !== drag) return;
@@ -400,17 +400,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!destination && rows.length) {
       const lastRect = rows[rows.length - 1].getBoundingClientRect();
       if (event.clientY >= lastRect.bottom - tolerance && event.clientY <= lastRect.bottom + lastRect.height + tolerance) {
-        destinationTrackId = crypto.randomUUID();
+        destinationTrackId = drag.createdTrackId || crypto.randomUUID();
         destinationCenterY = lastRect.bottom + lastRect.height / 2;
-        const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
-        const nextStart = Math.min(totalDuration - clip.duration, Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond));
-        const current = value?.audioTracks || [];
-        const nextTracks = current.filter((track) => track.id !== drag.trackId || track.clips.length > 1)
-          .map((track) => track.id !== drag.trackId ? track : { ...track, clips: track.clips.filter((item) => item.id !== clip.id) });
-        nextTracks.push({ id: destinationTrackId, name: 'Audio', clips: [{ ...clip, start: nextStart }] });
-        onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
-        drag.trackId = destinationTrackId;
-        setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id });
+        if (!drag.createdTrackId) {
+          drag.createdTrackId = destinationTrackId;
+          const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
+          const nextStart = Math.min(totalDuration - clip.duration, Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond));
+          const current = value?.audioTracks || [];
+          const nextTracks = current.filter((track) => track.id !== drag.trackId || track.clips.length > 1)
+            .map((track) => track.id !== drag.trackId ? track : { ...track, clips: track.clips.filter((item) => item.id !== clip.id) });
+          nextTracks.push({ id: destinationTrackId, name: 'Audio', clips: [{ ...clip, start: nextStart }] });
+          onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+          drag.trackId = destinationTrackId;
+          setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id });
+        }
       }
     }
     if (!destinationTrackId) return;
@@ -833,11 +836,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             if (textDrag) {
               const currentClip = textTracks.find((track) => track.id === textDrag.trackId)?.clips.find((clip) => clip.id === textDrag.clipId);
               if (currentClip) moveTextLongPress(event, currentClip);
-            }
-            const audioDrag = audioDragRef.current;
-            if (audioDrag) {
-              const currentClip = (value?.audioTracks || []).find((track) => track.id === audioDrag.trackId)?.clips.find((clip) => clip.id === audioDrag.clipId);
-              if (currentClip) moveAudioLongPress(event, currentClip);
             }
           }}
           onPointerUp={(event) => { endTextLongPress(event); endAudioLongPress(event); }}
