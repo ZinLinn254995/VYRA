@@ -92,7 +92,7 @@ const toolbarItems = [
  * - zoom changes horizontal pixels-per-second only
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneOrderChange, onSceneDuplicate, onSceneDelete }) => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
@@ -308,7 +308,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         }}
                         className="absolute inset-y-0 right-0 z-10 w-3 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/45 opacity-80"
                       />
-                      <div className="absolute right-1 top-0.5 z-20 hidden gap-0.5 group-hover:flex">
+                      <div className="absolute right-1 top-0.5 z-20 flex gap-0.5">
                         <button type="button" title="Clone scene" aria-label="Clone scene" onClick={() => onSceneDuplicate(scene, index + 1)} className="rounded bg-[var(--vyra-bg-surface)]/90 p-0.5 text-[var(--vyra-text-primary)]"><Copy size={11} /></button>
                         <button type="button" title="Delete scene" aria-label="Delete scene" onClick={() => onSceneDelete(scene.id)} className="rounded bg-[var(--vyra-bg-surface)]/90 p-0.5 text-[var(--vyra-danger)]"><Trash2 size={11} /></button>
                       </div>
