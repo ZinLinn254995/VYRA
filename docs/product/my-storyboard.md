@@ -571,7 +571,9 @@ The Storyboard Details control belongs in the pinned card header, not as a separ
 - The Storyboard title adjusts its available width in sync with the shrinking control. The header's existing back/title/description compact animation remains intact.
 - Activating the header control expands or collapses the editable details form in the scrollable content.
 
-The preview area follows a minimal ruler + video canvas layout:
-- A time ruler appears immediately below the header; its range follows the total canonical Scene durations.
-- The Video Preview canvas is shown directly beneath the ruler, without a separate “Video Preview” heading or explanatory helper sentence.
+The preview area follows a direct header-to-canvas layout:
+- No ruler, divider, label, helper text, or other element is placed between the header and Video Preview.
+- The preview canvas begins immediately below the header with tight spacing, rather than a large empty gap.
+- The expanded header and details form use compact vertical spacing so the form sits closer to the header's icon, title, description, and Details control.
+- The Video Preview canvas has no separate heading or explanatory helper sentence.
 - Until an actual render is available, the canvas remains an honest empty preview surface; it must not imply playback or rendering.
