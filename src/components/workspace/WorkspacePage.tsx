@@ -96,6 +96,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
+  const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(true);
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -393,6 +395,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const cancelStoryboardDraft = () => {
     setActiveStoryboard(null);
     setActiveStoryboardConfirmed(false);
+    setStoryboardDetailsExpanded(true);
+    setStoryboardEditorView('scenes');
     setStoryboardAiMessage('');
   };
 
@@ -408,7 +412,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     void persistStoryboard(confirmed);
     setActiveStoryboard(confirmed);
     setActiveStoryboardConfirmed(true);
-    setStoryboardAiMessage('Storyboard confirmed and saved. You can continue building it below.');
+    setStoryboardDetailsExpanded(false);
+    setStoryboardEditorView('scenes');
+    setStoryboardAiMessage('');
   };
 
   const updateActiveStoryboard = (field: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
@@ -634,6 +640,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       }
       setActiveStoryboard(null);
       setActiveStoryboardConfirmed(false);
+      setStoryboardDetailsExpanded(true);
+      setStoryboardEditorView('scenes');
       setStoryboardAiMessage('');
     };
     return (
@@ -648,12 +656,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
           />
           <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
-            <section className="space-y-3">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard details</h2>
-                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</span>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+            <section className="overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+              <button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-expanded={storyboardDetailsExpanded} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-[var(--vyra-bg-hover)]">
+                <span className="min-w-0"><span className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard Details</span><span className="mt-1 block truncate text-[11px] text-[var(--vyra-text-secondary)]">{activeStoryboard.title || 'Untitled Storyboard'}{activeStoryboard.topic ? ' · ' + activeStoryboard.topic : ''}</span></span>
+                <span className="flex shrink-0 items-center gap-2 text-[10px] text-[var(--vyra-text-muted)]">{activeStoryboardConfirmed ? 'Edit details' : 'Required before creating'}<ChevronDown size={15} className={storyboardDetailsExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} /></span>
+              </button>
+              {storyboardDetailsExpanded && <div className="space-y-3 border-t border-[var(--vyra-border)] p-4">
+                {!activeStoryboardConfirmed && <div className="flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</div>}
+                <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Title</label>
                   <input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Storyboard title" />
@@ -674,6 +684,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 </div>
               </div>
               {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
+            
+              </div>}
             </section>
 
             {activeStoryboardConfirmed && (() => {
