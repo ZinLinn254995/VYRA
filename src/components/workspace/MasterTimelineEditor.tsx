@@ -959,7 +959,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         onPointerMove={(event) => moveAudioLongPress(event, clip)}
                         onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}
                         className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-sky-500/50 bg-sky-500/10'}`}
-                        style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'pan-x pan-y pinch-zoom', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id ? `translateY(${textDragYOffset}px)` : undefined }}>
+                        style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id ? `translateY(${textDragYOffset}px)` : undefined }}>
                         {trimHandle('left')}
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <AudioLines size={12} className="mr-1 shrink-0 text-sky-500" />
