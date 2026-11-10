@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Plus, Settings2, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -346,8 +346,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const now = new Date().toISOString();
     const draft: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
-      title: 'Untitled Storyboard',
-      topic: '',
+      title: 'A New Storyboard',
+      topic: 'A new video story is ready to take shape. Create your scenes and build your story.',
       createdAt: now,
       updatedAt: now,
       details: { origins: {} },
@@ -357,10 +357,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setActiveStoryboard(draft);
     setActiveStoryboardConfirmed(false);
     setStoryboardDetailsExpanded(true);
-    setStoryboardAiMessage('AI is preparing suggested storyboard details…');
+    setStoryboardAiMessage('Preparing your storyboard title and description…');
 
     void requestStoryboardSuggestion('', '', true).then((suggestion) => {
-      if (!suggestion) { setStoryboardAiMessage('You can edit the storyboard details or confirm it as-is.'); return; }
+      if (!suggestion) { setStoryboardAiMessage('Your default title and description are ready. Create to continue.'); return; }
       setActiveStoryboard((current) => {
         if (!current || current.id !== draft.id) return current;
         const origins = current.details?.origins || {};
