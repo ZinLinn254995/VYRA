@@ -21,9 +21,11 @@
 .profile-collapse-description, .profile-collapse-action { position: absolute; z-index: 2; }
 .profile-collapse-back {
   top: 12px; left: 24px; display: inline-flex; align-items: center; gap: 7px;
-  width: 210px; max-width: calc(100% - 24px); box-sizing: border-box;
+  width: calc(36px + 174px * (1 - var(--profile-header-progress, 0)));
+  max-width: calc(100% - 24px); box-sizing: border-box;
   overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
   color: var(--vyra-text-secondary); font-size: 14px; font-weight: 500;
+  transition: width 180ms ease-out, background-color 140ms ease-out, color 140ms ease-out;
 }
 .profile-collapse-back:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
 .profile-collapse-back svg { flex: 0 0 16px; }
@@ -259,7 +261,10 @@
   .profile-collapse-header { --profile-header-expanded: 126px; --profile-header-collapse-distance: 62px; }
   .profile-collapse-header--search { --profile-header-expanded: 198px; }
   .profile-collapse-search { left: 12px; right: 12px; bottom: 10px; }
-  .profile-collapse-back { left: 12px; width: 190px; }
+  .profile-collapse-back {
+    left: 12px;
+    width: calc(36px + 154px * (1 - var(--profile-header-progress, 0)));
+  }
   .profile-collapse-icon { left: calc(12px + var(--profile-header-shift-x, 0px)); }
   .profile-collapse-title {
     left: calc(64px + var(--profile-header-title-shift-x, 0px)); right: 12px;
