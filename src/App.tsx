@@ -19,7 +19,6 @@ function MarketplaceApp() {
   const profileLabel = isGuestSession ? 'Temporary Guest Session' : user?.email ?? null;
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [mainHeaderProgress, setMainHeaderProgress] = useState(0);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
@@ -83,12 +82,12 @@ function MarketplaceApp() {
   };
 
   useEffect(() => {
-    const handleHeaderProgress = (event: Event) => { const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)); document.documentElement.style.setProperty('--vyra-main-header-progress', String(progress)); const headerHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64; document.documentElement.style.setProperty('--vyra-header-spacer-collapse', `${headerHeight * progress}px`); setMainHeaderProgress(progress); };
+    const handleHeaderProgress = (event: Event) => { const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)); document.documentElement.style.setProperty('--vyra-main-header-progress', String(progress)); const headerHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64; document.documentElement.style.setProperty('--vyra-header-spacer-collapse', `${headerHeight * progress}px`); };
     window.addEventListener('vyra:main-header-progress', handleHeaderProgress);
     return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
   }, []);
 
-  useLayoutEffect(() => { window.scrollTo(0, 0); setMainHeaderProgress(0); document.documentElement.style.setProperty('--vyra-main-header-progress', '0'); document.documentElement.style.setProperty('--vyra-header-spacer-collapse', '0px'); }, [activeSection, profileOpen]);
+  useLayoutEffect(() => { window.scrollTo(0, 0); document.documentElement.style.setProperty('--vyra-main-header-progress', '0'); document.documentElement.style.setProperty('--vyra-header-spacer-collapse', '0px'); window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 })); }, [activeSection, profileOpen]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -102,7 +101,6 @@ function MarketplaceApp() {
   return (
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <MarketplaceHeader
-        hideProgress={mainHeaderProgress}
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
         onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
