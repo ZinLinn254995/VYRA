@@ -83,33 +83,33 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
 };
 
 const updateProfileHeaderCompact = (content: HTMLElement) => {
-  const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
-  if (header) {
-    const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
-    header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
-    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
-    header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-    header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
-    header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
-    header.style.setProperty('--profile-full-action-events', headerProgress < 0.5 ? 'auto' : 'none');
-    header.style.setProperty('--profile-compact-action-events', headerProgress >= 0.5 ? 'auto' : 'none');
-    const fullAction = header.querySelector<HTMLElement>('.profile-collapse-action-full');
-    const compactAction = header.querySelector<HTMLElement>('.profile-collapse-action-compact');
-    const compactMode = headerProgress >= 0.5;
-    fullAction?.toggleAttribute('inert', compactMode);
-    fullAction?.setAttribute('aria-hidden', String(compactMode));
-    compactAction?.toggleAttribute('inert', !compactMode);
-    compactAction?.setAttribute('aria-hidden', String(!compactMode));
-  }
+  if (!header) return;
+  const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
+  const compactMode = currentProgress >= 0.5 ? content.scrollTop > 16 : content.scrollTop >= 44;
+  const headerProgress = compactMode ? 1 : 0;
+  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
+  const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+  header.style.setProperty('--profile-header-progress', String(headerProgress));
+  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-icon-rotation', '0deg');
+  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
+  header.style.setProperty('--profile-back-label-opacity', (1 - headerProgress).toFixed(3));
+  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+  header.style.setProperty('--profile-full-action-events', compactMode ? 'none' : 'auto');
+  header.style.setProperty('--profile-compact-action-events', compactMode ? 'auto' : 'none');
+  const fullAction = header.querySelector<HTMLElement>('.profile-collapse-action-full');
+  const compactAction = header.querySelector<HTMLElement>('.profile-collapse-action-compact');
+  fullAction?.toggleAttribute('inert', compactMode);
+  fullAction?.setAttribute('aria-hidden', String(compactMode));
+  compactAction?.toggleAttribute('inert', !compactMode);
+  compactAction?.setAttribute('aria-hidden', String(!compactMode));
 };
 
 const searchableProfilePages = new Set<PageKey>(['my-media-library', 'saved', 'purchased', 'collections', 'following', 'notifications', 'settings', 'help']);
