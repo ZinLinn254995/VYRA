@@ -280,7 +280,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     drag.timer = setTimeout(() => {
       if (textDragRef.current !== drag) return;
       drag.active = true;
-      targetElement.setPointerCapture(event.pointerId);
+      scrollRef.current?.setPointerCapture(event.pointerId);
       setSelectedSceneIds([]);
       setSelectedTransitionKey(null);
       setSelectedTextClip({ trackId, clipId: clip.id });
@@ -312,7 +312,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const destinationTrackId = destination.dataset.textTrackId;
     if (!destinationTrackId) return;
     const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
-    const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX + (clip.start * pixelsPerSecond)) / pixelsPerSecond);
+    const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
     const destinationTrack = textTracks.find((item) => item.id === destinationTrackId);
     if (!destinationTrack) return;
     const collides = destinationTrack.clips.some((item) =>
@@ -459,6 +459,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           ref={scrollRef}
           className="master-timeline-scroll h-full min-h-0 w-full overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ touchAction: "pan-x pan-y" }}
+          onPointerMove={(event) => {
+            const drag = textDragRef.current;
+            if (!drag?.active) return;
+            const currentClip = textTracks.find((track) => track.id === drag.trackId)?.clips.find((clip) => clip.id === drag.clipId);
+            if (currentClip) moveTextLongPress(event, currentClip);
+          }}
+          onPointerUp={endTextLongPress}
+          onPointerCancel={endTextLongPress}
           onClick={(event) => {
             if (!(event.target as HTMLElement).closest("button")) {
               setSelectedSceneIds([]);
@@ -576,7 +584,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
-                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'pan-y' }} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)} onPointerMove={(event) => moveTextLongPress(event, clip)} onPointerUp={endTextLongPress} onPointerCancel={endTextLongPress}>
+                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none' }} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
                         <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
