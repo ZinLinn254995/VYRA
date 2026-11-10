@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   AudioLines,
   Crop,
@@ -180,7 +179,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
 
   const toolbar = (
     <nav
-      className="master-editor-bottom-nav fixed inset-x-0 bottom-0 z-[100] flex w-screen max-w-none items-center gap-2 pt-2"
+      className="master-editor-bottom-nav relative z-20 flex w-full shrink-0 items-center gap-2 pt-2"
       style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
       aria-label="Master Editor tools"
     >
@@ -242,7 +241,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
           <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
         </div>
       </div>
-      {typeof document !== 'undefined' ? createPortal(toolbar, document.body) : null}
+      {toolbar}
     </div>
   );
 };
