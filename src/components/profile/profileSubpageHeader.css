@@ -372,8 +372,8 @@
   z-index: 5;
   flex: 0 0 auto;
   width: auto;
-  margin-left: -16px;
-  margin-right: -16px;
+  margin-left: 0;
+  margin-right: 0;
   background: var(--vyra-bg-canvas);
 }
 .profile-storyboard-preview {
@@ -384,8 +384,8 @@
 }
 @media (min-width: 640px) {
   .storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
-    margin-left: -20px;
-    margin-right: -20px;
+    margin-left: 0;
+    margin-right: 0;
   }
   .profile-storyboard-preview,
   .profile-storyboard-view-tabs {
