@@ -891,7 +891,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             </button>
           </header>
           {storyboardDetailsExpanded && (
-            <section className="space-y-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-4 sm:px-5">
+            <section className="shrink-0 space-y-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-4 sm:px-5">
               <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Title</span><input value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} maxLength={100} className={inputClass} /></label>
               <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Description</span><textarea value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} rows={2} maxLength={500} className={inputClass + ' min-h-20 resize-y py-2'} /></label>
               <div className="grid grid-cols-2 gap-3">
@@ -902,7 +902,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           )}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
-            <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 sm:-mx-5">
+            <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
               <div className="profile-storyboard-preview">
                 <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
