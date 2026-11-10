@@ -65,7 +65,7 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
-const updateStoryboardHeaderCompact = (content: HTMLElement) => {
+const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (!header) return;
 
@@ -74,8 +74,8 @@ const updateStoryboardHeaderCompact = (content: HTMLElement) => {
   // its transition when the user pauses scrolling.
   const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
   const compact = currentProgress >= 0.5
-    ? content.scrollTop > 16
-    : content.scrollTop >= 44;
+    ? scrollTop > 16
+    : scrollTop >= 44;
   const headerProgress = compact ? 1 : 0;
 
   const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
@@ -666,7 +666,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'Preparing your storyboard description…'}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateStoryboardHeaderCompact(event.currentTarget); }}>
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateStoryboardHeaderCompact(event.currentTarget, target.scrollTop); }}>
           {activeStoryboardConfirmed && (
             <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
