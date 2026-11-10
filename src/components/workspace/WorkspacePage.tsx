@@ -201,10 +201,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (!deltaY) return;
     const scroller = workspaceScrollRef.current;
     const bar = storyboardBarRef.current;
-    if (!scroller || !bar || bar.getBoundingClientRect().top > scroller.getBoundingClientRect().top + 1) return;
+    if (!scroller || !bar) return;
     const direction = deltaY > 0 ? 1 : -1;
     const root = document.documentElement;
     const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    // Match Profile subpages: once the Main Header starts hiding, keep the
+    // reverse gesture active even if the sticky Storyboard bar moves away
+    // from the exact contact point during the downward pull. Only the first
+    // upward handoff requires the Storyboard bar to have reached the top.
+    const barReachedTop = bar.getBoundingClientRect().top <= scroller.getBoundingClientRect().top + 1;
+    if (direction > 0 && current <= 0.001 && !barReachedTop) return;
+    if (direction < 0 && current <= 0.001) return;
     if (workspaceHeaderDirection.current !== direction) {
       workspaceHeaderHandoff.current = 0;
       workspaceHeaderStartProgress.current = current;
