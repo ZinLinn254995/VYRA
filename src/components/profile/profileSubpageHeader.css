@@ -1,7 +1,7 @@
 /* The header remains pinned while its contents ease into a compact top row. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
-  --profile-header-expanded: 148px;
+  --profile-header-expanded: 132px;
   --profile-header-collapse-distance: 44px;
   position: relative; z-index: 3;
   flex: 0 0 var(--profile-header-height, var(--profile-header-expanded));
@@ -232,7 +232,7 @@
 }
 .profile-collapse-search > * { width: 100%; }
 @media (max-width: 639px) {
-  .profile-collapse-header { --profile-header-expanded: 142px; }
+  .profile-collapse-header { --profile-header-expanded: 126px; }
   .profile-collapse-header--search { --profile-header-expanded: 198px; }
   .profile-collapse-search { left: 12px; right: 12px; bottom: 10px; }
   .profile-collapse-back { left: 12px; width: 190px; }
