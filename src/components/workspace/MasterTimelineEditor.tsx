@@ -97,7 +97,7 @@ const toolbarItems = [
 export const MasterTimelineEditor: React.FC<Props> = () => {
   const toolbar = (
     <nav
-      className="master-editor-bottom-nav fixed inset-x-0 bottom-0 z-[100] flex w-screen max-w-none items-center gap-2 border-t border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3 pt-2 shadow-[0_-6px_18px_rgba(0,0,0,0.08)]"
+      className="master-editor-bottom-nav fixed inset-x-0 bottom-0 z-[100] flex w-screen max-w-none items-center gap-2 pt-2"
       style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
       aria-label="Master Editor tools"
     >
