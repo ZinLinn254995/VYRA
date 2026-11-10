@@ -28,7 +28,11 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
     const element = headerRef.current;
     if (!element) return;
     const syncHeaderHeight = () => {
-      document.documentElement.style.setProperty('--vyra-global-header-height', `${Math.ceil(element.getBoundingClientRect().height)}px`);
+      const height = Math.ceil(element.getBoundingClientRect().height);
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-global-header-height', `${height}px`);
+      const progress = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0;
+      root.style.setProperty('--vyra-header-spacer-collapse', `${height * progress}px`);
     };
     syncHeaderHeight();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncHeaderHeight) : null;
