@@ -443,7 +443,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (track.id === drag.trackId) return { ...track, clips: track.clips.filter((item) => item.id !== clip.id) };
       if (track.id === destinationTrackId) return { ...track, clips: [...track.clips, { ...clip, start: nextStart }] };
       return track;
-    }).filter((track) => track.clips.length > 0);
+    }).filter((track) => track.clips.length > 0 || track.id === drag.originalTrack.id);
     if (destinationTrackId !== drag.trackId) { drag.trackId = destinationTrackId; setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id }); }
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
   };
@@ -470,21 +470,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const settleClipDrop = (kind: 'text' | 'audio', drag: NonNullable<typeof textDragRef.current>) => {
     const tracks = kind === 'text' ? (value?.textTracks || []) : (value?.audioTracks || []);
     const destination = tracks.find((track) => track.id === drag.trackId);
-    const droppedClip = destination?.clips.find((clip) => clip.id === drag.clipId);
+    const originalClip = drag.originalTrack.clips.find((clip) => clip.id === drag.clipId);
+    // Never abandon a dragged clip if an intermediate render temporarily
+    // removes it from the destination row.
+    const droppedClip = destination?.clips.find((clip) => clip.id === drag.clipId) || originalClip;
     if (!droppedClip) return;
     const maxDuration = kind === 'audio' ? totalDuration : Math.max(totalDuration, ...tracks.flatMap((track) => track.clips.map((clip) => clip.start + clip.duration)), droppedClip.start + droppedClip.duration);
-    let resolvedStart = nearestFreeClipStart(destination.clips, drag.clipId, droppedClip.start, droppedClip.duration, maxDuration);
-    let resolvedTrackId = destination.id;
+    let resolvedStart = destination
+      ? nearestFreeClipStart(destination.clips, drag.clipId, droppedClip.start, droppedClip.duration, maxDuration)
+      : null;
+    let resolvedTrackId = destination?.id || drag.originalTrack.id;
     let nextTracks = tracks;
     if (resolvedStart === null) {
-      const original = tracks.find((track) => track.id === drag.originalTrack.id) || drag.originalTrack;
-      const originalStart = nearestFreeClipStart(original.clips, drag.clipId, drag.originalStart, droppedClip.duration, Math.max(maxDuration, drag.originalStart + droppedClip.duration));
-      if (originalStart === null) return;
-      resolvedStart = originalStart;
-      resolvedTrackId = original.id;
-      nextTracks = tracks.some((track) => track.id === original.id)
-        ? tracks
-        : [...tracks.slice(0, Math.max(0, Math.min(drag.originalTrackIndex, tracks.length))), original];
+      // If the destination has no room, restore the clip to its exact source
+      // position. Keep it even if another clip has since occupied that interval.
+      resolvedStart = drag.originalStart;
+      resolvedTrackId = drag.originalTrack.id;
+      const original = tracks.find((track) => track.id === drag.originalTrack.id);
+      if (!original) {
+        nextTracks = [...tracks.slice(0, Math.max(0, Math.min(drag.originalTrackIndex, tracks.length))), {
+          ...drag.originalTrack,
+          clips: drag.originalTrack.clips.filter((clip) => clip.id !== drag.clipId),
+        }];
+      }
     }
     nextTracks = nextTracks.map((track) => {
       if (track.id === resolvedTrackId) {
@@ -681,7 +689,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (item.id === drag.trackId) return { ...item, clips: item.clips.filter((entry) => entry.id !== clip.id) };
       if (item.id === destinationTrackId) return { ...item, clips: [...item.clips, { ...clip, start: nextStart }] };
       return item;
-    }).filter((item) => item.clips.length > 0);
+    }).filter((item) => item.clips.length > 0 || item.id === drag.originalTrack.id);
     if (destinationTrackId !== drag.trackId) {
       drag.trackId = destinationTrackId;
       setSelectedTextClip({ trackId: destinationTrackId, clipId: clip.id });
