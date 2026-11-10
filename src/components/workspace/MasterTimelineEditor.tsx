@@ -96,7 +96,7 @@ export const MasterTimelineEditor: React.FC<Props> = () => (
   <div className="relative flex min-h-[420px] w-full items-end justify-center pb-4 pt-6">
     <div className="sticky bottom-3 z-10 w-full max-w-full">
       <div
-        className="flex w-full max-w-full items-center gap-3 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="master-editor-toolbar-scroll flex w-full max-w-full items-center gap-3 overflow-x-auto px-3 py-2"
         aria-label="Master Editor tools"
       >
         {toolbarItems.map(({ label, Icon }) => (
