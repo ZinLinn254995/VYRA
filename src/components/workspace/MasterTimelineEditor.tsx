@@ -3,7 +3,6 @@ import {
   AudioLines,
   Crop,
   Copy,
-  Scissors,
   Gauge,
   Layers,
   MousePointer2,
@@ -13,7 +12,6 @@ import {
   Trash2,
   Type,
   Undo2,
-  BetweenHorizontalStart,
 } from 'lucide-react';
 
 export type TimelineClip = {
@@ -70,8 +68,6 @@ type Props = {
 
 const toolbarItems = [
   { label: 'Select', Icon: MousePointer2 },
-  { label: 'Split', Icon: Scissors },
-  { label: 'Trim', Icon: BetweenHorizontalStart },
   { label: 'Delete', Icon: Trash2 },
   { label: 'Duplicate', Icon: Copy },
   { label: 'Crop', Icon: Crop },
@@ -97,8 +93,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
   const pixelsPerSecondRef = useRef(80);
-  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);\n  const trimRef = useRef<{ pointerId: number; sceneId: string; edge: 'start' | 'end'; startX: number; sourceIn: number; sourceOut: number; sceneDuration: number } | null>(null);
-
+  const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);\n
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
@@ -176,56 +171,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     return [...ordered, ...scenes.filter((scene) => !included.has(scene.id))];
   }, [scenes, value?.sceneInstances]);
 
-  const sceneSegments = orderedScenes.map((scene) => {
-    const instance = value?.sceneInstances?.find((item) => item.sceneId === scene.id);
-    const range = value?.sceneRanges?.[scene.id];
-    const sourceIn = Math.min(Math.max(0, Number(range?.sourceIn ?? instance?.sourceIn ?? 0)), Math.max(0, scene.duration - 0.1));
-    const sourceOut = Math.min(Math.max(sourceIn + 0.1, Number(range?.sourceOut ?? instance?.sourceOut ?? scene.duration)), Math.max(0.1, scene.duration));
-    return { sourceIn, sourceOut, duration: Math.max(0.1, sourceOut - sourceIn) };
-  });
+  // Timeline scenes are the same immutable-duration scenes shown in the
+  // Scenes tab. Trimming and splitting are intentionally not supported.
+  const sceneSegments = orderedScenes.map((scene) => ({
+    sourceIn: 0,
+    sourceOut: scene.duration,
+    duration: Math.max(0.1, scene.duration),
+  }));
   const sceneDurations = sceneSegments.map((segment) => segment.duration);
-
-  const updateSceneRange = (sceneId: string, sourceIn: number, sourceOut: number) => {
-    const scene = scenes.find((item) => item.id === sceneId);
-    if (!scene) return;
-    const nextIn = Math.max(0, Math.min(sourceIn, scene.duration - 0.1));
-    const nextOut = Math.max(nextIn + 0.1, Math.min(sourceOut, scene.duration));
-    onChange({
-      sceneRanges: { ...(value?.sceneRanges || {}), [sceneId]: { sourceIn: nextIn, sourceOut: nextOut } },
-      sceneInstances: (value?.sceneInstances || []).map((instance) => instance.sceneId === sceneId
-        ? { ...instance, sourceIn: nextIn, sourceOut: nextOut }
-        : instance),
-      transitions: value?.transitions || {},
-      audioTracks: value?.audioTracks || [],
-      textTracks: value?.textTracks || [],
-    });
-  };
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      const drag = trimRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) return;
-      const delta = (event.clientX - drag.startX) / pixelsPerSecondRef.current;
-      if (drag.edge === 'start') {
-        const nextIn = Math.max(0, Math.min(drag.sourceIn + delta, drag.sourceOut - 0.1));
-        updateSceneRange(drag.sceneId, nextIn, drag.sourceOut);
-      } else {
-        const nextOut = Math.max(drag.sourceIn + 0.1, Math.min(drag.sourceOut + delta, drag.sceneDuration));
-        updateSceneRange(drag.sceneId, drag.sourceIn, nextOut);
-      }
-    };
-    const onPointerUp = (event: PointerEvent) => {
-      if (trimRef.current?.pointerId === event.pointerId) trimRef.current = null;
-    };
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
-    };
-  }, [scenes, value, pixelsPerSecond]);
   const totalDuration = Math.max(1, sceneDurations.reduce((sum, duration) => sum + duration, 0));
   const timelineWidth = totalDuration * pixelsPerSecond;
   const leadingSpace = viewportWidth / 2;
@@ -284,29 +237,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       className="group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10 px-3"
                       style={{ width: Math.max(24, segment.duration * pixelsPerSecond) }}
                     >
-                      <button
-                        type="button"
-                        aria-label={'Adjust start of ' + scene.title}
-                        title="Drag to adjust start"
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          trimRef.current = { pointerId: event.pointerId, sceneId: scene.id, edge: 'start', startX: event.clientX, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, sceneDuration: scene.duration };
-                        }}
-                        className="absolute inset-y-0 left-0 z-10 w-3 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/45 opacity-80"
-                      />
                       <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{scene.title}</span>
-                      <button
-                        type="button"
-                        aria-label={'Adjust end of ' + scene.title}
-                        title="Drag to adjust end"
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          trimRef.current = { pointerId: event.pointerId, sceneId: scene.id, edge: 'end', startX: event.clientX, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, sceneDuration: scene.duration };
-                        }}
-                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/45 opacity-80"
-                      />
                       <div className="absolute right-1 top-0.5 z-20 flex gap-0.5">
                         <button type="button" title="Clone scene" aria-label="Clone scene" onClick={() => onSceneDuplicate(scene, index + 1)} className="rounded bg-[var(--vyra-bg-surface)]/90 p-0.5 text-[var(--vyra-text-primary)]"><Copy size={11} /></button>
                         <button type="button" title="Delete scene" aria-label="Delete scene" onClick={() => onSceneDelete(scene.id)} className="rounded bg-[var(--vyra-bg-surface)]/90 p-0.5 text-[var(--vyra-danger)]"><Trash2 size={11} /></button>
