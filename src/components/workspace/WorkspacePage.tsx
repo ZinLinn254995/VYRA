@@ -747,15 +747,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 <div className="space-y-5 border-t border-[var(--vyra-border)] pt-5">
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Storyboard Preview</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">The complete video preview will appear here as scenes receive media.</p></div>
+                      <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Video Preview</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Final video preview · media playback will be connected as Scenes are rendered.</p></div>
                     </div>
                     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                      {<div className="relative z-10 text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-medium text-[var(--vyra-text-primary)]">Your video preview</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scenes.length ? scenes.length + ' scenes in this Storyboard' : 'Add your first scene to begin.'}</p></div>}
+                      {<div className="relative z-10 text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-medium text-[var(--vyra-text-primary)]">Video preview is not rendered yet</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scenes.length ? scenes.length + ' scenes in this Storyboard' : 'Add your first scene to begin.'}</p></div>}
                     </div>
                   </section>
 
-                  <section className="space-y-3">
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-1 border-b border-[var(--vyra-border)]">
+                      <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-3 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
+                      <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-3 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
+                    </div>
+                    {storyboardEditorView === 'scenes' ? (
+<section className="space-y-3">
                     <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Build the story in the order you want.</p></div><Button type="button" onClick={addScene}><Plus size={14} /> Add Scene</Button></div>
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
@@ -781,7 +787,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
                   </section>
 
-                  <MasterTimelineEditor
+                  
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Master Editor</h2><p className="mt-1 text-[11px] text-[var(--vyra-text-secondary)]">Timeline composition simulation · Scene source projects are kept independent.</p></div>
+                          <span className="rounded-md bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] font-semibold tracking-wide text-[var(--vyra-text-muted)]">SIMULATION</span>
+                        </div>
+<MasterTimelineEditor
                     scenes={scenes.map((scene) => ({
                       ...scene,
                       projectId: scene.project?.id,
@@ -818,6 +831,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       updatedAt: new Date().toISOString(),
                     } : current)}
                   />
+                      </div>
+                    )}
+                  </section>
                 </div>
               );
             })()}
