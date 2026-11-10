@@ -5,6 +5,7 @@ import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
+import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from '../profile/headerScrollMotion';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
@@ -66,36 +67,7 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
 const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
-  const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
-  if (!header) return;
-
-  // Snap between the two complete layouts. Do not tie the animation progress
-  // to every scroll pixel: that can leave the header frozen halfway through
-  // its transition when the user pauses scrolling.
-  // Any real upward scroll should compact the header, even when the page has little or no data.
-  const compact = scrollTop > 0;
-  const headerProgress = compact ? 1 : 0;
-
-  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
-  const collapseDistance = 76;
-  header.style.setProperty('--profile-header-progress', String(headerProgress));
-  // The header completes its full-height change; the flex content area then
-  // automatically receives the remaining viewport height.
-  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-rotation', '0deg');
-  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-  header.style.setProperty('--profile-create-button-width', (148 - 64 * headerProgress) + 'px');
-  header.style.setProperty('--profile-create-extra-width', (100 * (1 - headerProgress)) + 'px');
-  header.style.setProperty('--profile-create-extra-opacity', (1 - headerProgress).toFixed(3));
-  header.style.setProperty('--profile-create-extra-shift', (12 * headerProgress) + 'px');
-  header.style.setProperty('--profile-back-label-opacity', (1 - headerProgress).toFixed(3));
-  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
 };
 
 
@@ -664,7 +636,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'Preparing your storyboard description…'}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateStoryboardHeaderCompact(event.currentTarget, target.scrollTop); }} onWheel={(event) => { const el = event.currentTarget; if (el.dataset.headerWheelLocked === '1') return; el.dataset.headerWheelLocked = '1'; const header = el.closest('.profile-subpage-card')?.querySelector('.profile-collapse-header'); const compact = Number.parseFloat(header?.style.getPropertyValue('--profile-header-progress') || '0') >= 0.5; const hidden = document.querySelector('header[aria-hidden="true"]') !== null; const stage = compact || hidden ? 'main' : 'compact'; if (event.deltaY > 0) { if (stage === 'main' && compact) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: true })); else if (stage === 'compact') updateStoryboardHeaderCompact(el, 1); } else if (event.deltaY < 0) { if (hidden) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: false })); else if (el.scrollTop <= 0) updateStoryboardHeaderCompact(el, 0); } window.setTimeout(() => { delete el.dataset.headerWheelLocked; }, 220); }} onTouchStart={(event) => { const el = event.currentTarget; const header = el.closest('.profile-subpage-card')?.querySelector('.profile-collapse-header'); const compact = Number.parseFloat(header?.style.getPropertyValue('--profile-header-progress') || '0') >= 0.5; const hidden = document.querySelector('header[aria-hidden="true"]') !== null; el.dataset.compactTouchY = String(event.touches[0]?.clientY ?? 0); el.dataset.compactTouchStage = compact || hidden ? 'main' : 'compact'; }} onTouchMove={(event) => { const el = event.currentTarget; const start = Number(el.dataset.compactTouchY || 0); const current = event.touches[0]?.clientY ?? start; const stage = el.dataset.compactTouchStage; if (current < start - 4) { if (stage === 'main') window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: true })); else if (stage === 'compact') updateStoryboardHeaderCompact(el, 1); } else if (current > start + 4) { if (document.querySelector('header[aria-hidden="true"]')) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: false })); else if (el.scrollTop <= 0) updateStoryboardHeaderCompact(el, 0); } }} onTouchEnd={(event) => { delete event.currentTarget.dataset.compactTouchStage; }}>
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
