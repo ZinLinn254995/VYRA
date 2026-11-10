@@ -655,7 +655,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             backLabel="Workspace"
             icon={<Clapperboard size={22} />}
             title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
-            description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
+            description={activeStoryboard.topic || 'Preparing your storyboard description…'}
             storyboardTitle
           />
           <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
