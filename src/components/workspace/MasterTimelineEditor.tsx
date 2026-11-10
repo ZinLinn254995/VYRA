@@ -243,6 +243,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           ref={scrollRef}
           className="master-timeline-scroll h-full min-h-0 w-full overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ touchAction: "pan-x pan-y" }}
+          onClick={(event) => {
+            if (!(event.target as HTMLElement).closest("button")) {
+              setSelectedSceneIds([]);
+            }
+          }}
         >
           <div className="flex min-h-full w-max items-start">
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
