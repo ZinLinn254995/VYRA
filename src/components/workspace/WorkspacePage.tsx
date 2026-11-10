@@ -171,12 +171,29 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const workspaceScrollRef = useRef<HTMLElement>(null);
   const storyboardBarRef = useRef<HTMLElement>(null);
+  const workspaceHeaderProgress = useRef(0);
+  const workspaceBarTriggerScroll = useRef(0);
+  const workspaceHeaderHeight = useRef(64);
   const workspaceTouchY = useRef<number | null>(null);
   const workspaceHeaderDirection = useRef(0);
   const workspaceHeaderStartProgress = useRef(0);
   const workspaceHeaderHandoff = useRef(0);
   const workspaceHeaderSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
+
+  // Measure the sticky handoff point and fixed header dimensions once. Reading
+  // layout geometry/computed styles on every touchmove forces synchronous
+  // layout while the spacer and sticky bar are both changing.
+  useLayoutEffect(() => {
+    const scroller = workspaceScrollRef.current;
+    const bar = storyboardBarRef.current;
+    const root = document.documentElement;
+    workspaceHeaderProgress.current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    workspaceHeaderHeight.current = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-global-header-height')) || 64;
+    if (scroller && bar) {
+      workspaceBarTriggerScroll.current = Math.max(0, bar.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+    }
+  }, []);
 
   const settleWorkspaceMainHeader = () => {
     if (workspaceHeaderSettleTimer.current !== null) {
@@ -185,7 +202,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     }
     if (workspaceHeaderDirection.current === 0) return;
     const root = document.documentElement;
-    const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    const current = workspaceHeaderProgress.current;
     // Match Profile subpages: finish the active direction after release.
     if (workspaceHeaderDirection.current < 0 && current > 0.001) {
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
@@ -208,8 +225,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (!scroller || !bar) return 0;
     const direction = deltaY > 0 ? 1 : -1;
     const root = document.documentElement;
-    const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
-    const barReachedTop = bar.getBoundingClientRect().top <= scroller.getBoundingClientRect().top + 1;
+    const current = workspaceHeaderProgress.current;
+    const barReachedTop = scroller.scrollTop >= workspaceBarTriggerScroll.current - 1;
     if (direction > 0 && current <= 0.001 && !barReachedTop) return 0;
     if (direction < 0 && current <= 0.001) return 0;
 
@@ -227,12 +244,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const movement = total - buffer;
     let moved = 0;
     if (movement > 0) {
-      const distance = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-global-header-height')) || 64;
+      const distance = workspaceHeaderHeight.current;
       const next = direction > 0
         ? Math.min(1, current + movement / distance)
         : Math.max(0, current - movement / distance);
       moved = Math.abs(next - current) * distance;
       if (Math.abs(next - current) > 0.0001) {
+        workspaceHeaderProgress.current = next;
         window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: next }));
       }
     }
