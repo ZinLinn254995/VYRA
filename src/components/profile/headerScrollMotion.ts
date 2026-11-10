@@ -115,21 +115,36 @@ export const settleHeaderMotion = (content: HTMLElement) => {
   const compact = getCompactProgress(content);
   const main = getMainProgress();
   const direction = Number(content.dataset.headerLastDirection || 0);
+
+  // Re-enable transitions before applying the snap target. Updating the CSS
+  // variables while the drag class is active leaves the header at the finger
+  // position on some touch browsers instead of animating to its resting state.
+  content.classList.remove('is-header-dragging');
+  document.documentElement.classList.remove('is-header-dragging');
+
+  let targetCompact: number;
+  let targetMain: number;
   if (direction > 0) {
-    setCompactProgress(content, 1);
-    setMainProgress(main > 0.001 ? 1 : 0);
+    targetCompact = 1;
+    targetMain = main > 0.001 ? 1 : 0;
   } else if (direction < 0) {
-    setMainProgress(0);
-    setCompactProgress(main > 0.001 ? 1 : 0);
+    targetMain = 0;
+    targetCompact = main > 0.001 ? 1 : 0;
   } else {
-    setCompactProgress(content, compact >= 0.5 ? 1 : 0);
-    setMainProgress(main >= 0.5 ? 1 : 0);
+    targetCompact = compact >= 0.5 ? 1 : 0;
+    targetMain = main >= 0.5 ? 1 : 0;
   }
+
+  // Apply on the next frame so the browser commits the transition-enabled
+  // state first; partial releases always finish at Normal or Compact.
+  window.requestAnimationFrame(() => {
+    setCompactProgress(content, targetCompact);
+    setMainProgress(targetMain);
+  });
+
   delete content.dataset.headerLastDirection;
   delete content.dataset.headerHandoffDirection;
   delete content.dataset.headerHandoffProgress;
-  content.classList.remove('is-header-dragging');
-  document.documentElement.classList.remove('is-header-dragging');
 };
 
 export const beginHeaderMotion = (content: HTMLElement) => {
