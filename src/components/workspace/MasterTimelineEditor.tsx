@@ -340,10 +340,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         setSelectedSceneIds([]);
                         setSelectedTransitionKey(transitionKey);
                       }}
-                      className={`absolute top-1/2 z-10 flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border px-2 shadow-sm transition-colors ${transition ? 'text-[10px] font-semibold' : 'text-xl font-medium leading-none'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)] hover:border-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-muted)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-text-primary)]'}`}
+                      className={`absolute top-1/2 z-10 inline-flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border px-2 shadow-sm transition-colors ${transition ? 'text-[10px] font-semibold' : 'p-0 text-[22px] font-medium leading-none'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)] hover:border-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-muted)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-text-primary)]'}`}
                       style={{ left: boundary }}
                     >
-                      {transition ? effectLabel : '+'}
+                      {transition ? effectLabel : <span className="flex h-full w-full items-center justify-center leading-none">+</span>}
                     </button>
                   );
                 })}
