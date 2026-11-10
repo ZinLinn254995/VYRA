@@ -656,55 +656,23 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             icon={<Clapperboard size={22} />}
             title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
-            detailsAction={<button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-label="Toggle Storyboard Details" aria-expanded={storyboardDetailsExpanded} title="Storyboard Details" className="profile-storyboard-details-toggle"><Settings2 size={16} /><span>Storyboard Details</span></button>}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => { updateStoryboardHeaderCompact(event.currentTarget); if (event.currentTarget.scrollTop > 8) setStoryboardDetailsExpanded(false); }}>
-          <div className="profile-storyboard-controls -mx-4 mb-3 sm:-mx-5">
-                <div className={`profile-storyboard-details-panel ${storyboardDetailsExpanded ? 'is-open' : 'is-closed'}`}>
-                  <div className="profile-storyboard-details-panel-inner">
-                    <section className="space-y-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2.5">
-                      {!activeStoryboardConfirmed && <div className="flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</div>}
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <div className="sm:col-span-2">
-                          <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Title</label>
-                          <input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Storyboard title" />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Description</label>
-                          <textarea rows={2} maxLength={500} value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} className={inputClass + ' min-h-[3.5rem] resize-y py-1.5'} placeholder="What is this story about?" />
-                        </div>
-                        {(['category', 'style', 'mood'] as const).map((key) => (
-                          <div key={key}>
-                            <label className="mb-1 block text-[11px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{key === 'style' ? 'Visual style' : key}</label>
-                            <input value={details[key] || ''} onChange={(event) => updateActiveStoryboard(key, event.target.value)} className={inputClass + ' min-h-9'} placeholder="AI suggested" />
-                          </div>
-                        ))}
-                        <div>
-                          <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Tags</label>
-                          <input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Tags" />
-                        </div>
-                      </div>
-                      {storyboardAiMessage && <p role="status" className="text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
-                    </section>
-                  </div>
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
+          {activeStoryboardConfirmed && (
+            <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
+              <div className="profile-storyboard-preview">
+                <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
+                  <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
                 </div>
-                {activeStoryboardConfirmed && (
-                  <>
-                    <div className="profile-storyboard-preview">
-                      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                        <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
-                      </div>
-                    </div>
-                    <div className="profile-storyboard-view-tabs flex items-center gap-1 border-b border-[var(--vyra-border)]">
-                      <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
-                      <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
-                    </div>
-                  </>
-                )}
-
-          </div>
+              </div>
+              <div className="profile-storyboard-view-tabs flex items-center gap-1 border-b border-[var(--vyra-border)]">
+                <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
+                <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
+              </div>
+            </div>
+          )}
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
