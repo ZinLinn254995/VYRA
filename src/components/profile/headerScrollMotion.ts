@@ -58,6 +58,12 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
   let main = getMainProgress();
   const compactDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
   const mainDistance = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64;
+  // A small handoff zone separates the two headers so they never move at once.
+  const handoffDistance = 28;
+  const previousHandoffDirection = Number(content.dataset.headerHandoffDirection || 0);
+  let handoffProgress = Number(content.dataset.headerHandoffProgress || 0);
+  if (previousHandoffDirection !== direction) handoffProgress = 0;
+  content.dataset.headerHandoffDirection = String(direction);
 
   if (direction > 0) {
     content.dataset.headerLastDirection = String(direction);
@@ -68,19 +74,29 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
       setCompactProgress(content, compact);
     }
     if (remaining > 0 && compact >= 0.999 && main < 1) {
-      const amount = Math.min(remaining, (1 - main) * mainDistance);
-      main += amount / mainDistance;
-      remaining -= amount;
-      setMainProgress(main);
+      const buffer = Math.min(remaining, Math.max(0, handoffDistance - handoffProgress));
+      handoffProgress += buffer;
+      remaining -= buffer;
+      if (handoffProgress >= handoffDistance && remaining > 0) {
+        const amount = Math.min(remaining, (1 - main) * mainDistance);
+        main += amount / mainDistance;
+        remaining -= amount;
+        setMainProgress(main);
+      }
     }
   } else {
     if (content.scrollTop > 0) return 0;
     content.dataset.headerLastDirection = String(direction);
     if (main > 0) {
-      const amount = Math.min(remaining, main * mainDistance);
-      main -= amount / mainDistance;
-      remaining -= amount;
-      setMainProgress(main);
+      const buffer = Math.min(remaining, Math.max(0, handoffDistance - handoffProgress));
+      handoffProgress += buffer;
+      remaining -= buffer;
+      if (handoffProgress >= handoffDistance && remaining > 0) {
+        const amount = Math.min(remaining, main * mainDistance);
+        main -= amount / mainDistance;
+        remaining -= amount;
+        setMainProgress(main);
+      }
     }
     if (remaining > 0 && main <= 0.001 && compact > 0) {
       const amount = Math.min(remaining, compact * compactDistance);
@@ -89,6 +105,7 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
       setCompactProgress(content, compact);
     }
   }
+  content.dataset.headerHandoffProgress = String(handoffProgress);
   return Math.abs(deltaY) - remaining;
 };
 
@@ -109,6 +126,8 @@ export const settleHeaderMotion = (content: HTMLElement) => {
     setMainProgress(main >= 0.5 ? 1 : 0);
   }
   delete content.dataset.headerLastDirection;
+  delete content.dataset.headerHandoffDirection;
+  delete content.dataset.headerHandoffProgress;
   content.classList.remove('is-header-dragging');
   document.documentElement.classList.remove('is-header-dragging');
 };
