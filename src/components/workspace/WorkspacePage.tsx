@@ -983,10 +983,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   </section>
                     ) : (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Master Editor</h2><p className="mt-1 text-[11px] text-[var(--vyra-text-secondary)]">Timeline composition simulation · Scene source projects are kept independent.</p></div>
-                          <span className="rounded-md bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] font-semibold tracking-wide text-[var(--vyra-text-muted)]">SIMULATION</span>
-                        </div>
 <MasterTimelineEditor
                     scenes={scenes.map((scene) => ({
                       ...scene,
