@@ -30,28 +30,29 @@ const readLegacyVyrals = (): LegacyVyral[] => {
 };
 
 const updateProfileHeaderCompact = (content: HTMLElement) => {
-  const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
-  if (header) {
-    const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 204;
-    header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
-    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
-    header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-    header.style.setProperty('--profile-create-button-width', (148 - 64 * headerProgress) + 'px');
-    header.style.setProperty('--profile-create-extra-width', (100 * (1 - headerProgress)) + 'px');
-    header.style.setProperty('--profile-create-extra-opacity', (1 - headerProgress).toFixed(3));
-    header.style.setProperty('--profile-create-extra-shift', (12 * headerProgress) + 'px');
-    header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
-    header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
-  }
+  if (!header) return;
+  const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
+  const compactMode = currentProgress >= 0.5 ? content.scrollTop > 16 : content.scrollTop >= 44;
+  const headerProgress = compactMode ? 1 : 0;
+  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
+  const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
+  header.style.setProperty('--profile-header-progress', String(headerProgress));
+  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-icon-rotation', '0deg');
+  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
+  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
+  header.style.setProperty('--profile-create-button-width', (148 - 64 * headerProgress) + 'px');
+  header.style.setProperty('--profile-create-extra-width', (100 * (1 - headerProgress)) + 'px');
+  header.style.setProperty('--profile-create-extra-opacity', (1 - headerProgress).toFixed(3));
+  header.style.setProperty('--profile-create-extra-shift', (12 * headerProgress) + 'px');
+  header.style.setProperty('--profile-back-label-opacity', (1 - headerProgress).toFixed(3));
+  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
 };
 
 const fieldClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
