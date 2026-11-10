@@ -83,12 +83,12 @@ function MarketplaceApp() {
   };
 
   useEffect(() => {
-    const handleHeaderProgress = (event: Event) => { const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)); document.documentElement.style.setProperty('--vyra-main-header-progress', String(progress)); setMainHeaderProgress(progress); };
+    const handleHeaderProgress = (event: Event) => { const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)); document.documentElement.style.setProperty('--vyra-main-header-progress', String(progress)); const headerHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64; document.documentElement.style.setProperty('--vyra-header-spacer-collapse', `${headerHeight * progress}px`); setMainHeaderProgress(progress); };
     window.addEventListener('vyra:main-header-progress', handleHeaderProgress);
     return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
   }, []);
 
-  useLayoutEffect(() => { window.scrollTo(0, 0); setMainHeaderProgress(0); document.documentElement.style.setProperty('--vyra-main-header-progress', '0'); }, [activeSection, profileOpen]);
+  useLayoutEffect(() => { window.scrollTo(0, 0); setMainHeaderProgress(0); document.documentElement.style.setProperty('--vyra-main-header-progress', '0'); document.documentElement.style.setProperty('--vyra-header-spacer-collapse', '0px'); }, [activeSection, profileOpen]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -111,7 +111,7 @@ function MarketplaceApp() {
         onAuthRequest={requestAuth}
         onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
-      <div aria-hidden="true" className="w-full shrink-0" style={{ height: `calc(var(--vyra-global-header-height, 64px) * ${1 - mainHeaderProgress})`, transition: 'height 180ms ease-out' }} />
+      <div aria-hidden="true" className="w-full shrink-0" style={{ height: 'calc(var(--vyra-global-header-height, 64px) - var(--vyra-header-spacer-collapse, 0px))', transition: 'height 180ms ease-out' }} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
         <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
           {profileOpen && user ? (
