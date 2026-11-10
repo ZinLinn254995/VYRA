@@ -3,7 +3,6 @@ import { Bot, Clapperboard, Coins, Store, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
-  hideProgress?: number;
   userEmail: string | null;
   creditBalance: string | null;
   creditLoading: boolean;
@@ -20,7 +19,7 @@ const BrandMark = ({ className = '' }: { className?: string }) => (
 );
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
-  hideProgress = 0, userEmail, creditBalance, creditLoading, activeSection,
+  userEmail, creditBalance, creditLoading, activeSection,
   onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
   const headerRef = useRef<HTMLElement>(null);
@@ -38,6 +37,22 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       observer?.disconnect();
       document.documentElement.style.removeProperty('--vyra-global-header-height');
     };
+  }, []);
+
+  useEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+    const applyProgress = (progress: number) => {
+      const value = Math.max(0, Math.min(1, progress));
+      element.style.transform = `translateY(${-100 * value}%)`;
+      element.style.pointerEvents = value >= 0.999 ? 'none' : 'auto';
+      element.setAttribute('aria-hidden', String(value >= 0.999));
+      element.style.transition = document.documentElement.classList.contains('is-header-dragging') ? 'none' : 'transform 180ms ease-out';
+    };
+    const handleProgress = (event: Event) => applyProgress(Number((event as CustomEvent<number>).detail) || 0);
+    applyProgress(Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-main-header-progress')) || 0);
+    window.addEventListener('vyra:main-header-progress', handleProgress);
+    return () => window.removeEventListener('vyra:main-header-progress', handleProgress);
   }, []);
 
   useEffect(() => {
@@ -74,7 +89,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
 
   return (
-    <header ref={headerRef} aria-hidden={hideProgress >= 0.999} style={{ transform: `translateY(${-100 * hideProgress}%)`, pointerEvents: hideProgress >= 0.999 ? "none" : "auto", transition: document.documentElement.classList.contains("is-header-dragging") ? "none" : "transform 180ms ease-out" }} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
+    <header ref={headerRef} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
