@@ -659,8 +659,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             detailsAction={<button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-label="Toggle Storyboard Details" aria-expanded={storyboardDetailsExpanded} title="Storyboard Details" className="profile-storyboard-details-toggle"><Settings2 size={16} /><span>Storyboard Details</span></button>}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-3 sm:px-5 sm:pb-5" onScroll={(event) => { updateStoryboardHeaderCompact(event.currentTarget); if (event.currentTarget.scrollTop > 8) setStoryboardDetailsExpanded(false); }}>
-          <div className="profile-storyboard-controls">
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => { updateStoryboardHeaderCompact(event.currentTarget); if (event.currentTarget.scrollTop > 8) setStoryboardDetailsExpanded(false); }}>
+          <div className="profile-storyboard-controls -mx-4 mb-3 sm:-mx-5">
                 <div className={`profile-storyboard-details-panel ${storyboardDetailsExpanded ? 'is-open' : 'is-closed'}`}>
                   <div className="profile-storyboard-details-panel-inner">
                     <section className="space-y-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2.5">
