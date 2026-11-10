@@ -93,6 +93,7 @@ const toolbarItems = [
 export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
+  const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
@@ -249,6 +250,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     });
   };
 
+
+  const runCloneSelectedText = () => {
+    if (!selectedTextClip) return;
+    const tracks = value?.textTracks || [];
+    const source = tracks.find((track) => track.id === selectedTextClip.trackId)?.clips.find((clip) => clip.id === selectedTextClip.clipId);
+    if (!source) return;
+    const cloneId = crypto.randomUUID();
+    const nextTracks = tracks.map((track) => track.id !== selectedTextClip.trackId ? track : {
+      ...track,
+      clips: [...track.clips, { ...source, id: cloneId, start: source.start + source.duration }],
+    });
+    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    setSelectedTextClip({ ...selectedTextClip, clipId: cloneId });
+  };
+  const runDeleteSelectedText = () => {
+    if (!selectedTextClip) return;
+    const nextTracks = (value?.textTracks || [])
+      .map((track) => track.id !== selectedTextClip.trackId ? track : { ...track, clips: track.clips.filter((clip) => clip.id !== selectedTextClip.clipId) })
+      .filter((track) => track.clips.length > 0);
+    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    setSelectedTextClip(null);
+  };
+
   const runCloneSelected = () => {
     selectedScenes.forEach((scene) => {
       const index = orderedScenes.findIndex((item) => item.id === scene.id);
@@ -294,6 +318,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             </button>
             ))}
           </>
+        ) : selectedTextClip ? (
+          <>
+            <button type="button" title="Clone selected text" aria-label="Clone selected text" onClick={runCloneSelectedText} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+              <Copy size={22} strokeWidth={1.8} />
+              <span className="sr-only">Clone</span>
+            </button>
+            <button type="button" title="Delete selected text" aria-label="Delete selected text" onClick={runDeleteSelectedText} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)] transition-colors hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]">
+              <Trash2 size={22} strokeWidth={1.8} />
+              <span className="sr-only">Delete</span>
+            </button>
+          </>
         ) : selectedSceneIds.length > 0 ? (
           <>
             <button type="button" title="Clone selected scenes" aria-label="Clone selected scenes" onClick={runCloneSelected} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
@@ -332,6 +367,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             if (!(event.target as HTMLElement).closest("button")) {
               setSelectedSceneIds([]);
               setSelectedTransitionKey(null);
+              setSelectedTextClip(null);
             }
           }}
         >
@@ -359,6 +395,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       aria-pressed={selectedSceneIds.includes(scene.id)}
                       onClick={() => {
                         setSelectedTransitionKey(null);
+                        setSelectedTextClip(null);
                         setSelectedSceneIds((current) => current[0] === scene.id ? [] : [scene.id]);
                       }}
                       className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
@@ -386,6 +423,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       aria-pressed={isSelected}
                       onClick={() => {
                         setSelectedSceneIds([]);
+                        setSelectedTextClip(null);
                         setSelectedTransitionKey(transitionKey);
                       }}
                       className={`absolute top-1/2 z-10 inline-flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition-colors ${transition ? 'px-2 text-[10px] font-semibold' : 'w-7 p-0'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)] hover:border-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-muted)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-text-primary)]'}`}
@@ -398,12 +436,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
               </div>
               {textTracks.map((track) => (
                 <div key={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
-                  {track.clips.map((clip) => (
-                    <div key={clip.id} title={`${clip.content || clip.name} · ${clip.duration}s`} className="absolute inset-y-1 flex items-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15 px-2 text-[10px] font-medium text-[var(--vyra-text-primary)]" style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
-                      <Type size={12} className="mr-1 shrink-0" />
-                      <span className="truncate">{clip.content || clip.name}</span>
-                    </div>
-                  ))}
+                  {track.clips.map((clip) => {
+                    const isSelected = selectedTextClip?.trackId === track.id && selectedTextClip.clipId === clip.id;
+                    return (
+                      <button key={clip.id} type="button" title={`${clip.content || clip.name} · ${clip.duration}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
+                        <Type size={12} className="mr-1 shrink-0" />
+                        <span className="truncate">{clip.content || clip.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>
