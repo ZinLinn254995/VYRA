@@ -588,7 +588,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                         <div className="min-w-0 flex-1 space-y-2 py-2">
                           <div className="relative h-8 overflow-hidden rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]">
                             {track.clips.map((clip) => (
-                              <div key={clip.id + '-lane'} title={clip.name + ' · ' + clip.start.toFixed(1) + 's'} className="absolute top-1 flex h-6 min-w-[2px] items-center overflow-hidden rounded-sm border border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 px-1 text-[9px] font-medium text-[var(--vyra-text-primary)]" style={{ left: (clip.start / timeline.duration * 100) + '%', width: Math.max(1.5, clip.duration / timeline.duration * 100) + '%' }}>
+                              <div key={clip.id + '-lane'} title={clip.name + ' · ' + clip.start.toFixed(1) + 's'} className="absolute top-1 flex h-6 min-w-[2px] items-center overflow-hidden rounded-sm border border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)] px-1 text-[9px] font-medium text-[var(--vyra-text-primary)]" style={{ left: (clip.start / timeline.duration * 100) + '%', width: Math.max(1.5, clip.duration / timeline.duration * 100) + '%' }}>
                                 <span className="truncate">{clip.name}</span>
                               </div>
                             ))}
