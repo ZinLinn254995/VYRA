@@ -306,6 +306,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const fitTimeline = () => {
     const availableWidth = Math.max(240, (scrollerRef.current?.clientWidth || 480) - trackLabelWidth - 24);
     setZoom(clamp(availableWidth / totalDuration, 10, 120));
+    setPlayhead(0);
     if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
   };
 
