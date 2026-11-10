@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
   AudioLines,
   Crop,
@@ -89,13 +90,15 @@ const toolbarItems = [
 ];
 
 /**
- * Master Editor toolbar shell. Editing actions are intentionally visual-only
- * while the timeline and editing engine are being built.
+ * Master Editor toolbar shell. The toolbar is portaled to document.body so
+ * ancestor scroll containers, clipping, and transforms cannot move or trap it.
+ * Editing actions remain visual-only while the timeline engine is being built.
  */
-export const MasterTimelineEditor: React.FC<Props> = () => (
-  <div className="relative min-h-[420px] w-full pb-20 pt-6">
+export const MasterTimelineEditor: React.FC<Props> = () => {
+  const toolbar = (
     <nav
-      className="master-editor-bottom-nav sticky bottom-0 z-20 -mx-4 flex w-[calc(100%+2rem)] max-w-none items-center gap-2 border-t border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3 py-2 shadow-[0_-6px_18px_rgba(0,0,0,0.06)] sm:-mx-5 sm:w-[calc(100%+2.5rem)]"
+      className="master-editor-bottom-nav fixed inset-x-0 bottom-0 z-[100] flex w-screen max-w-none items-center gap-2 border-t border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-3 pt-2 shadow-[0_-6px_18px_rgba(0,0,0,0.08)]"
+      style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
@@ -112,5 +115,11 @@ export const MasterTimelineEditor: React.FC<Props> = () => (
         ))}
       </div>
     </nav>
-  </div>
-);
+  );
+
+  return (
+    <div className="relative min-h-[420px] w-full pb-24 pt-6">
+      {typeof document !== 'undefined' ? createPortal(toolbar, document.body) : null}
+    </div>
+  );
+};
