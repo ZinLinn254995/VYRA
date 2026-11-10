@@ -346,6 +346,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   };
 
   const beginAudioLongPress = (event: React.PointerEvent<HTMLDivElement>, trackId: string, clip: TimelineClip) => {
+    if (textDragRef.current?.active) return;
     if ((event.target as HTMLElement).closest('[data-audio-trim-handle]')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (audioDragRef.current?.timer) clearTimeout(audioDragRef.current.timer);
@@ -483,6 +484,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
 
   const beginTextLongPress = (event: React.PointerEvent<HTMLDivElement>, trackId: string, clip: TimelineClip) => {
+    if (audioDragRef.current?.active) return;
     if ((event.target as HTMLElement).closest('[data-trim-handle]')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (textDragRef.current?.timer) clearTimeout(textDragRef.current.timer);
@@ -882,6 +884,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           onPointerUp={(event) => { endTextLongPress(event); endAudioLongPress(event); }}
           onPointerCancel={(event) => { endTextLongPress(event); endAudioLongPress(event); }}
           onClick={(event) => {
+            // Pointer capture can retarget the click to the scroll container
+            // after a clip drag. Consume that click instead of clearing or
+            // changing selection on another clip underneath the pointer.
+            if (suppressTextClickRef.current) {
+              suppressTextClickRef.current = false;
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
             if (!(event.target as HTMLElement).closest("button")) {
               setSelectedSceneIds([]);
               setSelectedTransitionKey(null);
