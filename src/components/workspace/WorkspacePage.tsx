@@ -1016,7 +1016,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
                   </section>
                     ) : (
-                      <div className="storyboard-editor-pane pb-4">
+                      <div className="storyboard-editor-pane flex min-h-0 flex-col">
 <MasterTimelineEditor
                     scenes={scenes.map((scene) => ({
                       ...scene,
