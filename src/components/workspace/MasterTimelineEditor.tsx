@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AudioLines,
@@ -15,6 +15,7 @@ import {
   Type,
   Undo2,
   ZoomIn,
+  ZoomOut,
   BetweenHorizontalStart,
 } from 'lucide-react';
 
@@ -90,11 +91,48 @@ const toolbarItems = [
 ];
 
 /**
- * Master Editor toolbar shell. The toolbar is portaled to document.body so
- * ancestor scroll containers, clipping, and transforms cannot move or trap it.
- * Editing actions remain visual-only while the timeline engine is being built.
+ * Master timeline foundation:
+ * - ruler and scene blocks share one horizontal scroll surface
+ * - zoom changes horizontal pixels-per-second only
+ * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = () => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const updateWidth = () => setViewportWidth(element.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const orderedScenes = useMemo(() => {
+    const instances = value?.sceneInstances || [];
+    const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+    const ordered = instances
+      .map((instance) => byId.get(instance.sceneId))
+      .filter((scene): scene is Scene => Boolean(scene));
+    const included = new Set(ordered.map((scene) => scene.id));
+    return [...ordered, ...scenes.filter((scene) => !included.has(scene.id))];
+  }, [scenes, value?.sceneInstances]);
+
+  const sceneDurations = orderedScenes.map((scene) => {
+    const instance = value?.sceneInstances?.find((item) => item.sceneId === scene.id);
+    const range = value?.sceneRanges?.[scene.id];
+    const sourceIn = Math.max(0, Number(range?.sourceIn ?? instance?.sourceIn ?? 0));
+    const sourceOut = Math.max(sourceIn + 0.1, Number(range?.sourceOut ?? instance?.sourceOut ?? scene.duration));
+    return Math.min(Math.max(0.1, sourceOut - sourceIn), Math.max(0.1, scene.duration));
+  });
+  const totalDuration = Math.max(1, sceneDurations.reduce((sum, duration) => sum + duration, 0));
+  const timelineWidth = totalDuration * pixelsPerSecond;
+  const leadingSpace = viewportWidth / 2;
+  const rulerTicks = Array.from({ length: Math.floor(totalDuration) + 1 }, (_, second) => second);
+
   const toolbar = (
     <nav
       className="master-editor-bottom-nav fixed inset-x-0 bottom-0 z-[100] flex w-screen max-w-none items-center gap-2 pt-2"
@@ -118,7 +156,76 @@ export const MasterTimelineEditor: React.FC<Props> = () => {
   );
 
   return (
-    <div className="relative min-h-[420px] w-full pb-24 pt-6">
+    <div className="relative min-h-[420px] w-full space-y-3 pb-24 pt-2">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setPixelsPerSecond((current) => Math.max(32, current - 8))}
+          disabled={pixelsPerSecond <= 32}
+          aria-label="Zoom timeline out"
+          className="grid size-8 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] disabled:opacity-40"
+        >
+          <ZoomOut size={16} />
+        </button>
+        <input
+          type="range"
+          min="32"
+          max="176"
+          step="8"
+          value={pixelsPerSecond}
+          onChange={(event) => setPixelsPerSecond(Number(event.target.value))}
+          aria-label="Timeline width zoom"
+          className="w-24 accent-[var(--vyra-accent-primary)]"
+        />
+        <button
+          type="button"
+          onClick={() => setPixelsPerSecond((current) => Math.min(176, current + 8))}
+          disabled={pixelsPerSecond >= 176}
+          aria-label="Zoom timeline in"
+          className="grid size-8 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] disabled:opacity-40"
+        >
+          <ZoomIn size={16} />
+        </button>
+      </div>
+
+      <div className="relative overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+        <div ref={scrollRef} className="master-timeline-scroll overflow-x-auto overflow-y-hidden">
+          <div className="flex w-max items-start">
+            <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
+            <div className="shrink-0" style={{ width: timelineWidth }}>
+              <div className="relative h-10 border-b border-[var(--vyra-border)]">
+                {rulerTicks.map((second) => (
+                  <div key={second} className="absolute bottom-0 h-full" style={{ left: second * pixelsPerSecond }}>
+                    <span className="absolute bottom-2 left-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium tabular-nums text-[var(--vyra-text-secondary)]">
+                      {'00:' + String(second).padStart(2, '0')}
+                    </span>
+                    <span className="absolute bottom-0 h-2 w-px bg-[var(--vyra-text-muted)]/60" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex h-16 items-center gap-px py-2">
+                {orderedScenes.map((scene, index) => (
+                  <div
+                    key={scene.id}
+                    title={scene.title}
+                    className="flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10 px-2"
+                    style={{ width: Math.max(8, sceneDurations[index] * pixelsPerSecond) }}
+                  >
+                    <span className="truncate text-[10px] font-medium text-[var(--vyra-text-secondary)]">{scene.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 left-1/2 top-0 z-10 w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]"
+        >
+          <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
+        </div>
+      </div>
       {typeof document !== 'undefined' ? createPortal(toolbar, document.body) : null}
     </div>
   );
