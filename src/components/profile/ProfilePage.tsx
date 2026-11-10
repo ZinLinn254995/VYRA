@@ -82,11 +82,11 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
   help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
 };
 
-const updateProfileHeaderCompact = (content: HTMLElement) => {
+const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (!header) return;
   const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
-  const compactMode = currentProgress >= 0.5 ? content.scrollTop > 16 : content.scrollTop >= 44;
+  const compactMode = currentProgress >= 0.5 ? scrollTop > 16 : scrollTop >= 44;
   const headerProgress = compactMode ? 1 : 0;
   const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
   const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
@@ -205,7 +205,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             description={pageInfo[activePage].description}
             search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />
-          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)}>
+          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateProfileHeaderCompact(event.currentTarget, target.scrollTop); }}>
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
