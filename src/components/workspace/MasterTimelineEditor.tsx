@@ -138,7 +138,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const pinch = pinchRef.current;
       if (!pinch || event.touches.length !== 2) return;
       event.preventDefault();
-      const nextScale = Math.min(176, Math.max(32, pinch.startScale * distance(event.touches) / pinch.startDistance));
+      const nextScale = Math.min(176, Math.max(8, pinch.startScale * distance(event.touches) / pinch.startDistance));
       setPixelsPerSecond(nextScale);
     };
 
@@ -208,7 +208,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
   const leadingSpace = viewportWidth / 2;
-  const rulerTicks = Array.from({ length: Math.floor(totalDuration) + 1 }, (_, second) => second);
+  // Adapt ruler spacing to zoom level so labels stay readable.
+  const rulerStep = pixelsPerSecond >= 56 ? 1 : pixelsPerSecond >= 28 ? 2 : pixelsPerSecond >= 14 ? 5 : pixelsPerSecond >= 8 ? 10 : 20;
+  const rulerTicks = Array.from({ length: Math.floor(totalDuration / rulerStep) + 1 }, (_, index) => index * rulerStep);
+  const formatRulerTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return String(minutes).padStart(2, '0') + ':' + String(remainingSeconds).padStart(2, '0');
+  };
 
   const selectedScenes = orderedScenes.filter((scene) => selectedSceneIds.includes(scene.id));
   const transitionOptions = [
@@ -564,7 +571,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 {rulerTicks.map((second) => (
                   <div key={second} className="absolute bottom-0 h-full" style={{ left: second * pixelsPerSecond }}>
                     <span className="absolute bottom-2 left-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium tabular-nums text-[var(--vyra-text-secondary)]">
-                      {'00:' + String(second).padStart(2, '0')}
+                      {formatRulerTime(second)}
                     </span>
                     <span className="absolute bottom-0 h-2 w-px bg-[var(--vyra-text-muted)]/60" />
                   </div>
