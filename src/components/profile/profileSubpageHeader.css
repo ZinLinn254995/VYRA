@@ -201,7 +201,7 @@
   max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  touch-action: auto;
+  touch-action: pan-x;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -389,8 +389,7 @@ html.is-storyboard-preview-dragging .profile-storyboard-preview-frame {
 
 /* Hide the horizontal Master Editor tool scroller in every browser. */
 .master-editor-toolbar-scroll {
-  /* Vertical gestures bubble to the page; horizontal swipes are handled by JS. */
-  touch-action: pan-y;
+  touch-action: pan-x;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
