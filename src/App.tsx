@@ -83,7 +83,7 @@ function MarketplaceApp() {
   };
 
   useEffect(() => {
-    const handleHeaderProgress = (event: Event) => setMainHeaderProgress(Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)));
+    const handleHeaderProgress = (event: Event) => { const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)); document.documentElement.style.setProperty('--vyra-main-header-progress', String(progress)); setMainHeaderProgress(progress); };
     window.addEventListener('vyra:main-header-progress', handleHeaderProgress);
     return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
   }, []);
