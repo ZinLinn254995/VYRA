@@ -119,6 +119,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     captureElement?: HTMLElement;
   } | null>(null);
   const audioDragRef = useRef<typeof textDragRef.current>(null);
+  const dragAutoScrollFrameRef = useRef<number | null>(null);
+  const dragAutoScrollPointerRef = useRef<{ kind: 'text' | 'audio'; x: number; y: number; pointerId: number; clip: TimelineClip } | null>(null);
   const suppressTextClickRef = useRef(false);
 
   useEffect(() => {
@@ -384,6 +386,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return;
     }
     event.preventDefault(); event.stopPropagation(); drag.moved = true;
+    scheduleDragAutoScroll('audio', event, clip);
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
     const scrollRect = scrollElement.getBoundingClientRect();
@@ -432,6 +435,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const drag = audioDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
+    stopDragAutoScroll();
     if (drag.moved) suppressTextClickRef.current = true;
     if (drag.captureElement?.hasPointerCapture(event.pointerId)) drag.captureElement.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null); setTextDragYOffset(0); audioDragRef.current = null;
@@ -526,6 +530,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     event.preventDefault();
     event.stopPropagation();
     drag.moved = true;
+    scheduleDragAutoScroll('text', event, clip);
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
     const scrollRect = scrollElement.getBoundingClientRect();
@@ -600,10 +605,75 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
   };
 
+  const stopDragAutoScroll = () => {
+    dragAutoScrollPointerRef.current = null;
+    if (dragAutoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(dragAutoScrollFrameRef.current);
+      dragAutoScrollFrameRef.current = null;
+    }
+  };
+
+  const scheduleDragAutoScroll = (kind: 'text' | 'audio', event: React.PointerEvent<HTMLDivElement>, clip: TimelineClip) => {
+    dragAutoScrollPointerRef.current = { kind, x: event.clientX, y: event.clientY, pointerId: event.pointerId, clip };
+    if (dragAutoScrollFrameRef.current !== null) return;
+
+    const tick = () => {
+      dragAutoScrollFrameRef.current = null;
+      const pointer = dragAutoScrollPointerRef.current;
+      const element = scrollRef.current;
+      if (!pointer || !element) return;
+
+      const rect = element.getBoundingClientRect();
+      const edgeSize = 56;
+      const maxSpeed = 18;
+      const speedFor = (position: number, start: number, end: number, maxScroll: number) => {
+        if (position < start + edgeSize && element.scrollLeft < maxScroll && start < end) {
+          return -maxSpeed * Math.min(1, (start + edgeSize - position) / edgeSize);
+        }
+        if (position > end - edgeSize && element.scrollLeft < maxScroll && start < end) {
+          return maxSpeed * Math.min(1, (position - (end - edgeSize)) / edgeSize);
+        }
+        return 0;
+      };
+
+      const horizontalMax = Math.max(0, element.scrollWidth - element.clientWidth);
+      const verticalMax = Math.max(0, element.scrollHeight - element.clientHeight);
+      let dx = 0;
+      let dy = 0;
+      if (pointer.x < rect.left + edgeSize && element.scrollLeft > 0) {
+        dx = -maxSpeed * Math.min(1, (rect.left + edgeSize - pointer.x) / edgeSize);
+      } else if (pointer.x > rect.right - edgeSize && element.scrollLeft < horizontalMax) {
+        dx = maxSpeed * Math.min(1, (pointer.x - (rect.right - edgeSize)) / edgeSize);
+      }
+      if (pointer.y < rect.top + edgeSize && element.scrollTop > 0) {
+        dy = -maxSpeed * Math.min(1, (rect.top + edgeSize - pointer.y) / edgeSize);
+      } else if (pointer.y > rect.bottom - edgeSize && element.scrollTop < verticalMax) {
+        dy = maxSpeed * Math.min(1, (pointer.y - (rect.bottom - edgeSize)) / edgeSize);
+      }
+
+      if (dx === 0 && dy === 0) return;
+      element.scrollLeft = Math.max(0, Math.min(horizontalMax, element.scrollLeft + dx));
+      element.scrollTop = Math.max(0, Math.min(verticalMax, element.scrollTop + dy));
+
+      const syntheticEvent = {
+        clientX: pointer.x,
+        clientY: pointer.y,
+        pointerId: pointer.pointerId,
+        preventDefault: () => undefined,
+        stopPropagation: () => undefined,
+      } as React.PointerEvent<HTMLDivElement>;
+      if (pointer.kind === 'text') moveTextLongPress(syntheticEvent, pointer.clip);
+      else moveAudioLongPress(syntheticEvent, pointer.clip);
+    };
+
+    dragAutoScrollFrameRef.current = requestAnimationFrame(tick);
+  };
+
   const endTextLongPress = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = textDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
+    stopDragAutoScroll();
     if (drag.moved) suppressTextClickRef.current = true;
     if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null);
