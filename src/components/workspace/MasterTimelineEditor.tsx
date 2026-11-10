@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
   AudioLines,
   Crop,
@@ -92,85 +92,25 @@ const toolbarItems = [
  * Master Editor toolbar shell. Editing actions are intentionally visual-only
  * while the timeline and editing engine are being built.
  */
-export const MasterTimelineEditor: React.FC<Props> = () => {
-  const toolbarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const element = toolbarRef.current;
-    if (!element) return;
-
-    let startX = 0;
-    let startY = 0;
-    let startScrollLeft = 0;
-    let gesture: 'pending' | 'horizontal' | 'vertical' = 'pending';
-
-    const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        gesture = 'vertical';
-        return;
-      }
-      const touch = event.touches[0];
-      startX = touch.clientX;
-      startY = touch.clientY;
-      startScrollLeft = element.scrollLeft;
-      gesture = 'pending';
-    };
-
-    const onTouchMove = (event: TouchEvent) => {
-      if (event.touches.length !== 1 || gesture === 'vertical') return;
-      const touch = event.touches[0];
-      const deltaX = touch.clientX - startX;
-      const deltaY = touch.clientY - startY;
-
-      if (gesture === 'pending') {
-        if (Math.abs(deltaX) < 7 && Math.abs(deltaY) < 7) return;
-        gesture = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
-      }
-
-      if (gesture === 'horizontal') {
-        event.preventDefault();
-        element.scrollLeft = startScrollLeft - deltaX;
-      }
-    };
-
-    const resetGesture = () => {
-      gesture = 'pending';
-    };
-
-    element.addEventListener('touchstart', onTouchStart, { passive: true });
-    element.addEventListener('touchmove', onTouchMove, { passive: false });
-    element.addEventListener('touchend', resetGesture, { passive: true });
-    element.addEventListener('touchcancel', resetGesture, { passive: true });
-
-    return () => {
-      element.removeEventListener('touchstart', onTouchStart);
-      element.removeEventListener('touchmove', onTouchMove);
-      element.removeEventListener('touchend', resetGesture);
-      element.removeEventListener('touchcancel', resetGesture);
-    };
-  }, []);
-
-  return (
-    <div className="relative flex min-h-[420px] w-full items-end justify-center pb-4 pt-6">
-      <div className="sticky bottom-3 z-10 w-full max-w-full">
-        <div
-          ref={toolbarRef}
-          className="master-editor-toolbar-scroll flex w-full max-w-full items-center gap-3 overflow-x-auto px-3 py-2"
-          aria-label="Master Editor tools"
-        >
-          {toolbarItems.map(({ label, Icon }) => (
-            <button
-              key={label}
-              type="button"
-              title={label}
-              aria-label={label}
-              className="grid size-16 shrink-0 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)] shadow-sm transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
-            >
-              <Icon size={24} strokeWidth={1.8} />
-            </button>
-          ))}
-        </div>
+export const MasterTimelineEditor: React.FC<Props> = () => (
+  <div className="relative flex min-h-[420px] w-full items-end justify-center pb-4 pt-6">
+    <div className="sticky bottom-3 z-10 w-full max-w-full">
+      <div
+        className="master-editor-toolbar-scroll flex w-full max-w-full items-center gap-3 overflow-x-auto px-3 py-2"
+        aria-label="Master Editor tools"
+      >
+        {toolbarItems.map(({ label, Icon }) => (
+          <button
+            key={label}
+            type="button"
+            title={label}
+            aria-label={label}
+            className="grid size-16 shrink-0 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)] shadow-sm transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+          >
+            <Icon size={24} strokeWidth={1.8} />
+          </button>
+        ))}
       </div>
     </div>
-  );
-};
+  </div>
+);
