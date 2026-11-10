@@ -99,6 +99,7 @@ export const settleHeaderMotion = (content: HTMLElement) => {
   setMainProgress(main >= 0.5 ? 1 : 0);
   content.classList.remove('is-header-dragging');
   document.documentElement.classList.remove('is-header-dragging');
+  setMainProgress(main >= 0.5 ? 1 : 0);
 };
 
 export const beginHeaderMotion = (content: HTMLElement) => {
