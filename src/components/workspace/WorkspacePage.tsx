@@ -658,8 +658,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           />
           <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
             {storyboardDetailsExpanded && <section className="space-y-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4">
-                {!activeStoryboardConfirmed && <div className="flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</div>}
-                <div className="grid gap-3 sm:grid-cols-2">
+              {!activeStoryboardConfirmed && <div className="flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</div>}
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Title</label>
                   <input maxLength={100} value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Storyboard title" />
@@ -679,13 +679,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} className={inputClass + ' min-h-9'} placeholder="Tags" />
                 </div>
               </div>
-              {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
-            
-              
-                {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
-            
-              </div>}
-              </section>}
+              {storyboardAiMessage && <p role="status" className="text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
+            </section>}
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
@@ -747,11 +742,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <div className="mb-2 flex items-end justify-between border-b border-[var(--vyra-border)] px-1 pb-1 text-[9px] tabular-nums text-[var(--vyra-text-muted)]" aria-label="Video timeline ruler">
                     {Array.from({ length: 11 }, (_, index) => <div key={index} className="flex flex-col items-center gap-1"><span>{index * 2}s</span><span className="h-2 w-px bg-[var(--vyra-border)]" /></div>)}
                   </div>
-                  <section className="space-y-3">
-                    </div>
-                    <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
+                  <section>
+                    <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                      {<div className="relative z-10 text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-medium text-[var(--vyra-text-primary)]">Video preview is not rendered yet</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scenes.length ? scenes.length + ' scenes in this Storyboard' : 'Add your first scene to begin.'}</p></div>}
+                      <div className="relative z-10 text-center">
+                        <Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
+                        <p className="text-sm font-medium text-[var(--vyra-text-primary)]">Video preview is not rendered yet</p>
+                        <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scenes.length ? scenes.length + ' scenes in this Storyboard' : 'Add your first scene to begin.'}</p>
+                      </div>
                     </div>
                   </section>
 
