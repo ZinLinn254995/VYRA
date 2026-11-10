@@ -73,7 +73,7 @@
 }
 .profile-storyboard-details-toggle {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  width: 148px; height: 34px; overflow: hidden; white-space: nowrap;
+  width: calc(148px - 112px * var(--profile-header-progress, 0)); height: 34px; overflow: hidden; white-space: nowrap;
   border: 1px solid var(--vyra-border); border-radius: 10px;
   padding: 0 10px; background: var(--vyra-bg-surface);
   color: var(--vyra-text-secondary); font-size: 11px; font-weight: 600;
@@ -82,7 +82,7 @@
 .profile-storyboard-details-toggle:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
 .profile-storyboard-details-toggle svg { flex: 0 0 16px; }
 .profile-storyboard-details-toggle span {
-  max-width: calc(148px - 42px); overflow: hidden; opacity: calc(1 - var(--profile-header-progress, 0));
+  max-width: calc(106px - 112px * var(--profile-header-progress, 0)); overflow: hidden; opacity: calc(1 - var(--profile-header-progress, 0));
   transition: opacity 100ms linear, max-width 180ms ease-out;
 }
 .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: 184px; }
@@ -245,7 +245,7 @@
   .profile-collapse-description { left: 64px; }
   .profile-collapse-action { right: 12px; }
   .profile-collapse-details-action { right: 12px; }
-  .profile-storyboard-details-toggle { width: 132px; }
-  .profile-storyboard-details-toggle span { max-width: calc(132px - 42px); }
+  .profile-storyboard-details-toggle { width: calc(132px - 96px * var(--profile-header-progress, 0)); }
+  .profile-storyboard-details-toggle span { max-width: calc(90px - 96px * var(--profile-header-progress, 0)); }
   .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: 56px; }
 }
