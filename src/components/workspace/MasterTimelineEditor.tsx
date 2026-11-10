@@ -241,6 +241,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
         >
           <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
         </div>
+      </div>
       {typeof document !== 'undefined' ? createPortal(toolbar, document.body) : null}
     </div>
   );
