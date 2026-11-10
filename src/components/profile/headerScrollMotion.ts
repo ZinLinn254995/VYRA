@@ -60,6 +60,9 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
   const mainDistance = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64;
   // A small handoff zone separates the two headers so they never move at once.
   const handoffDistance = 28;
+  // Downward pulls need a slightly longer deliberate gesture before the
+  // hidden Main Header starts revealing; keep the upward handoff unchanged.
+  const mainRevealStartDistance = 64;
   const previousHandoffDirection = Number(content.dataset.headerHandoffDirection || 0);
   let handoffProgress = Number(content.dataset.headerHandoffProgress || 0);
   if (previousHandoffDirection !== direction) handoffProgress = 0;
@@ -90,10 +93,10 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
     // even while the page content is still scrolling back toward the top.
     // The Compact Header remains tied to the content's actual scroll start.
     if (main > 0) {
-      const buffer = Math.min(remaining, Math.max(0, handoffDistance - handoffProgress));
+      const buffer = Math.min(remaining, Math.max(0, mainRevealStartDistance - handoffProgress));
       handoffProgress += buffer;
       remaining -= buffer;
-      if (handoffProgress >= handoffDistance && remaining > 0) {
+      if (handoffProgress >= mainRevealStartDistance && remaining > 0) {
         const amount = Math.min(remaining, main * mainDistance);
         main -= amount / mainDistance;
         remaining -= amount;
