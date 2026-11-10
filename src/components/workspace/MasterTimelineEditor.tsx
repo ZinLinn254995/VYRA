@@ -112,6 +112,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     clipId: string;
     trackId: string;
     createdTrackId?: string | null;
+    originalTrack: TimelineTrack;
+    originalTrackIndex: number;
+    originalStart: number;
     offsetX: number;
     startX: number;
     startY: number;
@@ -351,7 +354,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (audioDragRef.current?.timer) clearTimeout(audioDragRef.current.timer);
     const clipElement = event.currentTarget;
     const rect = clipElement.getBoundingClientRect();
-    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, createdTrackId: null as string | null, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY };
+    const audioTracksAtStart = value?.audioTracks || [];
+    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, createdTrackId: null as string | null, originalTrack: audioTracksAtStart.find((track) => track.id === trackId)!, originalTrackIndex: audioTracksAtStart.findIndex((track) => track.id === trackId), originalStart: clip.start, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY };
     audioDragRef.current = drag;
     drag.timer = setTimeout(() => {
       if (audioDragRef.current !== drag) return;
@@ -434,7 +438,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const current = value?.audioTracks || [];
     const destinationTrack = current.find((track) => track.id === destinationTrackId);
     if (!destinationTrack) return;
-    if (destinationTrack.clips.some((item) => item.id !== clip.id && nextStart < item.start + item.duration - 0.001 && nextStart + clip.duration > item.start + 0.001)) return;
     const nextTracks = current.map((track) => {
       if (track.id === drag.trackId && track.id === destinationTrackId) return { ...track, clips: track.clips.map((item) => item.id === clip.id ? { ...item, start: nextStart } : item) };
       if (track.id === drag.trackId) return { ...track, clips: track.clips.filter((item) => item.id !== clip.id) };
@@ -445,12 +448,66 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
   };
 
+
+  // Clips may freely pass over one another while dragging. Resolve collisions
+  // only on release by finding the nearest free interval in the destination row.
+  const nearestFreeClipStart = (clips: TimelineClip[], clipId: string, desiredStart: number, duration: number, maxDuration: number) => {
+    const occupied = clips.filter((item) => item.id !== clipId).sort((a, b) => a.start - b.start);
+    const gaps: Array<{ start: number; end: number }> = [];
+    let cursor = 0;
+    for (const item of occupied) {
+      if (item.start > cursor) gaps.push({ start: cursor, end: item.start });
+      cursor = Math.max(cursor, item.start + item.duration);
+    }
+    if (cursor < maxDuration) gaps.push({ start: cursor, end: maxDuration });
+    const candidates = gaps
+      .filter((gap) => gap.end - gap.start >= duration - 0.001)
+      .map((gap) => Math.max(gap.start, Math.min(gap.end - duration, desiredStart)))
+      .sort((a, b) => Math.abs(a - desiredStart) - Math.abs(b - desiredStart));
+    return candidates[0] ?? null;
+  };
+
+  const settleClipDrop = (kind: 'text' | 'audio', drag: NonNullable<typeof textDragRef.current>) => {
+    const tracks = kind === 'text' ? (value?.textTracks || []) : (value?.audioTracks || []);
+    const destination = tracks.find((track) => track.id === drag.trackId);
+    const droppedClip = destination?.clips.find((clip) => clip.id === drag.clipId);
+    if (!droppedClip) return;
+    const maxDuration = kind === 'audio' ? totalDuration : Math.max(totalDuration, ...tracks.flatMap((track) => track.clips.map((clip) => clip.start + clip.duration)), droppedClip.start + droppedClip.duration);
+    let resolvedStart = nearestFreeClipStart(destination.clips, drag.clipId, droppedClip.start, droppedClip.duration, maxDuration);
+    let resolvedTrackId = destination.id;
+    let nextTracks = tracks;
+    if (resolvedStart === null) {
+      const original = tracks.find((track) => track.id === drag.originalTrack.id) || drag.originalTrack;
+      const originalStart = nearestFreeClipStart(original.clips, drag.clipId, drag.originalStart, droppedClip.duration, Math.max(maxDuration, drag.originalStart + droppedClip.duration));
+      if (originalStart === null) return;
+      resolvedStart = originalStart;
+      resolvedTrackId = original.id;
+      nextTracks = tracks.some((track) => track.id === original.id)
+        ? tracks
+        : [...tracks.slice(0, Math.max(0, Math.min(drag.originalTrackIndex, tracks.length))), original];
+    }
+    nextTracks = nextTracks.map((track) => {
+      if (track.id === resolvedTrackId) {
+        const without = track.clips.filter((clip) => clip.id !== drag.clipId);
+        return { ...track, clips: [...without, { ...droppedClip, start: resolvedStart! }] };
+      }
+      return { ...track, clips: track.clips.filter((clip) => clip.id !== drag.clipId) };
+    }).filter((track) => track.clips.length > 0);
+    if (kind === 'text') {
+      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+      setSelectedTextClip({ trackId: resolvedTrackId, clipId: drag.clipId });
+    } else {
+      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+      setSelectedAudioClip({ trackId: resolvedTrackId, clipId: drag.clipId });
+    }
+  };
+
   const endAudioLongPress = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = audioDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
     stopDragAutoScroll();
-    if (drag.moved) suppressTextClickRef.current = true;
+    if (drag.moved) { suppressTextClickRef.current = true; settleClipDrop('audio', drag); }
     if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null); setTextDragYOffset(0); audioDragRef.current = null;
   };
@@ -504,6 +561,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       clipId: clip.id,
       trackId,
       createdTrackId: null,
+      originalTrack: textTracks.find((track) => track.id === trackId)!,
+      originalTrackIndex: textTracks.findIndex((track) => track.id === trackId),
+      originalStart: clip.start,
       offsetX: event.clientX - rect.left,
       startX: event.clientX,
       startY: event.clientY,
@@ -614,10 +674,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
     const destinationTrack = textTracks.find((item) => item.id === destinationTrackId);
     if (!destinationTrack) return;
-    const collides = destinationTrack.clips.some((item) =>
-      item.id !== clip.id && nextStart < item.start + item.duration - 0.001 && nextStart + clip.duration > item.start + 0.001
-    );
-    if (collides) return;
     const nextTracks = textTracks.map((item) => {
       if (item.id === drag.trackId && item.id === destinationTrackId) {
         return { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart } : entry) };
@@ -717,7 +773,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
     stopDragAutoScroll();
-    if (drag.moved) suppressTextClickRef.current = true;
+    if (drag.moved) { suppressTextClickRef.current = true; settleClipDrop('text', drag); }
     if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null);
     setTextDragYOffset(0);
