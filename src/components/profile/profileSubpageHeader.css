@@ -249,3 +249,54 @@
   .profile-storyboard-details-toggle span { max-width: calc(90px - 96px * var(--profile-header-progress, 0)); }
   .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: calc(156px - 96px * var(--profile-header-progress, 0)); }
 }
+
+/* Storyboard: the title row, editable details, preview and view tabs form one
+   pinned header. Only the scene/timeline workspace below it scrolls. */
+.profile-collapse-header--storyboard {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: var(--vyra-bg-canvas);
+}
+.profile-collapse-header--storyboard .profile-collapse-top {
+  position: relative;
+  flex: 0 0 auto;
+  height: calc(132px - 76px * var(--profile-header-progress, 0));
+  min-height: calc(132px - 76px * var(--profile-header-progress, 0));
+  overflow: hidden;
+  transition: height 180ms ease-out, min-height 180ms ease-out;
+}
+.profile-collapse-header--storyboard .profile-collapse-sticky-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  background: var(--vyra-bg-canvas);
+}
+.profile-storyboard-details-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 220ms ease, opacity 160ms ease, padding 220ms ease;
+}
+.profile-storyboard-details-panel-inner { min-height: 0; overflow: hidden; padding: 0 16px 10px; }
+.profile-storyboard-details-panel.is-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.profile-storyboard-details-panel.is-closed .profile-storyboard-details-panel-inner { padding-top: 0; padding-bottom: 0; }
+.profile-storyboard-preview { padding: 0 16px; }
+.profile-storyboard-view-tabs { padding: 0 16px; background: var(--vyra-bg-canvas); }
+.profile-collapse-header--storyboard .profile-collapse-description { right: 170px; }
+.profile-collapse-header--storyboard:has(.profile-collapse-details-action) .profile-collapse-title {
+  right: calc(184px - 112px * var(--profile-header-progress, 0));
+}
+@media (max-width: 639px) {
+  .profile-collapse-header--storyboard .profile-storyboard-details-panel-inner { padding-left: 16px; padding-right: 16px; }
+  .profile-storyboard-preview { padding-left: 16px; padding-right: 16px; }
+  .profile-storyboard-view-tabs { padding-left: 16px; padding-right: 16px; }
+}
