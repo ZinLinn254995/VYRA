@@ -414,6 +414,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
           drag.trackId = destinationTrackId;
           setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id });
+          revealNewTimelineRow('audio', destinationTrackId);
         }
       }
     }
@@ -588,6 +589,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
           drag.trackId = newTrackId;
           setSelectedTextClip({ trackId: newTrackId, clipId: clip.id });
+          revealNewTimelineRow('text', newTrackId);
           return;
         }
       }
@@ -616,6 +618,27 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       setSelectedTextClip({ trackId: destinationTrackId, clipId: clip.id });
     }
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+  };
+
+  const revealNewTimelineRow = (kind: 'text' | 'audio', trackId: string) => {
+    // Wait for React to render the newly-added row, then scroll only as far
+    // as needed to bring that row fully into the visible timeline area.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const element = scrollRef.current;
+        if (!element) return;
+        const selector = kind === 'text' ? '[data-text-track-id]' : '[data-audio-track-id]';
+        const row = Array.from(element.querySelectorAll<HTMLElement>(selector))
+          .find((item) => item.dataset[kind === 'text' ? 'textTrackId' : 'audioTrackId'] === trackId);
+        if (!row) return;
+        const viewport = element.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        const bottomOverflow = rowRect.bottom - viewport.bottom + 12;
+        const topOverflow = viewport.top - rowRect.top + 12;
+        if (bottomOverflow > 0) element.scrollTop += bottomOverflow;
+        else if (topOverflow > 0) element.scrollTop -= topOverflow;
+      });
+    });
   };
 
   const stopDragAutoScroll = () => {
