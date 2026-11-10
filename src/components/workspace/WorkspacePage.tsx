@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Plus, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -654,14 +654,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             icon={<Clapperboard size={22} />}
             title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
+            detailsAction={<button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-label="Toggle Storyboard Details" aria-expanded={storyboardDetailsExpanded} title="Storyboard Details" className="profile-storyboard-details-toggle"><Settings2 size={16} /><span>Storyboard Details</span></button>}
           />
           <div className="profile-subpage-content space-y-5 p-4 sm:p-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)}>
-            <section className="overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-              <button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-expanded={storyboardDetailsExpanded} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-[var(--vyra-bg-hover)]">
-                <span className="min-w-0"><span className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard Details</span><span className="mt-1 block truncate text-[11px] text-[var(--vyra-text-secondary)]">{activeStoryboard.title || 'Untitled Storyboard'}{activeStoryboard.topic ? ' · ' + activeStoryboard.topic : ''}</span></span>
-                <span className="flex shrink-0 items-center gap-2 text-[10px] text-[var(--vyra-text-muted)]">{activeStoryboardConfirmed ? 'Edit details' : 'Required before creating'}<ChevronDown size={15} className={storyboardDetailsExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} /></span>
-              </button>
-              {storyboardDetailsExpanded && <div className="space-y-3 border-t border-[var(--vyra-border)] p-4">
+            {storyboardDetailsExpanded && <section className="space-y-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4">
                 {!activeStoryboardConfirmed && <div className="flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)]"><Sparkles size={12} /> AI suggested · Editable</div>}
                 <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -685,8 +681,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               </div>
               {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
             
+              
+                {storyboardAiMessage && <p role="status" className="mt-2 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
+            
               </div>}
-            </section>
+              </section>}
 
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
@@ -745,9 +744,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               };
               return (
                 <div className="space-y-5 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="mb-2 flex items-end justify-between border-b border-[var(--vyra-border)] px-1 pb-1 text-[9px] tabular-nums text-[var(--vyra-text-muted)]" aria-label="Video timeline ruler">
+                    {Array.from({ length: 11 }, (_, index) => <div key={index} className="flex flex-col items-center gap-1"><span>{index * 2}s</span><span className="h-2 w-px bg-[var(--vyra-border)]" /></div>)}
+                  </div>
                   <section className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Video Preview</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Final video preview · media playback will be connected as Scenes are rendered.</p></div>
                     </div>
                     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
