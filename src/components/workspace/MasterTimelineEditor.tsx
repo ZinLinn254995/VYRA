@@ -402,18 +402,25 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     let destinationTrackId = destination?.dataset.audioTrackId;
     let destinationCenterY = destination ? destination.getBoundingClientRect().top + destination.getBoundingClientRect().height / 2 : 0;
     if (!destination && rows.length) {
+      const firstRect = rows[0].getBoundingClientRect();
       const lastRect = rows[rows.length - 1].getBoundingClientRect();
-      if (event.clientY >= lastRect.bottom - tolerance && event.clientY <= lastRect.bottom + lastRect.height + tolerance) {
+      const aboveFirst = event.clientY >= firstRect.top - firstRect.height - tolerance && event.clientY < firstRect.top - tolerance;
+      const belowLast = event.clientY > lastRect.bottom + tolerance && event.clientY <= lastRect.bottom + lastRect.height + tolerance;
+      if (aboveFirst || belowLast) {
+        const insertAtTop = aboveFirst;
         destinationTrackId = drag.createdTrackId || crypto.randomUUID();
-        destinationCenterY = lastRect.bottom + lastRect.height / 2;
+        destinationCenterY = insertAtTop
+          ? firstRect.top - firstRect.height / 2
+          : lastRect.bottom + lastRect.height / 2;
         if (!drag.createdTrackId) {
           drag.createdTrackId = destinationTrackId;
           const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
           const nextStart = Math.min(totalDuration - clip.duration, Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond));
           const current = value?.audioTracks || [];
-          const nextTracks = current.filter((track) => track.id !== drag.trackId || track.clips.length > 1)
+          const remainingTracks = current.filter((track) => track.id !== drag.trackId || track.clips.length > 1)
             .map((track) => track.id !== drag.trackId ? track : { ...track, clips: track.clips.filter((item) => item.id !== clip.id) });
-          nextTracks.push({ id: destinationTrackId, name: 'Audio', clips: [{ ...clip, start: nextStart }] });
+          const newTrack = { id: destinationTrackId, name: 'Audio', clips: [{ ...clip, start: nextStart }] };
+          const nextTracks = insertAtTop ? [newTrack, ...remainingTracks] : [...remainingTracks, newTrack];
           onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
           drag.trackId = destinationTrackId;
           setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id });
@@ -562,18 +569,22 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       ? destination.getBoundingClientRect().top + destination.getBoundingClientRect().height / 2
       : 0;
 
-    // If the pointer moves into the first row-sized space below the final
-    // track, create a new Text row and move the clip into it.
+    // Create a row when the pointer moves one row-height beyond either
+    // end of the stack. This lets users grow Text tracks upward or downward.
     if (!destination && trackElements.length > 0) {
-      const lastTrackElement = trackElements[trackElements.length - 1];
-      const lastRect = lastTrackElement.getBoundingClientRect();
-      const nextRowTop = lastRect.bottom;
-      const nextRowBottom = nextRowTop + lastRect.height + rowTolerance;
-      if (event.clientY >= nextRowTop - rowTolerance && event.clientY <= nextRowBottom) {
-        destinationCenterY = nextRowTop + lastRect.height / 2;
+      const firstElement = trackElements[0];
+      const lastElement = trackElements[trackElements.length - 1];
+      const firstRect = firstElement.getBoundingClientRect();
+      const lastRect = lastElement.getBoundingClientRect();
+      const aboveFirst = event.clientY >= firstRect.top - firstRect.height - rowTolerance && event.clientY < firstRect.top - rowTolerance;
+      const belowLast = event.clientY > lastRect.bottom + rowTolerance && event.clientY <= lastRect.bottom + lastRect.height + rowTolerance;
+      if (aboveFirst || belowLast) {
+        const insertAtTop = aboveFirst;
+        destinationCenterY = insertAtTop
+          ? firstRect.top - firstRect.height / 2
+          : lastRect.bottom + lastRect.height / 2;
         if (drag.createdTrackId) {
-          // Reuse the row created earlier in this same drag; never create
-          // another row from repeated pointermove / auto-scroll frames.
+          // Reuse the row created earlier in this same drag.
           destinationTrackId = drag.createdTrackId;
         } else {
           const newTrackId = crypto.randomUUID();
@@ -581,17 +592,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           destinationTrackId = newTrackId;
           const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
           const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
-          const nextTracks = textTracks
+          const remainingTracks = textTracks
             .filter((item) => item.id !== drag.trackId || item.clips.length > 1)
             .map((item) => item.id !== drag.trackId ? item : {
               ...item,
               clips: item.clips.filter((entry) => entry.id !== clip.id),
             });
-          nextTracks.push({
-            id: newTrackId,
-            name: 'Text',
-            clips: [{ ...clip, start: nextStart }],
-          });
+          const newTrack = { id: newTrackId, name: 'Text', clips: [{ ...clip, start: nextStart }] };
+          const nextTracks = insertAtTop ? [newTrack, ...remainingTracks] : [...remainingTracks, newTrack];
           onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
           drag.trackId = newTrackId;
           setSelectedTextClip({ trackId: newTrackId, clipId: clip.id });
