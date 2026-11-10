@@ -788,7 +788,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                         </div>
                       </div>)}
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
-                  
+                  </section>
                     ) : (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
@@ -834,7 +834,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   />
                       </div>
                     )}
-                  </section>
                 </div>
               );
             })()}
