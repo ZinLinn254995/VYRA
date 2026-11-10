@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
   Crop,
@@ -96,6 +96,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
+  const pixelsPerSecondRef = useRef(80);
   const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);
 
   useEffect(() => {
@@ -110,12 +111,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 2) return;
+      const scale = pixelsPerSecondRef.current;
       pinchRef.current = {
         startDistance: Math.max(1, distance(event.touches)),
-        startScale: pixelsPerSecond,
-        // The leading spacer places timeline time zero directly under the
-        // centered playhead, so scrollLeft / scale is the playhead's time.
-        anchorTime: element.scrollLeft / pixelsPerSecond,
+        startScale: scale,
+        // Time currently aligned with the fixed center playhead.
+        anchorTime: element.scrollLeft / scale,
       };
     };
 
@@ -125,8 +126,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
       event.preventDefault();
       const nextScale = Math.min(176, Math.max(32, pinch.startScale * distance(event.touches) / pinch.startDistance));
       setPixelsPerSecond(nextScale);
-      // Zoom around the fixed center playhead, not the fingers' midpoint.
-      element.scrollLeft = pinch.anchorTime * nextScale;
     };
 
     const onTouchEnd = (event: TouchEvent) => {
@@ -143,6 +142,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
       element.removeEventListener('touchend', onTouchEnd);
       element.removeEventListener('touchcancel', onTouchEnd);
     };
+  }, []);
+
+  useLayoutEffect(() => {
+    pixelsPerSecondRef.current = pixelsPerSecond;
+    const element = scrollRef.current;
+    const pinch = pinchRef.current;
+    if (!element || !pinch) return;
+
+    // Apply the scroll correction only after React has committed the new
+    // timeline width; otherwise the browser clamps scrollLeft against the
+    // previous (narrower) scroll range and the ruler drifts off the playhead.
+    element.scrollLeft = pinch.anchorTime * pixelsPerSecond;
   }, [pixelsPerSecond]);
 
   useEffect(() => {
