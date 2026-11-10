@@ -957,7 +957,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 <div className="space-y-4">
                     {storyboardEditorView === 'scenes' ? (
 <section className="space-y-3">
-                    <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scenes</h2><p className="mt-0.5 text-[11px] text-[var(--vyra-text-secondary)]">Build the story in the order you want.</p></div><Button type="button" onClick={addScene}><Plus size={14} /> Add Scene</Button></div>
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
@@ -979,6 +978,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                           <button type="button" onClick={() => removeScene(scene.id)} aria-label="Delete scene" className="rounded p-1.5 text-[var(--vyra-danger)]"><Trash2 size={13} /></button>
                         </div>
                       </div>)}
+                      <button type="button" onClick={addScene} aria-label="Add scene" title="Add scene" className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] text-[var(--vyra-text-muted)] transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-accent-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"><Plus size={20} strokeWidth={1.8} /></button>
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
                   </section>
                     ) : (
