@@ -54,13 +54,13 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
   if (!header) return 0;
   let remaining = Math.abs(deltaY);
   const direction = deltaY > 0 ? 1 : -1;
-  content.dataset.headerLastDirection = String(direction);
   let compact = getCompactProgress(content);
   let main = getMainProgress();
   const compactDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
   const mainDistance = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64;
 
   if (direction > 0) {
+    content.dataset.headerLastDirection = String(direction);
     if (compact < 1) {
       const amount = Math.min(remaining, (1 - compact) * compactDistance);
       compact += amount / compactDistance;
@@ -75,6 +75,7 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
     }
   } else {
     if (content.scrollTop > 0) return 0;
+    content.dataset.headerLastDirection = String(direction);
     if (main > 0) {
       const amount = Math.min(remaining, main * mainDistance);
       main -= amount / mainDistance;
