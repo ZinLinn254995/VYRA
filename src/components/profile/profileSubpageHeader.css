@@ -203,11 +203,12 @@
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
-.profile-subpage-content {
+ .profile-subpage-content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  touch-action: pan-x;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
