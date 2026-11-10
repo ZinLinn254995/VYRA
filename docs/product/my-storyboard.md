@@ -571,9 +571,11 @@ The Storyboard Details control belongs in the pinned card header, not as a separ
 - The Storyboard title adjusts its available width in sync with the shrinking control. The header's existing back/title/description compact animation remains intact.
 - Activating the header control expands or collapses the editable details form in the scrollable content.
 
-The preview area follows a direct header-to-canvas layout:
-- No ruler, divider, label, helper text, or other element is placed between the header and Video Preview.
-- The preview canvas begins immediately below the header with tight spacing, rather than a large empty gap.
-- The expanded header and details form use compact vertical spacing so the form sits closer to the header's icon, title, description, and Details control.
-- The Video Preview canvas has no separate heading or explanatory helper sentence.
+The Storyboard editor uses one persistent, pinned header stack:
+- The Storyboard Details form, Video Preview canvas, and Scenes / Master Editor switcher are all part of the sticky card header.
+- The header's icon, title, description, and Details control sit directly above the Details form with compact spacing.
+- On the first downward scroll, the title group transitions to compact mode while the Details form progressively collapses. The Video Preview and Scenes / Master Editor switcher remain pinned directly beneath the compact title group.
+- Only the active Scenes content or Master Editor timeline below the header scrolls.
+- Scrolling back to the top expands the title group but never automatically reopens the Details form. The creator must explicitly press the Details control to reopen it.
+- There is no ruler, divider, label, or helper text between the title group and the preview. The preview canvas has no separate heading or explanatory helper sentence.
 - Until an actual render is available, the canvas remains an honest empty preview surface; it must not imply playback or rendering.
