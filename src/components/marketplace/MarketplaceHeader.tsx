@@ -74,7 +74,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
 
   return (
-    <header ref={headerRef} aria-hidden={hideProgress >= 0.999} style={{ transform: `translateY(calc(-1 * var(--vyra-global-header-height, 64px) * ${hideProgress}))`, pointerEvents: hideProgress >= 0.999 ? "none" : "auto", transition: document.documentElement.classList.contains("is-header-dragging") ? "none" : "transform 180ms ease-out" }} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
+    <header ref={headerRef} aria-hidden={hideProgress >= 0.999} style={{ transform: `translateY(${-100 * hideProgress}%)`, pointerEvents: hideProgress >= 0.999 ? "none" : "auto", transition: document.documentElement.classList.contains("is-header-dragging") ? "none" : "transform 180ms ease-out" }} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
