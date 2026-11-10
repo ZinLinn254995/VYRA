@@ -111,6 +111,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [activePage]);
   React.useLayoutEffect(() => {
+    // Every Profile subpage starts with the global header fully visible.
+    // A page that supports header hiding must not leak that state into the next page.
+    document.documentElement.style.setProperty('--vyra-main-header-progress', '0');
+    document.documentElement.style.setProperty('--vyra-header-spacer-collapse', '0px');
+    document.documentElement.classList.remove('is-header-dragging');
+    window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
     if (content) updateProfileHeaderCompact(content);
   }, [activePage]);
@@ -169,7 +175,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </>
       ) : activePage === 'my-vyrals' ? (
-        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} onSendAssetsToChat={onSendAssetsToChat} />
+        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
       ) : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
