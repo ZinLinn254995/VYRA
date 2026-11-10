@@ -112,6 +112,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     clipId: string;
     trackId: string;
     offsetX: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
   } | null>(null);
   const audioDragRef = useRef<typeof textDragRef.current>(null);
   const suppressTextClickRef = useRef(false);
@@ -340,12 +344,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (audioDragRef.current?.timer) clearTimeout(audioDragRef.current.timer);
     const rect = event.currentTarget.getBoundingClientRect();
-    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, offsetX: event.clientX - rect.left };
+    const drag = { timer: null as ReturnType<typeof setTimeout> | null, active: false, moved: false, pointerId: event.pointerId, clipId: clip.id, trackId, offsetX: event.clientX - rect.left, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY };
     audioDragRef.current = drag;
     drag.timer = setTimeout(() => {
       if (audioDragRef.current !== drag) return;
       drag.active = true;
-      scrollRef.current?.setPointerCapture(event.pointerId);
       setDraggingTextClipId(clip.id);
       setTextDragYOffset(0);
       setSelectedSceneIds([]);
@@ -359,7 +362,22 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const drag = audioDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.active) {
-      if (Math.abs(event.movementX) + Math.abs(event.movementY) > 8 && drag.timer) { clearTimeout(drag.timer); drag.timer = null; drag.moved = true; }
+      const distanceFromStart = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (distanceFromStart > 8) {
+        if (drag.timer) clearTimeout(drag.timer);
+        drag.timer = null;
+        drag.moved = true;
+        if (!pinchRef.current) {
+          const scrollElement = scrollRef.current;
+          if (scrollElement) {
+            event.preventDefault();
+            scrollElement.scrollLeft -= event.clientX - drag.lastX;
+            scrollElement.scrollTop -= event.clientY - drag.lastY;
+          }
+        }
+      }
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
       return;
     }
     event.preventDefault(); event.stopPropagation(); drag.moved = true;
@@ -462,6 +480,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       clipId: clip.id,
       trackId,
       offsetX: event.clientX - rect.left,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
     };
     textDragRef.current = drag;
     drag.timer = setTimeout(() => {
@@ -480,11 +502,22 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const drag = textDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.active) {
-      if (Math.abs(event.movementX) + Math.abs(event.movementY) > 8 && drag.timer) {
-        clearTimeout(drag.timer);
+      const distanceFromStart = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (distanceFromStart > 8) {
+        if (drag.timer) clearTimeout(drag.timer);
         drag.timer = null;
         drag.moved = true;
+        if (!pinchRef.current) {
+          const scrollElement = scrollRef.current;
+          if (scrollElement) {
+            event.preventDefault();
+            scrollElement.scrollLeft -= event.clientX - drag.lastX;
+            scrollElement.scrollTop -= event.clientY - drag.lastY;
+          }
+        }
       }
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
       return;
     }
     event.preventDefault();
@@ -734,12 +767,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           style={{ touchAction: "pan-x pan-y" }}
           onPointerMove={(event) => {
             const textDrag = textDragRef.current;
-            if (textDrag?.active) {
+            if (textDrag) {
               const currentClip = textTracks.find((track) => track.id === textDrag.trackId)?.clips.find((clip) => clip.id === textDrag.clipId);
               if (currentClip) moveTextLongPress(event, currentClip);
             }
             const audioDrag = audioDragRef.current;
-            if (audioDrag?.active) {
+            if (audioDrag) {
               const currentClip = (value?.audioTracks || []).find((track) => track.id === audioDrag.trackId)?.clips.find((clip) => clip.id === audioDrag.clipId);
               if (currentClip) moveAudioLongPress(event, currentClip);
             }
@@ -865,7 +898,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
-                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'pan-x pan-y pinch-zoom', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
+                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
                         <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
