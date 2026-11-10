@@ -1,3 +1,5 @@
+import type { WheelEvent, TouchEvent } from 'react';
+
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
 const getHeader = (content: HTMLElement) =>
@@ -109,4 +111,41 @@ export const scheduleHeaderSettle = (content: HTMLElement) => {
   const target = content as HTMLElement & { [key: string]: number | undefined };
   if (target[key]) window.clearTimeout(target[key]);
   target[key] = window.setTimeout(() => settleHeaderMotion(content), 140);
+};
+
+export const handleHeaderWheel = (event: WheelEvent<HTMLDivElement>) => {
+  const content = event.currentTarget;
+  const consumed = applyHeaderScrollDelta(content, event.deltaY);
+  if (consumed <= 0) return;
+  event.preventDefault();
+  const remaining = Math.abs(event.deltaY) - consumed;
+  if (remaining > 0) content.scrollTop = Math.max(0, content.scrollTop + Math.sign(event.deltaY) * remaining);
+  beginHeaderMotion(content);
+  scheduleHeaderSettle(content);
+};
+
+export const handleHeaderTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+  const content = event.currentTarget;
+  content.dataset.headerLastTouchY = String(event.touches[0]?.clientY ?? 0);
+};
+
+export const handleHeaderTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+  const content = event.currentTarget;
+  const currentY = event.touches[0]?.clientY;
+  if (currentY === undefined) return;
+  const previousY = Number(content.dataset.headerLastTouchY ?? currentY);
+  const deltaY = previousY - currentY;
+  content.dataset.headerLastTouchY = String(currentY);
+  if (!deltaY) return;
+  const consumed = applyHeaderScrollDelta(content, deltaY);
+  if (consumed <= 0) return;
+  event.preventDefault();
+  const remaining = Math.abs(deltaY) - consumed;
+  if (remaining > 0) content.scrollTop = Math.max(0, content.scrollTop + Math.sign(deltaY) * remaining);
+  beginHeaderMotion(content);
+};
+
+export const handleHeaderTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+  delete event.currentTarget.dataset.headerLastTouchY;
+  settleHeaderMotion(event.currentTarget);
 };
