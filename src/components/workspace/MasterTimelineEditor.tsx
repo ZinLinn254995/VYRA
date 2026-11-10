@@ -162,6 +162,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    setSelectedSceneIds((current) => current.filter((id) => scenes.some((scene) => scene.id === id)));
+  }, [scenes]);
+
   const orderedScenes = useMemo(() => {
     const instances = value?.sceneInstances || [];
     const byId = new Map(scenes.map((scene) => [scene.id, scene]));
@@ -261,7 +265,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       type="button"
                       title={scene.title}
                       aria-pressed={selectedSceneIds.includes(scene.id)}
-                      onClick={() => setSelectedSceneIds((current) => current.includes(scene.id) ? current.filter((id) => id !== scene.id) : [...current, scene.id])}
+                      onClick={() => setSelectedSceneIds((current) => current[0] === scene.id ? [] : [scene.id])}
                       className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
                       style={{ width: Math.max(24, segment.duration * pixelsPerSecond) }}
                     >
