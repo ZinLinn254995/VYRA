@@ -438,11 +438,48 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 <div key={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
                   {track.clips.map((clip) => {
                     const isSelected = selectedTextClip?.trackId === track.id && selectedTextClip.clipId === clip.id;
+                    const beginTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      (event.currentTarget as HTMLDivElement).dataset.trimEdge = edge;
+                      (event.currentTarget as HTMLDivElement).dataset.startX = String(event.clientX);
+                      (event.currentTarget as HTMLDivElement).dataset.initialStart = String(clip.start);
+                      (event.currentTarget as HTMLDivElement).dataset.initialDuration = String(clip.duration);
+                    };
+                    const updateTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
+                      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const handle = event.currentTarget;
+                      const delta = (event.clientX - Number(handle.dataset.startX)) / pixelsPerSecond;
+                      const initialStart = Number(handle.dataset.initialStart);
+                      const initialDuration = Number(handle.dataset.initialDuration);
+                      const minimumDuration = 0.2;
+                      let nextStart = initialStart;
+                      let nextDuration = initialDuration;
+                      if (edge === 'left') {
+                        const fixedEnd = initialStart + initialDuration;
+                        nextStart = Math.max(0, Math.min(fixedEnd - minimumDuration, initialStart + delta));
+                        nextDuration = fixedEnd - nextStart;
+                      } else {
+                        nextDuration = Math.max(minimumDuration, initialDuration + delta);
+                      }
+                      const nextTracks = (value?.textTracks || []).map((item) => item.id !== track.id ? item : {
+                        ...item,
+                        clips: item.clips.map((itemClip) => itemClip.id === clip.id ? { ...itemClip, start: nextStart, duration: nextDuration } : itemClip),
+                      });
+                      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+                    };
                     return (
-                      <button key={clip.id} type="button" title={`${clip.content || clip.name} · ${clip.duration}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
-                        <Type size={12} className="mr-1 shrink-0" />
-                        <span className="truncate">{clip.content || clip.name}</span>
-                      </button>
+                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
+                        <div role="presentation" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
+                        <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
+                          <Type size={12} className="mr-1 shrink-0" />
+                          <span className="truncate">{clip.content || clip.name}</span>
+                        </div>
+                        <div role="presentation" aria-label="Adjust text end" title="Drag to adjust end" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'right')} onPointerMove={(event) => updateTrim(event, 'right')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
+                      </div>
                     );
                   })}
                 </div>
