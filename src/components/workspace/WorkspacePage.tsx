@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, Images, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
@@ -179,6 +179,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const workspaceHeaderStartProgress = useRef(0);
   const workspaceHeaderHandoff = useRef(0);
   const workspaceHeaderSettleTimer = useRef<number | null>(null);
+  const storyboardControlsRef = useRef<HTMLDivElement>(null);
+  const storyboardPreviewProgress = useRef(0);
+  const storyboardPreviewDrag = useRef<{ startY: number; lastY: number; lastAt: number; velocity: number; startProgress: number; moved: boolean; distance: number } | null>(null);
+  const storyboardPreviewSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
 
   // Measure the sticky handoff point and fixed header dimensions once. Reading
@@ -300,6 +304,113 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const handleWorkspaceTouchEnd = () => {
     workspaceTouchY.current = null;
     settleWorkspaceMainHeader();
+  };
+
+  // The Editor View Switcher is a dedicated preview-size grip. Its vertical
+  // gesture is isolated from the page's Storyboard/Main Header scroll motion.
+  const setStoryboardPreviewCompactProgress = (progress: number) => {
+    const next = Math.max(0, Math.min(1, progress));
+    storyboardPreviewProgress.current = next;
+    const collapsedPercent = Math.round(next * 52 * 100) / 100;
+    storyboardControlsRef.current?.style.setProperty(
+      '--storyboard-preview-frame-width',
+      `calc(100% - ${collapsedPercent}%)`,
+    );
+  };
+
+  const settleStoryboardPreview = (target?: number) => {
+    if (storyboardPreviewSettleTimer.current !== null) {
+      window.clearTimeout(storyboardPreviewSettleTimer.current);
+      storyboardPreviewSettleTimer.current = null;
+    }
+    const next = target ?? (storyboardPreviewProgress.current >= 0.48 ? 1 : 0);
+    // Let the drag style commit before restoring the normal easing transition.
+    window.requestAnimationFrame(() => {
+      document.documentElement.classList.remove('is-storyboard-preview-dragging');
+      window.requestAnimationFrame(() => setStoryboardPreviewCompactProgress(next));
+    });
+  };
+
+  const handleStoryboardPreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch || event.touches.length !== 1) return;
+    if (storyboardPreviewSettleTimer.current !== null) {
+      window.clearTimeout(storyboardPreviewSettleTimer.current);
+      storyboardPreviewSettleTimer.current = null;
+    }
+    storyboardPreviewDrag.current = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      lastAt: Date.now(),
+      velocity: 0,
+      startProgress: storyboardPreviewProgress.current,
+      moved: false,
+      distance: 0,
+    };
+    // Do not let this gesture reach the generic page/header scroll handlers.
+    event.stopPropagation();
+  };
+
+  const handleStoryboardPreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    const drag = storyboardPreviewDrag.current;
+    if (!touch || !drag || event.touches.length !== 1) return;
+    event.stopPropagation();
+    const totalDelta = drag.startY - touch.clientY;
+    if (Math.abs(totalDelta) < 4 && !drag.moved) return;
+    drag.moved = true;
+    drag.distance = Math.abs(totalDelta);
+    const now = Date.now();
+    const elapsed = Math.max(1, now - drag.lastAt);
+    drag.velocity = (drag.lastY - touch.clientY) / elapsed;
+    drag.lastY = touch.clientY;
+    drag.lastAt = now;
+    event.preventDefault();
+    document.documentElement.classList.add('is-storyboard-preview-dragging');
+    setStoryboardPreviewCompactProgress(drag.startProgress + totalDelta / 118);
+  };
+
+  const finishStoryboardPreviewTouch = (event: React.TouchEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    const drag = storyboardPreviewDrag.current;
+    storyboardPreviewDrag.current = null;
+    if (!drag?.moved) return;
+    const current = storyboardPreviewProgress.current;
+    const flicked = drag.distance >= 24 && Math.abs(drag.velocity) >= 0.55;
+    const target = flicked ? (drag.velocity > 0 ? 1 : 0) : (current >= 0.48 ? 1 : 0);
+    settleStoryboardPreview(target);
+  };
+
+  const handleStoryboardPreviewWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.deltaY) return;
+    const current = storyboardPreviewProgress.current;
+    const next = Math.max(0, Math.min(1, current + event.deltaY / 150));
+    if (Math.abs(next - current) < 0.001) return;
+    event.preventDefault();
+    event.stopPropagation();
+    document.documentElement.classList.add('is-storyboard-preview-dragging');
+    setStoryboardPreviewCompactProgress(next);
+    if (storyboardPreviewSettleTimer.current !== null) window.clearTimeout(storyboardPreviewSettleTimer.current);
+    storyboardPreviewSettleTimer.current = window.setTimeout(() => {
+      settleStoryboardPreview();
+    }, 170);
+  };
+
+  useEffect(() => {
+    storyboardPreviewProgress.current = 0;
+    storyboardPreviewControlsReset();
+    return () => {
+      if (storyboardPreviewSettleTimer.current !== null) {
+        window.clearTimeout(storyboardPreviewSettleTimer.current);
+        storyboardPreviewSettleTimer.current = null;
+      }
+      storyboardPreviewDrag.current = null;
+      document.documentElement.classList.remove('is-storyboard-preview-dragging');
+    };
+  }, [activeStoryboard?.id]);
+
+  const storyboardPreviewControlsReset = () => {
+    storyboardControlsRef.current?.style.setProperty('--storyboard-preview-frame-width', '100%');
   };
 
   useEffect(() => {
@@ -776,16 +887,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           />
           <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
-            <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
+            <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
-                <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
+                <div className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
                   <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
                 </div>
               </div>
-              <div className="profile-storyboard-view-tabs flex items-center gap-1 border-b border-[var(--vyra-border)]">
+              <div className="profile-storyboard-view-tabs flex items-center gap-1 border-b border-[var(--vyra-border)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
                 <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
+                <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
               </div>
             </div>
           )}
