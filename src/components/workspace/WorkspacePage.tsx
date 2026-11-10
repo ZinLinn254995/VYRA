@@ -186,10 +186,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (workspaceHeaderDirection.current === 0) return;
     const root = document.documentElement;
     const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
-    const moved = Math.abs(current - workspaceHeaderStartProgress.current) > 0.001;
-    if (moved) {
-      const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
-      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
+    // Use the same directional release snap as Profile subpages. In particular,
+    // a downward pull that has crossed the handoff threshold should complete
+    // the reveal even if the finger is released before another move event.
+    if (workspaceHeaderDirection.current < 0 && current > 0.001) {
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
+    } else if (workspaceHeaderDirection.current > 0 && current > 0.001) {
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 1 }));
     }
     root.classList.remove('is-header-dragging');
     workspaceHeaderDirection.current = 0;
