@@ -85,7 +85,6 @@ const toolbarItems = [
   { label: 'Undo', Icon: Undo2 },
   { label: 'Redo', Icon: Redo2 },
   { label: 'Layers', Icon: Layers },
-  { label: 'Zoom', Icon: ZoomIn },
 ];
 
 /**
