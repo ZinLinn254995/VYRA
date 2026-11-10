@@ -389,7 +389,8 @@ html.is-storyboard-preview-dragging .profile-storyboard-preview-frame {
 
 /* Hide the horizontal Master Editor tool scroller in every browser. */
 .master-editor-toolbar-scroll {
-  touch-action: pan-x;
+  /* Vertical gestures bubble to the page; horizontal swipes are handled by JS. */
+  touch-action: pan-y;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
