@@ -900,7 +900,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               </div>
             </section>
           )}
-          <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
+          <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-4 pt-0 sm:px-0 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
               <div className="profile-storyboard-preview">
@@ -990,7 +990,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               return (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3">
                     {storyboardEditorView === 'scenes' ? (
-<section className="storyboard-editor-pane space-y-3 pb-4">
+<section className="storyboard-editor-pane space-y-3 px-4 pb-4 sm:px-5">
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
