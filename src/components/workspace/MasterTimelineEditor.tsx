@@ -243,7 +243,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const sceneTotalDuration = sceneDurations.reduce((sum, duration) => sum + duration, 0);
   const textTracks = value?.textTracks || [];
   const textContentEnd = textTracks.flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
-  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd);
+  const audioContentEnd = (value?.audioTracks || []).flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
   const leadingSpace = viewportWidth / 2;
   // Adapt ruler spacing to zoom level so labels stay readable.
