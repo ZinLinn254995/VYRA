@@ -257,9 +257,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const source = tracks.find((track) => track.id === selectedTextClip.trackId)?.clips.find((clip) => clip.id === selectedTextClip.clipId);
     if (!source) return;
     const cloneId = crypto.randomUUID();
+    const sourceTrack = tracks.find((track) => track.id === selectedTextClip.trackId);
+    const existingClips = sourceTrack?.clips || [];
+    // Place the clone after the last clip in this row so it never overlaps.
+    const cloneStart = existingClips.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
     const nextTracks = tracks.map((track) => track.id !== selectedTextClip.trackId ? track : {
       ...track,
-      clips: [...track.clips, { ...source, id: cloneId, start: source.start + source.duration }],
+      clips: [...track.clips, { ...source, id: cloneId, start: cloneStart }],
     });
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
     setSelectedTextClip({ ...selectedTextClip, clipId: cloneId });
@@ -458,12 +462,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       const minimumDuration = 0.2;
                       let nextStart = initialStart;
                       let nextDuration = initialDuration;
+                      const otherClips = track.clips.filter((itemClip) => itemClip.id !== clip.id);
+                      const previousEnd = otherClips
+                        .filter((itemClip) => itemClip.start + itemClip.duration <= initialStart + 0.0001)
+                        .reduce((end, itemClip) => Math.max(end, itemClip.start + itemClip.duration), 0);
+                      const nextStartBoundary = otherClips
+                        .filter((itemClip) => itemClip.start >= initialStart + initialDuration - 0.0001)
+                        .reduce((start, itemClip) => Math.min(start, itemClip.start), Number.POSITIVE_INFINITY);
                       if (edge === 'left') {
                         const fixedEnd = initialStart + initialDuration;
-                        nextStart = Math.max(0, Math.min(fixedEnd - minimumDuration, initialStart + delta));
+                        nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimumDuration, initialStart + delta));
                         nextDuration = fixedEnd - nextStart;
                       } else {
-                        nextDuration = Math.max(minimumDuration, initialDuration + delta);
+                        const maxEnd = Number.isFinite(nextStartBoundary) ? nextStartBoundary : Number.POSITIVE_INFINITY;
+                        nextDuration = Math.max(minimumDuration, Math.min(maxEnd - initialStart, initialDuration + delta));
                       }
                       const nextTracks = (value?.textTracks || []).map((item) => item.id !== track.id ? item : {
                         ...item,
@@ -472,13 +484,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
-                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
-                        <div role="presentation" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
+                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-amber-950 dark:text-amber-100 ${isSelected ? 'border-amber-500 bg-amber-400/40 ring-2 ring-amber-500' : 'border-amber-500/70 bg-amber-400/25'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
+                        <div role="presentation" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-amber-500/35 hover:bg-amber-500" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
                           <span className="truncate">{clip.content || clip.name}</span>
                         </div>
-                        <div role="presentation" aria-label="Adjust text end" title="Drag to adjust end" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'right')} onPointerMove={(event) => updateTrim(event, 'right')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
+                        <div role="presentation" aria-label="Adjust text end" title="Drag to adjust end" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-amber-500/35 hover:bg-amber-500" onPointerDown={(event) => beginTrim(event, 'right')} onPointerMove={(event) => updateTrim(event, 'right')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                       </div>
                     );
                   })}
