@@ -626,16 +626,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const rect = element.getBoundingClientRect();
       const edgeSize = 56;
       const maxSpeed = 18;
-      const speedFor = (position: number, start: number, end: number, maxScroll: number) => {
-        if (position < start + edgeSize && element.scrollLeft < maxScroll && start < end) {
-          return -maxSpeed * Math.min(1, (start + edgeSize - position) / edgeSize);
-        }
-        if (position > end - edgeSize && element.scrollLeft < maxScroll && start < end) {
-          return maxSpeed * Math.min(1, (position - (end - edgeSize)) / edgeSize);
-        }
-        return 0;
-      };
-
       const horizontalMax = Math.max(0, element.scrollWidth - element.clientWidth);
       const verticalMax = Math.max(0, element.scrollHeight - element.clientHeight);
       let dx = 0;
