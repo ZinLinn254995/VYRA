@@ -349,6 +349,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     drag.timer = setTimeout(() => {
       if (audioDragRef.current !== drag) return;
       drag.active = true;
+      scrollRef.current?.setPointerCapture(event.pointerId);
       setDraggingTextClipId(clip.id);
       setTextDragYOffset(0);
       setSelectedSceneIds([]);
