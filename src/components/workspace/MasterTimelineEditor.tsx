@@ -277,7 +277,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
               <div className="flex h-16 items-center gap-px py-2">
                 {orderedScenes.map((scene, index) => {
                   const segment = sceneSegments[index];
-                  const instance = value?.sceneInstances?.find((item) => item.sceneId === scene.id);
                   return (
                     <div
                       key={scene.id}
