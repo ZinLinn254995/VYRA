@@ -664,7 +664,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             description={activeStoryboard.topic || 'Preparing your storyboard description…'}
             storyboardTitle
           />
-          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateStoryboardHeaderCompact(event.currentTarget, target.scrollTop); }}>
+          <div className="profile-subpage-content px-4 pb-4 pt-0 sm:px-5 sm:pb-5" onScroll={(event) => updateStoryboardHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateStoryboardHeaderCompact(event.currentTarget, target.scrollTop); }} onWheel={(event) => { if (event.deltaY > 0) updateStoryboardHeaderCompact(event.currentTarget, 1); else if (event.deltaY < 0 && event.currentTarget.scrollTop <= 0) updateStoryboardHeaderCompact(event.currentTarget, 0); }} onTouchStart={(event) => { event.currentTarget.dataset.compactTouchY = String(event.touches[0]?.clientY ?? 0); }} onTouchMove={(event) => { const start = Number(event.currentTarget.dataset.compactTouchY || 0); const current = event.touches[0]?.clientY ?? start; if (current < start - 4) updateStoryboardHeaderCompact(event.currentTarget, 1); else if (current > start + 4 && event.currentTarget.scrollTop <= 0) updateStoryboardHeaderCompact(event.currentTarget, 0); }}>
           {activeStoryboardConfirmed && (
             <div className="profile-storyboard-controls -mx-4 sm:-mx-5">
               <div className="profile-storyboard-preview">
