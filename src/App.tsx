@@ -19,7 +19,7 @@ function MarketplaceApp() {
   const profileLabel = isGuestSession ? 'Temporary Guest Session' : user?.email ?? null;
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [mainHeaderHidden, setMainHeaderHidden] = useState(false);
+  const [mainHeaderProgress, setMainHeaderProgress] = useState(0);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
@@ -83,12 +83,12 @@ function MarketplaceApp() {
   };
 
   useEffect(() => {
-    const handleHeaderVisibility = (event: Event) => setMainHeaderHidden((event as CustomEvent<boolean>).detail);
-    window.addEventListener('vyra:main-header-visibility', handleHeaderVisibility);
-    return () => window.removeEventListener('vyra:main-header-visibility', handleHeaderVisibility);
+    const handleHeaderProgress = (event: Event) => setMainHeaderProgress(Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0)));
+    window.addEventListener('vyra:main-header-progress', handleHeaderProgress);
+    return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
   }, []);
 
-  useLayoutEffect(() => { window.scrollTo(0, 0); setMainHeaderHidden(false); }, [activeSection, profileOpen]);
+  useLayoutEffect(() => { window.scrollTo(0, 0); setMainHeaderProgress(0); document.documentElement.style.setProperty('--vyra-main-header-progress', '0'); }, [activeSection, profileOpen]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -102,7 +102,7 @@ function MarketplaceApp() {
   return (
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <MarketplaceHeader
-        hidden={mainHeaderHidden}
+        hideProgress={mainHeaderProgress}
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
         onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
@@ -111,7 +111,7 @@ function MarketplaceApp() {
         onAuthRequest={requestAuth}
         onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
-      <div aria-hidden="true" className={`w-full shrink-0 transition-[height] duration-200 ${mainHeaderHidden ? "h-0" : "h-[109px] sm:h-16"}`} />
+      <div aria-hidden="true" className="w-full shrink-0" style={{ height: `calc(var(--vyra-global-header-height, 64px) * ${1 - mainHeaderProgress})`, transition: 'height 180ms ease-out' }} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
         <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
           {profileOpen && user ? (
