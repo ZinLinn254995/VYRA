@@ -54,6 +54,7 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
   if (!header) return 0;
   let remaining = Math.abs(deltaY);
   const direction = deltaY > 0 ? 1 : -1;
+  content.dataset.headerLastDirection = String(direction);
   let compact = getCompactProgress(content);
   let main = getMainProgress();
   const compactDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
@@ -95,8 +96,18 @@ export const settleHeaderMotion = (content: HTMLElement) => {
   if (!header) return;
   const compact = getCompactProgress(content);
   const main = getMainProgress();
-  setCompactProgress(content, compact >= 0.5 ? 1 : 0);
-  setMainProgress(main >= 0.5 ? 1 : 0);
+  const direction = Number(content.dataset.headerLastDirection || 0);
+  if (direction > 0) {
+    setCompactProgress(content, 1);
+    setMainProgress(main > 0.001 ? 1 : 0);
+  } else if (direction < 0) {
+    setMainProgress(0);
+    setCompactProgress(main > 0.001 ? 1 : 0);
+  } else {
+    setCompactProgress(content, compact >= 0.5 ? 1 : 0);
+    setMainProgress(main >= 0.5 ? 1 : 0);
+  }
+  delete content.dataset.headerLastDirection;
   content.classList.remove('is-header-dragging');
   document.documentElement.classList.remove('is-header-dragging');
   setMainProgress(main >= 0.5 ? 1 : 0);
