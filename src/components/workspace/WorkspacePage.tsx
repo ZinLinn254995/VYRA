@@ -954,7 +954,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 setSelectedSceneIds((current) => current.filter((sceneId) => sceneId !== id));
               };
               return (
-                <div className="space-y-4">
+                <div className="space-y-4 pt-3">
                     {storyboardEditorView === 'scenes' ? (
 <section className="space-y-3">
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
