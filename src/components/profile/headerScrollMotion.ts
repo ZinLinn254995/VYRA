@@ -111,7 +111,6 @@ export const settleHeaderMotion = (content: HTMLElement) => {
   delete content.dataset.headerLastDirection;
   content.classList.remove('is-header-dragging');
   document.documentElement.classList.remove('is-header-dragging');
-  setMainProgress(main >= 0.5 ? 1 : 0);
 };
 
 export const beginHeaderMotion = (content: HTMLElement) => {
