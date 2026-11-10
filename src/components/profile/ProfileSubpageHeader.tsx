@@ -10,10 +10,11 @@ type Props = {
   description: string;
   action?: React.ReactNode;
   search?: React.ReactNode;
+  detailsAction?: React.ReactNode;
 };
 
 export const ProfileSubpageHeader: React.FC<Props> = ({
-  onBack, backLabel, icon, title, description, action, search,
+  onBack, backLabel, icon, title, description, action, search, detailsAction,
 }) => (
   <div className="profile-collapse-shell">
     <div className={`profile-collapse-header${search ? ' profile-collapse-header--search' : ''}`}>
@@ -24,6 +25,7 @@ export const ProfileSubpageHeader: React.FC<Props> = ({
       <h1 className="profile-collapse-title">{title}</h1>
       <p className="profile-collapse-description">{description}</p>
       {action ? <div className="profile-collapse-action">{action}</div> : null}
+      {detailsAction ? <div className="profile-collapse-details-action">{detailsAction}</div> : null}
       {search ? <div className="profile-collapse-search">{search}</div> : null}
     </div>
   </div>
