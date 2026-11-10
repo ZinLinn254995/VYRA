@@ -561,3 +561,17 @@ After the creator fills in Title, Description, and optional details and confirms
 - Master Editor hosts the current Master Timeline composition interface and is explicitly marked as a simulation while real media playback/rendering is not available. Its Scene synchronization still uses the same Storyboard Scene records.
 - Switching views does not create duplicate scene data or reset the other view's timeline state.
 - The Details panel and view selection are UI state; the Storyboard content and Master Timeline continue to use the existing autosave/persistence path.
+
+
+### 22. Storyboard header details control and preview-only canvas
+
+The Storyboard Details control belongs in the pinned card header, not as a separate content card. It stays available while scrolling:
+- In expanded header mode it displays the Settings icon and “Storyboard Details” label.
+- As the header enters compact mode, the control progressively narrows and fades its label until only the icon remains on the header's right side.
+- The Storyboard title adjusts its available width in sync with the shrinking control. The header's existing back/title/description compact animation remains intact.
+- Activating the header control expands or collapses the editable details form in the scrollable content.
+
+The preview area follows a minimal ruler + video canvas layout:
+- A time ruler appears immediately below the header; its range follows the total canonical Scene durations.
+- The Video Preview canvas is shown directly beneath the ruler, without a separate “Video Preview” heading or explanatory helper sentence.
+- Until an actual render is available, the canvas remains an honest empty preview surface; it must not imply playback or rendering.
