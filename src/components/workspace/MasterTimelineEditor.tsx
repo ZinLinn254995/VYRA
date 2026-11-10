@@ -21,6 +21,7 @@ export type TimelineClip = {
   start: number;
   duration: number;
   waveform?: number[];
+  content?: string;
 };
 
 export type TimelineTrack = {
@@ -187,7 +188,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     duration: Math.max(0.1, scene.duration),
   }));
   const sceneDurations = sceneSegments.map((segment) => segment.duration);
-  const totalDuration = Math.max(1, sceneDurations.reduce((sum, duration) => sum + duration, 0));
+  const sceneTotalDuration = sceneDurations.reduce((sum, duration) => sum + duration, 0);
+  const textTracks = value?.textTracks || [];
+  const textContentEnd = textTracks.flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
   const leadingSpace = viewportWidth / 2;
   const rulerTicks = Array.from({ length: Math.floor(totalDuration) + 1 }, (_, second) => second);
@@ -228,6 +232,30 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       textTracks: value?.textTracks || [],
     });
   };
+  const addTextClip = () => {
+    const start = Math.max(0, scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
+    const tracks = value?.textTracks || [];
+    const textTrack = tracks.find((track) => track.name === 'Text') || {
+      id: crypto.randomUUID(),
+      name: 'Text',
+      clips: [],
+    };
+    const nextTrack = {
+      ...textTrack,
+      clips: [...textTrack.clips, { id: crypto.randomUUID(), name: 'Text', content: 'Text', start, duration: 3 }],
+    };
+    const nextTracks = tracks.some((track) => track.id === textTrack.id)
+      ? tracks.map((track) => track.id === textTrack.id ? nextTrack : track)
+      : [...tracks, nextTrack];
+    onChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions: value?.transitions || {},
+      audioTracks: value?.audioTracks || [],
+      textTracks: nextTracks,
+    });
+  };
+
   const runCloneSelected = () => {
     selectedScenes.forEach((scene) => {
       const index = orderedScenes.findIndex((item) => item.id === scene.id);
@@ -290,6 +318,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             type="button"
             title={label}
             aria-label={label}
+            onClick={label === 'Text' ? addTextClip : undefined}
             className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
           >
             <Icon size={22} strokeWidth={1.8} />
@@ -374,6 +403,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   );
                 })}
               </div>
+              {textTracks.map((track) => (
+                <div key={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
+                  {track.clips.map((clip) => (
+                    <div key={clip.id} title={`${clip.content || clip.name} · ${clip.duration}s`} className="absolute inset-y-1 flex items-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15 px-2 text-[10px] font-medium text-[var(--vyra-text-primary)]" style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
+                      <Type size={12} className="mr-1 shrink-0" />
+                      <span className="truncate">{clip.content || clip.name}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
           </div>
