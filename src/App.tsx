@@ -19,6 +19,7 @@ function MarketplaceApp() {
   const profileLabel = isGuestSession ? 'Temporary Guest Session' : user?.email ?? null;
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mainHeaderHidden, setMainHeaderHidden] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
@@ -81,7 +82,13 @@ function MarketplaceApp() {
     catch { /* Keep the current account visible if the remote sign-out could not be confirmed. */ }
   };
 
-  useLayoutEffect(() => { window.scrollTo(0, 0); }, [activeSection, profileOpen]);
+  useEffect(() => {
+    const handleHeaderVisibility = (event: Event) => setMainHeaderHidden((event as CustomEvent<boolean>).detail);
+    window.addEventListener('vyra:main-header-visibility', handleHeaderVisibility);
+    return () => window.removeEventListener('vyra:main-header-visibility', handleHeaderVisibility);
+  }, []);
+
+  useLayoutEffect(() => { window.scrollTo(0, 0); setMainHeaderHidden(false); }, [activeSection, profileOpen]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -95,6 +102,7 @@ function MarketplaceApp() {
   return (
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <MarketplaceHeader
+        hidden={mainHeaderHidden}
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
         onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
@@ -103,7 +111,7 @@ function MarketplaceApp() {
         onAuthRequest={requestAuth}
         onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
-      <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
+      <div aria-hidden="true" className={`w-full shrink-0 transition-[height] duration-200 ${mainHeaderHidden ? "h-0" : "h-[109px] sm:h-16"}`} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
         <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
           {profileOpen && user ? (
