@@ -926,8 +926,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   </div>
                 ))}
               </div>
-              {/* Two empty track-height rows above the Scene row provide room for upward clip moves. */}
-              <div aria-hidden="true" className="h-24 shrink-0" />
               <div className="relative flex h-16 items-center gap-0 py-2">
                 {orderedScenes.map((scene, index) => {
                   const segment = sceneSegments[index];
