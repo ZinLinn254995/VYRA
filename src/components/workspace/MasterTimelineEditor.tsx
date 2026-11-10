@@ -203,7 +203,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="master-timeline-scroll relative h-full min-h-0 w-full flex-1 overflow-auto"
+        className="master-timeline-scroll relative h-full min-h-0 w-full flex-1 overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: "pan-x pan-y" }}
       >
           <div className="flex min-h-full w-max items-start">
