@@ -71,6 +71,7 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
       setMainProgress(main);
     }
   } else {
+    if (content.scrollTop > 0) return 0;
     if (main > 0) {
       const amount = Math.min(remaining, main * mainDistance);
       main -= amount / mainDistance;
