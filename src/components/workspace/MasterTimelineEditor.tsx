@@ -326,21 +326,24 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   const boundary = sceneSegments.slice(0, index + 1).reduce((sum, segment) => sum + segment.duration, 0) * pixelsPerSecond;
                   const hiddenBySceneSelection = selectedSceneIds.includes(scene.id) || selectedSceneIds.includes(nextScene.id);
                   if (hiddenBySceneSelection) return null;
+                  const transition = value?.transitions?.[transitionKey];
+                  const effectLabel = transitionOptions.find((option) => option.value === transition?.effect)?.label || transition?.effect;
+                  const isSelected = selectedTransitionKey === transitionKey;
                   return (
                     <button
                       key={transitionKey}
                       type="button"
-                      title="Choose transition"
-                      aria-label={`Transition between ${scene.title} and ${nextScene.title}`}
-                      aria-pressed={selectedTransitionKey === transitionKey}
+                      title={transition ? `Edit ${effectLabel} transition` : 'Add transition'}
+                      aria-label={`${transition ? `Edit ${effectLabel} transition` : 'Add transition'} between ${scene.title} and ${nextScene.title}`}
+                      aria-pressed={isSelected}
                       onClick={() => {
                         setSelectedSceneIds([]);
                         setSelectedTransitionKey(transitionKey);
                       }}
-                      className={`absolute top-1/2 z-10 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border shadow-sm transition-colors ${selectedTransitionKey === transitionKey ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)]'}`}
+                      className={`absolute top-1/2 z-10 flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border px-2 text-[10px] font-semibold shadow-sm transition-colors ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)] hover:border-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-muted)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-text-primary)]'}`}
                       style={{ left: boundary }}
                     >
-                      <Layers size={14} strokeWidth={2} />
+                      {transition ? effectLabel : '+'}
                     </button>
                   );
                 })}
