@@ -796,10 +796,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
   const toolbar = (
     <nav
-      className={`master-editor-bottom-nav relative z-20 flex w-full shrink-0 items-center justify-center gap-2 px-3 pt-2 transition-opacity duration-100 ${draggingTextClipId !== null ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'}`}
+      className="master-editor-bottom-nav relative z-20 flex w-full shrink-0 items-center justify-center gap-2 px-3 pt-2"
       style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
       aria-label="Master Editor tools"
-      aria-hidden={draggingTextClipId !== null}
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
         {selectedTransitionKey ? (
