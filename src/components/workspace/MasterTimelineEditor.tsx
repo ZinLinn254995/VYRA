@@ -100,7 +100,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
-  const [playheadTime, setPlayheadTime] = useState(0);
   const pixelsPerSecondRef = useRef(80);
   const pinchRef = useRef<{ startDistance: number; startScale: number; anchorTime: number } | null>(null);
   const textDragRef = useRef<{
@@ -550,7 +549,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           }}
           onPointerUp={endTextLongPress}
           onPointerCancel={endTextLongPress}
-          onScroll={(event) => setPlayheadTime(event.currentTarget.scrollLeft / pixelsPerSecond)}
           onClick={(event) => {
             if (!(event.target as HTMLElement).closest("button")) {
               setSelectedSceneIds([]);
