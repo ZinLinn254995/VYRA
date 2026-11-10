@@ -101,9 +101,21 @@ export const applyHeaderScrollDelta = (content: HTMLElement, deltaY: number) => 
         main -= amount / mainDistance;
         remaining -= amount;
         setMainProgress(main);
+        if (main <= 0.001) {
+          // Finish revealing the Main Header first. Keep the Compact Header
+          // fixed for this entire gesture; expanding it requires a new pull.
+          content.dataset.headerMainRevealCompleted = '1';
+          main = 0;
+        }
       }
     }
-    if (remaining > 0 && content.scrollTop <= 0 && main <= 0.001 && compact > 0) {
+    if (
+      remaining > 0 &&
+      content.scrollTop <= 0 &&
+      main <= 0.001 &&
+      compact > 0 &&
+      content.dataset.headerMainRevealCompleted !== '1'
+    ) {
       const amount = Math.min(remaining, compact * compactDistance);
       compact -= amount / compactDistance;
       remaining -= amount;
@@ -134,7 +146,10 @@ export const settleHeaderMotion = (content: HTMLElement) => {
     targetMain = main > 0.001 ? 1 : 0;
   } else if (direction < 0) {
     targetMain = 0;
-    targetCompact = main > 0.001 ? 1 : 0;
+    targetCompact =
+      main > 0.001 || content.dataset.headerMainRevealCompleted === '1' || content.scrollTop > 0
+        ? 1
+        : 0;
   } else {
     targetCompact = compact >= 0.5 ? 1 : 0;
     targetMain = main >= 0.5 ? 1 : 0;
@@ -150,6 +165,7 @@ export const settleHeaderMotion = (content: HTMLElement) => {
   delete content.dataset.headerLastDirection;
   delete content.dataset.headerHandoffDirection;
   delete content.dataset.headerHandoffProgress;
+  delete content.dataset.headerMainRevealCompleted;
 };
 
 export const beginHeaderMotion = (content: HTMLElement) => {
