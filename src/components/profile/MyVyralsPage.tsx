@@ -213,7 +213,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
-      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd}>
+      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {error && <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-500">{error}</div>}
           {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Vyrals…</div> :
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
