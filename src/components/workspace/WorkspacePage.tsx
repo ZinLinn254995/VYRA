@@ -474,11 +474,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           duration,
           tracks: timeline.tracks.map((track) => ({
             ...track,
-            clips: track.clips.map((clip) => ({
-              ...clip,
-              start: Math.min(clip.start, duration),
-              duration: Math.max(0.1, Math.min(clip.duration, duration - Math.min(clip.start, duration) || 0.1)),
-            })),
+            clips: track.clips.map((clip) => {
+              const start = Math.min(clip.start, Math.max(0, duration - 0.1));
+              return { ...clip, start, duration: Math.max(0.1, Math.min(clip.duration, duration - start)) };
+            }),
           })),
         };
         updateActiveScene({ duration, project: { ...project, timeline: nextTimeline, updatedAt: new Date().toISOString() } });
