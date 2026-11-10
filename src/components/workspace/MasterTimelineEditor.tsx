@@ -94,6 +94,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
+  const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
+  const [textDragYOffset, setTextDragYOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(80);
@@ -281,6 +283,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (textDragRef.current !== drag) return;
       drag.active = true;
       scrollRef.current?.setPointerCapture(event.pointerId);
+      setDraggingTextClipId(clip.id);
+      setTextDragYOffset(0);
       setSelectedSceneIds([]);
       setSelectedTransitionKey(null);
       setSelectedTextClip({ trackId, clipId: clip.id });
@@ -309,6 +313,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return event.clientY >= rect.top && event.clientY <= rect.bottom;
     });
     if (!destination) return;
+    const destinationRect = destination.getBoundingClientRect();
+    // Give the clip a little vertical breathing room inside its row while dragging.
+    setTextDragYOffset(Math.max(-6, Math.min(6, event.clientY - (destinationRect.top + destinationRect.height / 2))));
     const destinationTrackId = destination.dataset.textTrackId;
     if (!destinationTrackId) return;
     const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
@@ -339,7 +346,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
     if (drag.moved) suppressTextClickRef.current = true;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
+    setDraggingTextClipId(null);
+    setTextDragYOffset(0);
     textDragRef.current = null;
   };
 
@@ -539,7 +548,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 })}
               </div>
               {textTracks.map((track) => (
-                <div key={track.id} data-text-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
+                <div key={track.id} data-text-track-id={track.id} className="relative h-14 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
                   {track.clips.map((clip) => {
                     const isSelected = selectedTextClip?.trackId === track.id && selectedTextClip.clipId === clip.id;
                     const beginTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
@@ -584,7 +593,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
-                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none' }} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
+                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-2 z-0 flex items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', transform: draggingTextClipId === clip.id ? `translateY(${textDragYOffset}px)` : undefined }} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
                         <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
