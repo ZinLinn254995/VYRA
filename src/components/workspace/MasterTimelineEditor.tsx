@@ -96,7 +96,7 @@ export const MasterTimelineEditor: React.FC<Props> = () => (
   <div className="relative flex min-h-[420px] w-full items-end justify-center pb-4 pt-6">
     <div className="sticky bottom-3 z-10 w-full max-w-full">
       <div
-        className="mx-auto flex w-fit max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 p-2 shadow-lg backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex w-full max-w-full items-center gap-3 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label="Master Editor tools"
       >
         {toolbarItems.map(({ label, Icon }) => (
@@ -105,9 +105,9 @@ export const MasterTimelineEditor: React.FC<Props> = () => (
             type="button"
             title={label}
             aria-label={label}
-            className="grid size-10 shrink-0 place-items-center rounded-full text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+            className="grid size-16 shrink-0 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)] shadow-sm transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
           >
-            <Icon size={18} strokeWidth={1.8} />
+            <Icon size={24} strokeWidth={1.8} />
           </button>
         ))}
       </div>
