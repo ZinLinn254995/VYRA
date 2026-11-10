@@ -204,7 +204,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
   return (
     <div className="relative min-h-[420px] w-full space-y-3 pb-24 pt-2">
       <div className="relative overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-        <div ref={scrollRef} className="master-timeline-scroll overflow-x-auto overflow-y-hidden">
+        <div ref={scrollRef} className="master-timeline-scroll overflow-x-auto overflow-y-hidden" style={{ touchAction: "pan-x" }}>
           <div className="flex w-max items-start">
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
             <div className="shrink-0" style={{ width: timelineWidth }}>
