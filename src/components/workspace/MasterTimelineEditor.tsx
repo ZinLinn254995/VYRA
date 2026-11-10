@@ -1,4 +1,21 @@
 import React from 'react';
+import {
+  AudioLines,
+  Crop,
+  Copy,
+  Scissors,
+  Gauge,
+  Layers,
+  MousePointer2,
+  Redo2,
+  RotateCw,
+  Sparkles,
+  Trash2,
+  Type,
+  Undo2,
+  ZoomIn,
+  BetweenHorizontalStart,
+} from 'lucide-react';
 
 export type TimelineClip = {
   id: string;
@@ -52,8 +69,48 @@ type Props = {
   onSceneDelete: (sceneId: string) => void;
 };
 
+const toolbarItems = [
+  { label: 'Select', Icon: MousePointer2 },
+  { label: 'Split', Icon: Scissors },
+  { label: 'Trim', Icon: BetweenHorizontalStart },
+  { label: 'Delete', Icon: Trash2 },
+  { label: 'Duplicate', Icon: Copy },
+  { label: 'Crop', Icon: Crop },
+  { label: 'Speed', Icon: Gauge },
+  { label: 'Rotate', Icon: RotateCw },
+  { label: 'Transition', Icon: Layers },
+  { label: 'Effects', Icon: Sparkles },
+  { label: 'Text', Icon: Type },
+  { label: 'Audio', Icon: AudioLines },
+  { label: 'Undo', Icon: Undo2 },
+  { label: 'Redo', Icon: Redo2 },
+  { label: 'Layers', Icon: Layers },
+  { label: 'Zoom', Icon: ZoomIn },
+];
+
 /**
- * Master Editor is intentionally blank while its workspace is being rebuilt.
- * Keep the data contracts in place so Storyboard scene state remains intact.
+ * Master Editor toolbar shell. Editing actions are intentionally visual-only
+ * while the timeline and editing engine are being built.
  */
-export const MasterTimelineEditor: React.FC<Props> = () => null;
+export const MasterTimelineEditor: React.FC<Props> = () => (
+  <div className="relative flex min-h-[420px] w-full items-end justify-center pb-4 pt-6">
+    <div className="sticky bottom-3 z-10 w-full max-w-full">
+      <div
+        className="mx-auto flex w-fit max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 p-2 shadow-lg backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        aria-label="Master Editor tools"
+      >
+        {toolbarItems.map(({ label, Icon }) => (
+          <button
+            key={label}
+            type="button"
+            title={label}
+            aria-label={label}
+            className="grid size-10 shrink-0 place-items-center rounded-full text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+          >
+            <Icon size={18} strokeWidth={1.8} />
+          </button>
+        ))}
+      </div>
+    </div>
+  </div>
+);
