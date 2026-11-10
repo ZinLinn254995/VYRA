@@ -3,6 +3,7 @@ import { ChevronRight, LockKeyhole, Plus, Search, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
+import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import { VyralDetailsContent } from './VyralDetailsContent';
 import { supabase } from '../../context/AuthContext';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
@@ -30,29 +31,7 @@ const readLegacyVyrals = (): LegacyVyral[] => {
 };
 
 const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
-  const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
-  if (!header) return;
-  // Compact on the first actual scroll movement; expand again only at the top.
-  const compactMode = scrollTop > 0;
-  const headerProgress = compactMode ? 1 : 0;
-  const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
-  const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
-  header.style.setProperty('--profile-header-progress', String(headerProgress));
-  header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-rotation', '0deg');
-  header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-  header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-  header.style.setProperty('--profile-create-button-width', (148 - 64 * headerProgress) + 'px');
-  header.style.setProperty('--profile-create-extra-width', (100 * (1 - headerProgress)) + 'px');
-  header.style.setProperty('--profile-create-extra-opacity', (1 - headerProgress).toFixed(3));
-  header.style.setProperty('--profile-create-extra-shift', (12 * headerProgress) + 'px');
-  header.style.setProperty('--profile-back-label-opacity', (1 - headerProgress).toFixed(3));
-  header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
+  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
 };
 
 const fieldClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
@@ -234,25 +213,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
         description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
-      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateProfileHeaderCompact(event.currentTarget, target.scrollTop); }}>
-        <VyralDetailsContent vyral={active} searchQuery={query} onVyralUpdated={updateActive} onSendAssetsToChat={onSendAssetsToChat} />
-      </div>
-    </section></div>
-  );
-
-  return (
-    <div className="profile-subpage-scroll profile-subpage-viewport">
-      <section className="profile-subpage-card">
-        <ProfileSubpageHeader
-          onBack={onBack}
-          backLabel={backLabel}
-          icon={<VyralIdentityIcon size={22} />}
-          title="My Vyrals"
-          description="Your Vyral packages and their original Assets."
-          action={<Button size="sm" onClick={() => setCreateOpen(true)} startIcon={<Plus size={14} />} className="profile-create-button" aria-label="Create New Vyral"><span className="profile-create-copy"><span className="profile-create-label">Create</span><span className="profile-create-extra">New Vyral</span></span></Button>}
-          search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
-        />
-        <div className="profile-subpage-content space-y-5 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateProfileHeaderCompact(event.currentTarget, target.scrollTop); }} onWheel={(event) => { const el = event.currentTarget; if (el.dataset.headerWheelLocked === '1') return; el.dataset.headerWheelLocked = '1'; const header = el.closest('.profile-subpage-card')?.querySelector('.profile-collapse-header'); const compact = Number.parseFloat(header?.style.getPropertyValue('--profile-header-progress') || '0') >= 0.5; const hidden = document.querySelector('header[aria-hidden="true"]') !== null; const stage = compact || hidden ? 'main' : 'compact'; if (event.deltaY > 0) { if (stage === 'main' && compact) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: true })); else if (stage === 'compact') updateProfileHeaderCompact(el, 1); } else if (event.deltaY < 0) { if (hidden) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: false })); else if (el.scrollTop <= 0) updateProfileHeaderCompact(el, 0); } window.setTimeout(() => { delete el.dataset.headerWheelLocked; }, 220); }} onTouchStart={(event) => { const el = event.currentTarget; const header = el.closest('.profile-subpage-card')?.querySelector('.profile-collapse-header'); const compact = Number.parseFloat(header?.style.getPropertyValue('--profile-header-progress') || '0') >= 0.5; const hidden = document.querySelector('header[aria-hidden="true"]') !== null; el.dataset.compactTouchY = String(event.touches[0]?.clientY ?? 0); el.dataset.compactTouchStage = compact || hidden ? 'main' : 'compact'; }} onTouchMove={(event) => { const el = event.currentTarget; const start = Number(el.dataset.compactTouchY || 0); const current = event.touches[0]?.clientY ?? start; const stage = el.dataset.compactTouchStage; if (current < start - 4) { if (stage === 'main') window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: true })); else if (stage === 'compact') updateProfileHeaderCompact(el, 1); } else if (current > start + 4) { if (document.querySelector('header[aria-hidden="true"]')) window.dispatchEvent(new CustomEvent('vyra:main-header-visibility', { detail: false })); else if (el.scrollTop <= 0) updateProfileHeaderCompact(el, 0); } }} onTouchEnd={(event) => { delete event.currentTarget.dataset.compactTouchStage; }}>
+      <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd}>
           {error && <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-500">{error}</div>}
           {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Vyrals…</div> :
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
