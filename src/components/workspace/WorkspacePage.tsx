@@ -618,6 +618,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         setStoryboards((current) => current.map((item) => item.id === latest.id ? latest : item));
         void persistStoryboard(latest);
       }
+      // Leaving the Storyboard Editor returns to the Workspace, where the global
+      // navigation header must always be visible and interactive again.
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-main-header-progress', '0');
+      root.style.setProperty('--vyra-header-spacer-collapse', '0px');
+      root.classList.remove('is-header-dragging');
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
       setActiveStoryboard(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardDetailsExpanded(true);
