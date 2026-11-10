@@ -318,12 +318,43 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       })
       .filter(({ rect }) => event.clientY >= rect.top - rowTolerance && event.clientY <= rect.bottom + rowTolerance)
       .sort((a, b) => a.distance - b.distance)[0]?.element;
-    if (!destination) return;
-    const destinationRect = destination.getBoundingClientRect();
-    // Allow a small visual overlap above/below the row while the clip is held.
-    setTextDragYOffset(Math.max(-rowTolerance, Math.min(rowTolerance, event.clientY - (destinationRect.top + destinationRect.height / 2))));
-    const destinationTrackId = destination.dataset.textTrackId;
+    let destinationTrackId = destination?.dataset.textTrackId;
+    let destinationCenterY = destination
+      ? destination.getBoundingClientRect().top + destination.getBoundingClientRect().height / 2
+      : 0;
+
+    // If the pointer moves into the first row-sized space below the final
+    // track, create a new Text row and move the clip into it.
+    if (!destination && trackElements.length > 0) {
+      const lastTrackElement = trackElements[trackElements.length - 1];
+      const lastRect = lastTrackElement.getBoundingClientRect();
+      const nextRowTop = lastRect.bottom;
+      const nextRowBottom = nextRowTop + lastRect.height + rowTolerance;
+      if (event.clientY >= nextRowTop - rowTolerance && event.clientY <= nextRowBottom) {
+        const newTrackId = crypto.randomUUID();
+        destinationTrackId = newTrackId;
+        destinationCenterY = nextRowTop + lastRect.height / 2;
+        const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
+        const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
+        const nextTracks = textTracks
+          .filter((item) => item.id !== drag.trackId || item.clips.length > 1)
+          .map((item) => item.id !== drag.trackId ? item : {
+            ...item,
+            clips: item.clips.filter((entry) => entry.id !== clip.id),
+          });
+        nextTracks.push({
+          id: newTrackId,
+          name: 'Text',
+          clips: [{ ...clip, start: nextStart }],
+        });
+        onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+        drag.trackId = newTrackId;
+        setSelectedTextClip({ trackId: newTrackId, clipId: clip.id });
+      }
+    }
     if (!destinationTrackId) return;
+    // Allow a small visual overlap above/below the row while the clip is held.
+    setTextDragYOffset(Math.max(-rowTolerance, Math.min(rowTolerance, event.clientY - destinationCenterY)));
     const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
     const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
     const destinationTrack = textTracks.find((item) => item.id === destinationTrackId);
