@@ -138,11 +138,10 @@ export const handleHeaderTouchMove = (event: TouchEvent<HTMLDivElement>) => {
   content.dataset.headerLastTouchY = String(currentY);
   if (!deltaY) return;
   const consumed = applyHeaderScrollDelta(content, deltaY);
-  if (consumed <= 0) return;
-  event.preventDefault();
+  if (consumed > 0) beginHeaderMotion(content);
   const remaining = Math.abs(deltaY) - consumed;
   if (remaining > 0) content.scrollTop = Math.max(0, content.scrollTop + Math.sign(deltaY) * remaining);
-  beginHeaderMotion(content);
+  event.preventDefault();
 };
 
 export const handleHeaderTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
