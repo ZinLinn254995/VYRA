@@ -333,23 +333,23 @@ export const MasterTimelineEditor: React.FC<Props> = ({
                 {!positioned.length && <p className="px-3 py-6 text-[10px] text-white/35">Scenes added to this Storyboard will appear here.</p>}
               </div>
 
-              <div className={labelClass}><AudioLines size={14} /> Audio</div>
-              <div className="bg-[#1d1e23]">
-                {audioTracks.length ? audioTracks.map((track) => <div key={track.id} className={trackLaneClass}>
+              {audioTracks.length ? audioTracks.map((track) => <React.Fragment key={track.id}>
+                <div className={labelClass}><AudioLines size={14} /><span className="min-w-0 flex-1 truncate">{track.name}</span><button type="button" onClick={() => addClip('audio', track.id)} aria-label={'Add clip to ' + track.name} className="grid size-6 place-items-center rounded hover:bg-white/10"><Plus size={13} /></button></div>
+                <div className={trackLaneClass}>
                   {track.clips.map((clip) => <button key={clip.id} type="button" onClick={() => setSelectedTrackClip({ type: 'audio', trackId: track.id, clipId: clip.id })}
                     className={'absolute top-3 h-10 overflow-hidden rounded-md border px-2 text-left text-[10px] ' + (selectedTrackClip?.clipId === clip.id ? 'border-[#37c8a0] bg-[#174c43]' : 'border-[#268d79] bg-[#1b554b]')}
                     style={{ left: timeX(clip.start), width: Math.max(36, clip.duration * pixelsPerSecond) }}>{clip.name}</button>)}
-                </div>) : <div className={trackLaneClass + ' flex items-center px-3 text-[10px] text-white/30'}>Add music, voice or sound effects</div>}
-              </div>
+                </div>
+              </React.Fragment>) : <><div className={labelClass}><AudioLines size={14} /> Audio <button type="button" onClick={() => addTrack('audio')} aria-label="Add audio track" className="ml-auto grid size-6 place-items-center rounded hover:bg-white/10"><Plus size={13} /></button></div><div className={trackLaneClass + ' flex items-center px-3 text-[10px] text-white/30'}>Add music, voice or sound effects</div></>}
 
-              <div className={labelClass}><Type size={14} /> Text</div>
-              <div className="bg-[#1d1e23]">
-                {textTracks.length ? textTracks.map((track) => <div key={track.id} className={trackLaneClass}>
+              {textTracks.length ? textTracks.map((track) => <React.Fragment key={track.id}>
+                <div className={labelClass}><Type size={14} /><span className="min-w-0 flex-1 truncate">{track.name}</span><button type="button" onClick={() => addClip('text', track.id)} aria-label={'Add clip to ' + track.name} className="grid size-6 place-items-center rounded hover:bg-white/10"><Plus size={13} /></button></div>
+                <div className={trackLaneClass}>
                   {track.clips.map((clip) => <button key={clip.id} type="button" onClick={() => setSelectedTrackClip({ type: 'text', trackId: track.id, clipId: clip.id })}
                     className={'absolute top-3 h-10 overflow-hidden rounded-md border px-2 text-left text-[10px] ' + (selectedTrackClip?.clipId === clip.id ? 'border-[#e5b85c] bg-[#594a2d]' : 'border-[#a18442] bg-[#51442b]')}
                     style={{ left: timeX(clip.start), width: Math.max(36, clip.duration * pixelsPerSecond) }}>{clip.name}</button>)}
-                </div>) : <div className={trackLaneClass + ' flex items-center px-3 text-[10px] text-white/30'}>Add titles, captions or subtitles</div>}
-              </div>
+                </div>
+              </React.Fragment>) : <><div className={labelClass}><Type size={14} /> Text <button type="button" onClick={() => addTrack('text')} aria-label="Add text track" className="ml-auto grid size-6 place-items-center rounded hover:bg-white/10"><Plus size={13} /></button></div><div className={trackLaneClass + ' flex items-center px-3 text-[10px] text-white/30'}>Add titles, captions or subtitles</div></>}
             </div>
           </div>
         </div>
