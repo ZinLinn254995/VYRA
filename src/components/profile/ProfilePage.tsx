@@ -85,8 +85,8 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
 const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (!header) return;
-  const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
-  const compactMode = currentProgress >= 0.5 ? scrollTop > 16 : scrollTop >= 44;
+  // Compact on the first actual scroll movement; expand again only at the top.
+  const compactMode = scrollTop > 0;
   const headerProgress = compactMode ? 1 : 0;
   const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
   const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
