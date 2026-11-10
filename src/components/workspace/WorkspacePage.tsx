@@ -12,7 +12,7 @@ import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineE
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
-type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null };
+type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; content?: string };
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
 type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline };
@@ -480,6 +480,35 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       const removeProjectTrack = (trackId: string) => updateProjectTimeline({
         ...timeline, tracks: timeline.tracks.filter((track) => track.id !== trackId),
       });
+      const addTextClip = (trackId: string) => {
+        const track = timeline.tracks.find((item) => item.id === trackId);
+        if (!track || track.type !== 'text') return;
+        const clip: SceneProjectClip = {
+          id: crypto.randomUUID(), name: 'Text ' + (track.clips.length + 1),
+          start: 0, duration: Math.min(3, timeline.duration), content: 'Your text',
+        };
+        updateProjectTimeline({
+          ...timeline,
+          tracks: timeline.tracks.map((item) => item.id === trackId ? { ...item, clips: [...item.clips, clip] } : item),
+        });
+      };
+      const updateProjectClip = (trackId: string, clipId: string, patch: Partial<SceneProjectClip>) => updateProjectTimeline({
+        ...timeline,
+        tracks: timeline.tracks.map((track) => track.id !== trackId ? track : {
+          ...track,
+          clips: track.clips.map((clip) => clip.id === clipId ? {
+            ...clip, ...patch,
+            start: Math.max(0, Math.min(timeline.duration, Number(patch.start ?? clip.start) || 0)),
+            duration: Math.max(0.1, Math.min(timeline.duration, Number(patch.duration ?? clip.duration) || 0.1)),
+          } : clip),
+        }),
+      });
+      const removeProjectClip = (trackId: string, clipId: string) => updateProjectTimeline({
+        ...timeline,
+        tracks: timeline.tracks.map((track) => track.id !== trackId ? track : {
+          ...track, clips: track.clips.filter((clip) => clip.id !== clipId),
+        }),
+      });
       return (
         <main className="profile-page-main w-full min-w-0 p-0">
           <div className="profile-subpage-scroll profile-subpage-viewport">
@@ -537,8 +566,23 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                           <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{track.name}</p>
                           <p className="text-[10px] capitalize text-[var(--vyra-text-muted)]">{track.type} · {track.clips.length} clips</p>
                         </div>
-                        <div className="flex min-h-9 flex-1 items-center rounded-md border border-dashed border-[var(--vyra-border)] px-3 text-[10px] text-[var(--vyra-text-muted)]">
-                          {track.clips.length ? track.clips.map((clip) => clip.name).join(' · ') : 'Empty track — add media from My Media Library'}
+                        <div className="min-w-0 flex-1 space-y-2 py-2">
+                          {track.type === 'text' && <button type="button" onClick={() => addTextClip(track.id)} className="rounded-md border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">+ Add Text Clip</button>}
+                          {track.clips.map((clip) => (
+                            <div key={clip.id} className="space-y-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-2">
+                              <div className="flex items-center gap-2">
+                                <input aria-label="Clip name" value={clip.name} onChange={(event) => updateProjectClip(track.id, clip.id, { name: event.target.value })} className="min-w-0 flex-1 rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" />
+                                <button type="button" onClick={() => removeProjectClip(track.id, clip.id)} aria-label={'Remove ' + clip.name} className="rounded p-1 text-[var(--vyra-danger)]"><Trash2 size={12} /></button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="text-[10px] text-[var(--vyra-text-muted)]">Start (s)<input type="number" min="0" max={timeline.duration} step="0.1" value={clip.start} onChange={(event) => updateProjectClip(track.id, clip.id, { start: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
+                                <label className="text-[10px] text-[var(--vyra-text-muted)]">Duration (s)<input type="number" min="0.1" max={timeline.duration} step="0.1" value={clip.duration} onChange={(event) => updateProjectClip(track.id, clip.id, { duration: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
+                              </div>
+                              {track.type === 'text' && <textarea aria-label="Text clip content" value={clip.content || ''} onChange={(event) => updateProjectClip(track.id, clip.id, { content: event.target.value })} rows={2} className="w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" placeholder="Text shown in this clip" />}
+                              {track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">Media source linking will be enabled with the Media Library integration.</p>}
+                            </div>
+                          ))}
+                          {!track.clips.length && track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">No media clips. Import a source from My Media Library when asset linking is available.</p>}
                         </div>
                         <button type="button" onClick={() => removeProjectTrack(track.id)} aria-label={'Remove ' + track.name} className="rounded p-2 text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={14} /></button>
                       </div>
