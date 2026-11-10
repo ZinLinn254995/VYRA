@@ -71,11 +71,10 @@ const updateStoryboardHeaderCompact = (content: HTMLElement) => {
   if (header) {
     const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 148;
     header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    // Storyboard has no search field, so collapse the unused search-row space completely.
+    // Collapse only the title header; the Details/Preview/view controls live
+    // in a separate pinned section below it.
     const collapseDistance = 76;
-    if (!header.classList.contains('profile-collapse-header--storyboard')) {
-      header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-    }
+    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
     header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
@@ -658,8 +657,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
             title={activeStoryboardConfirmed ? activeStoryboard.title : 'Create Storyboard'}
             description={activeStoryboard.topic || 'AI prepares the details. You can edit them whenever you need.'}
             detailsAction={<button type="button" onClick={() => setStoryboardDetailsExpanded((open) => !open)} aria-label="Toggle Storyboard Details" aria-expanded={storyboardDetailsExpanded} title="Storyboard Details" className="profile-storyboard-details-toggle"><Settings2 size={16} /><span>Storyboard Details</span></button>}
-            stickyContent={
-              <>
+            storyboardTitle
+          />
+          <div className="profile-storyboard-controls">
                 <div className={`profile-storyboard-details-panel ${storyboardDetailsExpanded ? 'is-open' : 'is-closed'}`}>
                   <div className="profile-storyboard-details-panel-inner">
                     <section className="space-y-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2.5">
@@ -702,9 +702,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                     </div>
                   </>
                 )}
-              </>
-            }
-          />
+
+          </div>
           <div className="profile-subpage-content px-4 pb-4 pt-3 sm:px-5 sm:pb-5" onScroll={(event) => { updateStoryboardHeaderCompact(event.currentTarget); if (event.currentTarget.scrollTop > 8) setStoryboardDetailsExpanded(false); }}>
             {activeStoryboardConfirmed && (() => {
               const scenes = details.scenes || [];
