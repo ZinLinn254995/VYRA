@@ -177,7 +177,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const workspaceHeaderSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
 
-  const updateWorkspaceMainHeader = (deltaY: number) => {
+  const settleWorkspaceMainHeader = () => {
+    if (workspaceHeaderSettleTimer.current !== null) {
+      window.clearTimeout(workspaceHeaderSettleTimer.current);
+      workspaceHeaderSettleTimer.current = null;
+    }
+    if (workspaceHeaderDirection.current === 0) return;
+    const root = document.documentElement;
+    const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
+    window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
+    root.classList.remove('is-header-dragging');
+    workspaceHeaderDirection.current = 0;
+    workspaceHeaderHandoff.current = 0;
+  };
+
+  const updateWorkspaceMainHeader = (deltaY: number, scheduleSettle = true) => {
     if (!deltaY) return;
     const scroller = workspaceScrollRef.current;
     const bar = storyboardBarRef.current;
@@ -186,6 +200,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (workspaceHeaderDirection.current !== direction) workspaceHeaderHandoff.current = 0;
     workspaceHeaderDirection.current = direction;
     const root = document.documentElement;
+    // Disable CSS easing before publishing every drag update. Otherwise the first
+    // movement is animated separately and appears to jump instead of following the finger.
+    root.classList.add('is-header-dragging');
     const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
     const handoff = direction > 0 ? 28 : 64;
     const buffer = Math.min(Math.abs(deltaY), Math.max(0, handoff - workspaceHeaderHandoff.current));
@@ -196,24 +213,22 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       const next = direction > 0 ? Math.min(1, current + movement / distance) : Math.max(0, current - movement / distance);
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: next }));
     }
-    if (workspaceHeaderSettleTimer.current !== null) window.clearTimeout(workspaceHeaderSettleTimer.current);
-    workspaceHeaderSettleTimer.current = window.setTimeout(() => {
-      const progress = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
-      const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
-      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
-      root.classList.remove('is-header-dragging');
-      workspaceHeaderDirection.current = 0;
-      workspaceHeaderHandoff.current = 0;
-      workspaceHeaderSettleTimer.current = null;
-      void progress;
-    }, 140);
-    root.classList.add('is-header-dragging');
+    // Touch dragging is controlled by touchend, never by a pause between move events.
+    // Wheel input has no end event, so it settles after the wheel gesture becomes idle.
+    if (scheduleSettle) {
+      if (workspaceHeaderSettleTimer.current !== null) window.clearTimeout(workspaceHeaderSettleTimer.current);
+      workspaceHeaderSettleTimer.current = window.setTimeout(settleWorkspaceMainHeader, 180);
+    }
   };
 
   const handleWorkspaceWheel = (event: React.WheelEvent<HTMLElement>) => {
     updateWorkspaceMainHeader(event.deltaY);
   };
   const handleWorkspaceTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    if (workspaceHeaderSettleTimer.current !== null) {
+      window.clearTimeout(workspaceHeaderSettleTimer.current);
+      workspaceHeaderSettleTimer.current = null;
+    }
     workspaceTouchY.current = event.touches[0]?.clientY ?? null;
   };
   const handleWorkspaceTouchMove = (event: React.TouchEvent<HTMLElement>) => {
@@ -221,20 +236,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (y === undefined || workspaceTouchY.current === null) return;
     const delta = workspaceTouchY.current - y;
     workspaceTouchY.current = y;
-    updateWorkspaceMainHeader(delta);
+    updateWorkspaceMainHeader(delta, false);
   };
   const handleWorkspaceTouchEnd = () => {
     workspaceTouchY.current = null;
-    if (workspaceHeaderSettleTimer.current !== null) {
-      window.clearTimeout(workspaceHeaderSettleTimer.current);
-      const root = document.documentElement;
-      const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
-      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
-      root.classList.remove('is-header-dragging');
-      workspaceHeaderDirection.current = 0;
-      workspaceHeaderHandoff.current = 0;
-      workspaceHeaderSettleTimer.current = null;
-    }
+    settleWorkspaceMainHeader();
   };
 
   useEffect(() => {
