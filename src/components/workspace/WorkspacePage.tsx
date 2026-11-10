@@ -880,9 +880,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         <div className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card storyboard-fullscreen-card">
           <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
-            <button type="button" onClick={leaveStoryboardPage} className="inline-flex items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
-              <ArrowLeft size={16} /><span>Workspace</span>
-            </button>
+            <div className="flex min-w-0 items-center gap-2">
+              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
+                <ArrowLeft size={16} /><span>Workspace</span>
+              </button>
+              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Storyboard'}</span>
+            </div>
             <button type="button" onClick={() => setStoryboardDetailsExpanded((expanded) => !expanded)} aria-label={storyboardDetailsExpanded ? 'Minimize storyboard details' : 'Open storyboard details'} aria-expanded={storyboardDetailsExpanded} className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
               <ChevronDown className={'transition-transform ' + (storyboardDetailsExpanded ? 'rotate-180' : '')} size={18} />
             </button>
