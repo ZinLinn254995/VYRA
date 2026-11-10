@@ -101,7 +101,7 @@ export const MasterTimelineEditor: React.FC<Props> = () => {
       style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
       aria-label="Master Editor tools"
     >
-      <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+      <div className="master-editor-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-3">
         {toolbarItems.map(({ label, Icon }) => (
           <button
             key={label}
