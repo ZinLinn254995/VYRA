@@ -3,7 +3,7 @@ import { Bot, Clapperboard, Coins, Store, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
-  hidden?: boolean;
+  hideProgress?: number;
   userEmail: string | null;
   creditBalance: string | null;
   creditLoading: boolean;
@@ -20,7 +20,7 @@ const BrandMark = ({ className = '' }: { className?: string }) => (
 );
 
 export const MarketplaceHeader: React.FC<HeaderProps> = ({
-  hidden = false, userEmail, creditBalance, creditLoading, activeSection,
+  hideProgress = 0, userEmail, creditBalance, creditLoading, activeSection,
   onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
   const headerRef = useRef<HTMLElement>(null);
@@ -74,7 +74,7 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
 
   return (
-    <header ref={headerRef} aria-hidden={hidden} className={`fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl transition-transform duration-200 ease-out ${hidden ? "-translate-y-full pointer-events-none" : "translate-y-0"}`}>
+    <header ref={headerRef} aria-hidden={hideProgress >= 0.999} style={{ transform: `translateY(calc(-1 * var(--vyra-global-header-height, 64px) * ${hideProgress}))`, pointerEvents: hideProgress >= 0.999 ? "none" : "auto", transition: document.documentElement.classList.contains("is-header-dragging") ? "none" : "transform 180ms ease-out" }} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
