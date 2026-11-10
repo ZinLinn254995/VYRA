@@ -368,3 +368,20 @@ html.is-header-dragging .profile-collapse-header *,
 html.is-header-dragging .vyra-global-header-spacer {
   transition: none !important;
 }
+
+
+/* The Storyboard Preview is resized only by dragging the Editor View Switcher.
+   The preview stays visible while its narrower footprint reveals more workspace. */
+.profile-storyboard-preview-frame {
+  width: var(--storyboard-preview-frame-width, 100%);
+  transition: width 220ms cubic-bezier(.2,.75,.25,1);
+}
+.profile-storyboard-view-tabs {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: ns-resize;
+}
+html.is-storyboard-preview-dragging .profile-storyboard-preview-frame {
+  transition: none !important;
+}
