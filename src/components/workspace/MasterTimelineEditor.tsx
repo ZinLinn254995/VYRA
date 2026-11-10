@@ -201,11 +201,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
-      <div
-        ref={scrollRef}
-        className="master-timeline-scroll relative h-full min-h-0 w-full flex-1 overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ touchAction: "pan-x pan-y" }}
-      >
+      <div className="relative min-h-0 w-full flex-1">
+        <div
+          ref={scrollRef}
+          className="master-timeline-scroll h-full min-h-0 w-full overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ touchAction: "pan-x pan-y" }}
+        >
           <div className="flex min-h-full w-max items-start">
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
             <div className="shrink-0" style={{ width: timelineWidth }}>
@@ -234,9 +235,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value }) => {
             </div>
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
           </div>
+        </div>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 left-1/2 top-0 z-10 w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]"
+          className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]"
         >
           <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
         </div>
