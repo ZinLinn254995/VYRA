@@ -75,7 +75,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
-  const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(true);
+  const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
   const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
@@ -879,7 +879,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       <main className="profile-page-main w-full min-w-0 p-0">
         <div className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card storyboard-fullscreen-card">
-          <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
+          <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
             <button type="button" onClick={leaveStoryboardPage} className="inline-flex items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
               <ArrowLeft size={16} /><span>Workspace</span>
             </button>
