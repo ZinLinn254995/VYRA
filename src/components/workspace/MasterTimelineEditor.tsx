@@ -235,24 +235,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const addTextClip = () => {
     const start = Math.max(0, scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
     const tracks = value?.textTracks || [];
-    const textTrack = tracks.find((track) => track.name === 'Text') || {
+    const nextTrack: TimelineTrack = {
       id: crypto.randomUUID(),
       name: 'Text',
-      clips: [],
+      clips: [{ id: crypto.randomUUID(), name: 'Text', content: 'Text', start, duration: 3 }],
     };
-    const nextTrack = {
-      ...textTrack,
-      clips: [...textTrack.clips, { id: crypto.randomUUID(), name: 'Text', content: 'Text', start, duration: 3 }],
-    };
-    const nextTracks = tracks.some((track) => track.id === textTrack.id)
-      ? tracks.map((track) => track.id === textTrack.id ? nextTrack : track)
-      : [...tracks, nextTrack];
     onChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
       transitions: value?.transitions || {},
       audioTracks: value?.audioTracks || [],
-      textTracks: nextTracks,
+      textTracks: [...tracks, nextTrack],
     });
   };
 
