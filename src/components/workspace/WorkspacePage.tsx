@@ -467,6 +467,22 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       const updateProjectTimeline = (next: SceneProjectTimeline) => updateActiveScene({
         project: { ...project, timeline: next, updatedAt: new Date().toISOString() },
       });
+      const updateSceneDuration = (nextDuration: number) => {
+        const duration = Math.max(0.1, Math.min(3600, nextDuration));
+        const nextTimeline: SceneProjectTimeline = {
+          ...timeline,
+          duration,
+          tracks: timeline.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((clip) => ({
+              ...clip,
+              start: Math.min(clip.start, duration),
+              duration: Math.max(0.1, Math.min(clip.duration, duration - Math.min(clip.start, duration) || 0.1)),
+            })),
+          })),
+        };
+        updateActiveScene({ duration, project: { ...project, timeline: nextTimeline, updatedAt: new Date().toISOString() } });
+      };
       const addProjectTrack = (type: SceneProjectTrack['type']) => {
         const count = timeline.tracks.filter((track) => track.type === type).length + 1;
         const track: SceneProjectTrack = {
@@ -539,6 +555,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   <label className="block space-y-1">
                     <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene description</span>
                     <textarea value={scene.description} onChange={(event) => updateActiveScene({ description: event.target.value })} className={inputClass + ' min-h-24 resize-y py-2'} rows={3} maxLength={1000} placeholder="Describe what happens in this Scene…" />
+                  </label>
+                  <label className="block max-w-48 space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Canonical Scene Duration (seconds)</span>
+                    <input type="number" min="0.1" max="3600" step="0.1" value={scene.duration} onChange={(event) => updateSceneDuration(Number(event.target.value))} className={inputClass + ' min-h-10'} />
                   </label>
                 </section>
                 <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
