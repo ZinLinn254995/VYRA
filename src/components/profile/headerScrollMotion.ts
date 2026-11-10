@@ -95,6 +95,17 @@ export const settleHeaderMotion = (content: HTMLElement) => {
   setCompactProgress(content, compact >= 0.5 ? 1 : 0);
   setMainProgress(main >= 0.5 ? 1 : 0);
   content.classList.remove('is-header-dragging');
+  document.documentElement.classList.remove('is-header-dragging');
 };
 
-export const beginHeaderMotion = (content: HTMLElement) => content.classList.add('is-header-dragging');
+export const beginHeaderMotion = (content: HTMLElement) => {
+  content.classList.add('is-header-dragging');
+  document.documentElement.classList.add('is-header-dragging');
+};
+
+export const scheduleHeaderSettle = (content: HTMLElement) => {
+  const key = '__vyraHeaderSettleTimer';
+  const target = content as HTMLElement & { [key: string]: number | undefined };
+  if (target[key]) window.clearTimeout(target[key]);
+  target[key] = window.setTimeout(() => settleHeaderMotion(content), 140);
+};
