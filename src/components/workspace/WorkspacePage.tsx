@@ -169,7 +169,73 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   };
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
+  const workspaceScrollRef = useRef<HTMLElement>(null);
+  const storyboardBarRef = useRef<HTMLElement>(null);
+  const workspaceTouchY = useRef<number | null>(null);
+  const workspaceHeaderDirection = useRef(0);
+  const workspaceHeaderHandoff = useRef(0);
+  const workspaceHeaderSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
+
+  const updateWorkspaceMainHeader = (deltaY: number) => {
+    if (!deltaY) return;
+    const scroller = workspaceScrollRef.current;
+    const bar = storyboardBarRef.current;
+    if (!scroller || !bar || bar.getBoundingClientRect().top > scroller.getBoundingClientRect().top + 1) return;
+    const direction = deltaY > 0 ? 1 : -1;
+    if (workspaceHeaderDirection.current !== direction) workspaceHeaderHandoff.current = 0;
+    workspaceHeaderDirection.current = direction;
+    const root = document.documentElement;
+    const current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    const handoff = direction > 0 ? 28 : 64;
+    const buffer = Math.min(Math.abs(deltaY), Math.max(0, handoff - workspaceHeaderHandoff.current));
+    workspaceHeaderHandoff.current += buffer;
+    const movement = Math.abs(deltaY) - buffer;
+    if (movement > 0) {
+      const distance = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-global-header-height')) || 64;
+      const next = direction > 0 ? Math.min(1, current + movement / distance) : Math.max(0, current - movement / distance);
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: next }));
+    }
+    if (workspaceHeaderSettleTimer.current !== null) window.clearTimeout(workspaceHeaderSettleTimer.current);
+    workspaceHeaderSettleTimer.current = window.setTimeout(() => {
+      const progress = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+      const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
+      root.classList.remove('is-header-dragging');
+      workspaceHeaderDirection.current = 0;
+      workspaceHeaderHandoff.current = 0;
+      workspaceHeaderSettleTimer.current = null;
+      void progress;
+    }, 140);
+    root.classList.add('is-header-dragging');
+  };
+
+  const handleWorkspaceWheel = (event: React.WheelEvent<HTMLElement>) => {
+    updateWorkspaceMainHeader(event.deltaY);
+  };
+  const handleWorkspaceTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    workspaceTouchY.current = event.touches[0]?.clientY ?? null;
+  };
+  const handleWorkspaceTouchMove = (event: React.TouchEvent<HTMLElement>) => {
+    const y = event.touches[0]?.clientY;
+    if (y === undefined || workspaceTouchY.current === null) return;
+    const delta = workspaceTouchY.current - y;
+    workspaceTouchY.current = y;
+    updateWorkspaceMainHeader(delta);
+  };
+  const handleWorkspaceTouchEnd = () => {
+    workspaceTouchY.current = null;
+    if (workspaceHeaderSettleTimer.current !== null) {
+      window.clearTimeout(workspaceHeaderSettleTimer.current);
+      const root = document.documentElement;
+      const target = workspaceHeaderDirection.current > 0 ? 1 : 0;
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: target }));
+      root.classList.remove('is-header-dragging');
+      workspaceHeaderDirection.current = 0;
+      workspaceHeaderHandoff.current = 0;
+      workspaceHeaderSettleTimer.current = null;
+    }
+  };
 
   useEffect(() => {
     setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
@@ -804,7 +870,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }
 
   return (
-    <main className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+    <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
         <div className="mb-5">
           <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
@@ -825,7 +891,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         </div>
       </section>
 
-      <section className="sticky top-0 z-30 -mx-4 mb-2 flex items-center justify-between gap-3 bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
+      <section ref={storyboardBarRef} className="sticky top-0 z-30 -mx-4 mb-2 flex items-center justify-between gap-3 bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
           <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
