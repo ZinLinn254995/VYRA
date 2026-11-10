@@ -32,8 +32,8 @@ const readLegacyVyrals = (): LegacyVyral[] => {
 const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
   const header = content.closest<HTMLElement>('.profile-subpage-card')?.querySelector<HTMLElement>('.profile-collapse-header');
   if (!header) return;
-  const currentProgress = Number.parseFloat(header.style.getPropertyValue('--profile-header-progress')) || 0;
-  const compactMode = currentProgress >= 0.5 ? scrollTop > 16 : scrollTop >= 44;
+  // Compact on the first actual scroll movement; expand again only at the top.
+  const compactMode = scrollTop > 0;
   const headerProgress = compactMode ? 1 : 0;
   const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
   const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
@@ -252,7 +252,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onLoginRequired
           action={<Button size="sm" onClick={() => setCreateOpen(true)} startIcon={<Plus size={14} />} className="profile-create-button" aria-label="Create New Vyral"><span className="profile-create-copy"><span className="profile-create-label">Create</span><span className="profile-create-extra">New Vyral</span></span></Button>}
           search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
         />
-        <div className="profile-subpage-content space-y-5 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)}>
+        <div className="profile-subpage-content space-y-5 p-5 sm:p-6" onScroll={(event) => updateProfileHeaderCompact(event.currentTarget)} onScrollCapture={(event) => { const target = event.target; if (target instanceof HTMLElement) updateProfileHeaderCompact(event.currentTarget, target.scrollTop); }}>
           {error && <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-500">{error}</div>}
           {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Vyrals…</div> :
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
