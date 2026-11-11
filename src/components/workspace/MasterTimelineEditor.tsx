@@ -1062,7 +1062,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 })}
               </div>
               {textTracks.map((track) => (
-                <div key={track.id} data-text-track-id={track.id} className="relative h-12">
+                <div key={track.id} data-text-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
                   {track.clips.map((clip) => {
                     const isSelected = selectedTextClip?.trackId === track.id && selectedTextClip.clipId === clip.id;
                     const beginTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
@@ -1120,7 +1120,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 </div>
               ))}
               {(value?.audioTracks || []).map((track) => (
-                <div key={track.id} data-audio-track-id={track.id} className="relative h-12">
+                <div key={track.id} data-audio-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/70">
                   {track.clips.map((clip) => {
                     const isSelected = selectedAudioClip?.trackId === track.id && selectedAudioClip.clipId === clip.id;
                     const beginAudioTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
