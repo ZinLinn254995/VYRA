@@ -449,20 +449,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   };
 
 
-  // Clips may freely pass over one another while dragging. Resolve collisions
-  // only on release by finding the nearest free interval in the destination row.
-  const nearestFreeClipStart = (clips: TimelineClip[], clipId: string, desiredStart: number, duration: number, maxDuration: number) => {
+  // Clips may freely pass over one another while dragging. On release, move
+  // the clip immediately before or after a collided clip when that side is free.
+  // The right side may extend beyond the current Scene/timeline end; only restore
+  // the original position when both adjacent sides are blocked.
+  const nearestFreeClipStart = (clips: TimelineClip[], clipId: string, desiredStart: number, duration: number) => {
     const occupied = clips.filter((item) => item.id !== clipId).sort((a, b) => a.start - b.start);
-    const gaps: Array<{ start: number; end: number }> = [];
-    let cursor = 0;
-    for (const item of occupied) {
-      if (item.start > cursor) gaps.push({ start: cursor, end: item.start });
-      cursor = Math.max(cursor, item.start + item.duration);
-    }
-    if (cursor < maxDuration) gaps.push({ start: cursor, end: maxDuration });
-    const candidates = gaps
-      .filter((gap) => gap.end - gap.start >= duration - 0.001)
-      .map((gap) => Math.max(gap.start, Math.min(gap.end - duration, desiredStart)))
+    const desiredEnd = desiredStart + duration;
+    const collided = occupied.filter((item) =>
+      desiredStart < item.start + item.duration - 0.001 &&
+      desiredEnd > item.start + 0.001
+    );
+    if (collided.length === 0) return desiredStart;
+
+    const candidates = collided
+      .flatMap((item) => [item.start - duration, item.start + item.duration])
+      .filter((start) => start >= 0)
+      .filter((start) => occupied.every((item) =>
+        start + duration <= item.start + 0.001 ||
+        start >= item.start + item.duration - 0.001
+      ))
       .sort((a, b) => Math.abs(a - desiredStart) - Math.abs(b - desiredStart));
     return candidates[0] ?? null;
   };
@@ -475,9 +481,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     // removes it from the destination row.
     const droppedClip = destination?.clips.find((clip) => clip.id === drag.clipId) || originalClip;
     if (!droppedClip) return;
-    const maxDuration = Math.max(totalDuration, ...tracks.flatMap((track) => track.clips.map((clip) => clip.start + clip.duration)), droppedClip.start + droppedClip.duration);
     let resolvedStart = destination
-      ? nearestFreeClipStart(destination.clips, drag.clipId, droppedClip.start, droppedClip.duration, maxDuration)
+      ? nearestFreeClipStart(destination.clips, drag.clipId, droppedClip.start, droppedClip.duration)
       : null;
     let resolvedTrackId = destination?.id || drag.originalTrack.id;
     let nextTracks = tracks;
