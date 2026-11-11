@@ -290,6 +290,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const pointer = touchPointers.get(event.pointerId);
       if (!pointer) return;
 
+      // Some Android browsers suppress pointermove while native scrolling
+      // takes ownership, but still deliver pointerup. Compare the final
+      // coordinates as a final safety check so a pan cannot be mistaken for
+      // a stationary tap on the clip that was touched at the beginning.
+      const finalDistance = Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y);
+      if (finalDistance > 8) {
+        pointer.moved = true;
+        lockClipSelectionAfterGesture();
+      }
+
       // Every touch sequence consumes its follow-up browser click. Only a
       // stationary, single-finger tap explicitly selects its original target.
       suppressTextClickRef.current = true;
