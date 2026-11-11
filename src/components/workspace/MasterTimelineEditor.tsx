@@ -220,8 +220,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       { name: 'Bright Journey', duration: 30 },
       { name: 'Calm Piano', duration: 26 },
     ];
-    const existingTextEnd = (value?.textTracks || []).flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
-    const existingTimelineLength = Math.max(1, scenes.reduce((sum, scene) => sum + Math.max(0.1, scene.duration), 0), existingTextEnd);
     const audioTracks = samples.map((sample, index) => ({
       id: crypto.randomUUID(),
       name: 'Audio',
