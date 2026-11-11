@@ -1,16 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
-  Crop,
   Copy,
-  Gauge,
-  Layers,
-  MousePointer2,
   Plus,
   Redo2,
-  RotateCw,
   Scissors,
-  Sparkles,
   Trash2,
   Type,
   Undo2,
