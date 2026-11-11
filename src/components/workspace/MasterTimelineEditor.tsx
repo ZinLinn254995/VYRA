@@ -461,6 +461,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       desiredEnd > item.start + 0.001
     );
     if (collided.length === 0) return desiredStart;
+    // If the dropped clip overlaps multiple clips, it was placed into a gap
+    // that is too small for its duration. Do not jump it to the end of the row;
+    // let settleClipDrop restore its original position instead.
+    if (collided.length > 1) return null;
 
     const candidates = collided
       .flatMap((item) => [item.start - duration, item.start + item.duration])
