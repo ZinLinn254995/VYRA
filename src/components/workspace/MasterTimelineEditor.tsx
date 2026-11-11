@@ -111,6 +111,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const dragAutoScrollPointerRef = useRef<{ kind: 'text' | 'audio'; x: number; y: number; pointerId: number; clip: TimelineClip } | null>(null);
   const processingAutoScrollTickRef = useRef(false);
   const suppressTextClickRef = useRef(false);
+  const touchGestureStartRef = useRef<{ x: number; y: number } | null>(null);
   const undoStackRef = useRef<MasterTimelineData[]>([]);
   const redoStackRef = useRef<MasterTimelineData[]>([]);
   const commitChange = (next: MasterTimelineData) => {
@@ -144,27 +145,49 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return Math.hypot(dx, dy);
     };
 
+    let clickResetTimer: ReturnType<typeof setTimeout> | null = null;
+
     const onTouchStart = (event: TouchEvent) => {
+      if (clickResetTimer) {
+        clearTimeout(clickResetTimer);
+        clickResetTimer = null;
+      }
+      if (event.touches.length === 1) {
+        touchGestureStartRef.current = {
+          x: event.touches[0].clientX,
+          y: event.touches[0].clientY,
+        };
+      }
       if (event.touches.length === 2) {
+        // A pinch gesture must never turn its final touch position into a clip click.
+        suppressTextClickRef.current = true;
+        touchGestureStartRef.current = null;
         // Pinch takes priority over a pending clip long-press.
         for (const drag of [textDragRef.current, audioDragRef.current]) {
           if (drag?.timer) clearTimeout(drag.timer);
           if (drag) { drag.timer = null; drag.moved = true; }
         }
+        const scale = pixelsPerSecondRef.current;
+        pinchRef.current = {
+          startDistance: Math.max(1, distance(event.touches)),
+          startScale: scale,
+          // Time currently aligned with the fixed center playhead.
+          anchorTime: element.scrollLeft / scale,
+        };
       }
-      if (event.touches.length !== 2) return;
-      const scale = pixelsPerSecondRef.current;
-      pinchRef.current = {
-        startDistance: Math.max(1, distance(event.touches)),
-        startScale: scale,
-        // Time currently aligned with the fixed center playhead.
-        anchorTime: element.scrollLeft / scale,
-      };
     };
 
     const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length === 1 && touchGestureStartRef.current) {
+        const touch = event.touches[0];
+        if (Math.hypot(touch.clientX - touchGestureStartRef.current.x, touch.clientY - touchGestureStartRef.current.y) > 8) {
+          // Native one-finger timeline scrolling is a gesture, not a clip selection.
+          suppressTextClickRef.current = true;
+        }
+      }
       const pinch = pinchRef.current;
       if (!pinch || event.touches.length !== 2) return;
+      suppressTextClickRef.current = true;
       event.preventDefault();
       const nextScale = Math.min(176, Math.max(8, pinch.startScale * distance(event.touches) / pinch.startDistance));
       setPixelsPerSecond(nextScale);
@@ -172,6 +195,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
     const onTouchEnd = (event: TouchEvent) => {
       if (event.touches.length < 2) pinchRef.current = null;
+      if (event.touches.length === 0) touchGestureStartRef.current = null;
+      if (suppressTextClickRef.current) {
+        // Keep suppression through the browser's synthesized click, then clear
+        // it so a later intentional tap is never swallowed.
+        if (clickResetTimer) clearTimeout(clickResetTimer);
+        clickResetTimer = setTimeout(() => {
+          suppressTextClickRef.current = false;
+          clickResetTimer = null;
+        }, 450);
+      }
     };
 
     element.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -183,6 +216,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       element.removeEventListener('touchmove', onTouchMove);
       element.removeEventListener('touchend', onTouchEnd);
       element.removeEventListener('touchcancel', onTouchEnd);
+      if (clickResetTimer) clearTimeout(clickResetTimer);
     };
   }, []);
 
@@ -986,6 +1020,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           }}
           onPointerUp={(event) => { endTextLongPress(event); endAudioLongPress(event); }}
           onPointerCancel={(event) => { endTextLongPress(event); endAudioLongPress(event); }}
+          onClickCapture={(event) => {
+            // Consume the synthetic click emitted after a scroll, pinch, or clip drag.
+            if (suppressTextClickRef.current) {
+              suppressTextClickRef.current = false;
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
           onClick={(event) => {
             // Pointer capture can retarget the click to the scroll container
             // after a clip drag. Consume that click instead of clearing or
