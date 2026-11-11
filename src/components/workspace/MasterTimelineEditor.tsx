@@ -70,19 +70,10 @@ type Props = {
 };
 
 const toolbarItems = [
-  { label: 'Select', Icon: MousePointer2 },
-  { label: 'Delete', Icon: Trash2 },
-  { label: 'Duplicate', Icon: Copy },
-  { label: 'Crop', Icon: Crop },
-  { label: 'Speed', Icon: Gauge },
-  { label: 'Rotate', Icon: RotateCw },
-  { label: 'Transition', Icon: Layers },
-  { label: 'Effects', Icon: Sparkles },
   { label: 'Text', Icon: Type },
   { label: 'Audio', Icon: AudioLines },
   { label: 'Undo', Icon: Undo2 },
   { label: 'Redo', Icon: Redo2 },
-  { label: 'Layers', Icon: Layers },
 ];
 
 /**
@@ -126,6 +117,28 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const dragAutoScrollPointerRef = useRef<{ kind: 'text' | 'audio'; x: number; y: number; pointerId: number; clip: TimelineClip } | null>(null);
   const processingAutoScrollTickRef = useRef(false);
   const suppressTextClickRef = useRef(false);
+  const undoStackRef = useRef<MasterTimelineData[]>([]);
+  const redoStackRef = useRef<MasterTimelineData[]>([]);
+  const commitChange = (next: MasterTimelineData) => {
+    if (value) {
+      undoStackRef.current = [...undoStackRef.current, value].slice(-100);
+      redoStackRef.current = [];
+    }
+    onChange(next);
+  };
+  const undoTimeline = () => {
+    const previous = undoStackRef.current.pop();
+    if (!previous || !value) return;
+    redoStackRef.current = [...redoStackRef.current, value].slice(-100);
+    onChange(previous);
+  };
+  const redoTimeline = () => {
+    const next = redoStackRef.current.pop();
+    if (!next || !value) return;
+    undoStackRef.current = [...undoStackRef.current, value].slice(-100);
+    onChange(next);
+  };
+
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -232,7 +245,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         waveform: Array.from({ length: 48 }, (_, point) => 0.2 + (((point * 17 + index * 13) % 29) / 40)),
       }],
     }));
-    onChange({
+    commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
       transitions: value?.transitions || {},
@@ -289,7 +302,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const selectedTransition = selectedTransitionKey ? value?.transitions?.[selectedTransitionKey] : undefined;
   const applyTransition = (effect: string) => {
     if (!selectedTransitionKey) return;
-    onChange({
+    commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
       transitions: {
@@ -305,7 +318,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const transitions = Object.fromEntries(
       Object.entries(value?.transitions || {}).filter(([key]) => key !== selectedTransitionKey),
     );
-    onChange({
+    commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
       transitions,
@@ -322,14 +335,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       name: 'Audio',
       clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: Array.from({ length: 32 }, (_, point) => 0.25 + ((point * 11) % 19) / 30) }],
     };
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
     revealNewTimelineRow('audio', nextTrackId);
   };
 
   const runDeleteSelectedAudio = () => {
     if (!selectedAudioClip) return;
     const audioTracks = (value?.audioTracks || []).map((track) => track.id !== selectedAudioClip.trackId ? track : { ...track, clips: track.clips.filter((clip) => clip.id !== selectedAudioClip.clipId) }).filter((track) => track.clips.length > 0);
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip(null);
   };
 
@@ -343,7 +356,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
     const cloneId = crypto.randomUUID();
     const audioTracks = tracks.map((track) => track.id !== sourceTrack.id ? track : { ...track, clips: [...track.clips, { ...source, id: cloneId, start: cloneStart }] });
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip({ trackId: sourceTrack.id, clipId: cloneId });
   };
 
@@ -424,7 +437,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             .map((track) => track.id !== drag.trackId ? track : { ...track, clips: track.clips.filter((item) => item.id !== clip.id) });
           const newTrack = { id: destinationTrackId, name: 'Audio', clips: [{ ...clip, start: nextStart }] };
           const nextTracks = insertAtTop ? [newTrack, ...remainingTracks] : [...remainingTracks, newTrack];
-          onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+          commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
           drag.trackId = destinationTrackId;
           setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id });
           revealNewTimelineRow('audio', destinationTrackId);
@@ -445,7 +458,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return track;
     }).filter((track) => track.clips.length > 0 || track.id === drag.originalTrack.id);
     if (destinationTrackId !== drag.trackId) { drag.trackId = destinationTrackId; setSelectedAudioClip({ trackId: destinationTrackId, clipId: clip.id }); }
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
   };
 
 
@@ -511,10 +524,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return { ...track, clips: track.clips.filter((clip) => clip.id !== drag.clipId) };
     }).filter((track) => track.clips.length > 0);
     if (kind === 'text') {
-      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+      commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
       setSelectedTextClip({ trackId: resolvedTrackId, clipId: drag.clipId });
     } else {
-      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+      commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
       setSelectedAudioClip({ trackId: resolvedTrackId, clipId: drag.clipId });
     }
   };
@@ -539,7 +552,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (splitTime <= clip.start + 0.2 || splitTime >= clip.start + clip.duration - 0.2) return;
     const right = { ...clip, id: crypto.randomUUID(), start: splitTime, duration: clip.start + clip.duration - splitTime };
     const nextTracks = tracks.map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.flatMap((entry) => entry.id !== clip.id ? [entry] : [{ ...entry, duration: splitTime - clip.start }, right]) });
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip({ trackId: track.id, clipId: right.id });
   };
 
@@ -552,7 +565,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       name: 'Text',
       clips: [{ id: crypto.randomUUID(), name: 'Text', content: 'Text', start, duration: 3 }],
     };
-    onChange({
+    commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
       transitions: value?.transitions || {},
@@ -676,7 +689,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             });
           const newTrack = { id: newTrackId, name: 'Text', clips: [{ ...clip, start: nextStart }] };
           const nextTracks = insertAtTop ? [newTrack, ...remainingTracks] : [...remainingTracks, newTrack];
-          onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+          commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
           drag.trackId = newTrackId;
           setSelectedTextClip({ trackId: newTrackId, clipId: clip.id });
           revealNewTimelineRow('text', newTrackId);
@@ -703,7 +716,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       drag.trackId = destinationTrackId;
       setSelectedTextClip({ trackId: destinationTrackId, clipId: clip.id });
     }
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
   };
 
   const revealNewTimelineRow = (kind: 'text' | 'audio', trackId: string) => {
@@ -835,7 +848,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         rightClip,
       ]),
     });
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
     setSelectedTextClip({ trackId: selectedTrack.id, clipId: rightClip.id });
   };
 
@@ -853,7 +866,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       ...track,
       clips: [...track.clips, { ...source, id: cloneId, start: cloneStart }],
     });
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
     setSelectedTextClip({ ...selectedTextClip, clipId: cloneId });
   };
   const runDeleteSelectedText = () => {
@@ -861,7 +874,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const nextTracks = (value?.textTracks || [])
       .map((track) => track.id !== selectedTextClip.trackId ? track : { ...track, clips: track.clips.filter((clip) => clip.id !== selectedTextClip.clipId) })
       .filter((track) => track.clips.length > 0);
-    onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
     setSelectedTextClip(null);
   };
 
@@ -948,7 +961,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             type="button"
             title={label}
             aria-label={label}
-            onClick={label === 'Text' ? addTextClip : label === 'Audio' ? addAudioClip : undefined}
+            onClick={label === 'Text' ? addTextClip : label === 'Audio' ? addAudioClip : label === 'Undo' ? undoTimeline : label === 'Redo' ? redoTimeline : undefined}
             className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
           >
             <Icon size={22} strokeWidth={1.8} />
@@ -1104,7 +1117,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         ...item,
                         clips: item.clips.map((itemClip) => itemClip.id === clip.id ? { ...itemClip, start: nextStart, duration: nextDuration } : itemClip),
                       });
-                      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
+                      commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
                       <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); if (suppressTextClickRef.current) { suppressTextClickRef.current = false; return; } setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id && (textDragRef.current?.active || audioDragRef.current?.active) ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
@@ -1152,7 +1165,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, initialDuration + delta));
                       }
                       const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration } : entry) });
-                      onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
+                      commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
                     };
                     const trimHandle = (edge: 'left' | 'right') => (
                       <div role="presentation" data-audio-trim-handle="true" aria-label={edge === 'left' ? 'Adjust audio start' : 'Adjust audio end'} title={edge === 'left' ? 'Drag to adjust start' : 'Drag to adjust end'} className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-sky-500/35 hover:bg-sky-500" onPointerDown={(event) => beginAudioTrim(event, edge)} onPointerMove={(event) => updateAudioTrim(event, edge)} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
