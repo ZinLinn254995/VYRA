@@ -145,10 +145,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return Math.hypot(dx, dy);
     };
 
-    let pointerStart: { id: number; x: number; y: number } | null = null;
+    // Track every active touch pointer at document level. The timeline contains
+    // pointer-capturing clips, so listening only on the scroll element can miss
+    // movement/release events when the browser retargets them.
+    const touchPointers = new Map<number, { x: number; y: number }>();
 
-    // Intercept the browser-generated click before React or a clip can receive it.
-    // Keep the gesture flag until that click is consumed; do not clear it on a timer.
+    // Intercept the browser-generated click before React or any clip can receive it.
+    // Keep suppression active until the click is consumed; never clear it on a timer.
     const onGestureClickCapture = (event: MouseEvent) => {
       if (!suppressTextClickRef.current) return;
       suppressTextClickRef.current = false;
@@ -158,27 +161,28 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType === 'touch') {
-        if (!pointerStart) suppressTextClickRef.current = false;
-        pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
-      }
+      if (event.pointerType !== 'touch') return;
+      if (touchPointers.size === 0) suppressTextClickRef.current = false;
+      touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (!pointerStart || pointerStart.id !== event.pointerId) return;
-      if (Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 8) {
+      const start = touchPointers.get(event.pointerId);
+      if (!start) return;
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) {
         suppressTextClickRef.current = true;
       }
     };
     const onPointerEnd = (event: PointerEvent) => {
-      if (pointerStart?.id === event.pointerId) pointerStart = null;
+      touchPointers.delete(event.pointerId);
     };
 
-    // Capture at document level: pointer capture can retarget the synthetic click outside the scroll element.
+    // Capture at document level so scrolling, pinch gestures, and pointer capture
+    // cannot move the final click outside the gesture guard.
     document.addEventListener('click', onGestureClickCapture, true);
-    element.addEventListener('pointerdown', onPointerDown, true);
-    element.addEventListener('pointermove', onPointerMove, true);
-    element.addEventListener('pointerup', onPointerEnd, true);
-    element.addEventListener('pointercancel', onPointerEnd, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('pointermove', onPointerMove, true);
+    document.addEventListener('pointerup', onPointerEnd, true);
+    document.addEventListener('pointercancel', onPointerEnd, true);
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 1) {
@@ -229,20 +233,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (event.touches.length === 0) touchGestureStartRef.current = null;
     };
 
-    element.addEventListener('touchstart', onTouchStart, { passive: true });
-    element.addEventListener('touchmove', onTouchMove, { passive: false });
-    element.addEventListener('touchend', onTouchEnd, { passive: true });
-    element.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    document.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+    document.addEventListener('touchcancel', onTouchEnd, { passive: true, capture: true });
     return () => {
       document.removeEventListener('click', onGestureClickCapture, true);
-      element.removeEventListener('touchstart', onTouchStart);
-      element.removeEventListener('touchmove', onTouchMove);
-      element.removeEventListener('touchend', onTouchEnd);
-      element.removeEventListener('touchcancel', onTouchEnd);
-      element.removeEventListener('pointerdown', onPointerDown, true);
-      element.removeEventListener('pointermove', onPointerMove, true);
-      element.removeEventListener('pointerup', onPointerEnd, true);
-      element.removeEventListener('pointercancel', onPointerEnd, true);
+      document.removeEventListener('touchstart', onTouchStart, true);
+      document.removeEventListener('touchmove', onTouchMove, true);
+      document.removeEventListener('touchend', onTouchEnd, true);
+      document.removeEventListener('touchcancel', onTouchEnd, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('pointermove', onPointerMove, true);
+      document.removeEventListener('pointerup', onPointerEnd, true);
+      document.removeEventListener('pointercancel', onPointerEnd, true);
     };
   }, []);
 
