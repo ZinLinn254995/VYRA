@@ -171,9 +171,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         return;
       }
 
-      if (touchPointers.size === 0) suppressTextClickRef.current = false;
       const rawTarget = event.target instanceof Element ? event.target : null;
       if (!rawTarget || !element.contains(rawTarget)) return;
+
+      // Touch selection is handled explicitly from the original pointerdown
+      // target on pointerup. Cancel the pointer's compatibility mouse sequence
+      // so Android cannot dispatch a second activation at the finger's release
+      // position after a scroll/pinch gesture. Native pan behavior remains
+      // governed by touch-action on the timeline surface.
+      event.preventDefault();
+
+      if (touchPointers.size === 0) suppressTextClickRef.current = false;
 
       if (touchPointers.size > 0) {
         // A second finger turns the complete sequence into a pinch, never a tap.
