@@ -145,13 +145,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return Math.hypot(dx, dy);
     };
 
-    // Track every active touch pointer at document level. The timeline contains
-    // pointer-capturing clips, so listening only on the scroll element can miss
-    // movement/release events when the browser retargets them.
-    const touchPointers = new Map<number, { x: number; y: number }>();
+    // Touch selection is handled from the original pointerdown target on pointerup.
+    // The browser-generated click is consumed so a scroll/pinch release cannot
+    // select whichever clip happens to be underneath the finger.
+    const touchPointers = new Map<number, {
+      x: number;
+      y: number;
+      moved: boolean;
+      target: Element | null;
+      ignoreSelection: boolean;
+    }>();
 
-    // Intercept the browser-generated click before React or any clip can receive it.
-    // Keep suppression active until the click is consumed; never clear it on a timer.
     const onGestureClickCapture = (event: MouseEvent) => {
       if (!suppressTextClickRef.current) return;
       suppressTextClickRef.current = false;
@@ -161,32 +165,135 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch') return;
+      if (event.pointerType !== 'touch') {
+        suppressTextClickRef.current = false;
+        return;
+      }
+
       if (touchPointers.size === 0) suppressTextClickRef.current = false;
-      touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const rawTarget = event.target instanceof Element ? event.target : null;
+      if (!rawTarget || !element.contains(rawTarget)) return;
+
+      if (touchPointers.size > 0) {
+        // A second finger turns the complete sequence into a pinch, never a tap.
+        suppressTextClickRef.current = true;
+        for (const pointer of touchPointers.values()) pointer.moved = true;
+      }
+
+      const ignoreSelection = Boolean(rawTarget.closest('[data-trim-handle], [data-audio-trim-handle]'));
+      const selectableTarget = ignoreSelection
+        ? null
+        : rawTarget.closest<HTMLElement>(
+            '[data-timeline-scene-id], [data-timeline-transition-key], [data-timeline-text-track-id][data-timeline-text-clip-id], [data-timeline-audio-track-id][data-timeline-audio-clip-id]',
+          );
+      touchPointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+        moved: touchPointers.size > 0,
+        target: selectableTarget || rawTarget,
+        ignoreSelection,
+      });
     };
+
+    const selectTouchTarget = (target: Element) => {
+      const sceneId = target.closest<HTMLElement>('[data-timeline-scene-id]')?.getAttribute('data-timeline-scene-id');
+      if (sceneId) {
+        setSelectedTransitionKey(null);
+        setSelectedTextClip(null);
+        setSelectedAudioClip(null);
+        setSelectedSceneIds((current) => current[0] === sceneId ? [] : [sceneId]);
+        return;
+      }
+
+      const transitionKey = target.closest<HTMLElement>('[data-timeline-transition-key]')?.getAttribute('data-timeline-transition-key');
+      if (transitionKey) {
+        setSelectedSceneIds([]);
+        setSelectedTextClip(null);
+        setSelectedAudioClip(null);
+        setSelectedTransitionKey(transitionKey);
+        return;
+      }
+
+      const textElement = target.closest<HTMLElement>('[data-timeline-text-track-id][data-timeline-text-clip-id]');
+      const textTrackId = textElement?.getAttribute('data-timeline-text-track-id');
+      const textClipId = textElement?.getAttribute('data-timeline-text-clip-id');
+      if (textTrackId && textClipId) {
+        setSelectedSceneIds([]);
+        setSelectedTransitionKey(null);
+        setSelectedAudioClip(null);
+        setSelectedTextClip((current) =>
+          current?.trackId === textTrackId && current.clipId === textClipId
+            ? null
+            : { trackId: textTrackId, clipId: textClipId },
+        );
+        return;
+      }
+
+      const audioElement = target.closest<HTMLElement>('[data-timeline-audio-track-id][data-timeline-audio-clip-id]');
+      const audioTrackId = audioElement?.getAttribute('data-timeline-audio-track-id');
+      const audioClipId = audioElement?.getAttribute('data-timeline-audio-clip-id');
+      if (audioTrackId && audioClipId) {
+        setSelectedSceneIds([]);
+        setSelectedTransitionKey(null);
+        setSelectedTextClip(null);
+        setSelectedAudioClip((current) =>
+          current?.trackId === audioTrackId && current.clipId === audioClipId
+            ? null
+            : { trackId: audioTrackId, clipId: audioClipId },
+        );
+        return;
+      }
+
+      if (!target.closest('button')) {
+        setSelectedSceneIds([]);
+        setSelectedTransitionKey(null);
+        setSelectedTextClip(null);
+        setSelectedAudioClip(null);
+      }
+    };
+
     const onPointerMove = (event: PointerEvent) => {
-      const start = touchPointers.get(event.pointerId);
-      if (!start) return;
-      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) {
+      const pointer = touchPointers.get(event.pointerId);
+      if (!pointer) return;
+      if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 8) {
+        pointer.moved = true;
         suppressTextClickRef.current = true;
       }
     };
-    const onPointerEnd = (event: PointerEvent) => {
+
+    const onPointerEnd = (event: PointerEvent, cancelled: boolean) => {
+      const pointer = touchPointers.get(event.pointerId);
+      if (!pointer) return;
+
+      // Every touch sequence consumes its follow-up browser click. Only a
+      // stationary, single-finger tap explicitly selects its original target.
+      suppressTextClickRef.current = true;
+      const textDrag = textDragRef.current;
+      const audioDrag = audioDragRef.current;
+      const longPressActive =
+        (textDrag?.pointerId === event.pointerId && (textDrag.active || textDrag.moved)) ||
+        (audioDrag?.pointerId === event.pointerId && (audioDrag.active || audioDrag.moved));
+
+      if (
+        !cancelled &&
+        !pointer.moved &&
+        !pointer.ignoreSelection &&
+        pointer.target &&
+        touchPointers.size === 1 &&
+        !longPressActive
+      ) {
+        selectTouchTarget(pointer.target);
+      }
+
       touchPointers.delete(event.pointerId);
     };
-
-    // Capture at document level so scrolling, pinch gestures, and pointer capture
-    // cannot move the final click outside the gesture guard.
-    document.addEventListener('click', onGestureClickCapture, true);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('pointermove', onPointerMove, true);
-    document.addEventListener('pointerup', onPointerEnd, true);
-    document.addEventListener('pointercancel', onPointerEnd, true);
+    const onPointerUp = (event: PointerEvent) => onPointerEnd(event, false);
+    const onPointerCancel = (event: PointerEvent) => onPointerEnd(event, true);
 
     const onTouchStart = (event: TouchEvent) => {
+      if (!element.contains(event.target as Node)) return;
+
       if (event.touches.length === 1) {
-        // A fresh one-finger interaction starts a new gesture.
         suppressTextClickRef.current = false;
         touchGestureStartRef.current = {
           x: event.touches[0].clientX,
@@ -194,9 +301,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         };
       }
       if (event.touches.length === 2) {
-        // A pinch gesture must never turn its final touch position into a clip click.
         suppressTextClickRef.current = true;
         touchGestureStartRef.current = null;
+        for (const pointer of touchPointers.values()) pointer.moved = true;
         // Pinch takes priority over a pending clip long-press.
         for (const drag of [textDragRef.current, audioDragRef.current]) {
           if (drag?.timer) clearTimeout(drag.timer);
@@ -206,23 +313,25 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         pinchRef.current = {
           startDistance: Math.max(1, distance(event.touches)),
           startScale: scale,
-          // Time currently aligned with the fixed center playhead.
           anchorTime: element.scrollLeft / scale,
         };
       }
     };
 
     const onTouchMove = (event: TouchEvent) => {
+      if (!element.contains(event.target as Node)) return;
+
       if (event.touches.length === 1 && touchGestureStartRef.current) {
         const touch = event.touches[0];
         if (Math.hypot(touch.clientX - touchGestureStartRef.current.x, touch.clientY - touchGestureStartRef.current.y) > 8) {
-          // Native one-finger timeline scrolling is a gesture, not a clip selection.
           suppressTextClickRef.current = true;
+          for (const pointer of touchPointers.values()) pointer.moved = true;
         }
       }
       const pinch = pinchRef.current;
       if (!pinch || event.touches.length !== 2) return;
       suppressTextClickRef.current = true;
+      for (const pointer of touchPointers.values()) pointer.moved = true;
       event.preventDefault();
       const nextScale = Math.min(176, Math.max(8, pinch.startScale * distance(event.touches) / pinch.startDistance));
       setPixelsPerSecond(nextScale);
@@ -233,20 +342,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (event.touches.length === 0) touchGestureStartRef.current = null;
     };
 
+    document.addEventListener('click', onGestureClickCapture, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('pointermove', onPointerMove, true);
+    document.addEventListener('pointerup', onPointerUp, true);
+    document.addEventListener('pointercancel', onPointerCancel, true);
     document.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
     document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
     document.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
     document.addEventListener('touchcancel', onTouchEnd, { passive: true, capture: true });
+
     return () => {
       document.removeEventListener('click', onGestureClickCapture, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('pointermove', onPointerMove, true);
+      document.removeEventListener('pointerup', onPointerUp, true);
+      document.removeEventListener('pointercancel', onPointerCancel, true);
       document.removeEventListener('touchstart', onTouchStart, true);
       document.removeEventListener('touchmove', onTouchMove, true);
       document.removeEventListener('touchend', onTouchEnd, true);
       document.removeEventListener('touchcancel', onTouchEnd, true);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      document.removeEventListener('pointermove', onPointerMove, true);
-      document.removeEventListener('pointerup', onPointerEnd, true);
-      document.removeEventListener('pointercancel', onPointerEnd, true);
     };
   }, []);
 
@@ -1103,6 +1218,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   return (
                     <button
                       key={scene.id}
+                      data-timeline-scene-id={scene.id}
                       type="button"
                       title={scene.title}
                       aria-pressed={selectedSceneIds.includes(scene.id)}
@@ -1132,6 +1248,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                   return (
                     <button
                       key={transitionKey}
+                      data-timeline-transition-key={transitionKey}
                       type="button"
                       title={transition ? `Edit ${effectLabel} transition` : 'Add transition'}
                       aria-label={`${transition ? `Edit ${effectLabel} transition` : 'Add transition'} between ${scene.title} and ${nextScene.title}`}
@@ -1196,7 +1313,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
-                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { if (consumeSuppressedGestureClick(event)) return; event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id && (textDragRef.current?.active || audioDragRef.current?.active) ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
+                      <div key={clip.id} data-timeline-text-track-id={track.id} data-timeline-text-clip-id={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { if (consumeSuppressedGestureClick(event)) return; event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id && (textDragRef.current?.active || audioDragRef.current?.active) ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
                         <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
@@ -1247,7 +1364,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       <div role="presentation" data-audio-trim-handle="true" aria-label={edge === 'left' ? 'Adjust audio start' : 'Adjust audio end'} title={edge === 'left' ? 'Drag to adjust start' : 'Drag to adjust end'} className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-sky-500/35 hover:bg-sky-500" onPointerDown={(event) => beginAudioTrim(event, edge)} onPointerMove={(event) => updateAudioTrim(event, edge)} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                     );
                     return (
-                      <div key={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected}
+                      <div key={clip.id} data-timeline-audio-track-id={track.id} data-timeline-audio-clip-id={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected}
                         onClick={(event) => { if (consumeSuppressedGestureClick(event)) return; event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(null); setSelectedAudioClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }}
                         onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedAudioClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }}
                         onPointerDown={(event) => beginAudioLongPress(event, track.id, clip)}
