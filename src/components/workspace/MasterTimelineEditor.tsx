@@ -157,7 +157,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     }>();
 
     const onGestureClickCapture = (event: MouseEvent) => {
-      if (!suppressTextClickRef.current) return;
+      // Chromium exposes whether a click came from a touch contact. Touch
+      // taps are selected explicitly from the original pointerdown target;
+      // never let the browser's follow-up click select the release target.
+      const touchClick = (event as MouseEvent & {
+        sourceCapabilities?: { firesTouchEvents?: boolean };
+      }).sourceCapabilities?.firesTouchEvents === true;
+
+      if (!touchClick && !suppressTextClickRef.current) return;
       suppressTextClickRef.current = false;
       event.preventDefault();
       event.stopPropagation();
