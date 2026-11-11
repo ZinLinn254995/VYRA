@@ -148,15 +148,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     let clickResetTimer: ReturnType<typeof setTimeout> | null = null;
     let pointerStart: { id: number; x: number; y: number } | null = null;
 
-    // Capture at document level: a synthesized click can target a clip at the
-    // finger's release position, not necessarily the element that began scrolling.
-    const onDocumentClickCapture = (event: MouseEvent) => {
-      if (!suppressTextClickRef.current) return;
-      suppressTextClickRef.current = false;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-    };
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'touch') {
         pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
@@ -172,7 +163,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (pointerStart?.id === event.pointerId) pointerStart = null;
     };
 
-    document.addEventListener('click', onDocumentClickCapture, true);
     element.addEventListener('pointerdown', onPointerDown, true);
     element.addEventListener('pointermove', onPointerMove, true);
     element.addEventListener('pointerup', onPointerEnd, true);
@@ -247,7 +237,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       element.removeEventListener('touchmove', onTouchMove);
       element.removeEventListener('touchend', onTouchEnd);
       element.removeEventListener('touchcancel', onTouchEnd);
-      document.removeEventListener('click', onDocumentClickCapture, true);
       element.removeEventListener('pointerdown', onPointerDown, true);
       element.removeEventListener('pointermove', onPointerMove, true);
       element.removeEventListener('pointerup', onPointerEnd, true);
