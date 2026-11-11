@@ -752,7 +752,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
     stopDragAutoScroll();
-    if (drag.moved) { suppressTextClickRef.current = true; settleClipDrop('audio', drag); }
+    // Movement before the long-press threshold is timeline panning, not a
+    // clip drag. Only commit/select a clip after the long-press actually armed.
+    if (drag.active && drag.moved) { suppressTextClickRef.current = true; settleClipDrop('audio', drag); }
     if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null); setTextDragYOffset(0); audioDragRef.current = null;
   };
@@ -1043,7 +1045,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.timer) clearTimeout(drag.timer);
     stopDragAutoScroll();
-    if (drag.moved) { suppressTextClickRef.current = true; settleClipDrop('text', drag); }
+    // Movement before the long-press threshold is timeline panning, not a
+    // clip drag. Only commit/select a clip after the long-press actually armed.
+    if (drag.active && drag.moved) { suppressTextClickRef.current = true; settleClipDrop('text', drag); }
     if (scrollRef.current?.hasPointerCapture(event.pointerId)) scrollRef.current.releasePointerCapture(event.pointerId);
     setDraggingTextClipId(null);
     setTextDragYOffset(0);
