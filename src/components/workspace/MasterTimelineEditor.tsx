@@ -173,7 +173,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (pointerStart?.id === event.pointerId) pointerStart = null;
     };
 
-    element.addEventListener('click', onGestureClickCapture, true);
+    // Capture at document level: pointer capture can retarget the synthetic click outside the scroll element.
+    document.addEventListener('click', onGestureClickCapture, true);
     element.addEventListener('pointerdown', onPointerDown, true);
     element.addEventListener('pointermove', onPointerMove, true);
     element.addEventListener('pointerup', onPointerEnd, true);
@@ -233,7 +234,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     element.addEventListener('touchend', onTouchEnd, { passive: true });
     element.addEventListener('touchcancel', onTouchEnd, { passive: true });
     return () => {
-      element.removeEventListener('click', onGestureClickCapture, true);
+      document.removeEventListener('click', onGestureClickCapture, true);
       element.removeEventListener('touchstart', onTouchStart);
       element.removeEventListener('touchmove', onTouchMove);
       element.removeEventListener('touchend', onTouchEnd);
