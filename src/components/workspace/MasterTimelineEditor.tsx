@@ -230,7 +230,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         name: sample.name,
         content: sample.name,
         start: 0,
-        duration: Math.min(sample.duration, existingTimelineLength),
+        duration: sample.duration,
         waveform: Array.from({ length: 48 }, (_, point) => 0.2 + (((point * 17 + index * 13) % 29) / 40)),
       }],
     }));
@@ -264,8 +264,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const sceneTotalDuration = sceneDurations.reduce((sum, duration) => sum + duration, 0);
   const textTracks = value?.textTracks || [];
   const textContentEnd = textTracks.flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
-  // Audio is constrained to the existing project timeline; it never extends it.
-  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd);
+  const audioContentEnd = (value?.audioTracks || []).flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+  // Audio and Text can extend the shared timeline beyond the Scene sequence.
+  // Scene source durations remain unchanged; the ruler grows to fit all content.
+  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
   const leadingSpace = viewportWidth / 2;
   // Adapt ruler spacing to zoom level so labels stay readable.
@@ -314,9 +316,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     });
   };
   const addAudioClip = () => {
-    const start = Math.min(totalDuration - 0.2, Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond));
-    const duration = Math.min(10, totalDuration - start);
-    if (duration < 0.2) return;
+    const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond);
+    const duration = 10;
     const nextTrackId = crypto.randomUUID();
     const nextTrack: TimelineTrack = {
       id: nextTrackId,
@@ -341,7 +342,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const source = sourceTrack?.clips.find((clip) => clip.id === selectedAudioClip.clipId);
     if (!source || !sourceTrack) return;
     const cloneStart = sourceTrack.clips.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
-    if (cloneStart + source.duration > totalDuration + 0.001) return;
+
     const cloneId = crypto.randomUUID();
     const audioTracks = tracks.map((track) => track.id !== sourceTrack.id ? track : { ...track, clips: [...track.clips, { ...source, id: cloneId, start: cloneStart }] });
     onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
@@ -419,7 +420,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         if (!drag.createdTrackId) {
           drag.createdTrackId = destinationTrackId;
           const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
-          const nextStart = Math.min(totalDuration - clip.duration, Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond));
+          const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
           const current = value?.audioTracks || [];
           const remainingTracks = current.filter((track) => track.id !== drag.trackId || track.clips.length > 1)
             .map((track) => track.id !== drag.trackId ? track : { ...track, clips: track.clips.filter((item) => item.id !== clip.id) });
@@ -435,7 +436,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!destinationTrackId) return;
     setTextDragYOffset(Math.max(-tolerance, Math.min(tolerance, event.clientY - destinationCenterY)));
     const contentX = event.clientX - scrollRect.left + scrollElement.scrollLeft;
-    const nextStart = Math.min(totalDuration - clip.duration, Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond));
+    const nextStart = Math.max(0, (contentX - leadingSpace - drag.offsetX) / pixelsPerSecond);
     const current = value?.audioTracks || [];
     const destinationTrack = current.find((track) => track.id === destinationTrackId);
     if (!destinationTrack) return;
@@ -476,7 +477,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     // removes it from the destination row.
     const droppedClip = destination?.clips.find((clip) => clip.id === drag.clipId) || originalClip;
     if (!droppedClip) return;
-    const maxDuration = kind === 'audio' ? totalDuration : Math.max(totalDuration, ...tracks.flatMap((track) => track.clips.map((clip) => clip.start + clip.duration)), droppedClip.start + droppedClip.duration);
+    const maxDuration = Math.max(totalDuration, ...tracks.flatMap((track) => track.clips.map((clip) => clip.start + clip.duration)), droppedClip.start + droppedClip.duration);
     let resolvedStart = destination
       ? nearestFreeClipStart(destination.clips, drag.clipId, droppedClip.start, droppedClip.duration, maxDuration)
       : null;
@@ -1133,7 +1134,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       const minimum = 0.2;
                       const others = track.clips.filter((item) => item.id !== clip.id);
                       const previousEnd = others.filter((item) => item.start + item.duration <= initialStart + 0.0001).reduce((end, item) => Math.max(end, item.start + item.duration), 0);
-                      const nextBoundary = others.filter((item) => item.start >= initialStart + initialDuration - 0.0001).reduce((start, item) => Math.min(start, item.start), totalDuration);
+                      const nextBoundary = others.filter((item) => item.start >= initialStart + initialDuration - 0.0001).reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
                       let nextStart = initialStart;
                       let nextDuration = initialDuration;
                       if (edge === 'left') {
@@ -1141,7 +1142,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                         nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimum, initialStart + delta));
                         nextDuration = fixedEnd - nextStart;
                       } else {
-                        nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, totalDuration - initialStart, initialDuration + delta));
+                        nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, initialDuration + delta));
                       }
                       const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration } : entry) });
                       onChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
