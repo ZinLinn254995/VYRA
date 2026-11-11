@@ -173,7 +173,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (pointerStart?.id === event.pointerId) pointerStart = null;
     };
 
-    element.addEventListener('click', onGestureClickCapture, true);\n    element.addEventListener('pointerdown', onPointerDown, true);
+    element.addEventListener('click', onGestureClickCapture, true);
+    element.addEventListener('pointerdown', onPointerDown, true);
     element.addEventListener('pointermove', onPointerMove, true);
     element.addEventListener('pointerup', onPointerEnd, true);
     element.addEventListener('pointercancel', onPointerEnd, true);
@@ -232,7 +233,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     element.addEventListener('touchend', onTouchEnd, { passive: true });
     element.addEventListener('touchcancel', onTouchEnd, { passive: true });
     return () => {
-      element.removeEventListener('click', onGestureClickCapture, true);\n      element.removeEventListener('touchstart', onTouchStart);
+      element.removeEventListener('click', onGestureClickCapture, true);
+      element.removeEventListener('touchstart', onTouchStart);
       element.removeEventListener('touchmove', onTouchMove);
       element.removeEventListener('touchend', onTouchEnd);
       element.removeEventListener('touchcancel', onTouchEnd);
@@ -240,7 +242,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       element.removeEventListener('pointermove', onPointerMove, true);
       element.removeEventListener('pointerup', onPointerEnd, true);
       element.removeEventListener('pointercancel', onPointerEnd, true);
-      if (clickResetTimer) clearTimeout(clickResetTimer);
     };
   }, []);
 
