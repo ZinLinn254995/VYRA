@@ -166,7 +166,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType !== 'touch') {
-        suppressTextClickRef.current = false;
+        // Android Chrome may emit compatibility mouse pointer events after touch.
+        // Do not clear the pending touch-click guard before the synthetic click.
         return;
       }
 
