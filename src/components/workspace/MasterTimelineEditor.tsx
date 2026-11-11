@@ -145,11 +145,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return Math.hypot(dx, dy);
     };
 
-    let clickResetTimer: ReturnType<typeof setTimeout> | null = null;
     let pointerStart: { id: number; x: number; y: number } | null = null;
+
+    // Intercept the browser-generated click before React or a clip can receive it.
+    // Keep the gesture flag until that click is consumed; do not clear it on a timer.
+    const onGestureClickCapture = (event: MouseEvent) => {
+      if (!suppressTextClickRef.current) return;
+      suppressTextClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'touch') {
+        if (!pointerStart) suppressTextClickRef.current = false;
         pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
       }
     };
@@ -163,17 +173,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (pointerStart?.id === event.pointerId) pointerStart = null;
     };
 
-    element.addEventListener('pointerdown', onPointerDown, true);
+    element.addEventListener('click', onGestureClickCapture, true);\n    element.addEventListener('pointerdown', onPointerDown, true);
     element.addEventListener('pointermove', onPointerMove, true);
     element.addEventListener('pointerup', onPointerEnd, true);
     element.addEventListener('pointercancel', onPointerEnd, true);
 
     const onTouchStart = (event: TouchEvent) => {
-      if (clickResetTimer) {
-        clearTimeout(clickResetTimer);
-        clickResetTimer = null;
-      }
       if (event.touches.length === 1) {
+        // A fresh one-finger interaction starts a new gesture.
+        suppressTextClickRef.current = false;
         touchGestureStartRef.current = {
           x: event.touches[0].clientX,
           y: event.touches[0].clientY,
@@ -217,15 +225,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const onTouchEnd = (event: TouchEvent) => {
       if (event.touches.length < 2) pinchRef.current = null;
       if (event.touches.length === 0) touchGestureStartRef.current = null;
-      if (suppressTextClickRef.current) {
-        // Keep suppression through the browser's synthesized click, then clear
-        // it so a later intentional tap is never swallowed.
-        if (clickResetTimer) clearTimeout(clickResetTimer);
-        clickResetTimer = setTimeout(() => {
-          suppressTextClickRef.current = false;
-          clickResetTimer = null;
-        }, 450);
-      }
     };
 
     element.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -233,7 +232,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     element.addEventListener('touchend', onTouchEnd, { passive: true });
     element.addEventListener('touchcancel', onTouchEnd, { passive: true });
     return () => {
-      element.removeEventListener('touchstart', onTouchStart);
+      element.removeEventListener('click', onGestureClickCapture, true);\n      element.removeEventListener('touchstart', onTouchStart);
       element.removeEventListener('touchmove', onTouchMove);
       element.removeEventListener('touchend', onTouchEnd);
       element.removeEventListener('touchcancel', onTouchEnd);
