@@ -124,6 +124,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const audioDragRef = useRef<typeof textDragRef.current>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
   const dragAutoScrollPointerRef = useRef<{ kind: 'text' | 'audio'; x: number; y: number; pointerId: number; clip: TimelineClip } | null>(null);
+  const processingAutoScrollTickRef = useRef(false);
   const suppressTextClickRef = useRef(false);
 
   useEffect(() => {
@@ -728,7 +729,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
   const scheduleDragAutoScroll = (kind: 'text' | 'audio', event: React.PointerEvent<HTMLDivElement>, clip: TimelineClip) => {
     dragAutoScrollPointerRef.current = { kind, x: event.clientX, y: event.clientY, pointerId: event.pointerId, clip };
-    if (dragAutoScrollFrameRef.current !== null) return;
+    if (processingAutoScrollTickRef.current || dragAutoScrollFrameRef.current !== null) return;
 
     const tick = () => {
       dragAutoScrollFrameRef.current = null;
@@ -737,8 +738,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (!pointer || !element) return;
 
       const rect = element.getBoundingClientRect();
-      const edgeSize = 56;
-      const maxSpeed = 18;
+      const edgeSize = 64;
+      // Keep vertical auto-scroll deliberate on touch devices. The previous
+      // per-frame speed was too high and could fling the timeline to its top.
+      const maxSpeed = 6;
       const horizontalMax = Math.max(0, element.scrollWidth - element.clientWidth);
       const verticalMax = Math.max(0, element.scrollHeight - element.clientHeight);
       let dx = 0;
@@ -765,12 +768,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         preventDefault: () => undefined,
         stopPropagation: () => undefined,
       } as React.PointerEvent<HTMLDivElement>;
-      if (pointer.kind === 'text') moveTextLongPress(syntheticEvent, pointer.clip);
-      else moveAudioLongPress(syntheticEvent, pointer.clip);
+      // The move handler normally schedules the next animation frame.
+      // Suppress that scheduling here because this tick owns the single loop.
+      processingAutoScrollTickRef.current = true;
+      try {
+        if (pointer.kind === 'text') moveTextLongPress(syntheticEvent, pointer.clip);
+        else moveAudioLongPress(syntheticEvent, pointer.clip);
+      } finally {
+        processingAutoScrollTickRef.current = false;
+      }
 
-      // Keep scrolling while the pointer remains near an edge, even when
-      // the user holds it still and no new pointermove event is emitted.
-      dragAutoScrollFrameRef.current = requestAnimationFrame(tick);
+      // Keep exactly one animation-frame loop while the pointer remains
+      // near an edge, even when the user holds it still.
+      if (dragAutoScrollPointerRef.current) {
+        dragAutoScrollFrameRef.current = requestAnimationFrame(tick);
+      }
     };
 
     dragAutoScrollFrameRef.current = requestAnimationFrame(tick);
