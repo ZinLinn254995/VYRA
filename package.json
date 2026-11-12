@@ -46,7 +46,8 @@
     "test:vyral-origin-comparator-security": "node --import tsx --test tests/vyral-origin-comparator-security.spec.ts",
     "test:vyral-storage-path-security": "node --import tsx --test tests/vyral-storage-path-security.spec.ts",
     "test:vyral-raster-upload-dna-gate": "node --import tsx --test tests/vyral-raster-upload-dna-gate.spec.ts",
-    "test:vyral-perceptual-fingerprint": "node --import tsx --test tests/vyral-perceptual-fingerprint.spec.ts"
+    "test:vyral-perceptual-fingerprint": "node --import tsx --test tests/vyral-perceptual-fingerprint.spec.ts",
+    "test:vyral-reconstruction-metrics": "node --import tsx --test tests/vyral-reconstruction-metrics.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
