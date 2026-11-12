@@ -379,3 +379,18 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - Runway Dev pricing: https://dev.runwayml.com/pricing
 
 **Status:** Phase 4 provider audit completed; implementation has not yet started. The recommended single media-provider candidate is Runway Dev, with OpenAI retained for chat. No API key was purchased or configured, no paid generation was attempted, and no production deployment or merge was performed. Next implementation work is the server-only provider boundary and safe generation-job/usage contract; the existing BYOK generation path must not be silently re-enabled.
+
+
+### Phase 4 progress — Auto-first model selection policy
+
+- Added a pure, server-usable model-selection policy in `src/services/mediaModelSelection.ts`. It defaults to Auto and supports a Manual override for advanced users without changing the existing AI Chat or media UI.
+- Selection is task-aware (image, video, audio, video edit), quality-aware (draft, standard, premium), budget-capped, and can require DNA-reference compatibility.
+- Manual selection is accepted only when the requested model is in the trusted candidate list and passes the same task, quality, budget, enabled-state, and DNA-reference checks as Auto.
+- The selector rejects models without a fresh numeric preflight quote. It contains no hard-coded provider prices, API keys, network calls, or provider submission logic; the next provider-adapter step must supply trusted allowlisted candidates and current quotes.
+- Auto policy: Draft favors the lowest-cost eligible option; Standard balances quality against quoted cost; Premium prioritizes the highest quality within budget. If no model satisfies the constraints, it returns a safe no-eligible-model result rather than silently exceeding budget or downgrading quality.
+- Added focused tests for default Auto, quality tiers, manual override, task allowlisting, DNA compatibility, missing quotes, budget enforcement, and side-effect-free behavior. Added the test to CI.
+- No AI Chat layout, CSS, controls, spacing, or visual hierarchy were changed. The legacy BYOK UI and generation safety blocks remain untouched.
+
+**Verification status:** Implementation and CI wiring are committed on `feature/my-storyboard`. Automated GitHub Actions verification is pending; no local test runner was available through the GitHub file-edit workflow. No live Runway credentials, paid preflight, or generation request were used. No production deployment or merge was performed.
+
+**Next Phase 4 step:** Connect this policy to a server-only Runway adapter that reads the platform key from Development Supabase Vault, fetches live preflight quotes, and requires an explicit cost confirmation before creating a generation job. Until then, this selector is a tested-by-contract foundation, not an enabled generation feature.
