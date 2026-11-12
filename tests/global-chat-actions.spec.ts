@@ -24,3 +24,29 @@ test('storyboard list response uses actual records and reports an honest empty s
   assert.match(output, /A sample story/);
   assert.ok(output.includes('2 scene(s)'));
 });
+
+
+test('storyboard detail intent extracts a specific title in English and Burmese', async () => {
+  const { extractStoryboardDetailTitle } = await import('../src/services/globalChatActions.ts');
+  assert.equal(extractStoryboardDetailTitle('Show details of ORIGIN Story'), 'ORIGIN Story');
+  assert.equal(extractStoryboardDetailTitle('Tell me about “Space Journey”'), 'Space Journey');
+  assert.equal(extractStoryboardDetailTitle('Open storyboard My First Film'), 'My First Film');
+  assert.equal(extractStoryboardDetailTitle('ORIGIN Story storyboard အသေးစိတ်ပြပေး'), 'ORIGIN Story');
+  assert.equal(extractStoryboardDetailTitle('Show my storyboards'), null);
+  assert.equal(extractStoryboardDetailTitle('Create a storyboard about space'), null);
+});
+
+test('storyboard detail lookup prefers exact title and formats scene data', async () => {
+  const { findStoryboardMatches, formatStoryboardDetail } = await import('../src/services/globalChatActions.ts');
+  const items = [
+    { id: '1', title: 'Space', topic: 'Exact match', createdAt: '2026-01-01', updatedAt: '2026-01-02', details: { scenes: [{ title: 'Opening', description: 'A quiet sky', duration: 5, transition: 'fade' }] } },
+    { id: '2', title: 'Space Journey', topic: 'Related', createdAt: '2026-01-01', updatedAt: '2026-01-02', details: { scenes: [] } },
+  ];
+  assert.deepEqual(findStoryboardMatches(items, 'Space').map((item) => item.id), ['1']);
+  assert.equal(findStoryboardMatches(items, 'space j').length, 1);
+  const output = formatStoryboardDetail(items[0]);
+  assert.match(output, /Exact match/);
+  assert.match(output, /Opening/);
+  assert.match(output, /A quiet sky/);
+  assert.match(output, /5 sec/);
+});
