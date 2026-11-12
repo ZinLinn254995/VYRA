@@ -73,11 +73,11 @@ test('rejects malformed quote, future approval and invalid idempotency key', () 
 });
 
 test('allows only forward generation-job transitions', () => {
-  assert.equal(canTransitionMediaGenerationJob('queued', 'running'), true);
-  assert.equal(canTransitionMediaGenerationJob('running', 'succeeded'), true);
-  assert.equal(canTransitionMediaGenerationJob('running', 'failed'), true);
-  assert.equal(canTransitionMediaGenerationJob('queued', 'cancelled'), true);
-  assert.equal(canTransitionMediaGenerationJob('succeeded', 'running'), false);
+  assert.equal(canTransitionMediaGenerationJob('pending', 'submitted'), true);
+  assert.equal(canTransitionMediaGenerationJob('submitted', 'succeeded'), true);
+  assert.equal(canTransitionMediaGenerationJob('processing', 'failed'), true);
+  assert.equal(canTransitionMediaGenerationJob('pending', 'cancelled'), true);
+  assert.equal(canTransitionMediaGenerationJob('succeeded', 'processing'), false);
   assert.equal(canTransitionMediaGenerationJob('failed', 'succeeded'), false);
-  assert.equal(canTransitionMediaGenerationJob('cancelled', 'queued'), false);
+  assert.equal(canTransitionMediaGenerationJob('cancelled', 'pending'), false);
 });
