@@ -326,12 +326,14 @@ export const findMentionedVyrals = (
       normalizedInput.includes(vyral.name.normalize('NFKC').trim().toLocaleLowerCase()))
     .sort((a, b) => b.name.length - a.name.length);
   if (!matches.length) return [];
-  const longest = matches[0].name.length;
-  return matches.filter((item) => item.name.length === longest);
+  return matches.filter((item) => !matches.some((other) =>
+    other.id !== item.id &&
+    other.name.normalize('NFKC').trim().toLocaleLowerCase().includes(item.name.normalize('NFKC').trim().toLocaleLowerCase())
+  ));
 };
 
 export const isVyralAssetAddIntent = (input: string): boolean => {
-  if (/\b(?:do not|don't|never|avoid)\s+(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
+  if (/\b(?:do not|don't|never|avoid)\s+(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
       /(?:မထည့်|မသိမ်း|မလုပ်ပါ)/.test(input)) return false;
   return /\b(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
     /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး)/.test(input);
