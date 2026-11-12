@@ -62,7 +62,11 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /record-vyral-vision-observation/);
   assert.match(details, /assetId,\s*versionId: version\.id/);
   assert.match(details, /analysis_origin: 'automatic_upload_analysis'/);
-  assert.match(details, /analysis_basis: 'uploaded_source_metadata_and_supported_derived_preview'/);
+  assert.match(details, /hasSupportedAnalysisInput/);
+  assert.match(details, /analysis_basis: analysisBasis/);
+  assert.match(details, /derived_preview_from_source_version/);
+  assert.match(details, /original_document_or_audio_content/);
+  assert.match(details, /extracted_text_from_source_version/);
   assert.match(details, /visionRecord\?\.status !== 'recorded'/);
   assert.match(details, /does not\\s*\\/\\/ creator-confirm the model's claims/);
   assert.match(details, /accessToken && !isVyralPackageAsset/);
