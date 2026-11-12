@@ -64,7 +64,9 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /analysis_origin: 'automatic_upload_analysis'/);
   assert.match(details, /analysis_basis: 'uploaded_source_metadata_and_supported_derived_preview'/);
   assert.match(details, /visionRecord\?\.status !== 'recorded'/);
-  assert.match(details, /does not\\n            \/\/ creator-confirm the model's claims/);
+  assert.match(details, /does not\\s*\\/\\/ creator-confirm the model's claims/);
+  assert.match(details, /accessToken && !isVyralPackageAsset/);
+  assert.match(details, /ai_details_status: isVyralPackageAsset/);
 });
 
 test('Vision field promotion is limited to editable knowledge fields and exact source evidence', () => {
