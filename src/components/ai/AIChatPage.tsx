@@ -626,7 +626,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const sessionId = activeSessionId ?? crypto.randomUUID();
         const sessionToSave: ChatSession = {
           id: sessionId,
-          title: currentTitle,
+          title: (() => { const firstUserText = nextMessages.find((message) => message.role === 'user')?.content ?? text; return firstUserText.length > 42 ? firstUserText.slice(0, 42) + '…' : firstUserText || 'New chat'; })(),
           updatedAt: 'Just now',
           messages: [...nextMessages, assistantMessage],
           archived: false,
