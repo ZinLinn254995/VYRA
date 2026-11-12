@@ -215,3 +215,20 @@ test('AI Chat routes attached files into a specifically named Vyral only after c
   assert.match(preview, /Nothing has been uploaded yet/);
   assert.match(preview, /SHA-256 Fingerprint/);
 });
+
+
+test('Vyral context follows natural conversational references without a fixed command', async () => {
+  const { findMentionedVyrals, isVyralAssetAddIntent, isVyralAssetContextReference } =
+    await import('../src/services/globalChatActions.ts');
+  const vyrals = [
+    { id: 'v1', name: 'ORIGIN Story', description: 'Foundational sample' },
+    { id: 'v2', name: 'Space Worlds', description: 'Science-fiction locations' },
+  ];
+  assert.deepEqual(findMentionedVyrals("Let's continue working on ORIGIN Story; I have another idea.", vyrals).map((item) => item.id), ['v1']);
+  assert.deepEqual(findMentionedVyrals('ဒီပုံကို Space Worlds ထဲ ထည့်ပေး', vyrals).map((item) => item.id), ['v2']);
+  assert.deepEqual(findMentionedVyrals('Compare ORIGIN Story with Space Worlds', vyrals).map((item) => item.id), []);
+  assert.equal(isVyralAssetAddIntent('Could you put this image into the one we were working on?'), true);
+  assert.equal(isVyralAssetAddIntent('ဒီပုံကို အဲဒီထဲ ထည့်ပေးပါ'), true);
+  assert.equal(isVyralAssetAddIntent("Please don't add this file yet"), false);
+  assert.equal(isVyralAssetContextReference('Put this there'), true);
+});
