@@ -1,5 +1,4 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
-import { GoogleGenAI } from '@google/genai';
 import { verifySupabaseAccessToken } from './supabaseAuth.js';
 import { beginOpenRouterTextJob, finishOpenRouterTextJob, type OpenRouterTextJob } from './usageLedger.js';
 import { isUsageLedgerRequested, isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedgerContract.js';
@@ -900,33 +899,39 @@ router.get('/providers/openrouter/videos/:jobId/content', async (req: Request, r
   }
 });
 
-function hasGeminiKey(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY?.trim());
+async function getGeminiStatus(accessToken?: string) {
+  if (!accessToken) {
+    return { status: 'preview_mode', geminiConfigured: false, modelName: MODEL_NAME, message: 'Sign in to check the configured AI provider.' };
+  }
+  try {
+    const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+    const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+    if (!baseUrl || !anonKey) throw new Error('Supabase function configuration is unavailable.');
+    const response = await fetch(baseUrl + '/functions/v1/vyra-gemini-proxy', {
+      method: 'POST',
+      headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    const data = await response.json().catch(() => ({})) as { configured?: boolean };
+    const configured = response.ok && data.configured === true;
+    return {
+      status: configured ? 'connected' : 'preview_mode',
+      geminiConfigured: configured,
+      modelName: MODEL_NAME,
+      message: configured ? 'Gemini provider is configured securely.' : 'Gemini API key has not been configured yet.',
+    };
+  } catch {
+    return { status: 'preview_mode', geminiConfigured: false, modelName: MODEL_NAME, message: 'Gemini provider status is temporarily unavailable.' };
+  }
 }
 
-// This is process-local and resets on restart. A configured key alone is not proof
-// that Gemini is reachable or that the key/model/quota are valid.
-let lastGeminiRequestSucceeded = false;
-
-function getGeminiStatus() {
-  const configured = hasGeminiKey();
-  const verified = configured && lastGeminiRequestSucceeded;
-  return {
-    status: verified ? 'connected' : 'preview_mode',
-    geminiConfigured: configured,
-    modelName: MODEL_NAME,
-    message: !configured
-      ? 'Server is running, but GEMINI_API_KEY is not configured.'
-      : verified
-        ? 'A Gemini request succeeded during this server process.'
-        : 'Gemini credentials are configured, but a successful live request has not yet been verified.',
-  };
-}
-
-router.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json(getGeminiStatus());
+router.get('/health', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json(await getGeminiStatus(match?.[1]));
 });
-
 
 
 router.post('/ai/chat', async (req: Request, res: Response) => {
@@ -942,7 +947,9 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
 
   // Status probes must never invoke the model or incur API usage.
   if (body?.ping === true) {
-    return res.status(200).json(getGeminiStatus());
+    const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json(await getGeminiStatus(match?.[1]));
   }
   const verifiedUserId = await requireVerifiedVYraSession(req, res);
   if (!verifiedUserId) return;
@@ -954,14 +961,6 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   // Ordinary Gemini chat remains paused while its provider usage is not tracked.
   // Metadata suggestions use the same server-owned text ledger as other providers.
   if (!isDetailsTaskRequest && blockUntrackedGeneration(res, 'gemini-text')) return;
-
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    return res.status(503).json({
-      error: 'Gemini is not configured on the server. Add GEMINI_API_KEY to the server environment.',
-      code: 'GEMINI_NOT_CONFIGURED',
-    });
-  }
 
   const incoming = Array.isArray(body?.messages) ? body.messages : [];
   const messages = incoming
@@ -1105,7 +1104,6 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   }
 
   try {
-    const genAI = new GoogleGenAI({ apiKey });
     const hasInlineMedia = visionImages.length > 0 || mediaFiles.length > 0;
     const contents = hasInlineMedia
       ? [{ role: 'user' as const, parts: [
@@ -1119,22 +1117,48 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
             { inlineData: { mimeType: item.mimeType, data: item.data } },
           ]),
         ] }]
-      : prompt;
-    const generated = await genAI.models.generateContent({
-      model: MODEL_NAME,
-      contents,
-      config: { systemInstruction },
-    });
-    const text = generated.text?.trim();
+      : [{ role: 'user' as const, parts: [{ text: prompt }] }];
 
-    const usage = generated.usageMetadata ? {
-      promptTokens: generated.usageMetadata.promptTokenCount,
-      completionTokens: generated.usageMetadata.candidatesTokenCount,
-      totalTokens: generated.usageMetadata.totalTokenCount,
+    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    const supabaseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+    const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+    if (!bearer || !supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Gemini secure provider proxy is not configured.');
+    }
+    const upstream = await fetch(supabaseUrl + '/functions/v1/vyra-gemini-proxy', {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: 'Bearer ' + bearer[1],
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        contents,
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(65000),
+    });
+    const generated = await upstream.json().catch(() => ({})) as {
+      text?: string;
+      error?: string;
+      generationId?: string | null;
+      usage?: { promptTokens?: number | null; completionTokens?: number | null; totalTokens?: number | null } | null;
+      modelName?: string;
+    };
+    if (!upstream.ok) {
+      throw new Error(typeof generated.error === 'string' ? generated.error : 'Gemini provider request failed.');
+    }
+    const text = typeof generated.text === 'string' ? generated.text.trim() : '';
+    const usage = generated.usage ? {
+      promptTokens: generated.usage.promptTokens ?? undefined,
+      completionTokens: generated.usage.completionTokens ?? undefined,
+      totalTokens: generated.usage.totalTokens ?? undefined,
     } : null;
-    const generationId = typeof generated.responseId === 'string' ? generated.responseId : null;
+    const generationId = typeof generated.generationId === 'string' ? generated.generationId : null;
     if (!text) {
-      lastGeminiRequestSucceeded = false;
       if (ledgerContext) {
         const recorded = await finishOpenRouterTextJob({
           userId: ledgerContext.userId, job: ledgerContext.job, status: 'failed',
@@ -1155,10 +1179,8 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
         code: 'USAGE_RECORD_UNCONFIRMED',
       });
     }
-    lastGeminiRequestSucceeded = true;
     return res.status(200).json({ text, modelName: MODEL_NAME, provider: 'gemini', generationId, usage });
   } catch (error) {
-    lastGeminiRequestSucceeded = false;
     if (ledgerContext) {
       const recorded = await finishOpenRouterTextJob({
         userId: ledgerContext.userId, job: ledgerContext.job, status: 'unknown',
