@@ -109,7 +109,8 @@ The first milestone is a practical MVP, not a complete autonomous creative platf
 - Opening My Vyrals or My Media Library from Workspace updates the retained last-page context before navigation. Assets explicitly sent from Media Library continue through the existing selected-asset handoff.
 - AI Chat sends this small context with normal text requests. The Development Edge Function validates allowed page/type fields, bounds text and array sizes, and injects it as untrusted UI-state context—not as authorization or executable instructions. Server-side Vyral ownership checks and action confirmation rules remain authoritative.
 - No AI Chat layout/CSS was changed. Context is retained in app memory while navigating between surfaces; it is not a permanent user activity log.
-- Development Edge Function deployment is pending for the latest Workspace context version. Browser verification and CI are still outstanding.
+- Deployed Development Edge Function `vyra-openai-chat` version 5 with JWT verification enabled; its workspace-context sanitizer is active. Production remains untouched.
+- Browser verification and CI are still outstanding; GitHub status/workflow lookup returned no check records for the latest code commits, so no passing CI claim is made.
 
 ### Phase 3 — Controlled VYRA app actions
 
