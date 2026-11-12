@@ -129,6 +129,7 @@ class ModularAIService implements AIServiceProvider {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Accept: 'application/json',
             Authorization: 'Bearer ' + request.accessToken,
             ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
           },
@@ -138,16 +139,49 @@ class ModularAIService implements AIServiceProvider {
             ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
           }),
         });
-        const data = !response.ok
-        ? await response.json().catch(() => ({})) as {
-            text?: string; error?: string; code?: string; provider?: string;
-            modelName?: string; usage?: AIServiceResult['usage'];
-          }
-        : {} as {
-            text?: string; error?: string; code?: string; provider?: string;
-            modelName?: string; usage?: AIServiceResult['usage'];
-          };
+        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; modelName?: string };
+        if (!response.ok || typeof data.text !== 'string' || !data.text.trim()) {
+          const message = typeof data.error === 'string' && data.error.trim()
+            ? data.error
+            : 'VYRA could not inspect the selected media Assets. Please retry.';
+          return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
+        }
+        return {
+          content: data.text.trim(),
+          status: 'success',
+          providerName: 'Google Gemini Vision',
+          modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
+        };
+      } catch {
+        const message = 'VYRA could not reach the multimodal inspection service. No text-only preview was substituted.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
+      }
+    }
+
+    if (!request.accessToken) {
+      const message = 'Sign in to VYRA before using AI Chat.';
+      return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+    }
+
+    try {
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          Authorization: 'Bearer ' + request.accessToken,
+          ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
+        },
+        body: JSON.stringify({
+          stream: true,
+          messages: request.messages.filter((message) => message.role !== 'system'),
+          ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
+          ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
+        }),
+      });
+
       if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string; modelName?: string };
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error
           : 'VYRA AI could not complete this request. Please retry.';
