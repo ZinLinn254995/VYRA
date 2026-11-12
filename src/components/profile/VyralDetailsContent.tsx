@@ -129,6 +129,8 @@ const flattenObservation = (value: unknown, prefix = ''): Record<string, string>
   }), {});
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 type VisionQuality = { score: number | null; label: string; flags: string[]; fieldCount: number };
 const assessVisionQuality = (observation: unknown): VisionQuality => {
   const root = asRecord(observation);
@@ -160,8 +162,6 @@ const assessVisionQuality = (observation: unknown): VisionQuality => {
   return { score, label: !entries.length ? 'Insufficient data' : hasWarnings ? 'Needs attention' : 'No structural warnings', flags, fieldCount: entries.length };
 };
 
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const formatRgb = (value: unknown) =>
   Array.isArray(value) && value.length >= 3
     ? value.slice(0, 3).map((channel) => Number(channel).toFixed(0)).join(', ')
