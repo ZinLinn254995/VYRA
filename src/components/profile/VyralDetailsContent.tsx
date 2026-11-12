@@ -482,7 +482,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   // Creator-edited fields are preserved by mergeVyralAiDetails; AI is optional.
   const collectionAiAttemptRef = useRef('');
   useEffect(() => {
-    if (!supabase || loading) return;
+    if (!supabase || loading || retryingVisionAssetId) return;
+    // ORIGIN-01 must finish its source-pinned Asset Vision pass before the
+    // collection summary runs, so both Gemini jobs do not compete for quota.
+    const originAsset = vyral.id === 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d'
+      ? assets.find((asset) => asset.id === '2c496cd5-84c4-44b1-b02a-fca4265cc592') : null;
+    const originVersion = originAsset
+      ? versions.find((version) => version.asset_id === originAsset.id && version.storage_path === originAsset.storage_path) : null;
+    const originVisionPending = Boolean(originAsset && originVersion &&
+      !observations.some((item) => item.asset_id === originAsset.id && item.asset_version_id === originVersion.id) &&
+      !originAsset.metadata?.ai_vision_last_attempt_at);
+    if (originVisionPending) return;
     const inventorySignature = assets
       .map((asset) => [
         asset.id, asset.name, asset.asset_type, asset.mime_type, asset.updated_at, asset.sha256 ?? '',
@@ -613,7 +623,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
     })();
-  }, [assets, loading, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
+  }, [assets, versions, observations, loading, retryingVisionAssetId, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
 
 
   const originV3Attempts = useMemo(() =>
