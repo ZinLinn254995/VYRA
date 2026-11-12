@@ -44,7 +44,7 @@ test('rejects unsupported operations, untrusted extra parameters and expired pla
     ...basePlan, operation: 'database.execute' as never,
   }, context, now), { ok: false, reason: 'unsupported-operation' });
   assert.deepEqual(validateGlobalChatActionPlan({
-    ...basePlan, parameters: { ...basePlan.parameters, sql: 'delete from users' },
+    ...basePlan, parameters: { ...basePlan.parameters, sql: 'delete from users' } as Record<string, string | number | boolean | null>,
   }, context, now), { ok: false, reason: 'invalid-parameters' });
   assert.deepEqual(validateGlobalChatActionPlan({
     ...basePlan, expiresAt: '2026-11-13T00:01:00.000Z',
