@@ -1707,12 +1707,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
           : item));
       } else {
+        const pendingDeleteDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-delete-draft')?.action;
         const pendingUpdateDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-update-draft')?.action;
-        const retryDraftAction = isStoryboardUpdateConfirmation(text) && pendingUpdateDraft
-          ? pendingUpdateDraft
-          : isStoryboardCreateConfirmation(text)
-            ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
-            : undefined;
+        const retryDraftAction = isStoryboardDeleteConfirmation(text) && pendingDeleteDraft
+          ? pendingDeleteDraft
+          : isStoryboardUpdateConfirmation(text) && pendingUpdateDraft
+            ? pendingUpdateDraft
+            : isStoryboardCreateConfirmation(text)
+              ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
+              : undefined;
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
