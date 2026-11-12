@@ -232,6 +232,7 @@ test('Vyral context follows natural conversational references without a fixed co
   assert.equal(isVyralAssetAddIntent('ဒီပုံကို အဲဒီထဲ ထည့်ပေးပါ'), true);
   assert.equal(isVyralAssetAddIntent("Please don't add this file yet"), false);
   assert.equal(isVyralAssetContextReference('Put this there'), true);
+  assert.equal(findMentionedVyrals('Continue with ORIGIN Story', [...vyrals, { id: 'v3', name: 'ORIGIN Story' }]).length, 2);
 });
 
 
