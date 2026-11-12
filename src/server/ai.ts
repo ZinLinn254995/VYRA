@@ -1192,7 +1192,10 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       usage?: { promptTokens?: number | null; completionTokens?: number | null; totalTokens?: number | null } | null;
       modelName?: string;
     };
-    if (!upstream.ok) {
+    // The secure Gemini proxy streams heartbeat whitespace and its final JSON payload,
+    // so provider-level errors are returned in a valid HTTP 200 stream. Inspect the
+    // payload error explicitly instead of misreporting every such response as empty.
+    if (!upstream.ok || typeof generated.error === 'string') {
       if (ledgerContext) {
         const recorded = await finishOpenRouterTextJob({
           userId: ledgerContext.userId, job: ledgerContext.job, status: 'failed',
