@@ -605,6 +605,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setIsSending(true);
     let streamingAssistantId: string | null = null;
+    let streamedText = '';
     try {
 
 
@@ -1213,6 +1214,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           onTextDelta: (chunk: string) => {
             const messageId = streamingAssistantId;
             if (!messageId) return;
+            streamedText += chunk;
             setMessages((previous) => previous.map((message) => message.id === messageId
               ? { ...message, content: message.content + chunk }
               : message));
@@ -1224,7 +1226,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
-        content: result.content,
+        content: result.status === 'error' && streamedText
+          ? streamedText + '\n\n' + result.content
+          : result.content,
         status: result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
