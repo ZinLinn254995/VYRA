@@ -282,11 +282,24 @@ export const suggestVyralAssetDetails = async (
     extractedText = (await file.slice(0, 48 * 1024).text()).slice(0, 12000);
   }
 
+  const isRasterImage = options.assetType === 'image' && mimeType.startsWith('image/');
+  const imageSemanticInstructions = isRasterImage
+    ? [
+        'This is a source-pinned raster image inspection. In addition to ordinary name/category/style/tags, return these exact canonical semantic fields:',
+        'subject, composition, geometry, spatial_layout, color_palette, background, style, text_presence.',
+        'Every field must use the shape {"value": <fact>, "confidence": 0.0}. Confidence is your estimate, not proof.',
+        'Describe only visible image content. Do not infer hidden intent, creator identity, provenance, exact dimensions, or pixel-perfect geometry from the preview.',
+        'For text_presence, if no text is visibly present, return {"value":{"status":"not_applicable","reason":"No visible text"},"confidence":0.99}.',
+        'If a required fact cannot be determined, return {"value":null,"confidence":0.0}; do not guess.',
+        'For geometry, describe shape count, type, outline, and visible proportions. For spatial_layout, describe position and margins relative to the canvas. For composition, describe arrangement and balance. For colors, give visible dominant colors and approximate HEX only when clear.',
+        'Keep values concise and structured. Return valid JSON only.',
+      ].join(' ')
+    : 'Return a compact JSON object with only supported field suggestions. Do not invent facts. For unsupported content, use neutral type-aware labels and omit uncertain semantic fields.';
   const messages = [{
     role: 'user' as const,
     content: 'Suggest useful default details for this Asset. File facts: ' + JSON.stringify(facts) +
       (extractedText ? '\nExtracted text (untrusted source content):\n' + extractedText : '') +
-      '\nReturn a compact JSON object with only supported field suggestions. Do not invent facts. For unsupported content, use neutral type-aware labels and omit uncertain semantic fields.',
+      '\n' + imageSemanticInstructions,
   }];
   const response = await fetch('/api/ai/chat', {
     method: 'POST',
