@@ -328,3 +328,17 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Verification:** GitHub Actions run `43298266907` passed for implementation commit `94a28111e73e01eef1a157019022da73c15dab50`, including TypeScript check, AI Chat streaming tests, global Chat action tests, Supabase Edge Function type-check, all listed regression suites, and production build. Preview/device interaction for both Storyboard create and update flows remains a manual acceptance check. No production deployment or merge was performed.
 
 **Next Phase 3 step:** Complete Preview/device checks for Storyboard create and update (including refresh/reopen and Workspace synchronization), then proceed to a separately confirmation-gated delete action. Preserve the existing AI Chat UI baseline.
+### Phase 3 progress — confirmation-gated Storyboard deletion
+
+- Added narrow English and Burmese delete intent parsing. The request must identify a Storyboard by title; a generic delete request asks for the exact title and never mutates data.
+- AI Chat loads only the signed-in user's Storyboards, merges the account-scoped local cache with cloud records, and requires a unique title match. Missing or ambiguous matches do not delete anything.
+- The assistant presents the exact Storyboard title and a permanent-deletion warning in a conversational preview. Deletion requires the dedicated “Confirm delete” or “ဖျက်ရန် အတည်ပြု” phrase; generic “yes” and update confirmations are not accepted.
+- On confirmation, the app re-authenticates the user, checks the cloud row's updated_at revision, and scopes deletion by both Storyboard ID and user ID. The delete query also includes the expected updated_at value and requests the deleted row back; if no row was actually deleted, it does not report success.
+- The matching account-local cache entry is removed only after cloud deletion succeeds (or when the Storyboard exists only in the account-local cache). The structured draft is retained for retry after a failed confirmation. A completed draft ID prevents repeat deletion.
+- Added tests for English/Burmese delete intent, exact title extraction, unrelated destructive requests, and strict confirmation wording. Existing AI Chat layout, CSS, controls, spacing, and visual hierarchy were not changed.
+
+**Verification:** GitHub Actions run `43299174012` passed for commit `63ec1c0fd48060d4cf286f7c06bc38ed66306502`, including TypeScript check, Global AI Chat safe-action tests, the existing regression suites, Supabase Edge Function type-check, and production build.
+
+**Remaining acceptance check:** Preview/device manual testing is still required for Storyboard create, update, and delete, including confirmation, refresh/reopen, and Workspace synchronization. No manual browser verification is claimed. No production deployment or merge was performed.
+
+**Next Phase 3 step:** Run the three end-to-end Preview acceptance flows, then assess whether the MVP's safe conversational controls are ready for the next phase. Preserve the existing AI Chat UI baseline.
