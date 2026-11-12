@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   classifyVyralAssetFile,
   ingestVyralAsset,
+  ingestGeneratedVyralAsset,
   VyralAssetIngestionError,
   type VyralAssetIngestionPort,
 } from '../src/services/vyralAssetIngestion';
@@ -101,4 +102,21 @@ test('rejects invalid ownership IDs and oversized files before creating records'
     vyralId, userId, file: makeFile('large.wav', 'audio/wav'), maxBytes: 2,
   }));
   assert.deepEqual(calls, []);
+});
+
+test('generated media uses the same canonical Asset and DNA ingestion path with provenance', async () => {
+  const { port, calls } = makePort();
+  const result = await ingestGeneratedVyralAsset(port, {
+    vyralId, userId, file: makeFile('generated.png', 'image/png'),
+    provenance: {
+      generationJobId: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45',
+      task: 'image', provider: 'runway', model: 'gen-4-image',
+      requestFingerprint: 'b'.repeat(64), promptSha256: 'c'.repeat(64),
+      quoteId: '6d012e44-3f65-4076-9b87-0e1f2a3b4c56', actualCostUsd: 0.25,
+    },
+  });
+  assert.equal(result.dnaKind, 'raster-v3');
+  assert.equal(calls[0], 'createAsset');
+  assert.equal(calls.includes('extractRasterDna'), true);
+  assert.equal(calls.at(-1), 'markReady');
 });
