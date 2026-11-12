@@ -62,7 +62,7 @@ export interface AIServiceProvider {
  */
 class ModularAIService implements AIServiceProvider {
   public name = 'Google Gemini AI (Server-Proxy Ready)';
-  public model = 'gemini-2.5-flash';
+  public model = 'gemini-3.8-flash';
   private endpoint = '/api/ai/chat';
 
   public async checkStatus(): Promise<AIServiceStatus> {
