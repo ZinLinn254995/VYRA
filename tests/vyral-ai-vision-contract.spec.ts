@@ -133,7 +133,7 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /Fingerprint mismatch/);
   assert.match(details, /Baseline fingerprint created/);
   assert.match(details, /verifyAssetIntegrity\(asset, version\.id\)/);
-  assert.match(details, /SHA-256 \+ String\(data\.sha256/);
+  assert.match(details, /SHA-256 ' \+ String\(data\.sha256/);
   assert.match(details, /creator-confirmed/);
   assert.match(details, /sourceBindingValid/);
   assert.match(details, /cannot be confirmed/);
