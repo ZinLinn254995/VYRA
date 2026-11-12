@@ -1497,7 +1497,34 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
         </div>
       </div>
-      {!isTextEditMode && toolbar}
+      {isTextEditMode ? (
+        <nav
+          className="master-editor-bottom-nav relative z-50 flex w-full shrink-0 items-center justify-center gap-2 px-0 pt-2"
+          style={{ paddingBottom: 0 }}
+          aria-label="Text editing tools"
+        >
+          <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-center gap-2 overflow-x-auto px-0">
+            <button
+              type="button"
+              title="Fonts"
+              aria-label="Fonts"
+              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-4 text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]"
+            >
+              <Type size={20} strokeWidth={1.8} />
+              <span>Fonts</span>
+            </button>
+            <button
+              type="button"
+              title="Style"
+              aria-label="Style"
+              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-4 text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]"
+            >
+              <Palette size={20} strokeWidth={1.8} />
+              <span>Style</span>
+            </button>
+          </div>
+        </nav>
+      ) : toolbar}
     </div>
   );
 };
