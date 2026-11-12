@@ -102,7 +102,9 @@ export const assessVyralSemanticCompletenessV1 = (
 
   let ignoredObservationCount = 0;
   for (const observation of input.observations) {
-    if (!observation || observation.sourceVersionId !== input.sourceVersionId ||
+    if (!observation || typeof observation.sourceVersionId !== 'string' ||
+        typeof observation.sourceSha256 !== 'string' ||
+        observation.sourceVersionId !== input.sourceVersionId ||
         observation.sourceSha256.toLowerCase() !== input.sourceSha256.toLowerCase() ||
         typeof observation.evidenceRef !== 'string' || !observation.evidenceRef.trim() ||
         !observation.fields || typeof observation.fields !== 'object' || Array.isArray(observation.fields) ||
