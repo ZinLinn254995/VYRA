@@ -412,3 +412,15 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - Existing provider cost records explicitly distinguish provider-reported actual cost from estimates. Reuse this schema and its existing RPC path rather than creating duplicate ledger tables.
 - Existing `platform_admins` registry and Vault accessor patterns are present. The Runway secret accessor still needs a Development-only migration and an admin-gated management Edge Function; no schema or secret changes were made during this read-only audit.
 - Production Supabase was not queried or changed.
+
+
+### Phase 4 progress — Development-only Runway credential management
+
+- Added Development Supabase migration `vyra_runway_api_key_vault` in project `wbqheogfoahnjvgkwhxe`. It creates Vault getter/setter RPCs for `vyra_runway_api_key`; direct execution is revoked from PUBLIC, anon, and authenticated roles and granted only to service_role.
+- Deployed Development Edge Function `manage-runway-provider` (JWT required). It checks the authenticated user's `platform_admins` role and permits only owner/admin to read credential status or save a credential. It never returns the secret.
+- Added authenticated server proxy routes `GET/POST /providers/runway/settings` in `src/server/ai.ts`. The browser can only send a credential to the server proxy; reading stored credentials is not supported.
+- The management endpoint explicitly reports `credentialVerified: false`. Saving a key only stores it securely; it does not claim live verification. No Runway key was supplied or stored.
+- No media generation endpoint is enabled. No provider API request, paid preflight, task submission, customer charge, or asset creation occurred. Existing OpenRouter generation safety blocks and legacy BYOK UI remain untouched.
+- No AI Chat visual/UI changes. Production Supabase and production deployment remain untouched.
+
+**Next:** Implement the Runway server adapter against the documented Model Router/preflight/task APIs, persist quote/job/attempt/cost data using the existing Development ledger, and keep generation disabled until the live credential is deliberately configured and a non-production end-to-end test passes.
