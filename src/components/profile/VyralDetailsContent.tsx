@@ -3793,8 +3793,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         const comparedPaths = Array.from(new Set([...Object.keys(currentFields), ...Object.keys(previousFields)]));
                         const changedPaths = previousObservation ? comparedPaths.filter((path) => stableJson(currentFields[path] ?? '[missing]') !== stableJson(previousFields[path] ?? '[missing]')) : [];
                         const unchangedCount = previousObservation ? comparedPaths.length - changedPaths.length : 0;
-                        const visualFingerprint = versionFingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
-                        const previousVisualFingerprint = previousEntry?.fingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const visualFingerprintRecord = versionFingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const visualFingerprintMetadata = asRecord(visualFingerprintRecord?.metadata);
+                        const visualFingerprint = visualFingerprintRecord &&
+                          visualFingerprintMetadata.verification_status === 'server_verified' &&
+                          ['extract-vyral-asset-dna-v3', 'fingerprint-vyral-raster-version'].includes(String(visualFingerprintMetadata.computed_by))
+                            ? visualFingerprintRecord : undefined;
+                        const previousVisualFingerprintRecord = previousEntry?.fingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const previousVisualFingerprintMetadata = asRecord(previousVisualFingerprintRecord?.metadata);
+                        const previousVisualFingerprint = previousVisualFingerprintRecord &&
+                          previousVisualFingerprintMetadata.verification_status === 'server_verified' &&
+                          ['extract-vyral-asset-dna-v3', 'fingerprint-vyral-raster-version'].includes(String(previousVisualFingerprintMetadata.computed_by))
+                            ? previousVisualFingerprintRecord : undefined;
                         const visualComparison = visualFingerprint && previousVisualFingerprint
                           ? compareVyralDHash64(previousVisualFingerprint.value, visualFingerprint.value) : null;
                         const dnaPayload = asRecord(dnaRecord?.payload);
