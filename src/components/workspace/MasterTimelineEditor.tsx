@@ -111,17 +111,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const dragAutoScrollPointerRef = useRef<{ kind: 'text' | 'audio'; x: number; y: number; pointerId: number; clip: TimelineClip } | null>(null);
   const processingAutoScrollTickRef = useRef(false);
   const suppressTextClickRef = useRef(false);
-  const clipSelectionLockedRef = useRef(false);
-  const clipSelectionUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lockClipSelectionAfterGesture = () => {
-    clipSelectionLockedRef.current = true;
-    if (clipSelectionUnlockTimerRef.current) clearTimeout(clipSelectionUnlockTimerRef.current);
-    clipSelectionUnlockTimerRef.current = setTimeout(() => {
-      clipSelectionLockedRef.current = false;
-      clipSelectionUnlockTimerRef.current = null;
-    }, 1000);
-  };
-  const touchGestureStartRef = useRef<{ x: number; y: number } | null>(null);
+   const touchGestureStartRef = useRef<{ x: number; y: number } | null>(null);
   const undoStackRef = useRef<MasterTimelineData[]>([]);
   const redoStackRef = useRef<MasterTimelineData[]>([]);
   const commitChange = (next: MasterTimelineData) => {
@@ -226,8 +216,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     };
 
     const selectTouchTarget = (target: Element) => {
-      if (clipSelectionLockedRef.current) return;
-      const sceneId = target.closest<HTMLElement>('[data-timeline-scene-id]')?.getAttribute('data-timeline-scene-id');
+       const sceneId = target.closest<HTMLElement>('[data-timeline-scene-id]')?.getAttribute('data-timeline-scene-id');
       if (sceneId) {
         setSelectedTransitionKey(null);
         setSelectedTextClip(null);
@@ -289,8 +278,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 8) {
         pointer.moved = true;
         suppressTextClickRef.current = true;
-        lockClipSelectionAfterGesture();
-      }
+         }
     };
 
     const onPointerEnd = (event: PointerEvent, cancelled: boolean) => {
@@ -367,13 +355,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         const touch = event.touches[0];
         if (Math.hypot(touch.clientX - touchGestureStartRef.current.x, touch.clientY - touchGestureStartRef.current.y) > 8) {
           suppressTextClickRef.current = true;
-          lockClipSelectionAfterGesture();
-          for (const pointer of touchPointers.values()) pointer.moved = true;
+           for (const pointer of touchPointers.values()) pointer.moved = true;
         }
       }
       const pinch = pinchRef.current;
       if (!pinch || event.touches.length !== 2) return;
-      lockClipSelectionAfterGesture();
       suppressTextClickRef.current = true;
       for (const pointer of touchPointers.values()) pointer.moved = true;
       event.preventDefault();
@@ -406,8 +392,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       document.removeEventListener('touchmove', onTouchMove, true);
       document.removeEventListener('touchend', onTouchEnd, true);
       document.removeEventListener('touchcancel', onTouchEnd, true);
-      if (clipSelectionUnlockTimerRef.current) clearTimeout(clipSelectionUnlockTimerRef.current);
-    };
+     };
   }, []);
 
   useLayoutEffect(() => {
@@ -1218,8 +1203,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           ref={scrollRef}
           className="master-timeline-scroll h-full min-h-0 w-full overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ touchAction: "pan-x pan-y" }}
-          onScroll={lockClipSelectionAfterGesture}
-          onPointerMove={(event) => {
+           onPointerMove={(event) => {
             const textDrag = textDragRef.current;
             if (textDrag) {
               const currentClip = textTracks.find((track) => track.id === textDrag.trackId)?.clips.find((clip) => clip.id === textDrag.clipId);
@@ -1237,7 +1221,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             // Pointer capture can retarget the click to the scroll container
             // after a clip drag. Consume that click instead of clearing or
             // changing selection on another clip underneath the pointer.
-            if (suppressTextClickRef.current || clipSelectionLockedRef.current) {
+            if (suppressTextClickRef.current) {
               suppressTextClickRef.current = false;
               event.preventDefault();
               event.stopPropagation();
