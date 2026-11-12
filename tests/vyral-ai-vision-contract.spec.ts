@@ -76,6 +76,8 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /visionReviews/);
   assert.match(details, /AI Vision observations/);
   assert.match(details, /Confirm observation/);
+  assert.match(details, /sourceBindingValid/);
+  assert.match(details, /cannot be confirmed/);
   assert.match(details, /reviewVisionObservation\(item\.id, 'creator_confirmed'\)/);
   assert.match(details, /Confirm a Knowledge field/);
   assert.match(details, /promotablePaths = Object.keys\(fields\)/);
