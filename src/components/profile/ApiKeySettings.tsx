@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { getCurrentAccessToken } from '../../context/AuthContext';
+import { MediaCreditPricingSettings } from './MediaCreditPricingSettings';
 
 type ApiKeyStatus = { configured?: boolean; message?: string; error?: string };
 const fieldClass = 'min-h-11 w-full rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3.5 text-sm text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-muted)] focus:border-[var(--vyra-accent-primary)]';
@@ -74,5 +75,6 @@ export const ApiKeySettings: React.FC = () => {
     </form>
     <div className="flex items-start gap-2 rounded-lg border border-[var(--vyra-border)] p-3 text-xs leading-5 text-[var(--vyra-text-secondary)]"><ShieldCheck size={16} className="mt-0.5 shrink-0" /> This is the shared VYRA platform API key. Anyone who can access this temporary settings page can replace it.</div>
     <button type="button" onClick={() => void loadStatus()} className="text-xs font-medium text-[var(--vyra-accent-primary)] hover:underline">Refresh connection status</button>
+    <MediaCreditPricingSettings />
   </div>;
 };
