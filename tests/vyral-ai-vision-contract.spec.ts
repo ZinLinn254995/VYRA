@@ -112,6 +112,14 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /compareVyralDHash64/);
   assert.match(details, /perceptual similarity/);
   assert.match(details, /verify both versions to compare them/);
+  assert.match(details, /Fingerprint comparison with Version/);
+  assert.match(details, /Byte-identical source/);
+  assert.match(details, /Source bytes changed/);
+  assert.match(details, /Exact decoded samples/);
+  assert.match(details, /Decoded samples changed/);
+  assert.match(details, /Not enough DNA v3 evidence/);
+  assert.match(details, /sameDecodeContract/);
+
   assert.match(details, /previousObservation && latestObservation/);
   assert.match(details, /!isVyralPackageAsset\(entry\.asset\)/);
   assert.match(details, /const verifyAssetIntegrity = async \(asset: AssetRow, requestedVersionId\?: string\)/);
@@ -182,4 +190,14 @@ test('raster visual fingerprint verification is version-pinned, source-hash chec
   assert.match(fingerprint, /asset_version_id: version\.id/);
   assert.match(fingerprint, /MAX_PIXELS = 10_000_000/);
   assert.match(fingerprint, /MAX_BYTES = 20 \* 1024 \* 1024/);
+});
+
+test('raster DNA extraction automatically persists a server-generated perceptual fingerprint', async () => {
+  const extractor = await readFile(new URL('../supabase/functions/extract-vyral-asset-dna-v3/index.ts', import.meta.url), 'utf8');
+  assert.match(extractor, /computeVyralDHash64\(samples, width, height, 4\)/);
+  assert.match(extractor, /fingerprint_kind: 'perceptual'/);
+  assert.match(extractor, /algorithm: VYRAL_DHASH_ALGORITHM/);
+  assert.match(extractor, /computed_by: 'extract-vyral-asset-dna-v3'/);
+  assert.match(extractor, /visualFingerprintStatus/);
+  assert.match(extractor, /DNA extraction succeeded, but the perceptual fingerprint could not be saved/);
 });
