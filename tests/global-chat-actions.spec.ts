@@ -232,3 +232,14 @@ test('Vyral context follows natural conversational references without a fixed co
   assert.equal(isVyralAssetAddIntent("Please don't add this file yet"), false);
   assert.equal(isVyralAssetContextReference('Put this there'), true);
 });
+
+
+test('natural short approvals are accepted only as a contextual response to a pending draft', async () => {
+  const { isNaturalChatApproval, isVyralAssetUploadConfirmation } =
+    await import('../src/services/globalChatActions.ts');
+  for (const phrase of ['yes', 'go ahead', 'looks good', 'အေး လုပ်လိုက်', 'ဟုတ်ပြီ', 'ထည့်လိုက်ပါ']) {
+    assert.equal(isNaturalChatApproval(phrase), true, phrase);
+  }
+  assert.equal(isNaturalChatApproval('yes, but change the name first'), false);
+  assert.equal(isVyralAssetUploadConfirmation('Confirm Asset upload'), true);
+});
