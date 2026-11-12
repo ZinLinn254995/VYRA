@@ -91,6 +91,16 @@ The first milestone is a practical MVP, not a complete autonomous creative platf
 - Provider errors and missing-key states are understandable and do not expose credentials.
 - The assistant does not claim to have performed actions it has not performed.
 
+### Phase 3 progress — Vyral read-only intelligence tools
+
+- Added `get_vyral_master_dna_summary` to the authenticated `vyra-openai-chat` tool set.
+- The tool reads only the latest Master DNA revision belonging to the authenticated owner and the already owner-verified active Vyral.
+- It returns bounded, structured information: purpose and intended uses, Asset roles and reconstruction claims, cross-Asset relationships/constraints, provenance evidence status, and manifest/fingerprint integrity values.
+- It does not return source file bytes, private Storage paths, provider credentials, or unrestricted snapshot payloads. Constraint descriptions and arrays are size-limited before they are passed to the model.
+- If no Master DNA snapshot exists, the assistant receives an explicit unavailable state rather than fabricated data.
+- Deployed Development Edge Function `vyra-openai-chat` version 3 with JWT verification enabled. Production remains untouched.
+- Live provider-backed chat and browser behavior are still unverified because the OpenAI key has intentionally not been configured. GitHub status/workflow lookup did not return CI records for the latest code commit; do not treat this as a passing CI result.
+
 ### Phase 3 — Controlled VYRA app actions
 
 **Goal:** Let AI Chat operate a defined set of VYRA features through secure backend tools.
