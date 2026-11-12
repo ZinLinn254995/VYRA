@@ -21,10 +21,10 @@ Deno.serve(async (request: Request) => {
     .select('id,status,approved_max_credit_units,credit_approval_confirmed_at,pricing_policy_id,expires_at')
     .eq('id', body.quoteId).eq('user_id', userId).maybeSingle();
   if (quoteError || !quote) return json({ error: 'Approved quote not found.' }, quoteError ? 503 : 404);
-  if (quote.status !== 'approved' || !quote.credit_approval_confirmed_at || !quote.pricing_policy_id ||
+  if (!['approved', 'used'].includes(quote.status) || !quote.credit_approval_confirmed_at || !quote.pricing_policy_id ||
       !Number.isSafeInteger(Number(quote.approved_max_credit_units)) || Number(quote.approved_max_credit_units) <= 0)
     return json({ error: 'Explicit maximum-credit approval is required before creating a generation job.' }, 409);
-  if (Date.parse(quote.expires_at) <= Date.now()) return json({ error: 'Quote expired. Request a new estimate.' }, 410);
+  if (quote.status !== 'used' && Date.parse(quote.expires_at) <= Date.now()) return json({ error: 'Quote expired. Request a new estimate.' }, 410);
   const { data: job, error: jobError } = await context.supabaseAdmin.rpc('create_media_generation_job_and_reserve', {
     p_user_id: userId, p_quote_id: body.quoteId, p_idempotency_key: body.idempotencyKey,
     p_approved_max_credit_units: Number(quote.approved_max_credit_units),
