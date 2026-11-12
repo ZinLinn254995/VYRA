@@ -4078,9 +4078,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     const geometry = asRecord(comparison.redRegionGeometry);
                     const promptHash = attempt.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
                     const modelVersion = attempt.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : null);
+                    const normalizedSimilarity = typeof normalizedRgb.normalizedGridRgbSimilarity === 'number'
+                      ? normalizedRgb.normalizedGridRgbSimilarity : null;
+                    const geometrySimilarity = typeof geometry.geometrySimilarity === 'number'
+                      ? geometry.geometrySimilarity : null;
+                    const visualAssessment = normalizedSimilarity !== null && geometrySimilarity !== null
+                      ? normalizedSimilarity >= 0.98 && geometrySimilarity >= 0.98
+                        ? 'Very close visually · review required'
+                        : normalizedSimilarity >= 0.90 && geometrySimilarity >= 0.90
+                          ? 'Moderate visual similarity'
+                          : 'Visual differences detected'
+                      : normalizedSimilarity !== null
+                        ? normalizedSimilarity >= 0.98 ? 'High normalized RGB similarity' :
+                          normalizedSimilarity >= 0.90 ? 'Moderate normalized RGB similarity' : 'Visual differences detected'
+                        : geometrySimilarity !== null
+                          ? geometrySimilarity >= 0.98 ? 'Geometry very close' :
+                            geometrySimilarity >= 0.90 ? 'Geometry moderately close' : 'Geometry differs'
+                          : 'Visual assessment unavailable';
                     const statusLabel = attempt.exact_match === true ? 'Exact match' :
-                      attempt.test_status === 'inconclusive' ? 'Inconclusive' :
-                      attempt.test_status === 'failed' ? 'Different from original' : attempt.test_status;
+                      attempt.test_status === 'inconclusive' ? 'Exact check inconclusive' :
+                      attempt.test_status === 'failed' ? 'Not an exact match' : attempt.test_status;
                     return (
                       <article key={attempt.id} className="rounded-lg border border-[var(--vyra-border)] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -4093,9 +4110,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                           </span>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
-                          <span className={muted}>RGB similarity: <strong className={primary}>{typeof attempt.similarity_score === 'number' ? (attempt.similarity_score * 100).toFixed(2)+'%' : 'Not available'}</strong></span>
+                          <span className={muted}>Same-size pixel score: <strong className={primary}>{typeof attempt.similarity_score === 'number' ? (attempt.similarity_score * 100).toFixed(2)+'%' : 'Not comparable'}</strong></span>
                           <span className={muted}>Blindness: <strong className={primary}>{attempt.blindness_status ?? (typeof blindness.status === 'string' ? blindness.status : 'unverified')}</strong></span>
                           <span className={muted}>Prompt SHA-256: <strong className={primary}>{promptHash ? promptHash.slice(0, 12)+'…' : 'Not recorded'}</strong></span>
+                        </div>
+                        <div className="mt-2 rounded-md border border-[var(--vyra-border)] px-2.5 py-2">
+                          <p className={'text-[10px] font-semibold '+primary}>Visual assessment: {visualAssessment}</p>
+                          <p className={'mt-1 text-[10px] leading-4 '+muted}>This is a review aid based on available normalized RGB and geometry signals. It is not an exact-match result or a certified identity score.</p>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
                           {typeof visualFingerprint.similarity === 'number' && <span className={muted}>dHash similarity: <strong className={primary}>{(visualFingerprint.similarity * 100).toFixed(1)}%</strong> · {String(visualFingerprint.hammingDistance ?? '—')}/64 bits differ</span>}
