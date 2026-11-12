@@ -689,7 +689,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         fingerprints: fingerprints.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
       })),
     };
-  }).filter((entry) => entry.versions.length > 0)
+  }).filter((entry) => entry.versions.length > 0 && !isVyralPackageAsset(entry.asset))
     .sort((left, right) => left.asset.name.localeCompare(right.asset.name)), [assets, versions, observations, fingerprints]);
 
   const visionKnowledgeConflicts = useMemo(() => {
