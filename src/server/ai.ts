@@ -70,7 +70,7 @@ router.post('/providers/gemini/settings', async (req: Request, res: Response) =>
 });
 
 async function callOpenAIChatFunction(accessToken: string, payload: Record<string, unknown>) {
-  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
   const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
   if (!baseUrl || !anonKey) throw new Error('OpenAI chat service is not configured.');
   const response = await fetch(baseUrl + '/functions/v1/vyra-openai-chat', {
