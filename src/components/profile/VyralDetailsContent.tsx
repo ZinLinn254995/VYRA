@@ -129,6 +129,37 @@ const flattenObservation = (value: unknown, prefix = ''): Record<string, string>
   }), {});
 };
 
+type VisionQuality = { score: number | null; label: string; flags: string[]; fieldCount: number };
+const assessVisionQuality = (observation: unknown): VisionQuality => {
+  const root = asRecord(observation);
+  const fields = asRecord(root.fields);
+  const entries = Object.entries(fields).filter(([, raw]) =>
+    raw !== null && typeof raw === 'object' && !Array.isArray(raw) &&
+    Object.prototype.hasOwnProperty.call(raw, 'value'));
+  const flags: string[] = [];
+  if (!entries.length) flags.push('No structured fields');
+  const unscored = entries.filter(([, raw]) => typeof asRecord(raw).confidence !== 'number').length;
+  const lowConfidence = entries.filter(([, raw]) => {
+    const confidence = asRecord(raw).confidence;
+    return typeof confidence === 'number' && Number.isFinite(confidence) && confidence < 0.65;
+  }).length;
+  if (unscored) flags.push(unscored + ' field(s) without a confidence estimate');
+  if (lowConfidence) flags.push(lowConfidence + ' low-confidence field(s)');
+  const uncertainties = Array.isArray(root.uncertainties) ? root.uncertainties.filter(Boolean).length : 0;
+  if (uncertainties) flags.push(uncertainties + ' stated uncertainty/uncertainties');
+  const empty = entries.filter(([, raw]) => {
+    const value = asRecord(raw).value;
+    return value === null || value === undefined || (typeof value === 'string' && !value.trim()) ||
+      (Array.isArray(value) && value.length === 0);
+  }).length;
+  if (empty) flags.push(empty + ' empty field value(s)');
+  const scored = entries.filter(([, raw]) => typeof asRecord(raw).confidence === 'number' &&
+    Number.isFinite(asRecord(raw).confidence as number) && (asRecord(raw).confidence as number) >= 0 && (asRecord(raw).confidence as number) <= 1);
+  const score = scored.length ? Math.round(scored.reduce((sum, [, raw]) => sum + Number(asRecord(raw).confidence), 0) / scored.length * 100) : null;
+  const hasWarnings = flags.length > 0;
+  return { score, label: !entries.length ? 'Insufficient data' : hasWarnings ? 'Needs attention' : 'No structural warnings', flags, fieldCount: entries.length };
+};
+
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const formatRgb = (value: unknown) =>
@@ -3661,6 +3692,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   const confirmedKnowledge = visionReviews.filter((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path);
                   const sourceBindingValid = Boolean(item.asset_version_id && /^[a-f0-9]{64}$/i.test(item.source_sha256 ?? ''));
                   const fields = Object.entries(flattenObservation(item.observation)).slice(0, 8);
+                  const quality = assessVisionQuality(item.observation);
                   const assetName = assets.find((asset) => asset.id === item.asset_id)?.name ?? 'Asset';
                   return (
                     <article key={item.id} className="rounded-lg border border-[var(--vyra-border)] p-3">
@@ -3675,6 +3707,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         </span>
                       </div>
                       {confirmedKnowledge.length > 0 && <p className={'mt-2 text-[10px] '+muted}>Confirmed Knowledge: {confirmedKnowledge.map((entry) => entry.field_path).join(' · ')}</p>}
+                      <div className="mt-2 rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className={'text-[10px] font-semibold '+(quality.flags.length ? 'text-amber-600' : 'text-emerald-600')}>Quality check: {quality.label}</span>
+                          <span className={'text-[10px] '+muted}>{quality.fieldCount} structured fields{quality.score === null ? ' · confidence not scored' : ' · mean model confidence '+quality.score+'%'}</span>
+                        </div>
+                        {quality.flags.length > 0 && <ul className={'mt-1 list-disc pl-4 text-[10px] '+muted}>{quality.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}
+                        <p className={'mt-1 text-[9px] '+muted}>Model confidence is self-reported and is not proof of correctness. Creator review remains required.</p>
+                      </div>
                       {fields.length > 0 && (
                         <div className="mt-3 space-y-1">
                           {fields.map(([key,value]) => <p key={key} className={'break-words text-[10px] '+muted}><strong className={primary}>{key}:</strong> {value.slice(0, 240)}</p>)}
