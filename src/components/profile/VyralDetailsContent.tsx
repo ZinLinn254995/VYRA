@@ -2123,19 +2123,30 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 ...(field.confidence === undefined ? {} : { confidence: field.confidence }),
               },
             ]));
-            if (Object.keys(observedFields).length) {
+            const fileExtension = file.name.split('.').pop()?.toLowerCase() ?? '';
+            const isVisualSource = (mime.startsWith('image/') && file.size <= 20 * 1024 * 1024) ||
+              (mime.startsWith('video/') && file.size <= 50 * 1024 * 1024);
+            const isDocumentOrAudioSource = (mime === 'application/pdf' || mime.startsWith('audio/')) &&
+              file.size <= 2 * 1024 * 1024 &&
+              ['application/pdf', 'audio/mpeg', 'audio/mp3', 'audio/x-mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/flac', 'audio/x-flac', 'audio/aac'].includes(mime);
+            const isExtractedTextSource = mime.startsWith('text/') || ['txt', 'md', 'json', 'csv', 'xml', 'html'].includes(fileExtension);
+            const hasSupportedAnalysisInput = isVisualSource || isDocumentOrAudioSource || isExtractedTextSource;
+            const analysisBasis = isVisualSource ? 'derived_preview_from_source_version'
+              : isDocumentOrAudioSource ? 'original_document_or_audio_content'
+                : 'extracted_text_from_source_version';
+            if (Object.keys(observedFields).length && hasSupportedAnalysisInput) {
               const { data: visionRecord, error: visionRecordError } = await db.functions.invoke('record-vyral-vision-observation', {
                 body: {
                   assetId,
                   versionId: version.id,
-                  taskKind: 'identity',
+                  taskKind: kind === 'image' || kind === 'video' ? 'identity' : 'description',
                   modelProvider: suggestion.provider,
                   modelId: suggestion.model,
                   confidence: null,
                   observation: {
                     schema_version: 1,
                     analysis_origin: 'automatic_upload_analysis',
-                    analysis_basis: 'uploaded_source_metadata_and_supported_derived_preview',
+                    analysis_basis: analysisBasis,
                     source_version_id: version.id,
                     fields: observedFields,
                     uncertainties: [],
