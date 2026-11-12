@@ -9,7 +9,7 @@ const base = () => ({
   sourceSha256: sha,
   observations: [] as Array<{
     sourceVersionId: string; sourceSha256: string;
-    evidenceClass: 'ai_observed' | 'creator_confirmed' | 'system_measured' | 'independently_verified';
+    evidenceClass: 'ai_observed' | 'creator_confirmed' | 'system_measured' | 'independently_verified' | 'disputed';
     fields: Record<string, unknown>; evidenceRef: string;
   }>,
 });
@@ -90,4 +90,18 @@ test('does not reuse image requirements for unsupported asset modalities', () =>
   assert.equal(result.requiredFieldCount, 0);
   assert.equal(result.status, 'unsupported');
   assert.equal(result.coveragePercent, 0);
+});
+
+test('excludes creator-disputed observations from provisional and verified coverage', () => {
+  const input = base();
+  input.observations.push({
+    sourceVersionId: 'version-1', sourceSha256: sha,
+    evidenceClass: 'disputed', fields: completeFields, evidenceRef: 'disputed-review-1',
+  });
+  const result = assessVyralSemanticCompletenessV1(input);
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.verifiedFieldCount, 0);
+  assert.equal(result.provisionalFieldCount, 0);
+  assert.equal(result.missingFieldCount, 8);
+  assert.equal(result.ignoredObservationCount, 1);
 });
