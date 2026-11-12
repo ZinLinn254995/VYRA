@@ -35,7 +35,7 @@ export const GeminiProviderSettings: React.FC = () => {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     const key = apiKey.trim();
-    if (key.length < 20 || key.length > 512 || /\\s/.test(key)) { setError('Enter a valid Gemini API key.'); return; }
+    if (key.length < 20 || key.length > 512 || /\s/.test(key)) { setError('Enter a valid Gemini API key.'); return; }
     setSaving(true); setError(''); setMessage('Verifying the key with Google and saving it securely…');
     try {
       const token = await getCurrentAccessToken();
