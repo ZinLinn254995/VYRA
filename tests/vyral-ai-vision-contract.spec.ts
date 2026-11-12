@@ -73,6 +73,9 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /Confirm observation/);
   assert.match(details, /reviewVisionObservation\(item\.id, 'creator_confirmed'\)/);
   assert.match(details, /Promote a Knowledge field/);
+  assert.match(details, /promotablePaths = Object.keys\(fields\)/);
+  assert.match(details, /knowledgeFieldName = observationFieldPath\.slice/);
+  assert.match(details, /body: \{ observationId, fieldPath, observationFieldPath, acceptedValue, note \}/);
 });
 
 test('Vision field promotion is limited to editable knowledge fields and exact source evidence', () => {
