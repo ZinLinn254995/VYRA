@@ -669,12 +669,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             throw new Error('This Storyboard changed after the delete preview was prepared. Nothing was deleted. Ask me to prepare the delete again.');
           }
           if (currentCloud) {
-            const { error: deleteError } = await supabase.from('vyral_storyboards')
+            const { data: deletedRows, error: deleteError } = await supabase.from('vyral_storyboards')
               .delete()
               .eq('id', draft.storyboardId)
               .eq('user_id', authData.user.id)
-              .eq('updated_at', draft.expectedUpdatedAt);
+              .eq('updated_at', draft.expectedUpdatedAt)
+              .select('id');
             if (deleteError) throw new Error('I could not delete this Storyboard from the cloud. Please retry confirmation. ' + deleteError.message);
+            if (!deletedRows?.length) throw new Error('This Storyboard changed or was removed before deletion completed. Nothing else was changed.');
           }
           try {
             const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
