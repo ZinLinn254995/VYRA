@@ -64,3 +64,13 @@ test('admin activation requires explicit confirmation and a valid policy UUID', 
     action: 'activate', policyId, confirmed: 'true',
   }));
 });
+
+
+test('only current owner and admin roles pass the pricing administration allowlist', async () => {
+  const { isMediaCreditPricingAdminRole } = await import('../src/services/mediaCreditPricing');
+  assert.equal(isMediaCreditPricingAdminRole('owner'), true);
+  assert.equal(isMediaCreditPricingAdminRole('admin'), true);
+  for (const role of ['member', 'user', 'moderator', '', null, undefined, { role: 'admin' }]) {
+    assert.equal(isMediaCreditPricingAdminRole(role), false);
+  }
+});
