@@ -420,8 +420,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (!onAiContextChange) return;
     const scenes = activeStoryboard?.details?.scenes ?? [];
     const context: WorkspaceAiContext = {
-      page: activeStoryboard ? 'storyboard-editor' : 'storyboards',
-      pageLabel: activeStoryboard ? 'Workspace / Storyboard Editor' : 'Workspace / Storyboards',
+      page: activeSceneId ? 'scene-editor' : activeStoryboard ? 'storyboard-editor' : 'storyboards',
+      pageLabel: activeSceneId ? 'Workspace / Scene Editor' : activeStoryboard ? 'Workspace / Storyboard Editor' : 'Workspace / Storyboards',
       activeStoryboard: activeStoryboard ? {
         id: activeStoryboard.id,
         title: activeStoryboard.title,
