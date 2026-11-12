@@ -206,12 +206,12 @@ export const isStoryboardUpdateConfirmation = (input: string): boolean =>
 
 
 export const isStoryboardDeleteIntent = (input: string): boolean =>
-  /^\\s*(?:delete|remove)\\s+(?:the\\s+)?storyboard\\b|^\\s*storyboard\\s+.+?\\s+ကို\\s+(?:ဖျက်|delete)(?:ပေး)?\\s*$/i.test(input);
+  /^\s*(?:delete|remove)\s+(?:the\s+)?storyboard\b|^\s*storyboard\s+.+?\s+ကို\s+(?:ဖျက်|delete)(?:ပေး)?\s*$/i.test(input);
 
 export const extractStoryboardDeleteTitle = (input: string): string | null => {
   const patterns = [
-    /^\\s*(?:delete|remove)\\s+(?:the\\s+)?storyboard\\s+["“']?(.+?)["”']?\\s*[.!?။]*\\s*$/i,
-    /^\\s*storyboard\\s+["“']?(.+?)["”']?\\s+ကို\\s+(?:ဖျက်|delete)(?:ပေး)?\\s*[.!?။]*\\s*$/i,
+    /^\s*(?:delete|remove)\s+(?:the\s+)?storyboard\s+["“']?(.+?)["”']?\s*[.!?။]*\s*$/i,
+    /^\s*storyboard\s+["“']?(.+?)["”']?\s+ကို\s+(?:ဖျက်|delete)(?:ပေး)?\s*[.!?။]*\s*$/i,
   ];
   for (const pattern of patterns) {
     const match = input.match(pattern);
@@ -222,10 +222,10 @@ export const extractStoryboardDeleteTitle = (input: string): string | null => {
 };
 
 export const formatStoryboardDeleteDraft = (draft: GlobalChatStoryboardDeleteDraft): string =>
-  '**Delete Storyboard — confirmation required**\\n\\n' +
-  'You are about to permanently delete **' + draft.storyboardTitle + '**.\\n' +
-  'This action cannot be undone.\\n\\n' +
+  '**Delete Storyboard — confirmation required**\n\n' +
+  'You are about to permanently delete **' + draft.storyboardTitle + '**.\n' +
+  'This action cannot be undone.\n\n' +
   'Nothing has been deleted yet. Reply **Confirm delete** (သို့) **ဖျက်ရန် အတည်ပြု** to continue.';
 
 export const isStoryboardDeleteConfirmation = (input: string): boolean =>
-  /^\\s*(?:confirm\\s+delete|ဖျက်ရန်\\s+အတည်ပြု|ဖျက်မယ်\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
+  /^\s*(?:confirm\s+delete|ဖျက်ရန်\s+အတည်ပြု|ဖျက်မယ်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
