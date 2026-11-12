@@ -1,6 +1,6 @@
 import type { MediaModelSelection } from '../services/mediaModelSelection.ts';
 
-export type MediaGenerationJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type MediaGenerationJobStatus = 'pending' | 'submitted' | 'processing' | 'succeeded' | 'failed' | 'cancelled' | 'unknown';
 
 export interface MediaGenerationQuote {
   id: string;
@@ -68,8 +68,10 @@ export function validateMediaGenerationApproval(
 }
 
 const allowedTransitions: Record<MediaGenerationJobStatus, readonly MediaGenerationJobStatus[]> = {
-  queued: ['running', 'failed', 'cancelled'],
-  running: ['succeeded', 'failed', 'cancelled'],
+  pending: ['submitted', 'failed', 'cancelled', 'unknown'],
+  submitted: ['processing', 'succeeded', 'failed', 'cancelled', 'unknown'],
+  processing: ['succeeded', 'failed', 'cancelled', 'unknown'],
+  unknown: ['processing', 'succeeded', 'failed', 'cancelled'],
   succeeded: [],
   failed: [],
   cancelled: [],
