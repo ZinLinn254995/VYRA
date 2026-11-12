@@ -101,6 +101,16 @@ The first milestone is a practical MVP, not a complete autonomous creative platf
 - Deployed Development Edge Function `vyra-openai-chat` version 3 with JWT verification enabled. Production remains untouched.
 - Live provider-backed chat and browser behavior are still unverified because the OpenAI key has intentionally not been configured. GitHub status/workflow lookup did not return CI records for the latest code commit; do not treat this as a passing CI result.
 
+### Workspace awareness — current page and selections
+
+- Added a shared `WorkspaceAiContext` contract retained by the app shell when the user moves from Workspace to AI Chat.
+- Workspace reports the last active surface: Storyboards, Storyboard Editor, Scene Editor, My Vyrals, or My Media Library.
+- When a Storyboard is open, context includes its title/topic and bounded scene inventory. It also reports the current editor view, selected scene titles, active scene title, and selected Master Timeline item (scene, transition, text clip, or audio clip).
+- Opening My Vyrals or My Media Library from Workspace updates the retained last-page context before navigation. Assets explicitly sent from Media Library continue through the existing selected-asset handoff.
+- AI Chat sends this small context with normal text requests. The Development Edge Function validates allowed page/type fields, bounds text and array sizes, and injects it as untrusted UI-state context—not as authorization or executable instructions. Server-side Vyral ownership checks and action confirmation rules remain authoritative.
+- No AI Chat layout/CSS was changed. Context is retained in app memory while navigating between surfaces; it is not a permanent user activity log.
+- Development Edge Function deployment is pending for the latest Workspace context version. Browser verification and CI are still outstanding.
+
 ### Phase 3 — Controlled VYRA app actions
 
 **Goal:** Let AI Chat operate a defined set of VYRA features through secure backend tools.
