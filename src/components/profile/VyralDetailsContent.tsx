@@ -4075,11 +4075,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     const comparison = asRecord(asRecord(attempt.report).comparison);
                     const visualFingerprint = asRecord(comparison.visualFingerprintComparison);
                     const normalizedRgb = asRecord(comparison.normalizedImageComparison);
+                    const redMask = asRecord(comparison.redRegionMaskComparison);
                     const geometry = asRecord(comparison.redRegionGeometry);
                     const promptHash = attempt.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
                     const modelVersion = attempt.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : null);
-                    const normalizedSimilarity = typeof normalizedRgb.normalizedGridRgbSimilarity === 'number'
-                      ? normalizedRgb.normalizedGridRgbSimilarity : null;
+                    const normalizedSimilarity = typeof normalizedRgb.normalizedRgbSimilarity === 'number'
+                      ? normalizedRgb.normalizedRgbSimilarity
+                      : typeof normalizedRgb.normalizedGridRgbSimilarity === 'number'
+                        ? normalizedRgb.normalizedGridRgbSimilarity : null;
+                    const maskIoU = typeof redMask.intersectionOverUnion === 'number' ? redMask.intersectionOverUnion : null;
+                    const normalizedMae = typeof normalizedRgb.meanAbsoluteErrorPerChannel === 'number' ? normalizedRgb.meanAbsoluteErrorPerChannel : null;
+                    const normalizedRmse = typeof normalizedRgb.rootMeanSquareErrorPerChannel === 'number' ? normalizedRgb.rootMeanSquareErrorPerChannel : null;
                     const geometrySimilarity = typeof geometry.geometrySimilarity === 'number'
                       ? geometry.geometrySimilarity : null;
                     const visualAssessment = normalizedSimilarity !== null && geometrySimilarity !== null
@@ -4116,11 +4122,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         </div>
                         <div className="mt-2 rounded-md border border-[var(--vyra-border)] px-2.5 py-2">
                           <p className={'text-[10px] font-semibold '+primary}>Visual assessment: {visualAssessment}</p>
-                          <p className={'mt-1 text-[10px] leading-4 '+muted}>This is a review aid based on available normalized RGB and geometry signals. It is not an exact-match result or a certified identity score.</p>
+                          <p className={'mt-1 text-[10px] leading-4 '+muted}>This is a provisional review aid using normalized RGB, red-mask overlap and geometry. Thresholds are not yet calibrated across asset types; it is not an exact-match result or a certified identity score.</p>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
                           {typeof visualFingerprint.similarity === 'number' && <span className={muted}>dHash similarity: <strong className={primary}>{(visualFingerprint.similarity * 100).toFixed(1)}%</strong> · {String(visualFingerprint.hammingDistance ?? '—')}/64 bits differ</span>}
-                          {typeof normalizedRgb.normalizedGridRgbSimilarity === 'number' && <span className={muted}>Normalized RGB: <strong className={primary}>{(normalizedRgb.normalizedGridRgbSimilarity * 100).toFixed(2)}%</strong></span>}
+                          {normalizedSimilarity !== null && <span className={muted}>Normalized RGB similarity: <strong className={primary}>{(normalizedSimilarity * 100).toFixed(2)}%</strong></span>}
+                          {normalizedMae !== null && <span className={muted}>RGB MAE: <strong className={primary}>{normalizedMae.toFixed(2)}</strong></span>}
+                          {normalizedRmse !== null && <span className={muted}>RGB RMSE: <strong className={primary}>{normalizedRmse.toFixed(2)}</strong></span>}
+                          {maskIoU !== null && <span className={muted}>Red-mask IoU: <strong className={primary}>{(maskIoU * 100).toFixed(2)}%</strong></span>}
                           {typeof geometry.geometrySimilarity === 'number' && <span className={muted}>Geometry: <strong className={primary}>{(geometry.geometrySimilarity * 100).toFixed(2)}%</strong></span>}
                         </div>
                         {attempt.session_reference && <p className={'mt-2 break-all text-[10px] '+muted}>Session: {attempt.session_reference}</p>}
