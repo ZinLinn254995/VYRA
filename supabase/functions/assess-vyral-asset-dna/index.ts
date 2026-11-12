@@ -229,7 +229,7 @@ Deno.serve(async (request: Request) => {
       .eq('source_sha256', String(version.sha256).toLowerCase())
       .order('created_at', { ascending: true }).limit(200),
     context.supabaseAdmin.from('vyral_vision_creator_evidence')
-      .select('id,observation_id,decision,evidence_kind,asset_version_id,source_sha256')
+      .select('id,observation_id,decision,evidence_kind,asset_version_id,source_sha256,field_path,accepted_value,review_evidence_id')
       .eq('asset_id', assetId).eq('user_id', userId)
       .eq('asset_version_id', versionId)
       .eq('source_sha256', String(version.sha256).toLowerCase())
@@ -239,27 +239,52 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'Could not load source-bound semantic evidence for completeness assessment.' }, 500);
   }
   const creatorReviews = new Map<string, string>();
-  for (const review of creatorEvidenceResult.data ?? []) {
-    if (review.decision === 'creator_confirmed' && typeof review.observation_id === 'string') {
-      creatorReviews.set(review.observation_id, String(review.id));
+  const fieldConfirmations: Array<{ observationId: string; id: string; fieldPath: string; acceptedValue: unknown }> = [];
+  for (const evidence of creatorEvidenceResult.data ?? []) {
+    if (evidence.decision !== 'creator_confirmed') continue;
+    if (evidence.evidence_kind === 'observation_review' && typeof evidence.observation_id === 'string') {
+      creatorReviews.set(evidence.observation_id, String(evidence.id));
+    } else if (evidence.evidence_kind === 'field_confirmation' &&
+        typeof evidence.observation_id === 'string' &&
+        typeof evidence.field_path === 'string' &&
+        evidence.field_path.startsWith('knowledge.') &&
+        evidence.review_evidence_id) {
+      fieldConfirmations.push({
+        observationId: evidence.observation_id,
+        id: String(evidence.id),
+        fieldPath: evidence.field_path.slice('knowledge.'.length),
+        acceptedValue: evidence.accepted_value,
+      });
     }
+  }
+  const semanticObservations = (visionResult.data ?? []).map((observation: any) => {
+    const reviewId = creatorReviews.get(String(observation.id));
+    const root = isObject(observation.observation) ? observation.observation : {};
+    const fields = isObject(root.fields) ? root.fields : root;
+    return {
+      sourceVersionId: String(observation.asset_version_id ?? ''),
+      sourceSha256: String(observation.source_sha256 ?? '').toLowerCase(),
+      evidenceClass: reviewId ? 'creator_confirmed' as const : 'ai_observed' as const,
+      fields,
+      evidenceRef: reviewId ? 'creator-review:' + reviewId : 'vision-observation:' + String(observation.id),
+    };
+  });
+  for (const confirmation of fieldConfirmations) {
+    const observation = (visionResult.data ?? []).find((item: any) => String(item.id) === confirmation.observationId);
+    if (!observation) continue;
+    semanticObservations.push({
+      sourceVersionId: String(observation.asset_version_id ?? ''),
+      sourceSha256: String(observation.source_sha256 ?? '').toLowerCase(),
+      evidenceClass: 'creator_confirmed' as const,
+      fields: { [confirmation.fieldPath]: { value: confirmation.acceptedValue } },
+      evidenceRef: 'creator-field-confirmation:' + confirmation.id,
+    });
   }
   const semanticCompleteness = assessVyralSemanticCompletenessV1({
     assetType: String(asset.asset_type ?? 'unknown'),
     sourceVersionId: versionId,
     sourceSha256: String(version.sha256).toLowerCase(),
-    observations: (visionResult.data ?? []).map((observation: any) => {
-      const reviewId = creatorReviews.get(String(observation.id));
-      const root = isObject(observation.observation) ? observation.observation : {};
-      const fields = isObject(root.fields) ? root.fields : root;
-      return {
-        sourceVersionId: String(observation.asset_version_id ?? ''),
-        sourceSha256: String(observation.source_sha256 ?? '').toLowerCase(),
-        evidenceClass: reviewId ? 'creator_confirmed' as const : 'ai_observed' as const,
-        fields,
-        evidenceRef: reviewId ? 'creator-review:' + reviewId : 'vision-observation:' + String(observation.id),
-      };
-    }),
+    observations: semanticObservations,
   });
 
   const input: VyralAssetDnaAssessmentInput = {
