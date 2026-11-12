@@ -530,6 +530,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
+    pendingVyralUploadFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
@@ -544,6 +545,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setMessages(session.messages);
     setActiveSessionId(session.id);
     setIsLocked(Boolean(session.locked));
+    pendingVyralUploadFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
@@ -1947,6 +1949,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
+    pendingVyralUploadFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
@@ -1972,6 +1975,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
+    pendingVyralUploadFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     setSelectedVyralContext(null);
