@@ -1187,12 +1187,26 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     const generated = await upstream.json().catch(() => ({})) as {
       text?: string;
       error?: string;
+      code?: string;
       generationId?: string | null;
       usage?: { promptTokens?: number | null; completionTokens?: number | null; totalTokens?: number | null } | null;
       modelName?: string;
     };
     if (!upstream.ok) {
-      throw new Error(typeof generated.error === 'string' ? generated.error : 'Gemini provider request failed.');
+      if (ledgerContext) {
+        const recorded = await finishOpenRouterTextJob({
+          userId: ledgerContext.userId, job: ledgerContext.job, status: 'failed',
+          model: MODEL_NAME, provider: 'google',
+        });
+        if (!recorded) return res.status(503).json({
+          error: 'Gemini rejected the request, but its usage record could not be confirmed. Check before retrying.',
+          code: 'USAGE_RECORD_UNCONFIRMED',
+        });
+      }
+      return res.status(502).json({
+        error: typeof generated.error === 'string' ? generated.error : 'Gemini provider request failed.',
+        code: typeof generated.code === 'string' ? generated.code : 'GEMINI_REQUEST_FAILED',
+      });
     }
     const text = typeof generated.text === 'string' ? generated.text.trim() : '';
     const usage = generated.usage ? {
@@ -1234,7 +1248,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
         code: 'GENERATION_STATUS_UNKNOWN',
       });
     }
-    // Keep provider diagnostics server-side; never return credentials or raw SDK errors.
+    // Keep unexpected provider diagnostics server-side; never return credentials or raw SDK errors.
     const errorName =
       error && typeof error === 'object' && 'name' in error
         ? String((error as { name?: unknown }).name)
