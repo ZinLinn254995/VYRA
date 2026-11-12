@@ -666,6 +666,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             .maybeSingle();
           if (loadError) throw new Error('I could not verify this Storyboard before updating it. Please retry confirmation.');
           if (!currentCloud) throw new Error('This Storyboard is no longer available in your account. No changes were made.');
+          if (String(currentCloud.updated_at) !== draft.expectedUpdatedAt) throw new Error('This Storyboard changed after the draft was prepared. Ask me to prepare the update again so no newer changes are overwritten.');
           const now = new Date().toISOString();
           const patch = draft.field === 'title'
             ? { title: draft.nextValue, updated_at: now }
@@ -828,6 +829,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           storyboardTitle: item.title,
           field: parsed.field,
           previousValue: parsed.field === 'title' ? item.title : item.topic,
+          expectedUpdatedAt: item.updatedAt,
           nextValue: parsed.value,
         } as const;
         setMessages((previous) => [...previous, {
@@ -1588,9 +1590,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
           : item));
       } else {
-        const retryDraftAction = isStoryboardCreateConfirmation(text)
-          ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
-          : undefined;
+        const pendingUpdateDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-update-draft')?.action;
+        const retryDraftAction = isStoryboardUpdateConfirmation(text) && pendingUpdateDraft
+          ? pendingUpdateDraft
+          : isStoryboardCreateConfirmation(text)
+            ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
+            : undefined;
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
