@@ -688,10 +688,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         version,
         observations: observations.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
         fingerprints: fingerprints.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
+        dnaRecord: dnaRecords.find((record) => {
+          if (record.asset_id !== asset.id || record.scope !== 'asset' || Number(record.schema_version) !== 3) return false;
+          const payload = asRecord(record.payload);
+          const dna = asRecord(payload.dna_record);
+          const source = asRecord(dna.source);
+          return source.asset_version_id === version.id;
+        }),
       })),
     };
   }).filter((entry) => entry.versions.length > 0 && !isVyralPackageAsset(entry.asset))
-    .sort((left, right) => left.asset.name.localeCompare(right.asset.name)), [assets, versions, observations, fingerprints]);
+    .sort((left, right) => left.asset.name.localeCompare(right.asset.name)), [assets, versions, observations, fingerprints, dnaRecords]);
 
   const visionKnowledgeConflicts = useMemo(() => {
     const groups = new Map<string, { assetId: string; versionId: string; taskKind: string; fieldPath: string; records: DnaRow[] }>();
@@ -3775,7 +3782,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                     <p className={'text-xs font-semibold '+primary}>{asset.name}</p>
                     <div className="mt-2 space-y-2">
                       {evidenceVersions.map((entry, versionIndex) => {
-                        const { version, observations: versionObservations, fingerprints: versionFingerprints } = entry;
+                        const { version, observations: versionObservations, fingerprints: versionFingerprints, dnaRecord } = entry;
                         const isLatest = version.id === evidenceVersions[evidenceVersions.length - 1]?.version.id;
                         const confirmedCount = versionObservations.filter((item) => visionReviews.some((review) => review.observation_id === item.id && review.evidence_kind === 'observation_review' && review.decision === 'creator_confirmed')).length;
                         const latestObservation = [...versionObservations].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
@@ -3790,6 +3797,33 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         const previousVisualFingerprint = previousEntry?.fingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
                         const visualComparison = visualFingerprint && previousVisualFingerprint
                           ? compareVyralDHash64(previousVisualFingerprint.value, visualFingerprint.value) : null;
+                        const dnaPayload = asRecord(dnaRecord?.payload);
+                        const dnaBody = asRecord(dnaPayload.dna_record);
+                        const decodedImage = asRecord(dnaBody.decoded_image);
+                        const decoderContract = asRecord(decodedImage.decoder_contract);
+                        const previousDnaPayload = asRecord(previousEntry?.dnaRecord?.payload);
+                        const previousDnaBody = asRecord(previousDnaPayload.dna_record);
+                        const previousDecodedImage = asRecord(previousDnaBody.decoded_image);
+                        const previousDecoderContract = asRecord(previousDecodedImage.decoder_contract);
+                        const hasCurrentDecodedEvidence = /^[a-f0-9]{64}$/i.test(String(decodedImage.decoded_samples_sha256 ?? ''));
+                        const hasPreviousDecodedEvidence = /^[a-f0-9]{64}$/i.test(String(previousDecodedImage.decoded_samples_sha256 ?? ''));
+                        const sameDecodeContract = decoderContract.name === previousDecoderContract.name &&
+                          decoderContract.version === previousDecoderContract.version &&
+                          decodedImage.width === previousDecodedImage.width &&
+                          decodedImage.height === previousDecodedImage.height &&
+                          decodedImage.channel_layout === previousDecodedImage.channel_layout;
+                        const decodedSampleStatus = !previousEntry ? null :
+                          hasCurrentDecodedEvidence && hasPreviousDecodedEvidence
+                            ? !sameDecodeContract ? 'Decoder or decoded layout differs' :
+                              String(decodedImage.decoded_samples_sha256).toLowerCase() === String(previousDecodedImage.decoded_samples_sha256).toLowerCase()
+                                ? 'Exact decoded samples' : 'Decoded samples changed'
+                            : 'Not enough DNA v3 evidence';
+                        const currentSha = String(version.sha256 ?? '').toLowerCase();
+                        const previousSha = String(previousEntry?.version.sha256 ?? '').toLowerCase();
+                        const sourceByteStatus = !previousEntry ? null :
+                          /^[a-f0-9]{64}$/.test(currentSha) && /^[a-f0-9]{64}$/.test(previousSha)
+                            ? currentSha === previousSha ? 'Byte-identical source' : 'Source bytes changed'
+                            : 'Not enough source-hash evidence';
                         const supportsVisualFingerprint = ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim());
                         return (
                           <div key={version.id} className="rounded-md bg-[var(--vyra-bg-subtle)] p-2">
@@ -3812,6 +3846,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                                 </button>
                               </div>;
                             })()}
+                            {previousEntry && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
+                              <p className={'text-[9px] font-semibold '+primary}>Fingerprint comparison with Version {previousEntry.version.version_number}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Source bytes: {sourceByteStatus}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Decoded pixels: {decodedSampleStatus}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Visual similarity: {visualComparison ? (visualComparison.similarity * 100).toFixed(1) + '% · ' + visualComparison.hammingDistance + '/64 bits differ' : 'Not enough perceptual fingerprint evidence'}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Byte hashes prove file-byte identity; decoded-sample hashes prove exact pixels only under the same decoder and layout. dHash is an estimate, not a semantic identity test.</p>
+                            </div>}
                             {supportsVisualFingerprint && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <span className={'text-[9px] font-semibold '+primary}>Visual fingerprint · dHash-64</span>
