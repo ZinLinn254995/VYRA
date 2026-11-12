@@ -516,3 +516,12 @@ Next: implement server-side approval consumption and idempotent job submission, 
 
 - Added `src/services/mediaCreditPricing.ts` with exact BigInt decimal arithmetic for the `ceil(maxCostUsd × creditsPerUsd)` rule, avoiding JavaScript floating-point rounding drift. Added tests for fractional boundaries, invalid decimal strings, zero values, and policy draft validation; registered `test:media-credit-pricing` in CI.
 - The CI workflow now type-checks `manage-media-credit-pricing` and runs the exact-decimal pricing tests. The latest commit's GitHub status endpoint returned no check records yet, so CI is not marked passed.
+
+### Phase 4 progress — Admin Dashboard pricing draft controls
+
+- Added `MediaCreditPricingSettings` to the existing Profile → Platform → Admin Dashboard provider settings page. The existing OpenAI key UI and page structure remain in place; this is an additive section beneath the current provider controls.
+- The section calls the authenticated `/api/admin/media-credit-pricing` proxy. The Edge Function verifies the signed-in user's current `platform_admins` role; regular users receive an access-denied state and cannot read policy records.
+- Owner/admins can inspect the policy history and create versioned draft rates. The UI labels draft creation as non-billable and explains that it cannot affect customer balances.
+- Deliberately did **not** expose activation in the UI yet. The customer credit price, provider-cost margin, refund/partial-failure rules, and customer-consent wording still need owner approval. The server activation endpoint remains protected by owner/admin authorization and explicit confirmation.
+- No rate has been entered. Development still has zero pricing policies, zero active policies, zero quotes, zero generation jobs, and zero reserve ledger entries. No Runway key/router config or OpenAI key was added; no provider call, charge, Production change, merge, or deployment occurred.
+- AI Chat layout and styles were not modified. Browser visual verification of the new Profile settings section remains outstanding; verify it in Preview before considering the Admin Dashboard UI gate complete.
