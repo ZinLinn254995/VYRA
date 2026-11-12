@@ -345,7 +345,8 @@ export const isVyralAssetAddIntent = (input: string): boolean => {
   return /\b(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
     /\b(?:make|keep)\s+(?:this|that|it)\s+(?:part|one)\s+of\b/i.test(input) ||
     /\b(?:this|that|it)\s+(?:belongs|should go|needs to go)\s+(?:in|into|with)\b/i.test(input) ||
-    /\b(?:i want|i'd like)\s+(?:this|that|it)\s+(?:in|inside|with)\b/i.test(input) ||
+    /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|part of)\b/i.test(input) ||
+    /\b(?:this|that)\s+(?:image|picture|file|asset)\s+(?:should|needs to)\s+be\s+(?:in|inside|part of)\b/i.test(input) ||
     /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး|အဲဒီထဲထား|အဲ့ဒီထဲထား)/.test(input);
 };
 
