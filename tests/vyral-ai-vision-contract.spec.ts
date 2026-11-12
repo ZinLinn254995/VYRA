@@ -96,6 +96,13 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /Prefer one value/);
   assert.match(details, /Keep both as contextual/);
   assert.match(details, /competingIds\.length === recordIds\.size/);
+  assert.match(details, /const assetVersionEvidenceTimeline = useMemo/);
+  assert.match(details, /Asset DNA evidence timeline/);
+  assert.match(details, /Each observation and fingerprint remains attached to the exact source version/);
+  assert.match(details, /version\.sha256 \? version\.sha256 : 'Not recorded'/);
+  assert.match(details, /versionObservations\.length/);
+  assert.match(details, /versionFingerprints\.length/);
+  assert.match(details, /creator-confirmed/);
   assert.match(details, /sourceBindingValid/);
   assert.match(details, /cannot be confirmed/);
   assert.match(details, /reviewVisionObservation\(item\.id, 'creator_confirmed'\)/);
