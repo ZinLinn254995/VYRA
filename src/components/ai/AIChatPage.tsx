@@ -652,6 +652,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     try {
       let resolvedActiveVyralId = activeVyralId;
       let resolvedActiveVyralName = activeVyralName;
+      if (!resolvedActiveVyralId && selectedAssets.length > 0) {
+        const selectedVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
+        if (selectedVyralIds.length === 1) {
+          resolvedActiveVyralId = selectedVyralIds[0];
+          resolvedActiveVyralName = selectedAssets[0].vyralName;
+          setActiveVyralId(resolvedActiveVyralId);
+          setActiveVyralName(resolvedActiveVyralName);
+        }
+      }
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
       if (supabase && text) {
         const { data: authData } = await supabase.auth.getUser();
