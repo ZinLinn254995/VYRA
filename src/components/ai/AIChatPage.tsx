@@ -17,7 +17,7 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, extractVyralCreateRequest, findMentionedVyrals, findStoryboardMatches, isVyralAssetAddIntent, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, formatVyralCreateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isVyralAssetUploadConfirmation, isVyralCreateConfirmation, isVyralCreateIntent, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, extractVyralCreateRequest, findMentionedVyrals, findStoryboardMatches, isVyralAssetAddIntent, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, formatVyralCreateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, isVyralCreateConfirmation, isVyralCreateIntent, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 
@@ -673,7 +673,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if (isVyralAssetUploadConfirmation(text)) {
+      if ((isVyralAssetUploadConfirmation(text) || isNaturalChatApproval(text)) && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'vyral-asset-upload-draft')) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type !== 'vyral-asset-upload-draft') {
@@ -917,7 +917,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if (isVyralCreateConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
+      if ((isVyralCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type !== 'vyral-create-draft') {
@@ -1964,9 +1964,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           ? pendingDeleteDraft
           : isStoryboardUpdateConfirmation(text) && pendingUpdateDraft
             ? pendingUpdateDraft
-            : isVyralAssetUploadConfirmation(text)
+             : isVyralAssetUploadConfirmation(text) || isNaturalChatApproval(text)
               ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'vyral-asset-upload-draft')?.action
-              : isVyralCreateConfirmation(text)
+               : isVyralCreateConfirmation(text) || isNaturalChatApproval(text)
               ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'vyral-create-draft')?.action
               : isStoryboardCreateConfirmation(text)
                 ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
