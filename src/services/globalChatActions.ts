@@ -252,7 +252,8 @@ export const isVyralCreateIntent = (input: string): boolean => {
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
   const value = input.trim();
   const patterns = [
-    /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
+    /^(?:(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+)?(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
+    /^(?:i want|i'd like|i need)\s+(?:a|an|new)\s+vyral\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
     /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s*[:：]\s*["“']?(.+?)["”']?(?:\s*[—-]\s*(.+))?$/i,
     /^vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
   ];
