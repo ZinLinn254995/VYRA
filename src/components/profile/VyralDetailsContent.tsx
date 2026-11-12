@@ -242,6 +242,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
   const masterDnaAutoBuildRef = useRef(false);
   const fileDnaAutoVerifyRef = useRef(new Set<string>());
+  const origin01VisionBackfillRef = useRef('');
 
 
   const loadWorkspace = useCallback(async () => {
@@ -3037,6 +3038,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setError(asset.name + ': ' + message);
     } finally { setRetryingVisionAssetId(null); }
   };
+
+  // One-time, source-pinned Vision backfill for the protected ORIGIN-01 test Asset.
+  // Existing uploads already run this automatically; this covers the original sample
+  // created before the Gemini provider was connected. No extra user-facing action is needed.
+  useEffect(() => {
+    const ORIGIN_VYRAL_ID = 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d';
+    const ORIGIN_ASSET_ID = '2c496cd5-84c4-44b1-b02a-fca4265cc592';
+    if (!supabase || loading || vyral.id !== ORIGIN_VYRAL_ID || !auth.user?.id || retryingVisionAssetId) return;
+    const originalAsset = assets.find((item) => item.id === ORIGIN_ASSET_ID);
+    if (!originalAsset || isVyralPackageAsset(originalAsset) || originalAsset.processing_status !== 'ready') return;
+    const sourceVersion = versions.find((item) => item.asset_id === originalAsset.id && item.storage_path === originalAsset.storage_path);
+    if (!sourceVersion) return;
+    if (observations.some((item) => item.asset_id === originalAsset.id && item.asset_version_id === sourceVersion.id)) return;
+    // Do not create an automatic retry loop after a provider/network failure.
+    if (originalAsset.metadata?.ai_vision_last_attempt_at) return;
+    const attemptKey = originalAsset.id + ':' + sourceVersion.id;
+    if (origin01VisionBackfillRef.current === attemptKey) return;
+    origin01VisionBackfillRef.current = attemptKey;
+    void retryVisionAnalysis(originalAsset);
+  }, [assets, versions, observations, loading, vyral.id, auth.user?.id, retryingVisionAssetId, retryVisionAnalysis]);
 
   const saveVisionObservation = async (event: React.FormEvent) => {
     event.preventDefault();
