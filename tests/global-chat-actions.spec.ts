@@ -227,6 +227,7 @@ test('Vyral context follows natural conversational references without a fixed co
   assert.deepEqual(findMentionedVyrals("Let's continue working on ORIGIN Story; I have another idea.", vyrals).map((item) => item.id), ['v1']);
   assert.deepEqual(findMentionedVyrals('ဒီပုံကို Space Worlds ထဲ ထည့်ပေး', vyrals).map((item) => item.id), ['v2']);
   assert.deepEqual(findMentionedVyrals('Compare ORIGIN Story with Space Worlds', vyrals).map((item) => item.id).sort(), ['v1', 'v2']);
+  assert.deepEqual(findMentionedVyrals("Don't switch to ORIGIN Story", vyrals), []);
   assert.equal(isVyralAssetAddIntent('Could you put this image into the one we were working on?'), true);
   assert.equal(isVyralAssetAddIntent('Please use this image as part of our current Vyral'), true);
   assert.equal(isVyralAssetAddIntent('ဒီပုံကို အဲဒီထဲ ထည့်ပေးပါ'), true);
