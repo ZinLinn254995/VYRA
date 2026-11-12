@@ -2,6 +2,7 @@ import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.t
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
+import { computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../../src/services/vyralPerceptualFingerprint.ts';
 
 const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -179,8 +180,40 @@ Deno.serve(async (request: Request) => {
     if (insertError?.code === '23505') return reply({ error: 'This Asset Version already has an immutable DNA record.', code: 'DNA_SOURCE_VERSION_ALREADY_EXISTS' }, 409);
     return reply({ error: 'DNA record insert failed; uploaded tiles were rolled back.', detail: insertError?.message ?? 'No row returned.' }, 500);
   }
+  let visualFingerprintStatus: 'recorded' | 'failed' = 'failed';
+  let visualFingerprint = '';
+  try {
+    visualFingerprint = computeVyralDHash64(samples, width, height, 4);
+    const { data: existingFingerprint, error: fingerprintLookupError } = await ctx.supabaseAdmin.from('vyral_fingerprints')
+      .select('id').eq('asset_id', assetId).eq('asset_version_id', versionId)
+      .eq('fingerprint_kind', 'perceptual').eq('algorithm', VYRAL_DHASH_ALGORITHM).limit(1).maybeSingle();
+    if (fingerprintLookupError) throw fingerprintLookupError;
+    const fingerprintMetadata = {
+      verification_status: 'server_verified',
+      computed_by: 'extract-vyral-asset-dna-v3',
+      source_sha256: sourceHash,
+      dimensions: { width, height },
+      decoder: { name: 'ImageMagick WASM', version: '0.0.30', color_management: 'decoder-normalized' },
+      method: '9x8 grayscale horizontal difference hash',
+      alpha_handling: 'composited_over_white',
+      note: 'Perceptual similarity is an estimate, not proof of semantic identity or exact pixel equality.',
+    };
+    const fingerprintWrite = existingFingerprint
+      ? await ctx.supabaseAdmin.from('vyral_fingerprints').update({ value: visualFingerprint, metadata: fingerprintMetadata }).eq('id', existingFingerprint.id)
+      : await ctx.supabaseAdmin.from('vyral_fingerprints').insert({
+          asset_id: assetId, asset_version_id: versionId, user_id: userId,
+          fingerprint_kind: 'perceptual', algorithm: VYRAL_DHASH_ALGORITHM,
+          value: visualFingerprint, metadata: fingerprintMetadata,
+        });
+    if (fingerprintWrite.error) throw fingerprintWrite.error;
+    visualFingerprintStatus = 'recorded';
+  } catch (error) {
+    console.warn('[vyral-visual-fingerprint] DNA extraction succeeded, but the perceptual fingerprint could not be saved.', error);
+  }
   return reply({ status: 'extracted', assetId, versionId, dnaRecordId: row.id, recordId,
     parentDnaRecordId: row.parent_dna_record_id ?? null, revisionNumber: row.revision_number,
     sourceSha256: sourceHash, decodedSamplesSha256: decodedHash, width, height, channelLayout: 'RGBA',
-    tileCount: tileMetadata.length, decoder: 'ImageMagick WASM 0.0.30', originalAssetMutated: false });
+    tileCount: tileMetadata.length, decoder: 'ImageMagick WASM 0.0.30',
+    visualFingerprintStatus, visualFingerprint: visualFingerprintStatus === 'recorded' ? visualFingerprint : null,
+    originalAssetMutated: false });
 });
