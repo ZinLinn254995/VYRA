@@ -21,7 +21,7 @@ Deno.serve(async (request: Request) => {
   }
   if (body.action !== 'save') return json({ error: 'Unsupported API key action.' }, 400);
   const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
-  if (apiKey.length < 20 || apiKey.length > 512 || /\\s/.test(apiKey)) return json({ error: 'Enter a valid-looking OpenAI API key.' }, 400);
+  if (apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) return json({ error: 'Enter a valid-looking OpenAI API key.' }, 400);
   try {
     const verify = await fetch('https://api.openai.com/v1/models', {
       method: 'GET', headers: { Authorization: 'Bearer ' + apiKey, Accept: 'application/json' }, signal: AbortSignal.timeout(12000),
