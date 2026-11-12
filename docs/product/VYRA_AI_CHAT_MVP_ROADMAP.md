@@ -265,3 +265,16 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Verification status:** GitHub Actions run `43283530331` passed, including TypeScript, OpenAI Chat streaming contract tests, Supabase Edge Function type-check (now including `vyra-openai-chat`), all existing regression suites, and production build. Cloudflare Preview build `f335bdfd-c026-466b-813c-84da4c190d6e` for the documentation-updated commit `70b2a10e5853efb4700235d08a4239ee6c83374c` completed successfully. GitHub Actions run `43283787337` for the same commit also passed. No production deployment or merge was performed.
 
 **Remaining Phase 2 acceptance:** Signed-in browser tests for history save → refresh → reopen, follow-up context, and cross-account isolation. Live OpenAI streaming and retry after provider failure must be exercised after the API key is configured at Phase 6. The existing Chat UI visual baseline must remain unchanged.
+
+### Phase 3 progress — first safe Workspace action
+
+- Connected the existing global AI Chat to the real Workspace Storyboard inventory without changing the chat UI.
+- Added a deterministic read-only command for English and Burmese requests such as “Show my storyboards” and “ငါ့ Storyboard တွေ ပြပေး”.
+- The action reads the signed-in account's `vyral_storyboards` rows using an explicit `user_id` filter and merges them with that same account's device cache using the existing timestamp-aware merge helper.
+- The response reports actual Storyboard titles, topics, scene counts, and update dates. Empty results are reported honestly; no demo or fabricated Storyboards are inserted.
+- The action does not create, edit, delete, publish, or generate anything. It bypasses the text provider only for this exact read-only command, so no API key or paid generation is needed.
+- Added focused tests for English/Burmese intent recognition and truthful inventory formatting.
+
+**Verification status:** Implementation is on `feature/my-storyboard`. The first CI run was cancelled by subsequent commits before the final test correction; a fresh CI run is required against the latest commit before this action is considered verified. Cloudflare Preview is also required after CI. No production deployment or merge was performed.
+
+**Next Phase 3 step:** Add low-risk navigation and detail inspection using the same account-scoped data boundary. Keep create/update/delete, publishing, purchases, and paid generation disabled until each has a separate explicit confirmation and reliable execution contract. Preserve the existing AI Chat UI baseline.
