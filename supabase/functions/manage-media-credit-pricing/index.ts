@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { validateMediaCreditPricingAdminAction } from '../../../src/services/mediaCreditPricing.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -33,37 +34,34 @@ Deno.serve(async (request: Request) => {
     body = parsed;
   } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
 
-  if (body.action === 'status') {
+  let action: ReturnType<typeof validateMediaCreditPricingAdminAction>;
+  try { action = validateMediaCreditPricingAdminAction(body); }
+  catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Invalid pricing policy request.' }, 400);
+  }
+
+  if (action.action === 'status') {
     const { data, error } = await context.supabaseAdmin.from('media_credit_pricing_policies')
       .select('id,version,credits_per_usd,rounding_mode,status,effective_at,created_at,created_by,activated_at,activated_by')
       .order('created_at', { ascending: false }).limit(50);
     if (error) return json({ error: 'Pricing policy status is temporarily unavailable.' }, 503);
+    const active = (data ?? []).find((p: Record<string, unknown>) => p.status === 'active');
     return json({ policies: (data ?? []).map((p: Record<string, unknown>) => policyShape(p)),
-      activePolicy: (data ?? []).find((p: Record<string, unknown>) => p.status === 'active') ?
-        policyShape((data ?? []).find((p: Record<string, unknown>) => p.status === 'active') as Record<string, unknown>) : null });
+      activePolicy: active ? policyShape(active as Record<string, unknown>) : null });
   }
 
-  if (body.action === 'create_draft') {
-    const version = typeof body.version === 'string' ? body.version.trim() : '';
-    const rate = typeof body.creditsPerUsd === 'string' ? body.creditsPerUsd.trim() :
-      typeof body.creditsPerUsd === 'number' && Number.isFinite(body.creditsPerUsd) ? String(body.creditsPerUsd) : '';
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$/.test(version)) return json({ error: 'Use a unique policy version (2–80 safe characters).' }, 400);
-    if (!/^(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,8})?$/.test(rate) || Number(rate) <= 0)
-      return json({ error: 'creditsPerUsd must be a positive decimal with up to 8 fractional digits.' }, 400);
+  if (action.action === 'create_draft') {
     const { data, error } = await context.supabaseAdmin.from('media_credit_pricing_policies')
-      .insert({ version, credits_per_usd: rate, rounding_mode: 'ceil', status: 'draft', created_by: userId })
+      .insert({ version: action.version, credits_per_usd: action.creditsPerUsd, rounding_mode: 'ceil', status: 'draft', created_by: userId })
       .select('id,version,credits_per_usd,rounding_mode,status,effective_at,created_at,created_by,activated_at,activated_by')
       .single();
     if (error) return json({ error: error.code === '23505' ? 'That policy version already exists.' : 'Could not create the pricing draft.' }, error.code === '23505' ? 409 : 503);
     return json({ policy: policyShape(data), message: 'Draft saved. It is not active and cannot affect customer charges.' }, 201);
   }
 
-  if (body.action === 'activate') {
-    if (body.confirmed !== true) return json({ error: 'Explicit activation confirmation is required.' }, 400);
-    if (typeof body.policyId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.policyId))
-      return json({ error: 'A valid draft policy ID is required.' }, 400);
+  if (action.action === 'activate') {
     const { data, error } = await context.supabaseAdmin.rpc('activate_media_credit_pricing_policy', {
-      p_policy_id: body.policyId, p_actor_user_id: userId,
+      p_policy_id: action.policyId, p_actor_user_id: userId,
     });
     if (error || !data || !isRecord(data)) {
       const message = error?.message ?? '';
