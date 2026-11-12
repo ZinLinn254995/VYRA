@@ -699,7 +699,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           payload.resolution_source === 'server_creator_conflict_resolution' &&
           scope?.asset_id === group.assetId && scope?.source_asset_version_id === group.versionId &&
           scope?.task_kind === group.taskKind && scope?.field_path === group.fieldPath &&
-          Array.isArray(competingIds) && competingIds.length >= 2 &&
+          Array.isArray(competingIds) && competingIds.length === recordIds.size &&
           competingIds.every((id) => typeof id === 'string' && recordIds.has(id));
       }).sort((a, b) => a.created_at.localeCompare(b.created_at));
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
