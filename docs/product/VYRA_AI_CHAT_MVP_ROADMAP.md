@@ -66,6 +66,7 @@ The first milestone is a practical MVP, not a complete autonomous creative platf
 - Keep provider selection/routing in server code, not in client code.
 - The current temporary access policy allows ordinary signed-in accounts to reach the Dashboard as explicitly requested by the owner. This is a temporary development convenience, not an acceptable public-production security policy. Before public launch, restrict key management to an authorized platform-admin role.
 - Do not require users/customers to supply their own API keys as the default product experience.
+- **Credential purchase/configuration timing:** Do not purchase or add the OpenAI API key during early implementation. Build and validate the provider integration, chat flow, app tools, media routing, persistence, and cost safeguards first. Add the paid key only at the final provider-backed end-to-end verification stage, when it is actually needed. Until then, a missing key is an expected state, not a reason to block key-independent development.
 
 **Acceptance gate:**
 - A signed-in user can open the Dashboard and see which required providers are configured.
@@ -211,6 +212,6 @@ At the end of each phase:
 
 ## 7. Current baseline and next action
 
-The repository has an initial Admin Dashboard/API-key management foundation for the OpenAI key, backed by a Development Supabase secret-management function. That foundation is not proof that OpenAI Chat or all generation types are connected. The OpenAI key has not been supplied/configured in this baseline, and actual provider-backed chat/generation must be verified separately.
+The repository has an initial Admin Dashboard/API-key management foundation for the OpenAI key, backed by a Development Supabase secret-management function. That foundation is not proof that OpenAI Chat or all generation types are connected. The OpenAI key has not been supplied/configured and must remain unpurchased/unconfigured until the final provider-backed end-to-end verification stage. Continue all key-independent implementation and tests first.
 
 **Next action:** Finish and verify Phase 1 on `feature/my-storyboard`. Then implement Phase 2. Do not treat the roadmap as complete until the phase acceptance gates have been met.
