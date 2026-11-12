@@ -6,6 +6,7 @@ import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
 import type { VyralChatAssetContext } from './types/vyralChat';
+import type { WorkspaceAiContext } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -21,6 +22,7 @@ function MarketplaceApp() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
+  const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
   const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -161,12 +163,13 @@ function MarketplaceApp() {
               onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
             />
           ) : activeSection === 'ai-chat' ? (
-            <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} />
+            <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
           ) : activeSection === 'workspace' ? (
             <WorkspacePage
               storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
               isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')}
-              onOpenLibraryPage={(page) => { setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
+              onOpenLibraryPage={(page) => { setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Vyrals' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
+              onAiContextChange={setWorkspaceAiContext}
             />
           ) : (
             <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
