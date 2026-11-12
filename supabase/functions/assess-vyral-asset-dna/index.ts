@@ -242,11 +242,11 @@ Deno.serve(async (request: Request) => {
   const disputedReviews = new Set<string>();
   const fieldConfirmations: Array<{ observationId: string; id: string; fieldPath: string; acceptedValue: unknown }> = [];
   for (const evidence of creatorEvidenceResult.data ?? []) {
-    if (evidence.decision !== 'creator_confirmed') continue;
     if (evidence.evidence_kind === 'observation_review' && typeof evidence.observation_id === 'string') {
       if (evidence.decision === 'creator_confirmed') creatorReviews.set(evidence.observation_id, String(evidence.id));
-      else disputedReviews.add(evidence.observation_id);
-    } else if (evidence.evidence_kind === 'field_confirmation' &&
+      else if (evidence.decision === 'disputed') disputedReviews.add(evidence.observation_id);
+    } else if (evidence.decision === 'creator_confirmed' &&
+        evidence.evidence_kind === 'field_confirmation' &&
         typeof evidence.observation_id === 'string' &&
         typeof evidence.field_path === 'string' &&
         evidence.field_path.startsWith('knowledge.') &&
