@@ -48,7 +48,8 @@
     "test:vyral-raster-upload-dna-gate": "node --import tsx --test tests/vyral-raster-upload-dna-gate.spec.ts",
     "test:vyral-perceptual-fingerprint": "node --import tsx --test tests/vyral-perceptual-fingerprint.spec.ts",
     "test:vyral-reconstruction-metrics": "node --import tsx --test tests/vyral-reconstruction-metrics.spec.ts",
-    "test:vyral-semantic-completeness": "node --import tsx --test tests/vyral-semantic-completeness-v1.spec.ts"
+    "test:vyral-semantic-completeness": "node --import tsx --test tests/vyral-semantic-completeness-v1.spec.ts",
+    "test:ai-chat-stream": "node --import tsx --test tests/vyra-openai-chat-stream.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
