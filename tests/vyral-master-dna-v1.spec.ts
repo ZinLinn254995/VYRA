@@ -210,3 +210,11 @@ test('Master DNA Builder applies canonical owner-path validation to source versi
   assert.match(source, /isCanonicalOwnedStoragePath\(firstPath, assetStoragePrefix\)/);
   assert.match(source, /isCanonicalOwnedStoragePath\(path, assetStoragePrefix\)/);
 });
+
+
+test('Master DNA Builder joins reconstruction evidence by database DNA row id, not portable record id', () => {
+  const source = readFileSync('supabase/functions/build-vyral-master-dna/index.ts', 'utf8');
+  assert.match(source, /const dnaRecordId = dna\?\.id;/);
+  assert.match(source, /getReconstructionClaim\(reconstructionTests as Row\[\], asset\.id, version\.id, dna\.id, semanticDnaAvailable\)/);
+  assert.match(source, /record_id: typeof nestedDna\.record_id === 'string' \? nestedDna\.record_id : dna\.id/);
+});
