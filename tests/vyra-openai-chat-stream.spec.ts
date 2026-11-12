@@ -59,3 +59,11 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.doesNotMatch(source, /name: '(?:delete|update|create|publish|generate)_/);
   assert.match(source, /data: ' \+ chunk \+ '\\n\\ndata: \[DONE\]\\n\\n'/);
 });
+
+test('VYRA interprets free-form multilingual intent and formats active context with real newlines', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /Interpret meaning rather than matching fixed phrases/);
+  assert.match(source, /paraphrases, indirect requests, casual Burmese, English, and mixed-language instructions/);
+  assert.match(source, /activeVyralInstruction =\\s*'\\\\n\\\\nCurrent user-selected Vyral context/);
+  assert.doesNotMatch(source, /activeVyralInstruction =\\s*'\\\\\\\\n/);
+});
