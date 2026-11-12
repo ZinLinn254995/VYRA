@@ -3717,6 +3717,35 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           <section className={surface+' p-4'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
+                <h3 className={'text-sm font-semibold '+primary}>Visual fingerprint verification</h3>
+                <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>Run a server-side visual fingerprint check against the original stored file for each image Asset. This verifies the source version before comparing versions.</p>
+              </div>
+              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                {assetVersionEvidenceTimeline.filter(({ versions: entries }) => entries.some(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()))).length} image Assets
+              </span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {assetVersionEvidenceTimeline.flatMap(({ asset, versions: entries }) => {
+                const latestImageVersion = [...entries].reverse().find(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()));
+                return latestImageVersion ? [{ asset, version: latestImageVersion.version }] : [];
+              }).map(({ asset, version }) => {
+                const recorded = fingerprints.some((fingerprint) => fingerprint.asset_id === asset.id && fingerprint.asset_version_id === version.id && fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM && asRecord(fingerprint.metadata).verification_status === 'server_verified');
+                return <div key={'quick-visual-'+version.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                  <div className="min-w-0">
+                    <p className={'truncate text-xs font-semibold '+primary}>{asset.name}</p>
+                    <p className={'mt-1 text-[10px] '+muted}>Version {version.version_number} · {recorded ? 'Fingerprint recorded' : 'Not verified yet'}</p>
+                  </div>
+                  <button type="button" className={primaryButton} disabled={verifyingAssetId === asset.id} onClick={() => void verifyRasterVisualFingerprint(asset, version)}>
+                    <Fingerprint size={13}/>{verifyingAssetId === asset.id ? 'Verifying…' : recorded ? 'Verify again' : 'Verify visual fingerprint'}
+                  </button>
+                </div>;
+              })}
+              {assetVersionEvidenceTimeline.every(({ versions: entries }) => !entries.some(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()))) && <p className={'rounded-lg border border-dashed border-[var(--vyra-border)] p-3 text-xs '+muted}>No supported image source versions are available yet. PNG, JPEG and WebP versions will appear here.</p>}
+            </div>
+          </section>
+          <section className={surface+' p-4'}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
                 <h3 className={'text-sm font-semibold '+primary}>AI Vision observations</h3>
                 <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>
                   VYRA analyzes new uploads automatically. Review each observation before its information can be promoted into trusted Asset Knowledge.
