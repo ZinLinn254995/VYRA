@@ -628,3 +628,14 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Creator-authored descriptions, Asset names, tags and relationship rationales are treated as untrusted descriptive data, not system instructions. The model is instructed not to invent missing inventory or claim mutations without a confirmed VYRA action.
 - Natural Asset placement language is recognized conservatively. Strong actions such as add/put/save/store/attach/upload/place are supported; “use this image as part of our current Vyral” is supported only when the Vyral destination is explicit. A generic request to “use this image as a reference” is not treated as an upload.
 - This improves the information available for free-form conversation, but it does not yet make the model an unrestricted executor of all VYRA features. New mutations and billable generation still require explicit, allowlisted VYRA actions and appropriate approval.
+
+
+#### Owner-scoped read-only Vyral tools
+
+- The authenticated OpenAI chat Edge Function exposes a narrowly allowlisted read-only tool set only when an active Vyral has been independently verified against the authenticated user:
+  - search_vyral_assets: bounded search by Asset name and optional Asset type, returning processing and latest DNA status.
+  - get_vyral_asset_details: exact Asset ID/name lookup, latest version metadata and latest DNA verification status; no file bytes or storage path.
+  - list_vyral_asset_relationships: bounded relationship inventory for the active Vyral.
+- Every query is scoped by both vyral_id and authenticated user_id. Search/detail results are bounded, and no mutation, delete, publish, generation, storage access or billing tool is exposed to the model.
+- Tool selection is performed by the platform model, but execution remains in the authenticated Edge Function with a strict allowlist and argument validation. The assistant receives tool results and writes the natural-language answer. The existing browser SSE contract is preserved; direct planner answers are adapted to valid SSE frames.
+- Tool execution is limited to three sequential calls per request. OpenAI key remains unset; this code path is not live-provider verified or deployed to Development yet.
