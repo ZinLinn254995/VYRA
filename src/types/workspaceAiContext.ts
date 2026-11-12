@@ -12,6 +12,7 @@ export type WorkspaceAiContext = {
   selectedSceneIds?: string[];
   selectedSceneTitles?: string[];
   activeSceneId?: string | null;
+  activeSceneTitle?: string | null;
   selectedTimelineItem?: {
     kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip';
     id: string;
