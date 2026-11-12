@@ -137,8 +137,9 @@ async function executeVyralReadTool(
   if (name === 'get_vyral_asset_details') {
     const assetId = typeof args.asset_id === 'string' ? args.asset_id.trim() : '';
     const assetName = typeof args.asset_name === 'string' ? args.asset_name.trim().slice(0, 180) : '';
-    if ((!assetId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assetId)) && !assetName) {
-      return safeToolError('Provide an Asset UUID or Asset name.');
+    const validAssetId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assetId);
+    if ((assetId && !validAssetId) || (!assetId && !assetName)) {
+      return safeToolError('Provide a valid Asset UUID or Asset name.');
     }
     let lookup = admin.from('vyral_assets')
       .select('id,name,asset_type,mime_type,description,processing_status,created_at,updated_at')
