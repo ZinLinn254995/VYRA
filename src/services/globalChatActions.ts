@@ -243,8 +243,11 @@ export type GlobalChatAction = GlobalChatStoryboardAction
   | { type: 'vyral-asset-upload-draft'; draft: GlobalChatVyralAssetUploadDraft }
   | { type: 'vyral-asset-upload-complete'; draftId: string };
 
-export const isVyralCreateIntent = (input: string): boolean =>
-  /^\s*(?:(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:new\s+)?vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?=\s|$))/i.test(input);
+export const isVyralCreateIntent = (input: string): boolean => {
+  if (/\b(?:don't|do not|never|not)\s+(?:create|make|build|start)\b.{0,30}\bvyral\b/i.test(input) ||
+      /(?:မဖန်တီး|မလုပ်ချင်|မစချင်)/.test(input)) return false;
+  return /^\s*(?:(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:a|an|new)\s+vyral\b|(?:new\s+)?vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး|ချင်)?|တစ်ခု\s*(?:ဖန်တီး|လုပ်)ချင်)(?=\s|$))/i.test(input);
+};
 
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
   const value = input.trim();
