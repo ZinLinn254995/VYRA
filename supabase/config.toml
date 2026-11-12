@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.manage-runway-provider]
 verify_jwt = true
+
+[functions.quote-runway-media]
+verify_jwt = true
