@@ -512,3 +512,7 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Security advisor reports `media_credit_pricing_policies` has RLS enabled with no client policies; this is intentional deny-by-default because access is through the authenticated owner/admin Edge Function using server-side credentials. Existing unrelated advisor findings include other pre-existing tables/functions and leaked-password protection; they were not changed in this task.
 
 **Remaining:** define the commercial credit conversion rate, provider-cost margin, refund/partial-failure rules, and user-facing disclosure before creating and activating the first policy. Then verify admin endpoint behavior with a real Development owner session and test the entire quote → USD approval → credit approval → job → reserve flow. No pricing value has been guessed; media generation remains blocked until the policy is explicitly approved and activated.
+
+
+- Added `src/services/mediaCreditPricing.ts` with exact BigInt decimal arithmetic for the `ceil(maxCostUsd × creditsPerUsd)` rule, avoiding JavaScript floating-point rounding drift. Added tests for fractional boundaries, invalid decimal strings, zero values, and policy draft validation; registered `test:media-credit-pricing` in CI.
+- The CI workflow now type-checks `manage-media-credit-pricing` and runs the exact-decimal pricing tests. The latest commit's GitHub status endpoint returned no check records yet, so CI is not marked passed.
