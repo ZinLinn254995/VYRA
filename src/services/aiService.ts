@@ -9,6 +9,7 @@
  */
 
 import { ChatMessage, ChatSuggestedAction, AIServiceStatus, ContentCategory } from '../types';
+import type { WorkspaceAiContext } from '../types/workspaceAiContext';
 
 export interface AIServiceRequest {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
@@ -19,6 +20,8 @@ export interface AIServiceRequest {
   idempotencyKey?: string;
   /** Owner-verified active Vyral context for natural conversational continuity. */
   activeVyralId?: string;
+  /** Last known Workspace page and user selections; context only, never authorization. */
+  workspaceContext?: WorkspaceAiContext;
   /** Receives incremental text chunks for the live chat UI. */
   onTextDelta?: (chunk: string) => void;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
@@ -178,6 +181,7 @@ class ModularAIService implements AIServiceProvider {
           stream: true,
           messages: request.messages.filter((message) => message.role !== 'system'),
           ...(request.activeVyralId ? { activeVyralId: request.activeVyralId } : {}),
+          ...(request.workspaceContext ? { workspaceContext: request.workspaceContext } : {}),
           ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
           ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
         }),
