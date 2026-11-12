@@ -41,6 +41,7 @@ test('DNA extractor, DNA assessment and ORIGIN comparator all use the shared val
     '../supabase/functions/verify-vyral-dna-v3/index.ts',
     '../supabase/functions/verify-origin-01-dna-v3/index.ts',
     '../supabase/functions/verify-vyral-asset/index.ts',
+    '../supabase/functions/fingerprint-vyral-raster-version/index.ts',
   ];
   for (const path of functionPaths) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8');
