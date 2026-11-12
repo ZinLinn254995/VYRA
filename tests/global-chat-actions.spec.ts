@@ -114,7 +114,7 @@ test('storyboard update preview and confirmation are explicit', async () => {
   const { formatStoryboardUpdateDraft, isStoryboardUpdateConfirmation } = await import('../src/services/globalChatActions.ts');
   const preview = formatStoryboardUpdateDraft({
     id: 'draft-1', storyboardId: 'story-1', storyboardTitle: 'Moon Journey',
-    field: 'topic', previousValue: 'A child explores the moon', nextValue: 'A child explores Mars',
+    field: 'topic', previousValue: 'A child explores the moon', expectedUpdatedAt: '2026-01-02T00:00:00.000Z', nextValue: 'A child explores Mars',
   });
   assert.match(preview, /Nothing has been changed yet/);
   assert.match(preview, /A child explores Mars/);
