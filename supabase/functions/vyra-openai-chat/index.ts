@@ -59,7 +59,7 @@ Deno.serve(async (request: Request) => {
 
     const [assetResult, dnaResult, relationshipResult, masterResult] = await Promise.all([
       context.supabaseAdmin.from('vyral_assets')
-        .select('id,name,asset_type,mime_type,description,processing_status,metadata')
+        .select('id,name,asset_type,mime_type,description,processing_status,metadata', { count: 'exact' })
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
         .neq('processing_status', 'archived').order('updated_at', { ascending: false }).limit(30),
       context.supabaseAdmin.from('vyral_dna_records')
@@ -91,7 +91,8 @@ Deno.serve(async (request: Request) => {
         });
       }
     }
-    const assetNames = new Map(assets.map((asset) => [String(asset.id), String(asset.name)]));
+    const assetNames = new Map<string, string>();
+    for (const asset of assets) assetNames.set(String(asset.id), String(asset.name));
     const assetContext = assets.map((asset) => {
       const metadata = asset.metadata && typeof asset.metadata === 'object' && !Array.isArray(asset.metadata)
         ? asset.metadata as Record<string, unknown> : {};
@@ -129,8 +130,9 @@ Deno.serve(async (request: Request) => {
         fingerprint: masterResult.data?.vyral_fingerprint ?? null,
       },
       assets: assetContext,
-      assetInventoryTruncated: assets.length === 30,
+      assetInventoryTruncated: (assetResult.count ?? assets.length) > assets.length,
       relationships,
+      relationshipsTruncated: (relationshipResult.data ?? []).length === 30,
     };
     activeVyralInstruction =
       '\\n\\nCurrent user-selected Vyral context (owner-verified canonical inventory): ' +
