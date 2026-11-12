@@ -1239,7 +1239,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       if (streamingAssistantId) {
         const messageId = streamingAssistantId;
         setMessages((previous) => previous.map((item) => item.id === messageId
-          ? { ...item, content: item.content || message, status: 'error' }
+          ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
           : item));
       } else {
         setMessages((previous) => [...previous, {
