@@ -44,24 +44,26 @@ Deno.serve(async (request: Request) => {
         ...(body.systemInstruction ? { systemInstruction: body.systemInstruction } : {}),
         ...(body.config && typeof body.config === 'object' ? { generationConfig: body.config } : {}),
       });
-      // Google can temporarily return 503/429 during capacity spikes. Retry once
-      // with a short backoff; do not retry validation, auth, or model errors.
+      // Bound each attempt so a slow Google response cannot exhaust the proxy request.
       for (let attempt = 0; attempt < 2; attempt += 1) {
         upstream = await fetch(upstreamUrl, {
           method: 'POST',
           headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
           body: requestBody,
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(10000),
         });
         if ((upstream.status !== 503 && upstream.status !== 429) || attempt === 1) break;
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await new Promise((resolve) => setTimeout(resolve, 800));
       }
     } catch (error) {
       const errorName = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name) : 'Error';
-      console.error('[vyra-gemini-proxy] upstream network failure:', errorName);
-      return json({ error: 'Could not reach Gemini. Check the connection and retry.', code: 'GEMINI_UPSTREAM_FAILED' }, 502);
+      console.error('[vyra-gemini-proxy] upstream request failed:', errorName);
+      if (errorName === 'TimeoutError' || errorName === 'AbortError') {
+        return json({ error: 'Gemini took too long to respond. Please retry in a moment.', code: 'GEMINI_UPSTREAM_TIMEOUT' }, 504);
+      }
+      return json({ error: 'Could not connect to Gemini. Please retry.', code: 'GEMINI_UPSTREAM_NETWORK' }, 502);
     }
-    if (!upstream) return json({ error: 'Could not reach Gemini.', code: 'GEMINI_UPSTREAM_FAILED' }, 502);
+    if (!upstream) return json({ error: 'Could not connect to Gemini. Please retry.', code: 'GEMINI_UPSTREAM_NETWORK' }, 502);
 
     const payload = await upstream.json().catch(() => ({})) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
