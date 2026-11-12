@@ -403,3 +403,12 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - Added a generation-job transition contract: queued → running → succeeded/failed/cancelled, with safe queued cancellation/failure and no transitions out of terminal states.
 - Added automated tests and CI steps for the approval gate and state transitions.
 - These are pure contract modules only. They do not call Runway, read or store secrets, create database rows, charge customers, or enable any media-generation endpoint. Provider integration remains blocked until the server-only Vault adapter and persistent usage/job ledger are implemented and verified.
+
+
+### Phase 4 — Development database schema audit
+
+- Read-only inspection of Development Supabase (`wbqheogfoahnjvgkwhxe`) found that VYRA already has `generation_jobs`, `provider_attempts`, `provider_cost_records`, `credit_ledger_entries`, and `platform_admins`. These tables have RLS enabled; customer-facing policies are owner-scoped SELECT policies, consistent with server-owned writes.
+- The generation-job table already defines the persisted lifecycle as `pending`, `submitted`, `processing`, `succeeded`, `failed`, `cancelled`, and `unknown`. Updated the new pure lifecycle contract to match these existing database states instead of introducing a competing vocabulary.
+- Existing provider cost records explicitly distinguish provider-reported actual cost from estimates. Reuse this schema and its existing RPC path rather than creating duplicate ledger tables.
+- Existing `platform_admins` registry and Vault accessor patterns are present. The Runway secret accessor still needs a Development-only migration and an admin-gated management Edge Function; no schema or secret changes were made during this read-only audit.
+- Production Supabase was not queried or changed.
