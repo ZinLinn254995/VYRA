@@ -290,7 +290,18 @@ async function executeVyralReadTool(
       reconstruction: {
         overallClaim: profile.overall_claim ?? 'unavailable',
         notes: Array.isArray(profile.notes) ? profile.notes.filter((v): v is string => typeof v === 'string').slice(0, 12).map((v) => v.slice(0, 240)) : [],
-        crossAssetConstraints: Array.isArray(profile.cross_asset_constraints) ? profile.cross_asset_constraints.slice(0, 20) : [],
+        crossAssetConstraints: Array.isArray(profile.cross_asset_constraints)
+          ? profile.cross_asset_constraints.slice(0, 20).map((raw) => {
+            const item = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+            return {
+              id: typeof item.constraint_id === 'string' ? item.constraint_id.slice(0, 100) : '',
+              description: typeof item.description === 'string' ? item.description.slice(0, 300) : '',
+              appliesToAssetIds: Array.isArray(item.applies_to_asset_ids)
+                ? item.applies_to_asset_ids.filter((v): v is string => typeof v === 'string').slice(0, 20)
+                : [],
+            };
+          })
+          : [],
       },
       provenance: { evidenceStatus: provenance.evidence_status ?? 'unknown' },
       integrity: {
