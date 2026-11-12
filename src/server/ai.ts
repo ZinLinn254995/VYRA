@@ -1036,11 +1036,16 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     mediaFiles?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
   };
 
-  // Status probes must never invoke the model or incur API usage.
+  // Status probes never invoke a model or incur API usage. The provider key
+  // is intentionally configured only during final end-to-end verification.
   if (body?.ping === true) {
-    const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json(await getGeminiStatus(match?.[1]));
+    return res.status(200).json({
+      status: 'preview_mode',
+      provider: 'openai',
+      modelName: 'gpt-4.1-mini',
+      message: 'OpenAI is the primary VYRA AI provider. The platform API key will be configured during final verification.',
+    });
   }
   const verifiedUserId = await requireVerifiedVYraSession(req, res);
   if (!verifiedUserId) return;
