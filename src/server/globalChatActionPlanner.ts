@@ -175,7 +175,8 @@ export function authorizeGlobalChatActionExecution(
   if (validation.risk === 'read') return validation;
   if (!approval) return { ok: false, reason: 'approval-required' };
   if (approval.planId !== plan.id) return { ok: false, reason: 'approval-mismatch' };
-  if (!Number.isFinite(Date.parse(approval.confirmedAt ?? (approval as { approvedAt?: string }).approvedAt ?? ''))) {
+  const approvalTimestamp = approval.kind === 'reversible' ? approval.approvedAt : approval.confirmedAt;
+  if (!Number.isFinite(Date.parse(approvalTimestamp))) {
     return { ok: false, reason: 'approval-invalid' };
   }
   if (validation.risk === 'reversible-write') {
