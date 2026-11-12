@@ -1,4 +1,5 @@
 import { createVyralFileDnaV1 } from './vyralFileDnaV1';
+import { buildVyralGeneratedAssetMetadata, type VyralGeneratedAssetProvenanceInput } from './vyralGeneratedAssetProvenance';
 
 export type VyralAssetKind = 'image' | 'video' | 'audio' | 'model_3d' | 'archive' | 'document' | 'other';
 export type VyralAssetIngestionInput = {
@@ -206,6 +207,21 @@ export async function ingestVyralAsset(
       assetId, cleanupErrors,
     });
   }
+}
+
+/** Generated media uses the same private Storage, immutable Version, Fingerprint and DNA gates as creator uploads. */
+export async function ingestGeneratedVyralAsset(
+  port: VyralAssetIngestionPort,
+  input: Omit<VyralAssetIngestionInput, 'metadata'> & { provenance: VyralGeneratedAssetProvenanceInput },
+): Promise<VyralAssetIngestionResult> {
+  const metadata = buildVyralGeneratedAssetMetadata(input.provenance);
+  return ingestVyralAsset(port, {
+    vyralId: input.vyralId,
+    userId: input.userId,
+    folderId: input.folderId,
+    file: input.file,
+    metadata,
+  });
 }
 
 /** Supabase adapter for the exact same ingestion lifecycle used by creator and generated media. */
