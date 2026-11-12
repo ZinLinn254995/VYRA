@@ -109,38 +109,6 @@ Deno.serve(async (request: Request) => {
       };
     });
   } catch (error) {
-      const errorName = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name) : 'Error';
-      console.error('[vyra-gemini-proxy] upstream request failed:', errorName);
-      if (errorName === 'TimeoutError' || errorName === 'AbortError') {
-        return json({ error: 'Gemini is taking longer than expected. The analysis can be retried safely.', code: 'GEMINI_UPSTREAM_TIMEOUT' }, 504);
-      }
-      return json({ error: 'Could not connect to Gemini. Please retry.', code: 'GEMINI_UPSTREAM_NETWORK' }, 502);
-    }
-    if (!upstream) return json({ error: 'Could not connect to Gemini. Please retry.', code: 'GEMINI_UPSTREAM_NETWORK' }, 502);
-    const payload = await upstream.json().catch(() => ({})) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
-      responseId?: string;
-      error?: { message?: string; status?: string; code?: number };
-    };
-    if (!upstream.ok) {
-      const upstreamMessage = typeof payload.error?.message === 'string' ? payload.error.message.slice(0, 500) : 'No additional details were provided by Google.';
-      console.error('[vyra-gemini-proxy] Gemini HTTP response:', upstream.status, payload.error?.status ?? 'UNKNOWN');
-      const message = upstream.status === 429 ? 'Gemini rate limit reached. Try again later.'
-        : upstream.status === 400 ? 'Gemini rejected the request format: ' + upstreamMessage
-        : upstream.status === 401 || upstream.status === 403 ? 'Google rejected the stored API key or its API permissions: ' + upstreamMessage
-        : upstream.status === 404 ? 'Gemini model "' + model + '" was not found or is unavailable to this API key: ' + upstreamMessage
-        : 'Gemini request failed (HTTP ' + upstream.status + '): ' + upstreamMessage;
-      return json({ error: message, code: 'GEMINI_HTTP_' + upstream.status, providerStatus: payload.error?.status ?? null, model },
-        upstream.status === 429 ? 429 : upstream.status === 503 ? 503 : 502);
-    }
-    const text = (payload.candidates?.[0]?.content?.parts ?? []).map((part) => typeof part.text === 'string' ? part.text : '').join('').trim();
-    if (!text) return json({ error: 'Gemini returned an empty response.', code: 'GEMINI_EMPTY_RESPONSE' }, 502);
-    return json({
-      text, modelName: model, provider: 'gemini', generationId: typeof payload.responseId === 'string' ? payload.responseId : null,
-      usage: payload.usageMetadata ? { promptTokens: payload.usageMetadata.promptTokenCount ?? null, completionTokens: payload.usageMetadata.candidatesTokenCount ?? null, totalTokens: payload.usageMetadata.totalTokenCount ?? null } : null,
-    });
-  } catch (error) {
     const errorName = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name) : 'Error';
     console.error('[vyra-gemini-proxy] request failure at stage:', stage, errorName);
     return json({ error: 'Gemini proxy failed during ' + stage + '.', code: 'GEMINI_PROXY_' + stage.toUpperCase() }, 500);
