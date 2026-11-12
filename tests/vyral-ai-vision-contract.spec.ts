@@ -102,6 +102,12 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /version\.sha256 \? version\.sha256 : 'Not recorded'/);
   assert.match(details, /versionObservations\.length/);
   assert.match(details, /versionFingerprints\.length/);
+  assert.match(details, /AI-reported comparison with Version/);
+  assert.match(details, /changedPaths\.length/);
+  assert.match(details, /unchangedCount/);
+  assert.match(details, /does not certify a real asset change/);
+  assert.match(details, /previousObservation && latestObservation/);
+  assert.match(details, /!isVyralPackageAsset\(entry\.asset\)/);
   assert.match(details, /creator-confirmed/);
   assert.match(details, /sourceBindingValid/);
   assert.match(details, /cannot be confirmed/);
