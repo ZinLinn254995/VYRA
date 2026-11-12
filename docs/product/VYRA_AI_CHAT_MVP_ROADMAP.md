@@ -300,4 +300,4 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - Navigation is allowlisted and read-only. Broad or destructive phrases such as deleting Vyrals or creating Storyboards do not trigger a route change.
 - Added intent tests for each supported destination and negative cases.
 
-**Verification:** The previous Storyboard detail-intent fix passed GitHub CI (run 43292879968). CI for the navigation change is running; Preview and manual device verification are still pending. No production deployment or merge was performed. The existing AI Chat visual layout has not been changed.
+**Verification:** Storyboard detail-intent fix passed GitHub CI (run 43292879968). Navigation parser and implementation passed GitHub CI (run 43293945486), including TypeScript check, global AI Chat safe-action tests, Supabase Edge Function type-check, and production build. Preview and manual device verification are still pending. No production deployment or merge was performed. The existing AI Chat visual layout has not been changed.
