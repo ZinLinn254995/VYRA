@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeVyralDHash64, compareVyralDHash64 } from '../supabase/functions/_shared/perceptual-fingerprint.ts';
+import { computeVyralDHash64, compareVyralDHash64 } from '../src/services/vyralPerceptualFingerprint.ts';
 
 const gradient = (width: number, height: number, scale = 1) => {
   const samples = new Uint8Array(width * height * 4);
