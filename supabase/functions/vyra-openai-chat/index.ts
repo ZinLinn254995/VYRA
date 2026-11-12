@@ -213,7 +213,7 @@ async function executeVyralReadTool(
 
 const sseResponse = (content: string) => {
   const chunk = JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: 'stop' }] });
-  return new Response('data: ' + chunk + '\\n\\ndata: [DONE]\\n\\n', {
+  return new Response('data: ' + chunk + '\n\ndata: [DONE]\n\n', {
     status: 200,
     headers: {
       ...corsHeaders,
