@@ -232,7 +232,7 @@ router.post('/providers/openrouter/chat', async (req: Request, res: Response) =>
       choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; total_cost?: number };
     };
-    if (!upstream.ok) {
+    if (!upstream.ok || typeof generated.error === 'string') {
       if (ledgerContext) {
         const recorded = await finishOpenRouterTextJob({
           userId: ledgerContext.userId, job: ledgerContext.job, status: 'failed', model,
@@ -1182,7 +1182,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
         systemInstruction: { parts: [{ text: systemInstruction }] },
       }),
       cache: 'no-store',
-      signal: AbortSignal.timeout(65000),
+      signal: AbortSignal.timeout(120000),
     });
     const generated = await upstream.json().catch(() => ({})) as {
       text?: string;
