@@ -2,7 +2,7 @@ import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.t
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { assessVyralAssetDnaV1, type VyralAssetDnaAssessmentInput } from '../../../src/services/vyralAssetDnaAssessmentV1.ts';
-import { assessVyralSemanticCompletenessV1 } from '../../../src/services/vyralSemanticCompletenessV1.ts';
+import { assessVyralSemanticCompletenessV1 } from '../_shared/semantic-completeness.ts';
 
 const BUCKET = 'vyral-assets';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
