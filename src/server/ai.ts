@@ -1119,6 +1119,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     task?: 'suggest_details';
     detailsScope?: 'asset' | 'vyral' | 'storyboard';
     messages?: Array<{ role?: string; content?: string }>;
+    activeVyralId?: string;
     context?: Record<string, unknown>;
     visionImages?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
     mediaFiles?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
@@ -1175,7 +1176,8 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
     try {
       const wantsStream = body.stream === true;
-      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(wantsStream ? { stream: true } : {}) });
+      const activeVyralId = typeof body.activeVyralId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.activeVyralId) ? body.activeVyralId : undefined;
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(activeVyralId ? { activeVyralId } : {}), ...(wantsStream ? { stream: true } : {}) });
       if (wantsStream && response.ok && response.body && (response.headers.get('content-type') ?? '').includes('text/event-stream')) {
         res.status(response.status);
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
