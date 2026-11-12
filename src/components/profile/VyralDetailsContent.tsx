@@ -2163,10 +2163,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
         // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
-        setBackgroundJob({ assetName: file.name, stage: 'Gemini is analyzing the Asset', detail: 'Understanding visual content and preparing reusable Asset knowledge.' });
         try {
           const accessToken = await getCurrentAccessToken();
           if (accessToken && vyral.license_policy?.allow_ai_analysis !== false && !isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime })) {
+            setBackgroundJob({ assetName: file.name, stage: 'Gemini is analyzing the Asset', detail: 'Understanding visual content and preparing reusable Asset knowledge.' });
             const suggestion = await suggestVyralAssetDetails(file, {
               accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
             });
