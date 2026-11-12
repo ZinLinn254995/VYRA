@@ -4,14 +4,11 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
-  AlignJustify,
   Bold,
   Copy,
-  CaseSensitive,
   Italic,
   List,
   Palette,
-  PaintBucket,
   Plus,
   Pencil,
   Strikethrough,
@@ -95,7 +92,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [isTextEditMode, setIsTextEditMode] = useState(false);
-  const [isTextToolsOpen, setIsTextToolsOpen] = useState(false);
   const seededAudioRef = useRef(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
   const [textDragYOffset, setTextDragYOffset] = useState(0);
@@ -1451,6 +1447,23 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
               <span className="text-sm font-medium text-[var(--vyra-text-primary)]">Edit Text</span>
               <button type="button" onClick={() => setIsTextEditMode(false)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-1.5 text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close edit mode">Close</button>
             </div>
+            <div className="flex min-h-14 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--vyra-border)] px-2 py-2">
+              {[
+                { label: 'Bold', Icon: Bold },
+                { label: 'Italic', Icon: Italic },
+                { label: 'Underline', Icon: Underline },
+                { label: 'Strikethrough', Icon: Strikethrough },
+                { label: 'Align left', Icon: AlignLeft },
+                { label: 'Align center', Icon: AlignCenter },
+                { label: 'Align right', Icon: AlignRight },
+                { label: 'Bulleted list', Icon: List },
+                { label: 'Text color', Icon: Palette },
+              ].map(({ label, Icon }) => (
+                <button key={label} type="button" disabled title={label} aria-label={label} className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] opacity-60">
+                  <Icon size={18} strokeWidth={1.8} />
+                </button>
+              ))}
+            </div>
             <textarea
               aria-label="Text content"
               value={textTracks.find((track) => track.id === selectedTextClip?.trackId)?.clips.find((clip) => clip.id === selectedTextClip?.clipId)?.content
@@ -1474,49 +1487,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
               className="min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-4 py-4 text-base leading-relaxed text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-secondary)] focus:ring-0"
               spellCheck
             />
-            {isTextToolsOpen && (
-              <div id="text-edit-tools-panel" className="shrink-0 border-t border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/70 px-3 py-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[var(--vyra-text-primary)]">Text Tools</span>
-                  <span className="text-[10px] text-[var(--vyra-text-secondary)]">Preview controls</span>
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { label: 'Bold', Icon: Bold },
-                    { label: 'Italic', Icon: Italic },
-                    { label: 'Underline', Icon: Underline },
-                    { label: 'Strike', Icon: Strikethrough },
-                    { label: 'Font', Icon: Type },
-                    { label: 'Size', Icon: CaseSensitive },
-                    { label: 'Text color', Icon: Palette },
-                    { label: 'Background', Icon: PaintBucket },
-                    { label: 'Align left', Icon: AlignLeft },
-                    { label: 'Align center', Icon: AlignCenter },
-                    { label: 'Align right', Icon: AlignRight },
-                    { label: 'Justify', Icon: AlignJustify },
-                    { label: 'Bulleted list', Icon: List },
-                  ].map(({ label, Icon }) => (
-                    <button key={label} type="button" disabled title={label} aria-label={label} className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-2 text-left text-xs text-[var(--vyra-text-secondary)] opacity-60">
-                      <Icon size={16} className="shrink-0" strokeWidth={1.8} />
-                      <span className="truncate">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="shrink-0 border-t border-[var(--vyra-border)] px-3 py-2">
-              <button
-                type="button"
-                onClick={() => setIsTextToolsOpen((open) => !open)}
-                aria-expanded={isTextToolsOpen}
-                aria-controls="text-edit-tools-panel"
-                className={`flex h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-medium transition-colors ${isTextToolsOpen ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/10 text-[var(--vyra-text-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)]'}`}
-              >
-                <Type size={18} strokeWidth={1.8} />
-                Tools
-                <span className="text-xs">{isTextToolsOpen ? '−' : '+'}</span>
-              </button>
-            </div>
           </div>
         )}
         <div
