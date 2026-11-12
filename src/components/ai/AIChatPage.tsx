@@ -17,6 +17,8 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
+import { formatStoryboardList, isStoryboardListRequest, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
 type ChatSession = {
@@ -607,7 +609,46 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
+      if (isStoryboardListRequest(text) && !selectedFile && selectedAssets.length === 0) {
+        if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData.user) throw new Error('Sign in again to access your Workspace Storyboards.');
 
+        const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
+        let localStoryboards: GlobalChatStoryboardRecord[] = [];
+        try {
+          const cached: unknown = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          if (Array.isArray(cached)) {
+            localStoryboards = cached.filter((item): item is GlobalChatStoryboardRecord =>
+              Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
+              typeof item.topic === 'string' && typeof item.createdAt === 'string' &&
+              typeof item.updatedAt === 'string'
+            );
+          }
+        } catch {
+          // A malformed local cache must not prevent reading the account's cloud Storyboards.
+        }
+
+        const { data, error: loadError } = await supabase.from('vyral_storyboards')
+          .select('id,title,topic,details,created_at,updated_at')
+          .eq('user_id', authData.user.id)
+          .order('updated_at', { ascending: false });
+        if (loadError) throw new Error('Could not load your Workspace Storyboards: ' + loadError.message);
+
+        const remoteStoryboards: GlobalChatStoryboardRecord[] = (data ?? []).map((row) => ({
+          id: String(row.id),
+          title: String(row.title),
+          topic: String(row.topic ?? ''),
+          details: row.details && typeof row.details === 'object' ? row.details as { scenes?: unknown[] } : {},
+          createdAt: String(row.created_at),
+          updatedAt: String(row.updated_at),
+        }));
+        const merged = mergeWorkspaceStoryboards(localStoryboards, remoteStoryboards).storyboards;
+        setMessages((previous) => [...previous, {
+          id: makeId(), role: 'assistant', content: formatStoryboardList(merged), status: 'success',
+        }]);
+        return;
+      }
 
       if (reviewDnaEvidence) {
         if (selectedAssets.length !== 1) throw new Error('Select one Asset before reviewing its Vision evidence.');
