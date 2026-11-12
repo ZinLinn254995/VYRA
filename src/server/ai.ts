@@ -95,6 +95,30 @@ router.post('/media/quote', async (req: Request, res: Response) => {
     return res.status(503).json({ error: 'Media quote service is temporarily unavailable.' });
   }
 });
+
+async function callMediaCreditPricingFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('Media pricing service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/manage-media-credit-pricing', {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(20000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+router.post('/admin/media-credit-pricing', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callMediaCreditPricingFunction(match[1], req.body ?? {});
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch { return res.status(503).json({ error: 'Media credit pricing administration is temporarily unavailable.' }); }
+});
+
 async function callRunwayMediaApprovalFunction(functionName: string, accessToken: string, payload: Record<string, unknown>) {
   const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
   const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
