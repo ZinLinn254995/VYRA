@@ -23,3 +23,44 @@ test('rejects invalid or zero cost inputs', () => {
   assert.throws(() => calculateRequiredMediaCredits('0.01', '0'));
   assert.throws(() => calculateRequiredMediaCredits('1e-3', '100'));
 });
+
+test('admin status action accepts only a plain action object', async () => {
+  const { validateMediaCreditPricingAdminAction } = await import('../src/services/mediaCreditPricing');
+  assert.deepEqual(validateMediaCreditPricingAdminAction({ action: 'status' }), { action: 'status' });
+  assert.throws(() => validateMediaCreditPricingAdminAction(null));
+  assert.throws(() => validateMediaCreditPricingAdminAction([]));
+  assert.throws(() => validateMediaCreditPricingAdminAction({ action: 'unknown' }));
+});
+
+test('admin draft action validates the version and decimal rate before database access', async () => {
+  const { validateMediaCreditPricingAdminAction } = await import('../src/services/mediaCreditPricing');
+  assert.deepEqual(validateMediaCreditPricingAdminAction({
+    action: 'create_draft', version: 'media-v1.1', creditsPerUsd: '99.125',
+  }), {
+    action: 'create_draft', version: 'media-v1.1', creditsPerUsd: '99.125', roundingMode: 'ceil',
+  });
+  for (const input of [
+    { action: 'create_draft', version: 'x', creditsPerUsd: '10' },
+    { action: 'create_draft', version: 'media-v1', creditsPerUsd: '0' },
+    { action: 'create_draft', version: 'media-v1', creditsPerUsd: '1.123456789' },
+    { action: 'create_draft', version: 'media-v1', creditsPerUsd: '1e6' },
+    { action: 'create_draft', version: 'media-v1', creditsPerUsd: 100 },
+  ]) assert.throws(() => validateMediaCreditPricingAdminAction(input));
+});
+
+test('admin activation requires explicit confirmation and a valid policy UUID', async () => {
+  const { validateMediaCreditPricingAdminAction } = await import('../src/services/mediaCreditPricing');
+  const policyId = 'c5afacb6-174a-498a-88f2-476b24f08e87';
+  assert.deepEqual(validateMediaCreditPricingAdminAction({
+    action: 'activate', policyId, confirmed: true,
+  }), { action: 'activate', policyId, confirmed: true });
+  assert.throws(() => validateMediaCreditPricingAdminAction({
+    action: 'activate', policyId, confirmed: false,
+  }));
+  assert.throws(() => validateMediaCreditPricingAdminAction({
+    action: 'activate', policyId: 'not-a-uuid', confirmed: true,
+  }));
+  assert.throws(() => validateMediaCreditPricingAdminAction({
+    action: 'activate', policyId, confirmed: 'true',
+  }));
+});
