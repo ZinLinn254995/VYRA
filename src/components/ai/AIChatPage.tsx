@@ -668,9 +668,23 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           const { data: ownedVyrals } = await supabase.from('vyrals')
             .select('id,name,description').eq('user_id', authData.user.id).limit(100);
           if (ownedVyrals) {
-            mentionedVyrals = findMentionedVyrals(text, ownedVyrals.map((item) => ({
+            const ownedRecords = ownedVyrals.map((item) => ({
               id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
-            })));
+            }));
+            if (resolvedActiveVyralId) {
+              const verifiedActive = ownedRecords.find((item) => item.id === resolvedActiveVyralId);
+              if (verifiedActive) {
+                resolvedActiveVyralName = verifiedActive.name;
+                setActiveVyralName(verifiedActive.name);
+                try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, verifiedActive.id); } catch { /* in-memory context remains active */ }
+              } else {
+                resolvedActiveVyralId = null;
+                resolvedActiveVyralName = null;
+                setActiveVyralId(null);
+                setActiveVyralName(null);
+              }
+            }
+            mentionedVyrals = findMentionedVyrals(text, ownedRecords);
             if (mentionedVyrals.length === 1) {
               resolvedActiveVyralId = mentionedVyrals[0].id;
               resolvedActiveVyralName = mentionedVyrals[0].name;
