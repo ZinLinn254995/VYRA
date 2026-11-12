@@ -167,9 +167,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     }>();
 
     const onGestureClickCapture = (event: MouseEvent) => {
+      // This listener is registered on document for pointer tracking, but click
+      // suppression belongs exclusively to this timeline. Never intercept
+      // touch-generated clicks elsewhere in the application.
+      const target = event.target;
+      if (!(target instanceof Node) || !element.contains(target)) return;
+
       // Chromium exposes whether a click came from a touch contact. Touch
       // taps are selected explicitly from the original pointerdown target;
-      // never let the browser's follow-up click select the release target.
+      // consume only the timeline's follow-up click so a gesture cannot
+      // select whichever clip happens to be underneath the release point.
       const touchClick = (event as MouseEvent & {
         sourceCapabilities?: { firesTouchEvents?: boolean };
       }).sourceCapabilities?.firesTouchEvents === true;
