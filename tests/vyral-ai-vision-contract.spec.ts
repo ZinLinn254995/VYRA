@@ -65,6 +65,13 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /derived_preview_from_source_version/);
   assert.match(details, /original_document_or_audio_content/);
   assert.match(details, /extracted_text_from_source_version/);
+  assert.match(details, /const retryVisionAnalysis = async \(asset: AssetRow\)/);
+  assert.match(details, /download\(sourceVersion\.storage_path\)/);
+  assert.match(details, /manual_retry_after_automatic_failure/);
+  assert.match(details, /reprocessed_original_source_version/);
+  assert.match(details, /Retry AI analysis/);
+  assert.match(details, /ai_vision_status: 'failed'/);
+  assert.match(details, /ai_vision_status: 'recorded'/);
   assert.match(details, /visionRecord\?\.status !== 'recorded'/);
   assert.match(details, /does not\\s*\\/\\/ creator-confirm the model's claims/);
   assert.match(details, /accessToken && vyral\.license_policy\?\.allow_ai_analysis !== false && !isVyralPackageAsset/);
