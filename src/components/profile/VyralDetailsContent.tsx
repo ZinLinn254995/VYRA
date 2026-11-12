@@ -3735,9 +3735,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   <div key={'evidence-'+asset.id}>
                     <p className={'text-xs font-semibold '+primary}>{asset.name}</p>
                     <div className="mt-2 space-y-2">
-                      {evidenceVersions.map(({ version, observations: versionObservations, fingerprints: versionFingerprints }) => {
+                      {evidenceVersions.map((entry, versionIndex) => {
+                        const { version, observations: versionObservations, fingerprints: versionFingerprints } = entry;
                         const isLatest = version.id === evidenceVersions[evidenceVersions.length - 1]?.version.id;
                         const confirmedCount = versionObservations.filter((item) => visionReviews.some((review) => review.observation_id === item.id && review.evidence_kind === 'observation_review' && review.decision === 'creator_confirmed')).length;
+                        const latestObservation = [...versionObservations].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+                        const previousEntry = evidenceVersions[versionIndex - 1];
+                        const previousObservation = previousEntry ? [...previousEntry.observations].sort((left, right) => right.created_at.localeCompare(left.created_at))[0] : undefined;
+                        const currentFields = latestObservation ? flattenObservation(latestObservation.observation) : {};
+                        const previousFields = previousObservation ? flattenObservation(previousObservation.observation) : {};
+                        const comparedPaths = Array.from(new Set([...Object.keys(currentFields), ...Object.keys(previousFields)]));
+                        const changedPaths = previousObservation ? comparedPaths.filter((path) => stableJson(currentFields[path] ?? '[missing]') !== stableJson(previousFields[path] ?? '[missing]')) : [];
+                        const unchangedCount = previousObservation ? comparedPaths.length - changedPaths.length : 0;
                         return (
                           <div key={version.id} className="rounded-md bg-[var(--vyra-bg-subtle)] p-2">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3750,6 +3759,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                               <span>{confirmedCount} creator-confirmed</span>
                               <span>{versionFingerprints.length} fingerprints</span>
                             </div>
+                            {previousObservation && latestObservation && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
+                              <p className={'text-[9px] font-semibold '+primary}>AI-reported comparison with Version {previousEntry.version.version_number}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>{changedPaths.length} changed field(s) · {unchangedCount} unchanged field(s). This compares AI observations only; it does not certify a real asset change.</p>
+                              {changedPaths.slice(0, 8).map((path) => <p key={path} className={'mt-1 break-all text-[9px] '+muted}>{path}: {String(previousFields[path] ?? '[missing]')} → {String(currentFields[path] ?? '[missing]')}</p>)}
+                              {changedPaths.length > 8 && <p className={'mt-1 text-[9px] '+muted}>And {changedPaths.length - 8} more changed fields</p>}
+                            </div>}
                             {versionFingerprints.length > 0 && <div className="mt-1 space-y-1">
                               {versionFingerprints.slice(0, 2).map((fingerprint) => <p key={fingerprint.id} className={'break-all text-[9px] '+muted}>{fingerprint.fingerprint_kind} · {fingerprint.algorithm}: {fingerprint.value}</p>)}
                             </div>}
