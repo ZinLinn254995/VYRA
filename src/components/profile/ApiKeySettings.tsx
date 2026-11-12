@@ -33,7 +33,7 @@ export const ApiKeySettings: React.FC = () => {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     const key = apiKey.trim();
-    if (key.length < 20 || key.length > 512 || /\\s/.test(key)) { setError('Enter a valid-looking OpenAI API key.'); return; }
+    if (key.length < 20 || key.length > 512 || /\s/.test(key)) { setError('Enter a valid-looking OpenAI API key.'); return; }
     setSaving(true); setError(''); setMessage('Verifying the key with OpenAI and saving it securely…');
     try {
       const token = await getCurrentAccessToken();
