@@ -2,6 +2,7 @@ import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.t
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { assessVyralAssetDnaV1, type VyralAssetDnaAssessmentInput } from '../../../src/services/vyralAssetDnaAssessmentV1.ts';
+import { assessVyralSemanticCompletenessV1 } from '../../../src/services/vyralSemanticCompletenessV1.ts';
 
 const BUCKET = 'vyral-assets';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -88,7 +89,7 @@ Deno.serve(async (request: Request) => {
   }
 
   const assetResult = await context.supabaseAdmin.from('vyral_assets')
-    .select('id,vyral_id,user_id,sha256,size_bytes,storage_path,processing_status')
+    .select('id,vyral_id,user_id,sha256,size_bytes,storage_path,processing_status,asset_type')
     .eq('id', assetId).eq('user_id', userId).maybeSingle();
   if (assetResult.error) return reply({ error: 'Could not load the owner-scoped Asset.' }, 500);
   const asset = assetResult.data;
@@ -216,6 +217,51 @@ Deno.serve(async (request: Request) => {
   const structureFacts = Array.isArray(record?.structure?.facts) ? record.structure.facts.length
     : Array.isArray(record?.knowledge?.facts) ? record.knowledge.facts.length
     : Array.isArray(payload.knowledge_facts) ? payload.knowledge_facts.length : 0;
+
+  // Semantic completeness is calculated only from observations bound to this exact
+  // immutable source version and SHA-256. Creator reviews are loaded from the
+  // append-only evidence table; AI-only claims remain provisional.
+  const [visionResult, creatorEvidenceResult] = await Promise.all([
+    context.supabaseAdmin.from('vyral_vision_observations')
+      .select('id,asset_version_id,source_sha256,observation')
+      .eq('asset_id', assetId).eq('user_id', userId)
+      .eq('asset_version_id', versionId)
+      .eq('source_sha256', String(version.sha256).toLowerCase())
+      .order('created_at', { ascending: true }).limit(200),
+    context.supabaseAdmin.from('vyral_vision_creator_evidence')
+      .select('id,observation_id,decision,evidence_kind,asset_version_id,source_sha256')
+      .eq('asset_id', assetId).eq('user_id', userId)
+      .eq('asset_version_id', versionId)
+      .eq('source_sha256', String(version.sha256).toLowerCase())
+      .eq('evidence_kind', 'observation_review').limit(200),
+  ]);
+  if (visionResult.error || creatorEvidenceResult.error) {
+    return reply({ error: 'Could not load source-bound semantic evidence for completeness assessment.' }, 500);
+  }
+  const creatorReviews = new Map<string, string>();
+  for (const review of creatorEvidenceResult.data ?? []) {
+    if (review.decision === 'creator_confirmed' && typeof review.observation_id === 'string') {
+      creatorReviews.set(review.observation_id, String(review.id));
+    }
+  }
+  const semanticCompleteness = assessVyralSemanticCompletenessV1({
+    assetType: String(asset.asset_type ?? 'unknown'),
+    sourceVersionId: versionId,
+    sourceSha256: String(version.sha256).toLowerCase(),
+    observations: (visionResult.data ?? []).map((observation: any) => {
+      const reviewId = creatorReviews.get(String(observation.id));
+      const root = isObject(observation.observation) ? observation.observation : {};
+      const fields = isObject(root.fields) ? root.fields : root;
+      return {
+        sourceVersionId: String(observation.asset_version_id ?? ''),
+        sourceSha256: String(observation.source_sha256 ?? '').toLowerCase(),
+        evidenceClass: reviewId ? 'creator_confirmed' as const : 'ai_observed' as const,
+        fields,
+        evidenceRef: reviewId ? 'creator-review:' + reviewId : 'vision-observation:' + String(observation.id),
+      };
+    }),
+  });
+
   const input: VyralAssetDnaAssessmentInput = {
     assetId, assetVersionId: versionId, sourceSha256: String(version.sha256).toLowerCase(),
     sourceSizeBytes: Number(version.size_bytes), dnaRecordId, dnaSchemaId: schemaId,
@@ -232,6 +278,7 @@ Deno.serve(async (request: Request) => {
   let assessment;
   try { assessment = assessVyralAssetDnaV1(input); }
   catch (error) { return reply({ error: error instanceof Error ? error.message : 'Asset DNA assessment input is invalid.' }, 422); }
+  assessment = { ...assessment, semanticCompleteness };
 
   const { data: saved, error: saveError } = await context.supabaseAdmin
     .from('vyral_asset_dna_assessments')
