@@ -1366,6 +1366,57 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   }
 });
 
+
+async function callRunwayManagementFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('Runway provider settings service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/manage-runway-provider', {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      Authorization: 'Bearer ' + accessToken,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+// Runway credential management is admin-only in the Edge Function. This
+// authenticated server proxy never reads or returns the stored credential.
+router.get('/providers/runway/settings', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callRunwayManagementFunction(match[1], { action: 'status' });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(503).json({ error: 'Runway provider settings are temporarily unavailable.' });
+  }
+});
+
+router.post('/providers/runway/settings', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey : '';
+  if (apiKey.length < 20 || apiKey.length > 512 || /\\s/.test(apiKey)) {
+    return res.status(400).json({ error: 'Enter a valid-looking Runway API key.' });
+  }
+  try {
+    const { response, data } = await callRunwayManagementFunction(match[1], { action: 'save', apiKey });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(503).json({ error: 'Runway provider settings are temporarily unavailable.' });
+  }
+});
+
 export function createAiRouter() {
   return router;
 }
