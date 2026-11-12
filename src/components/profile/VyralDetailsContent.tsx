@@ -13,7 +13,7 @@ import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAss
 import { createVyralDnaV3EncodedFilePayload, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { createVyralSemanticDnaV1 } from '../../services/vyralSemanticDnaV1';
-import { compareVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../../supabase/functions/_shared/perceptual-fingerprint.ts';
+import { compareVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../services/vyralPerceptualFingerprint';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 import { markVyralAiDetailsStale, mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails, type VyralDetailValue } from '../../services/vyralAiDetails';
