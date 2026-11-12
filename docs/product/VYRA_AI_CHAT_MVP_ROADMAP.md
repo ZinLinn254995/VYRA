@@ -675,3 +675,13 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Ordinary conversational approvals remain available for reversible/low-risk draft actions and Asset upload previews.
 - Added regression cases for generic approvals being rejected by the destructive confirmation parser.
 - AI Chat UI and existing preview presentation remain unchanged.
+
+
+### AI Chat universal action planner — policy foundation
+
+- Added a server-side, deterministic action-plan contract for natural-language AI proposals. The model may propose only a fixed operation allowlist; it cannot select arbitrary SQL, table names, provider endpoints, or execution code.
+- Risk is derived from the server allowlist, never accepted from model output: read-only, reversible write, destructive, and billable.
+- Plans are short-lived, bounded, and validated against the current Workspace context. Scene/timeline operations require the active Storyboard/Scene IDs; Asset upload requires the active Vyral. Client Workspace context remains a hint only and must be independently owner-verified by the server before any operation.
+- Read operations require authenticated ownership verification. Reversible writes require approval bound to the exact pending plan. Destructive operations require a separate explicit DELETE challenge. Billable media generation requires a matching quote ID and confirmed credit ceiling.
+- Added deterministic tests for risk classification, allowlist rejection, extra-parameter rejection, context mismatch, owner verification, plan expiry, and risk-specific approval.
+- This is a policy foundation only: it does not yet connect model tool calls to a mutation executor or persist pending plans server-side. No database mutation, provider generation, customer charge, or UI change was introduced. AI Chat appearance remains unchanged; no production deployment or merge.
