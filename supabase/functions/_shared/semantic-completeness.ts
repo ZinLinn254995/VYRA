@@ -4,7 +4,8 @@ export type SemanticEvidenceClassV1 =
   | 'ai_observed'
   | 'creator_confirmed'
   | 'system_measured'
-  | 'independently_verified';
+  | 'independently_verified'
+  | 'disputed';
 
 export type SemanticFieldStatusV1 = 'verified' | 'provisional' | 'missing' | 'not_applicable';
 
@@ -125,7 +126,11 @@ export const assessVyralSemanticCompletenessV1 = (
         observation.sourceSha256.toLowerCase() !== input.sourceSha256.toLowerCase() ||
         typeof observation.evidenceRef !== 'string' || !observation.evidenceRef.trim() ||
         !observation.fields || typeof observation.fields !== 'object' || Array.isArray(observation.fields) ||
-        !['ai_observed', 'creator_confirmed', 'system_measured', 'independently_verified'].includes(observation.evidenceClass)) {
+        !['ai_observed', 'creator_confirmed', 'system_measured', 'independently_verified', 'disputed'].includes(observation.evidenceClass)) {
+      ignoredObservationCount += 1;
+      continue;
+    }
+    if (observation.evidenceClass === 'disputed') {
       ignoredObservationCount += 1;
       continue;
     }
