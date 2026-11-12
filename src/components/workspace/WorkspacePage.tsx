@@ -433,6 +433,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       selectedSceneIds: selectedSceneIds.slice(0, 30),
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
+      activeSceneTitle: scenes.find((scene) => scene.id === activeSceneId)?.title ?? null,
       selectedTimelineItem: selectedTimelineItem ?? null,
       capturedAt: new Date().toISOString(),
     };
@@ -1099,7 +1100,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       setSelectedSceneIds((current) => current.filter((id) => id !== sceneId));
                       if (activeSceneId === sceneId) setActiveSceneId(null);
                     }}
-                    onSelectionChange={setSelectedTimelineItem}
+                    onSelectionChange={(selection) => setSelectedTimelineItem((current) => JSON.stringify(current) === JSON.stringify(selection) ? current : selection)}
                     onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
                       ...current,
                       details: { ...current.details, masterTimeline },
