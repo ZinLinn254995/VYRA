@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralSemanticDnaPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
+import { createVyralAssetDnaOnlyPackage, createVyralSemanticDnaPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, isVyralPackageAsset, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { VYRAL_SYSTEM_FILES_VERSION, verifyVyralSystemFileIntegrityV1 } from '../../services/vyralSystemFilesV1';
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
@@ -874,7 +874,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (!dnaOnly || components.compactDna || components.assets) {
           throw new Error('Semantic-only export must exclude original media and compact collection snapshots.');
         }
-        const selectedObservations = observations.filter((item) => packageAssets.some((asset) => asset.id === item.asset_id));
+        const semanticAssets = packageAssets.filter((asset) => !isVyralPackageAsset(asset));
+        if (!semanticAssets.length) throw new Error('This Vyral has no media Assets eligible for semantic blind reconstruction. .vyral package files remain package test fixtures.');
+        const selectedObservations = observations.filter((item) => semanticAssets.some((asset) => asset.id === item.asset_id));
         const observationIds = selectedObservations.map((item) => item.id);
         let confirmedReviews: Array<{ id: string; observation_id: string; decision: string; evidence_kind: string; note?: string | null }> = [];
         if (observationIds.length) {
@@ -891,7 +893,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const reviewByObservation = new Map(confirmedReviews.map((review) => [review.observation_id, review]));
         const semanticRecords = [];
         const semanticVersions: Record<string, unknown>[] = [];
-        for (const asset of packageAssets) {
+        for (const asset of semanticAssets) {
           const assetVersions = versions.filter((version) => version.asset_id === asset.id);
           const sourceVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
             ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
@@ -967,6 +969,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         archive = await createVyralSemanticDnaPackage({
           ...manifest,
+          assets: manifest.assets.filter((asset) => !isVyralPackageAsset(asset)),
           versions: semanticVersions,
         } as unknown as Parameters<typeof createVyralSemanticDnaPackage>[0], semanticRecords);
       } else if (dnaOnly) {
