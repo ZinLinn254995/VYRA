@@ -115,6 +115,46 @@ class ModularAIService implements AIServiceProvider {
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
+    // Preserve the existing authenticated multimodal path for Vyral DNA Vision
+    // and selected source inspection. General text conversation uses OpenAI below.
+    if (request.visionImages?.length || request.mediaFiles?.length) {
+      if (!request.accessToken) {
+        const message = 'Sign in to VYRA before inspecting selected Assets.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
+      }
+      try {
+        const response = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + request.accessToken,
+            ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
+          },
+          body: JSON.stringify({
+            messages: request.messages,
+            ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
+            ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
+          }),
+        });
+        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; modelName?: string };
+        if (!response.ok || typeof data.text !== 'string' || !data.text.trim()) {
+          const message = typeof data.error === 'string' && data.error.trim()
+            ? data.error
+            : 'VYRA could not inspect the selected media Assets. Please retry.';
+          return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
+        }
+        return {
+          content: data.text.trim(),
+          status: 'success',
+          providerName: 'Google Gemini Vision',
+          modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
+        };
+      } catch {
+        const message = 'VYRA could not reach the multimodal inspection service. No text-only substitute was used.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
+      }
+    }
+
     if (!request.accessToken) {
       const message = 'Sign in to VYRA before using AI Chat.';
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
