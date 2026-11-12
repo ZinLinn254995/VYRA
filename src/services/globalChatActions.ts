@@ -26,11 +26,11 @@ export const formatStoryboardList = (items: GlobalChatStoryboardRecord[]): strin
 
 export const extractStoryboardDetailTitle = (input: string): string | null => {
   const patterns = [
-    /^\\s*(?:show|tell me|give me)\\s+(?:the )?(?:details?|information)\\s+(?:of|for|about)\\s+(.+?)\\s*$/i,
-    /^\\s*(?:tell me)\\s+about\\s+(.+?)\\s*$/i,
-    /^\\s*(?:open|view)\\s+(?:the )?storyboard\\s+(.+?)\\s*$/i,
-    /^\\s*(.+?)\\s+storyboard\\s*(?:အသေးစိတ်|အကြောင်း)\\s*(?:ပြပေး|ပြောပြ|ပြ)?\\s*$/i,
-    /^\\s*(?:storyboard)\\s+(.+?)\\s*(?:အသေးစိတ်|အကြောင်း)\\s*(?:ပြပေး|ပြောပြ|ပြ)?\\s*$/i,
+    /^\s*(?:show|tell me|give me)\s+(?:the )?(?:details?|information)\s+(?:of|for|about)\s+(.+?)\s*$/i,
+    /^\s*(?:tell me)\s+about\s+(.+?)\s*$/i,
+    /^\s*(?:open|view)\s+(?:the )?storyboard\s+(.+?)\s*$/i,
+    /^\s*(.+?)\s+storyboard\s*(?:အသေးစိတ်|အကြောင်း)\s*(?:ပြပေး|ပြောပြ|ပြ)?\s*$/i,
+    /^\s*(?:storyboard)\s+(.+?)\s*(?:အသေးစိတ်|အကြောင်း)\s*(?:ပြပေး|ပြောပြ|ပြ)?\s*$/i,
   ];
   for (const pattern of patterns) {
     const match = input.match(pattern);
@@ -83,5 +83,5 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
     lines.push((index + 1) + '. **' + title + '** — ' + duration, description, 'Transition: ' + transition);
   });
   lines.push('', 'Created: ' + new Date(item.createdAt).toLocaleDateString(), 'Updated: ' + new Date(item.updatedAt).toLocaleDateString());
-  return lines.join('\\n');
+  return lines.join('\n');
 };
