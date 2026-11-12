@@ -83,6 +83,8 @@ jobs:
         run: npm run test:vyral-raster-upload-dna-gate
       - name: Vyral perceptual fingerprint algorithm tests
         run: npm run test:vyral-perceptual-fingerprint
+      - name: Vyral normalized reconstruction metric tests
+        run: npm run test:vyral-reconstruction-metrics
       - name: Vyral Asset DNA assessment intent tests
         run: npm run test:vyral-asset-dna-intent
       - name: Vyral reconstruction history intent tests
