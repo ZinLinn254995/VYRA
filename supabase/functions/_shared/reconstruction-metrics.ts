@@ -25,11 +25,11 @@ const assertRaster = (image: RgbRaster) =>
   image.width > 0 && image.height > 0 && image.rgb.length === image.width * image.height * 3;
 
 export const compareNormalizedRaster = (a: RgbRaster, b: RgbRaster) => {
-  if (!assertRaster(a) || !assertRaster(b)) return { performed: false, reason: 'Invalid RGB raster input.' };
+  if (!assertRaster(a) || !assertRaster(b)) return { performed: false, reason: 'Invalid RGB raster input.', meanAbsoluteErrorPerChannel: null, rootMeanSquareErrorPerChannel: null, peakSignalToNoiseRatioDb: null, normalizedRgbSimilarity: null };
   const aspectA = a.width / a.height, aspectB = b.width / b.height;
   const aspectRatioDelta = Math.abs(aspectA - aspectB);
   if (aspectRatioDelta > 0.001) {
-    return { performed: false, reason: 'Aspect ratios differ; normalized comparison is withheld rather than stretching or cropping either image.', aspectRatioDelta: round(aspectRatioDelta) };
+    return { performed: false, reason: 'Aspect ratios differ; normalized comparison is withheld rather than stretching or cropping either image.', aspectRatioDelta: round(aspectRatioDelta), meanAbsoluteErrorPerChannel: null, rootMeanSquareErrorPerChannel: null, peakSignalToNoiseRatioDb: null, normalizedRgbSimilarity: null };
   }
   const gridWidth = Math.max(1, Math.round(256 * Math.min(1, aspectA)));
   const gridHeight = Math.max(1, Math.round(256 / Math.max(1, aspectA)));
@@ -62,10 +62,10 @@ export const compareNormalizedRaster = (a: RgbRaster, b: RgbRaster) => {
 };
 
 export const compareRedMaskIoU = (a: RgbRaster, b: RgbRaster) => {
-  if (!assertRaster(a) || !assertRaster(b)) return { performed: false, reason: 'Invalid RGB raster input.' };
+  if (!assertRaster(a) || !assertRaster(b)) return { performed: false, reason: 'Invalid RGB raster input.', intersectionOverUnion: null };
   const aspectA = a.width / a.height, aspectB = b.width / b.height;
   const aspectRatioDelta = Math.abs(aspectA - aspectB);
-  if (aspectRatioDelta > 0.001) return { performed: false, reason: 'Aspect ratios differ; normalized mask comparison is withheld.', aspectRatioDelta: round(aspectRatioDelta) };
+  if (aspectRatioDelta > 0.001) return { performed: false, reason: 'Aspect ratios differ; normalized mask comparison is withheld.', aspectRatioDelta: round(aspectRatioDelta), intersectionOverUnion: null };
   const gridWidth = Math.max(1, Math.round(256 * Math.min(1, aspectA)));
   const gridHeight = Math.max(1, Math.round(256 / Math.max(1, aspectA)));
   let aCount = 0, bCount = 0, intersection = 0;
