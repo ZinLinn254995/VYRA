@@ -297,7 +297,7 @@ Deno.serve(async (request: Request) => {
             verified_at: verifiedAt,
             verification_method: 'persisted-dna-chunk-readback',
           },
-          verification_status: 'verified',
+          verification_status: 'independently_verified',
         })
         .eq('id', fileDnaRow.id)
         .eq('asset_id', asset.id)
