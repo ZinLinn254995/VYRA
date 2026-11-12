@@ -3971,7 +3971,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   <p className={'mt-1 text-[10px] '+muted}>{status === 'failed' ? 'AI analysis failed' : 'No source-linked Vision observation yet'}{lastError ? ' · '+lastError : ''}</p>
                 </div>
                 <button type="button" disabled={retryingVisionAssetId === asset.id} onClick={() => void retryVisionAnalysis(asset)} className={button}>
-                  {retryingVisionAssetId === asset.id ? 'Retrying…' : 'Retry AI analysis'}
+                  {retryingVisionAssetId === asset.id ? 'Analyzing…' : status === 'failed' ? 'Retry AI analysis' : 'Analyze original source'}
                 </button>
               </div>;
             })}
