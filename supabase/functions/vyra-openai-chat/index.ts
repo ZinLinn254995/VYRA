@@ -61,16 +61,31 @@ Deno.serve(async (request: Request) => {
       headers: {
         Authorization: 'Bearer ' + apiKey,
         'Content-Type': 'application/json',
-        Accept: 'application/json',
+        Accept: 'text/event-stream',
       },
       body: JSON.stringify({
         model: 'gpt-4.1-mini',
         messages: [{ role: 'system', content: SYSTEM_INSTRUCTION }, ...messages],
         temperature: 0.7,
         max_completion_tokens: 1800,
+        stream: true,
+        stream_options: { include_usage: true },
       }),
       signal: AbortSignal.timeout(60000),
     });
+    if (upstream.ok) {
+      if (!upstream.body) return json({ error: 'OpenAI returned an empty stream. Please retry.' }, 502);
+      return new Response(upstream.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
     const result = await upstream.json().catch(() => ({})) as {
       error?: { message?: string; code?: string };
       model?: string;
@@ -87,18 +102,7 @@ Deno.serve(async (request: Request) => {
         code: upstream.status === 429 ? 'OPENAI_RATE_LIMITED' : 'OPENAI_REQUEST_FAILED',
       }, status);
     }
-    const text = result.choices?.[0]?.message?.content?.trim() ?? '';
-    if (!text) return json({ error: 'OpenAI returned an empty response. Please retry.' }, 502);
-    return json({
-      text,
-      provider: 'openai',
-      modelName: result.model ?? 'gpt-4.1-mini',
-      usage: {
-        promptTokens: result.usage?.prompt_tokens ?? null,
-        completionTokens: result.usage?.completion_tokens ?? null,
-        totalTokens: result.usage?.total_tokens ?? null,
-      },
-    });
+    return json({ error: 'OpenAI could not complete this chat request. Please retry.' }, 502);
   } catch {
     return json({ error: 'Could not reach the OpenAI service. Please check the connection and retry.' }, 502);
   }
