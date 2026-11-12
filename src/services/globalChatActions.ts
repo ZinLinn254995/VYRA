@@ -190,3 +190,6 @@ export const formatStoryboardUpdateDraft = (draft: GlobalChatStoryboardUpdateDra
   '**' + (draft.field === 'title' ? 'Title' : 'Topic') + ':** ' + draft.previousValue + '\\n' +
   '**New ' + (draft.field === 'title' ? 'title' : 'topic') + ':** ' + draft.nextValue + '\\n\\n' +
   'Nothing has been changed yet. Reply **Confirm update** (သို့) **အတည်ပြု** to save this change.';
+
+export const isStoryboardUpdateConfirmation = (input: string): boolean =>
+  /^\\s*(?:confirm\\s+update|အတည်ပြု(?:မယ်)?|ပြောင်းလဲမှု\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
