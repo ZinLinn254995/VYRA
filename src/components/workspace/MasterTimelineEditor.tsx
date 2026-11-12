@@ -1198,8 +1198,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       <div className="relative min-h-0 w-full flex-1">
         <div
           ref={scrollRef}
-          className="master-timeline-scroll h-full min-h-0 w-full overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={{ touchAction: "pan-x pan-y" }}
+          className="master-timeline-scroll h-full min-h-0 w-full overflow-auto"
+          style={{ touchAction: "pan-x pan-y", scrollbarWidth: "none", msOverflowStyle: "none" }}
            onPointerMove={(event) => {
             const textDrag = textDragRef.current;
             if (textDrag) {
