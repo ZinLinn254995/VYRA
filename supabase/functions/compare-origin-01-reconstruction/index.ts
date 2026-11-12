@@ -1,4 +1,5 @@
 import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
+import { compareVyralDHash64, computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../_shared/perceptual-fingerprint.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
@@ -421,6 +422,11 @@ Deno.serve(async (request: Request) => {
   }
   const originalDescription = describeImage(originalImage);
   const candidateDescription = describeImage(candidateImage);
+  // Calculate the same deterministic dHash from the verified decoded source bytes.
+  // This supplements (but never replaces) direct pixel and geometry comparisons.
+  const originalDHash = computeVyralDHash64(originalImage.rgb, originalImage.width, originalImage.height, 3);
+  const candidateDHash = computeVyralDHash64(candidateImage.rgb, candidateImage.width, candidateImage.height, 3);
+  const dHashComparison = compareVyralDHash64(originalDHash, candidateDHash);
   const sameDimensions = originalImage.width === candidateImage.width && originalImage.height === candidateImage.height;
   let pixelComparison: Record<string, unknown> = { performed: false, reason: 'Image dimensions differ; direct pixel-to-pixel comparison is not valid.' };
   let exactMatch: boolean | null = false;
@@ -469,6 +475,15 @@ Deno.serve(async (request: Request) => {
       sameDimensions,
       pixelComparison,
       normalizedImageComparison,
+      visualFingerprintComparison: {
+        algorithm: VYRAL_DHASH_ALGORITHM,
+        originalHash: originalDHash,
+        candidateHash: candidateDHash,
+        hammingDistance: dHashComparison?.hammingDistance ?? null,
+        similarity: dHashComparison?.similarity ?? null,
+        method: '64-bit horizontal difference hash computed from the same verified decoded RGB samples.',
+        note: 'Perceptual estimate only; not a pixel-equality, semantic-identity, or reconstruction-success criterion.',
+      },
       backgroundCornerColorEuclideanDelta: backgroundDelta,
       redRegionGeometry: geometry,
       dimensionsMatch: sameDimensions,
