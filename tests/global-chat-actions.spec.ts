@@ -192,3 +192,26 @@ test('Vyral creation is initiated through AI Chat with a named draft and explici
   assert.match(preview, /Nothing has been created yet/);
   assert.match(preview, /initial identity DNA/);
 });
+
+
+test('AI Chat routes attached files into a specifically named Vyral only after confirmation', async () => {
+  const {
+    extractVyralAssetUploadTarget,
+    formatVyralAssetUploadDraft,
+    isVyralAssetUploadConfirmation,
+  } = await import('../src/services/globalChatActions.ts');
+  assert.equal(extractVyralAssetUploadTarget('Add this to Vyral "ORIGIN Story"'), 'ORIGIN Story');
+  assert.equal(extractVyralAssetUploadTarget('Save the attached file into my Vyral Space Worlds'), 'Space Worlds');
+  assert.equal(extractVyralAssetUploadTarget('ဒီဖိုင်ကို Vyral ORIGIN Story ထဲထည့်ပေး'), 'ORIGIN Story');
+  assert.equal(extractVyralAssetUploadTarget('Show my Vyrals'), null);
+  assert.equal(extractVyralAssetUploadTarget('Delete Vyral ORIGIN Story'), null);
+  assert.equal(isVyralAssetUploadConfirmation('Confirm Asset upload'), true);
+  assert.equal(isVyralAssetUploadConfirmation('Asset ထည့်ရန် အတည်ပြု'), true);
+  assert.equal(isVyralAssetUploadConfirmation('yes'), false);
+  const preview = formatVyralAssetUploadDraft({
+    id: 'draft-1', vyralId: '00000000-0000-4000-8000-000000000001',
+    vyralName: 'ORIGIN Story', fileName: 'circle.png', fileSize: 1024, mimeType: 'image/png',
+  });
+  assert.match(preview, /Nothing has been uploaded yet/);
+  assert.match(preview, /SHA-256 Fingerprint/);
+});
