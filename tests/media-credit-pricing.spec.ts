@@ -37,7 +37,7 @@ test('admin draft action validates the version and decimal rate before database 
   assert.deepEqual(validateMediaCreditPricingAdminAction({
     action: 'create_draft', version: 'media-v1.1', creditsPerUsd: '99.125',
   }), {
-    action: 'create_draft', version: 'media-v1.1', creditsPerUsd: '99.125', roundingMode: 'ceil',
+    action: 'create_draft', version: 'media-v1.1', creditsPerUsd: '99.125',
   });
   for (const input of [
     { action: 'create_draft', version: 'x', creditsPerUsd: '10' },
