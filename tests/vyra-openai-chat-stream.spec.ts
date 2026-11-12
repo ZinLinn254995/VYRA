@@ -54,6 +54,8 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.match(source, /parallel_tool_calls: false/);
   assert.match(source, /toolCalls\.slice\(0, 3\)/);
   assert.match(source, /max\(1, Math\.min\(20, requestedLimit\)\)/);
+  assert.match(source, /const validAssetId = \/\^\[0-9a-f\]/);
+  assert.match(source, /assetId && !validAssetId/);
   assert.doesNotMatch(source, /name: '(?:delete|update|create|publish|generate)_/);
   assert.match(source, /data: ' \+ chunk \+ '\\n\\ndata: \[DONE\]\\n\\n'/);
 });
