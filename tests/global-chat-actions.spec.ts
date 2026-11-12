@@ -159,3 +159,36 @@ test('storyboard delete requires a specific confirmation phrase', async () => {
   assert.equal(isStoryboardDeleteConfirmation('yes'), false);
   assert.equal(isStoryboardDeleteConfirmation('Confirm update'), false);
 });
+
+
+test('Vyral creation is initiated through AI Chat with a named draft and explicit confirmation', async () => {
+  const {
+    extractVyralCreateRequest,
+    formatVyralCreateDraft,
+    isVyralCreateConfirmation,
+    isVyralCreateIntent,
+  } = await import('../src/services/globalChatActions.ts');
+  assert.equal(isVyralCreateIntent('Create a Vyral'), true);
+  assert.equal(isVyralCreateIntent('Create a Vyral named "ORIGIN Story" about a foundational sample'), true);
+  assert.deepEqual(extractVyralCreateRequest('Create a Vyral named "ORIGIN Story" about a foundational sample'), {
+    name: 'ORIGIN Story',
+    description: 'a foundational sample',
+  });
+  assert.deepEqual(extractVyralCreateRequest('Create Vyral: Space Worlds — reusable science-fiction locations'), {
+    name: 'Space Worlds',
+    description: 'reusable science-fiction locations',
+  });
+  assert.deepEqual(extractVyralCreateRequest('Vyral အသစ် ဖန်တီးပေး: အာကာသကမ္ဘာ အကြောင်း သိပ္ပံစိတ်ကူးယဉ် asset စုစည်းမှု'), {
+    name: 'အာကာသကမ္ဘာ',
+    description: 'သိပ္ပံစိတ်ကူးယဉ် asset စုစည်းမှု',
+  });
+  assert.equal(extractVyralCreateRequest('Create a Vyral'), null);
+  assert.equal(isVyralCreateIntent('Show my Vyrals'), false);
+  assert.equal(isVyralCreateIntent('Delete my Vyrals'), false);
+  assert.equal(isVyralCreateConfirmation('Confirm Vyral create'), true);
+  assert.equal(isVyralCreateConfirmation('Vyral ဖန်တီးရန် အတည်ပြု'), true);
+  assert.equal(isVyralCreateConfirmation('yes'), false);
+  const preview = formatVyralCreateDraft({ id: 'draft-1', name: 'ORIGIN Story', description: 'A sample collection' });
+  assert.match(preview, /Nothing has been created yet/);
+  assert.match(preview, /initial identity DNA/);
+});
