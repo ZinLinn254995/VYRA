@@ -35,3 +35,6 @@ verify_jwt = true
 
 [functions.quote-runway-media]
 verify_jwt = true
+
+[functions.approve-runway-media-quote]
+verify_jwt = true
