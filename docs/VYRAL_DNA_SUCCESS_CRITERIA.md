@@ -116,7 +116,28 @@ A prompt-declared description must never be presented as visually verified. An A
 4. Improve the DNA-only semantic package and run fresh blind reconstruction trials.
 5. Extend modality-specific completeness and evaluation profiles to audio, video, documents, and 3D only after each profile has explicit testable requirements.
 
-## 6. Product and safety constraints
+## 6. Semantic completeness implementation baseline
+
+The first deterministic semantic completeness profile is `raster_image_core_v1`. It checks eight required knowledge dimensions:
+
+- Subject / identity
+- Composition
+- Geometry / shape
+- Spatial layout / position
+- Color palette
+- Background
+- Style
+- Text presence (including a trusted not-applicable declaration)
+
+Evidence must be pinned to the exact Asset Version ID and source SHA-256. AI-only observations are provisional. A creator-confirmed review, system measurement, or independent verification can satisfy a required field. A trusted not-applicable declaration is visible in the report and counts as resolved, not silently omitted.
+
+The assessment returns field-level status, evidence references, verified/provisional/missing counts, coverage percentage, and limitations. Coverage is evidence coverage only; it is not a semantic truth score or reconstruction score.
+
+Non-image modalities currently return `unsupported` until their own versioned, modality-specific profile and test criteria are implemented. They are not graded using image fields or a generic cross-modality checklist.
+
+The Development `assess-vyral-asset-dna` Edge Function now includes this source-bound semantic report in the saved Asset DNA assessment. The assessment engine and semantic profile are deterministic; observation generation still depends on the existing vision workflow, and AI suggestions are never promoted to trusted evidence without creator review.
+
+## 7. Product and safety constraints
 
 - Users should not manually author DNA. VYRA should generate and maintain records in the background.
 - Asset DNA is authoritative for each asset; Vyral/Master DNA is derived from the inventory of asset DNA and relationships.
