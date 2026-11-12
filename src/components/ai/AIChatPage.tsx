@@ -604,6 +604,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     if (!activeSessionId) setActiveSessionId(crypto.randomUUID());
 
     setIsSending(true);
+    let streamingAssistantId: string | null = null;
     try {
 
 
@@ -1195,27 +1196,59 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
       const accessToken = await getCurrentAccessToken();
+      const canStreamText = visionImages.length === 0 && mediaFiles.length === 0;
+      if (canStreamText) {
+        streamingAssistantId = makeId();
+        setMessages((previous) => [...previous, {
+          id: streamingAssistantId!,
+          role: 'assistant',
+          content: '',
+        }]);
+      }
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
+        ...(canStreamText ? {
+          onTextDelta: (chunk: string) => {
+            const messageId = streamingAssistantId;
+            if (!messageId) return;
+            setMessages((previous) => previous.map((message) => message.id === messageId
+              ? { ...message, content: message.content + chunk }
+              : message));
+          },
+        } : {}),
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
         ...(mediaFiles.length ? { mediaFiles } : {}),
       });
-      setMessages((previous) => [...previous, {
-        id: makeId(),
+      const completedMessage: ChatMessage = {
+        id: streamingAssistantId ?? makeId(),
         role: 'assistant',
         content: result.content,
         status: result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
-      }]);
+      };
+      if (streamingAssistantId) {
+        const messageId = streamingAssistantId;
+        setMessages((previous) => previous.map((message) => message.id === messageId ? completedMessage : message));
+      } else {
+        setMessages((previous) => [...previous, completedMessage]);
+      }
     } catch (error) {
-      setMessages((previous) => [...previous, {
-        id: makeId(),
-        role: 'assistant',
-        content: error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.',
-        status: 'error',
-      }]);
+      const message = error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
+      if (streamingAssistantId) {
+        const messageId = streamingAssistantId;
+        setMessages((previous) => previous.map((item) => item.id === messageId
+          ? { ...item, content: item.content || message, status: 'error' }
+          : item));
+      } else {
+        setMessages((previous) => [...previous, {
+          id: makeId(),
+          role: 'assistant',
+          content: message,
+          status: 'error',
+        }]);
+      }
     } finally {
       setIsSending(false);
     }
