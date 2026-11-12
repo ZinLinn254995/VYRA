@@ -230,6 +230,8 @@ test('Vyral context follows natural conversational references without a fixed co
   assert.deepEqual(findMentionedVyrals("Don't switch to ORIGIN Story", vyrals), []);
   assert.equal(isVyralAssetAddIntent('Could you put this image into the one we were working on?'), true);
   assert.equal(isVyralAssetAddIntent('Please use this image as part of our current Vyral'), true);
+  assert.equal(isVyralAssetAddIntent('I want this image to be part of ORIGIN Story'), true);
+  assert.equal(isVyralAssetAddIntent('This belongs in Space Worlds'), true);
   assert.equal(isVyralAssetAddIntent('ဒီပုံကို အဲဒီထဲ ထည့်ပေးပါ'), true);
   assert.equal(isVyralAssetAddIntent("Please don't add this file yet"), false);
   assert.equal(isVyralAssetContextReference('Put this there'), true);
