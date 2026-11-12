@@ -697,7 +697,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           const assistantMessage: ChatMessage = {
             id: makeId(),
             role: 'assistant',
-            content: '**Storyboard updated:** ' + draft.storyboardTitle + '\\n' +
+            content: '**Storyboard updated:** ' + draft.storyboardTitle + '\n' +
               (draft.field === 'title' ? 'Title: ' : 'Topic: ') + draft.nextValue + cacheWarning,
             status: 'success',
             action: { type: 'storyboard-update-complete', draftId: draft.id },
@@ -819,7 +819,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           return;
         }
         if (matches.length > 1) {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I found multiple matching Storyboards. Please use the exact title:\\n' + matches.map((item) => '• ' + item.title).join('\\n'), status: 'success' }]);
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I found multiple matching Storyboards. Please use the exact title:\n' + matches.map((item) => '• ' + item.title).join('\n'), status: 'success' }]);
           return;
         }
         const item = matches[0];
