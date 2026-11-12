@@ -137,6 +137,16 @@ Non-image modalities currently return `unsupported` until their own versioned, m
 
 The Development `assess-vyral-asset-dna` Edge Function now includes this source-bound semantic report in the saved Asset DNA assessment. The assessment engine and semantic profile are deterministic; observation generation still depends on the existing vision workflow, and AI suggestions are never promoted to trusted evidence without creator review.
 
+## 6.1 Raster Vision observation contract
+
+The image Vision workflow requests the same eight canonical semantic keys used by `raster_image_core_v1`: `subject`, `composition`, `geometry`, `spatial_layout`, `color_palette`, `background`, `style`, and `text_presence`. Each suggestion carries a value and model-reported confidence. Confidence remains advisory and does not satisfy trusted coverage.
+
+The model receives a bounded JPEG preview derived from the exact source Asset Version. The observation is pinned to the immutable source Version ID and source SHA-256, while the report must not imply the model directly inspected original encoded bytes or performed pixel-exact measurement.
+
+Creator-confirmed observation reviews can confirm the observation's reported semantic fields. Individual creator-confirmed field evidence can also satisfy only its accepted canonical field. Field confirmations are read from append-only evidence and are included only when they match the exact source Version and SHA-256.
+
+The AI Chat Asset DNA assessment report now displays the semantic profile, trusted coverage, provisional count, missing count, and field-level statuses alongside the existing integrity and reconstruction checks.
+
 ## 7. Product and safety constraints
 
 - Users should not manually author DNA. VYRA should generate and maintain records in the background.
