@@ -671,17 +671,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
                 try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, verifiedActive.id); } catch { /* in-memory context remains active */ }
               } else {
                 resolvedActiveVyralId = null;
-                resolvedActiveVyralName = null;
                 setActiveVyralId(null);
-                setActiveVyralName(null);
               }
             }
             mentionedVyrals = findMentionedVyrals(text, ownedRecords);
             if (mentionedVyrals.length === 1) {
               resolvedActiveVyralId = mentionedVyrals[0].id;
-              resolvedActiveVyralName = mentionedVyrals[0].name;
               setActiveVyralId(resolvedActiveVyralId);
-              setActiveVyralName(resolvedActiveVyralName);
               try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, resolvedActiveVyralId); } catch { /* in-memory context remains active */ }
             }
           }
