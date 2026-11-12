@@ -214,6 +214,18 @@ At the end of each phase:
 
 The repository has an initial Admin Dashboard/API-key management foundation for the OpenAI key, backed by a Development Supabase secret-management function. That foundation is not proof that OpenAI Chat or all generation types are connected. The OpenAI key has not been supplied/configured and must remain unpurchased/unconfigured until the final provider-backed end-to-end verification stage. Continue all key-independent implementation and tests first.
 
+### Phase 2 progress — OpenAI text-chat server integration
+
+- Added the authenticated `vyra-openai-chat` Supabase Edge Function and deployed it to the Development project with JWT verification enabled.
+- The Edge Function reads the shared OpenAI key only through the server-side Vault RPC. It never returns the secret to the browser.
+- Routed the global AI Chat text path through this OpenAI function; OpenAI is now the single default conversational provider. The previous optional user-supplied OpenRouter/Gemini fallback has been removed from the main chat client path.
+- Fixed model choice for the first text-chat integration at `gpt-4.1-mini`; user-facing model selection can be added after the basic chat path is verified.
+- When no key exists, the service returns an explicit `OPENAI_NOT_CONFIGURED` response instead of generating fake preview text or silently switching providers.
+- Image/document/audio/video inspection remains intentionally disabled in this text-chat phase and returns a clear capability response; media work is reserved for Phase 4.
+- The Admin Dashboard remains the only place to configure the platform key. Do not purchase or save the key until final verification.
+
+**Current verification:** Development Edge Function deployment is ACTIVE with `verify_jwt=true`. GitHub CI and Cloudflare Preview for the newest code are still running; this integration is not yet marked verified.
+
 ### Phase 2 progress — conversation history foundation
 
 The following key-independent work has been implemented on `feature/my-storyboard`:
