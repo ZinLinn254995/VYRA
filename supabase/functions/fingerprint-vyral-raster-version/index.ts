@@ -2,7 +2,7 @@ import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm@0.0.30';
 import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
-import { computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../../src/services/vyralPerceptualFingerprint.ts';
+import { computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../_shared/perceptual-fingerprint.ts';
 
 const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
