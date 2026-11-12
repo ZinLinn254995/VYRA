@@ -224,7 +224,7 @@ The repository has an initial Admin Dashboard/API-key management foundation for 
 - The general text-chat path is OpenAI-only. Existing authenticated Vyral Vision and selected-source inspection paths are preserved separately so this provider change does not regress the DNA workflow; broader image/audio/video generation and unified media routing remain in Phase 4.
 - The Admin Dashboard remains the only place to configure the platform key. Do not purchase or save the key until final verification.
 
-**Current verification:** Development Edge Function deployment is ACTIVE with `verify_jwt=true`. GitHub CI and Cloudflare Preview for the newest code are still running; this integration is not yet marked verified.
+**Current verification:** Development Edge Function deployment is ACTIVE with `verify_jwt=true`. The OpenAI text-chat integration and streaming code have passed GitHub CI and the added streaming contract tests. Cloudflare Preview for the latest commit is still running. Live provider behavior remains gated on the final API-key setup.
 
 ### Phase 2 progress — conversation history foundation
 
@@ -236,7 +236,7 @@ The following key-independent work has been implemented on `feature/my-storyboar
 - Conversation records store text messages and safe display metadata only; binary attachment data and provider secrets are not stored in chat history.
 - Chat history reload is tied to Supabase auth changes, and active chat state is cleared when the account signs out or changes.
 
-**Verification status:** The Development table, RLS policies, and owner-scoped SELECT/INSERT/UPDATE/DELETE policies have been queried and confirmed. Latest implementation commit `849315e5b14fa0f7eb6c24695d77a410604b0f55` passed the complete GitHub verification workflow, including TypeScript, Supabase Edge Function type-check, all listed regression suites, and production build. Cloudflare Preview build `e43788be-d97e-4665-97b5-6c38a97bdea4` also completed successfully. The updated Development Edge Function is ACTIVE at version 2 with `verify_jwt=true`. The signed-in browser flow (save → refresh → reopen and cross-account isolation) has not yet been manually exercised. Live provider streaming cannot be exercised until the intentionally deferred OpenAI API key is configured at Phase 6, so full Phase 2 acceptance remains open.
+**Verification status:** The Development table, RLS policies, and owner-scoped SELECT/INSERT/UPDATE/DELETE policies have been queried and confirmed. Baseline implementation commit `849315e5b14fa0f7eb6c24695d77a410604b0f55` passed the complete GitHub verification workflow, including TypeScript, Supabase Edge Function type-check, all listed regression suites, and production build. Its Cloudflare Preview build `e43788be-d97e-4665-97b5-6c38a97bdea4` completed successfully. The latest code and UI regression fix are verified separately in the progress section below. The updated Development Edge Function is ACTIVE at version 2 with `verify_jwt=true`. The signed-in browser flow (save → refresh → reopen and cross-account isolation) has not yet been manually exercised. Live provider streaming cannot be exercised until the intentionally deferred OpenAI API key is configured at Phase 6, so full Phase 2 acceptance remains open.
 
 **Next action:** Complete key-independent Preview checks for history save → refresh → reopen, follow-up context, and cross-account isolation. At Phase 6, add the OpenAI key and verify live partial streaming plus retry after provider failure. Do not purchase/configure the OpenAI API key before Phase 6. Do not treat a phase as complete until its acceptance gate has been met.
 
@@ -250,3 +250,18 @@ The following key-independent work has been implemented on `feature/my-storyboar
 - Existing Supabase conversation persistence continues to save the transcript as it grows; no duplicate chat-history table was created.
 
 **Verification status:** Implementation is committed on `feature/my-storyboard`. The latest GitHub CI run passed, including TypeScript, Supabase Edge Function type-check, all listed regression suites, and production build. Cloudflare Preview build `3e5ea3a7-2eb4-4b24-8960-5c5acf8c049d` succeeded, and Development Supabase Edge Function version 2 is ACTIVE with JWT verification enabled. The code/build/type-check path is verified. Live provider streaming and retry behavior remain unverified until the deferred OpenAI API key is added at Phase 6; signed-in browser history and cross-account checks also remain to be exercised.
+
+### UI preservation rule — confirmed
+
+The existing AI Chat UI is a user-approved design and is now treated as a visual baseline. Future work must preserve its current layout, spacing, typography, colors, controls, responsive behavior, and interaction patterns. Add functionality through existing components and interaction areas; do not redesign, rearrange, or replace the chat UI. Any necessary addition must fit the current design language and must not disturb existing visual structure.
+
+### Phase 2 progress — reliability and regression protection
+
+- Fixed a streaming error edge case: if the provider returns an error after sending partial text, the UI now retains the received text and appends the error instead of replacing the partial response.
+- Added a safe Retry action for failed text-only requests in the existing assistant message action row; no new panel, dialog, or layout was introduced.
+- Added dedicated OpenAI Chat streaming contract tests covering authenticated Edge Function setup, server-side secret access, SSE forwarding, browser delta parsing, usage metadata, Vyral Vision path preservation, partial-response retention, and retry wiring.
+- Added the new `vyra-openai-chat` Edge Function to the CI Deno type-check list (previously it was deployed but omitted from that explicit type-check command).
+
+**Verification status:** GitHub Actions run `43283530331` passed, including TypeScript, OpenAI Chat streaming contract tests, Supabase Edge Function type-check (now including `vyra-openai-chat`), all existing regression suites, and production build. Cloudflare Preview build `5750d97d-d332-494b-868c-4bf34e1da819` for commit `294323a5535924839e4cc463adf3a8f59c73c1b5` is still running at the time of this update. No production deployment or merge was performed.
+
+**Remaining Phase 2 acceptance:** Signed-in browser tests for history save → refresh → reopen, follow-up context, and cross-account isolation. Live OpenAI streaming and retry after provider failure must be exercised after the API key is configured at Phase 6. The existing Chat UI visual baseline must remain unchanged.
