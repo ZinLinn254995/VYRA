@@ -573,3 +573,10 @@ Next: implement server-side approval consumption and idempotent job submission, 
 **Remaining Phase 5 integration:** the project-generation call sites still save local IndexedDB media and Storyboard scenes still reference those local media IDs. They must be migrated to call `ingestGeneratedVyralAsset` only after the app has a reliable destination Vyral for each generation. Current Project Workspace does not carry an explicit Vyral ID, so do not silently attach a generated output to an arbitrary user Vyral or ORIGIN-01. Resolve a safe destination policy (for example, a private generated-media Vyral or an explicit existing workspace association) before changing scene handoff. Existing local media recovery remains intact until a cloud Asset is confirmed ready.
 
 - No provider task, API key, quote, pricing policy, job, credit reservation, or customer charge was created. No production changes, deploy, or merge. AI Chat UI remains untouched. GitHub status view did not return a CI run/check for the latest push, so CI is not claimed as passed.
+
+
+#### Phase 5 ingestion hardening follow-up
+
+- Creator upload error handling now recognizes `VyralAssetIngestionError.preservedForRecovery`, so a source whose DNA commit may already exist is not mislabeled as cleaned up. Adapter cleanup failures are surfaced to the creator instead of being hidden. Commit: `5b9e0c2`.
+- Upload rollback now attempts object removal after an uncertain Storage upload response, and the lifecycle test covers this case. Generated Asset metadata enforces private visibility and SHA-256 metadata even when optional provenance is supplied. Commits: `362190f`, `b453cdd`.
+- Current verified source refactor: Creator Workspace now calls the shared service; the existing AI Vision observation and metadata suggestion work remains after the shared DNA-ready gate. No UI layout changes.
