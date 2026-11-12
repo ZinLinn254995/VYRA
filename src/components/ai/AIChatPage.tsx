@@ -1412,6 +1412,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
                   <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</p>
                   {message.role === 'assistant' && message.providerLabel && <p className="mt-2 text-[10px] text-[var(--vyra-text-muted)]">{message.providerLabel}</p>}
                   {message.role === 'assistant' && message.status === 'preview' && <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">Preview response · no live model was confirmed</p>}
+                  {message.role === 'assistant' && message.status === 'error' && (() => {
+                    const previousUserMessage = messages.slice(0, messages.indexOf(message)).reverse().find((item) => item.role === 'user');
+                    const canRetry = previousUserMessage && !/Attached file:|Selected VYRA Assets/.test(previousUserMessage.content);
+                    return canRetry ? <button type="button" onClick={() => { void sendMessage(previousUserMessage.content); }} disabled={isSending} className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)] disabled:opacity-40">Retry</button> : null;
+                  })()}
                   {message.role === 'assistant' && <button type="button" onClick={() => handleCopy(message.content)} className="mt-2 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]"><Copy size={12} /> Copy</button>}
                 </div>
               </div>
