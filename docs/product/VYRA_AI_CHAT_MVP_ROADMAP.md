@@ -580,3 +580,13 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Creator upload error handling now recognizes `VyralAssetIngestionError.preservedForRecovery`, so a source whose DNA commit may already exist is not mislabeled as cleaned up. Adapter cleanup failures are surfaced to the creator instead of being hidden. Commit: `5b9e0c2`.
 - Upload rollback now attempts object removal after an uncertain Storage upload response, and the lifecycle test covers this case. Generated Asset metadata enforces private visibility and SHA-256 metadata even when optional provenance is supplied. Commits: `362190f`, `b453cdd`.
 - Current verified source refactor: Creator Workspace now calls the shared service; the existing AI Vision observation and metadata suggestion work remains after the shared DNA-ready gate. No UI layout changes.
+
+
+### Product direction update — Vyral creation is AI Chat-only
+
+- Product decision from the creator: new Vyrals must be structured and created through the global AI Chat box. The My Vyrals surface is a library/management view for existing Vyrals, not a second creation workflow.
+- Added explicit English/Burmese Vyral creation intent parsing, name/description extraction, a reviewable draft, and a dedicated confirmation phrase. No database mutation occurs until the creator confirms the draft.
+- Confirmation creates a private, draft-lifecycle Vyral with creator-provided identity fields, platform defaults for the current license policy, and an initial root-scope identity DNA record. The generated draft UUID is used as the Vyral ID; retry checks that the existing row belongs to the same Chat draft and resumes missing root DNA instead of creating a duplicate.
+- Removed the standalone Create Vyral button and dialog from My Vyrals. Empty state now directs the creator to AI Chat. Existing list/detail, delete protection, and legacy device-local migration behavior remain intact.
+- Added English/Burmese parser, draft, and confirmation tests to the existing global chat action test suite. These tests are registered in CI already; the current GitHub status endpoint has not returned a check result, so execution is not claimed as passed.
+- This step creates the Vyral identity only. Chat attachment-to-Asset ingestion, selecting/switching an existing destination Vyral, and automatic Master DNA rebuild after inventory changes remain the next integration tasks. No provider generation, billing, production changes, deploy, or merge. AI Chat visual layout remains unchanged.
