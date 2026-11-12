@@ -239,7 +239,9 @@ export type GlobalChatVyralDraft = {
 
 export type GlobalChatAction = GlobalChatStoryboardAction
   | { type: 'vyral-create-draft'; draft: GlobalChatVyralDraft }
-  | { type: 'vyral-create-complete'; draftId: string };
+  | { type: 'vyral-create-complete'; draftId: string }
+  | { type: 'vyral-asset-upload-draft'; draft: GlobalChatVyralAssetUploadDraft }
+  | { type: 'vyral-asset-upload-complete'; draftId: string };
 
 export const isVyralCreateIntent = (input: string): boolean =>
   /^\s*(?:(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:new\s+)?vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?=\s|$))/i.test(input);
