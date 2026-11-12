@@ -73,7 +73,7 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /ai_vision_status: 'failed'/);
   assert.match(details, /ai_vision_status: 'recorded'/);
   assert.match(details, /visionRecord\?\.status !== 'recorded'/);
-  assert.match(details, /does not\\s*\\/\\/ creator-confirm the model's claims/);
+  assert.ok(details.includes("does not // creator-confirm the model's claims"));
   assert.match(details, /accessToken && vyral\.license_policy\?\.allow_ai_analysis !== false && !isVyralPackageAsset/);
   assert.match(details, /blocked_by_license/);
   assert.match(details, /ai_details_status: isVyralPackageAsset/);
