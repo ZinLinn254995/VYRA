@@ -351,12 +351,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
   const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
+  const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setSelectedAssets(initialSelectedAssets); }, [initialSelectedAssets]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      setHistoryAuthRevision((revision) => revision + 1);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -420,7 +429,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       })
       .finally(() => { if (active) setHistoryReady(true); });
     return () => { active = false; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, historyAuthRevision]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
