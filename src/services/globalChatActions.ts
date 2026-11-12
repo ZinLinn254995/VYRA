@@ -7,6 +7,54 @@ export type GlobalChatStoryboardRecord = {
   details?: { scenes?: unknown[] } | null;
 };
 
+export type GlobalChatStoryboardDraft = {
+  id: string;
+  title: string;
+  topic: string;
+};
+
+export type GlobalChatStoryboardAction =
+  | { type: 'storyboard-create-draft'; draft: GlobalChatStoryboardDraft }
+  | { type: 'storyboard-create-complete'; draftId: string };
+
+export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
+  const value = input.trim();
+  const patterns = [
+    /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
+    /^create\s+(?:a\s+)?storyboards?\s+(?:about|for|on)\s+(.+)$/i,
+    /^make\s+(?:a\s+)?storyboards?\s+(?:about|for|on)\s+(.+)$/i,
+    /^(.+?)\s+အကြောင်း\s+storyboard\s*(?:ဖန်တီး|လုပ်)(?:ပေး)?$/i,
+    /^storyboard\s*(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+)$/i,
+  ];
+  const titled = value.match(patterns[0]);
+  if (titled) {
+    const title = titled[1].trim().replace(/^["“']|["”']$/g, '').trim();
+    const topic = titled[2].trim();
+    return topic ? { title, topic } : null;
+  }
+  for (const pattern of patterns.slice(1)) {
+    const match = value.match(pattern);
+    if (match?.[1]?.trim()) {
+      const topic = match[1].trim().replace(/^["“']|["”']$/g, '').trim();
+      if (topic && topic.length <= 1000) return { title: '', topic };
+    }
+  }
+  return null;
+};
+
+export const isStoryboardCreateIntent = (input: string): boolean =>
+  /^\s*(?:create|make)\s+(?:a\s+)?storyboards?\b/i.test(input) ||
+  /^\s*(?:storyboard\s*(?:ဖန်တီး|လုပ်)|.+?\s+အကြောင်း\s+storyboard\s*(?:ဖန်တီး|လုပ်))/i.test(input);
+
+export const isStoryboardCreateConfirmation = (input: string): boolean =>
+  /^\s*(?:confirm(?:\s+(?:create|storyboard))?|yes,?\s+create(?:\s+it)?|အတည်ပြု(?:မယ်)?|ဖန်တီးပါ)\s*[.!?။]*\s*$/i.test(input);
+
+export const formatStoryboardCreateDraft = (draft: GlobalChatStoryboardDraft): string =>
+  '**Storyboard draft — please review**\\n\\n' +
+  '**Title:** ' + draft.title + '\\n' +
+  '**Topic:** ' + draft.topic + '\\n\\n' +
+  'Nothing has been saved yet. Reply **Confirm create** (သို့) **အတည်ပြု** to create this Storyboard.';
+
 export const isStoryboardListRequest = (input: string): boolean =>
   /^\s*(?:(?:show|list|view|find)\s+(?:me\s+)?(?:my\s+)?storyboards?|(?:ငါ့|ကျွန်ုပ်၏)?\s*storyboard(?:s)?\s*(?:တွေ|များ)?\s*(?:ပြ|ပြပေး|စာရင်းပြ|ကြည့်)?\s*)$/i.test(input);
 
@@ -16,11 +64,11 @@ export const formatStoryboardList = (items: GlobalChatStoryboardRecord[]): strin
   }
   const lines = items.map((item, index) => {
     const sceneCount = Array.isArray(item.details?.scenes) ? item.details.scenes.length : 0;
-    return (index + 1) + '. **' + item.title + '**\n   ' +
-      (item.topic?.trim() || 'No description') + '\n   ' +
+    return (index + 1) + '. **' + item.title + '**\\n   ' +
+      (item.topic?.trim() || 'No description') + '\\n   ' +
       sceneCount + ' scene(s) · Updated ' + new Date(item.updatedAt).toLocaleDateString();
   });
-  return 'Your Workspace Storyboards (' + items.length + ')\n\n' + lines.join('\n\n');
+  return 'Your Workspace Storyboards (' + items.length + ')\\n\\n' + lines.join('\\n\\n');
 };
 
 
@@ -83,7 +131,7 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
     lines.push((index + 1) + '. **' + title + '** — ' + duration, description, 'Transition: ' + transition);
   });
   lines.push('', 'Created: ' + new Date(item.createdAt).toLocaleDateString(), 'Updated: ' + new Date(item.updatedAt).toLocaleDateString());
-  return lines.join('\n');
+  return lines.join('\\n');
 };
 
 
