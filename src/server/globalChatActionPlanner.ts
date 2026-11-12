@@ -198,7 +198,9 @@ export function authorizeGlobalChatActionExecution(
   if (!approval) return { ok: false, reason: 'approval-required' };
   if (approval.planId !== plan.id) return { ok: false, reason: 'approval-mismatch' };
   const approvalTimestamp = approval.kind === 'reversible' ? approval.approvedAt : approval.confirmedAt;
-  if (!Number.isFinite(Date.parse(approvalTimestamp))) {
+  const approvalTime = Date.parse(approvalTimestamp);
+  if (!Number.isFinite(approvalTime) || approvalTime < Date.parse(plan.createdAt) ||
+      approvalTime > Date.parse(plan.expiresAt) || approvalTime > now.getTime()) {
     return { ok: false, reason: 'approval-invalid' };
   }
   if (validation.risk === 'reversible-write') {
