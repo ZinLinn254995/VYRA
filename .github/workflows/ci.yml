@@ -37,6 +37,8 @@ jobs:
         run: npm run test:media-credit-pricing
       - name: Vyral generated Asset provenance contract tests
         run: npm run test:vyral-generated-asset-provenance
+      - name: Vyral Asset ingestion lifecycle tests
+        run: npm run test:vyral-asset-ingestion
       - name: Supabase auth verification tests
         run: npm run test:auth
       - name: Customer project API tests
