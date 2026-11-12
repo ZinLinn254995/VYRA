@@ -57,7 +57,6 @@ Deno.serve(async (request: Request) => {
     const serialized = JSON.stringify({ contents: body.contents, systemInstruction: body.systemInstruction });
     if (new TextEncoder().encode(serialized).byteLength > 4 * 1024 * 1024) return json({ error: 'Gemini request exceeds the 4 MB limit.' }, 413);
     stage = 'gemini_request';
-    const model = typeof body.model === 'string' && /^[a-zA-Z0-9._-]{1,100}$/.test(body.model) ? body.model : 'gemini-3.8-flash';
     const upstreamUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
     const requestBody = JSON.stringify({
       contents: body.contents,
