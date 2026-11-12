@@ -178,6 +178,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [savingVision, setSavingVision] = useState(false);
   const [reviewingObservationId, setReviewingObservationId] = useState<string | null>(null);
   const [promotingObservationId, setPromotingObservationId] = useState<string | null>(null);
+  const [retryingVisionAssetId, setRetryingVisionAssetId] = useState<string | null>(null);
   const [resolvingConflictKey, setResolvingConflictKey] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [detailsAsset, setDetailsAsset] = useState<AssetRow | null>(null);
@@ -2866,6 +2867,86 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     else setPreviewUrl(data.signedUrl);
   };
 
+  const retryVisionAnalysis = async (asset: AssetRow) => {
+    if (!supabase || !auth.user?.id || retryingVisionAssetId) return;
+    if (isVyralPackageAsset(asset) || vyral.license_policy?.allow_ai_analysis === false ||
+        (asset as AssetRow & { license_override?: Record<string, unknown> }).license_override?.allow_ai_analysis === false) {
+      setError('AI analysis is disabled for this Asset or its Vyral license.');
+      return;
+    }
+    const sourceVersion = versions.filter((version) => version.asset_id === asset.id)
+      .sort((a, b) => b.version_number - a.version_number)[0];
+    if (!sourceVersion) { setError('No source version is available. Refresh the Asset before retrying.'); return; }
+    setRetryingVisionAssetId(asset.id);
+    setError('');
+    try {
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before retrying AI analysis.');
+      const { data: sourceBlob, error: downloadError } = await supabase.storage.from('vyral-assets').download(sourceVersion.storage_path);
+      if (downloadError || !sourceBlob) throw new Error(downloadError?.message ?? 'The original Asset could not be downloaded.');
+      const sourceFile = new File([sourceBlob], asset.original_filename || asset.name, {
+        type: sourceVersion.mime_type || asset.mime_type || 'application/octet-stream',
+      });
+      const suggestion = await suggestVyralAssetDetails(sourceFile, {
+        accessToken, assetType: asset.asset_type, sourceVersionId: sourceVersion.id,
+        sourceRevision: sourceVersion.version_number,
+      });
+      const observedFields = Object.fromEntries(Object.entries(suggestion.details.fields).map(([key, field]) => [
+        key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) },
+      ]));
+      if (!Object.keys(observedFields).length) throw new Error('AI did not return any usable observations.');
+      const { data: visionRecord, error: recordError } = await supabase.functions.invoke('record-vyral-vision-observation', {
+        body: {
+          assetId: asset.id, versionId: sourceVersion.id,
+          taskKind: asset.asset_type === 'image' || asset.asset_type === 'video' ? 'identity' : 'description',
+          modelProvider: suggestion.provider, modelId: suggestion.model, confidence: null,
+          observation: {
+            schema_version: 1, analysis_origin: 'manual_retry_after_automatic_failure',
+            analysis_basis: 'reprocessed_original_source_version', source_version_id: sourceVersion.id,
+            fields: observedFields, uncertainties: [],
+          },
+        },
+      });
+      if (recordError || visionRecord?.status !== 'recorded') {
+        throw new Error(recordError?.message ?? 'Source integrity verification failed; no observation was recorded.');
+      }
+      const { data: currentAsset, error: readError } = await supabase.from('vyral_assets')
+        .select('metadata').eq('id', asset.id).eq('user_id', auth.user.id).maybeSingle();
+      if (readError) throw readError;
+      const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+        ? currentAsset.metadata as Record<string, unknown> : {};
+      const suggestions = Object.fromEntries(Object.entries(suggestion.details.fields)
+        .filter(([, field]) => field.origin === 'ai_suggested')
+        .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
+      const mergedDetails = mergeVyralAiDetails(currentMetadata.ai_details, {
+        scope: 'asset', sourceVersionId: sourceVersion.id, sourceRevision: sourceVersion.version_number,
+        provider: suggestion.provider, model: suggestion.model,
+        generatedAt: suggestion.details.generated_at, suggestions,
+      });
+      const { error: updateError } = await supabase.from('vyral_assets').update({
+        metadata: {
+          ...currentMetadata, ai_details: mergedDetails, ai_details_status: 'ready',
+          ai_details_source_version_id: sourceVersion.id, ai_vision_status: 'recorded',
+          ai_vision_last_attempt_at: new Date().toISOString(), ai_vision_last_error: null,
+        },
+      }).eq('id', asset.id).eq('user_id', auth.user.id);
+      if (updateError) throw updateError;
+      await loadWorkspace();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'AI Vision retry failed.';
+      const { data: currentAsset } = await supabase.from('vyral_assets').select('metadata')
+        .eq('id', asset.id).eq('user_id', auth.user.id).maybeSingle();
+      const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+        ? currentAsset.metadata as Record<string, unknown> : {};
+      await supabase.from('vyral_assets').update({
+        metadata: { ...currentMetadata, ai_vision_status: 'failed',
+          ai_vision_last_attempt_at: new Date().toISOString(), ai_vision_last_error: message.slice(0, 500) },
+      }).eq('id', asset.id).eq('user_id', auth.user.id);
+      setError(asset.name + ': ' + message);
+      await loadWorkspace();
+    } finally { setRetryingVisionAssetId(null); }
+  };
+
   const saveVisionObservation = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || savingVision) return;
@@ -3554,6 +3635,25 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 {observations.length} observations
               </span>
             </div>
+            {assets.filter((asset) => {
+              const latestVersion = versions.filter((version) => version.asset_id === asset.id)
+                .sort((a, b) => b.version_number - a.version_number)[0];
+              const hasCurrentObservation = observations.some((item) => item.asset_id === asset.id && item.asset_version_id === latestVersion?.id);
+              return !hasCurrentObservation && !isVyralPackageAsset(asset) &&
+                vyral.license_policy?.allow_ai_analysis !== false &&
+                (asset as AssetRow & { license_override?: Record<string, unknown> }).license_override?.allow_ai_analysis !== false;
+            }).map((asset) => {
+              const status = String(asset.metadata?.ai_vision_status ?? 'not_recorded');
+              const lastError = typeof asset.metadata?.ai_vision_last_error === 'string' ? asset.metadata.ai_vision_last_error : '';
+              return <div key={'vision-retry-'+asset.id} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--vyra-border)] p-3">
+                <div className="min-w-0"><p className={'truncate text-xs font-medium '+primary}>{asset.name}</p>
+                  <p className={'mt-1 text-[10px] '+muted}>{status === 'failed' ? 'AI analysis failed' : 'No source-linked Vision observation yet'}{lastError ? ' · '+lastError : ''}</p>
+                </div>
+                <button type="button" disabled={retryingVisionAssetId === asset.id} onClick={() => void retryVisionAnalysis(asset)} className={button}>
+                  {retryingVisionAssetId === asset.id ? 'Retrying…' : 'Retry AI analysis'}
+                </button>
+              </div>;
+            })}
             {observations.length ? (
               <div className="mt-3 space-y-2">
                 {observations.slice(0, 30).map((item) => {
