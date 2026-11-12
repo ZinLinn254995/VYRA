@@ -201,7 +201,7 @@ test('ledger-enabled Asset metadata suggestions record Google provider usage bef
       assert.equal(headers.get('Authorization'), 'Bearer verified-development-session');
       return Response.json({
         text: '{"name":{"value":"Red Circle"},"category":{"value":"Illustration"}}',
-        modelName: 'gemini-2.5-flash',
+        modelName: 'gemini-3.8-flash',
         provider: 'gemini',
         usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
         generationId: 'gemini-generation-001',
