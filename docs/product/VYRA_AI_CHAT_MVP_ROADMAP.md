@@ -394,3 +394,12 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Verification status:** Implementation and CI wiring are committed on `feature/my-storyboard`. Automated GitHub Actions verification is pending; no local test runner was available through the GitHub file-edit workflow. No live Runway credentials, paid preflight, or generation request were used. No production deployment or merge was performed.
 
 **Next Phase 4 step:** Connect this policy to a server-only Runway adapter that reads the platform key from Development Supabase Vault, fetches live preflight quotes, and requires an explicit cost confirmation before creating a generation job. Until then, this selector is a tested-by-contract foundation, not an enabled generation feature.
+
+
+### Phase 4 progress — generation quote approval and job-state contract
+
+- Added `src/server/mediaGenerationContract.ts` with a strict pre-submission approval validator. It requires a valid, unexpired server quote, matching quote ID, explicit timestamped customer confirmation, a confirmed maximum budget, and a valid idempotency key.
+- A missing approval, expired/malformed quote, changed quote ID, budget overrun, future confirmation timestamp, or invalid idempotency key is rejected before any provider submission.
+- Added a generation-job transition contract: queued → running → succeeded/failed/cancelled, with safe queued cancellation/failure and no transitions out of terminal states.
+- Added automated tests and CI steps for the approval gate and state transitions.
+- These are pure contract modules only. They do not call Runway, read or store secrets, create database rows, charge customers, or enable any media-generation endpoint. Provider integration remains blocked until the server-only Vault adapter and persistent usage/job ledger are implemented and verified.
