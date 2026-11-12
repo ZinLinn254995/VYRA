@@ -392,7 +392,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           body: { assetId: asset.id, versionId: sourceVersion.id },
         }).then(({ data, error: verifyError }) => {
           if (verifyError || data?.status !== 'verified' || data?.sourceFileReconstruction !== 'byte_exact') {
-            console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.');
+            console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.', {
+              status: data?.status ?? null,
+              stage: data?.stage ?? null,
+              detail: data?.detail ?? data?.error ?? verifyError?.message ?? null,
+            });
             fileDnaAutoVerifyRef.current.delete(attemptKey);
           }
           return data;
