@@ -678,6 +678,20 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }).filter((group) => group.modelCount > 1).sort((a, b) => b.items[0].created_at.localeCompare(a.items[0].created_at));
   }, [observations]);
 
+  const assetVersionEvidenceTimeline = useMemo(() => assets.map((asset) => {
+    const assetVersions = versions.filter((version) => version.asset_id === asset.id)
+      .sort((left, right) => left.version_number - right.version_number);
+    return {
+      asset,
+      versions: assetVersions.map((version) => ({
+        version,
+        observations: observations.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
+        fingerprints: fingerprints.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
+      })),
+    };
+  }).filter((entry) => entry.versions.length > 0)
+    .sort((left, right) => left.asset.name.localeCompare(right.asset.name)), [assets, versions, observations, fingerprints]);
+
   const visionKnowledgeConflicts = useMemo(() => {
     const groups = new Map<string, { assetId: string; versionId: string; taskKind: string; fieldPath: string; records: DnaRow[] }>();
     dnaRecords.forEach((record) => {
@@ -3708,6 +3722,45 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 })}
               </div>
             )}
+            <section className="mt-3 rounded-lg border border-[var(--vyra-border)] p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h4 className={'text-xs font-semibold '+primary}>Asset DNA evidence timeline</h4>
+                  <p className={'mt-1 text-[10px] '+muted}>Version history is kept separate. Each observation and fingerprint remains attached to the exact source version it describes.</p>
+                </div>
+                <span className={'text-[10px] '+muted}>{assetVersionEvidenceTimeline.reduce((sum, entry) => sum + entry.versions.length, 0)} source versions</span>
+              </div>
+              {assetVersionEvidenceTimeline.length ? <div className="mt-3 space-y-3">
+                {assetVersionEvidenceTimeline.map(({ asset, versions: evidenceVersions }) => (
+                  <div key={'evidence-'+asset.id}>
+                    <p className={'text-xs font-semibold '+primary}>{asset.name}</p>
+                    <div className="mt-2 space-y-2">
+                      {evidenceVersions.map(({ version, observations: versionObservations, fingerprints: versionFingerprints }) => {
+                        const isLatest = version.id === evidenceVersions[evidenceVersions.length - 1]?.version.id;
+                        const confirmedCount = versionObservations.filter((item) => visionReviews.some((review) => review.observation_id === item.id && review.evidence_kind === 'observation_review' && review.decision === 'creator_confirmed')).length;
+                        return (
+                          <div key={version.id} className="rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className={'text-[10px] font-semibold '+primary}>Version {version.version_number}{isLatest ? ' · Latest' : ''}</p>
+                              <time className={'text-[9px] '+muted}>{dateLabel(version.created_at)}</time>
+                            </div>
+                            <p className={'mt-1 break-all text-[9px] '+muted}>SHA-256: {version.sha256 ? version.sha256 : 'Not recorded'}</p>
+                            <div className={'mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[9px] '+muted}>
+                              <span>{versionObservations.length} Vision observations</span>
+                              <span>{confirmedCount} creator-confirmed</span>
+                              <span>{versionFingerprints.length} fingerprints</span>
+                            </div>
+                            {versionFingerprints.length > 0 && <div className="mt-1 space-y-1">
+                              {versionFingerprints.slice(0, 2).map((fingerprint) => <p key={fingerprint.id} className={'break-all text-[9px] '+muted}>{fingerprint.fingerprint_kind} · {fingerprint.algorithm}: {fingerprint.value}</p>)}
+                            </div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div> : <p className={'mt-3 text-[10px] '+muted}>No version-linked evidence is available yet.</p>}
+            </section>
             {assets.filter((asset) => {
               const latestVersion = versions.filter((version) => version.asset_id === asset.id)
                 .sort((a, b) => b.version_number - a.version_number)[0];
