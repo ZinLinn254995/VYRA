@@ -646,3 +646,11 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - These short approvals are accepted only when the immediately preceding assistant message contains a pending supported action draft; they do not independently trigger mutations.
 - Added regression cases to `tests/global-chat-actions.spec.ts`.
 - This improves conversational flexibility without changing the AI Chat UI or weakening preview/approval safeguards.
+
+### Destructive-action approval hardening
+
+- Permanent Storyboard deletion no longer accepts generic conversational approvals such as “yes”, “go ahead”, “လုပ်ပါ”, or “ဆက်လုပ်ပါ”.
+- Deletion requires its dedicated explicit confirmation phrase after the exact target and irreversible warning have been previewed.
+- Ordinary conversational approvals remain available for reversible/low-risk draft actions and Asset upload previews.
+- Added regression cases for generic approvals being rejected by the destructive confirmation parser.
+- AI Chat UI and existing preview presentation remain unchanged.
