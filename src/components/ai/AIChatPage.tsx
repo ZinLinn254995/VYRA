@@ -669,9 +669,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             created_at: now,
             updated_at: now,
           };
-          const { error: createError } = await supabase.from('vyral_storyboards')
-            .upsert(storyboard, { onConflict: 'id' });
-          if (createError) throw new Error('I could not save this Storyboard. Nothing was reported as created. ' + createError.message);
+          const { data: existingCloud, error: existingError } = await supabase.from('vyral_storyboards')
+            .select('id,created_at,updated_at')
+            .eq('id', draft.id)
+            .eq('user_id', authData.user.id)
+            .maybeSingle();
+          if (existingError) throw new Error('I could not verify whether this Storyboard was already saved. Please retry confirmation.');
+          let savedCreatedAt = now;
+          let savedUpdatedAt = now;
+          if (existingCloud) {
+            savedCreatedAt = String(existingCloud.created_at || now);
+            savedUpdatedAt = String(existingCloud.updated_at || now);
+          } else {
+            const { error: createError } = await supabase.from('vyral_storyboards').insert(storyboard);
+            if (createError) throw new Error('I could not save this Storyboard. Nothing was reported as created. ' + createError.message);
+          }
           let cacheWarning = '';
           try {
             const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
@@ -681,7 +693,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             ) as Record<string, unknown>[] : [];
             const localRecord = {
               id: draft.id, title: draft.title, topic: draft.topic,
-              details: storyboard.details, createdAt: now, updatedAt: now,
+              details: storyboard.details, createdAt: savedCreatedAt, updatedAt: savedUpdatedAt,
             };
             localStorage.setItem(storageKey, JSON.stringify([localRecord, ...existing.filter((item) => item.id !== draft.id)]));
           } catch {
@@ -1450,11 +1462,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
           : item));
       } else {
+        const retryDraftAction = isStoryboardCreateConfirmation(text)
+          ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
+          : undefined;
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
           content: message,
           status: 'error',
+          ...(retryDraftAction ? { action: retryDraftAction } : {}),
         }]);
       }
     } finally {
