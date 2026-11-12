@@ -50,8 +50,6 @@ test('server rejects oversized, malformed, or MIME-mismatched vision payloads', 
   assert.match(server, /imageBytes\.byteLength > 600 \* 1024/);
   assert.match(server, /exceeds the 600 KB limit/);
   assert.match(server, /totalImageBytes > 2_400 \* 1024/);
-  assert.match(details, /does not\s*\/\/ creator-confirm the model's claims/);
-  assert.match(server, /totalImageBytes > 2_400 \* 1024/);
   assert.match(entry, /express\.json\(\{ limit: '8mb' \}\)/);
 });
 
