@@ -74,8 +74,27 @@ Deno.serve(async (request: Request) => {
             body: requestBody,
             signal: AbortSignal.timeout(50000),
           });
-          if ((upstream.status !== 503 && upstream.status !== 429) || attempt === 1) break;
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          if (attempt === 1) break;
+          if (upstream.status === 503) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            continue;
+          }
+          if (upstream.status === 429) {
+            // Retry only when Google explicitly provides a short RetryInfo window.
+            // Blind one-second retries can consume more quota when a daily limit is exhausted.
+            const retryPayload = await upstream.clone().json().catch(() => ({})) as {
+              error?: { details?: Array<Record<string, unknown>> };
+            };
+            const retryInfo = retryPayload.error?.details?.find((detail) =>
+              typeof detail['@type'] === 'string' && String(detail['@type']).endsWith('/RetryInfo'));
+            const retryDelay = typeof retryInfo?.retryDelay === 'string'
+              ? Number.parseFloat(retryInfo.retryDelay) : Number.NaN;
+            if (Number.isFinite(retryDelay) && retryDelay > 0 && retryDelay <= 8) {
+              await new Promise((resolve) => setTimeout(resolve, Math.ceil(retryDelay * 1000)));
+              continue;
+            }
+          }
+          break;
         }
       } catch (error) {
         const errorName = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name) : 'Error';
@@ -94,8 +113,25 @@ Deno.serve(async (request: Request) => {
       };
       if (!upstream.ok) {
         const upstreamMessage = typeof payload.error?.message === 'string' ? payload.error.message.slice(0, 500) : 'No additional details were provided by Google.';
-        console.error('[vyra-gemini-proxy] Gemini HTTP response:', upstream.status, payload.error?.status ?? 'UNKNOWN');
-        const message = upstream.status === 429 ? 'Gemini rate limit reached. Try again later.'
+        const errorDetails = payload.error?.details ?? [];
+        const quotaFailure = errorDetails.find((detail) =>
+          typeof detail['@type'] === 'string' && String(detail['@type']).endsWith('/QuotaFailure'));
+        const quotaViolations = Array.isArray(quotaFailure?.violations) ? quotaFailure.violations as Array<Record<string, unknown>> : [];
+        const quotaSubjects = quotaViolations.map((item) => String(item.quotaId ?? item.subject ?? '')).filter(Boolean).slice(0, 3);
+        const retryInfo = errorDetails.find((detail) =>
+          typeof detail['@type'] === 'string' && String(detail['@type']).endsWith('/RetryInfo'));
+        const retryDelay = typeof retryInfo?.retryDelay === 'string' ? Number.parseFloat(retryInfo.retryDelay) : Number.NaN;
+        const isDailyQuota = /per[_ ]?day|daily|requests.?per.?day/i.test([payload.error?.message ?? '', ...quotaSubjects].join(' '));
+        console.error('[vyra-gemini-proxy] Gemini HTTP response:', JSON.stringify({
+          status: upstream.status, providerStatus: payload.error?.status ?? 'UNKNOWN',
+          message: upstreamMessage.slice(0, 320), quotaSubjects, retryDelaySeconds: Number.isFinite(retryDelay) ? retryDelay : null,
+        }));
+        const rateLimitMessage = isDailyQuota
+          ? 'Gemini daily quota for this API key has been used up. It will work again after Google resets the quota, or when a higher-quota billing plan is enabled.'
+          : Number.isFinite(retryDelay) && retryDelay > 0
+            ? 'Gemini rate limit reached. Please wait about ' + Math.ceil(retryDelay) + ' seconds before trying again.'
+            : 'Gemini rate limit reached for this API key or project. Please wait for Google’s quota window to reset before retrying.';
+        const message = upstream.status === 429 ? rateLimitMessage
           : upstream.status === 400 ? 'Gemini rejected the request format: ' + upstreamMessage
           : upstream.status === 401 || upstream.status === 403 ? 'Google rejected the stored API key or its API permissions: ' + upstreamMessage
           : upstream.status === 404 ? 'Gemini model "' + model + '" was not found or is unavailable to this API key: ' + upstreamMessage
