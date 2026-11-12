@@ -158,6 +158,9 @@ test('storyboard delete requires a specific confirmation phrase', async () => {
   assert.equal(isStoryboardDeleteConfirmation('ဖျက်ရန် အတည်ပြု'), true);
   assert.equal(isStoryboardDeleteConfirmation('yes'), false);
   assert.equal(isStoryboardDeleteConfirmation('Confirm update'), false);
+  assert.equal(isStoryboardDeleteConfirmation('go ahead'), false);
+  assert.equal(isStoryboardDeleteConfirmation('လုပ်ပါ'), false);
+  assert.equal(isStoryboardDeleteConfirmation('ဆက်လုပ်ပါ'), false);
 });
 
 
