@@ -56,6 +56,9 @@ const groups: { title: string; items: NavItem[] }[] = [
   { title: 'Creator Tools', items: [
     { key: 'creator-dashboard', label: 'Creator Dashboard', detail: 'Views, uses, sales and earnings', icon: ChartNoAxesCombined },
   ] },
+  { title: 'Platform', items: [
+    { key: 'setting-ai', label: 'Admin Dashboard', detail: 'Manage VYRA platform API keys', icon: KeyRound },
+  ] },
   { title: 'Account', items: [
     { key: 'settings', label: 'Settings', detail: 'Account, security, preferences and privacy', icon: Settings2 },
     { key: 'help', label: 'Help & Support', detail: 'Guides, FAQs and contact support', icon: CircleHelp },
@@ -96,7 +99,6 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
   { key: 'setting-appearance', label: 'Language & Appearance', detail: 'Language, theme and display preferences', icon: Globe2 },
   { key: 'setting-notifications', label: 'Notifications', detail: 'Choose which alerts you receive', icon: Bell },
   { key: 'setting-billing', label: 'Plans & Billing', detail: 'Subscription, credits, payments and invoices', icon: CreditCard },
-  { key: 'setting-ai', label: 'Admin Dashboard', detail: 'Manage VYRA platform API keys', icon: KeyRound },
   { key: 'setting-legal', label: 'Terms & Legal', detail: 'Terms of service and privacy policy', icon: LockKeyhole },
   { key: 'setting-about', label: 'About VYRA', detail: 'Platform information and version', icon: Monitor },
 ];
