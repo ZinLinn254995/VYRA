@@ -74,7 +74,7 @@ export const formatStoryboardCreateDraft = (draft: GlobalChatStoryboardDraft): s
   '**Storyboard draft — please review**\n\n' +
   '**Title:** ' + draft.title + '\n' +
   '**Topic:** ' + draft.topic + '\n\n' +
-  'Nothing has been saved yet. Reply **Confirm create** (သို့) **အတည်ပြု** to create this Storyboard.';
+  'Nothing has been saved yet. If this is right, simply tell me to go ahead in your own words.';
 
 export const isStoryboardListRequest = (input: string): boolean =>
   /^\s*(?:(?:show|list|view|find)\s+(?:me\s+)?(?:my\s+)?storyboards?|(?:ငါ့|ကျွန်ုပ်၏)?\s*storyboard(?:s)?\s*(?:တွေ|များ)?\s*(?:ပြ|ပြပေး|စာရင်းပြ|ကြည့်)?\s*)$/i.test(input);
@@ -199,7 +199,7 @@ export const formatStoryboardUpdateDraft = (draft: GlobalChatStoryboardUpdateDra
   '**Storyboard:** ' + draft.storyboardTitle + '\n' +
   '**' + (draft.field === 'title' ? 'Title' : 'Topic') + ':** ' + draft.previousValue + '\n' +
   '**New ' + (draft.field === 'title' ? 'title' : 'topic') + ':** ' + draft.nextValue + '\n\n' +
-  'Nothing has been changed yet. Reply **Confirm update** (သို့) **အတည်ပြု** to save this change.';
+  'Nothing has been changed yet. If this is right, simply tell me to go ahead in your own words.';
 
 export const isStoryboardUpdateConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+update|အတည်ပြု(?:မယ်)?|ပြောင်းလဲမှု\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
@@ -225,7 +225,7 @@ export const formatStoryboardDeleteDraft = (draft: GlobalChatStoryboardDeleteDra
   '**Delete Storyboard — confirmation required**\n\n' +
   'You are about to permanently delete **' + draft.storyboardTitle + '**.\n' +
   'This action cannot be undone.\n\n' +
-  'Nothing has been deleted yet. Reply **Confirm delete** (သို့) **ဖျက်ရန် အတည်ပြု** to continue.';
+  'Nothing has been deleted yet. If you want me to continue, just tell me naturally.';
 
 export const isStoryboardDeleteConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+delete|ဖျက်ရန်\s+အတည်ပြု|ဖျက်မယ်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
