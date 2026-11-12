@@ -246,7 +246,7 @@ export type GlobalChatAction = GlobalChatStoryboardAction
 export const isVyralCreateIntent = (input: string): boolean => {
   if (/\b(?:don't|do not|never|not)\s+(?:create|make|build|start)\b.{0,30}\bvyral\b/i.test(input) ||
       /(?:မဖန်တီး|မလုပ်ချင်|မစချင်)/.test(input)) return false;
-  return /^\s*(?:(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:a|an|new)\s+vyral\b|(?:new\s+)?vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး|ချင်)?|တစ်ခု\s*(?:ဖန်တီး|လုပ်)ချင်)(?=\s|$))/i.test(input);
+  return /^\s*(?:(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:a|an|new)\s+vyral\b|(?:new\s+)?vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\s|$|[:：။!?]))/i.test(input);
 };
 
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
