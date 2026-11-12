@@ -184,10 +184,6 @@ Deno.serve(async (request: Request) => {
   let visualFingerprint = '';
   try {
     visualFingerprint = computeVyralDHash64(samples, width, height, 4);
-    const { data: existingFingerprint, error: fingerprintLookupError } = await ctx.supabaseAdmin.from('vyral_fingerprints')
-      .select('id').eq('asset_id', assetId).eq('asset_version_id', versionId)
-      .eq('fingerprint_kind', 'perceptual').eq('algorithm', VYRAL_DHASH_ALGORITHM).limit(1).maybeSingle();
-    if (fingerprintLookupError) throw fingerprintLookupError;
     const fingerprintMetadata = {
       verification_status: 'server_verified',
       computed_by: 'extract-vyral-asset-dna-v3',
@@ -198,14 +194,12 @@ Deno.serve(async (request: Request) => {
       alpha_handling: 'composited_over_white',
       note: 'Perceptual similarity is an estimate, not proof of semantic identity or exact pixel equality.',
     };
-    const fingerprintWrite = existingFingerprint
-      ? await ctx.supabaseAdmin.from('vyral_fingerprints').update({ value: visualFingerprint, metadata: fingerprintMetadata }).eq('id', existingFingerprint.id)
-      : await ctx.supabaseAdmin.from('vyral_fingerprints').insert({
-          asset_id: assetId, asset_version_id: versionId, user_id: userId,
-          fingerprint_kind: 'perceptual', algorithm: VYRAL_DHASH_ALGORITHM,
-          value: visualFingerprint, metadata: fingerprintMetadata,
-        });
-    if (fingerprintWrite.error) throw fingerprintWrite.error;
+    const { error: fingerprintWriteError } = await ctx.supabaseAdmin.from('vyral_fingerprints').upsert({
+      asset_id: assetId, asset_version_id: versionId, user_id: userId,
+      fingerprint_kind: 'perceptual', algorithm: VYRAL_DHASH_ALGORITHM,
+      value: visualFingerprint, metadata: fingerprintMetadata,
+    }, { onConflict: 'asset_version_id,fingerprint_kind,algorithm' });
+    if (fingerprintWriteError) throw fingerprintWriteError;
     visualFingerprintStatus = 'recorded';
   } catch (error) {
     console.warn('[vyral-visual-fingerprint] DNA extraction succeeded, but the perceptual fingerprint could not be saved.', error);
