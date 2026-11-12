@@ -39,7 +39,9 @@ export type GlobalChatStoryboardAction =
   | { type: 'storyboard-delete-complete'; draftId: string };
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
-  const value = input.trim();
+  const rawValue = input.trim();
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\\s+(?:please\\s+)?(?:create|make|build|start)\\s+(?:(?:a|an|new)\\s+)?vyrals?\\b|(?:please\\s+)?(?:create|make|build|start)\\s+(?:(?:a|an|new)\\s+)?vyrals?\\b|(?:i want|i'd like|i need)\\s+(?:(?:a|an)\\s+)?(?:new\\s+)?vyral\\s+(?:named|called)\\b|vyral\\s+(?:အသစ်\\s*)?(?:တစ်ခု\\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
     /^create\s+(?:a\s+)?storyboards?\s+(?:about|for|on)\s+(.+)$/i,
