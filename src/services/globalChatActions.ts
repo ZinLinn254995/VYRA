@@ -327,7 +327,7 @@ export const findMentionedVyrals = (
     .sort((a, b) => b.name.length - a.name.length);
   if (!matches.length) return [];
   return matches.filter((item) => !matches.some((other) =>
-    other.id !== item.id &&
+    other.id !== item.id && other.name.length > item.name.length &&
     other.name.normalize('NFKC').trim().toLocaleLowerCase().includes(item.name.normalize('NFKC').trim().toLocaleLowerCase())
   ));
 };
