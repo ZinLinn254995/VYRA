@@ -292,7 +292,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       const finalDistance = Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y);
       if (finalDistance > 8) {
         pointer.moved = true;
-        lockClipSelectionAfterGesture();
       }
 
       // Every touch sequence consumes its follow-up browser click. Only a
@@ -595,7 +594,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         // This pointer movement is handled as timeline scrolling, not a tap.
         // Lock selection immediately, before the scroll event or click can fire.
         suppressTextClickRef.current = true;
-        lockClipSelectionAfterGesture();
         if (drag.timer) clearTimeout(drag.timer);
         drag.timer = null;
         drag.moved = true;
@@ -831,7 +829,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         // This pointer movement is handled as timeline scrolling, not a tap.
         // Lock selection immediately, before the scroll event or click can fire.
         suppressTextClickRef.current = true;
-        lockClipSelectionAfterGesture();
         if (drag.timer) clearTimeout(drag.timer);
         drag.timer = null;
         drag.moved = true;
@@ -935,7 +932,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   // A touch gesture that moved or pinched the timeline must never activate
   // whichever selectable item happens to be under the finger at release.
   const consumeSuppressedGestureClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (!suppressTextClickRef.current && !clipSelectionLockedRef.current) return false;
+    if (!suppressTextClickRef.current) return false;
     suppressTextClickRef.current = false;
     event.preventDefault();
     event.stopPropagation();
