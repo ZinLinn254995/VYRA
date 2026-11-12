@@ -229,3 +229,45 @@ export const formatStoryboardDeleteDraft = (draft: GlobalChatStoryboardDeleteDra
 
 export const isStoryboardDeleteConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+delete|ဖျက်ရန်\s+အတည်ပြု|ဖျက်မယ်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
+
+
+export type GlobalChatVyralDraft = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type GlobalChatAction = GlobalChatStoryboardAction
+  | { type: 'vyral-create-draft'; draft: GlobalChatVyralDraft }
+  | { type: 'vyral-create-complete'; draftId: string };
+
+export const isVyralCreateIntent = (input: string): boolean =>
+  /^\s*(?:(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:new\s+)?vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\b)/i.test(input);
+
+export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
+  const value = input.trim();
+  const patterns = [
+    /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
+    /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s*[:：]\s*["“']?(.+?)["”']?(?:\s*[—-]\s*(.+))?$/i,
+    /^vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = value.match(pattern);
+    if (!match) continue;
+    const name = (match[1] ?? '').trim().replace(/^[\"'“”‘’]+|[\"'“”‘’]+$/g, '').trim();
+    const description = (match[2] ?? '').trim().replace(/^[\"'“”‘’]+|[\"'“”‘’]+$/g, '').trim();
+    if (!name || name.length > 100 || description.length > 1000) return null;
+    return { name, description };
+  }
+  return null;
+};
+
+export const formatVyralCreateDraft = (draft: GlobalChatVyralDraft): string =>
+  '**Vyral creation draft — please review**\\n\\n' +
+  '**Name:** ' + draft.name + '\\n' +
+  '**Purpose / Description:** ' + (draft.description || 'Not specified yet') + '\\n\\n' +
+  'This will create a private Vyral with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\\n\\n' +
+  'Nothing has been created yet. Reply **Confirm Vyral create** (သို့) **Vyral ဖန်တီးရန် အတည်ပြု** to continue.';
+
+export const isVyralCreateConfirmation = (input: string): boolean =>
+  /^\s*(?:confirm\s+vyral\s+create|vyral\s+ဖန်တီးရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
