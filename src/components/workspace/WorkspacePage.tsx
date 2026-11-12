@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ConfirmationDialog } from '../ui/ConfirmationDialog';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
@@ -1158,23 +1159,19 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         </section>
       )}
 
-      {storyboardToDelete && (
-        <div role="presentation" className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !isDeletingStoryboard) setStoryboardToDelete(null); }}>
-          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-storyboard-title" aria-describedby="delete-storyboard-description" className="w-full max-w-sm rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]">
-            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-[var(--vyra-danger)]/10 text-[var(--vyra-danger)]"><Trash2 size={20} /></div>
-            <h2 id="delete-storyboard-title" className="text-base font-semibold text-[var(--vyra-text-primary)]">Delete storyboard?</h2>
-            <p id="delete-storyboard-description" className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">
-              “{storyboardToDelete.title}” will be permanently deleted. This action cannot be undone.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" variant="ghost" disabled={isDeletingStoryboard} onClick={() => setStoryboardToDelete(null)}>Cancel</Button>
-              <Button type="button" disabled={isDeletingStoryboard} onClick={() => void confirmDeleteStoryboard()} className="!bg-[var(--vyra-danger)] !text-white hover:!opacity-90">
-                {isDeletingStoryboard ? 'Deleting…' : 'Delete'}
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
+      <ConfirmationDialog
+        open={Boolean(storyboardToDelete)}
+        title="Delete storyboard?"
+        description={storyboardToDelete
+          ? <>“{storyboardToDelete.title}” will be permanently deleted. This action cannot be undone.</>
+          : null}
+        icon={<Trash2 size={20} />}
+        confirmLabel={isDeletingStoryboard ? 'Deleting…' : 'Delete'}
+        destructive
+        loading={isDeletingStoryboard}
+        onClose={() => setStoryboardToDelete(null)}
+        onConfirm={() => void confirmDeleteStoryboard()}
+      />
 
       {editDraft && editingStoryboardId && (
         <div role="presentation" className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditingStoryboardId(null); setEditDraft(null); } }}>
