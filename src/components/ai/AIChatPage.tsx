@@ -462,12 +462,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
   const persistSession = useCallback(async (session: ChatSession) => {
     if (!supabase || !historyOwnerId) return false;
-    const storedMessages = session.messages.slice(-250).map((message) => ({
+    const storedMessages = session.messages.map((message) => ({
       id: message.id,
       role: message.role,
-      content: message.content.slice(0, 24000),
+      content: message.content,
       ...(message.status ? { status: message.status } : {}),
-      ...(message.providerLabel ? { providerLabel: message.providerLabel.slice(0, 160) } : {}),
+      ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
     }));
     const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
       id: session.id,
