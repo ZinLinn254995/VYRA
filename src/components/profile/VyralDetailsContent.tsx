@@ -35,6 +35,7 @@ type DnaRow = {
 };
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
+type VisionReviewRow = { id: string; observation_id: string; evidence_kind: string; decision: string };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type MasterRelationshipRow = { id: string; relationship_type: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; rationale: string };
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
@@ -157,6 +158,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [dnaRecords, setDnaRecords] = useState<DnaRow[]>([]);
   const [fingerprints, setFingerprints] = useState<FingerprintRow[]>([]);
   const [observations, setObservations] = useState<ObservationRow[]>([]);
+  const [visionReviews, setVisionReviews] = useState<VisionReviewRow[]>([]);
   const [lineage, setLineage] = useState<LineageRow[]>([]);
   const [reconstructionTests, setReconstructionTests] = useState<ReconstructionRow[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
@@ -229,10 +231,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
     const assetRows = (results[1].data ?? []) as AssetRow[];
     const assetIds = assetRows.map((item) => item.id);
-    const [fingerprintResult, observationResult] = assetIds.length ? await Promise.all([
+    const [fingerprintResult, observationResult, reviewResult] = assetIds.length ? await Promise.all([
       supabase.from('vyral_fingerprints').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
       supabase.from('vyral_vision_observations').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
-    ]) : [{ data: [], error: null }, { data: [], error: null }];
+      supabase.from('vyral_vision_creator_evidence').select('id,observation_id,evidence_kind,decision').in('asset_id', assetIds).eq('evidence_kind', 'observation_review').order('created_at', { ascending: false }).limit(1000),
+    ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
     if (fingerprintResult.error || observationResult.error) {
       setError(fingerprintResult.error?.message ?? observationResult.error?.message ?? 'Could not load Vyral identity evidence.');
       setLoading(false);
@@ -245,6 +248,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setDnaRecords((results[3].data ?? []) as DnaRow[]);
     setFingerprints((fingerprintResult.data ?? []) as FingerprintRow[]);
     setObservations((observationResult.data ?? []) as ObservationRow[]);
+    setVisionReviews((reviewResult.data ?? []) as VisionReviewRow[]);
     setLineage((results[4].data ?? []) as LineageRow[]);
     setReconstructionTests((results[5].data ?? []) as ReconstructionRow[]);
     const masterRootResult = results[6];
@@ -3510,6 +3514,66 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 <p className={'mt-1 text-sm font-semibold '+primary}>Automatic</p>
               </div>
             </div>
+          </section>
+          <section className={surface+' p-4'}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className={'text-sm font-semibold '+primary}>AI Vision observations</h3>
+                <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>
+                  VYRA analyzes new uploads automatically. Review each observation before its information can be promoted into trusted Asset Knowledge.
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                {observations.length} observations
+              </span>
+            </div>
+            {observations.length ? (
+              <div className="mt-3 space-y-2">
+                {observations.slice(0, 30).map((item) => {
+                  const review = visionReviews.find((entry) => entry.observation_id === item.id);
+                  const fields = Object.entries(flattenObservation(item.observation)).slice(0, 8);
+                  const assetName = assets.find((asset) => asset.id === item.asset_id)?.name ?? 'Asset';
+                  return (
+                    <article key={item.id} className="rounded-lg border border-[var(--vyra-border)] p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className={'truncate text-xs font-semibold '+primary}>{assetName}</p>
+                          <p className={'mt-1 text-[10px] '+muted}>{item.model_provider} · {item.model_id} · {dateLabel(item.created_at)}</p>
+                          <p className={'mt-1 text-[10px] '+muted}>Source version {versions.find((version) => version.id === item.asset_version_id)?.version_number ?? 'unknown'} · SHA-256 {item.source_sha256.slice(0, 12)}…</p>
+                        </div>
+                        <span className={'rounded-full border px-2 py-1 text-[10px] font-semibold '+(review?.decision === 'creator_confirmed' ? 'border-emerald-500/30 text-emerald-600' : review?.decision === 'disputed' ? 'border-amber-500/30 text-amber-600' : 'border-[var(--vyra-border)] '+subtle)}>
+                          {review?.decision === 'creator_confirmed' ? 'Creator confirmed' : review?.decision === 'disputed' ? 'Disputed' : 'Needs review'}
+                        </span>
+                      </div>
+                      {fields.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          {fields.map(([key,value]) => <p key={key} className={'break-words text-[10px] '+muted}><strong className={primary}>{key}:</strong> {value.slice(0, 240)}</p>)}
+                        </div>
+                      )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {!review && (
+                          <>
+                            <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'creator_confirmed')} className={primaryButton}>
+                              <ShieldCheck size={13}/>{reviewingObservationId === item.id ? 'Saving…' : 'Confirm observation'}
+                            </button>
+                            <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'disputed')} className={button}>Dispute</button>
+                          </>
+                        )}
+                        {review?.decision === 'creator_confirmed' && (
+                          <button type="button" disabled={promotingObservationId === item.id} onClick={() => void promoteVisionKnowledge(item.id)} className={button}>
+                            {promotingObservationId === item.id ? 'Saving…' : 'Promote a Knowledge field'}
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={'mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-xs '+muted}>
+                No Vision observations yet. VYRA will add one after an eligible Asset upload is analyzed.
+              </p>
+            )}
           </section>
           {isProtectedVyral(vyral) && (
             <section className={surface+' p-4'}>
