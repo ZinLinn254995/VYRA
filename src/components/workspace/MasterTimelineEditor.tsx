@@ -3,6 +3,7 @@ import {
   AudioLines,
   Copy,
   Plus,
+  Pencil,
   Redo2,
   Scissors,
   Trash2,
@@ -81,6 +82,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
+  const [isTextEditMode, setIsTextEditMode] = useState(false);
   const seededAudioRef = useRef(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
   const [textDragYOffset, setTextDragYOffset] = useState(0);
@@ -1147,6 +1149,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           </>
         ) : selectedTextClip ? (
           <>
+            <button type="button" title="Edit selected text clip" aria-label="Edit selected text clip" onClick={() => setIsTextEditMode(true)} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+              <Pencil size={22} strokeWidth={1.8} />
+              <span className="sr-only">Edit</span>
+            </button>
             <button type="button" title="Split selected text at playhead" aria-label="Split selected text at playhead" onClick={runSplitSelectedText} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
               <Scissors size={22} strokeWidth={1.8} />
               <span className="sr-only">Split</span>
@@ -1346,7 +1352,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: value?.audioTracks || [], textTracks: nextTracks });
                     };
                     return (
-                      <div key={clip.id} data-timeline-text-track-id={track.id} data-timeline-text-clip-id={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { if (consumeSuppressedGestureClick(event)) return; event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id && (textDragRef.current?.active || audioDragRef.current?.active) ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
+                      <div key={clip.id} data-timeline-text-track-id={track.id} data-timeline-text-clip-id={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { if (consumeSuppressedGestureClick(event)) return; event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip({ trackId: track.id, clipId: clip.id }); setIsTextEditMode(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id && (textDragRef.current?.active || audioDragRef.current?.active) ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
                         <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
@@ -1426,15 +1432,24 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
           </div>
         </div>
+        {isTextEditMode && (
+          <div className="absolute inset-0 z-40 flex flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
+            <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--vyra-border)] px-3">
+              <span className="text-sm font-medium text-[var(--vyra-text-primary)]">Edit</span>
+              <button type="button" onClick={() => setIsTextEditMode(false)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-1.5 text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close edit mode">Close</button>
+            </div>
+            <div className="min-h-0 flex-1" />
+          </div>
+        )}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-1/2 z-30 w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]"
+          className={`pointer-events-none absolute inset-y-0 left-1/2 z-30 ${isTextEditMode ? 'hidden' : ''} w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]"
           style={{ pointerEvents: "none", userSelect: "none", touchAction: "pan-x pan-y" }}
         >
           <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
         </div>
       </div>
-      {toolbar}
+      {!isTextEditMode && toolbar}
     </div>
   );
 };
