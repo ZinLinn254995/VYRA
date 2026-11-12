@@ -11,6 +11,7 @@ import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
+import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -21,7 +22,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
+type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -72,7 +73,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
@@ -82,6 +83,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
+  const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
@@ -413,6 +415,29 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     };
   }, [activeStoryboard?.id]);
 
+
+  useEffect(() => {
+    if (!onAiContextChange) return;
+    const scenes = activeStoryboard?.details?.scenes ?? [];
+    const context: WorkspaceAiContext = {
+      page: activeStoryboard ? 'storyboard-editor' : 'storyboards',
+      pageLabel: activeStoryboard ? 'Workspace / Storyboard Editor' : 'Workspace / Storyboards',
+      activeStoryboard: activeStoryboard ? {
+        id: activeStoryboard.id,
+        title: activeStoryboard.title,
+        topic: activeStoryboard.topic.slice(0, 1200),
+        sceneCount: scenes.length,
+        sceneTitles: scenes.slice(0, 30).map((scene) => scene.title),
+      } : null,
+      ...(activeStoryboard ? { editorView: storyboardEditorView } : {}),
+      selectedSceneIds: selectedSceneIds.slice(0, 30),
+      selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
+      activeSceneId,
+      selectedTimelineItem: selectedTimelineItem ?? null,
+      capturedAt: new Date().toISOString(),
+    };
+    onAiContextChange(context);
+  }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
   useEffect(() => {
     setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
@@ -1074,6 +1099,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       setSelectedSceneIds((current) => current.filter((id) => id !== sceneId));
                       if (activeSceneId === sceneId) setActiveSceneId(null);
                     }}
+                    onSelectionChange={setSelectedTimelineItem}
                     onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
                       ...current,
                       details: { ...current.details, masterTimeline },
