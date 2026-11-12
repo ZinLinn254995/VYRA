@@ -1031,6 +1031,7 @@ router.get('/health', async (req: Request, res: Response) => {
 router.post('/ai/chat', async (req: Request, res: Response) => {
   const body = req.body as {
     ping?: boolean;
+    stream?: boolean;
     task?: 'suggest_details';
     detailsScope?: 'asset' | 'vyral' | 'storyboard';
     messages?: Array<{ role?: string; content?: string }>;
