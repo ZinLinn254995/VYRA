@@ -56,6 +56,17 @@ test('server rejects oversized, malformed, or MIME-mismatched vision payloads', 
 });
 
 
+test('new Asset uploads persist automatic AI observations against the exact source version', async () => {
+  const details = await readFile(new URL('../src/components/profile/VyralDetailsContent.tsx', import.meta.url), 'utf8');
+  assert.match(details, /suggestVyralAssetDetails\(file/);
+  assert.match(details, /record-vyral-vision-observation/);
+  assert.match(details, /assetId,\s*versionId: version\.id/);
+  assert.match(details, /analysis_origin: 'automatic_upload_analysis'/);
+  assert.match(details, /analysis_basis: 'uploaded_source_metadata_and_supported_derived_preview'/);
+  assert.match(details, /visionRecord\?\.status !== 'recorded'/);
+  assert.match(details, /does not\\n            \/\/ creator-confirm the model's claims/);
+});
+
 test('Vision field promotion is limited to editable knowledge fields and exact source evidence', () => {
   assert.match(promotion, /dnaPathParts\[0\] !== 'knowledge'/);
   assert.match(promotion, /forbiddenDnaSegments/);
