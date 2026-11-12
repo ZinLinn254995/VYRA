@@ -503,7 +503,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     return () => window.clearTimeout(timeout);
   }, [historyReady, historyOwnerId, activeSessionId, messages, currentTitle, isLocked, persistSession]);
 
-  const saveCurrentSession = (archived = false) => {
+  const saveCurrentSession = async (archived = false) => {
     if (!hasMessages) return;
     const session: ChatSession = {
       id: activeSessionId ?? crypto.randomUUID(),
@@ -514,11 +514,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       locked: isLocked,
     };
     setSessions((previous) => [session, ...previous.filter((item) => item.id !== session.id)]);
-    void persistSession(session);
+    await persistSession(session);
   };
 
-  const startNewChat = () => {
-    saveCurrentSession();
+  const startNewChat = async () => {
+    await saveCurrentSession();
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
@@ -1259,8 +1259,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setActionsOpen(false);
   };
 
-  const archiveCurrentChat = () => {
-    saveCurrentSession(true);
+  const archiveCurrentChat = async () => {
+    await saveCurrentSession(true);
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
