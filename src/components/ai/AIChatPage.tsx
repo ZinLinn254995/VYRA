@@ -352,6 +352,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [isSending, setIsSending] = useState(false);
   const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
   const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
+  const historyOwnerRef = useRef<string | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -370,8 +371,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   useEffect(() => {
     let active = true;
     if (!isAuthenticated || !supabase) {
+      historyOwnerRef.current = null;
       setHistoryOwnerId(null);
       setSessions([]);
+      setMessages([]);
+      setActiveSessionId(null);
+      setIsLocked(false);
       setHistoryError(null);
       setHistoryReady(true);
       return () => { active = false; };
@@ -390,6 +395,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         .order('updated_at', { ascending: false })
         .limit(100);
       if (error) throw new Error('Saved chat history is temporarily unavailable.');
+      if (historyOwnerRef.current && historyOwnerRef.current !== ownerId) {
+        setMessages([]);
+        setActiveSessionId(null);
+        setIsLocked(false);
+      }
+      historyOwnerRef.current = ownerId;
       const loaded = (data ?? []).map((row) => {
         const rawMessages = Array.isArray(row.messages) ? row.messages : [];
         const safeMessages = rawMessages.flatMap((item: unknown) => {
