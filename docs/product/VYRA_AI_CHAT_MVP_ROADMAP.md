@@ -496,3 +496,19 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Idempotent job retry is preserved after the quote transitions to `used`; the database still verifies the original user, quote, and job idempotency key before returning an existing job.
 
 **Remaining:** finalize and approve VYRA credit pricing, rounding, margin, refunds, and customer-facing consent wording; then test the complete approval → job → reserve transaction against a non-production test account, including insufficient-balance rollback and idempotent retries. Provider task submission/reconciliation remains disabled until the key and router configuration are deliberately supplied. AI Chat UI, Production Supabase, production deployment, and merge remain untouched.
+
+
+### Phase 4 progress — admin-controlled media credit pricing lifecycle
+
+- Added Development migration `20261113060000_media_credit_pricing_admin_controls.sql`.
+- Added audit fields to `media_credit_pricing_policies`: `created_by`, `activated_by`, and `activated_at`.
+- Added service-role-only `activate_media_credit_pricing_policy()`. The RPC independently verifies that the supplied actor is currently an owner/admin, serializes concurrent activations with a transaction advisory lock, retires the previous active policy, and activates the selected draft in one transaction. A policy cannot be edited into active status directly by an authenticated client.
+- Added authenticated `manage-media-credit-pricing` Edge Function and server proxy `POST /admin/media-credit-pricing`. Owner/admin actions:
+  - `status`: list recent policies and the active policy.
+  - `create_draft`: create a uniquely versioned draft with a positive decimal `creditsPerUsd` (up to 8 fractional digits). Draft creation never affects customer billing.
+  - `activate`: requires explicit `confirmed: true` and a policy ID; activation is atomic and audited.
+- Function is ACTIVE in Development with JWT verification enabled; `supabase/config.toml` and CI Deno type-check list are updated.
+- Verified audit columns exist, the activation RPC is executable by `service_role` and not by `authenticated`, and the migration is recorded. There are still zero pricing policies and zero active policies. No rate was selected or activated.
+- Security advisor reports `media_credit_pricing_policies` has RLS enabled with no client policies; this is intentional deny-by-default because access is through the authenticated owner/admin Edge Function using server-side credentials. Existing unrelated advisor findings include other pre-existing tables/functions and leaked-password protection; they were not changed in this task.
+
+**Remaining:** define the commercial credit conversion rate, provider-cost margin, refund/partial-failure rules, and user-facing disclosure before creating and activating the first policy. Then verify admin endpoint behavior with a real Development owner session and test the entire quote → USD approval → credit approval → job → reserve flow. No pricing value has been guessed; media generation remains blocked until the policy is explicitly approved and activated.
