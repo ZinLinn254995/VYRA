@@ -4049,11 +4049,33 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   {originV3Attempts.length} recorded attempts
                 </span>
               </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  { id: 'a40f067c-0ed1-4b93-814f-4f2f925ff320', label: 'Compare Gemini' },
+                  { id: 'a63edc73-0247-4477-84b9-f942080de694', label: 'Compare Grok' },
+                  { id: '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23', label: 'Compare Claude' },
+                ].map((candidate) => {
+                  const asset = assets.find((item) => item.id === candidate.id);
+                  if (!asset) return null;
+                  const running = comparingReconstructionAssetId === candidate.id;
+                  return (
+                    <button key={candidate.id} type="button" className={button}
+                      disabled={Boolean(comparingReconstructionAssetId) || Boolean(verifyingAssetId) || busy || packageBusy}
+                      onClick={() => void compareOriginReconstruction(asset)}>
+                      <Fingerprint size={13} />{running ? 'Comparing…' : candidate.label}
+                    </button>
+                  );
+                })}
+              </div>
               {originV3Attempts.length ? (
                 <div className="mt-3 space-y-2">
                   {originV3Attempts.map((attempt) => {
                     const evidence = asRecord(attempt.attempt_evidence);
                     const blindness = asRecord(evidence.blindness);
+                    const comparison = asRecord(asRecord(attempt.report).comparison);
+                    const visualFingerprint = asRecord(comparison.visualFingerprintComparison);
+                    const normalizedRgb = asRecord(comparison.normalizedImageComparison);
+                    const geometry = asRecord(comparison.redRegionGeometry);
                     const promptHash = attempt.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
                     const modelVersion = attempt.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : null);
                     const statusLabel = attempt.exact_match === true ? 'Exact match' :
@@ -4074,6 +4096,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                           <span className={muted}>RGB similarity: <strong className={primary}>{typeof attempt.similarity_score === 'number' ? (attempt.similarity_score * 100).toFixed(2)+'%' : 'Not available'}</strong></span>
                           <span className={muted}>Blindness: <strong className={primary}>{attempt.blindness_status ?? (typeof blindness.status === 'string' ? blindness.status : 'unverified')}</strong></span>
                           <span className={muted}>Prompt SHA-256: <strong className={primary}>{promptHash ? promptHash.slice(0, 12)+'…' : 'Not recorded'}</strong></span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+                          {typeof visualFingerprint.similarity === 'number' && <span className={muted}>dHash similarity: <strong className={primary}>{(visualFingerprint.similarity * 100).toFixed(1)}%</strong> · {String(visualFingerprint.hammingDistance ?? '—')}/64 bits differ</span>}
+                          {typeof normalizedRgb.normalizedGridRgbSimilarity === 'number' && <span className={muted}>Normalized RGB: <strong className={primary}>{(normalizedRgb.normalizedGridRgbSimilarity * 100).toFixed(2)}%</strong></span>}
+                          {typeof geometry.geometrySimilarity === 'number' && <span className={muted}>Geometry: <strong className={primary}>{(geometry.geometrySimilarity * 100).toFixed(2)}%</strong></span>}
                         </div>
                         {attempt.session_reference && <p className={'mt-2 break-all text-[10px] '+muted}>Session: {attempt.session_reference}</p>}
                         {(attempt.blindness_status === 'creator_attested' || blindness.independentlyVerified === false) && (
