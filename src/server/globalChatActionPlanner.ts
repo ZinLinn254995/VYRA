@@ -172,11 +172,9 @@ export function validateGlobalChatActionPlan(
   if (policy.requiresScene && !(isUuid(target.sceneId) && target.sceneId === context.activeSceneId)) {
     return { ok: false, reason: 'missing-target' };
   }
-  if ((target.vyralId && target.vyralId !== context.activeVyralId) ||
-      (target.storyboardId && target.storyboardId !== context.activeStoryboardId) ||
-      (target.sceneId && target.sceneId !== context.activeSceneId)) {
-    return { ok: false, reason: 'context-mismatch' };
-  }
+  // Explicit targets may refer to another user-owned resource. The active Workspace
+  // context is a resolution hint, not an authorization boundary; the executor must
+  // verify ownership and parent-child relationships against the database before use.
   return {
     ok: true,
     risk: policy.risk,
