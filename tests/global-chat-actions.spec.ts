@@ -62,3 +62,31 @@ test('global AI Chat recognizes only explicit allowlisted navigation requests', 
   assert.equal(extractGlobalChatNavigationTarget('Delete my Vyrals'), null);
   assert.equal(extractGlobalChatNavigationTarget('Create a storyboard'), null);
 });
+
+
+test('storyboard create intent requires a topic and parses optional titles', async () => {
+  const { extractStoryboardCreateRequest, isStoryboardCreateIntent } = await import('../src/services/globalChatActions.ts');
+  assert.equal(isStoryboardCreateIntent('Create a storyboard'), true);
+  assert.equal(extractStoryboardCreateRequest('Create a storyboard'), null);
+  assert.deepEqual(extractStoryboardCreateRequest('Create a storyboard about a space adventure'), {
+    title: '', topic: 'a space adventure',
+  });
+  assert.deepEqual(extractStoryboardCreateRequest('Create a storyboard titled "Moon Journey" about a child exploring the moon'), {
+    title: 'Moon Journey', topic: 'a child exploring the moon',
+  });
+  assert.deepEqual(extractStoryboardCreateRequest('အာကာသခရီး အကြောင်း storyboard ဖန်တီးပေး'), {
+    title: '', topic: 'အာကာသခရီး',
+  });
+  assert.equal(isStoryboardCreateIntent('Show my storyboards'), false);
+  assert.equal(isStoryboardCreateIntent('Delete my storyboard'), false);
+});
+
+test('storyboard creation requires an explicit confirmation phrase', async () => {
+  const { isStoryboardCreateConfirmation, formatStoryboardCreateDraft } = await import('../src/services/globalChatActions.ts');
+  assert.equal(isStoryboardCreateConfirmation('Confirm create'), true);
+  assert.equal(isStoryboardCreateConfirmation('အတည်ပြု'), true);
+  assert.equal(isStoryboardCreateConfirmation('yes'), false);
+  const preview = formatStoryboardCreateDraft({ id: 'draft-1', title: 'Moon Journey', topic: 'A child explores the moon' });
+  assert.match(preview, /Nothing has been saved yet/);
+  assert.match(preview, /Confirm create/);
+});
