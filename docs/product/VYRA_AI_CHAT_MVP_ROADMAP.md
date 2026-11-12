@@ -221,7 +221,7 @@ The repository has an initial Admin Dashboard/API-key management foundation for 
 - Routed the global AI Chat text path through this OpenAI function; OpenAI is now the single default conversational provider. The previous optional user-supplied OpenRouter/Gemini fallback has been removed from the main chat client path.
 - Fixed model choice for the first text-chat integration at `gpt-4.1-mini`; user-facing model selection can be added after the basic chat path is verified.
 - When no key exists, the service returns an explicit `OPENAI_NOT_CONFIGURED` response instead of generating fake preview text or silently switching providers.
-- Image/document/audio/video inspection remains intentionally disabled in this text-chat phase and returns a clear capability response; media work is reserved for Phase 4.
+- The general text-chat path is OpenAI-only. Existing authenticated Vyral Vision and selected-source inspection paths are preserved separately so this provider change does not regress the DNA workflow; broader image/audio/video generation and unified media routing remain in Phase 4.
 - The Admin Dashboard remains the only place to configure the platform key. Do not purchase or save the key until final verification.
 
 **Current verification:** Development Edge Function deployment is ACTIVE with `verify_jwt=true`. GitHub CI and Cloudflare Preview for the newest code are still running; this integration is not yet marked verified.
