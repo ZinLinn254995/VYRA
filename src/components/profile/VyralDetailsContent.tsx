@@ -2976,9 +2976,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         throw new Error(detail);
       }
-      if (data?.status !== 'field_promoted') throw new Error('Field-level Knowledge promotion was not confirmed.');
+      if (data?.status !== 'field_confirmed') throw new Error('Creator-confirmed Knowledge evidence was not saved.');
       await loadWorkspace();
-      setPackageStatus('One creator-confirmed Vision field was added to DNA as an immutable record. The full asset remains evolving.');
+      setPackageStatus('Creator-confirmed Knowledge evidence was saved. The Asset DNA remains evolving until its DNA proposal is applied.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not promote this Vision field.');
     } finally {
@@ -3573,7 +3573,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         )}
                         {review?.decision === 'creator_confirmed' && Object.keys(flattenObservation(item.observation)).some((path) => path.startsWith('fields.') && path.endsWith('.value')) && (
                           <button type="button" disabled={promotingObservationId === item.id} onClick={() => void promoteVisionKnowledge(item.id)} className={button}>
-                            {promotingObservationId === item.id ? 'Saving…' : 'Promote a Knowledge field'}
+                            {promotingObservationId === item.id ? 'Saving…' : 'Confirm a Knowledge field'}
                           </button>
                         )}
                       </div>
