@@ -525,3 +525,12 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Deliberately did **not** expose activation in the UI yet. The customer credit price, provider-cost margin, refund/partial-failure rules, and customer-consent wording still need owner approval. The server activation endpoint remains protected by owner/admin authorization and explicit confirmation.
 - No rate has been entered. Development still has zero pricing policies, zero active policies, zero quotes, zero generation jobs, and zero reserve ledger entries. No Runway key/router config or OpenAI key was added; no provider call, charge, Production change, merge, or deployment occurred.
 - AI Chat layout and styles were not modified. Browser visual verification of the new Profile settings section remains outstanding; verify it in Preview before considering the Admin Dashboard UI gate complete.
+
+### Phase 4 progress — pricing admin API validation hardening
+
+- Extracted media pricing admin payload validation into the shared, deterministic `src/services/mediaCreditPricing.ts` contract and made the Development Edge Function use it before any database operation.
+- The shared contract rejects non-object bodies, unsupported actions, invalid/duplicate-risk version formats, non-positive or exponent-form rates, rates with more than eight decimal places, numeric rather than string rate payloads, malformed policy UUIDs, and activation without the literal boolean `confirmed: true`.
+- Extracted the owner/admin role allowlist into a small pure helper used by the Edge Function. Added tests for owner/admin acceptance and member/unknown/null rejection, plus status, draft, and activation request validation.
+- The existing `test:media-credit-pricing` CI step already runs the expanded test file; the existing Deno Edge Function type-check includes `manage-media-credit-pricing` and now follows its shared TypeScript import.
+- These are deterministic contract tests, not a substitute for a live authenticated owner/non-admin Development API test. GitHub's connected workflow-run view currently returns no runs for the direct branch commit, and commit status has no check records; CI is therefore still unverified.
+- No policy was created or activated, no rate was chosen, and no quotes/jobs/reserve entries or provider calls were created. Production, AI Chat UI, and deployment remain untouched.
