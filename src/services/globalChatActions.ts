@@ -163,13 +163,13 @@ export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavi
 
 
 export const isStoryboardUpdateIntent = (input: string): boolean =>
-  /^\\s*(?:(?:update|change|edit)\\s+(?:the\\s+)?storyboard\\b|set\\s+(?:title|topic)\\s+of\\s+(?:the\\s+)?storyboard\\b|storyboard\\s+.+?\\s+ရဲ့\\s+(?:title|topic)\\s+ကို)/i.test(input);
+  /^\s*(?:(?:update|change|edit)\s+(?:the\s+)?storyboard\b|set\s+(?:title|topic)\s+of\s+(?:the\s+)?storyboard\b|storyboard\s+.+?\s+ရဲ့\s+(?:title|topic)\s+ကို)/i.test(input);
 
 export const extractStoryboardUpdateRequest = (input: string): { storyboardTitle: string; field: 'title' | 'topic'; value: string } | null => {
   const patterns: Array<{ regex: RegExp; target: number; field: number; value: number }> = [
-    { regex: /^\\s*(?:update|change|edit)\\s+(?:the\\s+)?storyboard\\s+["“']?(.+?)["”']?\\s+(title|topic|name|idea)\\s+(?:to|as|:)\\s+(.+?)\\s*$/i, target: 1, field: 2, value: 3 },
-    { regex: /^\\s*set\\s+(title|topic)\\s+of\\s+(?:the\\s+)?storyboard\\s+["“']?(.+?)["”']?\\s+to\\s+(.+?)\\s*$/i, target: 2, field: 1, value: 3 },
-    { regex: /^\\s*storyboard\\s+(.+?)\\s+ရဲ့\\s+(title|topic)\\s+ကို\\s+(.+?)\\s+ပြောင်း(?:ပေး)?\\s*$/i, target: 1, field: 2, value: 3 },
+    { regex: /^\s*(?:update|change|edit)\s+(?:the\s+)?storyboard\s+["“']?(.+?)["”']?\s+(title|topic|name|idea)\s+(?:to|as|:)\s+(.+?)\s*$/i, target: 1, field: 2, value: 3 },
+    { regex: /^\s*set\s+(title|topic)\s+of\s+(?:the\s+)?storyboard\s+["“']?(.+?)["”']?\s+to\s+(.+?)\s*$/i, target: 2, field: 1, value: 3 },
+    { regex: /^\s*storyboard\s+(.+?)\s+ရဲ့\s+(title|topic)\s+ကို\s+(.+?)\s+ပြောင်း(?:ပေး)?\s*$/i, target: 1, field: 2, value: 3 },
   ];
   for (const pattern of patterns) {
     const match = input.match(pattern.regex);
@@ -186,11 +186,11 @@ export const extractStoryboardUpdateRequest = (input: string): { storyboardTitle
 };
 
 export const formatStoryboardUpdateDraft = (draft: GlobalChatStoryboardUpdateDraft): string =>
-  '**Storyboard update — please review**\\n\\n' +
-  '**Storyboard:** ' + draft.storyboardTitle + '\\n' +
-  '**' + (draft.field === 'title' ? 'Title' : 'Topic') + ':** ' + draft.previousValue + '\\n' +
-  '**New ' + (draft.field === 'title' ? 'title' : 'topic') + ':** ' + draft.nextValue + '\\n\\n' +
+  '**Storyboard update — please review**\n\n' +
+  '**Storyboard:** ' + draft.storyboardTitle + '\n' +
+  '**' + (draft.field === 'title' ? 'Title' : 'Topic') + ':** ' + draft.previousValue + '\n' +
+  '**New ' + (draft.field === 'title' ? 'title' : 'topic') + ':** ' + draft.nextValue + '\n\n' +
   'Nothing has been changed yet. Reply **Confirm update** (သို့) **အတည်ပြု** to save this change.';
 
 export const isStoryboardUpdateConfirmation = (input: string): boolean =>
-  /^\\s*(?:confirm\\s+update|အတည်ပြု(?:မယ်)?|ပြောင်းလဲမှု\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
+  /^\s*(?:confirm\s+update|အတည်ပြု(?:မယ်)?|ပြောင်းလဲမှု\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
