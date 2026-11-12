@@ -25,35 +25,43 @@ Deno.serve(async (request: Request) => {
       return json({ error: 'Gemini provider configuration is unavailable.', code: 'GEMINI_VAULT_READ_FAILED' }, 503);
     }
     if (typeof apiKey !== 'string' || !apiKey) {
-      if (body.action === 'status') return json({ configured: false, provider: 'google', model: 'gemini-2.5-flash' });
+      if (body.action === 'status') return json({ configured: false, provider: 'google', model: 'gemini-3.8-flash' });
       return json({ error: 'Gemini is not configured. Add the key in Profile → Settings → AI Providers.' }, 503);
     }
-    if (body.action === 'status') return json({ configured: true, provider: 'google', model: 'gemini-2.5-flash' });
+    if (body.action === 'status') return json({ configured: true, provider: 'google', model: 'gemini-3.8-flash' });
 
-    const model = typeof body.model === 'string' && /^[a-zA-Z0-9._-]{1,100}$/.test(body.model) ? body.model : 'gemini-2.5-flash';
+    const model = typeof body.model === 'string' && /^[a-zA-Z0-9._-]{1,100}$/.test(body.model) ? body.model : 'gemini-3.8-flash';
     if (body.contents === undefined || body.contents === null) return json({ error: 'Gemini contents are required.' }, 400);
     const serialized = JSON.stringify({ contents: body.contents, systemInstruction: body.systemInstruction });
     if (new TextEncoder().encode(serialized).byteLength > 4 * 1024 * 1024) return json({ error: 'Gemini request exceeds the 4 MB limit.' }, 413);
 
     stage = 'gemini_request';
     const upstreamUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
-    let upstream: Response;
+    let upstream: Response | null = null;
     try {
-      upstream = await fetch(upstreamUrl, {
-        method: 'POST',
-        headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          contents: body.contents,
-          ...(body.systemInstruction ? { systemInstruction: body.systemInstruction } : {}),
-          ...(body.config && typeof body.config === 'object' ? { generationConfig: body.config } : {}),
-        }),
-        signal: AbortSignal.timeout(60000),
+      const requestBody = JSON.stringify({
+        contents: body.contents,
+        ...(body.systemInstruction ? { systemInstruction: body.systemInstruction } : {}),
+        ...(body.config && typeof body.config === 'object' ? { generationConfig: body.config } : {}),
       });
+      // Google can temporarily return 503/429 during capacity spikes. Retry once
+      // with a short backoff; do not retry validation, auth, or model errors.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        upstream = await fetch(upstreamUrl, {
+          method: 'POST',
+          headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: requestBody,
+          signal: AbortSignal.timeout(30000),
+        });
+        if ((upstream.status !== 503 && upstream.status !== 429) || attempt === 1) break;
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
     } catch (error) {
       const errorName = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name) : 'Error';
       console.error('[vyra-gemini-proxy] upstream network failure:', errorName);
       return json({ error: 'Could not reach Gemini. Check the connection and retry.', code: 'GEMINI_UPSTREAM_FAILED' }, 502);
     }
+    if (!upstream) return json({ error: 'Could not reach Gemini.', code: 'GEMINI_UPSTREAM_FAILED' }, 502);
 
     const payload = await upstream.json().catch(() => ({})) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -80,7 +88,7 @@ Deno.serve(async (request: Request) => {
         code: 'GEMINI_HTTP_' + upstream.status,
         providerStatus: payload.error?.status ?? null,
         model,
-      }, upstream.status === 429 ? 429 : 502);
+      }, upstream.status === 429 ? 429 : upstream.status === 503 ? 503 : 502);
     }
     const text = (payload.candidates?.[0]?.content?.parts ?? []).map((part) => typeof part.text === 'string' ? part.text : '').join('').trim();
     if (!text) return json({ error: 'Gemini returned an empty response.', code: 'GEMINI_EMPTY_RESPONSE' }, 502);
