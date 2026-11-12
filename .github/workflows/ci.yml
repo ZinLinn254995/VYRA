@@ -33,6 +33,8 @@ jobs:
         run: npm run test:media-model-selection
       - name: Media generation approval contract tests
         run: npm run test:media-generation-contract
+      - name: Media credit pricing exact-decimal tests
+        run: npm run test:media-credit-pricing
       - name: Supabase auth verification tests
         run: npm run test:auth
       - name: Customer project API tests
