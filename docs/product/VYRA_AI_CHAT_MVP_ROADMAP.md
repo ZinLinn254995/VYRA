@@ -603,3 +603,15 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Remaining: add optional source-version-pinned AI Vision observations from Chat uploads, allow explicit Vyral switching/context management through natural-language commands, and verify the full upload/DNA/Master-DNA path in the Development browser. No production changes, deploy, merge, provider generation, or charges.
 
 - Upload recovery hardening: when the shared ingestion service reports that DNA may already have committed, Chat does not offer a blind retry that could create a duplicate Asset. It removes the transient File reference and surfaces the preserved Asset ID with instructions to use the existing Recover DNA workflow. Retry remains available only for failures where the ingestion service safely rolled back the incomplete attempt.
+
+
+#### Natural-language Vyral context and approvals
+
+- Product requirement clarified by the creator: VYRA AI Chat must accept free-form conversational instructions, not require users to memorize fixed command phrases.
+- Chat now resolves a single mentioned Vyral by its actual owner-scoped name from the user's Vyral library, makes it the active working context, and persists that selection per authenticated account. If multiple Vyral names are mentioned (for example, comparison), it does not silently switch.
+- A newly created Vyral becomes the active context automatically. Explicitly selected Assets from one Vyral also establish that Vyral as the current context.
+- The active Vyral ID is sent with ordinary chat requests. The Development Edge Function verifies the Vyral against the authenticated user before adding its name and description to the model's system context. Client-provided descriptions are not trusted; the server reads the canonical row.
+- The model instructions now explicitly support natural references such as “this Vyral”, “continue this”, “add this there”, and follow-up creative requests. No fixed command syntax is required for conversational context switching by name.
+- Attached files can be directed to the active Vyral with natural add/save/use/put/include language. A preview is still shown, and only a short natural approval (e.g. “go ahead”, “looks good”, “အေး လုပ်လိုက်”) or explicit confirmation proceeds. Approval is bound to the latest pending preview only; no generic “yes” triggers unrelated old actions.
+- The OpenAI key remains unset, so actual model interpretation cannot yet be exercised end-to-end. Deterministic owner-scoped context matching, context handoff, and approval handling are implemented and unit-covered; live natural-language quality must be verified once the platform key is configured in the planned final verification phase.
+- AI Chat visual design remains unchanged. No provider generation, customer billing, production deployment, or merge.
