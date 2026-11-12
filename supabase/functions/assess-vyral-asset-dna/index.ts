@@ -239,11 +239,13 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'Could not load source-bound semantic evidence for completeness assessment.' }, 500);
   }
   const creatorReviews = new Map<string, string>();
+  const disputedReviews = new Set<string>();
   const fieldConfirmations: Array<{ observationId: string; id: string; fieldPath: string; acceptedValue: unknown }> = [];
   for (const evidence of creatorEvidenceResult.data ?? []) {
     if (evidence.decision !== 'creator_confirmed') continue;
     if (evidence.evidence_kind === 'observation_review' && typeof evidence.observation_id === 'string') {
-      creatorReviews.set(evidence.observation_id, String(evidence.id));
+      if (evidence.decision === 'creator_confirmed') creatorReviews.set(evidence.observation_id, String(evidence.id));
+      else disputedReviews.add(evidence.observation_id);
     } else if (evidence.evidence_kind === 'field_confirmation' &&
         typeof evidence.observation_id === 'string' &&
         typeof evidence.field_path === 'string' &&
@@ -264,7 +266,7 @@ Deno.serve(async (request: Request) => {
     return {
       sourceVersionId: String(observation.asset_version_id ?? ''),
       sourceSha256: String(observation.source_sha256 ?? '').toLowerCase(),
-      evidenceClass: reviewId ? 'creator_confirmed' as const : 'ai_observed' as const,
+      evidenceClass: reviewId ? 'creator_confirmed' as const : disputedReviews.has(String(observation.id)) ? 'disputed' as const : 'ai_observed' as const,
       fields,
       evidenceRef: reviewId ? 'creator-review:' + reviewId : 'vision-observation:' + String(observation.id),
     };
