@@ -2575,12 +2575,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
-  const verifyAssetIntegrity = async (asset: AssetRow) => {
+  const verifyAssetIntegrity = async (asset: AssetRow, requestedVersionId?: string) => {
     if (!supabase || verifyingAssetId || busy || packageBusy) return;
     const assetVersions = versions.filter((version) => version.asset_id === asset.id);
-    const currentVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
-      ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
-    if (!currentVersion) { setError('No stored asset version is available to verify.'); return; }
+    const currentVersion = requestedVersionId
+      ? assetVersions.find((version) => version.id === requestedVersionId)
+      : assetVersions.find((version) => version.storage_path === asset.storage_path)
+        ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
+    if (!currentVersion) { setError('The selected stored Asset version is no longer available to verify.'); return; }
 
     setVerifyingAssetId(asset.id);
     setError('');
@@ -2602,8 +2604,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
       if (data?.status !== 'verified') throw new Error('The verification service did not return a verified result.');
       setPackageStatus(data.sourceFileReconstruction === 'byte_exact'
-        ? 'VYRA verified that the original file can be rebuilt exactly for ' + asset.name + '.'
-        : 'VYRA verified the original file integrity for ' + asset.name + '.');
+        ? 'VYRA verified Version ' + currentVersion.version_number + ' of ' + asset.name + ' and rebuilt its original file byte-for-byte.'
+        : 'VYRA verified Version ' + currentVersion.version_number + ' of ' + asset.name + ' · SHA-256 ' + String(data.sha256 ?? '').slice(0, 16) + '…');
       await loadWorkspace();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Server-side asset verification failed.');
@@ -3754,6 +3756,20 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                               <time className={'text-[9px] '+muted}>{dateLabel(version.created_at)}</time>
                             </div>
                             <p className={'mt-1 break-all text-[9px] '+muted}>SHA-256: {version.sha256 ? version.sha256 : 'Not recorded'}</p>
+                            {(() => {
+                              const cryptographicFingerprint = versionFingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'cryptographic' && fingerprint.algorithm.toUpperCase() === 'SHA-256');
+                              const fingerprintMetadata = asRecord(cryptographicFingerprint?.metadata);
+                              const comparisonStatus = String(fingerprintMetadata.comparison_status ?? '');
+                              const verificationStatus = String(fingerprintMetadata.verification_status ?? '');
+                              return <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className={'text-[9px] '+(comparisonStatus === 'matched' ? 'text-emerald-600' : comparisonStatus === 'mismatch' ? 'text-red-600' : 'text-amber-600')}>
+                                  {comparisonStatus === 'matched' ? 'Server fingerprint verified' : comparisonStatus === 'mismatch' ? 'Fingerprint mismatch' : comparisonStatus === 'baseline_created' ? 'Baseline fingerprint created' : 'Fingerprint not yet verified'}
+                                </span>
+                                <button type="button" className={button} disabled={verifyingAssetId === asset.id} onClick={() => void verifyAssetIntegrity(asset, version.id)}>
+                                  {verifyingAssetId === asset.id ? 'Verifying…' : 'Verify this version'}
+                                </button>
+                              </div>;
+                            })()}
                             <div className={'mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[9px] '+muted}>
                               <span>{versionObservations.length} Vision observations</span>
                               <span>{confirmedCount} creator-confirmed</span>
