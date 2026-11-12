@@ -1,5 +1,5 @@
 export type WorkspaceAiContext = {
-  page: 'storyboards' | 'storyboard-editor' | 'my-vyrals' | 'my-media-library';
+  page: 'storyboards' | 'storyboard-editor' | 'scene-editor' | 'my-vyrals' | 'my-media-library';
   pageLabel: string;
   activeStoryboard?: {
     id: string;
