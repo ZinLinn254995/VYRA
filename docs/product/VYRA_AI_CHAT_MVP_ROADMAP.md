@@ -315,3 +315,16 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Verification status:** GitHub Actions run `43296280263` passed for implementation commit `0d0ecc3bb9c6ca903c64b47f7b958ff2979a6a9b`, including TypeScript check, global AI Chat safe-action tests, Supabase Edge Function type-check, all listed regression suites, and production build. Focused tests cover English/Burmese creation parsing, missing-topic behavior, explicit confirmation phrases, and draft-preview wording. Preview/device interaction and the saved Storyboard appearing in Workspace still require manual verification. No Production deployment or merge was performed.
 
 **Next Phase 3 step:** Verify the create/confirm/reload/Workspace journey in Preview, then implement the next narrowly scoped action only after this creation path passes.
+### Phase 3 progress — confirmation-gated Storyboard editing
+
+- Added explicit English and Burmese update intent parsing for Storyboard title and topic changes. The action does not attempt free-form edits to scene content or other metadata.
+- AI Chat loads the signed-in user's account-scoped Storyboards, merges the account's device cache with cloud rows, and requires a unique match. Ambiguous matches ask the creator to clarify; missing matches do not create or modify records.
+- The proposed title/topic change is shown as a conversational draft. No database or device-cache mutation occurs until the creator explicitly confirms with “Confirm update” or “အတည်ပြု”.
+- Confirmation re-authenticates the user and updates only the selected title or topic field, scoped by both Storyboard ID and user ID. The device cache is synchronized after the cloud update.
+- The draft captures the Storyboard's current updated_at value. If the cloud record changed after the draft was prepared, the action stops and asks for a fresh draft instead of overwriting newer work.
+- Failed confirmation retains the structured update draft for a safe retry. Completed draft IDs are tracked in the chat transcript to prevent accidental repeat application.
+- Added focused tests for English/Burmese update parsing, negative intent cases, confirmation gating, and draft preview wording. No AI Chat layout, CSS, controls, or visual hierarchy were changed.
+
+**Verification:** GitHub Actions run `43298266907` passed for implementation commit `94a28111e73e01eef1a157019022da73c15dab50`, including TypeScript check, AI Chat streaming tests, global Chat action tests, Supabase Edge Function type-check, all listed regression suites, and production build. Preview/device interaction for both Storyboard create and update flows remains a manual acceptance check. No production deployment or merge was performed.
+
+**Next Phase 3 step:** Complete Preview/device checks for Storyboard create and update (including refresh/reopen and Workspace synchronization), then proceed to a separately confirmation-gated delete action. Preserve the existing AI Chat UI baseline.
