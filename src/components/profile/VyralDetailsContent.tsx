@@ -3807,10 +3807,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         const previousDecoderContract = asRecord(previousDecodedImage.decoder_contract);
                         const hasCurrentDecodedEvidence = /^[a-f0-9]{64}$/i.test(String(decodedImage.decoded_samples_sha256 ?? ''));
                         const hasPreviousDecodedEvidence = /^[a-f0-9]{64}$/i.test(String(previousDecodedImage.decoded_samples_sha256 ?? ''));
-                        const sameDecodeContract = decoderContract.name === previousDecoderContract.name &&
+                        const sameDecodeContract = typeof decoderContract.name === 'string' && decoderContract.name.length > 0 &&
+                          typeof decoderContract.version === 'string' && decoderContract.version.length > 0 &&
+                          decoderContract.name === previousDecoderContract.name &&
                           decoderContract.version === previousDecoderContract.version &&
+                          Number.isSafeInteger(Number(decodedImage.width)) && Number(decodedImage.width) > 0 &&
+                          Number.isSafeInteger(Number(decodedImage.height)) && Number(decodedImage.height) > 0 &&
                           decodedImage.width === previousDecodedImage.width &&
                           decodedImage.height === previousDecodedImage.height &&
+                          ['RGB', 'RGBA'].includes(String(decodedImage.channel_layout)) &&
                           decodedImage.channel_layout === previousDecodedImage.channel_layout;
                         const decodedSampleStatus = !previousEntry ? null :
                           hasCurrentDecodedEvidence && hasPreviousDecodedEvidence
