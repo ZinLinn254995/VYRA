@@ -2107,7 +2107,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
         try {
           const accessToken = await getCurrentAccessToken();
-          if (accessToken && !isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime })) {
+          if (accessToken && vyral.license_policy?.allow_ai_analysis !== false && !isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime })) {
             const suggestion = await suggestVyralAssetDetails(file, {
               accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
             });
@@ -2188,7 +2188,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (currentAsset) {
               const currentMetadata = currentAsset.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
                 ? currentAsset.metadata as Record<string, unknown> : {};
-              await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime }) ? 'not_applicable' : 'unavailable' } })
+              await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime }) ? 'not_applicable' : vyral.license_policy?.allow_ai_analysis === false ? 'blocked_by_license' : 'unavailable' } })
                 .eq('id', assetId).eq('user_id', auth.user.id);
             }
           }
