@@ -117,7 +117,7 @@ class ModularAIService implements AIServiceProvider {
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
     // Preserve the existing authenticated multimodal path for Vyral DNA Vision
     // and selected source inspection. General text conversation uses OpenAI below.
-    if (request.visionImages?.length || request.mediaFiles?.length) {
+    if (request.visionImages?.length) {
       if (!request.accessToken) {
         const message = 'Sign in to VYRA before inspecting selected Assets.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
