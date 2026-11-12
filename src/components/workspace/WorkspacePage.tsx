@@ -1097,11 +1097,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   return (
     <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
-        <div className="mb-5">
-          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Workspace</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Manage your Vyrals, media library and storyboards in one place.</p>
-        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={21} /></span>
