@@ -5,7 +5,7 @@ import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm
 
 const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_PIXELS = 8_000_000;
+const MAX_PIXELS = 10_000_000;
 const sha256 = async (bytes: Uint8Array) => {
   const copy = new Uint8Array(bytes.byteLength); copy.set(bytes);
   const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
@@ -87,7 +87,7 @@ Deno.serve(async (request: Request) => {
   try {
     freshSamples = await ImageMagick.read(original, (image) => {
       width = image.width; height = image.height;
-      if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width * height > MAX_PIXELS) throw new Error('Decoded image exceeds the 8-megapixel limit.');
+      if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width * height > MAX_PIXELS) throw new Error('Decoded image exceeds the 10-megapixel limit.');
       const samples = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, layout.toLowerCase())?.slice() ?? null);
       if (!samples || samples.byteLength !== width * height * channels) throw new Error('Pinned decoder returned an incomplete sample stream.');
       return samples;
