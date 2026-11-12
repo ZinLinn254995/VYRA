@@ -2107,6 +2107,42 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const suggestion = await suggestVyralAssetDetails(file, {
               accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
             });
+
+            // Persist the automatic AI analysis as a source-version-pinned Vision
+            // observation. The Edge Function independently re-downloads the
+            // original bytes and verifies SHA-256 before recording; this does not
+            // creator-confirm the model's claims or promote them into trusted DNA.
+            const observedFields = Object.fromEntries(Object.entries(suggestion.details.fields).map(([key, field]) => [
+              key,
+              {
+                value: field.value,
+                ...(field.confidence === undefined ? {} : { confidence: field.confidence }),
+              },
+            ]));
+            if (Object.keys(observedFields).length) {
+              const { data: visionRecord, error: visionRecordError } = await db.functions.invoke('record-vyral-vision-observation', {
+                body: {
+                  assetId,
+                  versionId: version.id,
+                  taskKind: 'identity',
+                  modelProvider: suggestion.provider,
+                  modelId: suggestion.model,
+                  confidence: null,
+                  observation: {
+                    schema_version: 1,
+                    analysis_origin: 'automatic_upload_analysis',
+                    analysis_basis: 'uploaded_source_metadata_and_supported_derived_preview',
+                    source_version_id: version.id,
+                    fields: observedFields,
+                    uncertainties: [],
+                  },
+                },
+              });
+              if (visionRecordError || visionRecord?.status !== 'recorded') {
+                console.warn('[vyral-vision] Automatic observation was not recorded with source integrity evidence.', visionRecordError);
+              }
+            }
+
             const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
