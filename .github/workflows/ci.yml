@@ -29,6 +29,8 @@ jobs:
         run: npm run test:ai-chat-stream
       - name: Global AI Chat safe action tests
         run: npm run test:global-chat-actions
+      - name: Global AI Chat action planner policy tests
+        run: npm run test:global-chat-planner
       - name: Media model selection policy tests
         run: npm run test:media-model-selection
       - name: Media generation approval contract tests
