@@ -38,3 +38,9 @@ verify_jwt = true
 
 [functions.approve-runway-media-quote]
 verify_jwt = true
+
+[functions.approve-runway-media-credit]
+verify_jwt = true
+
+[functions.create-runway-media-job]
+verify_jwt = true
