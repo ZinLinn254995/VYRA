@@ -19,6 +19,7 @@ export type GlobalChatStoryboardUpdateDraft = {
   storyboardTitle: string;
   field: 'title' | 'topic';
   previousValue: string;
+  expectedUpdatedAt: string;
   nextValue: string;
 };
 
