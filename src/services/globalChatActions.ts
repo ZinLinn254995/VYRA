@@ -342,7 +342,7 @@ export const findMentionedVyrals = (
 export const isVyralAssetAddIntent = (input: string): boolean => {
   if (/\b(?:do not|don't|never|avoid)\s+(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
       /(?:မထည့်|မသိမ်း|မလုပ်ပါ)/.test(input)) return false;
-  return /\b(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
+  return /\b(?:add|put|save|store|attach|upload|place)\b/i.test(input) ||
     /\b(?:make|keep)\s+(?:this|that|it)\s+(?:part|one)\s+of\b/i.test(input) ||
     /\b(?:this|that|it)\s+(?:belongs|should go|needs to go)\s+(?:in|into|with)\b/i.test(input) ||
     /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|part of)\b/i.test(input) ||
