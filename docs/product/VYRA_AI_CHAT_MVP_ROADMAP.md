@@ -278,3 +278,16 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Verification status:** GitHub Actions run `43284733349` passed for commit `b27e4ea2d1a95603c5a2436600c87992da4e4e8f`, including TypeScript, the new global Chat action tests, all existing regression suites, Supabase Edge Function type-check, and production build. Cloudflare Preview build `870ed926-1867-4214-b80b-653198dd3d37` for the same commit completed successfully. No production deployment or merge was performed.
 
 **Next Phase 3 step:** Add low-risk navigation and detail inspection using the same account-scoped data boundary. Keep create/update/delete, publishing, purchases, and paid generation disabled until each has a separate explicit confirmation and reliable execution contract. Preserve the existing AI Chat UI baseline.
+
+### Phase 3 progress — read-only Storyboard detail inspection
+
+- Added natural-language detail lookup for requests such as “Show details of ORIGIN Story”, “Tell me about Space Journey”, “Open storyboard My First Film”, and a Burmese detail-request pattern.
+- The lookup uses the same signed-in user's cloud rows (user_id scoped) plus that user's local cache, reconciled through the existing timestamp-aware merge helper.
+- Exact title matches take priority over partial matches. If more than one Storyboard matches, Chat asks the user to clarify instead of selecting one arbitrarily. If none match, it reports that honestly.
+- The response includes the Storyboard topic, available category/style/mood/tags and global title/music metadata, plus scene titles, descriptions, durations, transitions, and created/updated dates when present.
+- This is strictly read-only. It does not alter Storyboards, create new records, or change the existing Chat UI.
+- Added tests for English/Burmese detail intent, exact-match priority, scene formatting, and avoiding accidental matching of list/create requests.
+
+**Verification status:** The implementation and tests have been committed to feature/my-storyboard. Automated CI and Preview verification for this new commit are pending; do not treat this step as verified until those checks finish. No production deployment or merge was performed.
+
+**Next Phase 3 step:** Add navigation through the app's existing navigation path, then define safe create/edit operations with explicit confirmation and server-side authorization. Preserve the existing AI Chat UI baseline.
