@@ -682,7 +682,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if ((isVyralAssetUploadConfirmation(text) || isNaturalChatApproval(text)) && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'vyral-asset-upload-draft')) {
+      if ((isVyralAssetUploadConfirmation(text) || isNaturalChatApproval(text)) && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'vyral-asset-upload-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type !== 'vyral-asset-upload-draft') {
@@ -806,7 +806,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
-      if ((isStoryboardDeleteConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'storyboard-delete-draft')) {
+      if ((isStoryboardDeleteConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-delete-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-delete-draft') {
@@ -862,7 +862,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if ((isStoryboardUpdateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'storyboard-update-draft')) {
+      if ((isStoryboardUpdateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-update-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-update-draft') {
@@ -926,7 +926,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if ((isVyralCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'vyral-create-draft')) {
+      if ((isVyralCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'vyral-create-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type !== 'vyral-create-draft') {
@@ -999,7 +999,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
-      if ((isStoryboardCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'storyboard-create-draft')) {
+      if ((isStoryboardCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-create-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-create-draft') {
