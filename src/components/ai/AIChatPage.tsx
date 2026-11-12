@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
+import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
 import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
@@ -36,6 +37,7 @@ type AIChatPageProps = {
   onLoginRequired: () => void;
   initialSelectedAssets?: VyralChatAssetContext[];
   onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
+  workspaceContext?: WorkspaceAiContext | null;
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -337,7 +339,7 @@ const inspectVyralAttachment = async (file: File) => {
   return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -1923,6 +1925,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
+        ...(workspaceContext ? { workspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
         ...(canStreamText ? {
