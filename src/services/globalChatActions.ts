@@ -85,3 +85,18 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
   lines.push('', 'Created: ' + new Date(item.createdAt).toLocaleDateString(), 'Updated: ' + new Date(item.updatedAt).toLocaleDateString());
   return lines.join('\n');
 };
+
+
+export type GlobalChatNavigationTarget = 'workspace' | 'marketplace' | 'my-vyrals' | 'my-media-library';
+
+export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavigationTarget | null => {
+  const value = input.trim().toLocaleLowerCase().replace(/[.!?။]+$/g, '').trim();
+  const patterns: Array<[GlobalChatNavigationTarget, RegExp]> = [
+    ['my-vyrals', /^(?:(?:go|open|show|take me to)\s+(?:to\s+)?(?:my\s+)?vyrals?|(?:my\s+)?vyrals?\s+(?:ဖွင့်|သွား|ပြပေး))$/i],
+    ['my-media-library', /^(?:(?:go|open|show|take me to)\s+(?:to\s+)?(?:my\s+)?media\s+library|(?:my\s+)?media\s+library\s+(?:ဖွင့်|သွား|ပြပေး)|media\s+library)$/i],
+    ['workspace', /^(?:(?:go|open|take me to)\s+(?:the\s+)?workspace|workspace\s+(?:ဖွင့်|သွား|ပြပေး))$/i],
+    ['marketplace', /^(?:(?:go|open|take me to)\s+(?:the\s+)?marketplace|marketplace\s+(?:ဖွင့်|သွား|ပြပေး))$/i],
+  ];
+  for (const [target, pattern] of patterns) if (pattern.test(value)) return target;
+  return null;
+};
