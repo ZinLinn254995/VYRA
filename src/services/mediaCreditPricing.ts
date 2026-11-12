@@ -40,3 +40,38 @@ export function validateMediaCreditPolicyDraft(input: {
   }
   return { version, creditsPerUsd: rate, roundingMode: 'ceil' };
 }
+
+
+export type MediaCreditPricingAdminAction =
+  | { action: 'status' }
+  | { action: 'create_draft'; version: string; creditsPerUsd: string }
+  | { action: 'activate'; policyId: string; confirmed: true };
+
+const POLICY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Validate admin API payloads before any database operation. */
+export function validateMediaCreditPricingAdminAction(input: unknown): MediaCreditPricingAdminAction {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Request body must be a JSON object.');
+  }
+  const body = input as Record<string, unknown>;
+  if (body.action === 'status') return { action: 'status' };
+  if (body.action === 'create_draft') {
+    if (typeof body.version !== 'string' || typeof body.creditsPerUsd !== 'string') {
+      throw new Error('Policy version and credits-per-USD are required.');
+    }
+    const policy = validateMediaCreditPolicyDraft({
+      version: body.version,
+      creditsPerUsd: body.creditsPerUsd,
+    });
+    return { action: 'create_draft', ...policy, creditsPerUsd: policy.creditsPerUsd };
+  }
+  if (body.action === 'activate') {
+    if (body.confirmed !== true) throw new Error('Explicit activation confirmation is required.');
+    if (typeof body.policyId !== 'string' || !POLICY_UUID.test(body.policyId)) {
+      throw new Error('A valid draft policy ID is required.');
+    }
+    return { action: 'activate', policyId: body.policyId, confirmed: true };
+  }
+  throw new Error('Unsupported pricing policy action.');
+}
