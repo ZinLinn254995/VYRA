@@ -376,7 +376,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     try { storedId = localStorage.getItem(storageKey); } catch { storedId = null; }
     if (!storedId) {
       setActiveVyralId(null);
-      setActiveVyralName(null);
       return () => { active = false; };
     }
     void supabase.from('vyrals').select('id,name').eq('id', storedId).eq('user_id', historyOwnerId).maybeSingle()
@@ -384,7 +383,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (!active) return;
         if (error || !data) {
           setActiveVyralId(null);
-          setActiveVyralName(null);
           try { localStorage.removeItem(storageKey); } catch { /* storage is optional */ }
           return;
         }
