@@ -75,3 +75,9 @@ export function validateMediaCreditPricingAdminAction(input: unknown): MediaCred
   }
   throw new Error('Unsupported pricing policy action.');
 }
+
+
+/** Keep the Edge Function's role allowlist explicit and independently testable. */
+export function isMediaCreditPricingAdminRole(role: unknown): role is 'owner' | 'admin' {
+  return role === 'owner' || role === 'admin';
+}
