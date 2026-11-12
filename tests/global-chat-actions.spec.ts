@@ -22,5 +22,5 @@ test('storyboard list response uses actual records and reports an honest empty s
   }]);
   assert.match(output, /ORIGIN Story/);
   assert.match(output, /A sample story/);
-  assert.match(output, /2 scene\(s\)/);
+  assert.ok(output.includes('2 scene(s)'));
 });
