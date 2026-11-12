@@ -299,7 +299,7 @@ export const extractVyralAssetUploadTarget = (input: string): string | null => {
 };
 
 export const isVyralAssetUploadConfirmation = (input: string): boolean =>
-  /^\\s*(?:confirm\\s+(?:asset )?upload|confirm\\s+add\\s+to\\s+vyral|vyral\\s+asset\\s+upload\\s+confirm|Asset\\s+ထည့်ရန်\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
+  /^\s*(?:confirm\s+(?:asset )?upload|confirm\s+add\s+to\s+vyral|vyral\s+asset\s+upload\s+confirm|Asset\s+ထည့်ရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
 
 export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDraft): string =>
   '**Asset upload preview**\n\n' +
