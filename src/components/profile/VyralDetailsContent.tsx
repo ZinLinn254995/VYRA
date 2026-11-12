@@ -12,7 +12,7 @@ import { VYRAL_SYSTEM_FILES_VERSION, verifyVyralSystemFileIntegrityV1 } from '..
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import { createVyralDnaV3EncodedFilePayload, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
-import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
+import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion';
 import { createVyralSemanticDnaV1 } from '../../services/vyralSemanticDnaV1';
 import { compareVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../services/vyralPerceptualFingerprint';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
@@ -2185,7 +2185,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       } catch (cause) {
-        let preserveCommittedAsset = dnaCommitted;
+        let preserveCommittedAsset = dnaCommitted || (cause instanceof VyralAssetIngestionError && cause.preservedForRecovery);
         if (assetId && !preserveCommittedAsset) {
           const { data: committedRows, error: reconcileError } = await supabase
             .from('vyral_dna_records').select('id,payload').eq('asset_id', assetId).limit(10);
@@ -2210,8 +2210,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const { error: assetCleanupError } = await supabase.from('vyral_assets').delete().eq('id', assetId);
             if (assetCleanupError) cleanupErrors.push('Asset cleanup: ' + assetCleanupError.message);
           }
+          const ingestionCleanupErrors = cause instanceof VyralAssetIngestionError ? cause.cleanupErrors : [];
+          const allCleanupErrors = [...ingestionCleanupErrors, ...cleanupErrors];
           failures.push(file.name + ': ' + (cause instanceof Error ? cause.message : 'upload failed.') +
-            (cleanupErrors.length ? ' Cleanup needs attention: ' + cleanupErrors.join(' · ') : ' Incomplete upload records were cleaned up.'));
+            (allCleanupErrors.length ? ' Cleanup needs attention: ' + allCleanupErrors.join(' · ') : ' Incomplete upload records were cleaned up.'));
         }
       }
     }
