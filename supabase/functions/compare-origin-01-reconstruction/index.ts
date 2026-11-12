@@ -67,8 +67,11 @@ const decodeRgb = async (bytes: Uint8Array) => ImageMagick.read(bytes, (image) =
     throw new Error('Image dimensions exceed the supported 8-megapixel comparison limit.');
   }
   const pixels = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgb')?.slice() ?? null);
-  if (!pixels || pixels.byteLength !== width * height * 3) throw new Error('Could not decode a complete RGB pixel buffer.');
-  return { width, height, rgb: pixels };
+  const rgba = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgba')?.slice() ?? null);
+  if (!pixels || pixels.byteLength !== width * height * 3 || !rgba || rgba.byteLength !== width * height * 4) {
+    throw new Error('Could not decode complete RGB and RGBA pixel buffers.');
+  }
+  return { width, height, rgb: pixels, rgba };
 });
 
 const samplePatch = (rgb: Uint8Array, width: number, height: number, x0: number, y0: number, patchWidth: number, patchHeight: number) => {
@@ -424,8 +427,8 @@ Deno.serve(async (request: Request) => {
   const candidateDescription = describeImage(candidateImage);
   // Calculate the same deterministic dHash from the verified decoded source bytes.
   // This supplements (but never replaces) direct pixel and geometry comparisons.
-  const originalDHash = computeVyralDHash64(originalImage.rgb, originalImage.width, originalImage.height, 3);
-  const candidateDHash = computeVyralDHash64(candidateImage.rgb, candidateImage.width, candidateImage.height, 3);
+  const originalDHash = computeVyralDHash64(originalImage.rgba, originalImage.width, originalImage.height, 4);
+  const candidateDHash = computeVyralDHash64(candidateImage.rgba, candidateImage.width, candidateImage.height, 4);
   const dHashComparison = compareVyralDHash64(originalDHash, candidateDHash);
   const sameDimensions = originalImage.width === candidateImage.width && originalImage.height === candidateImage.height;
   let pixelComparison: Record<string, unknown> = { performed: false, reason: 'Image dimensions differ; direct pixel-to-pixel comparison is not valid.' };
