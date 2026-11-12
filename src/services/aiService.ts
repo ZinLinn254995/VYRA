@@ -17,6 +17,8 @@ export interface AIServiceRequest {
   accessToken?: string;
   /** Stable per-generation request ID used only for server-side idempotency. */
   idempotencyKey?: string;
+  /** Owner-verified active Vyral context for natural conversational continuity. */
+  activeVyralId?: string;
   /** Receives incremental text chunks for the live chat UI. */
   onTextDelta?: (chunk: string) => void;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
@@ -175,6 +177,7 @@ class ModularAIService implements AIServiceProvider {
         body: JSON.stringify({
           stream: true,
           messages: request.messages.filter((message) => message.role !== 'system'),
+          ...(request.activeVyralId ? { activeVyralId: request.activeVyralId } : {}),
           ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
           ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
         }),
