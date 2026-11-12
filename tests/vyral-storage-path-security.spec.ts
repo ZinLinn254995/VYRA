@@ -48,3 +48,15 @@ test('DNA extractor, DNA assessment and ORIGIN comparator all use the shared val
     assert.match(source, /isCanonicalOwnedStoragePath\(/, path);
   }
 });
+
+
+test('DNA readback verifiers persist only database-allowed independent verification status', () => {
+  const fileVerifier = readFileSync(new URL('../supabase/functions/verify-vyral-asset/index.ts', import.meta.url), 'utf8');
+  const rasterVerifier = readFileSync(new URL('../supabase/functions/verify-vyral-dna-v3/index.ts', import.meta.url), 'utf8');
+
+  assert.match(fileVerifier, /verification_status:\s*'independently_verified'/);
+  assert.doesNotMatch(fileVerifier, /verification_status:\s*'verified'/);
+  assert.match(rasterVerifier, /verification_status:\s*'independently_verified'/);
+  assert.doesNotMatch(rasterVerifier, /verification_status:\s*'verified'/);
+  assert.match(rasterVerifier, /if \(dnaUpdateError\) return reply/);
+});
