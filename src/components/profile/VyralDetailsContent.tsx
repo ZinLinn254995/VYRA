@@ -13,6 +13,7 @@ import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAss
 import { createVyralDnaV3EncodedFilePayload, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { createVyralSemanticDnaV1 } from '../../services/vyralSemanticDnaV1';
+import { compareVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../../supabase/functions/_shared/perceptual-fingerprint.ts';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 import { markVyralAiDetailsStale, mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails, type VyralDetailValue } from '../../services/vyralAiDetails';
@@ -2614,6 +2615,42 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
+  const verifyRasterVisualFingerprint = async (asset: AssetRow, version: AssetVersionRow) => {
+    if (!supabase || verifyingAssetId || busy || packageBusy) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim())) {
+      setError('Visual fingerprints currently support PNG, JPEG and WebP images.');
+      return;
+    }
+    setVerifyingAssetId(asset.id);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('fingerprint-vyral-raster-version', {
+        body: { assetId: asset.id, versionId: version.id },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json();
+            if (typeof payload?.error === 'string') detail = payload.error;
+          } catch { /* Keep the SDK error message. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'verified' || data?.algorithm !== VYRAL_DHASH_ALGORITHM) {
+        throw new Error('The visual fingerprint service did not return a verified dHash result.');
+      }
+      setPackageStatus('Visual fingerprint recorded for ' + asset.name + ' Version ' + version.version_number +
+        ' · ' + data.dimensions.width + '×' + data.dimensions.height + ' · dHash ' + data.perceptualHash);
+      await loadWorkspace();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Visual fingerprint verification failed.');
+    } finally {
+      setVerifyingAssetId(null);
+    }
+  };
+
   const compareOriginReconstruction = async (asset: AssetRow) => {
     if (!supabase || comparingReconstructionAssetId || verifyingAssetId || busy || packageBusy) return;
     const config = asset.id === 'a40f067c-0ed1-4b93-814f-4f2f925ff320'
@@ -3749,6 +3786,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         const comparedPaths = Array.from(new Set([...Object.keys(currentFields), ...Object.keys(previousFields)]));
                         const changedPaths = previousObservation ? comparedPaths.filter((path) => stableJson(currentFields[path] ?? '[missing]') !== stableJson(previousFields[path] ?? '[missing]')) : [];
                         const unchangedCount = previousObservation ? comparedPaths.length - changedPaths.length : 0;
+                        const visualFingerprint = versionFingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const previousVisualFingerprint = previousEntry?.fingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const visualComparison = visualFingerprint && previousVisualFingerprint
+                          ? compareVyralDHash64(previousVisualFingerprint.value, visualFingerprint.value) : null;
+                        const supportsVisualFingerprint = ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim());
                         return (
                           <div key={version.id} className="rounded-md bg-[var(--vyra-bg-subtle)] p-2">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3770,6 +3812,20 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                                 </button>
                               </div>;
                             })()}
+                            {supportsVisualFingerprint && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className={'text-[9px] font-semibold '+primary}>Visual fingerprint · dHash-64</span>
+                                <span className={'text-[9px] '+(visualFingerprint ? 'text-emerald-600' : muted)}>{visualFingerprint ? 'Server verified' : 'Not recorded'}</span>
+                              </div>
+                              {visualFingerprint && <p className={'mt-1 break-all text-[9px] '+muted}>{visualFingerprint.value}</p>}
+                              {previousEntry && (visualComparison
+                                ? <p className={'mt-1 text-[9px] '+muted}>Compared with Version {previousEntry.version.version_number}: {(visualComparison.similarity * 100).toFixed(1)}% perceptual similarity · {visualComparison.hammingDistance}/64 bits differ</p>
+                                : <p className={'mt-1 text-[9px] '+muted}>Previous version visual fingerprint is not available yet; verify both versions to compare them.</p>)}
+                              <button type="button" className={button+' mt-2'} disabled={verifyingAssetId === asset.id} onClick={() => void verifyRasterVisualFingerprint(asset, version)}>
+                                {verifyingAssetId === asset.id ? 'Verifying…' : 'Verify visual fingerprint'}
+                              </button>
+                              <p className={'mt-1 text-[9px] '+muted}>Perceptual similarity is an estimate, not proof of exact pixels or semantic identity.</p>
+                            </div>}
                             <div className={'mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[9px] '+muted}>
                               <span>{versionObservations.length} Vision observations</span>
                               <span>{confirmedCount} creator-confirmed</span>
