@@ -55,7 +55,8 @@
     "test:media-generation-contract": "node --import tsx --test tests/media-generation-contract.spec.ts",
     "test:media-credit-pricing": "node --import tsx --test tests/media-credit-pricing.spec.ts",
     "test:vyral-generated-asset-provenance": "node --import tsx --test tests/vyral-generated-asset-provenance.spec.ts",
-    "test:vyral-asset-ingestion": "node --import tsx --test tests/vyral-asset-ingestion.spec.ts"
+    "test:vyral-asset-ingestion": "node --import tsx --test tests/vyral-asset-ingestion.spec.ts",
+    "test:global-chat-planner": "node --import tsx --test tests/global-chat-action-planner.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
