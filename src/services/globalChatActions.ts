@@ -269,7 +269,7 @@ export const formatVyralCreateDraft = (draft: GlobalChatVyralDraft): string =>
   '**Name:** ' + draft.name + '\n' +
   '**Purpose / Description:** ' + (draft.description || 'Not specified yet') + '\n\n' +
   'This will create a private Vyral with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\n\n' +
-  'Nothing has been created yet. Reply **Confirm Vyral create** (သို့) **Vyral ဖန်တီးရန် အတည်ပြု** to continue.';
+  'Nothing has been created yet. If this is what you want, simply tell me to go ahead.';
 
 export const isVyralCreateConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+vyral\s+create|vyral\s+ဖန်တီးရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
@@ -298,6 +298,9 @@ export const extractVyralAssetUploadTarget = (input: string): string | null => {
   return null;
 };
 
+export const isNaturalChatApproval = (input: string): boolean =>
+  /^\s*(?:yes|yeah|yep|okay|ok|go ahead|do it|proceed|looks good|that's right|sounds good|အေး|ဟုတ်ပြီ|ဟုတ်တယ်|လုပ်လိုက်(?:တော့|ပါ)?|ထည့်လိုက်(?:တော့|ပါ)?|သိမ်းလိုက်(?:တော့|ပါ)?|အတည်ပြု(?:မယ်|ပါ)?)\s*[.!?။]*\s*$/i.test(input);
+
 export const isVyralAssetUploadConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+(?:asset )?upload|confirm\s+add\s+to\s+vyral|vyral\s+asset\s+upload\s+confirm|Asset\s+ထည့်ရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
 
@@ -308,7 +311,7 @@ export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDra
   '**Size:** ' + (draft.fileSize / 1024 / 1024).toFixed(2) + ' MB\n' +
   '**MIME:** ' + (draft.mimeType || 'unknown') + '\n\n' +
   'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\n\n' +
-  'Nothing has been uploaded yet. Reply **Confirm Asset upload** to continue.';
+  'Nothing has been uploaded yet. If this looks right, just tell me naturally to go ahead.';
 
 
 export type GlobalChatVyralRecord = { id: string; name: string; description?: string };
