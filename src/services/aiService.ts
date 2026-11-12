@@ -150,7 +150,7 @@ class ModularAIService implements AIServiceProvider {
           modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
         };
       } catch {
-        const message = 'VYRA could not reach the multimodal inspection service. No text-only substitute was used.';
+        const message = 'VYRA could not reach the multimodal inspection service. No text-only preview was substituted.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
       }
     }
