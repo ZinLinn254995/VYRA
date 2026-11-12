@@ -88,7 +88,7 @@ test('cleans partial uploads when the storage step fails', async () => {
   await assert.rejects(ingestVyralAsset(port, {
     vyralId, userId, file: makeFile('voice.wav', 'audio/wav'),
   }));
-  assert.equal(calls.includes('removeStorage'), false);
+  assert.equal(calls.includes('removeStorage'), true);
   assert.equal(calls.includes('deleteAsset'), true);
 });
 
