@@ -30,13 +30,17 @@ test('classifies operation risk from the server allowlist, not from model claims
   assert.equal(getGlobalChatActionRisk('media.generate'), 'billable');
 });
 
-test('accepts a bounded plan only when its referenced Workspace context matches', () => {
+test('accepts bounded plans with explicit targets while requiring server-side ownership checks', () => {
   assert.deepEqual(validateGlobalChatActionPlan(basePlan, context, now), {
     ok: true, risk: 'reversible-write', requiresApproval: true, operation: 'storyboard.update',
   });
-  assert.deepEqual(validateGlobalChatActionPlan({
-    ...basePlan, target: { storyboardId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
-  }, context, now), { ok: false, reason: 'missing-target' });
+  const explicitOtherTarget = { ...basePlan, target: { storyboardId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } };
+  assert.equal(validateGlobalChatActionPlan(explicitOtherTarget, context, now).ok, true);
+  const validation = validateGlobalChatActionPlan(explicitOtherTarget, context, now);
+  assert.deepEqual(authorizeGlobalChatActionExecution(explicitOtherTarget, validation, null, false, now),
+    { ok: false, reason: 'owner-not-verified' });
+  assert.deepEqual(validateGlobalChatActionPlan({ ...basePlan, target: undefined }, context, now),
+    { ok: false, reason: 'missing-target' });
 });
 
 test('rejects unsupported operations, untrusted extra parameters and expired plans', () => {
