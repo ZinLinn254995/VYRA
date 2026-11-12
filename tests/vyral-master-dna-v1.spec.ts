@@ -218,3 +218,9 @@ test('Master DNA Builder joins reconstruction evidence by database DNA row id, n
   assert.match(source, /getReconstructionClaim\(reconstructionTests as Row\[\], asset\.id, version\.id, dna\.id, semanticDnaAvailable\)/);
   assert.match(source, /record_id: typeof nestedDna\.record_id === 'string' \? nestedDna\.record_id : dna\.id/);
 });
+
+
+test('Master DNA Builder resolves File DNA source SHA-256 from its file manifest', () => {
+  const source = readFileSync('supabase/functions/build-vyral-master-dna/index.ts', 'utf8');
+  assert.equal((source.match(/asRecord\(nestedDna\.file\)\.sha256/g) ?? []).length, 6);
+});
