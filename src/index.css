@@ -52,6 +52,17 @@
   }
 }
 
+/* Hide only the timeline viewport scrollbars; keep touch/trackpad scrolling enabled. */
+.master-timeline-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.master-timeline-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
