@@ -188,6 +188,7 @@ test('ledger-enabled Asset metadata suggestions record Google provider usage bef
     const url = new URL(String(input));
     const method = init?.method || 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    const headers = new Headers(init?.headers);
     calls.push({ url, method, body });
     if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
     if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
