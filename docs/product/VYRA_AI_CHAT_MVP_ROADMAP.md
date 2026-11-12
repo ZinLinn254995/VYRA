@@ -424,3 +424,7 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - No AI Chat visual/UI changes. Production Supabase and production deployment remain untouched.
 
 **Next:** Implement the Runway server adapter against the documented Model Router/preflight/task APIs, persist quote/job/attempt/cost data using the existing Development ledger, and keep generation disabled until the live credential is deliberately configured and a non-production end-to-end test passes.
+
+
+- Added the Runway settings proxy to the existing authenticated AI server router and corrected bearer/key whitespace validation. The Development migration is confirmed present as `20261112204351_vyra_runway_api_key_vault`; `manage-runway-provider` is confirmed ACTIVE with JWT verification enabled.
+- GitHub Actions workflow results were not available through the connected commit-status view for these direct branch commits, so CI is **not claimed as passed**. No local repository checkout was available to run the TypeScript/build suite in this step.
