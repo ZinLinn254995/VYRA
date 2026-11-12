@@ -1,9 +1,18 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
   Copy,
+  Italic,
+  List,
+  Palette,
   Plus,
   Pencil,
+  Strikethrough,
+  Underline,
   Redo2,
   Scissors,
   Trash2,
@@ -1433,12 +1442,51 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           </div>
         </div>
         {isTextEditMode && (
-          <div className="absolute inset-0 z-40 flex flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
+          <div className="absolute inset-0 z-40 flex min-h-0 flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
             <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--vyra-border)] px-3">
-              <span className="text-sm font-medium text-[var(--vyra-text-primary)]">Edit</span>
+              <span className="text-sm font-medium text-[var(--vyra-text-primary)]">Edit Text</span>
               <button type="button" onClick={() => setIsTextEditMode(false)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-1.5 text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close edit mode">Close</button>
             </div>
-            <div className="min-h-0 flex-1" />
+            <div className="flex min-h-14 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--vyra-border)] px-2 py-2">
+              {[
+                { label: 'Bold', Icon: Bold },
+                { label: 'Italic', Icon: Italic },
+                { label: 'Underline', Icon: Underline },
+                { label: 'Strikethrough', Icon: Strikethrough },
+                { label: 'Align left', Icon: AlignLeft },
+                { label: 'Align center', Icon: AlignCenter },
+                { label: 'Align right', Icon: AlignRight },
+                { label: 'Bulleted list', Icon: List },
+                { label: 'Text color', Icon: Palette },
+              ].map(({ label, Icon }) => (
+                <button key={label} type="button" disabled title={label} aria-label={label} className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] opacity-60">
+                  <Icon size={18} strokeWidth={1.8} />
+                </button>
+              ))}
+            </div>
+            <textarea
+              aria-label="Text content"
+              value={textTracks.find((track) => track.id === selectedTextClip?.trackId)?.clips.find((clip) => clip.id === selectedTextClip?.clipId)?.content
+                ?? textTracks.find((track) => track.id === selectedTextClip?.trackId)?.clips.find((clip) => clip.id === selectedTextClip?.clipId)?.name
+                ?? ''}
+              onChange={(event) => {
+                if (!selectedTextClip) return;
+                const nextTracks = textTracks.map((track) => track.id !== selectedTextClip.trackId ? track : {
+                  ...track,
+                  clips: track.clips.map((clip) => clip.id === selectedTextClip.clipId ? { ...clip, content: event.target.value } : clip),
+                });
+                commitChange({
+                  sceneRanges: value?.sceneRanges || {},
+                  sceneInstances: value?.sceneInstances,
+                  transitions: value?.transitions || {},
+                  audioTracks: value?.audioTracks || [],
+                  textTracks: nextTracks,
+                });
+              }}
+              placeholder="Type your text here…"
+              className="min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-4 py-4 text-base leading-relaxed text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-secondary)] focus:ring-0"
+              spellCheck
+            />
           </div>
         )}
         <div
