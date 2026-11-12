@@ -335,7 +335,7 @@ export const findMentionedVyrals = (
 export const isVyralAssetAddIntent = (input: string): boolean => {
   if (/\b(?:do not|don't|never|avoid)\s+(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
       /(?:မထည့်|မသိမ်း|မလုပ်ပါ)/.test(input)) return false;
-  return /\b(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
+  return /\b(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
     /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး)/.test(input);
 };
 
