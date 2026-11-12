@@ -545,3 +545,16 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Integration decision: generated outputs must be ingested through the same canonical Vyral Asset lifecycle rather than writing directly to IndexedDB or inventing a parallel storage schema. Generation job ID, provider/model, quote/approval provenance, prompt/request fingerprint, and parent/source lineage should be attached as metadata/lineage without weakening the immutable source-version hash and DNA gates.
 - Before implementation, the next code task is to extract the verified upload lifecycle into a reusable service (or a narrowly scoped shared ingestion module) and have the creator upload UI call that service without changing its appearance. Then connect completed generation outputs to that service and expose only ready Assets to Media Library/Storyboard selection.
 - No source code or UI was changed in this audit step. No provider task was submitted, no media was uploaded, no pricing policy was created, and no customer credits were reserved or charged. Production and the AI Chat UI remain untouched.
+
+
+### Phase 5 progress — Generated Asset provenance contract
+
+- Added `src/services/vyralGeneratedAssetProvenance.ts` as a deterministic contract for generated Asset provenance. It validates the generation job UUID, task, provider/model identifiers, request fingerprint, prompt SHA-256, optional quote/provider generation IDs, and non-negative provider-reported actual cost.
+- The metadata builder emits a versioned `vyra.generated-asset-provenance` record with private visibility and SHA-256 identity. It intentionally excludes raw prompts, API keys, and raw provider responses; the prompt digest is intended to bind the record to the source-bound DNA/observation pipeline.
+- Added a lineage builder that emits a `vyral_lineage`-compatible parent/child relation only when a real parent Asset exists. Standalone generated Assets do not receive an invented parent.
+- Added deterministic tests for valid metadata, malformed IDs/hashes/task/cost, secret/raw-prompt exclusion, standalone generation, and derived-Asset lineage. Registered `test:vyral-generated-asset-provenance` in package scripts and CI.
+- Commits: `62fffb8` (contract), `a985630` (tests), `965f0b3` (test script), `70b2a2a` (CI).
+
+**Still not integrated:** the current image/video/audio generation call sites still save to browser IndexedDB and link local IDs into Storyboard scenes. This new contract is a foundation only; no generation result is yet uploaded to `vyral-assets`, no Asset Version/DNA is created by this new path, and no Media Library or Storyboard handoff was changed. The next implementation step is the shared Blob-to-Vyral-Asset ingestion service, then connect completed image/video/audio outputs while preserving existing scene IDs and local recovery behavior until cloud Asset readiness is confirmed.
+
+- No API key, provider call, job, quote, pricing policy, credit reservation, or customer charge was created. No UI appearance or AI Chat UI was changed. Production remains untouched; no merge or deployment occurred. CI result for the latest commit is not yet visible through the connected workflow/status view, so it is not marked passed.
