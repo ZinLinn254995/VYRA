@@ -2944,17 +2944,29 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const observation = observations.find((item) => item.id === observationId);
     if (!observation) return;
     const fields = flattenObservation(observation.observation);
-    const fieldPath = window.prompt('Enter the exact JSON field path to promote (example: identity.eye_color).\\n\\nAvailable fields:\\n' + Object.keys(fields).join('\\n'));
-    if (!fieldPath?.trim() || !(fieldPath.trim() in fields)) return;
+    const promotablePaths = Object.keys(fields).filter((path) => path.startsWith('fields.') && path.endsWith('.value'));
+    if (!promotablePaths.length) {
+      setError('This observation has no structured AI-suggested fields available for Knowledge promotion.');
+      return;
+    }
+    const selectedPath = window.prompt('Choose one AI-suggested field to add to Asset Knowledge.\\n\\nAvailable fields:\\n' + promotablePaths.join('\\n'));
+    if (!selectedPath?.trim() || !promotablePaths.includes(selectedPath.trim())) return;
+    const observationFieldPath = selectedPath.trim();
+    const knowledgeFieldName = observationFieldPath.slice('fields.'.length, -'.value'.length);
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(knowledgeFieldName)) {
+      setError('Selected Knowledge field name is invalid.');
+      return;
+    }
+    const fieldPath = 'knowledge.' + knowledgeFieldName;
     let acceptedValue: unknown;
-    try { acceptedValue = JSON.parse(fields[fieldPath.trim()]); }
+    try { acceptedValue = JSON.parse(fields[observationFieldPath]); }
     catch { setError('Selected field could not be parsed as JSON.'); return; }
     const note = window.prompt('Optional creator note for this field (leave blank if none).') ?? '';
     setPromotingObservationId(observationId);
     setError('');
     try {
       const { data, error: invokeError } = await supabase.functions.invoke('promote-vyral-vision-field', {
-        body: { observationId, fieldPath: fieldPath.trim(), acceptedValue, note },
+        body: { observationId, fieldPath, observationFieldPath, acceptedValue, note },
       });
       if (invokeError) {
         let detail = invokeError.message;
@@ -3559,7 +3571,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                             <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'disputed')} className={button}>Dispute</button>
                           </>
                         )}
-                        {review?.decision === 'creator_confirmed' && (
+                        {review?.decision === 'creator_confirmed' && Object.keys(flattenObservation(item.observation)).some((path) => path.startsWith('fields.') && path.endsWith('.value')) && (
                           <button type="button" disabled={promotingObservationId === item.id} onClick={() => void promoteVisionKnowledge(item.id)} className={button}>
                             {promotingObservationId === item.id ? 'Saving…' : 'Promote a Knowledge field'}
                           </button>
