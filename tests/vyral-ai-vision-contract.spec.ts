@@ -81,6 +81,12 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /visionReviews/);
   assert.match(details, /AI Vision observations/);
   assert.match(details, /Confirm observation/);
+  assert.match(details, /type VisionQuality =/);
+  assert.match(details, /assessVisionQuality\(item\.observation\)/);
+  assert.match(details, /low-confidence field/);
+  assert.match(details, /stated uncertainty/);
+  assert.match(details, /Model confidence is self-reported/);
+  assert.match(details, /Creator review remains required/);
   assert.match(details, /sourceBindingValid/);
   assert.match(details, /cannot be confirmed/);
   assert.match(details, /reviewVisionObservation\(item\.id, 'creator_confirmed'\)/);
