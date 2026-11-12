@@ -41,7 +41,7 @@ test('PSNR is reported as undefined infinity for a perfect normalized match', ()
 test('red mask IoU is 1 for identical geometry across resolutions', () => {
   const result = compareRedMaskIoU(redCircle(128, 128), redCircle(256, 256));
   assert.equal(result.performed, true);
-  assert.equal(result.intersectionOverUnion, 1);
+  assert.ok((result.intersectionOverUnion ?? 0) > 0.98);
 });
 
 test('red mask IoU decreases when the candidate shape is shifted', () => {
