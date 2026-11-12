@@ -82,17 +82,11 @@ Deno.serve(async (request: Request) => {
     alpha_handling: 'composited_over_white',
     note: 'Perceptual similarity is an estimate for visual comparison, not proof of semantic identity or exact pixel equality.',
   };
-  const { data: existing, error: lookupError } = await ctx.supabaseAdmin.from('vyral_fingerprints')
-    .select('id').eq('asset_id', asset.id).eq('asset_version_id', version.id)
-    .eq('fingerprint_kind', 'perceptual').eq('algorithm', VYRAL_DHASH_ALGORITHM).limit(1).maybeSingle();
-  if (lookupError) return reply({ error: 'Could not inspect the visual fingerprint registry.' }, 500);
-  const write = existing
-    ? await ctx.supabaseAdmin.from('vyral_fingerprints').update({ value: perceptualHash, metadata }).eq('id', existing.id)
-    : await ctx.supabaseAdmin.from('vyral_fingerprints').insert({
-        asset_id: asset.id, asset_version_id: version.id, user_id: userId,
-        fingerprint_kind: 'perceptual', algorithm: VYRAL_DHASH_ALGORITHM, value: perceptualHash, metadata,
-      });
-  if (write.error) return reply({ error: 'Could not save the server-generated visual fingerprint.' }, 500);
+  const { error: writeError } = await ctx.supabaseAdmin.from('vyral_fingerprints').upsert({
+    asset_id: asset.id, asset_version_id: version.id, user_id: userId,
+    fingerprint_kind: 'perceptual', algorithm: VYRAL_DHASH_ALGORITHM, value: perceptualHash, metadata,
+  }, { onConflict: 'asset_version_id,fingerprint_kind,algorithm' });
+  if (writeError) return reply({ error: 'Could not save the server-generated visual fingerprint.' }, 500);
   return reply({
     status: 'verified', assetId, versionId, versionNumber: version.version_number,
     algorithm: VYRAL_DHASH_ALGORITHM, perceptualHash, sourceSha256,
