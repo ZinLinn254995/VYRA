@@ -327,9 +327,12 @@ export const findMentionedVyrals = (
   return matches.filter((item) => item.name.length === longest);
 };
 
-export const isVyralAssetAddIntent = (input: string): boolean =>
-  /\b(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
-  /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး)/.test(input);
+export const isVyralAssetAddIntent = (input: string): boolean => {
+  if (/\b(?:do not|don't|never|avoid)\s+(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
+      /(?:မထည့်|မသိမ်း|မလုပ်ပါ)/.test(input)) return false;
+  return /\b(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
+    /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး)/.test(input);
+};
 
 export const isVyralAssetContextReference = (input: string): boolean =>
   /\b(?:this|that|it|there|same one|current vyral|this vyral|that vyral)\b/i.test(input) ||
