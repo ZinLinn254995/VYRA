@@ -242,7 +242,7 @@ export type GlobalChatAction = GlobalChatStoryboardAction
   | { type: 'vyral-create-complete'; draftId: string };
 
 export const isVyralCreateIntent = (input: string): boolean =>
-  /^\s*(?:(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:new\s+)?vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\b)/i.test(input);
+  /^\s*(?:(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:new\s+)?vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?=\s|$))/i.test(input);
 
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
   const value = input.trim();
