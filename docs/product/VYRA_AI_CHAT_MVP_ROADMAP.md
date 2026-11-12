@@ -639,3 +639,10 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Every query is scoped by both vyral_id and authenticated user_id. Search/detail results are bounded, and no mutation, delete, publish, generation, storage access or billing tool is exposed to the model.
 - Tool selection is performed by the platform model, but execution remains in the authenticated Edge Function with a strict allowlist and argument validation. The assistant receives tool results and writes the natural-language answer. The existing browser SSE contract is preserved; direct planner answers are adapted to valid SSE frames.
 - Tool execution is limited to three sequential calls per request. OpenAI key remains unset; this code path is not live-provider verified or deployed to Development yet.
+
+### Natural-language approval coverage
+
+- Expanded contextual approval phrases for English and Burmese (for example: “go for it”, “please do”, “perfect”, “အေး ဆက်လုပ်”, “လုပ်ပါ”, and “ဆက်လုပ်ပါ”).
+- These short approvals are accepted only when the immediately preceding assistant message contains a pending supported action draft; they do not independently trigger mutations.
+- Added regression cases to `tests/global-chat-actions.spec.ts`.
+- This improves conversational flexibility without changing the AI Chat UI or weakening preview/approval safeguards.
