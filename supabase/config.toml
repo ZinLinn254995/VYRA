@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.create-runway-media-job]
 verify_jwt = true
+
+[functions.manage-media-credit-pricing]
+verify_jwt = true
