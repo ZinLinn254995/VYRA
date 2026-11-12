@@ -82,11 +82,12 @@ test('rejects malformed assessment identity', () => {
   assert.throws(() => assessVyralSemanticCompletenessV1(input), /identity is invalid/);
 });
 
-test('uses a generic semantic profile for non-image asset types', () => {
+test('does not reuse image requirements for unsupported asset modalities', () => {
   const input = base();
   input.assetType = 'audio';
   const result = assessVyralSemanticCompletenessV1(input);
-  assert.equal(result.profile, 'generic_semantic_core_v1');
-  assert.equal(result.requiredFieldCount, 4);
-  assert.equal(result.status, 'blocked');
+  assert.equal(result.profile, 'unsupported_asset_type_v1');
+  assert.equal(result.requiredFieldCount, 0);
+  assert.equal(result.status, 'unsupported');
+  assert.equal(result.coveragePercent, 0);
 });
