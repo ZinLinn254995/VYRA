@@ -271,3 +271,39 @@ export const formatVyralCreateDraft = (draft: GlobalChatVyralDraft): string =>
 
 export const isVyralCreateConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+vyral\s+create|vyral\s+ဖန်တီးရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
+
+
+export type GlobalChatVyralAssetUploadDraft = {
+  id: string;
+  vyralId: string;
+  vyralName: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+};
+
+export const extractVyralAssetUploadTarget = (input: string): string | null => {
+  const patterns = [
+    /^\\s*(?:add|save|upload|put)\\s+(?:this|the attached file|attachment|file)\\s+(?:to|into)\\s+(?:my\\s+)?vyral\\s+["“']?(.+?)["”']?\\s*[.!?]*\\s*$/i,
+    /^\\s*(?:add|save|upload)\\s+(?:this|the attached file|attachment|file)\\s+(?:to|into)\\s+["“']?(.+?)["”']?\\s+(?:vyral)\\s*[.!?]*\\s*$/i,
+    /^\\s*(?:ဒီဖိုင်ကို|ဒီ Asset ကို|ပူးတွဲဖိုင်ကို)\\s*(?:vyral\\s*)?["“']?(.+?)["”']?\\s*(?:ထဲ|ထဲကို)\\s*(?:ထည့်|သိမ်း)(?:ပေး)?\\s*$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = input.trim().match(pattern);
+    const target = match?.[1]?.trim().replace(/^[\"'“”‘’]+|[\"'“”‘’]+$/g, '').trim();
+    if (target && target.length <= 100) return target;
+  }
+  return null;
+};
+
+export const isVyralAssetUploadConfirmation = (input: string): boolean =>
+  /^\\s*(?:confirm\\s+(?:asset )?upload|confirm\\s+add\\s+to\\s+vyral|vyral\\s+asset\\s+upload\\s+confirm|Asset\\s+ထည့်ရန်\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
+
+export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDraft): string =>
+  '**Asset upload preview**\\n\\n' +
+  '**File:** ' + draft.fileName + '\\n' +
+  '**Destination Vyral:** ' + draft.vyralName + '\\n' +
+  '**Size:** ' + (draft.fileSize / 1024 / 1024).toFixed(2) + ' MB\\n' +
+  '**MIME:** ' + (draft.mimeType || 'unknown') + '\\n\\n' +
+  'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\\n\\n' +
+  'Nothing has been uploaded yet. Reply **Confirm Asset upload** to continue.';
