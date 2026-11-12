@@ -428,3 +428,16 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 
 - Added the Runway settings proxy to the existing authenticated AI server router and corrected bearer/key whitespace validation. The Development migration is confirmed present as `20261112204351_vyra_runway_api_key_vault`; `manage-runway-provider` is confirmed ACTIVE with JWT verification enabled.
 - GitHub Actions workflow results were not available through the connected commit-status view for these direct branch commits, so CI is **not claimed as passed**. No local repository checkout was available to run the TypeScript/build suite in this step.
+
+### Phase 4 progress — non-billable Runway credential verification
+
+- Added the source-controlled manage-runway-provider Edge Function and registered it with JWT verification enabled. Only authenticated platform owners/admins can inspect status or save the platform credential.
+- Saving a Runway key now first calls the documented read-only GET /v1/organization endpoint with the required X-Runway-Version: 2024-11-06 header. The key is stored in Development Vault only after Runway accepts it. Status checks re-verify the stored key and return only configured/verified status and non-secret tier metadata; the key and raw provider response are never returned.
+- The credential check does not create a generation task and does not incur generation charges. It may still be subject to Runway's normal API rate limits.
+- Added authenticated GET/POST /providers/runway/settings proxy routes. API keys remain server-side and are not written to browser storage.
+- Deployed Edge Function version 2 to Development Supabase (wbqheogfoahnjvgkwhxe), ACTIVE with JWT verification enabled. Added the function to CI's Deno type-check list.
+- No Runway API key has been supplied, so no live provider verification has been performed and Vault remains unconfigured. No preflight quote, generation task, provider charge, or customer credit reservation has occurred. Production Supabase, production deployment, and AI Chat UI remain untouched.
+
+Official reference: Runway API Reference — Organization information (GET /v1/organization), API version header 2024-11-06: https://docs.dev.runwayml.com/api/
+
+Next: After the platform key is intentionally provided by an authorized administrator, verify it through this non-billable check. Then build the quote and job orchestration around the existing generation ledger. Keep paid generation disabled until the live pricing/quote semantics and persistence path are verified.
