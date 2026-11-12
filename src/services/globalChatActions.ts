@@ -302,10 +302,10 @@ export const isVyralAssetUploadConfirmation = (input: string): boolean =>
   /^\\s*(?:confirm\\s+(?:asset )?upload|confirm\\s+add\\s+to\\s+vyral|vyral\\s+asset\\s+upload\\s+confirm|Asset\\s+ထည့်ရန်\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
 
 export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDraft): string =>
-  '**Asset upload preview**\\n\\n' +
-  '**File:** ' + draft.fileName + '\\n' +
-  '**Destination Vyral:** ' + draft.vyralName + '\\n' +
-  '**Size:** ' + (draft.fileSize / 1024 / 1024).toFixed(2) + ' MB\\n' +
-  '**MIME:** ' + (draft.mimeType || 'unknown') + '\\n\\n' +
-  'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\\n\\n' +
+  '**Asset upload preview**\n\n' +
+  '**File:** ' + draft.fileName + '\n' +
+  '**Destination Vyral:** ' + draft.vyralName + '\n' +
+  '**Size:** ' + (draft.fileSize / 1024 / 1024).toFixed(2) + ' MB\n' +
+  '**MIME:** ' + (draft.mimeType || 'unknown') + '\n\n' +
+  'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\n\n' +
   'Nothing has been uploaded yet. Reply **Confirm Asset upload** to continue.';
