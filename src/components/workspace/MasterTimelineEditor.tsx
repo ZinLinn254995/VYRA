@@ -1444,7 +1444,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         {isTextEditMode && (
           <div className="absolute inset-0 z-40 flex min-h-0 flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
             <style>{`.text-tools-horizontal-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; } .text-tools-horizontal-scroll { scrollbar-width: none; -ms-overflow-style: none; }`}</style>
-          <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-[var(--vyra-border)] px-2">
+          <div className="flex h-12 min-w-0 shrink-0 items-center px-2">
               <div className="text-tools-horizontal-scroll flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {[
                   { label: 'Bold', Icon: Bold },
@@ -1484,7 +1484,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                 });
               }}
               placeholder="Type your text here…"
-              className="min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-4 py-4 text-base leading-relaxed text-[var(--vyra-text-primary)] outline-none placeholder:text-[var(--vyra-text-secondary)] focus:ring-0"
+              className="min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-4 py-4 text-base leading-relaxed text-[var(--vyra-text-primary)] outline-none ring-0 placeholder:text-[var(--vyra-text-secondary)] focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 active:outline-none" style={{ outline: "none", boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
               spellCheck
             />
           </div>
