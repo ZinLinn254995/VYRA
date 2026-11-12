@@ -329,15 +329,41 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (!alreadyPassedRaster && !fileDnaAutoVerifyRef.current.has(rasterAttemptKey)) {
           fileDnaAutoVerifyRef.current.add(rasterAttemptKey);
           rasterDnaVerificationTasks.push(
-            supabase.functions.invoke('verify-vyral-dna-v3', {
-              body: { assetId: asset.id, versionId: sourceVersion.id, dnaRecordId: rasterDna.id },
-            }).then(({ data, error: verifyError }) => {
+            (async () => {
+              let dnaRecordId = rasterDna.id;
+              const rasterPayload = rasterDna.payload as Record<string, unknown>;
+              const rasterRecord = rasterPayload.dna_record && typeof rasterPayload.dna_record === 'object'
+                ? rasterPayload.dna_record as Record<string, unknown> : {};
+              const decodedImage = rasterRecord.decoded_image && typeof rasterRecord.decoded_image === 'object'
+                ? rasterRecord.decoded_image as Record<string, unknown> : {};
+              const decoderContract = decodedImage.decoder_contract && typeof decodedImage.decoder_contract === 'object'
+                ? decodedImage.decoder_contract as Record<string, unknown> : {};
+              const usesPinnedDecoder = decoderContract.name === 'ImageMagick WASM' && decoderContract.version === '0.0.30';
+
+              // Older browser-decoded raster DNA cannot be independently verified by
+              // the pinned server decoder. Preserve that immutable record and append
+              // a current server-extracted revision for this same source version.
+              if (!usesPinnedDecoder) {
+                const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
+                  body: { assetId: asset.id, versionId: sourceVersion.id, reextractLegacy: true },
+                });
+                if (extractionError || extraction?.status !== 'extracted' || typeof extraction?.dnaRecordId !== 'string') {
+                  console.warn('[vyral-dna-v3] Legacy raster DNA could not be upgraded to the pinned decoder contract.');
+                  fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
+                  return undefined;
+                }
+                dnaRecordId = extraction.dnaRecordId;
+              }
+
+              const { data, error: verifyError } = await supabase.functions.invoke('verify-vyral-dna-v3', {
+                body: { assetId: asset.id, versionId: sourceVersion.id, dnaRecordId },
+              });
               if (verifyError || data?.status !== 'passed' || data?.originalBytesUnchanged !== true) {
                 console.warn('[vyral-dna-v3] Exact decoded-sample readback is pending for an Asset.');
                 fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
               }
               return data;
-            }).catch(() => {
+            })().catch(() => {
               fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
               return undefined;
             }),
