@@ -236,6 +236,16 @@ The following key-independent work has been implemented on `feature/my-storyboar
 - Conversation records store text messages and safe display metadata only; binary attachment data and provider secrets are not stored in chat history.
 - Chat history reload is tied to Supabase auth changes, and active chat state is cleared when the account signs out or changes.
 
-**Verification status:** The Development table, RLS policies, and role grants have been queried and confirmed. The latest application code passed the GitHub verification workflow, including TypeScript check, Edge Function type-check, existing regression tests, and production build. Cloudflare Preview build completed successfully (build `6c9eb61b-d9a4-4608-a27c-fad309049e0b`) and updated `https://feature-my-storyboard-vyra.zla264995.workers.dev`. The signed-in browser flow (save → refresh → reopen and cross-account isolation) has not yet been manually exercised, so full Phase 2 acceptance is not yet marked verified.
+**Verification status:** The Development table, RLS policies, and owner-scoped SELECT/INSERT/UPDATE/DELETE policies have been queried and confirmed. Baseline commit `11b0925f66b2624eaafffcbae01b5f4a509c342c` passed the complete GitHub verification workflow, including TypeScript, Supabase Edge Function type-check, regression suites, and production build. Its Cloudflare Preview build also completed successfully. The newer streaming implementation described below is a later change and is awaiting its own CI and Preview build. The signed-in browser flow (save → refresh → reopen and cross-account isolation) has not yet been manually exercised, so full Phase 2 acceptance is not yet marked verified.
 
-**Next action:** Complete the Preview build, then verify save → refresh → reopen and cross-account isolation. After that, continue the key-independent OpenAI server-route integration and remaining Phase 2 error/context handling. Do not purchase/configure the OpenAI API key until Phase 6. Do not treat a phase as complete until its acceptance gate has been met.
+**Next action:** Verify the latest streaming commit through CI and Cloudflare Preview, then manually test save → refresh → reopen, follow-up context, partial streaming, retry after provider failure, and cross-account isolation. Do not purchase/configure the OpenAI API key until Phase 6. Do not treat a phase as complete until its acceptance gate has been met.
+
+### Phase 2 progress — progressive OpenAI responses
+
+- Updated the Development `vyra-openai-chat` Edge Function to request OpenAI streaming output and forward its server-sent event stream. API credentials remain server-side in Vault.
+- Updated the authenticated Node server route to proxy the stream without buffering the complete response first, while preserving JSON error responses for missing keys and provider failures.
+- Updated the browser AI service to parse streamed text deltas and usage metadata. The normal text-chat path now requests streaming; the separate Vyral Vision path remains non-streaming and unchanged in provider behavior.
+- Updated the Chat UI to append the assistant message as chunks arrive. If a stream fails after partial output, the partial text remains visible with the failure message rather than being presented as a complete success.
+- Existing Supabase conversation persistence continues to save the transcript as it grows; no duplicate chat-history table was created.
+
+**Verification status:** Implementation is committed on `feature/my-storyboard`. CI, Edge Function type-check, Cloudflare Preview build, and signed-in browser streaming tests for this latest implementation are still pending. Do not call streaming verified until those checks pass.
