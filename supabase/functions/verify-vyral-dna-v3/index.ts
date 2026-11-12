@@ -159,12 +159,13 @@ Deno.serve(async (request: Request) => {
     if (insertError || !testRow) return reply({ error: 'Readback passed but exact reconstruction evidence could not be saved.' }, 500);
     testId = testRow.id;
   }
-  await ctx.supabaseAdmin.from('vyral_dna_records').update({
-    verification_status: 'verified',
+  const { error: dnaUpdateError } = await ctx.supabaseAdmin.from('vyral_dna_records').update({
+    verification_status: 'independently_verified',
     reconstruction_data: { source_preservation: 'original_binary_retained', reconstruction_ready: true,
       recovery_level: 'decoded-samples-exact', encoded_source_bytes_recoverable: false, chunk_count: tiles.length,
       verified_at: testedAt, verification_method: 'persisted-dna-tile-readback-and-fresh-decode' },
   }).eq('id', row.id).eq('asset_id', asset.id).eq('user_id', userId);
+  if (dnaUpdateError) return reply({ error: 'Decoded-sample readback passed but its verification state could not be saved.' }, 500);
   return reply({ status: 'passed', assetId, versionId, dnaRecordId, verificationTestId: testId,
     verifiedTiles: tiles.length, decodedSamplesSha256: await sha256(rebuilt), dimensions: { width, height }, channelLayout: layout,
     originalBytesUnchanged: true, comparisonMode: 'decoded_exact' });
