@@ -23,7 +23,7 @@ Deno.serve(async (request: Request) => {
   }
   if (body.action !== 'save') return json({ error: 'Unsupported provider settings action.' }, 400);
   const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
-  if (apiKey.length < 20 || apiKey.length > 512 || /\\s/.test(apiKey)) return json({ error: 'Enter a valid Gemini API key.' }, 400);
+  if (apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) return json({ error: 'Enter a valid Gemini API key.' }, 400);
   try {
     const verify = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
       method: 'GET', headers: { 'x-goog-api-key': apiKey, Accept: 'application/json' }, signal: AbortSignal.timeout(12000),
