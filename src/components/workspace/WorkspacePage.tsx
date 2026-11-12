@@ -73,6 +73,8 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
+  const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
+  const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
@@ -495,6 +497,32 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }, [storageKey, isAuthenticated, loadedStorageKey]);
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+
+  const confirmDeleteStoryboard = async () => {
+    if (!storyboardToDelete || isDeletingStoryboard) return;
+    setIsDeletingStoryboard(true);
+    const item = storyboardToDelete;
+    const client = supabase;
+    if (isAuthenticated && client && isPersistableStoryboardId(item.id)) {
+      const { data: authData, error: authError } = await client.auth.getUser();
+      if (authError || !authData.user) {
+        setCloudSyncMessage('Sign in again before deleting this Storyboard.');
+        setIsDeletingStoryboard(false);
+        return;
+      }
+      const { error: deleteError } = await client.from('vyral_storyboards')
+        .delete().eq('id', item.id).eq('user_id', authData.user.id);
+      if (deleteError) {
+        setCloudSyncMessage('Could not delete this Storyboard from the cloud. Please try again.');
+        setIsDeletingStoryboard(false);
+        return;
+      }
+    }
+    setStoryboards((current) => current.filter((storyboard) => storyboard.id !== item.id));
+    setStoryboardToDelete(null);
+    setIsDeletingStoryboard(false);
+    setCloudSyncMessage('');
+  };
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editDraft || !editingStoryboardId) return;
@@ -1099,7 +1127,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       {storyboards.length ? (
         <section aria-label="Your storyboards" className="grid grid-cols-1 gap-4 pt-0 sm:grid-cols-2 lg:grid-cols-3">
           {storyboards.map((item) => (
-            <Card key={item.id} padding="none" className="overflow-hidden">
+            <Card key={item.id} padding="none" className="relative overflow-hidden">
               <button type="button" onClick={() => openStoryboardEditor(item)} aria-label={`Open storyboard: ${item.title}`} className="block w-full text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
               <div className="flex aspect-[16/9] items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.20),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]"><Film size={34} className="text-[var(--vyra-accent-primary)]" strokeWidth={1.5} /></div>
               <div className="p-4">
@@ -1110,6 +1138,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 <p className="mt-3 text-[10px] text-[var(--vyra-text-muted)]">Updated {new Date(item.updatedAt).toLocaleDateString()}</p>
               </div>
               </button>
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setStoryboardToDelete(item); }}
+                aria-label={`Delete storyboard: ${item.title}`}
+                title="Delete storyboard"
+                className="absolute right-3 top-3 grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 text-[var(--vyra-text-secondary)] shadow-sm backdrop-blur transition hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)] hover:text-white focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+              >
+                <Trash2 size={16} />
+              </button>
             </Card>
           ))}
         </section>
@@ -1119,6 +1156,24 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No storyboards yet</h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
         </section>
+      )}
+
+      {storyboardToDelete && (
+        <div role="presentation" className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !isDeletingStoryboard) setStoryboardToDelete(null); }}>
+          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-storyboard-title" aria-describedby="delete-storyboard-description" className="w-full max-w-sm rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)]">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-[var(--vyra-danger)]/10 text-[var(--vyra-danger)]"><Trash2 size={20} /></div>
+            <h2 id="delete-storyboard-title" className="text-base font-semibold text-[var(--vyra-text-primary)]">Delete storyboard?</h2>
+            <p id="delete-storyboard-description" className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">
+              “{storyboardToDelete.title}” will be permanently deleted. This action cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="ghost" disabled={isDeletingStoryboard} onClick={() => setStoryboardToDelete(null)}>Cancel</Button>
+              <Button type="button" disabled={isDeletingStoryboard} onClick={() => void confirmDeleteStoryboard()} className="!bg-[var(--vyra-danger)] !text-white hover:!opacity-90">
+                {isDeletingStoryboard ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </section>
+        </div>
       )}
 
       {editDraft && editingStoryboardId && (
