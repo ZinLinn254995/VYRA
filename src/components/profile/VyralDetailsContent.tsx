@@ -2942,8 +2942,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         metadata: { ...currentMetadata, ai_vision_status: 'failed',
           ai_vision_last_attempt_at: new Date().toISOString(), ai_vision_last_error: message.slice(0, 500) },
       }).eq('id', asset.id).eq('user_id', auth.user.id);
-      setError(asset.name + ': ' + message);
       await loadWorkspace();
+      setError(asset.name + ': ' + message);
     } finally { setRetryingVisionAssetId(null); }
   };
 
