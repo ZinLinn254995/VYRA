@@ -31,6 +31,8 @@ jobs:
         run: npm run test:global-chat-actions
       - name: Media model selection policy tests
         run: npm run test:media-model-selection
+      - name: Media generation approval contract tests
+        run: npm run test:media-generation-contract
       - name: Supabase auth verification tests
         run: npm run test:auth
       - name: Customer project API tests
