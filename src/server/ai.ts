@@ -42,7 +42,7 @@ async function callGeminiManagementFunction(accessToken: string, payload: Record
 }
 
 router.get('/providers/gemini/settings', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   try {
     const { response, data } = await callGeminiManagementFunction(match[1], { action: 'status' });
@@ -54,7 +54,7 @@ router.get('/providers/gemini/settings', async (req: Request, res: Response) => 
 });
 
 router.post('/providers/gemini/settings', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey : '';
   if (apiKey.length < 20 || apiKey.length > 512 || /\\s/.test(apiKey)) {
@@ -971,7 +971,7 @@ async function getGeminiStatus(accessToken?: string) {
 }
 
 router.get('/health', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   res.setHeader('Cache-Control', 'no-store');
   res.status(200).json(await getGeminiStatus(match?.[1]));
 });
@@ -990,7 +990,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
 
   // Status probes must never invoke the model or incur API usage.
   if (body?.ping === true) {
-    const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json(await getGeminiStatus(match?.[1]));
   }
@@ -1162,7 +1162,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
         ] }]
       : [{ role: 'user' as const, parts: [{ text: prompt }] }];
 
-    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     const supabaseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
     const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
     if (!bearer || !supabaseUrl || !supabaseAnonKey) {
