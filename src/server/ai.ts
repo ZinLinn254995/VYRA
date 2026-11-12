@@ -57,7 +57,7 @@ router.post('/providers/gemini/settings', async (req: Request, res: Response) =>
   const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey : '';
-  if (apiKey.length < 20 || apiKey.length > 512 || /\\s/.test(apiKey)) {
+  if (apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) {
     return res.status(400).json({ error: 'Enter a valid Gemini API key.' });
   }
   try {
