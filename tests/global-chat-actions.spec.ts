@@ -90,3 +90,35 @@ test('storyboard creation requires an explicit confirmation phrase', async () =>
   assert.match(preview, /Nothing has been saved yet/);
   assert.match(preview, /Confirm create/);
 });
+
+
+test('storyboard update intent parses only explicit title and topic changes', async () => {
+  const { extractStoryboardUpdateRequest, isStoryboardUpdateIntent } = await import('../src/services/globalChatActions.ts');
+  assert.equal(isStoryboardUpdateIntent('Update storyboard "Moon Journey" topic to A child explores Mars'), true);
+  assert.deepEqual(extractStoryboardUpdateRequest('Update storyboard "Moon Journey" topic to A child explores Mars'), {
+    storyboardTitle: 'Moon Journey', field: 'topic', value: 'A child explores Mars',
+  });
+  assert.deepEqual(extractStoryboardUpdateRequest('Change storyboard "Moon Journey" title to Mars Explorer'), {
+    storyboardTitle: 'Moon Journey', field: 'title', value: 'Mars Explorer',
+  });
+  assert.deepEqual(extractStoryboardUpdateRequest('Storyboard Moon Journey ရဲ့ topic ကို အင်္ဂါဂြိုဟ်ခရီး ပြောင်းပေး'), {
+    storyboardTitle: 'Moon Journey', field: 'topic', value: 'အင်္ဂါဂြိုဟ်ခရီး',
+  });
+  assert.equal(extractStoryboardUpdateRequest('Update storyboard Moon topic to ' + 'x'.repeat(1001)), null);
+  assert.equal(isStoryboardUpdateIntent('Show my storyboards'), false);
+  assert.equal(isStoryboardUpdateIntent('Create a storyboard about Mars'), false);
+  assert.equal(isStoryboardUpdateIntent('Delete storyboard Moon Journey'), false);
+});
+
+test('storyboard update preview and confirmation are explicit', async () => {
+  const { formatStoryboardUpdateDraft, isStoryboardUpdateConfirmation } = await import('../src/services/globalChatActions.ts');
+  const preview = formatStoryboardUpdateDraft({
+    id: 'draft-1', storyboardId: 'story-1', storyboardTitle: 'Moon Journey',
+    field: 'topic', previousValue: 'A child explores the moon', nextValue: 'A child explores Mars',
+  });
+  assert.match(preview, /Nothing has been changed yet/);
+  assert.match(preview, /A child explores Mars/);
+  assert.equal(isStoryboardUpdateConfirmation('Confirm update'), true);
+  assert.equal(isStoryboardUpdateConfirmation('အတည်ပြု'), true);
+  assert.equal(isStoryboardUpdateConfirmation('yes'), false);
+});
