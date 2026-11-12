@@ -17,10 +17,10 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractGlobalChatNavigationTarget, extractStoryboardDetailTitle, findStoryboardMatches, formatStoryboardDetail, formatStoryboardList, isStoryboardListRequest, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDetail, formatStoryboardList, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardListRequest, type GlobalChatNavigationTarget, type GlobalChatStoryboardAction, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string; action?: import('../../services/globalChatActions.ts').GlobalChatStoryboardAction };
 type ChatSession = {
   id: string;
   title: string;
@@ -418,6 +418,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             content: message.content,
             ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
+            ...(message.action && typeof message.action === 'object' && ((message.action as Record<string, unknown>).type === 'storyboard-create-draft' || (message.action as Record<string, unknown>).type === 'storyboard-create-complete') ? { action: message.action as GlobalChatStoryboardAction } : {}),
           } as ChatMessage];
         });
         const date = new Date(row.updated_at);
@@ -470,6 +471,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       content: message.content,
       ...(message.status ? { status: message.status } : {}),
       ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
+      ...(message.action ? { action: message.action } : {}),
     }));
     const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
       id: session.id,
@@ -638,6 +640,85 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setActiveSessionId(sessionId);
         setSessions((previous) => [sessionToSave, ...previous.filter((item) => item.id !== sessionId)]);
         window.dispatchEvent(new CustomEvent('vyra:global-chat-navigate', { detail: { target: navigationTarget } }));
+        return;
+      }
+
+      if (isStoryboardCreateConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
+        const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
+        const pendingAction = previousAssistant?.action;
+        if (pendingAction?.type === 'storyboard-create-draft') {
+          const draft = pendingAction.draft;
+          const alreadyCompleted = messages.some((message) =>
+            message.role === 'assistant' && message.action?.type === 'storyboard-create-complete' &&
+            message.action.draftId === draft.id
+          );
+          if (alreadyCompleted) {
+            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'This Storyboard draft has already been created. I did not create a duplicate.', status: 'success' }]);
+            return;
+          }
+          if (!supabase) throw new Error('Storyboard creation is unavailable in this environment.');
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData.user) throw new Error('Sign in again before creating a Storyboard.');
+          const now = new Date().toISOString();
+          const storyboard = {
+            id: draft.id,
+            user_id: authData.user.id,
+            title: draft.title,
+            topic: draft.topic,
+            details: { category: '', style: '', mood: '', tags: [], origins: {} },
+            created_at: now,
+            updated_at: now,
+          };
+          const { error: createError } = await supabase.from('vyral_storyboards')
+            .upsert(storyboard, { onConflict: 'id' });
+          if (createError) throw new Error('I could not save this Storyboard. Nothing was reported as created. ' + createError.message);
+          let cacheWarning = '';
+          try {
+            const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
+            const cached: unknown = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const existing = Array.isArray(cached) ? cached.filter((item) =>
+              Boolean(item) && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string'
+            ) as Record<string, unknown>[] : [];
+            const localRecord = {
+              id: draft.id, title: draft.title, topic: draft.topic,
+              details: storyboard.details, createdAt: now, updatedAt: now,
+            };
+            localStorage.setItem(storageKey, JSON.stringify([localRecord, ...existing.filter((item) => item.id !== draft.id)]));
+          } catch {
+            cacheWarning = ' The cloud copy is saved; the device cache will refresh when Workspace opens.';
+          }
+          const assistantMessage: ChatMessage = {
+            id: makeId(),
+            role: 'assistant',
+            content: '**Storyboard created:** ' + draft.title + '\\n\\n' + draft.topic + cacheWarning,
+            status: 'success',
+            action: { type: 'storyboard-create-complete', draftId: draft.id },
+          };
+          setMessages((previous) => [...previous, assistantMessage]);
+          return;
+        }
+      }
+
+      if (isStoryboardCreateIntent(text) && !selectedFile && selectedAssets.length === 0) {
+        const parsed = extractStoryboardCreateRequest(text);
+        if (!parsed?.topic) {
+          setMessages((previous) => [...previous, {
+            id: makeId(), role: 'assistant',
+            content: 'What should the Storyboard be about? Tell me the topic or short video idea, and I will prepare a draft for you to review.',
+            status: 'success',
+          }]);
+          return;
+        }
+        const title = parsed.title.trim() || parsed.topic.trim().slice(0, 80) || 'Untitled Storyboard';
+        const draft = { id: crypto.randomUUID(), title, topic: parsed.topic.trim() };
+        const assistantMessage: ChatMessage = {
+          id: makeId(),
+          role: 'assistant',
+          content: formatStoryboardCreateDraft(draft),
+          status: 'preview',
+          action: { type: 'storyboard-create-draft', draft },
+        };
+        setMessages((previous) => [...previous, assistantMessage]);
         return;
       }
 
