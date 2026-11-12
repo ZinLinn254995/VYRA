@@ -5,7 +5,7 @@ import { ImageMagick, initializeImageMagick } from 'npm:@imagemagick/magick-wasm
 
 const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_PIXELS = 8_000_000;
+const MAX_PIXELS = 10_000_000;
 const TILE = 256;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const wasm = await Deno.readFile(new URL('magick.wasm', import.meta.resolve('npm:@imagemagick/magick-wasm@0.0.30')));
@@ -37,13 +37,26 @@ Deno.serve(async (request: Request) => {
     ctx.supabase.from('vyral_assets').select('id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', assetId).eq('user_id', userId).maybeSingle(),
     ctx.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type').eq('id', versionId).eq('asset_id', assetId).eq('user_id', userId).maybeSingle(),
     ctx.supabase.from('vyral_dna_records').select('id,revision_number,payload').eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset').order('revision_number', { ascending: false }).limit(1).maybeSingle(),
-    ctx.supabase.from('vyral_dna_records').select('id').eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset').eq('payload->dna_record->source->>asset_version_id', versionId).maybeSingle(),
+    ctx.supabase.from('vyral_dna_records').select('id,schema_version,payload').eq('asset_id', assetId).eq('user_id', userId).eq('scope', 'asset').eq('payload->dna_record->source->>asset_version_id', versionId).maybeSingle(),
   ]);
   if (a.error || v.error || existing.error || duplicate.error) return reply({ error: 'Could not validate Asset ownership and extraction state.' }, 500);
   const asset = a.data, version = v.data, parentDna = existing.data;
   if (!asset || !version) return reply({ error: 'Asset or source Version was not found for this account.' }, 404);
   if (duplicate.data) {
-    return reply({ error: 'This Asset Version already has an immutable DNA record.', dnaRecordId: duplicate.data.id }, 409);
+    const priorPayload = duplicate.data.payload && typeof duplicate.data.payload === 'object' && !Array.isArray(duplicate.data.payload)
+      ? duplicate.data.payload as Record<string, unknown> : {};
+    const priorRecord = priorPayload.dna_record && typeof priorPayload.dna_record === 'object' && !Array.isArray(priorPayload.dna_record)
+      ? priorPayload.dna_record as Record<string, unknown> : {};
+    const priorDecoded = priorRecord.decoded_image && typeof priorRecord.decoded_image === 'object' && !Array.isArray(priorRecord.decoded_image)
+      ? priorRecord.decoded_image as Record<string, unknown> : {};
+    const priorDecoder = priorDecoded.decoder_contract && typeof priorDecoded.decoder_contract === 'object' && !Array.isArray(priorDecoded.decoder_contract)
+      ? priorDecoded.decoder_contract as Record<string, unknown> : {};
+    const alreadyUsesPinnedDecoder = Number(duplicate.data.schema_version) === 3 &&
+      priorPayload.dna_schema_id === 'vyra.asset-dna' &&
+      priorDecoder.name === 'ImageMagick WASM' && priorDecoder.version === '0.0.30';
+    if (body.reextractLegacy !== true || alreadyUsesPinnedDecoder) {
+      return reply({ error: 'This Asset Version already has an immutable DNA record.', dnaRecordId: duplicate.data.id }, 409);
+    }
   }
   const mime = String(version.mime_type ?? '').toLowerCase();
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) return reply({ error: 'DNA v3 currently supports PNG, JPEG and WebP raster images.' }, 415);
@@ -73,7 +86,7 @@ Deno.serve(async (request: Request) => {
     samples = await ImageMagick.read(original, (image) => {
       width = image.width; height = image.height;
       const pixels = width * height;
-      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) throw new Error('Image exceeds the 8-megapixel DNA v3 limit.');
+      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) throw new Error('Image exceeds the 10-megapixel DNA v3 limit.');
       const rgba = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgba')?.slice() ?? null);
       if (!rgba || rgba.byteLength !== pixels * 4) throw new Error('Pinned decoder did not return a complete RGBA8 sample stream.');
       return rgba;
