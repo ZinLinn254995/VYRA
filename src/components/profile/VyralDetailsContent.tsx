@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle, Archive, Box, Check, ChevronRight, Clock3, Dna,
   Download, File as FileIcon, FileText, Fingerprint, FlaskConical, Folder, FolderPlus, GitBranch,
-  HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck, Eye, EyeOff,
+  HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck, Eye, EyeOff, LoaderCircle,
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
@@ -173,6 +173,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [tab, setTab] = useState<Tab>('assets');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [backgroundJob, setBackgroundJob] = useState<{ assetName: string; stage: string; detail: string } | null>(null);
   const [packageBusy, setPackageBusy] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [showSystemFiles, setShowSystemFiles] = useState(false);
@@ -2053,6 +2054,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setBusy(true); setError('');
     const failures: string[] = [];
     for (const file of selected) {
+      setBackgroundJob({ assetName: file.name, stage: 'Uploading original Asset', detail: 'Saving the source file and its version record.' });
       if (file.size > 100 * 1024 * 1024) { failures.push(file.name + ' is larger than the 100 MB upload limit.'); continue; }
       let storagePath = '';
       let assetId = '';
@@ -2127,6 +2129,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dnaCommitted = true;
         };
 
+        setBackgroundJob({ assetName: file.name, stage: 'Building Asset DNA', detail: 'Extracting deterministic identity and verifying the original file fingerprint.' });
         if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
           const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
             body: { assetId, versionId: version.id },
@@ -2160,6 +2163,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
         if (readyError) throw readyError;
         // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
+        setBackgroundJob({ assetName: file.name, stage: 'Gemini is analyzing the Asset', detail: 'Understanding visual content and preparing reusable Asset knowledge.' });
         try {
           const accessToken = await getCurrentAccessToken();
           if (accessToken && vyral.license_policy?.allow_ai_analysis !== false && !isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime })) {
@@ -2213,6 +2217,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               }
             }
 
+            setBackgroundJob({ assetName: file.name, stage: 'Saving Asset knowledge', detail: 'Linking AI observations to the exact source version.' });
             const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
@@ -2288,6 +2293,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
     }
+    setBackgroundJob(null);
     await loadWorkspace();
     if (failures.length) setError(failures.join(' · '));
     setBusy(false);
@@ -2970,6 +2976,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       .sort((a, b) => b.version_number - a.version_number)[0];
     if (!sourceVersion) { setError('No source version is available. Refresh the Asset before retrying.'); return; }
     setRetryingVisionAssetId(asset.id);
+    setBackgroundJob({ assetName: asset.name, stage: 'Preparing source for Gemini', detail: 'Retrieving the original version and checking its source binding.' });
     setError('');
     try {
       const accessToken = await getCurrentAccessToken();
@@ -2979,6 +2986,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const sourceFile = new File([sourceBlob], asset.original_filename || asset.name, {
         type: sourceVersion.mime_type || asset.mime_type || 'application/octet-stream',
       });
+      setBackgroundJob({ assetName: asset.name, stage: 'Gemini is analyzing the Asset', detail: 'Inspecting the original source and generating structured visual knowledge.' });
       const suggestion = await suggestVyralAssetDetails(sourceFile, {
         accessToken, assetType: asset.asset_type, sourceVersionId: sourceVersion.id,
         sourceRevision: sourceVersion.version_number,
@@ -2987,6 +2995,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) },
       ]));
       if (!Object.keys(observedFields).length) throw new Error('AI did not return any usable observations.');
+      setBackgroundJob({ assetName: asset.name, stage: 'Verifying and saving observations', detail: 'Checking source integrity and attaching the analysis to this Asset version.' });
       const { data: visionRecord, error: recordError } = await supabase.functions.invoke('record-vyral-vision-observation', {
         body: {
           assetId: asset.id, versionId: sourceVersion.id,
@@ -3036,7 +3045,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }).eq('id', asset.id).eq('user_id', auth.user.id);
       await loadWorkspace();
       setError(asset.name + ': ' + message);
-    } finally { setRetryingVisionAssetId(null); }
+    } finally { setRetryingVisionAssetId(null); setBackgroundJob(null); }
   };
 
   // One-time, source-pinned Vision backfill for the protected ORIGIN-01 test Asset.
@@ -3469,6 +3478,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   return (
     <div className="space-y-5">
       {(packageBusy || busy) && <p className={'text-xs ' + muted} role="status">Please wait…</p>}
+      {backgroundJob && <section role="status" aria-live="polite" className="flex items-start gap-3 rounded-xl border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/5 px-3 py-3"><LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><div className="min-w-0"><p className={'text-xs font-semibold '+primary}>{backgroundJob.stage}</p><p className={'mt-0.5 truncate text-[11px] '+subtle}>{backgroundJob.assetName}</p><p className={'mt-1 text-[10px] leading-4 '+muted}>{backgroundJob.detail}</p><div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--vyra-border)]"><div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--vyra-accent-primary)]"/></div></div></section>}
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       {collectionReferences.length > 0 && <section className={surface + ' space-y-3 p-3'}>
         <div className="flex items-center justify-between gap-3">
