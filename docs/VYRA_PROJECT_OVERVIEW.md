@@ -1,5 +1,9 @@
 # VYRA — Project Overview
 
+## Current AI Chat MVP Roadmap
+
+The first practical AI Chat milestone is governed by the six-phase delivery plan in [VYRA AI Chat MVP Roadmap](./product/VYRA_AI_CHAT_MVP_ROADMAP.md). That document is the source of truth for the MVP scope, phase acceptance gates, provider/API-key setup, app-control safety, media generation, file/Asset handoff, verification, and branch/release constraints. It does not imply that documented capabilities are already implemented.
+
 ## What VYRA Is
 
 This overview is the high-level explanation of VYRA's identity and intended capabilities. The complementary [Product Vision & Revenue Mission](./PRODUCT_VISION_AND_REVENUE_MISSION.md) explains the customer experience, business direction and guiding principles. Technical documents describe implementation details and current limitations; they do not override the overall product identity.
