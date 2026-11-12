@@ -50,9 +50,9 @@ export const isStoryboardCreateConfirmation = (input: string): boolean =>
   /^\s*(?:confirm(?:\s+(?:create|storyboard))?|yes,?\s+create(?:\s+it)?|အတည်ပြု(?:မယ်)?|ဖန်တီးပါ)\s*[.!?။]*\s*$/i.test(input);
 
 export const formatStoryboardCreateDraft = (draft: GlobalChatStoryboardDraft): string =>
-  '**Storyboard draft — please review**\\n\\n' +
-  '**Title:** ' + draft.title + '\\n' +
-  '**Topic:** ' + draft.topic + '\\n\\n' +
+  '**Storyboard draft — please review**\n\n' +
+  '**Title:** ' + draft.title + '\n' +
+  '**Topic:** ' + draft.topic + '\n\n' +
   'Nothing has been saved yet. Reply **Confirm create** (သို့) **အတည်ပြု** to create this Storyboard.';
 
 export const isStoryboardListRequest = (input: string): boolean =>
@@ -64,11 +64,11 @@ export const formatStoryboardList = (items: GlobalChatStoryboardRecord[]): strin
   }
   const lines = items.map((item, index) => {
     const sceneCount = Array.isArray(item.details?.scenes) ? item.details.scenes.length : 0;
-    return (index + 1) + '. **' + item.title + '**\\n   ' +
-      (item.topic?.trim() || 'No description') + '\\n   ' +
+    return (index + 1) + '. **' + item.title + '**\n   ' +
+      (item.topic?.trim() || 'No description') + '\n   ' +
       sceneCount + ' scene(s) · Updated ' + new Date(item.updatedAt).toLocaleDateString();
   });
-  return 'Your Workspace Storyboards (' + items.length + ')\\n\\n' + lines.join('\\n\\n');
+  return 'Your Workspace Storyboards (' + items.length + ')\n\n' + lines.join('\n\n');
 };
 
 
@@ -131,7 +131,7 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
     lines.push((index + 1) + '. **' + title + '** — ' + duration, description, 'Transition: ' + transition);
   });
   lines.push('', 'Created: ' + new Date(item.createdAt).toLocaleDateString(), 'Updated: ' + new Date(item.updatedAt).toLocaleDateString());
-  return lines.join('\\n');
+  return lines.join('\n');
 };
 
 
