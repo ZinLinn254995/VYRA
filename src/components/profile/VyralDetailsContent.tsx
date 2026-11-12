@@ -3714,6 +3714,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {tab === 'dna' && (
         <div className="space-y-4">
+          <section className={surface+' flex flex-wrap items-center justify-between gap-3 p-4'}>
+            <div className="min-w-0">
+              <h3 className={'text-sm font-semibold '+primary}>AI Vision observations</h3>
+              <p className={'mt-1 text-xs '+muted}>Review what AI has learned from each original Asset source.</p>
+            </div>
+            <button type="button" className={primaryButton} onClick={() => document.getElementById('vyral-ai-vision-observations')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <Eye size={13}/> View observations
+            </button>
+          </section>
           <section className={surface+' p-4'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -3766,7 +3775,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               {assetVersionEvidenceTimeline.every(({ versions: entries }) => !entries.some(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()))) && <p className={'rounded-lg border border-dashed border-[var(--vyra-border)] p-3 text-xs '+muted}>No supported image source versions are available yet. PNG, JPEG and WebP versions will appear here.</p>}
             </div>
           </section>
-          <section className={surface+' p-4'}>
+          <section id="vyral-ai-vision-observations" className={surface+' scroll-mt-24 p-4'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className={'text-sm font-semibold '+primary}>AI Vision observations</h3>
