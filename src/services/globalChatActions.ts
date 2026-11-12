@@ -263,10 +263,10 @@ export const extractVyralCreateRequest = (input: string): { name: string; descri
 };
 
 export const formatVyralCreateDraft = (draft: GlobalChatVyralDraft): string =>
-  '**Vyral creation draft — please review**\\n\\n' +
-  '**Name:** ' + draft.name + '\\n' +
-  '**Purpose / Description:** ' + (draft.description || 'Not specified yet') + '\\n\\n' +
-  'This will create a private Vyral with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\\n\\n' +
+  '**Vyral creation draft — please review**\n\n' +
+  '**Name:** ' + draft.name + '\n' +
+  '**Purpose / Description:** ' + (draft.description || 'Not specified yet') + '\n\n' +
+  'This will create a private Vyral with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\n\n' +
   'Nothing has been created yet. Reply **Confirm Vyral create** (သို့) **Vyral ဖန်တီးရန် အတည်ပြု** to continue.';
 
 export const isVyralCreateConfirmation = (input: string): boolean =>
