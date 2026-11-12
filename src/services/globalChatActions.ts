@@ -40,7 +40,7 @@ export type GlobalChatStoryboardAction =
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\\s+(?:please\\s+)?(?:create|make|build|start)\\s+(?:(?:a|an|new)\\s+)?vyrals?\\b|(?:please\\s+)?(?:create|make|build|start)\\s+(?:(?:a|an|new)\\s+)?vyrals?\\b|(?:i want|i'd like|i need)\\s+(?:(?:a|an)\\s+)?(?:new\\s+)?vyral\\s+(?:named|called)\\b|vyral\\s+(?:အသစ်\\s*)?(?:တစ်ခု\\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
@@ -246,14 +246,14 @@ export type GlobalChatAction = GlobalChatStoryboardAction
   | { type: 'vyral-asset-upload-complete'; draftId: string };
 
 export const isVyralCreateIntent = (input: string): boolean => {
-  const clauses = input.split(/[.!?။\\n]+/).map((part) => part.trim()).filter(Boolean);
+  const clauses = input.split(/[.!?။\n]+/).map((part) => part.trim()).filter(Boolean);
   return clauses.some((clause) => {
-    if (/\\b(?:don't|do not|never|not)\\b.{0,40}\\b(?:create|make|build|start)\\b.{0,40}\\bvyral\\b/i.test(clause) ||
+    if (/\b(?:don't|do not|never|not)\b.{0,40}\b(?:create|make|build|start)\b.{0,40}\bvyral\b/i.test(clause) ||
         /(?:မဖန်တီး|မလုပ်ချင်|မစချင်)/.test(clause)) return false;
-    return /\\b(?:please\\s+)?(?:create|make|build|start)\\s+(?:(?:a|an|new)\\s+)?vyrals?\\b/i.test(clause) ||
-      /\\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\\s+(?:create|make|build|start)\\s+(?:(?:a|an|new)\\s+)?vyrals?\\b/i.test(clause) ||
-      /\\b(?:i want|i'd like|i need)\\s+(?:(?:a|an)\\s+)?(?:new\\s+)?vyral\\b/i.test(clause) ||
-      /(?:^|\\s)vyral\\s+(?:(?:အသစ်\\s*)?(?:တစ်ခု\\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\\s|$|[:：။!?])/i.test(clause);
+    return /\b(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b/i.test(clause) ||
+      /\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b/i.test(clause) ||
+      /\b(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\b/i.test(clause) ||
+      /(?:^|\s)vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\s|$|[:：။!?])/i.test(clause);
   });
 };
 
