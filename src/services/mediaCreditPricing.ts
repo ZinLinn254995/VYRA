@@ -64,7 +64,7 @@ export function validateMediaCreditPricingAdminAction(input: unknown): MediaCred
       version: body.version,
       creditsPerUsd: body.creditsPerUsd,
     });
-    return { action: 'create_draft', ...policy, creditsPerUsd: policy.creditsPerUsd };
+    return { action: 'create_draft', version: policy.version, creditsPerUsd: policy.creditsPerUsd };
   }
   if (body.action === 'activate') {
     if (body.confirmed !== true) throw new Error('Explicit activation confirmation is required.');
