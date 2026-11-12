@@ -64,6 +64,6 @@ test('VYRA interprets free-form multilingual intent and formats active context w
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /Interpret meaning rather than matching fixed phrases/);
   assert.match(source, /paraphrases, indirect requests, casual Burmese, English, and mixed-language instructions/);
-  assert.match(source, /activeVyralInstruction =\\s*'\\\\n\\\\nCurrent user-selected Vyral context/);
-  assert.doesNotMatch(source, /activeVyralInstruction =\\s*'\\\\\\\\n/);
+  assert.match(source, /activeVyralInstruction =\s*'\\n\\nCurrent user-selected Vyral context/);
+  assert.doesNotMatch(source, /activeVyralInstruction =\s*'\\\\n/);
 });
