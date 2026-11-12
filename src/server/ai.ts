@@ -75,10 +75,13 @@ async function callOpenAIChatFunction(accessToken: string, payload: Record<strin
   if (!baseUrl || !anonKey) throw new Error('OpenAI chat service is not configured.');
   const response = await fetch(baseUrl + '/functions/v1/vyra-openai-chat', {
     method: 'POST',
-    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: payload.stream === true ? 'text/event-stream' : 'application/json' },
     body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(65000),
   });
-  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  const contentType = response.headers.get('content-type') ?? '';
+  const data = contentType.includes('application/json')
+    ? await response.json().catch(() => ({})) as Record<string, unknown>
+    : {};
   return { response, data };
 }
 
@@ -1086,7 +1089,38 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
     if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
     try {
-      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages });
+      const wantsStream = body.stream === true;
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(wantsStream ? { stream: true } : {}) });
+      if (wantsStream && response.ok && response.body && (response.headers.get('content-type') ?? '').includes('text/event-stream')) {
+        res.status(response.status);
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders?.();
+        const reader = response.body.getReader();
+        const cancelOnClose = () => { if (!res.writableEnded) void reader.cancel().catch(() => undefined); };
+        res.once('close', cancelOnClose);
+        const decoder = new TextDecoder();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!res.write(decoder.decode(value, { stream: true }))) {
+              await new Promise<void>((resolve) => res.once('drain', resolve));
+            }
+          }
+          const tail = decoder.decode();
+          if (tail) res.write(tail);
+          if (!res.writableEnded) res.end();
+        } catch {
+          if (!res.writableEnded) res.end();
+        } finally {
+          res.off('close', cancelOnClose);
+          reader.releaseLock();
+        }
+        return;
+      }
       res.setHeader('Cache-Control', 'no-store');
       return res.status(response.status).json(data);
     } catch {
