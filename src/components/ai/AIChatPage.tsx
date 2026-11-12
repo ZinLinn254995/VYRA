@@ -351,7 +351,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
   const [selectedVyralId, setSelectedVyralId] = useState<string | null>(null);
   const [activeVyralId, setActiveVyralId] = useState<string | null>(null);
-  const [activeVyralName, setActiveVyralName] = useState<string | null>(null);
   const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
@@ -370,7 +369,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let active = true;
     if (!historyOwnerId || !supabase) {
       setActiveVyralId(null);
-      setActiveVyralName(null);
       return () => { active = false; };
     }
     const storageKey = 'vyra_active_vyral_v1:' + historyOwnerId;
@@ -391,7 +389,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           return;
         }
         setActiveVyralId(String(data.id));
-        setActiveVyralName(String(data.name));
       });
     return () => { active = false; };
   }, [historyOwnerId]);
@@ -651,14 +648,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let streamedText = '';
     try {
       let resolvedActiveVyralId = activeVyralId;
-      let resolvedActiveVyralName = activeVyralName;
       if (!resolvedActiveVyralId && selectedAssets.length > 0) {
         const selectedVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
         if (selectedVyralIds.length === 1) {
           resolvedActiveVyralId = selectedVyralIds[0];
-          resolvedActiveVyralName = selectedAssets[0].vyralName;
           setActiveVyralId(resolvedActiveVyralId);
-          setActiveVyralName(resolvedActiveVyralName);
         }
       }
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
@@ -674,8 +668,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             if (resolvedActiveVyralId) {
               const verifiedActive = ownedRecords.find((item) => item.id === resolvedActiveVyralId);
               if (verifiedActive) {
-                resolvedActiveVyralName = verifiedActive.name;
-                setActiveVyralName(verifiedActive.name);
                 try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, verifiedActive.id); } catch { /* in-memory context remains active */ }
               } else {
                 resolvedActiveVyralId = null;
@@ -1002,7 +994,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           if (dnaError) throw new Error('The Vyral record exists, but its initial identity DNA could not be saved. Retry the same confirmation; the original Vyral will be reused. ' + dnaError.message);
         }
         setActiveVyralId(savedVyralId);
-        setActiveVyralName(draft.name);
         try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, savedVyralId); } catch { /* active context remains for this session */ }
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant',
