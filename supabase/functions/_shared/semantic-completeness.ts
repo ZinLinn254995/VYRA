@@ -25,8 +25,8 @@ export type SemanticCompletenessInputV1 = {
 
 export type SemanticCompletenessResultV1 = {
   version: typeof VYRAL_SEMANTIC_COMPLETENESS_VERSION;
-  profile: 'raster_image_core_v1' | 'generic_semantic_core_v1';
-  status: 'complete' | 'partial' | 'blocked';
+  profile: 'raster_image_core_v1' | 'unsupported_asset_type_v1';
+  status: 'complete' | 'partial' | 'blocked' | 'unsupported';
   requiredFieldCount: number;
   verifiedFieldCount: number;
   provisionalFieldCount: number;
@@ -52,7 +52,6 @@ const REQUIRED_IMAGE_FIELDS = [
   'style',
   'text_presence',
 ] as const;
-const REQUIRED_GENERIC_FIELDS = ['subject', 'purpose', 'structure', 'key_attributes'] as const;
 const TRUSTED_EVIDENCE = new Set<SemanticEvidenceClassV1>([
   'creator_confirmed', 'system_measured', 'independently_verified',
 ]);
@@ -96,7 +95,25 @@ export const assessVyralSemanticCompletenessV1 = (
   }
   const image = input.assetType.toLowerCase() === 'image' ||
     input.assetType.toLowerCase().startsWith('image/');
-  const required = image ? REQUIRED_IMAGE_FIELDS : REQUIRED_GENERIC_FIELDS;
+  if (!image) {
+    return {
+      version: VYRAL_SEMANTIC_COMPLETENESS_VERSION,
+      profile: 'unsupported_asset_type_v1',
+      status: 'unsupported',
+      requiredFieldCount: 0,
+      verifiedFieldCount: 0,
+      provisionalFieldCount: 0,
+      missingFieldCount: 0,
+      coveragePercent: 0,
+      fields: [],
+      ignoredObservationCount: input.observations.length,
+      limitations: [
+        'No modality-specific semantic completeness profile is defined for this asset type yet.',
+        'VYRA must not reuse raster-image requirements or claim semantic completeness for an unsupported modality.',
+      ],
+    };
+  }
+  const required = REQUIRED_IMAGE_FIELDS;
   const evidenceByField = new Map<string, { verified: string[]; provisional: string[]; notApplicable: string[] }>();
   for (const key of required) evidenceByField.set(key, { verified: [], provisional: [], notApplicable: [] });
 
@@ -148,7 +165,7 @@ export const assessVyralSemanticCompletenessV1 = (
 
   return {
     version: VYRAL_SEMANTIC_COMPLETENESS_VERSION,
-    profile: image ? 'raster_image_core_v1' : 'generic_semantic_core_v1',
+    profile: 'raster_image_core_v1',
     status,
     requiredFieldCount: required.length,
     verifiedFieldCount,
