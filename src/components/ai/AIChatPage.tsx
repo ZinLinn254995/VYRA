@@ -806,7 +806,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
-      if (isStoryboardDeleteConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
+      if ((isStoryboardDeleteConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'storyboard-delete-draft')) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-delete-draft') {
@@ -862,7 +862,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if (isStoryboardUpdateConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
+      if ((isStoryboardUpdateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'storyboard-update-draft')) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-update-draft') {
@@ -926,7 +926,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if ((isVyralCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0) {
+      if ((isVyralCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'vyral-create-draft')) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type !== 'vyral-create-draft') {
@@ -999,7 +999,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
-      if (isStoryboardCreateConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
+      if ((isStoryboardCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().some((message) => message.role === 'assistant' && message.action?.type === 'storyboard-create-draft')) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-create-draft') {
@@ -1962,24 +1962,22 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
           : item));
       } else {
-        const pendingDeleteDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-delete-draft')?.action;
-        const pendingUpdateDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-update-draft')?.action;
-        const preservedUpload = isVyralAssetUploadConfirmation(text) && error instanceof VyralAssetIngestionError && error.preservedForRecovery;
-        if (preservedUpload) {
-          const pendingUpload = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'vyral-asset-upload-draft')?.action;
-          if (pendingUpload?.type === 'vyral-asset-upload-draft') pendingVyralUploadFilesRef.current.delete(pendingUpload.draft.id);
+        const lastAssistantAction = [...messages].reverse().find((item) => item.role === 'assistant')?.action;
+        const naturalApprovalAttempt = isNaturalChatApproval(text) || isStoryboardDeleteConfirmation(text) ||
+          isStoryboardUpdateConfirmation(text) || isVyralAssetUploadConfirmation(text) ||
+          isVyralCreateConfirmation(text) || isStoryboardCreateConfirmation(text);
+        const preservedUpload = lastAssistantAction?.type === 'vyral-asset-upload-draft' &&
+          naturalApprovalAttempt && error instanceof VyralAssetIngestionError && error.preservedForRecovery;
+        if (preservedUpload && lastAssistantAction?.type === 'vyral-asset-upload-draft') {
+          pendingVyralUploadFilesRef.current.delete(lastAssistantAction.draft.id);
         }
-        const retryDraftAction = preservedUpload ? undefined : isStoryboardDeleteConfirmation(text) && pendingDeleteDraft
-          ? pendingDeleteDraft
-          : isStoryboardUpdateConfirmation(text) && pendingUpdateDraft
-            ? pendingUpdateDraft
-             : isVyralAssetUploadConfirmation(text) || isNaturalChatApproval(text)
-              ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'vyral-asset-upload-draft')?.action
-               : isVyralCreateConfirmation(text) || isNaturalChatApproval(text)
-              ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'vyral-create-draft')?.action
-              : isStoryboardCreateConfirmation(text)
-                ? [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-create-draft')?.action
-                : undefined;
+        const retryDraftAction = preservedUpload || !naturalApprovalAttempt ||
+          !lastAssistantAction || ![
+            'storyboard-delete-draft', 'storyboard-update-draft', 'storyboard-create-draft',
+            'vyral-create-draft', 'vyral-asset-upload-draft',
+          ].includes(lastAssistantAction.type)
+          ? undefined
+          : lastAssistantAction;
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
