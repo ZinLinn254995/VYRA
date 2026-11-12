@@ -1443,26 +1443,25 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         </div>
         {isTextEditMode && (
           <div className="absolute inset-0 z-40 flex min-h-0 flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--vyra-border)] px-3">
-              <span className="text-sm font-medium text-[var(--vyra-text-primary)]">Edit Text</span>
-              <button type="button" onClick={() => setIsTextEditMode(false)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-1.5 text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close edit mode">Close</button>
-            </div>
-            <div className="flex min-h-14 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--vyra-border)] px-2 py-2">
-              {[
-                { label: 'Bold', Icon: Bold },
-                { label: 'Italic', Icon: Italic },
-                { label: 'Underline', Icon: Underline },
-                { label: 'Strikethrough', Icon: Strikethrough },
-                { label: 'Align left', Icon: AlignLeft },
-                { label: 'Align center', Icon: AlignCenter },
-                { label: 'Align right', Icon: AlignRight },
-                { label: 'Bulleted list', Icon: List },
-                { label: 'Text color', Icon: Palette },
-              ].map(({ label, Icon }) => (
-                <button key={label} type="button" disabled title={label} aria-label={label} className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] opacity-60">
-                  <Icon size={18} strokeWidth={1.8} />
-                </button>
-              ))}
+            <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-[var(--vyra-border)] px-2">
+              <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {[
+                  { label: 'Bold', Icon: Bold },
+                  { label: 'Italic', Icon: Italic },
+                  { label: 'Underline', Icon: Underline },
+                  { label: 'Strikethrough', Icon: Strikethrough },
+                  { label: 'Align left', Icon: AlignLeft },
+                  { label: 'Align center', Icon: AlignCenter },
+                  { label: 'Align right', Icon: AlignRight },
+                  { label: 'Bulleted list', Icon: List },
+                  { label: 'Text color', Icon: Palette },
+                ].map(({ label, Icon }) => (
+                  <button key={label} type="button" disabled title={label} aria-label={label} className="grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] opacity-60">
+                    <Icon size={18} strokeWidth={1.8} />
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => setIsTextEditMode(false)} className="ml-2 shrink-0 rounded-lg border border-[var(--vyra-border)] px-3 py-1.5 text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close edit mode">Close</button>
             </div>
             <textarea
               aria-label="Text content"
