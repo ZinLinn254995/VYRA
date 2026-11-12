@@ -17,7 +17,7 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardUpdateRequest, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, type GlobalChatNavigationTarget, type GlobalChatStoryboardAction, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, type GlobalChatNavigationTarget, type GlobalChatStoryboardAction, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string; action?: import('../../services/globalChatActions.ts').GlobalChatStoryboardAction };
@@ -418,7 +418,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             content: message.content,
             ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
-            ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatStoryboardAction } : {}),
+            ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete', 'storyboard-delete-draft', 'storyboard-delete-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatStoryboardAction } : {}),
           } as ChatMessage];
         });
         const date = new Date(row.updated_at);
@@ -643,6 +643,60 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
+      if (isStoryboardDeleteConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
+        const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
+        const pendingAction = previousAssistant?.action;
+        if (pendingAction?.type === 'storyboard-delete-draft') {
+          const draft = pendingAction.draft;
+          const alreadyCompleted = messages.some((message) =>
+            message.role === 'assistant' && message.action?.type === 'storyboard-delete-complete' &&
+            message.action.draftId === draft.id
+          );
+          if (alreadyCompleted) {
+            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'This Storyboard has already been deleted. I did not repeat the action.', status: 'success' }]);
+            return;
+          }
+          if (!supabase) throw new Error('Storyboard deletion is unavailable in this environment.');
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData.user) throw new Error('Sign in again before deleting this Storyboard.');
+          const { data: currentCloud, error: loadError } = await supabase.from('vyral_storyboards')
+            .select('id,updated_at')
+            .eq('id', draft.storyboardId)
+            .eq('user_id', authData.user.id)
+            .maybeSingle();
+          if (loadError) throw new Error('I could not verify this Storyboard before deletion. Nothing was deleted.');
+          if (currentCloud && String(currentCloud.updated_at) !== draft.expectedUpdatedAt) {
+            throw new Error('This Storyboard changed after the delete preview was prepared. Nothing was deleted. Ask me to prepare the delete again.');
+          }
+          if (currentCloud) {
+            const { error: deleteError } = await supabase.from('vyral_storyboards')
+              .delete()
+              .eq('id', draft.storyboardId)
+              .eq('user_id', authData.user.id)
+              .eq('updated_at', draft.expectedUpdatedAt);
+            if (deleteError) throw new Error('I could not delete this Storyboard from the cloud. Please retry confirmation. ' + deleteError.message);
+          }
+          try {
+            const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
+            const cached: unknown = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            if (Array.isArray(cached)) {
+              localStorage.setItem(storageKey, JSON.stringify(cached.filter((item) =>
+                !item || typeof item !== 'object' || (item as Record<string, unknown>).id !== draft.storyboardId
+              )));
+            }
+          } catch {
+            // The cloud row is authoritative; Workspace can rebuild its cache from cloud on next load.
+          }
+          setMessages((previous) => [...previous, {
+            id: makeId(), role: 'assistant',
+            content: '**Storyboard deleted:** ' + draft.storyboardTitle + '\nIt has been removed from your Workspace.',
+            status: 'success',
+            action: { type: 'storyboard-delete-complete', draftId: draft.id },
+          }]);
+          return;
+        }
+      }
+
       if (isStoryboardUpdateConfirmation(text) && !selectedFile && selectedAssets.length === 0) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
@@ -773,6 +827,67 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           setMessages((previous) => [...previous, assistantMessage]);
           return;
         }
+      }
+
+      if (isStoryboardDeleteIntent(text) && !selectedFile && selectedAssets.length === 0) {
+        const requestedTitle = extractStoryboardDeleteTitle(text);
+        if (!requestedTitle) {
+          setMessages((previous) => [...previous, {
+            id: makeId(), role: 'assistant',
+            content: 'Tell me the exact Storyboard title you want to delete. Example: Delete storyboard "Moon Journey". I will show a confirmation preview before deleting anything.',
+            status: 'success',
+          }]);
+          return;
+        }
+        if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData.user) throw new Error('Sign in again to manage your Workspace Storyboards.');
+        const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
+        let localStoryboards: GlobalChatStoryboardRecord[] = [];
+        try {
+          const cached: unknown = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          if (Array.isArray(cached)) {
+            localStoryboards = cached.filter((item): item is GlobalChatStoryboardRecord =>
+              Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
+              typeof item.topic === 'string' && typeof item.createdAt === 'string' &&
+              typeof item.updatedAt === 'string'
+            );
+          }
+        } catch {
+          // Use the account-scoped cloud rows if local cache is malformed.
+        }
+        const { data, error: loadError } = await supabase.from('vyral_storyboards')
+          .select('id,title,topic,details,created_at,updated_at')
+          .eq('user_id', authData.user.id)
+          .order('updated_at', { ascending: false });
+        if (loadError) throw new Error('Could not load your Workspace Storyboards: ' + loadError.message);
+        const remoteStoryboards: GlobalChatStoryboardRecord[] = (data ?? []).map((row) => ({
+          id: String(row.id), title: String(row.title), topic: String(row.topic ?? ''),
+          details: row.details && typeof row.details === 'object' ? row.details as { scenes?: unknown[] } : {},
+          createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+        }));
+        const merged = mergeWorkspaceStoryboards(localStoryboards, remoteStoryboards).storyboards;
+        const matches = findStoryboardMatches(merged, requestedTitle);
+        if (!matches.length) {
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I could not find a Storyboard matching "' + requestedTitle + '". Nothing was deleted.', status: 'success' }]);
+          return;
+        }
+        if (matches.length > 1) {
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I found multiple matching Storyboards. Please use the exact title:\n' + matches.map((item) => '• ' + item.title).join('\n'), status: 'success' }]);
+          return;
+        }
+        const item = matches[0];
+        const draft = {
+          id: crypto.randomUUID(),
+          storyboardId: item.id,
+          storyboardTitle: item.title,
+          expectedUpdatedAt: item.updatedAt,
+        };
+        setMessages((previous) => [...previous, {
+          id: makeId(), role: 'assistant', content: formatStoryboardDeleteDraft(draft),
+          status: 'preview', action: { type: 'storyboard-delete-draft', draft },
+        }]);
+        return;
       }
 
       if (isStoryboardUpdateIntent(text) && !selectedFile && selectedAssets.length === 0) {
