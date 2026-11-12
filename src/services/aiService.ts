@@ -85,7 +85,7 @@ class ModularAIService implements AIServiceProvider {
         : this.model;
       this.model = modelName;
 
-      // The health probe intentionally returns HTTP 200 even when Gemini is
+      // The health probe intentionally returns HTTP 200 even when OpenAI is
       // not configured. Trust the explicit backend status, not res.ok alone.
       const status: AIServiceStatus['status'] =
         data.status === 'connected' ? 'connected' :
@@ -99,8 +99,8 @@ class ModularAIService implements AIServiceProvider {
         message: typeof data.message === 'string' && data.message.trim()
           ? data.message
           : status === 'connected'
-            ? 'Connected to server-side Gemini AI engine.'
-            : 'Gemini is not verified yet. Check the server configuration.',
+            ? 'Connected to the server-side OpenAI AI engine.'
+            : 'OpenAI is not configured yet. The platform key will be added during final verification.',
       };
     } catch {
       // Keep the UI honest when the API route cannot be reached.
