@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.resolve-public-vyral-resource]
 verify_jwt = false
+
+[functions.manage-runway-provider]
+verify_jwt = true
