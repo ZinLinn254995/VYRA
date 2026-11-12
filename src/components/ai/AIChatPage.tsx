@@ -806,7 +806,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
-      if ((isStoryboardDeleteConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-delete-draft') {
+      if (isStoryboardDeleteConfirmation(text) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-delete-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-delete-draft') {
