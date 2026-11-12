@@ -234,6 +234,7 @@ test('Vyral context follows natural conversational references without a fixed co
   assert.equal(isVyralAssetAddIntent('This belongs in Space Worlds'), true);
   assert.equal(isVyralAssetAddIntent('I want this picture in ORIGIN Story'), true);
   assert.equal(isVyralAssetAddIntent('This image should be part of Space Worlds'), true);
+  assert.equal(isVyralAssetAddIntent('Please use this image as a reference for my answer'), false);
   assert.equal(isVyralAssetAddIntent('ဒီပုံကို အဲဒီထဲ ထည့်ပေးပါ'), true);
   assert.equal(isVyralAssetAddIntent("Please don't add this file yet"), false);
   assert.equal(isVyralAssetContextReference('Put this there'), true);
