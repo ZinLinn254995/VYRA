@@ -342,3 +342,40 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Remaining acceptance check:** Preview/device manual testing is still required for Storyboard create, update, and delete, including confirmation, refresh/reopen, and Workspace synchronization. No manual browser verification is claimed. No production deployment or merge was performed.
 
 **Next Phase 3 step:** Run the three end-to-end Preview acceptance flows, then assess whether the MVP's safe conversational controls are ready for the next phase. Preserve the existing AI Chat UI baseline.
+### Phase 4 — provider architecture audit and recommendation (2026-11-13)
+
+**Current implementation findings**
+
+- The existing `CreateVideoView` still reads `vyra_openrouter_key_session` and selected OpenRouter models from browser `sessionStorage`, then sends the user-provided key in `x-openrouter-api-key`. This is a legacy BYOK flow and conflicts with the product requirement that customers must not bring their own provider keys.
+- The current `/providers/openrouter/images/generate` and related generation routes are deliberately blocked by `blockUntrackedGeneration(...)` until generation usage-ledger integration is verified. Do not remove this safety block or bypass it to make generation appear available.
+- OpenAI text chat is already server-side through the Development Supabase Edge Function and Vault. Existing Gemini Vision is a separate preserved path.
+- OpenAI's current image API supports GPT Image 2.x models, including the 2.6 family. The old `gpt-image-1` model was shut down on 2026-10-23; do not build against it.
+- OpenAI's Sora 2 / Videos API was shut down on 2026-09-24 according to the current deprecation notice. Therefore OpenAI cannot be assumed to be the VYRA video-generation provider in this release.
+- OpenAI's legacy `/v1/audio/speech` TTS models are scheduled to shut down on 2027-01-06. Avoid making them the long-term audio architecture without a migration plan.
+
+**Recommended media-provider direction**
+
+- Keep OpenAI as the conversational text provider.
+- Use one platform-owned media provider account/key for image, video, and audio generation. Runway Dev is the current recommended candidate because its official API documents text/image-to-video, text/image-to-image, text-to-speech, sound effects, speech-to-speech, asynchronous task status, uploads, and a model router spanning multiple model vendors. This reduces VYRA's integration and billing complexity while keeping model choice behind the platform.
+- Keep model routing server-side and allowlist models/capabilities. Initial candidates to evaluate are a cost-efficient video model (e.g. Gen-4 Turbo / Kling 4 Flash / Veo 3.1 Fast) and a quality tier (e.g. Kling 4 / Seedance 2.5 / Veo 3.1), based on actual task requirements, regional availability, rights, and verified pricing. Do not expose a large model picker to customers.
+- Runway Dev currently documents one credit as USD $0.01 and per-second video pricing that varies materially by model and resolution. Every generation must have a preflight estimate, a spend cap, and explicit customer confirmation before provider submission. The app must record actual provider-reported cost after completion.
+- This is an architecture recommendation, not a configured provider connection. No Runway account/key has been purchased or added. Do not incur provider charges until the user explicitly authorizes the final provider-backed verification stage.
+
+**Implementation order for Phase 4**
+
+1. Replace the legacy browser BYOK assumption with an authenticated, server-only platform provider boundary. Keep provider secrets in Supabase Vault; never accept provider API keys from the customer chat request.
+2. Add a narrow provider-management/status path for the platform-owned media key, with administrator-only write access and status-only reads. Do not reveal the saved secret.
+3. Define a generation job contract (`queued`, `running`, `succeeded`, `failed`, `cancelled`) and provider adapter interface before enabling any billable generation.
+4. Integrate usage preflight, idempotency, customer approval, provider cost reconciliation, and failure/refund handling. The existing OpenRouter text ledger is not evidence that image/video/audio generation is safely metered.
+5. Start with one image-generation path and one video-generation path, test using mocks and no paid credentials, then add speech/audio generation. Persist outputs into the existing Asset/Storage/DNA pipeline in Phase 5 rather than creating a parallel media library.
+6. Remove or retire legacy BYOK UI only after the replacement provider path is verified; preserve existing user data and the approved AI Chat visual baseline.
+
+**Official provider references checked on 2026-11-13**
+
+- OpenAI image generation: https://developers.openai.com/api/docs/guides/image-generation
+- OpenAI API deprecations (Sora Videos API shutdown and GPT Image changes): https://developers.openai.com/api/docs/deprecations
+- OpenAI text-to-speech deprecation: https://developers.openai.com/api/docs/guides/text-to-speech
+- Runway Dev API reference (image/video/audio endpoints and asynchronous tasks): https://docs.dev.runwayml.com/api/
+- Runway Dev pricing: https://dev.runwayml.com/pricing
+
+**Status:** Phase 4 provider audit completed; implementation has not yet started. The recommended single media-provider candidate is Runway Dev, with OpenAI retained for chat. No API key was purchased or configured, no paid generation was attempted, and no production deployment or merge was performed. Next implementation work is the server-only provider boundary and safe generation-job/usage contract; the existing BYOK generation path must not be silently re-enabled.
