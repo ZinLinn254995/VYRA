@@ -3561,12 +3561,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         </div>
       </div>
 
-      <nav aria-label="Vyral sections" role="tablist" className="flex w-full gap-1 overflow-x-auto rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1">
+      <nav aria-label="Vyral sections" role="tablist" className="flex w-full gap-1 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1">
         {([
-          { id: 'overview', label: 'Overview' },
-          { id: 'assets', label: 'Assets' },
-          { id: 'dna', label: 'DNA' },
-          { id: 'lineage', label: 'Lineage' },
+          { id: 'assets', label: 'Gallery' },
           { id: 'license', label: 'License' },
         ] as Array<{ id: Tab; label: string }>).map((item) => (
           <button
@@ -3575,7 +3572,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             role="tab"
             aria-selected={tab === item.id}
             onClick={() => setTab(item.id)}
-            className={'min-h-10 shrink-0 flex-1 rounded-lg px-3 text-xs font-semibold transition-colors ' + (tab === item.id
+            className={'min-h-10 flex-1 rounded-lg px-3 text-xs font-semibold transition-colors ' + (tab === item.id
               ? 'bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-sm'
               : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]')}
           >
