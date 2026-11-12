@@ -685,3 +685,21 @@ Next: implement server-side approval consumption and idempotent job submission, 
 - Read operations require authenticated ownership verification. Reversible writes require approval bound to the exact pending plan. Destructive operations require a separate explicit DELETE challenge. Billable media generation requires a matching quote ID and confirmed credit ceiling.
 - Added deterministic tests for risk classification, allowlist rejection, extra-parameter rejection, context mismatch, owner verification, plan expiry, and risk-specific approval.
 - This is a policy foundation only: it does not yet connect model tool calls to a mutation executor or persist pending plans server-side. No database mutation, provider generation, customer charge, or UI change was introduced. AI Chat appearance remains unchanged; no production deployment or merge.
+
+
+## Product-wide AI Operator authority model
+
+The product direction is broader than the first Chat MVP: **AI should be able to perform the same user-level work a person can perform in VYRA**, through natural conversation and the existing app's trusted service layer. Workspace pages remain usable manually, but every eligible workflow should also be available through AI Chat. This does not mean unrestricted database access or bypassing authentication.
+
+### Capability policy foundation
+
+- Added `src/server/vyraAiCapabilityRegistry.ts` as the product-wide capability catalogue. It currently defines 100+ individual capabilities across Workspace, Storyboard, Scene Editor, Timeline, Vyral, Assets/DNA, media generation/editing, Media Library, Marketplace, publishing, profile/settings, account security, Admin, and platform operations.
+- Each capability is classified as:
+  - **Autonomous:** reads, analysis, search, navigation, previews, and other low-risk work.
+  - **Approval required:** ordinary writes, external publishing/purchases, destructive changes, and billable generation. Approval must be bound to the exact action, target, and (for generation/purchase) quoted amount.
+  - **Human only:** sign-in/security changes, account deletion, payout destinations/withdrawals, refund overrides, and production operations.
+  - **Owner/Admin only:** provider secrets, platform pricing/billing policies, user access, privileged audit, global feature flags, and data repair. These actions remain subject to server-side role checks and may require a separate human confirmation.
+- Unknown capability IDs fail closed. The registry is a policy catalogue, not a blanket execution grant: a capability becomes usable only when a matching authenticated server adapter exists, verifies resource ownership and current state, applies the correct approval, and records an audit trail.
+- Added tests for capability coverage, authentication, approval gates, human-only and owner/Admin-only boundaries, and duplicate/unknown IDs. Registered the tests in CI.
+- This establishes the intended app-wide authority model. It does **not** claim all capabilities are already executable from Chat: model tool exposure, per-domain executors, server-persisted pending approvals, audit logs, and end-to-end tests remain to be implemented incrementally.
+- AI Chat visual design is unchanged. No production deployment, merge, provider key configuration, or billable operation was performed.
