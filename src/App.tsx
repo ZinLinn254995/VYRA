@@ -103,6 +103,25 @@ function MarketplaceApp() {
     window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
   };
 
+  useEffect(() => {
+    const handleGlobalChatNavigation = (event: Event) => {
+      const target = (event as CustomEvent<{ target?: string }>).detail?.target;
+      if (target === 'workspace' || target === 'marketplace') {
+        resetMainHeaderVisibility();
+        setProfileOpen(false);
+        setProfileInitialPage(null);
+        setActiveSection(target);
+      } else if (target === 'my-vyrals' || target === 'my-media-library') {
+        resetMainHeaderVisibility();
+        setProfileReturnSection('ai-chat');
+        setProfileInitialPage(target);
+        setProfileOpen(true);
+      }
+    };
+    window.addEventListener('vyra:global-chat-navigate', handleGlobalChatNavigation);
+    return () => window.removeEventListener('vyra:global-chat-navigate', handleGlobalChatNavigation);
+  }, []);
+
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
     resetMainHeaderVisibility();
