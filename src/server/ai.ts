@@ -27,7 +27,7 @@ async function requireVerifiedVYraSession(req: Request, res: Response): Promise<
 }
 
 async function callGeminiManagementFunction(accessToken: string, payload: Record<string, unknown>) {
-  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
   const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
   if (!baseUrl || !anonKey) throw new Error('Provider settings service is not configured.');
   const response = await fetch(baseUrl + '/functions/v1/manage-ai-provider', {
@@ -947,7 +947,7 @@ async function getGeminiStatus(accessToken?: string) {
     return { status: 'preview_mode', geminiConfigured: false, modelName: MODEL_NAME, message: 'Sign in to check the configured AI provider.' };
   }
   try {
-    const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+    const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
     const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
     if (!baseUrl || !anonKey) throw new Error('Supabase function configuration is unavailable.');
     const response = await fetch(baseUrl + '/functions/v1/vyra-gemini-proxy', {
@@ -1163,7 +1163,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       : [{ role: 'user' as const, parts: [{ text: prompt }] }];
 
     const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
-    const supabaseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+    const supabaseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
     const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
     if (!bearer || !supabaseUrl || !supabaseAnonKey) {
       throw new Error('Gemini secure provider proxy is not configured.');
