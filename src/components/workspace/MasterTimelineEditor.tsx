@@ -1443,7 +1443,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         )}
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-0 left-1/2 z-30 ${isTextEditMode ? 'hidden' : ''} w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]"
+          className={`pointer-events-none absolute inset-y-0 left-1/2 z-30 ${isTextEditMode ? 'hidden' : ''} w-px -translate-x-1/2 bg-[var(--vyra-accent-primary)]`}
           style={{ pointerEvents: "none", userSelect: "none", touchAction: "pan-x pan-y" }}
         >
           <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-b-sm bg-[var(--vyra-accent-primary)]" />
