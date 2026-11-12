@@ -108,6 +108,14 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /does not certify a real asset change/);
   assert.match(details, /previousObservation && latestObservation/);
   assert.match(details, /!isVyralPackageAsset\(entry\.asset\)/);
+  assert.match(details, /const verifyAssetIntegrity = async \(asset: AssetRow, requestedVersionId\?: string\)/);
+  assert.match(details, /assetVersions\.find\(\(version\) => version\.id === requestedVersionId\)/);
+  assert.match(details, /Verify this version/);
+  assert.match(details, /Server fingerprint verified/);
+  assert.match(details, /Fingerprint mismatch/);
+  assert.match(details, /Baseline fingerprint created/);
+  assert.match(details, /verifyAssetIntegrity\(asset, version\.id\)/);
+  assert.match(details, /SHA-256 \+ String\(data\.sha256/);
   assert.match(details, /creator-confirmed/);
   assert.match(details, /sourceBindingValid/);
   assert.match(details, /cannot be confirmed/);
@@ -137,4 +145,18 @@ test('Creator evidence resolver verifies both the review and original Vision obs
   assert.match(proposal, /observations\.has\(record\.observation_id\)/);
   assert.match(proposal, /reviews\.get\(record\.review_evidence_id\)\?\.observation_id === record\.observation_id/);
   assert.match(proposal, /fieldPath === record\.field_path && sameJson\(operation\.after, record\.accepted_value\)/);
+});
+
+
+test('per-version fingerprint verification hashes protected original bytes and pins evidence to the exact version', async () => {
+  const verifier = await readFile(new URL('../supabase/functions/verify-vyral-asset/index.ts', import.meta.url), 'utf8');
+  assert.match(verifier, /\.eq\('id', body\.versionId\)/);
+  assert.match(verifier, /\.eq\('asset_id', asset\.id\)/);
+  assert.match(verifier, /storage\.from\(BUCKET\)\.download\(version\.storage_path\)/);
+  assert.match(verifier, /const actualSha256 = await sha256Hex\(bytes\)/);
+  assert.match(verifier, /comparison_status: comparisonStatus/);
+  assert.match(verifier, /fingerprint_kind: 'cryptographic'/);
+  assert.match(verifier, /asset_version_id: version\.id/);
+  assert.match(verifier, /status: 'mismatch'/);
+  assert.match(verifier, /status: 'verified'/);
 });
