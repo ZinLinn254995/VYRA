@@ -80,7 +80,7 @@ const VYRAL_READ_TOOLS = [
 const buildWorkspaceContextInstruction = (raw: unknown): string => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
   const value = raw as Record<string, unknown>;
-  const allowedPages = ['storyboards', 'storyboard-editor', 'my-vyrals', 'my-media-library'];
+  const allowedPages = ['storyboards', 'storyboard-editor', 'scene-editor', 'my-vyrals', 'my-media-library'];
   const page = typeof value.page === 'string' && allowedPages.includes(value.page) ? value.page : null;
   if (!page) return '';
   const cleanText = (input: unknown, max = 500): string | undefined =>
