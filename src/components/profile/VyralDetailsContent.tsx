@@ -3666,6 +3666,48 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 {observations.length} observations
               </span>
             </div>
+            {visionComparisonGroups.some((group) => group.comparisons.some((comparison) => !comparison.same && comparison.path.startsWith('fields.') && comparison.path.endsWith('.value'))) && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={'text-xs font-semibold '+primary}>AI model disagreements</p>
+                  <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-600">Review required</span>
+                </div>
+                <p className={'mt-1 text-[10px] '+muted}>Different AI models reported different values for the same Asset version. No model is selected automatically.</p>
+                {visionComparisonGroups.flatMap((group) => group.comparisons.filter((comparison) => !comparison.same && comparison.path.startsWith('fields.') && comparison.path.endsWith('.value')).map((comparison) => ({ group, comparison }))).slice(0, 12).map(({ group, comparison }) => (
+                  <div key={group.key+':'+comparison.path} className="mt-2 rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                    <p className={'break-all text-[10px] font-semibold '+primary}>{assets.find((asset) => asset.id === group.items[0]?.asset_id)?.name ?? 'Asset'} · {comparison.path}</p>
+                    {group.items.map((item, index) => (
+                      <p key={item.id} className={'mt-1 break-words text-[10px] '+muted}>{item.model_provider} · {item.model_id}: {comparison.values[index] ?? 'Not reported'}</p>
+                    ))}
+                    <p className={'mt-1 text-[9px] '+muted}>Source version {versions.find((version) => version.id === group.items[0]?.asset_version_id)?.version_number ?? 'unknown'} · compare evidence only; creator review required</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {visionKnowledgeConflicts.length > 0 && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 p-3">
+                <p className={'text-xs font-semibold '+primary}>Conflicting creator-confirmed Knowledge</p>
+                <p className={'mt-1 text-[10px] '+muted}>These values were separately confirmed from the same source version. Resolve only when you know which value applies, or keep both as context-dependent.</p>
+                {visionKnowledgeConflicts.map((group) => {
+                  const groupKey = JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]);
+                  const resolved = group.resolutionRecords.length > 0;
+                  return (
+                    <div key={groupKey} className="mt-2 rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className={'break-all text-[10px] font-semibold '+primary}>{group.fieldPath}</p>
+                        <span className={'text-[10px] font-semibold '+(resolved ? 'text-emerald-600' : 'text-amber-600')}>{resolved ? 'Resolution recorded' : 'Needs creator decision'}</span>
+                      </div>
+                      {group.records.map((record) => <p key={record.id} className={'mt-1 break-words text-[10px] '+muted}>{String(record.payload.model_provider_claim ?? 'Creator-confirmed')}: {JSON.stringify(record.payload.accepted_value)}</p>)}
+                      {!resolved && <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" className={button} disabled={resolvingConflictKey === groupKey} onClick={() => void resolveVisionKnowledgeConflict(group, 'prefer_one')}>{resolvingConflictKey === groupKey ? 'Saving…' : 'Prefer one value'}</button>
+                        <button type="button" className={button} disabled={resolvingConflictKey === groupKey} onClick={() => void resolveVisionKnowledgeConflict(group, 'keep_contextual')}>Keep both as contextual</button>
+                      </div>}
+                      {resolved && <p className={'mt-1 text-[9px] '+muted}>Original evidence is preserved; this resolution does not overwrite DNA.</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {assets.filter((asset) => {
               const latestVersion = versions.filter((version) => version.asset_id === asset.id)
                 .sort((a, b) => b.version_number - a.version_number)[0];
