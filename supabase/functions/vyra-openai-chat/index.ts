@@ -108,9 +108,7 @@ const buildWorkspaceContextInstruction = (raw: unknown): string => {
     } : null,
     editorView: value.editorView === 'master' || value.editorView === 'scenes' ? value.editorView : undefined,
     selectedSceneTitles,
-    activeSceneTitle: active && typeof value.activeSceneId === 'string'
-      ? (sceneTitles.find((_, index) => Array.isArray(active.sceneTitles) && active.sceneTitles[index] === value.activeSceneId) ?? undefined)
-      : undefined,
+    activeSceneTitle: cleanText(value.activeSceneTitle, 180),
     selectedTimelineItem: timelineKind && timeline ? {
       kind: timelineKind,
       label: cleanText(timeline.label, 180),
