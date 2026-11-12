@@ -322,8 +322,15 @@ export const findMentionedVyrals = (
 ): GlobalChatVyralRecord[] => {
   const normalizedInput = input.normalize('NFKC').toLocaleLowerCase();
   const matches = vyrals
-    .filter((vyral) => vyral.name.trim().length > 0 &&
-      normalizedInput.includes(vyral.name.normalize('NFKC').trim().toLocaleLowerCase()))
+    .filter((vyral) => {
+      const normalizedName = vyral.name.normalize('NFKC').trim().toLocaleLowerCase();
+      const index = normalizedInput.indexOf(normalizedName);
+      if (!normalizedName || index < 0) return false;
+      const clause = normalizedInput.slice(0, index).split(/[.!?;，,]/).pop() ?? '';
+      if (/\b(?:don't|do not|not|avoid|without|never|exclude)\b/i.test(clause) ||
+          /(?:မဟုတ်|မလုပ်|မသုံး|မပြောင်း|မလိုချင်|မရွေး)/.test(clause)) return false;
+      return true;
+    })
     .sort((a, b) => b.name.length - a.name.length);
   if (!matches.length) return [];
   return matches.filter((item) => !matches.some((other) =>
