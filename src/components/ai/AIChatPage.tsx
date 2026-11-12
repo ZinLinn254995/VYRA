@@ -19,7 +19,7 @@ import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReco
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
 import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, extractVyralCreateRequest, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, formatVyralCreateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isVyralAssetUploadConfirmation, isVyralCreateConfirmation, isVyralCreateIntent, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
-import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion.ts';
+import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string; action?: GlobalChatAction };
 type ChatSession = {
@@ -1880,7 +1880,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       } else {
         const pendingDeleteDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-delete-draft')?.action;
         const pendingUpdateDraft = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'storyboard-update-draft')?.action;
-        const retryDraftAction = isStoryboardDeleteConfirmation(text) && pendingDeleteDraft
+        const preservedUpload = isVyralAssetUploadConfirmation(text) && error instanceof VyralAssetIngestionError && error.preservedForRecovery;
+        if (preservedUpload) {
+          const pendingUpload = [...messages].reverse().find((item) => item.role === 'assistant' && item.action?.type === 'vyral-asset-upload-draft')?.action;
+          if (pendingUpload?.type === 'vyral-asset-upload-draft') pendingVyralUploadFilesRef.current.delete(pendingUpload.draft.id);
+        }
+        const retryDraftAction = preservedUpload ? undefined : isStoryboardDeleteConfirmation(text) && pendingDeleteDraft
           ? pendingDeleteDraft
           : isStoryboardUpdateConfirmation(text) && pendingUpdateDraft
             ? pendingUpdateDraft
@@ -1894,7 +1899,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
-          content: message,
+          content: preservedUpload ? message + ' The source Asset was preserved for recovery; open its Vyral and use Recover DNA. Asset ID: ' + (error instanceof VyralAssetIngestionError ? error.assetId ?? 'not returned' : 'unknown') : message,
           status: 'error',
           ...(retryDraftAction ? { action: retryDraftAction } : {}),
         }]);
