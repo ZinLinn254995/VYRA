@@ -68,12 +68,10 @@ The first milestone is a practical MVP, not a complete autonomous creative platf
 - Do not require users/customers to supply their own API keys as the default product experience.
 - **Credential purchase/configuration timing:** Do not purchase or add the OpenAI API key during early implementation. Build and validate the provider integration, chat flow, app tools, media routing, persistence, and cost safeguards first. Add the paid key only at the final provider-backed end-to-end verification stage, when it is actually needed. Until then, a missing key is an expected state, not a reason to block key-independent development.
 
-**Acceptance gate:**
-- A signed-in user can open the Dashboard and see which required providers are configured.
-- A valid key can be verified and saved; an invalid key is rejected with a useful, non-sensitive message.
-- A saved secret is never exposed in browser responses, UI state, source maps, or logs.
-- Replacing a key updates the server-side secret without exposing the old key.
-- Development/Preview configuration is isolated from Production configuration.
+**Acceptance gate (split to respect the no-upfront-key decision):**
+- **Key-independent gate now:** a signed-in user can open the Dashboard; missing-key status is shown truthfully; the save/verify path and server-side Vault boundary are implemented; no secret is returned to the browser; Development/Preview is isolated from Production.
+- **Credential gate at Phase 6:** only after Chat, app actions, media routing, persistence, and safeguards are ready, purchase/add the OpenAI key and verify valid-key save, invalid-key rejection, replacement, and provider-backed end-to-end behavior.
+- Do not mark Phase 1 fully complete until both gates pass. Phase 2–5 may proceed against explicit missing-key behavior and automated mocks/stubs that never claim real provider success.
 
 ### Phase 2 — Reliable conversational foundation
 
@@ -184,14 +182,16 @@ The first milestone is a practical MVP, not a complete autonomous creative platf
 
 ## 5. Delivery order and change control
 
-The order is fixed:
+The implementation order is:
 
-1. Admin Dashboard/provider readiness
+1. Admin Dashboard/provider readiness foundation (key-independent portion)
 2. Conversational foundation
 3. Controlled app actions
 4. Media generation
 5. File/Asset/Workspace handoff
-6. End-to-end verification
+6. End-to-end verification, including the deferred Phase 1 credential gate
+
+The OpenAI key purchase/configuration is deliberately delayed until Phase 6. This means Phase 1's credential acceptance checks remain open while key-independent work in Phases 2–5 proceeds. Do not describe Phase 1 as fully complete until its deferred credential gate passes.
 
 Do not skip ahead by building a large generation UI before the provider and backend path is ready. Do not broaden the scope during implementation without recording and agreeing on the change first.
 
