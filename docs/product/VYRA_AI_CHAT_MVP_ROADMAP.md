@@ -275,6 +275,6 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - The action does not create, edit, delete, publish, or generate anything. It bypasses the text provider only for this exact read-only command, so no API key or paid generation is needed.
 - Added focused tests for English/Burmese intent recognition and truthful inventory formatting.
 
-**Verification status:** Implementation is on `feature/my-storyboard`. The first CI run was cancelled by subsequent commits before the final test correction; a fresh CI run is required against the latest commit before this action is considered verified. Cloudflare Preview is also required after CI. No production deployment or merge was performed.
+**Verification status:** GitHub Actions run `43284733349` passed for commit `b27e4ea2d1a95603c5a2436600c87992da4e4e8f`, including TypeScript, the new global Chat action tests, all existing regression suites, Supabase Edge Function type-check, and production build. Cloudflare Preview build `870ed926-1867-4214-b80b-653198dd3d37` for the same commit completed successfully. No production deployment or merge was performed.
 
 **Next Phase 3 step:** Add low-risk navigation and detail inspection using the same account-scoped data boundary. Keep create/update/delete, publishing, purchases, and paid generation disabled until each has a separate explicit confirmation and reliable execution contract. Preserve the existing AI Chat UI baseline.
