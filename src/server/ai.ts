@@ -4,7 +4,7 @@ import { beginOpenRouterTextJob, finishOpenRouterTextJob, type OpenRouterTextJob
 import { isUsageLedgerRequested, isUsageLedgerServerEnabled, isValidIdempotencyKey } from './usageLedgerContract.js';
 
 const router = express.Router();
-const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 
 async function requireVerifiedVYraSession(req: Request, res: Response): Promise<string | null> {
   const authorization = req.header('authorization') ?? '';
