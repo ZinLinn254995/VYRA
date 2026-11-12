@@ -1390,7 +1390,7 @@ async function callRunwayManagementFunction(accessToken: string, payload: Record
 // Runway credential management is admin-only in the Edge Function. This
 // authenticated server proxy never reads or returns the stored credential.
 router.get('/providers/runway/settings', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   try {
     const { response, data } = await callRunwayManagementFunction(match[1], { action: 'status' });
@@ -1402,10 +1402,10 @@ router.get('/providers/runway/settings', async (req: Request, res: Response) => 
 });
 
 router.post('/providers/runway/settings', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey : '';
-  if (apiKey.length < 20 || apiKey.length > 512 || /\\s/.test(apiKey)) {
+  if (apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) {
     return res.status(400).json({ error: 'Enter a valid-looking Runway API key.' });
   }
   try {
