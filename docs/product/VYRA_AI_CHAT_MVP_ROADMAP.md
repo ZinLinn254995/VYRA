@@ -703,3 +703,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Added tests for capability coverage, authentication, approval gates, human-only and owner/Admin-only boundaries, and duplicate/unknown IDs. Registered the tests in CI.
 - This establishes the intended app-wide authority model. It does **not** claim all capabilities are already executable from Chat: model tool exposure, per-domain executors, server-persisted pending approvals, audit logs, and end-to-end tests remain to be implemented incrementally.
 - AI Chat visual design is unchanged. No production deployment, merge, provider key configuration, or billable operation was performed.
+
+
+### Universal AI capability executor — secure dispatch foundation
+
+- Added `src/server/aiCapabilityExecutor.ts`, a typed server-side dispatcher for the app-wide capability catalogue. It does not expose generic SQL, arbitrary table access, arbitrary HTTP requests, or unrestricted provider calls.
+- A capability is executable only after: the capability is recognized; the user is authenticated; any required approval is independently verified server-side; Owner/Admin boundary is satisfied; the target resource is owner-verified; a capability-specific adapter is registered; input passes adapter validation; and audit events are persisted.
+- Human-only actions remain blocked even when an Owner/Admin flag or a generic approval is supplied. Unknown capability IDs fail closed. Catalogue entries without an adapter return an explicit `NO_EXECUTOR` result and are never represented as completed.
+- Adapter registration rejects unknown capabilities and duplicate registrations. Execution results are returned only after the adapter and success-audit operation complete; failures are reported without claiming success.
+- Added tests for unimplemented capability refusal, unknown operation refusal, human-only boundaries, approval gating, owner verification, adapter validation/registration, and audit ordering. Registered `test:ai-capability-executor` in package scripts and CI.
+- This is the reusable execution boundary, not yet the complete live integration: individual app domains still need narrowly scoped adapters and server-persisted approval/idempotency records. No UI changes, provider keys, production deployment, or merge.
