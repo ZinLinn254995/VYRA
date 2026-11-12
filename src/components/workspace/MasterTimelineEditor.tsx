@@ -1443,8 +1443,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         </div>
         {isTextEditMode && (
           <div className="absolute inset-0 z-40 flex min-h-0 flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
-            <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-[var(--vyra-border)] px-2">
-              <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <style>{`.text-tools-horizontal-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; } .text-tools-horizontal-scroll { scrollbar-width: none; -ms-overflow-style: none; }`}</style>
+          <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-[var(--vyra-border)] px-2">
+              <div className="text-tools-horizontal-scroll flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {[
                   { label: 'Bold', Icon: Bold },
                   { label: 'Italic', Icon: Italic },
