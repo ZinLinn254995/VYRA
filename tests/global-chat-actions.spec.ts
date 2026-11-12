@@ -169,6 +169,18 @@ test('Vyral creation is initiated through AI Chat with a named draft and explici
     isVyralCreateIntent,
   } = await import('../src/services/globalChatActions.ts');
   assert.equal(isVyralCreateIntent('Create a Vyral'), true);
+  assert.equal(isVyralCreateIntent("Let's start a Vyral called Space Worlds"), true);
+  assert.deepEqual(extractVyralCreateRequest("Let's start a Vyral called Space Worlds for science-fiction locations"), {
+    name: 'Space Worlds',
+    description: 'science-fiction locations',
+  });
+  assert.deepEqual(extractVyralCreateRequest('I want to create a Vyral named ORIGIN Story for a foundational collection'), {
+    name: 'ORIGIN Story',
+    description: 'a foundational collection',
+  });
+  assert.equal(isVyralCreateIntent('I want a new Vyral'), true);
+  assert.equal(isVyralCreateIntent('Vyral အသစ်တစ်ခု ဖန်တီးချင်တယ်'), true);
+  assert.equal(isVyralCreateIntent("I don't want to create a Vyral"), false);
   assert.equal(isVyralCreateIntent('Create a Vyral named "ORIGIN Story" about a foundational sample'), true);
   assert.deepEqual(extractVyralCreateRequest('Create a Vyral named "ORIGIN Story" about a foundational sample'), {
     name: 'ORIGIN Story',
