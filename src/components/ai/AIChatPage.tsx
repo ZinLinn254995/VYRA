@@ -826,8 +826,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant',
-          content: '**Vyral created:** ' + draft.name + '\\n\\n' + (draft.description || 'No purpose description was supplied yet.') +
-            '\\n\\nPrivate Vyral ID: ' + savedVyralId + '\\nInitial identity DNA: saved. Asset DNA and Master DNA will evolve from the Assets and relationships added next.',
+          content: '**Vyral created:** ' + draft.name + '\n\n' + (draft.description || 'No purpose description was supplied yet.') +
+            '\n\nPrivate Vyral ID: ' + savedVyralId + '\nInitial identity DNA: saved. Asset DNA and Master DNA will evolve from the Assets and relationships added next.',
           status: 'success', action: { type: 'vyral-create-complete', draftId: draft.id },
         }]);
         return;
@@ -1031,7 +1031,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (!parsed?.name) {
           setMessages((previous) => [...previous, {
             id: makeId(), role: 'assistant',
-            content: 'Let’s define your Vyral first. Tell me its name and, optionally, what it is for.\\n\\nExample: Create a Vyral named "ORIGIN Story" about the foundational sample collection.',
+            content: 'Let’s define your Vyral first. Tell me its name and, optionally, what it is for.\n\nExample: Create a Vyral named "ORIGIN Story" about the foundational sample collection.',
             status: 'success',
           }]);
           return;
