@@ -50,3 +50,15 @@ test('storyboard detail lookup prefers exact title and formats scene data', asyn
   assert.match(output, /A quiet sky/);
   assert.match(output, /5 sec/);
 });
+
+
+test('global AI Chat recognizes only explicit allowlisted navigation requests', async () => {
+  const { extractGlobalChatNavigationTarget } = await import('../src/services/globalChatActions.ts');
+  assert.equal(extractGlobalChatNavigationTarget('Go to Workspace'), 'workspace');
+  assert.equal(extractGlobalChatNavigationTarget('Open Marketplace'), 'marketplace');
+  assert.equal(extractGlobalChatNavigationTarget('Take me to My Vyrals'), 'my-vyrals');
+  assert.equal(extractGlobalChatNavigationTarget('Open my Media Library'), 'my-media-library');
+  assert.equal(extractGlobalChatNavigationTarget('Workspace ဖွင့်ပေး'), 'workspace');
+  assert.equal(extractGlobalChatNavigationTarget('Delete my Vyrals'), null);
+  assert.equal(extractGlobalChatNavigationTarget('Create a storyboard'), null);
+});
