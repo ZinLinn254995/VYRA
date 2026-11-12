@@ -87,6 +87,15 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /stated uncertainty/);
   assert.match(details, /Model confidence is self-reported/);
   assert.match(details, /Creator review remains required/);
+  assert.match(details, /visionComparisonGroups\.some/);
+  assert.match(details, /AI model disagreements/);
+  assert.match(details, /Different AI models reported different values/);
+  assert.match(details, /No model is selected automatically/);
+  assert.match(details, /visionKnowledgeConflicts\.length > 0/);
+  assert.match(details, /Conflicting creator-confirmed Knowledge/);
+  assert.match(details, /Prefer one value/);
+  assert.match(details, /Keep both as contextual/);
+  assert.match(details, /competingIds\.length === recordIds\.size/);
   assert.match(details, /sourceBindingValid/);
   assert.match(details, /cannot be confirmed/);
   assert.match(details, /reviewVisionObservation\(item\.id, 'creator_confirmed'\)/);
