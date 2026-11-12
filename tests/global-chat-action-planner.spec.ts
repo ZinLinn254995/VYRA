@@ -91,6 +91,12 @@ test('reversible writes require approval bound to the exact pending plan', () =>
   assert.equal(authorizeGlobalChatActionExecution(basePlan, validation,
     { kind: 'reversible', planId: basePlan.id, approvedAt: '2026-11-13T00:01:30.000Z' },
     true, now).ok, true);
+  assert.deepEqual(authorizeGlobalChatActionExecution(basePlan, validation,
+    { kind: 'reversible', planId: basePlan.id, approvedAt: '2026-11-13T00:00:30.000Z' },
+    true, now), { ok: false, reason: 'approval-invalid' });
+  assert.deepEqual(authorizeGlobalChatActionExecution(basePlan, validation,
+    { kind: 'reversible', planId: basePlan.id, approvedAt: '2026-11-13T00:05:30.000Z' },
+    true, now), { ok: false, reason: 'approval-invalid' });
 });
 
 test('destructive and billable operations require their own specific approvals', () => {
