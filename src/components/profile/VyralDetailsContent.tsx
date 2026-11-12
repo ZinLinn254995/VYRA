@@ -1,18 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, Archive, Box, ChevronRight, Clock3, Dna,
+  AlertCircle, Archive, Box, Check, ChevronRight, Clock3, Dna,
   Download, File as FileIcon, FileText, Fingerprint, FlaskConical, Folder, FolderPlus, GitBranch,
-  HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck, Eye, EyeOff,
+  HardDrive, Image as ImageIcon, LockKeyhole, Music2, Pencil, Plus, Search, ShieldCheck, Eye, EyeOff, LoaderCircle,
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralSemanticDnaPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
+import { createVyralAssetDnaOnlyPackage, createVyralSemanticDnaPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, isVyralPackageAsset, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { VYRAL_SYSTEM_FILES_VERSION, verifyVyralSystemFileIntegrityV1 } from '../../services/vyralSystemFilesV1';
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import { createVyralDnaV3EncodedFilePayload, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
 import { createVyralSemanticDnaV1 } from '../../services/vyralSemanticDnaV1';
+import { compareVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../services/vyralPerceptualFingerprint';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 import { markVyralAiDetailsStale, mergeVyralAiDetails, setVyralAiDetailField, suggestVyralAssetDetails, suggestVyralCollectionDetails, type VyralAiDetails, type VyralDetailValue } from '../../services/vyralAiDetails';
@@ -35,6 +36,7 @@ type DnaRow = {
 };
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
+type VisionReviewRow = { id: string; observation_id: string; evidence_kind: string; decision: string; field_path?: string | null };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type MasterRelationshipRow = { id: string; relationship_type: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; rationale: string };
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
@@ -130,6 +132,37 @@ const flattenObservation = (value: unknown, prefix = ''): Record<string, string>
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+type VisionQuality = { score: number | null; label: string; flags: string[]; fieldCount: number };
+const assessVisionQuality = (observation: unknown): VisionQuality => {
+  const root = asRecord(observation);
+  const fields = asRecord(root.fields);
+  const entries = Object.entries(fields).filter(([, raw]) =>
+    raw !== null && typeof raw === 'object' && !Array.isArray(raw) &&
+    Object.prototype.hasOwnProperty.call(raw, 'value'));
+  const flags: string[] = [];
+  if (!entries.length) flags.push('No structured fields');
+  const unscored = entries.filter(([, raw]) => typeof asRecord(raw).confidence !== 'number').length;
+  const lowConfidence = entries.filter(([, raw]) => {
+    const confidence = asRecord(raw).confidence;
+    return typeof confidence === 'number' && Number.isFinite(confidence) && confidence < 0.65;
+  }).length;
+  if (unscored) flags.push(unscored + ' field(s) without a confidence estimate');
+  if (lowConfidence) flags.push(lowConfidence + ' low-confidence field(s)');
+  const uncertainties = Array.isArray(root.uncertainties) ? root.uncertainties.filter(Boolean).length : 0;
+  if (uncertainties) flags.push(uncertainties + ' stated uncertainty/uncertainties');
+  const empty = entries.filter(([, raw]) => {
+    const value = asRecord(raw).value;
+    return value === null || value === undefined || (typeof value === 'string' && !value.trim()) ||
+      (Array.isArray(value) && value.length === 0);
+  }).length;
+  if (empty) flags.push(empty + ' empty field value(s)');
+  const scored = entries.filter(([, raw]) => typeof asRecord(raw).confidence === 'number' &&
+    Number.isFinite(asRecord(raw).confidence as number) && (asRecord(raw).confidence as number) >= 0 && (asRecord(raw).confidence as number) <= 1);
+  const score = scored.length ? Math.round(scored.reduce((sum, [, raw]) => sum + Number(asRecord(raw).confidence), 0) / scored.length * 100) : null;
+  const hasWarnings = flags.length > 0;
+  return { score, label: !entries.length ? 'Insufficient data' : hasWarnings ? 'Needs attention' : 'No structural warnings', flags, fieldCount: entries.length };
+};
+
 const formatRgb = (value: unknown) =>
   Array.isArray(value) && value.length >= 3
     ? value.slice(0, 3).map((channel) => Number(channel).toFixed(0)).join(', ')
@@ -140,6 +173,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [tab, setTab] = useState<Tab>('assets');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [backgroundJob, setBackgroundJob] = useState<{ assetName: string; stage: string; detail: string } | null>(null);
   const [packageBusy, setPackageBusy] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [showSystemFiles, setShowSystemFiles] = useState(false);
@@ -157,6 +191,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [dnaRecords, setDnaRecords] = useState<DnaRow[]>([]);
   const [fingerprints, setFingerprints] = useState<FingerprintRow[]>([]);
   const [observations, setObservations] = useState<ObservationRow[]>([]);
+  const [visionReviews, setVisionReviews] = useState<VisionReviewRow[]>([]);
   const [lineage, setLineage] = useState<LineageRow[]>([]);
   const [reconstructionTests, setReconstructionTests] = useState<ReconstructionRow[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
@@ -176,6 +211,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [savingVision, setSavingVision] = useState(false);
   const [reviewingObservationId, setReviewingObservationId] = useState<string | null>(null);
   const [promotingObservationId, setPromotingObservationId] = useState<string | null>(null);
+  const [retryingVisionAssetId, setRetryingVisionAssetId] = useState<string | null>(null);
   const [resolvingConflictKey, setResolvingConflictKey] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<AssetRow | null>(null);
   const [detailsAsset, setDetailsAsset] = useState<AssetRow | null>(null);
@@ -207,6 +243,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [masterRelationships, setMasterRelationships] = useState<MasterRelationshipRow[]>([]);
   const masterDnaAutoBuildRef = useRef(false);
   const fileDnaAutoVerifyRef = useRef(new Set<string>());
+  const origin01VisionBackfillRef = useRef('');
 
 
   const loadWorkspace = useCallback(async () => {
@@ -229,10 +266,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (failed?.error) { setError(failed.error.message); setLoading(false); return; }
     const assetRows = (results[1].data ?? []) as AssetRow[];
     const assetIds = assetRows.map((item) => item.id);
-    const [fingerprintResult, observationResult] = assetIds.length ? await Promise.all([
+    const [fingerprintResult, observationResult, reviewResult] = assetIds.length ? await Promise.all([
       supabase.from('vyral_fingerprints').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
       supabase.from('vyral_vision_observations').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
-    ]) : [{ data: [], error: null }, { data: [], error: null }];
+      supabase.from('vyral_vision_creator_evidence').select('id,observation_id,evidence_kind,decision,field_path').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
+    ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
     if (fingerprintResult.error || observationResult.error) {
       setError(fingerprintResult.error?.message ?? observationResult.error?.message ?? 'Could not load Vyral identity evidence.');
       setLoading(false);
@@ -245,6 +283,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setDnaRecords((results[3].data ?? []) as DnaRow[]);
     setFingerprints((fingerprintResult.data ?? []) as FingerprintRow[]);
     setObservations((observationResult.data ?? []) as ObservationRow[]);
+    setVisionReviews((reviewResult.data ?? []) as VisionReviewRow[]);
     setLineage((results[4].data ?? []) as LineageRow[]);
     setReconstructionTests((results[5].data ?? []) as ReconstructionRow[]);
     const masterRootResult = results[6];
@@ -329,15 +368,41 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (!alreadyPassedRaster && !fileDnaAutoVerifyRef.current.has(rasterAttemptKey)) {
           fileDnaAutoVerifyRef.current.add(rasterAttemptKey);
           rasterDnaVerificationTasks.push(
-            supabase.functions.invoke('verify-vyral-dna-v3', {
-              body: { assetId: asset.id, versionId: sourceVersion.id, dnaRecordId: rasterDna.id },
-            }).then(({ data, error: verifyError }) => {
+            (async () => {
+              let dnaRecordId = rasterDna.id;
+              const rasterPayload = rasterDna.payload as Record<string, unknown>;
+              const rasterRecord = rasterPayload.dna_record && typeof rasterPayload.dna_record === 'object'
+                ? rasterPayload.dna_record as Record<string, unknown> : {};
+              const decodedImage = rasterRecord.decoded_image && typeof rasterRecord.decoded_image === 'object'
+                ? rasterRecord.decoded_image as Record<string, unknown> : {};
+              const decoderContract = decodedImage.decoder_contract && typeof decodedImage.decoder_contract === 'object'
+                ? decodedImage.decoder_contract as Record<string, unknown> : {};
+              const usesPinnedDecoder = decoderContract.name === 'ImageMagick WASM' && decoderContract.version === '0.0.30';
+
+              // Older browser-decoded raster DNA cannot be independently verified by
+              // the pinned server decoder. Preserve that immutable record and append
+              // a current server-extracted revision for this same source version.
+              if (!usesPinnedDecoder) {
+                const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
+                  body: { assetId: asset.id, versionId: sourceVersion.id, reextractLegacy: true },
+                });
+                if (extractionError || extraction?.status !== 'extracted' || typeof extraction?.dnaRecordId !== 'string') {
+                  console.warn('[vyral-dna-v3] Legacy raster DNA could not be upgraded to the pinned decoder contract.');
+                  fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
+                  return undefined;
+                }
+                dnaRecordId = extraction.dnaRecordId;
+              }
+
+              const { data, error: verifyError } = await supabase.functions.invoke('verify-vyral-dna-v3', {
+                body: { assetId: asset.id, versionId: sourceVersion.id, dnaRecordId },
+              });
               if (verifyError || data?.status !== 'passed' || data?.originalBytesUnchanged !== true) {
                 console.warn('[vyral-dna-v3] Exact decoded-sample readback is pending for an Asset.');
                 fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
               }
               return data;
-            }).catch(() => {
+            })().catch(() => {
               fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
               return undefined;
             }),
@@ -366,7 +431,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           body: { assetId: asset.id, versionId: sourceVersion.id },
         }).then(({ data, error: verifyError }) => {
           if (verifyError || data?.status !== 'verified' || data?.sourceFileReconstruction !== 'byte_exact') {
-            console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.');
+            console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.', {
+              status: data?.status ?? null,
+              stage: data?.stage ?? null,
+              detail: data?.detail ?? data?.error ?? verifyError?.message ?? null,
+            });
             fileDnaAutoVerifyRef.current.delete(attemptKey);
           }
           return data;
@@ -413,7 +482,17 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   // Creator-edited fields are preserved by mergeVyralAiDetails; AI is optional.
   const collectionAiAttemptRef = useRef('');
   useEffect(() => {
-    if (!supabase || loading) return;
+    if (!supabase || loading || retryingVisionAssetId) return;
+    // ORIGIN-01 must finish its source-pinned Asset Vision pass before the
+    // collection summary runs, so both Gemini jobs do not compete for quota.
+    const originAsset = vyral.id === 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d'
+      ? assets.find((asset) => asset.id === '2c496cd5-84c4-44b1-b02a-fca4265cc592') : null;
+    const originVersion = originAsset
+      ? versions.find((version) => version.asset_id === originAsset.id && version.storage_path === originAsset.storage_path) : null;
+    const originVisionPending = Boolean(originAsset && originVersion &&
+      !observations.some((item) => item.asset_id === originAsset.id && item.asset_version_id === originVersion.id) &&
+      !originAsset.metadata?.ai_vision_last_attempt_at);
+    if (originVisionPending) return;
     const inventorySignature = assets
       .map((asset) => [
         asset.id, asset.name, asset.asset_type, asset.mime_type, asset.updated_at, asset.sha256 ?? '',
@@ -544,7 +623,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
     })();
-  }, [assets, loading, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
+  }, [assets, versions, observations, loading, retryingVisionAssetId, vyral.id, vyral.name, vyral.description, vyral.metadata, onVyralUpdated]);
 
 
   const originV3Attempts = useMemo(() =>
@@ -612,6 +691,27 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }).filter((group) => group.modelCount > 1).sort((a, b) => b.items[0].created_at.localeCompare(a.items[0].created_at));
   }, [observations]);
 
+  const assetVersionEvidenceTimeline = useMemo(() => assets.map((asset) => {
+    const assetVersions = versions.filter((version) => version.asset_id === asset.id)
+      .sort((left, right) => left.version_number - right.version_number);
+    return {
+      asset,
+      versions: assetVersions.map((version) => ({
+        version,
+        observations: observations.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
+        fingerprints: fingerprints.filter((item) => item.asset_id === asset.id && item.asset_version_id === version.id),
+        dnaRecord: dnaRecords.find((record) => {
+          if (record.asset_id !== asset.id || record.scope !== 'asset' || Number(record.schema_version) !== 3) return false;
+          const payload = asRecord(record.payload);
+          const dna = asRecord(payload.dna_record);
+          const source = asRecord(dna.source);
+          return source.asset_version_id === version.id;
+        }),
+      })),
+    };
+  }).filter((entry) => entry.versions.length > 0 && !isVyralPackageAsset(entry.asset))
+    .sort((left, right) => left.asset.name.localeCompare(right.asset.name)), [assets, versions, observations, fingerprints, dnaRecords]);
+
   const visionKnowledgeConflicts = useMemo(() => {
     const groups = new Map<string, { assetId: string; versionId: string; taskKind: string; fieldPath: string; records: DnaRow[] }>();
     dnaRecords.forEach((record) => {
@@ -633,7 +733,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           payload.resolution_source === 'server_creator_conflict_resolution' &&
           scope?.asset_id === group.assetId && scope?.source_asset_version_id === group.versionId &&
           scope?.task_kind === group.taskKind && scope?.field_path === group.fieldPath &&
-          Array.isArray(competingIds) && competingIds.length >= 2 &&
+          Array.isArray(competingIds) && competingIds.length === recordIds.size &&
           competingIds.every((id) => typeof id === 'string' && recordIds.has(id));
       }).sort((a, b) => a.created_at.localeCompare(b.created_at));
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
@@ -844,7 +944,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (!dnaOnly || components.compactDna || components.assets) {
           throw new Error('Semantic-only export must exclude original media and compact collection snapshots.');
         }
-        const selectedObservations = observations.filter((item) => packageAssets.some((asset) => asset.id === item.asset_id));
+        const semanticAssets = packageAssets.filter((asset) => !isVyralPackageAsset(asset));
+        if (!semanticAssets.length) throw new Error('This Vyral has no media Assets eligible for semantic blind reconstruction. .vyral package files remain package test fixtures.');
+        const selectedObservations = observations.filter((item) => semanticAssets.some((asset) => asset.id === item.asset_id));
         const observationIds = selectedObservations.map((item) => item.id);
         let confirmedReviews: Array<{ id: string; observation_id: string; decision: string; evidence_kind: string; note?: string | null }> = [];
         if (observationIds.length) {
@@ -861,7 +963,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const reviewByObservation = new Map(confirmedReviews.map((review) => [review.observation_id, review]));
         const semanticRecords = [];
         const semanticVersions: Record<string, unknown>[] = [];
-        for (const asset of packageAssets) {
+        for (const asset of semanticAssets) {
           const assetVersions = versions.filter((version) => version.asset_id === asset.id);
           const sourceVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
             ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
@@ -937,6 +1039,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         archive = await createVyralSemanticDnaPackage({
           ...manifest,
+          assets: manifest.assets.filter((asset) => !isVyralPackageAsset(asset)),
           versions: semanticVersions,
         } as unknown as Parameters<typeof createVyralSemanticDnaPackage>[0], semanticRecords);
       } else if (dnaOnly) {
@@ -1961,6 +2064,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     setBusy(true); setError('');
     const failures: string[] = [];
     for (const file of selected) {
+      setBackgroundJob({ assetName: file.name, stage: 'Uploading original Asset', detail: 'Saving the source file and its version record.' });
       if (file.size > 100 * 1024 * 1024) { failures.push(file.name + ' is larger than the 100 MB upload limit.'); continue; }
       let storagePath = '';
       let assetId = '';
@@ -2035,6 +2139,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           dnaCommitted = true;
         };
 
+        setBackgroundJob({ assetName: file.name, stage: 'Building Asset DNA', detail: 'Extracting deterministic identity and verifying the original file fingerprint.' });
         if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
           const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
             body: { assetId, versionId: version.id },
@@ -2070,10 +2175,59 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
         try {
           const accessToken = await getCurrentAccessToken();
-          if (accessToken) {
+          if (accessToken && vyral.license_policy?.allow_ai_analysis !== false && !isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime })) {
+            setBackgroundJob({ assetName: file.name, stage: 'Gemini is analyzing the Asset', detail: 'Understanding visual content and preparing reusable Asset knowledge.' });
             const suggestion = await suggestVyralAssetDetails(file, {
               accessToken, assetType: kind, sourceVersionId: version.id, sourceRevision: 1,
             });
+
+            // Persist the automatic AI analysis as a source-version-pinned Vision
+            // observation. The Edge Function independently re-downloads the
+            // original bytes and verifies SHA-256 before recording; this does not
+            // creator-confirm the model's claims or promote them into trusted DNA.
+            const observedFields = Object.fromEntries(Object.entries(suggestion.details.fields).map(([key, field]) => [
+              key,
+              {
+                value: field.value,
+                ...(field.confidence === undefined ? {} : { confidence: field.confidence }),
+              },
+            ]));
+            const fileExtension = file.name.split('.').pop()?.toLowerCase() ?? '';
+            const isVisualSource = (mime.startsWith('image/') && file.size <= 20 * 1024 * 1024) ||
+              (mime.startsWith('video/') && file.size <= 50 * 1024 * 1024);
+            const isDocumentOrAudioSource = (mime === 'application/pdf' || mime.startsWith('audio/')) &&
+              file.size <= 2 * 1024 * 1024 &&
+              ['application/pdf', 'audio/mpeg', 'audio/mp3', 'audio/x-mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/flac', 'audio/x-flac', 'audio/aac'].includes(mime);
+            const isExtractedTextSource = mime.startsWith('text/') || ['txt', 'md', 'json', 'csv', 'xml', 'html'].includes(fileExtension);
+            const hasSupportedAnalysisInput = isVisualSource || isDocumentOrAudioSource || isExtractedTextSource;
+            const analysisBasis = isVisualSource ? 'derived_preview_from_source_version'
+              : isDocumentOrAudioSource ? 'original_document_or_audio_content'
+                : 'extracted_text_from_source_version';
+            if (Object.keys(observedFields).length && hasSupportedAnalysisInput) {
+              const { data: visionRecord, error: visionRecordError } = await db.functions.invoke('record-vyral-vision-observation', {
+                body: {
+                  assetId,
+                  versionId: version.id,
+                  taskKind: kind === 'image' || kind === 'video' ? 'identity' : 'description',
+                  modelProvider: suggestion.provider,
+                  modelId: suggestion.model,
+                  confidence: null,
+                  observation: {
+                    schema_version: 1,
+                    analysis_origin: 'automatic_upload_analysis',
+                    analysis_basis: analysisBasis,
+                    source_version_id: version.id,
+                    fields: observedFields,
+                    uncertainties: [],
+                  },
+                },
+              });
+              if (visionRecordError || visionRecord?.status !== 'recorded') {
+                console.warn('[vyral-vision] Automatic observation was not recorded with source integrity evidence.', visionRecordError);
+              }
+            }
+
+            setBackgroundJob({ assetName: file.name, stage: 'Saving Asset knowledge', detail: 'Linking AI observations to the exact source version.' });
             const { data: currentAsset } = await db.from('vyral_assets').select('metadata').eq('id', assetId).eq('user_id', auth.user.id).maybeSingle();
             const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
               ? currentAsset.metadata as Record<string, unknown> : {};
@@ -2104,7 +2258,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             if (currentAsset) {
               const currentMetadata = currentAsset.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
                 ? currentAsset.metadata as Record<string, unknown> : {};
-              await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: 'unavailable' } })
+              await db.from('vyral_assets').update({ metadata: { ...currentMetadata, ai_details_status: isVyralPackageAsset({ name: file.name, original_filename: file.name, mime_type: mime }) ? 'not_applicable' : vyral.license_policy?.allow_ai_analysis === false ? 'blocked_by_license' : 'unavailable' } })
                 .eq('id', assetId).eq('user_id', auth.user.id);
             }
           }
@@ -2149,6 +2303,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
       }
     }
+    setBackgroundJob(null);
     await loadWorkspace();
     if (failures.length) setError(failures.join(' · '));
     setBusy(false);
@@ -2445,12 +2600,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }
   };
 
-  const verifyAssetIntegrity = async (asset: AssetRow) => {
+  const verifyAssetIntegrity = async (asset: AssetRow, requestedVersionId?: string) => {
     if (!supabase || verifyingAssetId || busy || packageBusy) return;
     const assetVersions = versions.filter((version) => version.asset_id === asset.id);
-    const currentVersion = assetVersions.find((version) => version.storage_path === asset.storage_path)
-      ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
-    if (!currentVersion) { setError('No stored asset version is available to verify.'); return; }
+    const currentVersion = requestedVersionId
+      ? assetVersions.find((version) => version.id === requestedVersionId)
+      : assetVersions.find((version) => version.storage_path === asset.storage_path)
+        ?? [...assetVersions].sort((left, right) => right.version_number - left.version_number)[0];
+    if (!currentVersion) { setError('The selected stored Asset version is no longer available to verify.'); return; }
 
     setVerifyingAssetId(asset.id);
     setError('');
@@ -2472,11 +2629,47 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       }
       if (data?.status !== 'verified') throw new Error('The verification service did not return a verified result.');
       setPackageStatus(data.sourceFileReconstruction === 'byte_exact'
-        ? 'VYRA verified that the original file can be rebuilt exactly for ' + asset.name + '.'
-        : 'VYRA verified the original file integrity for ' + asset.name + '.');
+        ? 'VYRA verified Version ' + currentVersion.version_number + ' of ' + asset.name + ' and rebuilt its original file byte-for-byte.'
+        : 'VYRA verified Version ' + currentVersion.version_number + ' of ' + asset.name + ' · SHA-256 ' + String(data.sha256 ?? '').slice(0, 16) + '…');
       await loadWorkspace();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Server-side asset verification failed.');
+    } finally {
+      setVerifyingAssetId(null);
+    }
+  };
+
+  const verifyRasterVisualFingerprint = async (asset: AssetRow, version: AssetVersionRow) => {
+    if (!supabase || verifyingAssetId || busy || packageBusy) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim())) {
+      setError('Visual fingerprints currently support PNG, JPEG and WebP images.');
+      return;
+    }
+    setVerifyingAssetId(asset.id);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('fingerprint-vyral-raster-version', {
+        body: { assetId: asset.id, versionId: version.id },
+      });
+      if (invokeError) {
+        let detail = invokeError.message;
+        const response = (invokeError as unknown as { context?: Response }).context;
+        if (response && typeof response.clone === 'function') {
+          try {
+            const payload = await response.clone().json();
+            if (typeof payload?.error === 'string') detail = payload.error;
+          } catch { /* Keep the SDK error message. */ }
+        }
+        throw new Error(detail);
+      }
+      if (data?.status !== 'verified' || data?.algorithm !== VYRAL_DHASH_ALGORITHM) {
+        throw new Error('The visual fingerprint service did not return a verified dHash result.');
+      }
+      setPackageStatus('Visual fingerprint recorded for ' + asset.name + ' Version ' + version.version_number +
+        ' · ' + data.dimensions.width + '×' + data.dimensions.height + ' · dHash ' + data.perceptualHash);
+      await loadWorkspace();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Visual fingerprint verification failed.');
     } finally {
       setVerifyingAssetId(null);
     }
@@ -2782,6 +2975,109 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     else setPreviewUrl(data.signedUrl);
   };
 
+  const retryVisionAnalysis = async (asset: AssetRow) => {
+    if (!supabase || !auth.user?.id || retryingVisionAssetId) return;
+    if (isVyralPackageAsset(asset) || vyral.license_policy?.allow_ai_analysis === false ||
+        (asset as AssetRow & { license_override?: Record<string, unknown> }).license_override?.allow_ai_analysis === false) {
+      setError('AI analysis is disabled for this Asset or its Vyral license.');
+      return;
+    }
+    const sourceVersion = versions.filter((version) => version.asset_id === asset.id)
+      .sort((a, b) => b.version_number - a.version_number)[0];
+    if (!sourceVersion) { setError('No source version is available. Refresh the Asset before retrying.'); return; }
+    setRetryingVisionAssetId(asset.id);
+    setBackgroundJob({ assetName: asset.name, stage: 'Preparing source for Gemini', detail: 'Retrieving the original version and checking its source binding.' });
+    setError('');
+    try {
+      const accessToken = await getCurrentAccessToken();
+      if (!accessToken) throw new Error('Sign in again before retrying AI analysis.');
+      const { data: sourceBlob, error: downloadError } = await supabase.storage.from('vyral-assets').download(sourceVersion.storage_path);
+      if (downloadError || !sourceBlob) throw new Error(downloadError?.message ?? 'The original Asset could not be downloaded.');
+      const sourceFile = new File([sourceBlob], asset.original_filename || asset.name, {
+        type: sourceVersion.mime_type || asset.mime_type || 'application/octet-stream',
+      });
+      setBackgroundJob({ assetName: asset.name, stage: 'Gemini is analyzing the Asset', detail: 'Inspecting the original source and generating structured visual knowledge.' });
+      const suggestion = await suggestVyralAssetDetails(sourceFile, {
+        accessToken, assetType: asset.asset_type, sourceVersionId: sourceVersion.id,
+        sourceRevision: sourceVersion.version_number,
+      });
+      const observedFields = Object.fromEntries(Object.entries(suggestion.details.fields).map(([key, field]) => [
+        key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) },
+      ]));
+      if (!Object.keys(observedFields).length) throw new Error('AI did not return any usable observations.');
+      setBackgroundJob({ assetName: asset.name, stage: 'Verifying and saving observations', detail: 'Checking source integrity and attaching the analysis to this Asset version.' });
+      const { data: visionRecord, error: recordError } = await supabase.functions.invoke('record-vyral-vision-observation', {
+        body: {
+          assetId: asset.id, versionId: sourceVersion.id,
+          taskKind: asset.asset_type === 'image' || asset.asset_type === 'video' ? 'identity' : 'description',
+          modelProvider: suggestion.provider, modelId: suggestion.model, confidence: null,
+          observation: {
+            schema_version: 1, analysis_origin: 'manual_retry_after_automatic_failure',
+            analysis_basis: 'reprocessed_original_source_version', source_version_id: sourceVersion.id,
+            fields: observedFields, uncertainties: [],
+          },
+        },
+      });
+      if (recordError || visionRecord?.status !== 'recorded') {
+        throw new Error(recordError?.message ?? 'Source integrity verification failed; no observation was recorded.');
+      }
+      const { data: currentAsset, error: readError } = await supabase.from('vyral_assets')
+        .select('metadata').eq('id', asset.id).eq('user_id', auth.user.id).maybeSingle();
+      if (readError) throw readError;
+      const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+        ? currentAsset.metadata as Record<string, unknown> : {};
+      const suggestions = Object.fromEntries(Object.entries(suggestion.details.fields)
+        .filter(([, field]) => field.origin === 'ai_suggested')
+        .map(([key, field]) => [key, { value: field.value, ...(field.confidence === undefined ? {} : { confidence: field.confidence }) }]));
+      const mergedDetails = mergeVyralAiDetails(currentMetadata.ai_details, {
+        scope: 'asset', sourceVersionId: sourceVersion.id, sourceRevision: sourceVersion.version_number,
+        provider: suggestion.provider, model: suggestion.model,
+        generatedAt: suggestion.details.generated_at, suggestions,
+      });
+      const { error: updateError } = await supabase.from('vyral_assets').update({
+        metadata: {
+          ...currentMetadata, ai_details: mergedDetails, ai_details_status: 'ready',
+          ai_details_source_version_id: sourceVersion.id, ai_vision_status: 'recorded',
+          ai_vision_last_attempt_at: new Date().toISOString(), ai_vision_last_error: null,
+        },
+      }).eq('id', asset.id).eq('user_id', auth.user.id);
+      if (updateError) throw updateError;
+      await loadWorkspace();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'AI Vision retry failed.';
+      const { data: currentAsset } = await supabase.from('vyral_assets').select('metadata')
+        .eq('id', asset.id).eq('user_id', auth.user.id).maybeSingle();
+      const currentMetadata = currentAsset?.metadata && typeof currentAsset.metadata === 'object' && !Array.isArray(currentAsset.metadata)
+        ? currentAsset.metadata as Record<string, unknown> : {};
+      await supabase.from('vyral_assets').update({
+        metadata: { ...currentMetadata, ai_vision_status: 'failed',
+          ai_vision_last_attempt_at: new Date().toISOString(), ai_vision_last_error: message.slice(0, 500) },
+      }).eq('id', asset.id).eq('user_id', auth.user.id);
+      await loadWorkspace();
+      setError(asset.name + ': ' + message);
+    } finally { setRetryingVisionAssetId(null); setBackgroundJob(null); }
+  };
+
+  // One-time, source-pinned Vision backfill for the protected ORIGIN-01 test Asset.
+  // Existing uploads already run this automatically; this covers the original sample
+  // created before the Gemini provider was connected. No extra user-facing action is needed.
+  useEffect(() => {
+    const ORIGIN_VYRAL_ID = 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d';
+    const ORIGIN_ASSET_ID = '2c496cd5-84c4-44b1-b02a-fca4265cc592';
+    if (!supabase || loading || vyral.id !== ORIGIN_VYRAL_ID || !auth.user?.id || retryingVisionAssetId) return;
+    const originalAsset = assets.find((item) => item.id === ORIGIN_ASSET_ID);
+    if (!originalAsset || isVyralPackageAsset(originalAsset) || originalAsset.processing_status !== 'ready') return;
+    const sourceVersion = versions.find((item) => item.asset_id === originalAsset.id && item.storage_path === originalAsset.storage_path);
+    if (!sourceVersion) return;
+    if (observations.some((item) => item.asset_id === originalAsset.id && item.asset_version_id === sourceVersion.id)) return;
+    // Do not create an automatic retry loop after a provider/network failure.
+    if (originalAsset.metadata?.ai_vision_last_attempt_at) return;
+    const attemptKey = originalAsset.id + ':' + sourceVersion.id;
+    if (origin01VisionBackfillRef.current === attemptKey) return;
+    origin01VisionBackfillRef.current = attemptKey;
+    void retryVisionAnalysis(originalAsset);
+  }, [assets, versions, observations, loading, vyral.id, auth.user?.id, retryingVisionAssetId, retryVisionAnalysis]);
+
   const saveVisionObservation = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!supabase || savingVision) return;
@@ -2871,17 +3167,33 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const observation = observations.find((item) => item.id === observationId);
     if (!observation) return;
     const fields = flattenObservation(observation.observation);
-    const fieldPath = window.prompt('Enter the exact JSON field path to promote (example: identity.eye_color).\\n\\nAvailable fields:\\n' + Object.keys(fields).join('\\n'));
-    if (!fieldPath?.trim() || !(fieldPath.trim() in fields)) return;
+    const promotablePaths = Object.keys(fields).filter((path) => {
+      if (!path.startsWith('fields.') || !path.endsWith('.value')) return false;
+      const fieldName = path.slice('fields.'.length, -'.value'.length);
+      return !visionReviews.some((review) => review.observation_id === observationId && review.evidence_kind === 'field_confirmation' && review.field_path === 'knowledge.' + fieldName);
+    });
+    if (!promotablePaths.length) {
+      setError('This observation has no structured AI-suggested fields available for Knowledge promotion.');
+      return;
+    }
+    const selectedPath = window.prompt('Choose one AI-suggested field to add to Asset Knowledge.\\n\\nAvailable fields:\\n' + promotablePaths.join('\\n'));
+    if (!selectedPath?.trim() || !promotablePaths.includes(selectedPath.trim())) return;
+    const observationFieldPath = selectedPath.trim();
+    const knowledgeFieldName = observationFieldPath.slice('fields.'.length, -'.value'.length);
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(knowledgeFieldName)) {
+      setError('Selected Knowledge field name is invalid.');
+      return;
+    }
+    const fieldPath = 'knowledge.' + knowledgeFieldName;
     let acceptedValue: unknown;
-    try { acceptedValue = JSON.parse(fields[fieldPath.trim()]); }
+    try { acceptedValue = JSON.parse(fields[observationFieldPath]); }
     catch { setError('Selected field could not be parsed as JSON.'); return; }
     const note = window.prompt('Optional creator note for this field (leave blank if none).') ?? '';
     setPromotingObservationId(observationId);
     setError('');
     try {
       const { data, error: invokeError } = await supabase.functions.invoke('promote-vyral-vision-field', {
-        body: { observationId, fieldPath: fieldPath.trim(), acceptedValue, note },
+        body: { observationId, fieldPath, observationFieldPath, acceptedValue, note },
       });
       if (invokeError) {
         let detail = invokeError.message;
@@ -2891,9 +3203,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         }
         throw new Error(detail);
       }
-      if (data?.status !== 'field_promoted') throw new Error('Field-level Knowledge promotion was not confirmed.');
+      if (data?.status !== 'field_confirmed') throw new Error('Creator-confirmed Knowledge evidence was not saved.');
       await loadWorkspace();
-      setPackageStatus('One creator-confirmed Vision field was added to DNA as an immutable record. The full asset remains evolving.');
+      setPackageStatus('Creator-confirmed Knowledge evidence was saved. The Asset DNA remains evolving until its DNA proposal is applied.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not promote this Vision field.');
     } finally {
@@ -3139,12 +3451,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const selected = selectedAssetIds.includes(asset.id);
     const visibility = asset.metadata?.visibility === 'public' ? 'public' : 'private';
     return (
-      <article key={asset.id} className={surface + ' min-w-0 overflow-hidden ' + (selected ? 'ring-2 ring-[var(--vyra-accent-primary)]' : '')}>
+      <article key={asset.id} className={surface + ' relative min-w-0 overflow-hidden ' + (selected ? 'after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]' : '')}>
         <button type="button" onClick={() => void openPreview(asset)} className="flex aspect-[4/3] w-full items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]" aria-label={'Open ' + asset.name}>
           <Icon size={36} strokeWidth={1.5} />
         </button>
         <div className="space-y-3 p-3">
-          <div className="flex items-center justify-between gap-2"><label className="inline-flex items-center gap-2 text-[11px] font-medium text-[var(--vyra-text-secondary)]"><input type="checkbox" checked={selected} onChange={() => toggleAssetSelection(asset.id)} aria-label={'Select '+asset.name} className="size-4 accent-[var(--vyra-accent-primary)]"/> Select</label><span className={'inline-flex items-center gap-1 text-[10px] '+(visibility === 'public' ? 'text-[var(--vyra-accent-primary)]' : muted)}>{visibility === 'public' ? (vyral.visibility === 'public' ? 'Public' : 'Public · Vyral private') : 'Private'}</span></div>
+          <div className="flex items-center justify-between gap-2"><button type="button" role="checkbox" aria-checked={selected} aria-label={'Select '+asset.name} onClick={() => toggleAssetSelection(asset.id)} className="inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--vyra-accent-primary)]/40"><span className={'flex size-5 items-center justify-center rounded-full border transition-colors ' + (selected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-text-muted)]/45 bg-transparent text-transparent')}>{selected && <Check size={12} strokeWidth={3}/>}</span></button><span className={'inline-flex items-center gap-1 text-[10px] '+(visibility === 'public' ? 'text-[var(--vyra-accent-primary)]' : muted)}>{visibility === 'public' ? (vyral.visibility === 'public' ? 'Public' : 'Public · Vyral private') : 'Private'}</span></div>
           <div className="min-w-0">
             <h4 className={'truncate text-sm font-semibold ' + primary}>{asset.name}</h4>
             <p className={'mt-1 text-[11px] capitalize ' + muted}>{asset.asset_type.replaceAll('_', ' ')}</p>
@@ -3176,7 +3488,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   return (
     <div className="space-y-5">
       {(packageBusy || busy) && <p className={'text-xs ' + muted} role="status">Please wait…</p>}
-      {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">That action could not be completed. Please try again.</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
+      {backgroundJob && <section role="status" aria-live="polite" className="flex items-start gap-3 rounded-xl border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/5 px-3 py-3"><LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><div className="min-w-0"><p className={'text-xs font-semibold '+primary}>{backgroundJob.stage}</p><p className={'mt-0.5 truncate text-[11px] '+subtle}>{backgroundJob.assetName}</p><p className={'mt-1 text-[10px] leading-4 '+muted}>{backgroundJob.detail}</p><div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--vyra-border)]"><div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--vyra-accent-primary)]"/></div></div></section>}
+      {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       {collectionReferences.length > 0 && <section className={surface + ' space-y-3 p-3'}>
         <div className="flex items-center justify-between gap-3">
           <div><h3 className={'text-sm font-semibold ' + primary}>Collection references</h3><p className={'mt-1 text-[11px] ' + muted}>References are kept separate from this Vyral’s own Assets.</p></div>
@@ -3288,6 +3601,26 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </details>
         </div>
       </div>
+
+      <nav aria-label="Vyral sections" role="tablist" className="flex w-full gap-1 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1">
+        {([
+          { id: 'assets', label: 'Gallery' },
+          { id: 'license', label: 'License' },
+        ] as Array<{ id: Tab; label: string }>).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            onClick={() => setTab(item.id)}
+            className={'min-h-10 flex-1 rounded-lg px-3 text-xs font-semibold transition-colors ' + (tab === item.id
+              ? 'bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-sm'
+              : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]')}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
 
       <section className={surface+' p-4'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3411,7 +3744,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </div>
           <div className="flex flex-wrap items-center gap-1 text-xs"><button type="button" onClick={()=>setActiveFolderId(null)} className={activeFolderId===null?'font-semibold text-[var(--vyra-accent-primary)]':subtle}>Root</button>{folderPath.map((folder)=><React.Fragment key={folder.id}><ChevronRight size={12} className={muted}/><button type="button" onClick={()=>setActiveFolderId(folder.id)} className={folder.id===activeFolderId?'font-semibold text-[var(--vyra-accent-primary)]':subtle}>{folder.name}</button></React.Fragment>)}</div>
           {visibleFolders.length>0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{visibleFolders.map((folder)=><div key={folder.id} className={surface+' flex min-w-0 items-center gap-2 p-3'}><button type="button" onClick={()=>setActiveFolderId(folder.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left"><Folder size={18} className="shrink-0 text-[var(--vyra-accent-primary)]"/><span className={'truncate text-xs font-medium '+primary}>{folder.name}</span></button><button type="button" onClick={()=>void deleteFolder(folder)} aria-label={'Delete '+folder.name} className={muted}><Trash2 size={13}/></button></div>)}</div>}
-          {filteredAssets.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--vyra-border)] px-3 py-2"><label className={'inline-flex items-center gap-2 text-xs '+subtle}><input type="checkbox" checked={filteredAssets.length > 0 && filteredAssets.every((asset) => selectedAssetIds.includes(asset.id))} onChange={(event) => setSelectedAssetIds((current) => event.target.checked ? [...new Set([...current, ...filteredAssets.map((asset) => asset.id)])] : current.filter((id) => !filteredAssets.some((asset) => asset.id === id)))} className="size-4 accent-[var(--vyra-accent-primary)]"/> Select all in this view</label><span className={'text-xs '+muted}>{selectedAssets.length} selected</span>{selectedAssets.length > 0 && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateAssetVisibility(selectedAssetIds, 'private')} disabled={busy} className={button}>Make private</button><button type="button" onClick={() => void updateAssetVisibility(selectedAssetIds, 'public')} disabled={busy} className={button}>Make public</button><button type="button" onClick={() => setSelectedAssetIds([])} className={button}>Clear</button><button type="button" onClick={sendSelectedAssetsToChat} disabled={!onSendAssetsToChat} className={primaryButton}>Use in AI Chat</button></div>}</div>}
+          {filteredAssets.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--vyra-border)] px-3 py-2"><label className={'inline-flex cursor-pointer items-center gap-2 text-xs '+subtle}><input type="checkbox" checked={filteredAssets.length > 0 && filteredAssets.every((asset) => selectedAssetIds.includes(asset.id))} onChange={(event) => setSelectedAssetIds((current) => event.target.checked ? [...new Set([...current, ...filteredAssets.map((asset) => asset.id)])] : current.filter((id) => !filteredAssets.some((asset) => asset.id === id)))} className="peer sr-only"/><span className={'flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors ' + (filteredAssets.length > 0 && filteredAssets.every((asset) => selectedAssetIds.includes(asset.id)) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-text-muted)]/45 bg-transparent text-transparent')}><Check size={12} strokeWidth={3}/></span><span>Select all in this view</span></label><span className={'text-xs '+muted}>{selectedAssets.length} selected</span>{selectedAssets.length > 0 && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateAssetVisibility(selectedAssetIds, 'private')} disabled={busy} className={button}>Make private</button><button type="button" onClick={() => void updateAssetVisibility(selectedAssetIds, 'public')} disabled={busy} className={button}>Make public</button><button type="button" onClick={() => setSelectedAssetIds([])} className={button}>Clear</button><button type="button" onClick={sendSelectedAssetsToChat} disabled={!onSendAssetsToChat} className={primaryButton}>Use in AI Chat</button></div>}</div>}
           {filteredAssets.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{filteredAssets.map(renderAssetCard)}</div> : <div className="rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-12 text-center"><Folder size={25} className={'mx-auto '+muted}/><p className={'mt-3 text-sm font-semibold '+primary}>{assets.length?'No matching assets in this folder':'This folder is empty'}</p><p className={'mt-1 text-xs '+muted}>Add files or create folders to organize this Vyral.</p></div>}
           <p className={'text-[10px] '+muted}>{assets.length} items</p>
         </div>
@@ -3419,6 +3752,15 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       {tab === 'dna' && (
         <div className="space-y-4">
+          <section className={surface+' flex flex-wrap items-center justify-between gap-3 p-4'}>
+            <div className="min-w-0">
+              <h3 className={'text-sm font-semibold '+primary}>AI Vision observations</h3>
+              <p className={'mt-1 text-xs '+muted}>Review what AI has learned from each original Asset source.</p>
+            </div>
+            <button type="button" className={primaryButton} onClick={() => document.getElementById('vyral-ai-vision-observations')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <Eye size={13}/> View observations
+            </button>
+          </section>
           <section className={surface+' p-4'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -3442,6 +3784,305 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               </div>
             </div>
           </section>
+          <section className={surface+' p-4'}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className={'text-sm font-semibold '+primary}>Visual fingerprint verification</h3>
+                <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>Run a server-side visual fingerprint check against the original stored file for each image Asset. This verifies the source version before comparing versions.</p>
+              </div>
+              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                {assetVersionEvidenceTimeline.filter(({ versions: entries }) => entries.some(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()))).length} image Assets
+              </span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {assetVersionEvidenceTimeline.flatMap(({ asset, versions: entries }) => {
+                const latestImageVersion = [...entries].reverse().find(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()));
+                return latestImageVersion ? [{ asset, version: latestImageVersion.version }] : [];
+              }).map(({ asset, version }) => {
+                const recorded = fingerprints.some((fingerprint) => fingerprint.asset_id === asset.id && fingerprint.asset_version_id === version.id && fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM && asRecord(fingerprint.metadata).verification_status === 'server_verified');
+                return <div key={'quick-visual-'+version.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                  <div className="min-w-0">
+                    <p className={'truncate text-xs font-semibold '+primary}>{asset.name}</p>
+                    <p className={'mt-1 text-[10px] '+muted}>Version {version.version_number} · {recorded ? 'Fingerprint recorded' : 'Not verified yet'}</p>
+                  </div>
+                  <button type="button" className={primaryButton} disabled={verifyingAssetId === asset.id} onClick={() => void verifyRasterVisualFingerprint(asset, version)}>
+                    <Fingerprint size={13}/>{verifyingAssetId === asset.id ? 'Verifying…' : recorded ? 'Verify again' : 'Verify visual fingerprint'}
+                  </button>
+                </div>;
+              })}
+              {assetVersionEvidenceTimeline.every(({ versions: entries }) => !entries.some(({ version }) => ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim()))) && <p className={'rounded-lg border border-dashed border-[var(--vyra-border)] p-3 text-xs '+muted}>No supported image source versions are available yet. PNG, JPEG and WebP versions will appear here.</p>}
+            </div>
+          </section>
+          <section id="vyral-ai-vision-observations" className={surface+' scroll-mt-24 p-4'}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className={'text-sm font-semibold '+primary}>AI Vision observations</h3>
+                <p className={'mt-1 max-w-2xl text-xs leading-5 '+muted}>
+                  VYRA analyzes new uploads automatically. Review each observation before its information can be promoted into trusted Asset Knowledge.
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">
+                {observations.length} observations
+              </span>
+            </div>
+            {visionComparisonGroups.some((group) => group.comparisons.some((comparison) => !comparison.same && comparison.path.startsWith('fields.') && comparison.path.endsWith('.value'))) && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={'text-xs font-semibold '+primary}>AI model disagreements</p>
+                  <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-600">Review required</span>
+                </div>
+                <p className={'mt-1 text-[10px] '+muted}>Different AI models reported different values for the same Asset version. No model is selected automatically.</p>
+                {visionComparisonGroups.flatMap((group) => group.comparisons.filter((comparison) => !comparison.same && comparison.path.startsWith('fields.') && comparison.path.endsWith('.value')).map((comparison) => ({ group, comparison }))).slice(0, 12).map(({ group, comparison }) => (
+                  <div key={group.key+':'+comparison.path} className="mt-2 rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                    <p className={'break-all text-[10px] font-semibold '+primary}>{assets.find((asset) => asset.id === group.items[0]?.asset_id)?.name ?? 'Asset'} · {comparison.path}</p>
+                    {group.items.map((item, index) => (
+                      <p key={item.id} className={'mt-1 break-words text-[10px] '+muted}>{item.model_provider} · {item.model_id}: {comparison.values[index] ?? 'Not reported'}</p>
+                    ))}
+                    <p className={'mt-1 text-[9px] '+muted}>Source version {versions.find((version) => version.id === group.items[0]?.asset_version_id)?.version_number ?? 'unknown'} · compare evidence only; creator review required</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {visionKnowledgeConflicts.length > 0 && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 p-3">
+                <p className={'text-xs font-semibold '+primary}>Conflicting creator-confirmed Knowledge</p>
+                <p className={'mt-1 text-[10px] '+muted}>These values were separately confirmed from the same source version. Resolve only when you know which value applies, or keep both as context-dependent.</p>
+                {visionKnowledgeConflicts.map((group) => {
+                  const groupKey = JSON.stringify([group.assetId, group.versionId, group.taskKind, group.fieldPath]);
+                  const resolved = group.resolutionRecords.length > 0;
+                  return (
+                    <div key={groupKey} className="mt-2 rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className={'break-all text-[10px] font-semibold '+primary}>{group.fieldPath}</p>
+                        <span className={'text-[10px] font-semibold '+(resolved ? 'text-emerald-600' : 'text-amber-600')}>{resolved ? 'Resolution recorded' : 'Needs creator decision'}</span>
+                      </div>
+                      {group.records.map((record) => <p key={record.id} className={'mt-1 break-words text-[10px] '+muted}>{String(record.payload.model_provider_claim ?? 'Creator-confirmed')}: {JSON.stringify(record.payload.accepted_value)}</p>)}
+                      {!resolved && <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" className={button} disabled={resolvingConflictKey === groupKey} onClick={() => void resolveVisionKnowledgeConflict(group, 'prefer_one')}>{resolvingConflictKey === groupKey ? 'Saving…' : 'Prefer one value'}</button>
+                        <button type="button" className={button} disabled={resolvingConflictKey === groupKey} onClick={() => void resolveVisionKnowledgeConflict(group, 'keep_contextual')}>Keep both as contextual</button>
+                      </div>}
+                      {resolved && <p className={'mt-1 text-[9px] '+muted}>Original evidence is preserved; this resolution does not overwrite DNA.</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <section className="mt-3 rounded-lg border border-[var(--vyra-border)] p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h4 className={'text-xs font-semibold '+primary}>Asset DNA evidence timeline</h4>
+                  <p className={'mt-1 text-[10px] '+muted}>Version history is kept separate. Each observation and fingerprint remains attached to the exact source version it describes.</p>
+                </div>
+                <span className={'text-[10px] '+muted}>{assetVersionEvidenceTimeline.reduce((sum, entry) => sum + entry.versions.length, 0)} source versions</span>
+              </div>
+              {assetVersionEvidenceTimeline.length ? <div className="mt-3 space-y-3">
+                {assetVersionEvidenceTimeline.map(({ asset, versions: evidenceVersions }) => (
+                  <div key={'evidence-'+asset.id}>
+                    <p className={'text-xs font-semibold '+primary}>{asset.name}</p>
+                    <div className="mt-2 space-y-2">
+                      {evidenceVersions.map((entry, versionIndex) => {
+                        const { version, observations: versionObservations, fingerprints: versionFingerprints, dnaRecord } = entry;
+                        const isLatest = version.id === evidenceVersions[evidenceVersions.length - 1]?.version.id;
+                        const confirmedCount = versionObservations.filter((item) => visionReviews.some((review) => review.observation_id === item.id && review.evidence_kind === 'observation_review' && review.decision === 'creator_confirmed')).length;
+                        const latestObservation = [...versionObservations].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+                        const previousEntry = evidenceVersions[versionIndex - 1];
+                        const previousObservation = previousEntry ? [...previousEntry.observations].sort((left, right) => right.created_at.localeCompare(left.created_at))[0] : undefined;
+                        const currentFields = latestObservation ? flattenObservation(latestObservation.observation) : {};
+                        const previousFields = previousObservation ? flattenObservation(previousObservation.observation) : {};
+                        const comparedPaths = Array.from(new Set([...Object.keys(currentFields), ...Object.keys(previousFields)]));
+                        const changedPaths = previousObservation ? comparedPaths.filter((path) => stableJson(currentFields[path] ?? '[missing]') !== stableJson(previousFields[path] ?? '[missing]')) : [];
+                        const unchangedCount = previousObservation ? comparedPaths.length - changedPaths.length : 0;
+                        const visualFingerprintRecord = versionFingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const visualFingerprintMetadata = asRecord(visualFingerprintRecord?.metadata);
+                        const visualFingerprint = visualFingerprintRecord &&
+                          visualFingerprintMetadata.verification_status === 'server_verified' &&
+                          ['extract-vyral-asset-dna-v3', 'fingerprint-vyral-raster-version'].includes(String(visualFingerprintMetadata.computed_by))
+                            ? visualFingerprintRecord : undefined;
+                        const previousVisualFingerprintRecord = previousEntry?.fingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'perceptual' && fingerprint.algorithm === VYRAL_DHASH_ALGORITHM);
+                        const previousVisualFingerprintMetadata = asRecord(previousVisualFingerprintRecord?.metadata);
+                        const previousVisualFingerprint = previousVisualFingerprintRecord &&
+                          previousVisualFingerprintMetadata.verification_status === 'server_verified' &&
+                          ['extract-vyral-asset-dna-v3', 'fingerprint-vyral-raster-version'].includes(String(previousVisualFingerprintMetadata.computed_by))
+                            ? previousVisualFingerprintRecord : undefined;
+                        const visualComparison = visualFingerprint && previousVisualFingerprint
+                          ? compareVyralDHash64(previousVisualFingerprint.value, visualFingerprint.value) : null;
+                        const dnaPayload = asRecord(dnaRecord?.payload);
+                        const dnaBody = asRecord(dnaPayload.dna_record);
+                        const decodedImage = asRecord(dnaBody.decoded_image);
+                        const decoderContract = asRecord(decodedImage.decoder_contract);
+                        const previousDnaPayload = asRecord(previousEntry?.dnaRecord?.payload);
+                        const previousDnaBody = asRecord(previousDnaPayload.dna_record);
+                        const previousDecodedImage = asRecord(previousDnaBody.decoded_image);
+                        const previousDecoderContract = asRecord(previousDecodedImage.decoder_contract);
+                        const hasCurrentDecodedEvidence = /^[a-f0-9]{64}$/i.test(String(decodedImage.decoded_samples_sha256 ?? ''));
+                        const hasPreviousDecodedEvidence = /^[a-f0-9]{64}$/i.test(String(previousDecodedImage.decoded_samples_sha256 ?? ''));
+                        const sameDecodeContract = typeof decoderContract.name === 'string' && decoderContract.name.length > 0 &&
+                          typeof decoderContract.version === 'string' && decoderContract.version.length > 0 &&
+                          decoderContract.name === previousDecoderContract.name &&
+                          decoderContract.version === previousDecoderContract.version &&
+                          Number.isSafeInteger(Number(decodedImage.width)) && Number(decodedImage.width) > 0 &&
+                          Number.isSafeInteger(Number(decodedImage.height)) && Number(decodedImage.height) > 0 &&
+                          decodedImage.width === previousDecodedImage.width &&
+                          decodedImage.height === previousDecodedImage.height &&
+                          ['RGB', 'RGBA'].includes(String(decodedImage.channel_layout)) &&
+                          decodedImage.channel_layout === previousDecodedImage.channel_layout;
+                        const decodedSampleStatus = !previousEntry ? null :
+                          hasCurrentDecodedEvidence && hasPreviousDecodedEvidence
+                            ? !sameDecodeContract ? 'Decoder or decoded layout differs' :
+                              String(decodedImage.decoded_samples_sha256).toLowerCase() === String(previousDecodedImage.decoded_samples_sha256).toLowerCase()
+                                ? 'Exact decoded samples' : 'Decoded samples changed'
+                            : 'Not enough DNA v3 evidence';
+                        const currentSha = String(version.sha256 ?? '').toLowerCase();
+                        const previousSha = String(previousEntry?.version.sha256 ?? '').toLowerCase();
+                        const sourceByteStatus = !previousEntry ? null :
+                          /^[a-f0-9]{64}$/.test(currentSha) && /^[a-f0-9]{64}$/.test(previousSha)
+                            ? currentSha === previousSha ? 'Byte-identical source' : 'Source bytes changed'
+                            : 'Not enough source-hash evidence';
+                        const supportsVisualFingerprint = ['image/png', 'image/jpeg', 'image/webp'].includes(version.mime_type.toLowerCase().split(';')[0].trim());
+                        return (
+                          <div key={version.id} className="rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className={'text-[10px] font-semibold '+primary}>Version {version.version_number}{isLatest ? ' · Latest' : ''}</p>
+                              <time className={'text-[9px] '+muted}>{dateLabel(version.created_at)}</time>
+                            </div>
+                            <p className={'mt-1 break-all text-[9px] '+muted}>SHA-256: {version.sha256 ? version.sha256 : 'Not recorded'}</p>
+                            {(() => {
+                              const cryptographicFingerprint = versionFingerprints.find((fingerprint) => fingerprint.fingerprint_kind === 'cryptographic' && fingerprint.algorithm.toUpperCase() === 'SHA-256');
+                              const fingerprintMetadata = asRecord(cryptographicFingerprint?.metadata);
+                              const comparisonStatus = String(fingerprintMetadata.comparison_status ?? '');
+                              const verificationStatus = String(fingerprintMetadata.verification_status ?? '');
+                              return <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className={'text-[9px] '+(comparisonStatus === 'matched' ? 'text-emerald-600' : comparisonStatus === 'mismatch' ? 'text-red-600' : 'text-amber-600')}>
+                                  {comparisonStatus === 'matched' ? 'Server fingerprint verified' : comparisonStatus === 'mismatch' ? 'Fingerprint mismatch' : comparisonStatus === 'baseline_created' ? 'Baseline fingerprint created' : 'Fingerprint not yet verified'}
+                                </span>
+                                <button type="button" className={button} disabled={verifyingAssetId === asset.id} onClick={() => void verifyAssetIntegrity(asset, version.id)}>
+                                  {verifyingAssetId === asset.id ? 'Verifying…' : 'Verify this version'}
+                                </button>
+                              </div>;
+                            })()}
+                            {previousEntry && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
+                              <p className={'text-[9px] font-semibold '+primary}>Fingerprint comparison with Version {previousEntry.version.version_number}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Source bytes: {sourceByteStatus}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Decoded pixels: {decodedSampleStatus}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Visual similarity: {visualComparison ? (visualComparison.similarity * 100).toFixed(1) + '% · ' + visualComparison.hammingDistance + '/64 bits differ' : 'Not enough perceptual fingerprint evidence'}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>Byte hashes prove file-byte identity; decoded-sample hashes prove exact pixels only under the same decoder and layout. dHash is an estimate, not a semantic identity test.</p>
+                            </div>}
+                            {supportsVisualFingerprint && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className={'text-[9px] font-semibold '+primary}>Visual fingerprint · dHash-64</span>
+                                <span className={'text-[9px] '+(visualFingerprint ? 'text-emerald-600' : muted)}>{visualFingerprint ? 'Server verified' : 'Not recorded'}</span>
+                              </div>
+                              {visualFingerprint && <p className={'mt-1 break-all text-[9px] '+muted}>{visualFingerprint.value}</p>}
+                              {previousEntry && (visualComparison
+                                ? <p className={'mt-1 text-[9px] '+muted}>Compared with Version {previousEntry.version.version_number}: {(visualComparison.similarity * 100).toFixed(1)}% perceptual similarity · {visualComparison.hammingDistance}/64 bits differ</p>
+                                : <p className={'mt-1 text-[9px] '+muted}>Previous version visual fingerprint is not available yet; verify both versions to compare them.</p>)}
+                              <button type="button" className={button+' mt-2'} disabled={verifyingAssetId === asset.id} onClick={() => void verifyRasterVisualFingerprint(asset, version)}>
+                                {verifyingAssetId === asset.id ? 'Verifying…' : 'Verify visual fingerprint'}
+                              </button>
+                              <p className={'mt-1 text-[9px] '+muted}>Perceptual similarity is an estimate, not proof of exact pixels or semantic identity.</p>
+                            </div>}
+                            <div className={'mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[9px] '+muted}>
+                              <span>{versionObservations.length} Vision observations</span>
+                              <span>{confirmedCount} creator-confirmed</span>
+                              <span>{versionFingerprints.length} fingerprints</span>
+                            </div>
+                            {previousObservation && latestObservation && <div className="mt-2 rounded border border-[var(--vyra-border)] p-2">
+                              <p className={'text-[9px] font-semibold '+primary}>AI-reported comparison with Version {previousEntry.version.version_number}</p>
+                              <p className={'mt-1 text-[9px] '+muted}>{changedPaths.length} changed field(s) · {unchangedCount} unchanged field(s). This compares AI observations only; it does not certify a real asset change.</p>
+                              {changedPaths.slice(0, 8).map((path) => <p key={path} className={'mt-1 break-all text-[9px] '+muted}>{path}: {String(previousFields[path] ?? '[missing]')} → {String(currentFields[path] ?? '[missing]')}</p>)}
+                              {changedPaths.length > 8 && <p className={'mt-1 text-[9px] '+muted}>And {changedPaths.length - 8} more changed fields</p>}
+                            </div>}
+                            {versionFingerprints.length > 0 && <div className="mt-1 space-y-1">
+                              {versionFingerprints.slice(0, 2).map((fingerprint) => <p key={fingerprint.id} className={'break-all text-[9px] '+muted}>{fingerprint.fingerprint_kind} · {fingerprint.algorithm}: {fingerprint.value}</p>)}
+                            </div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div> : <p className={'mt-3 text-[10px] '+muted}>No version-linked evidence is available yet.</p>}
+            </section>
+            {assets.filter((asset) => {
+              const latestVersion = versions.filter((version) => version.asset_id === asset.id)
+                .sort((a, b) => b.version_number - a.version_number)[0];
+              const hasCurrentObservation = observations.some((item) => item.asset_id === asset.id && item.asset_version_id === latestVersion?.id);
+              return !hasCurrentObservation && !isVyralPackageAsset(asset) &&
+                vyral.license_policy?.allow_ai_analysis !== false &&
+                (asset as AssetRow & { license_override?: Record<string, unknown> }).license_override?.allow_ai_analysis !== false;
+            }).map((asset) => {
+              const status = String(asset.metadata?.ai_vision_status ?? 'not_recorded');
+              const lastError = typeof asset.metadata?.ai_vision_last_error === 'string' ? asset.metadata.ai_vision_last_error : '';
+              return <div key={'vision-retry-'+asset.id} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--vyra-border)] p-3">
+                <div className="min-w-0"><p className={'truncate text-xs font-medium '+primary}>{asset.name}</p>
+                  <p className={'mt-1 text-[10px] '+muted}>{status === 'failed' ? 'AI analysis failed' : 'No source-linked Vision observation yet'}{lastError ? ' · '+lastError : ''}</p>
+                </div>
+                <button type="button" disabled={retryingVisionAssetId === asset.id} onClick={() => void retryVisionAnalysis(asset)} className={button}>
+                  {retryingVisionAssetId === asset.id ? 'Analyzing…' : status === 'failed' ? 'Retry AI analysis' : 'Analyze original source'}
+                </button>
+              </div>;
+            })}
+            {observations.length ? (
+              <div className="mt-3 space-y-2">
+                {observations.slice(0, 30).map((item) => {
+                  const review = visionReviews.find((entry) => entry.observation_id === item.id && entry.evidence_kind === 'observation_review');
+                  const confirmedKnowledge = visionReviews.filter((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path);
+                  const sourceBindingValid = Boolean(item.asset_version_id && /^[a-f0-9]{64}$/i.test(item.source_sha256 ?? ''));
+                  const fields = Object.entries(flattenObservation(item.observation)).slice(0, 8);
+                  const quality = assessVisionQuality(item.observation);
+                  const assetName = assets.find((asset) => asset.id === item.asset_id)?.name ?? 'Asset';
+                  return (
+                    <article key={item.id} className="rounded-lg border border-[var(--vyra-border)] p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className={'truncate text-xs font-semibold '+primary}>{assetName}</p>
+                          <p className={'mt-1 text-[10px] '+muted}>{item.model_provider} · {item.model_id} · {dateLabel(item.created_at)}</p>
+                          <p className={'mt-1 text-[10px] '+muted}>Source version {versions.find((version) => version.id === item.asset_version_id)?.version_number ?? 'unknown'} · SHA-256 {String(item.source_sha256 ?? 'unavailable').slice(0, 12)}…</p>
+                        </div>
+                        <span className={'rounded-full border px-2 py-1 text-[10px] font-semibold '+(review?.decision === 'creator_confirmed' ? 'border-emerald-500/30 text-emerald-600' : review?.decision === 'disputed' ? 'border-amber-500/30 text-amber-600' : 'border-[var(--vyra-border)] '+subtle)}>
+                          {review?.decision === 'creator_confirmed' ? 'Creator confirmed' : review?.decision === 'disputed' ? 'Disputed' : 'Needs review'}
+                        </span>
+                      </div>
+                      {confirmedKnowledge.length > 0 && <p className={'mt-2 text-[10px] '+muted}>Confirmed Knowledge: {confirmedKnowledge.map((entry) => entry.field_path).join(' · ')}</p>}
+                      <div className="mt-2 rounded-md bg-[var(--vyra-bg-subtle)] p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className={'text-[10px] font-semibold '+(quality.flags.length ? 'text-amber-600' : 'text-emerald-600')}>Quality check: {quality.label}</span>
+                          <span className={'text-[10px] '+muted}>{quality.fieldCount} structured fields{quality.score === null ? ' · confidence not scored' : ' · mean model confidence '+quality.score+'%'}</span>
+                        </div>
+                        {quality.flags.length > 0 && <ul className={'mt-1 list-disc pl-4 text-[10px] '+muted}>{quality.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}
+                        <p className={'mt-1 text-[9px] '+muted}>Model confidence is self-reported and is not proof of correctness. Creator review remains required.</p>
+                      </div>
+                      {fields.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          {fields.map(([key,value]) => <p key={key} className={'break-words text-[10px] '+muted}><strong className={primary}>{key}:</strong> {value.slice(0, 240)}</p>)}
+                        </div>
+                      )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {!review && sourceBindingValid && (
+                          <>
+                            <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'creator_confirmed')} className={primaryButton}>
+                              <ShieldCheck size={13}/>{reviewingObservationId === item.id ? 'Saving…' : 'Confirm observation'}
+                            </button>
+                            <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'disputed')} className={button}>Dispute</button>
+                          </>
+                        )}
+                        {!review && !sourceBindingValid && <p className={'text-[10px] '+muted}>This observation has no verifiable source-version binding and cannot be confirmed.</p>}
+                        {review?.decision === 'creator_confirmed' && Object.keys(flattenObservation(item.observation)).some((path) => path.startsWith('fields.') && path.endsWith('.value') && !visionReviews.some((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path === 'knowledge.' + path.slice('fields.'.length, -'.value'.length))) && (
+                          <button type="button" disabled={promotingObservationId === item.id} onClick={() => void promoteVisionKnowledge(item.id)} className={button}>
+                            {promotingObservationId === item.id ? 'Saving…' : 'Confirm a Knowledge field'}
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={'mt-3 rounded-lg border border-dashed border-[var(--vyra-border)] p-4 text-xs '+muted}>
+                No Vision observations yet. VYRA will add one after an eligible Asset upload is analyzed.
+              </p>
+            )}
+          </section>
           {isProtectedVyral(vyral) && (
             <section className={surface+' p-4'}>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3455,16 +4096,61 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   {originV3Attempts.length} recorded attempts
                 </span>
               </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  { id: 'a40f067c-0ed1-4b93-814f-4f2f925ff320', label: 'Compare Gemini' },
+                  { id: 'a63edc73-0247-4477-84b9-f942080de694', label: 'Compare Grok' },
+                  { id: '8aae18f1-d75c-4c00-ab30-5a8f0d4a0a23', label: 'Compare Claude' },
+                ].map((candidate) => {
+                  const asset = assets.find((item) => item.id === candidate.id);
+                  if (!asset) return null;
+                  const running = comparingReconstructionAssetId === candidate.id;
+                  return (
+                    <button key={candidate.id} type="button" className={button}
+                      disabled={Boolean(comparingReconstructionAssetId) || Boolean(verifyingAssetId) || busy || packageBusy}
+                      onClick={() => void compareOriginReconstruction(asset)}>
+                      <Fingerprint size={13} />{running ? 'Comparing…' : candidate.label}
+                    </button>
+                  );
+                })}
+              </div>
               {originV3Attempts.length ? (
                 <div className="mt-3 space-y-2">
                   {originV3Attempts.map((attempt) => {
                     const evidence = asRecord(attempt.attempt_evidence);
                     const blindness = asRecord(evidence.blindness);
+                    const comparison = asRecord(asRecord(attempt.report).comparison);
+                    const visualFingerprint = asRecord(comparison.visualFingerprintComparison);
+                    const normalizedRgb = asRecord(comparison.normalizedImageComparison);
+                    const redMask = asRecord(comparison.redRegionMaskComparison);
+                    const geometry = asRecord(comparison.redRegionGeometry);
                     const promptHash = attempt.prompt_sha256 ?? (typeof evidence.promptSha256 === 'string' ? evidence.promptSha256 : null);
                     const modelVersion = attempt.model_version ?? (typeof evidence.modelVersion === 'string' ? evidence.modelVersion : null);
+                    const normalizedSimilarity = typeof normalizedRgb.normalizedRgbSimilarity === 'number'
+                      ? normalizedRgb.normalizedRgbSimilarity
+                      : typeof normalizedRgb.normalizedGridRgbSimilarity === 'number'
+                        ? normalizedRgb.normalizedGridRgbSimilarity : null;
+                    const maskIoU = typeof redMask.intersectionOverUnion === 'number' ? redMask.intersectionOverUnion : null;
+                    const normalizedMae = typeof normalizedRgb.meanAbsoluteErrorPerChannel === 'number' ? normalizedRgb.meanAbsoluteErrorPerChannel : null;
+                    const normalizedRmse = typeof normalizedRgb.rootMeanSquareErrorPerChannel === 'number' ? normalizedRgb.rootMeanSquareErrorPerChannel : null;
+                    const geometrySimilarity = typeof geometry.geometrySimilarity === 'number'
+                      ? geometry.geometrySimilarity : null;
+                    const visualAssessment = normalizedSimilarity !== null && geometrySimilarity !== null
+                      ? normalizedSimilarity >= 0.98 && geometrySimilarity >= 0.98
+                        ? 'Very close visually · review required'
+                        : normalizedSimilarity >= 0.90 && geometrySimilarity >= 0.90
+                          ? 'Moderate visual similarity'
+                          : 'Visual differences detected'
+                      : normalizedSimilarity !== null
+                        ? normalizedSimilarity >= 0.98 ? 'High normalized RGB similarity' :
+                          normalizedSimilarity >= 0.90 ? 'Moderate normalized RGB similarity' : 'Visual differences detected'
+                        : geometrySimilarity !== null
+                          ? geometrySimilarity >= 0.98 ? 'Geometry very close' :
+                            geometrySimilarity >= 0.90 ? 'Geometry moderately close' : 'Geometry differs'
+                          : 'Visual assessment unavailable';
                     const statusLabel = attempt.exact_match === true ? 'Exact match' :
-                      attempt.test_status === 'inconclusive' ? 'Inconclusive' :
-                      attempt.test_status === 'failed' ? 'Different from original' : attempt.test_status;
+                      attempt.test_status === 'inconclusive' ? 'Exact check inconclusive' :
+                      attempt.test_status === 'failed' ? 'Not an exact match' : attempt.test_status;
                     return (
                       <article key={attempt.id} className="rounded-lg border border-[var(--vyra-border)] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3477,9 +4163,21 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                           </span>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
-                          <span className={muted}>RGB similarity: <strong className={primary}>{typeof attempt.similarity_score === 'number' ? (attempt.similarity_score * 100).toFixed(2)+'%' : 'Not available'}</strong></span>
+                          <span className={muted}>Same-size pixel score: <strong className={primary}>{typeof attempt.similarity_score === 'number' ? (attempt.similarity_score * 100).toFixed(2)+'%' : 'Not comparable'}</strong></span>
                           <span className={muted}>Blindness: <strong className={primary}>{attempt.blindness_status ?? (typeof blindness.status === 'string' ? blindness.status : 'unverified')}</strong></span>
                           <span className={muted}>Prompt SHA-256: <strong className={primary}>{promptHash ? promptHash.slice(0, 12)+'…' : 'Not recorded'}</strong></span>
+                        </div>
+                        <div className="mt-2 rounded-md border border-[var(--vyra-border)] px-2.5 py-2">
+                          <p className={'text-[10px] font-semibold '+primary}>Visual assessment: {visualAssessment}</p>
+                          <p className={'mt-1 text-[10px] leading-4 '+muted}>This is a provisional review aid using normalized RGB, red-mask overlap and geometry. Thresholds are not yet calibrated across asset types; it is not an exact-match result or a certified identity score.</p>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+                          {typeof visualFingerprint.similarity === 'number' && <span className={muted}>dHash similarity: <strong className={primary}>{(visualFingerprint.similarity * 100).toFixed(1)}%</strong> · {String(visualFingerprint.hammingDistance ?? '—')}/64 bits differ</span>}
+                          {normalizedSimilarity !== null && <span className={muted}>Normalized RGB similarity: <strong className={primary}>{(normalizedSimilarity * 100).toFixed(2)}%</strong></span>}
+                          {normalizedMae !== null && <span className={muted}>RGB MAE: <strong className={primary}>{normalizedMae.toFixed(2)}</strong></span>}
+                          {normalizedRmse !== null && <span className={muted}>RGB RMSE: <strong className={primary}>{normalizedRmse.toFixed(2)}</strong></span>}
+                          {maskIoU !== null && <span className={muted}>Red-mask IoU: <strong className={primary}>{(maskIoU * 100).toFixed(2)}%</strong></span>}
+                          {typeof geometry.geometrySimilarity === 'number' && <span className={muted}>Geometry: <strong className={primary}>{(geometry.geometrySimilarity * 100).toFixed(2)}%</strong></span>}
                         </div>
                         {attempt.session_reference && <p className={'mt-2 break-all text-[10px] '+muted}>Session: {attempt.session_reference}</p>}
                         {(attempt.blindness_status === 'creator_attested' || blindness.independentlyVerified === false) && (

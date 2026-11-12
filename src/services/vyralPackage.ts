@@ -30,6 +30,17 @@ export const getVyralPackageAssetsForImport = <T extends {
   containerAssetId?: string,
 ): T[] => assets.filter((asset) => !containerAssetId || asset.id !== containerAssetId);
 
+/** A nested .vyral package is a package test/input fixture, not a media target for semantic blind reconstruction. */
+export const isVyralPackageAsset = (asset: {
+  name?: unknown;
+  original_filename?: unknown;
+  mime_type?: unknown;
+}) => {
+  const mimeType = String(asset.mime_type ?? '').trim().toLowerCase();
+  const filename = String(asset.original_filename ?? asset.name ?? '').trim().toLowerCase();
+  return mimeType === VYRAL_PACKAGE_FORMAT || filename.endsWith('.vyral');
+};
+
 export type VyralPackageEntry = { path: string; data: Uint8Array | string };
 
 export type VyralPackageManifest = {

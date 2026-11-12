@@ -1,16 +1,16 @@
 /* The header remains pinned while its contents ease into a compact top row. */
 .profile-collapse-shell { display: contents; }
 .profile-collapse-header {
-  --profile-header-expanded: 148px;
-  --profile-header-collapse-distance: 44px;
+  --profile-header-expanded: 132px;
+  --profile-header-collapse-distance: 68px;
   position: relative; z-index: 3;
   flex: 0 0 var(--profile-header-height, var(--profile-header-expanded));
   height: var(--profile-header-height, 156px);
   min-height: var(--profile-header-height, 156px);
   box-sizing: border-box; overflow: hidden; overflow-anchor: none; isolation: isolate;
-  background: var(--vyra-bg-surface);
-  border-top-left-radius: 1rem; border-top-right-radius: 1rem;
-  border-bottom: 1px solid var(--vyra-border-subtle);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   transition: height 180ms ease-out, flex-basis 180ms ease-out, min-height 180ms ease-out;
 }
 .profile-collapse-header--search {
@@ -21,9 +21,11 @@
 .profile-collapse-description, .profile-collapse-action { position: absolute; z-index: 2; }
 .profile-collapse-back {
   top: 12px; left: 24px; display: inline-flex; align-items: center; gap: 7px;
-  width: 210px; max-width: calc(100% - 24px); box-sizing: border-box;
+  width: calc(36px + 174px * (1 - var(--profile-header-progress, 0)));
+  max-width: calc(100% - 24px); box-sizing: border-box;
   overflow: hidden; white-space: nowrap; border-radius: 9px; padding: 7px 8px;
   color: var(--vyra-text-secondary); font-size: 14px; font-weight: 500;
+  transition: width 180ms ease-out, background-color 140ms ease-out, color 140ms ease-out;
 }
 .profile-collapse-back:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
 .profile-collapse-back svg { flex: 0 0 16px; }
@@ -38,11 +40,11 @@
   display: grid; width: var(--profile-header-icon-size, 44px); height: var(--profile-header-icon-size, 44px);
   place-items: center; border-radius: 12px; background: var(--vyra-bg-subtle);
   color: var(--vyra-accent-primary);
-  transform: rotate(var(--profile-header-icon-rotation, 0deg));
+  transform: none;
   transform-origin: center center;
   backface-visibility: hidden;
   will-change: transform;
-  transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out, transform 180ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out;
 }
 .profile-collapse-icon > * { width: 22px; height: 22px; }
 .profile-collapse-title {
@@ -65,6 +67,28 @@
   top: calc(56px - var(--profile-header-action-shift, 0px)); right: 24px;
   transition: top 180ms ease-out, right 180ms ease-out;
 }
+.profile-collapse-details-action {
+  position: absolute; z-index: 4;
+  top: calc(56px - var(--profile-header-action-shift, 0px));
+  right: 24px;
+  transition: top 180ms ease-out, right 180ms ease-out;
+}
+.profile-storyboard-details-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: calc(148px - 112px * var(--profile-header-progress, 0)); height: 34px; overflow: hidden; white-space: nowrap;
+  border: 1px solid var(--vyra-border); border-radius: 10px;
+  padding: 0 10px; background: var(--vyra-bg-surface);
+  color: var(--vyra-text-secondary); font-size: 11px; font-weight: 600;
+  transition: width 180ms ease-out, padding 180ms ease-out, background 140ms ease-out;
+}
+.profile-storyboard-details-toggle:hover { background: var(--vyra-bg-hover); color: var(--vyra-text-primary); }
+.profile-storyboard-details-toggle svg { flex: 0 0 16px; }
+.profile-storyboard-details-toggle span {
+  max-width: calc(106px - 112px * var(--profile-header-progress, 0)); overflow: hidden; opacity: calc(1 - var(--profile-header-progress, 0));
+  transition: opacity 100ms linear, max-width 180ms ease-out;
+}
+.profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: calc(184px - 112px * var(--profile-header-progress, 0)); }
+
 /* Keep one real button: fixed icon/text spacing, right edge anchored during collapse. */
 .profile-create-button {
   box-sizing: border-box;
@@ -137,17 +161,56 @@
   overflow: hidden;
   overflow-anchor: none;
 }
-/* Bottom corners emerge gradually as the final content approaches the scroll edge. */
+/* Profile subpages share the same edge-to-edge, flat surface as the Storyboard editor. */
 .profile-subpage-card {
-  border-bottom-left-radius: var(--profile-card-bottom-radius, 0px) !important;
-  border-bottom-right-radius: var(--profile-card-bottom-radius, 0px) !important;
-  transition: border-bottom-left-radius 180ms ease-out, border-bottom-right-radius 180ms ease-out;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.profile-subpage-card .profile-collapse-header {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
 }
 .profile-subpage-content {
+  background: transparent !important;
+}
+.storyboard-fullscreen-card {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  transition: none !important;
+}
+
+/* Keep the Storyboard header fixed while giving the editor body a definite,
+   shrinkable scroll viewport on desktop and touch devices. */
+.storyboard-fullscreen-card {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+.storyboard-fullscreen-card > .profile-collapse-shell {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.storyboard-fullscreen-card > .profile-subpage-content {
+  display: block;
+  flex: 1 1 0%;
+  height: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-x;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+ .profile-subpage-content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  touch-action: pan-x;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
@@ -195,10 +258,13 @@
 }
 .profile-collapse-search > * { width: 100%; }
 @media (max-width: 639px) {
-  .profile-collapse-header { --profile-header-expanded: 142px; }
+  .profile-collapse-header { --profile-header-expanded: 126px; --profile-header-collapse-distance: 62px; }
   .profile-collapse-header--search { --profile-header-expanded: 198px; }
   .profile-collapse-search { left: 12px; right: 12px; bottom: 10px; }
-  .profile-collapse-back { left: 12px; width: 190px; }
+  .profile-collapse-back {
+    left: 12px;
+    width: calc(36px + 154px * (1 - var(--profile-header-progress, 0)));
+  }
   .profile-collapse-icon { left: calc(12px + var(--profile-header-shift-x, 0px)); }
   .profile-collapse-title {
     left: calc(64px + var(--profile-header-title-shift-x, 0px)); right: 12px;
@@ -207,4 +273,170 @@
   .profile-collapse-header:has(.profile-collapse-action) .profile-collapse-title { right: 116px; }
   .profile-collapse-description { left: 64px; }
   .profile-collapse-action { right: 12px; }
+  .profile-collapse-details-action { right: 12px; }
+  .profile-storyboard-details-toggle { width: calc(132px - 96px * var(--profile-header-progress, 0)); }
+  .profile-storyboard-details-toggle span { max-width: calc(90px - 96px * var(--profile-header-progress, 0)); }
+  .profile-collapse-header:has(.profile-collapse-details-action) .profile-collapse-title { right: calc(156px - 96px * var(--profile-header-progress, 0)); }
+}
+
+/* Storyboard title header collapses independently from its pinned controls. */
+.profile-collapse-header--storyboard-title {
+  --profile-header-height: var(--profile-header-expanded);
+  flex: 0 0 var(--profile-header-height);
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--vyra-bg-canvas);
+}
+.profile-collapse-header--storyboard-title .profile-collapse-top {
+  position: relative;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  transition: height 180ms ease-out, min-height 180ms ease-out;
+}
+.profile-storyboard-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  background: var(--vyra-bg-canvas);
+}
+.profile-storyboard-details-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 220ms ease, opacity 160ms ease, padding 220ms ease;
+}
+.profile-storyboard-details-panel-inner { min-height: 0; overflow: hidden; padding: 0 16px 10px; }
+.profile-storyboard-details-panel.is-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.profile-storyboard-details-panel.is-closed .profile-storyboard-details-panel-inner { padding-top: 0; padding-bottom: 0; }
+.profile-storyboard-preview { padding: 0 16px; }
+.profile-storyboard-view-tabs { padding: 0 16px; background: var(--vyra-bg-canvas); }
+.profile-collapse-header--storyboard-title .profile-collapse-description { right: 170px; }
+.profile-collapse-header--storyboard-title:has(.profile-collapse-details-action) .profile-collapse-title {
+  right: calc(184px - 112px * var(--profile-header-progress, 0));
+}
+@media (max-width: 639px) {
+  .profile-storyboard-details-panel-inner { padding-left: 16px; padding-right: 16px; }
+  .profile-storyboard-preview { padding-left: 16px; padding-right: 16px; }
+  .profile-storyboard-view-tabs { padding-left: 16px; padding-right: 16px; }
+}
+
+
+/* Storyboard Editor: preserve the shared subpage sizing contract, but keep
+   the outer content viewport fixed. Only the active workspace pane scrolls. */
+.storyboard-fullscreen-card > .profile-subpage-content {
+  display: flex !important;
+  flex: 1 1 0% !important;
+  flex-direction: column !important;
+  width: 100%;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 100%;
+  overflow: hidden !important;
+  touch-action: auto !important;
+  overscroll-behavior: contain;
+  padding-top: 0;
+}
+.storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
+  position: relative;
+  top: auto;
+  flex: 0 0 auto;
+}
+.storyboard-fullscreen-card > .profile-subpage-content > div:has(> section),
+.storyboard-fullscreen-card > .profile-subpage-content > div:has(> .master-editor-scroll-pane) {
+  min-height: 0;
+}
+.storyboard-fullscreen-card .storyboard-editor-pane {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Storyboard playback controls stay pinned beneath the title header while
+   the Scenes or Master Editor workspace scrolls underneath. */
+.storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+  background: var(--vyra-bg-canvas);
+}
+.profile-storyboard-preview {
+  padding: 0 16px;
+}
+.profile-storyboard-view-tabs {
+  padding: 0 16px;
+}
+@media (min-width: 640px) {
+  .storyboard-fullscreen-card > .profile-subpage-content > .profile-storyboard-controls {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .profile-storyboard-preview,
+  .profile-storyboard-view-tabs {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* While a finger or wheel gesture is active, header geometry follows the
+   gesture directly; transitions are reserved for the release snap. */
+html.is-header-dragging header,
+html.is-header-dragging .profile-collapse-header,
+html.is-header-dragging .profile-collapse-header *,
+html.is-header-dragging .vyra-global-header-spacer {
+  transition: none !important;
+}
+
+
+/* The Storyboard Preview is resized only by dragging the Editor View Switcher.
+   The preview stays visible while its narrower footprint reveals more workspace. */
+.profile-storyboard-preview-frame {
+  width: var(--storyboard-preview-frame-width, 100%);
+  transition: width 220ms cubic-bezier(.2,.75,.25,1);
+}
+.profile-storyboard-view-tabs {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: ns-resize;
+}
+html.is-storyboard-preview-dragging .profile-storyboard-preview-frame {
+  transition: none !important;
+}
+
+
+/* Hide the horizontal Master Editor tool scroller in every browser. */
+.master-editor-toolbar-scroll {
+  min-width: 0;
+  /* Let this region pan horizontally only; do not hand vertical gestures
+     from the toolbar to the page underneath it. */
+  touch-action: pan-x pinch-zoom;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.master-editor-toolbar-scroll::-webkit-scrollbar,
+.master-editor-toolbar-scroll::-webkit-scrollbar-track,
+.master-editor-toolbar-scroll::-webkit-scrollbar-thumb {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }

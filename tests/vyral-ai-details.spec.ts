@@ -192,3 +192,20 @@ test('late AI analysis merges into the latest creator-edited Asset details', () 
   assert.equal(saved.fields.category.value, 'Illustration');
   assert.equal(saved.fields.style.value, 'Minimal');
 });
+
+test('AI detail parser preserves canonical semantic DNA fields and not-applicable values', () => {
+  const parsed = parseVyralAiSuggestions(JSON.stringify({
+    subject: { value: 'One solid red circle', confidence: 0.99 },
+    composition: { value: 'Single centered subject', confidence: 0.98 },
+    geometry: { value: { shape: 'circle', count: 1 }, confidence: 0.97 },
+    spatial_layout: { value: { horizontal: 'center', vertical: 'center' }, confidence: 0.96 },
+    color_palette: { value: ['red', 'near-white'], confidence: 0.95 },
+    background: { value: 'near-white square canvas', confidence: 0.98 },
+    style: { value: 'minimal flat graphic', confidence: 0.94 },
+    text_presence: { value: { status: 'not_applicable', reason: 'No visible text' }, confidence: 0.99 },
+  }));
+  assert.equal(parsed.subject.value, 'One solid red circle');
+  assert.deepEqual(parsed.geometry.value, { shape: 'circle', count: 1 });
+  assert.deepEqual(parsed.text_presence.value, { status: 'not_applicable', reason: 'No visible text' });
+  assert.equal(parsed.color_palette.confidence, 0.95);
+});

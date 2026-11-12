@@ -232,6 +232,7 @@ Deno.serve(async (request: Request) => {
     const chunkStoragePaths: string[] = [];
     const storage = context.supabaseAdmin.storage.from(BUCKET);
     const prefix = userId + '/' + asset.vyral_id + '/' + asset.id + '/dna/file/v1/' + recordId + '/chunks/';
+    let verificationStage = 'persist-reconstruction-chunks';
     try {
       // Persist the actual DNA payload, not merely hashes derived transiently
       // from the original source. Every stored chunk is read back and verified.
@@ -250,6 +251,7 @@ Deno.serve(async (request: Request) => {
         chunkMetadata.push({ index, byte_length: chunk.byteLength, sha256: digest, package_path: packagePath });
       }
 
+      verificationStage = 'read-back-reconstruction-chunks';
       const rebuilt = new Uint8Array(actualSize);
       let rebuiltOffset = 0;
       for (let index = 0; index < chunkStoragePaths.length; index += 1) {
@@ -278,6 +280,7 @@ Deno.serve(async (request: Request) => {
           chunks: chunkMetadata,
         },
       };
+      verificationStage = 'persist-verified-dna-record';
       const updatedPayload = {
         ...payload,
         dna_record: updatedRecord,
@@ -297,13 +300,14 @@ Deno.serve(async (request: Request) => {
             verified_at: verifiedAt,
             verification_method: 'persisted-dna-chunk-readback',
           },
-          verification_status: 'verified',
+          verification_status: 'independently_verified',
         })
         .eq('id', fileDnaRow.id)
         .eq('asset_id', asset.id)
         .eq('user_id', userId);
       if (dnaUpdateError) throw new Error('Exact File DNA was reconstructed but its verified payload could not be saved.');
 
+      verificationStage = 'inspect-exact-readback-evidence';
       const { data: existingExactTest, error: exactTestLookupError } = await context.supabaseAdmin
         .from('vyral_reconstruction_tests')
         .select('id')
@@ -318,6 +322,7 @@ Deno.serve(async (request: Request) => {
         .maybeSingle();
       if (exactTestLookupError) throw new Error('Could not inspect existing exact reconstruction evidence.');
       if (!existingExactTest) {
+        verificationStage = 'persist-exact-readback-evidence';
         const { error: exactTestInsertError } = await context.supabaseAdmin
           .from('vyral_reconstruction_tests')
           .insert({
@@ -359,6 +364,8 @@ Deno.serve(async (request: Request) => {
       return json({
         error: error instanceof Error ? error.message : 'File DNA exact reconstruction failed.',
         status: 'file_dna_verification_failed',
+        stage: verificationStage,
+        detail: error instanceof Error ? error.message : 'Unknown File DNA verification error.',
         assetId: asset.id,
         versionId: version.id,
       }, 409);

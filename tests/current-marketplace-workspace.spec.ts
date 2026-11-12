@@ -34,19 +34,15 @@ for (const viewport of viewports) {
   });
 }
 
-test('Marketplace search and category filters update the visible assets', async ({ page }) => {
+test('Marketplace does not display fictional demo listings', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
-  await expect(page.getByText('Story Character Pack')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Characters', exact: true }).click();
-  await expect(page.getByText('Milo — The Explorer')).toBeVisible();
-  await expect(page.getByText('Neon City at Night')).toHaveCount(0);
-
-  await page.getByRole('button', { name: 'All', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Search marketplace' }).fill('Neon City');
-  await expect(page.getByText('Neon City at Night')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Marketplace', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No Vyrals listed yet' })).toBeVisible();
+  await expect(page.getByText('Story Character Pack')).toHaveCount(0);
   await expect(page.getByText('Milo — The Explorer')).toHaveCount(0);
+  await expect(page.getByText('Neon City at Night')).toHaveCount(0);
 });
 
 test('Workspace opens the Vyral and media libraries and storyboard creation entry', async ({ page }) => {

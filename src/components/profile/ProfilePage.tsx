@@ -8,7 +8,9 @@ import {
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
+import { GeminiProviderSettings } from './GeminiProviderSettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
+import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type ProfilePageProps = {
@@ -76,45 +78,14 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
   'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Language preferences are coming soon.' },
   'setting-notifications': { title: 'Notifications', description: 'Choose which alerts and updates you receive.', icon: Bell, note: 'Notification preferences are coming soon.' },
   'setting-billing': { title: 'Plans & Billing', description: 'Manage your subscription, credits, payments and invoices.', icon: CreditCard, note: 'Plans and billing controls are coming soon.' },
-  'setting-ai': { title: 'AI Providers & API Keys', description: 'Manage connected AI providers and API keys.', icon: KeyRound, note: 'AI provider and API key management is coming soon.' },
+  'setting-ai': { title: 'AI Providers & API Keys', description: 'Manage connected AI providers and API keys.', icon: KeyRound, note: 'Securely connect the AI providers used by VYRA.' },
   'setting-legal': { title: 'Terms & Legal', description: 'Review VYRA terms of service and privacy information.', icon: LockKeyhole, note: 'Legal documents are coming soon.' },
   'setting-about': { title: 'About VYRA', description: 'Platform information, version and product details.', icon: Monitor, note: 'VYRA platform information is coming soon.' },
   help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
 };
 
-const updateProfileCardBottomRadius = (content: HTMLElement) => {
-  const card = content.closest<HTMLElement>('.profile-subpage-card');
-  if (!card) return;
-  const remaining = Math.max(0, content.scrollHeight - content.clientHeight - content.scrollTop);
-  const bottomProgress = Math.max(0, Math.min(1, 1 - remaining / 120));
-  const headerProgress = Math.max(0, Math.min(1, content.scrollTop / 88));
-  card.style.setProperty('--profile-card-bottom-radius', (16 * bottomProgress).toFixed(2) + 'px');
-  const header = card.querySelector<HTMLElement>('.profile-collapse-header');
-  if (header) {
-    const expandedHeight = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-expanded')) || 156;
-    header.style.setProperty('--profile-header-progress', headerProgress.toFixed(3));
-    const collapseDistance = Number.parseFloat(getComputedStyle(header).getPropertyValue('--profile-header-collapse-distance')) || 44;
-    header.style.setProperty('--profile-header-height', (expandedHeight - collapseDistance * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-shift-y', (44 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-rotation', (360 * headerProgress) + 'deg');
-    header.style.setProperty('--profile-header-title-shift-y', (40 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-title-shift-x', (48 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-icon-size', (44 - 8 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-title-size', ((window.innerWidth < 640 ? 21 : 24) - 4 * headerProgress) + 'px');
-    header.style.setProperty('--profile-header-action-shift', (42 * headerProgress) + 'px');
-    header.style.setProperty('--profile-back-label-opacity', (1 - Math.min(1, headerProgress / 0.15)).toFixed(3));
-    header.style.setProperty('--profile-description-shift', (-8 * headerProgress) + 'px');
-    header.style.setProperty('--profile-full-action-events', headerProgress < 0.5 ? 'auto' : 'none');
-    header.style.setProperty('--profile-compact-action-events', headerProgress >= 0.5 ? 'auto' : 'none');
-    const fullAction = header.querySelector<HTMLElement>('.profile-collapse-action-full');
-    const compactAction = header.querySelector<HTMLElement>('.profile-collapse-action-compact');
-    const compactMode = headerProgress >= 0.5;
-    fullAction?.toggleAttribute('inert', compactMode);
-    fullAction?.setAttribute('aria-hidden', String(compactMode));
-    compactAction?.toggleAttribute('inert', !compactMode);
-    compactAction?.setAttribute('aria-hidden', String(!compactMode));
-  }
+const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
+  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
 };
 
 const searchableProfilePages = new Set<PageKey>(['my-media-library', 'saved', 'purchased', 'collections', 'following', 'notifications', 'settings', 'help']);
@@ -141,15 +112,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [activePage]);
   React.useLayoutEffect(() => {
+    // Every Profile subpage starts with the global header fully visible.
+    // A page that supports header hiding must not leak that state into the next page.
+    document.documentElement.style.setProperty('--vyra-main-header-progress', '0');
+    document.documentElement.style.setProperty('--vyra-header-spacer-collapse', '0px');
+    document.documentElement.classList.remove('is-header-dragging');
+    window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
-    if (content) updateProfileCardBottomRadius(content);
+    if (content) updateProfileHeaderCompact(content);
   }, [activePage]);
   const balance = creditLoading ? '…' : creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
   const goHome = () => setActivePage('home');
 
   return (
-    <main className="profile-page-main mx-auto w-full max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10">
+    <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
       {activePage === 'home' ? (
         <>
           <section className="mb-7">
@@ -199,9 +176,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </>
       ) : activePage === 'my-vyrals' ? (
-        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={onBack} backLabel={backLabel} onSendAssetsToChat={onSendAssetsToChat} />
+        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
       ) : (
-        <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+        <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
             backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
@@ -210,7 +187,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             description={pageInfo[activePage].description}
             search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />
-          <div className="profile-subpage-content p-5 sm:p-6" onScroll={(event) => updateProfileCardBottomRadius(event.currentTarget)}>
+          <div className="profile-subpage-content p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
@@ -253,6 +230,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </div>
                 </div>
               </div>
+            ) : activePage === 'setting-ai' ? (
+              <GeminiProviderSettings />
             ) : activePage.startsWith('setting-') ? (
               <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
                 <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />

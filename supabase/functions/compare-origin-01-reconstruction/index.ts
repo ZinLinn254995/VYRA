@@ -1,4 +1,6 @@
 import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
+import { compareVyralDHash64, computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../_shared/perceptual-fingerprint.ts';
+import { compareNormalizedRaster, compareRedMaskIoU } from '../_shared/reconstruction-metrics.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
@@ -66,8 +68,11 @@ const decodeRgb = async (bytes: Uint8Array) => ImageMagick.read(bytes, (image) =
     throw new Error('Image dimensions exceed the supported 8-megapixel comparison limit.');
   }
   const pixels = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgb')?.slice() ?? null);
-  if (!pixels || pixels.byteLength !== width * height * 3) throw new Error('Could not decode a complete RGB pixel buffer.');
-  return { width, height, rgb: pixels };
+  const rgba = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgba')?.slice() ?? null);
+  if (!pixels || pixels.byteLength !== width * height * 3 || !rgba || rgba.byteLength !== width * height * 4) {
+    throw new Error('Could not decode complete RGB and RGBA pixel buffers.');
+  }
+  return { width, height, rgb: pixels, rgba };
 });
 
 const samplePatch = (rgb: Uint8Array, width: number, height: number, x0: number, y0: number, patchWidth: number, patchHeight: number) => {
@@ -126,52 +131,6 @@ const describeImage = (image: { width: number; height: number; rgb: Uint8Array }
   return { width, height, backgroundCornerAverageRgb: background, centerRgb: center, redRegion };
 };
 
-const compareNormalizedGridRgb = (
-  a: { width: number; height: number; rgb: Uint8Array },
-  b: { width: number; height: number; rgb: Uint8Array },
-) => {
-  const aspectA = a.width / a.height;
-  const aspectB = b.width / b.height;
-  const aspectRatioDelta = Math.abs(aspectA - aspectB);
-  if (aspectRatioDelta > 0.001) {
-    return {
-      performed: false,
-      reason: 'Aspect ratios differ; normalized full-image comparison is withheld to avoid silently stretching or cropping either image.',
-      gridWidth: null, gridHeight: null,
-    };
-  }
-
-  // Sample both complete images at corresponding normalized cell centers.
-  // This is a resized-grid comparison, not decoded-pixel equality or SSIM.
-  const gridWidth = Math.max(1, Math.round(256 * Math.min(1, aspectA)));
-  const gridHeight = Math.max(1, Math.round(256 / Math.max(1, aspectA)));
-  let absoluteError = 0;
-  const sampleCount = gridWidth * gridHeight * 3;
-  for (let gy = 0; gy < gridHeight; gy++) {
-    const ay = Math.min(a.height - 1, Math.floor((gy + 0.5) * a.height / gridHeight));
-    const by = Math.min(b.height - 1, Math.floor((gy + 0.5) * b.height / gridHeight));
-    for (let gx = 0; gx < gridWidth; gx++) {
-      const ax = Math.min(a.width - 1, Math.floor((gx + 0.5) * a.width / gridWidth));
-      const bx = Math.min(b.width - 1, Math.floor((gx + 0.5) * b.width / gridWidth));
-      const ai = (ay * a.width + ax) * 3;
-      const bi = (by * b.width + bx) * 3;
-      absoluteError += Math.abs(a.rgb[ai] - b.rgb[bi]);
-      absoluteError += Math.abs(a.rgb[ai + 1] - b.rgb[bi + 1]);
-      absoluteError += Math.abs(a.rgb[ai + 2] - b.rgb[bi + 2]);
-    }
-  }
-  const meanAbsoluteError = absoluteError / sampleCount;
-  return {
-    performed: true,
-    gridWidth,
-    gridHeight,
-    sampleCount: gridWidth * gridHeight,
-    meanAbsoluteErrorPerChannel: round(meanAbsoluteError),
-    normalizedGridRgbSimilarity: round(Math.max(0, 1 - meanAbsoluteError / 255)),
-    aspectRatioDelta: round(aspectRatioDelta),
-    method: 'Nearest-neighbor samples at corresponding normalized cell centers across the full image; no crop or aspect-ratio distortion. Not SSIM and not exact pixel equality.',
-  };
-};
 
 const compareGeometry = (a: ReturnType<typeof describeImage>, b: ReturnType<typeof describeImage>) => {
   if (!a.redRegion || !b.redRegion) return { available: false, reason: 'A red-dominant region was not detected in both images.' };
@@ -421,6 +380,11 @@ Deno.serve(async (request: Request) => {
   }
   const originalDescription = describeImage(originalImage);
   const candidateDescription = describeImage(candidateImage);
+  // Calculate the same deterministic dHash from the verified decoded source bytes.
+  // This supplements (but never replaces) direct pixel and geometry comparisons.
+  const originalDHash = computeVyralDHash64(originalImage.rgba, originalImage.width, originalImage.height, 4);
+  const candidateDHash = computeVyralDHash64(candidateImage.rgba, candidateImage.width, candidateImage.height, 4);
+  const dHashComparison = compareVyralDHash64(originalDHash, candidateDHash);
   const sameDimensions = originalImage.width === candidateImage.width && originalImage.height === candidateImage.height;
   let pixelComparison: Record<string, unknown> = { performed: false, reason: 'Image dimensions differ; direct pixel-to-pixel comparison is not valid.' };
   let exactMatch: boolean | null = false;
@@ -449,7 +413,8 @@ Deno.serve(async (request: Request) => {
   }
 
   const geometry = compareGeometry(originalDescription, candidateDescription);
-  const normalizedImageComparison = compareNormalizedGridRgb(originalImage, candidateImage);
+  const normalizedImageComparison = compareNormalizedRaster(originalImage, candidateImage);
+  const redMaskComparison = compareRedMaskIoU(originalImage, candidateImage);
   const backgroundDelta = originalDescription.backgroundCornerAverageRgb && candidateDescription.backgroundCornerAverageRgb
     ? round(Math.sqrt(originalDescription.backgroundCornerAverageRgb.reduce((sum, value, index) => sum + Math.pow(value - candidateDescription.backgroundCornerAverageRgb![index], 2), 0)))
     : null;
@@ -469,6 +434,16 @@ Deno.serve(async (request: Request) => {
       sameDimensions,
       pixelComparison,
       normalizedImageComparison,
+      redRegionMaskComparison: redMaskComparison,
+      visualFingerprintComparison: {
+        algorithm: VYRAL_DHASH_ALGORITHM,
+        originalHash: originalDHash,
+        candidateHash: candidateDHash,
+        hammingDistance: dHashComparison?.hammingDistance ?? null,
+        similarity: dHashComparison?.similarity ?? null,
+        method: '64-bit horizontal difference hash computed from the same verified decoded RGB samples.',
+        note: 'Perceptual estimate only; not a pixel-equality, semantic-identity, or reconstruction-success criterion.',
+      },
       backgroundCornerColorEuclideanDelta: backgroundDelta,
       redRegionGeometry: geometry,
       dimensionsMatch: sameDimensions,

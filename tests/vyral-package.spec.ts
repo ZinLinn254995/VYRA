@@ -15,6 +15,7 @@ import {
   createVyralAssetDnaOnlyPackage,
   createVyralSemanticDnaPackage,
   getVyralPackageAssetsForImport,
+  isVyralPackageAsset,
   selectVyralPackageComponents,
   reconstructVyralDnaV3FromPackage,
   reconstructVyralFileDnaFromPackage,
@@ -25,6 +26,17 @@ import { createVyralMasterDnaV1 } from '../src/services/vyralMasterDnaV1.ts';
 import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
 import { VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../src/services/vyralPortableReconstruction.ts';
 import { verifyVyralSystemFileIntegrityV1 } from '../src/services/vyralSystemFilesV1.ts';
+
+test('semantic reconstruction excludes uploaded .vyral package fixtures but keeps them importable', () => {
+  assert.equal(isVyralPackageAsset({ name: 'ORIGIN-01-DNA-ONLY-TEST.vyral', mime_type: VYRAL_PACKAGE_FORMAT }), true);
+  assert.equal(isVyralPackageAsset({ name: 'sample.vyral', mime_type: 'application/zip' }), true);
+  assert.equal(isVyralPackageAsset({ name: 'circle.png', mime_type: 'image/png' }), false);
+  const assets = [
+    { id: 'original-image', name: 'Original Red Circle', mime_type: 'image/png' },
+    { id: 'package-fixture', name: 'ORIGIN-01-DNA-ONLY-TEST.vyral', mime_type: VYRAL_PACKAGE_FORMAT },
+  ];
+  assert.deepEqual(getVyralPackageAssetsForImport(assets), assets);
+});
 
 test('included portable decoder reconstructs raster samples and exact binary Assets from the DNA-only package', async () => {
   const rasterSamples = new Uint8Array([255, 0, 0, 255, 0, 128, 255, 255]);

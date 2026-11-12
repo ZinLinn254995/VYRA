@@ -188,6 +188,7 @@ test('ledger-enabled Asset metadata suggestions record Google provider usage bef
     const url = new URL(String(input));
     const method = init?.method || 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    const headers = new Headers(init?.headers);
     calls.push({ url, method, body });
     if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
     if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
@@ -196,12 +197,14 @@ test('ledger-enabled Asset metadata suggestions record Google provider usage bef
     if (url.pathname === '/rest/v1/provider_attempts' && method === 'POST') {
       return Response.json([{ id: ATTEMPT_ID }], { status: 201 });
     }
-    if (url.hostname === 'generativelanguage.googleapis.com') {
+    if (url.pathname === '/functions/v1/vyra-gemini-proxy') {
+      assert.equal(headers.get('Authorization'), 'Bearer verified-development-session');
       return Response.json({
-        candidates: [{ content: { role: 'model', parts: [{ text: '{"name":{"value":"Red Circle"},"category":{"value":"Illustration"}}' }] }, finishReason: 'STOP', index: 0 }],
-        usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 12, totalTokenCount: 42 },
-        responseId: 'gemini-generation-001',
-        modelVersion: 'gemini-2.5-flash',
+        text: '{"name":{"value":"Red Circle"},"category":{"value":"Illustration"}}',
+        modelName: 'gemini-3.8-flash',
+        provider: 'gemini',
+        usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
+        generationId: 'gemini-generation-001',
       });
     }
     if (url.pathname === '/rest/v1/provider_attempts' && method === 'PATCH') return new Response(null, { status: 204 });

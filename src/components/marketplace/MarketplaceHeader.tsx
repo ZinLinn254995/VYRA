@@ -28,7 +28,11 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
     const element = headerRef.current;
     if (!element) return;
     const syncHeaderHeight = () => {
-      document.documentElement.style.setProperty('--vyra-global-header-height', `${Math.ceil(element.getBoundingClientRect().height)}px`);
+      const height = Math.ceil(element.getBoundingClientRect().height);
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-global-header-height', `${height}px`);
+      const progress = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0;
+      root.style.setProperty('--vyra-header-spacer-collapse', `${height * progress}px`);
     };
     syncHeaderHeight();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncHeaderHeight) : null;
@@ -37,6 +41,22 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
       observer?.disconnect();
       document.documentElement.style.removeProperty('--vyra-global-header-height');
     };
+  }, []);
+
+  useEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+    const applyProgress = (progress: number) => {
+      const value = Math.max(0, Math.min(1, progress));
+      element.style.transform = `translateY(${-100 * value}%)`;
+      element.style.pointerEvents = value >= 0.999 ? 'none' : 'auto';
+      element.setAttribute('aria-hidden', String(value >= 0.999));
+      element.style.transition = document.documentElement.classList.contains('is-header-dragging') ? 'none' : 'transform 180ms ease-out';
+    };
+    const handleProgress = (event: Event) => applyProgress(Number((event as CustomEvent<number>).detail) || 0);
+    applyProgress(Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-main-header-progress')) || 0);
+    window.addEventListener('vyra:main-header-progress', handleProgress);
+    return () => window.removeEventListener('vyra:main-header-progress', handleProgress);
   }, []);
 
   useEffect(() => {

@@ -81,7 +81,32 @@ function MarketplaceApp() {
     catch { /* Keep the current account visible if the remote sign-out could not be confirmed. */ }
   };
 
-  useLayoutEffect(() => { window.scrollTo(0, 0); }, [activeSection, profileOpen]);
+  useEffect(() => {
+    // This dimension is static for the mounted app. Cache it outside the
+    // progress listener to avoid a computed-style/layout read on every drag frame.
+    const headerHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vyra-global-header-height')) || 64;
+    const handleHeaderProgress = (event: Event) => {
+      const progress = Math.max(0, Math.min(1, Number((event as CustomEvent<number>).detail) || 0));
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-main-header-progress', String(progress));
+      root.style.setProperty('--vyra-header-spacer-collapse', `${headerHeight * progress}px`);
+    };
+    window.addEventListener('vyra:main-header-progress', handleHeaderProgress);
+    return () => window.removeEventListener('vyra:main-header-progress', handleHeaderProgress);
+  }, []);
+
+  const resetMainHeaderVisibility = () => {
+    const root = document.documentElement;
+    root.style.setProperty('--vyra-main-header-progress', '0');
+    root.style.setProperty('--vyra-header-spacer-collapse', '0px');
+    root.classList.remove('is-header-dragging');
+    window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
+  };
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    resetMainHeaderVisibility();
+  }, [activeSection, profileOpen]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -93,18 +118,18 @@ function MarketplaceApp() {
   const seedDemoStoryboards = user?.email?.trim().toLowerCase() === 'zla264995@gmail.com';
 
   return (
-    <div className={`flex ${profileOpen && user ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
+    <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <MarketplaceHeader
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
-        onMarketplaceRequest={() => { setProfileOpen(false); setActiveSection('marketplace'); }}
-        onWorkspaceRequest={() => { setProfileOpen(false); setActiveSection('workspace'); }}
-        onAIChatRequest={() => { setProfileOpen(false); setActiveSection('ai-chat'); }}
+        onMarketplaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('marketplace'); }}
+        onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
+        onAIChatRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
-        onProfileClick={() => { setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
+        onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
-      <div aria-hidden="true" className="h-[109px] w-full shrink-0 sm:h-16" />
-      <div className={`min-h-0 flex-1 ${profileOpen && user ? "overflow-hidden" : ""}`}>
+      <div aria-hidden="true" className="vyra-global-header-spacer w-full shrink-0" style={{ height: 'calc(var(--vyra-global-header-height, 64px) - var(--vyra-header-spacer-collapse, 0px))', transition: 'height 180ms ease-out' }} />
+      <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
         <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
           {profileOpen && user ? (
             <ProfilePage

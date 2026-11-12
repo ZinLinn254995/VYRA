@@ -1,15 +1,25 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Clapperboard, Film, Images, Plus, X } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ConfirmationDialog } from '../ui/ConfirmationDialog';
 import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
+import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from '../profile/headerScrollMotion';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
+import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
+type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
+type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; content?: string };
+type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
+type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
+type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline };
+type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
 type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
 
@@ -19,7 +29,20 @@ const readStoryboards = (key: string): Storyboard[] => {
     return Array.isArray(value) ? value.filter((item): item is Storyboard =>
       Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
       typeof item.topic === 'string' && typeof item.createdAt === 'string' && typeof item.updatedAt === 'string'
-    ) : [];
+    ).map((storyboard) => ({
+      ...storyboard,
+      details: storyboard.details ? {
+        ...storyboard.details,
+        scenes: (storyboard.details.scenes || []).map((scene) => {
+          if (scene.project?.id) return scene;
+          const now = new Date().toISOString();
+          return {
+            ...scene,
+            project: { id: crypto.randomUUID(), schemaVersion: 1 as const, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+          };
+        }),
+      } : storyboard.details,
+    })) : [];
   } catch { return []; }
 };
 
@@ -44,8 +67,21 @@ const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Stor
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
+const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
+  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
+};
+
+
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
+  const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
+  const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
+  const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
+  const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
+  const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
+  const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
@@ -90,7 +126,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         detailsScope: 'storyboard',
         messages: [{ role: 'user', content: [
           'Suggest useful default metadata for a storyboard. Return JSON only. Use title, topic, category, style, mood and tags where supported. Put each field in the shape {"value":"..."}; tags may use {"value":["tag"]}.',
-          'Do not invent facts. If the idea is unclear, omit uncertain details. The creator can edit every field.',
+          'Do not invent facts when an idea is supplied. If both title and idea are blank, invent one suitable original short-video concept and concise metadata. The creator can edit every field.',
           'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
         ].join('\n') }],
       }),
@@ -136,7 +172,247 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   };
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
+  const workspaceScrollRef = useRef<HTMLElement>(null);
+  const storyboardBarRef = useRef<HTMLElement>(null);
+  const workspaceHeaderProgress = useRef(0);
+  const workspaceBarTriggerScroll = useRef(0);
+  const workspaceHeaderHeight = useRef(64);
+  const workspaceTouchY = useRef<number | null>(null);
+  const workspaceHeaderDirection = useRef(0);
+  const workspaceHeaderStartProgress = useRef(0);
+  const workspaceHeaderHandoff = useRef(0);
+  const workspaceHeaderSettleTimer = useRef<number | null>(null);
+  const storyboardControlsRef = useRef<HTMLDivElement>(null);
+  const storyboardPreviewFrameRef = useRef<HTMLDivElement>(null);
+  const storyboardPreviewProgress = useRef(0);
+  const storyboardPreviewDrag = useRef<{ startY: number; lastY: number; lastAt: number; velocity: number; startProgress: number; moved: boolean; distance: number } | null>(null);
+  const storyboardPreviewSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
+
+  // Measure the sticky handoff point and fixed header dimensions once. Reading
+  // layout geometry/computed styles on every touchmove forces synchronous
+  // layout while the spacer and sticky bar are both changing.
+  useLayoutEffect(() => {
+    const scroller = workspaceScrollRef.current;
+    const bar = storyboardBarRef.current;
+    const root = document.documentElement;
+    workspaceHeaderProgress.current = Math.max(0, Math.min(1, Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-main-header-progress')) || 0));
+    workspaceHeaderHeight.current = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vyra-global-header-height')) || 64;
+    if (scroller && bar) {
+      workspaceBarTriggerScroll.current = Math.max(0, bar.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+    }
+  }, []);
+
+  const settleWorkspaceMainHeader = () => {
+    if (workspaceHeaderSettleTimer.current !== null) {
+      window.clearTimeout(workspaceHeaderSettleTimer.current);
+      workspaceHeaderSettleTimer.current = null;
+    }
+    if (workspaceHeaderDirection.current === 0) return;
+    const root = document.documentElement;
+    const current = workspaceHeaderProgress.current;
+    // Match Profile subpages: finish the active direction after release.
+    if (workspaceHeaderDirection.current < 0 && current > 0.001) {
+      workspaceHeaderProgress.current = 0;
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
+    } else if (workspaceHeaderDirection.current > 0 && current < 0.999) {
+      workspaceHeaderProgress.current = 1;
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 1 }));
+    }
+    root.classList.remove('is-header-dragging');
+    workspaceHeaderDirection.current = 0;
+    workspaceHeaderStartProgress.current = current;
+    workspaceHeaderHandoff.current = 0;
+  };
+
+  // Returns the number of scroll pixels consumed by the two-header motion.
+  // The remaining pixels are applied to the Workspace scroller manually, so
+  // native scrolling cannot race the changing global-header spacer.
+  const updateWorkspaceMainHeader = (deltaY: number, scheduleSettle = true): number => {
+    if (!deltaY) return 0;
+    const scroller = workspaceScrollRef.current;
+    const bar = storyboardBarRef.current;
+    if (!scroller || !bar) return 0;
+    const direction = deltaY > 0 ? 1 : -1;
+    const root = document.documentElement;
+    const current = workspaceHeaderProgress.current;
+    const barReachedTop = scroller.scrollTop >= workspaceBarTriggerScroll.current - 1;
+    if (direction > 0 && current <= 0.001 && !barReachedTop) return 0;
+    if (direction < 0 && current <= 0.001) return 0;
+
+    if (workspaceHeaderDirection.current !== direction) {
+      workspaceHeaderHandoff.current = 0;
+      workspaceHeaderStartProgress.current = current;
+    }
+    workspaceHeaderDirection.current = direction;
+    root.classList.add('is-header-dragging');
+
+    const handoff = direction > 0 ? 28 : 64;
+    const total = Math.abs(deltaY);
+    const buffer = Math.min(total, Math.max(0, handoff - workspaceHeaderHandoff.current));
+    workspaceHeaderHandoff.current += buffer;
+    const movement = total - buffer;
+    let moved = 0;
+    if (movement > 0) {
+      const distance = workspaceHeaderHeight.current;
+      const next = direction > 0
+        ? Math.min(1, current + movement / distance)
+        : Math.max(0, current - movement / distance);
+      moved = Math.abs(next - current) * distance;
+      if (Math.abs(next - current) > 0.0001) {
+        workspaceHeaderProgress.current = next;
+        window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: next }));
+      }
+    }
+
+    if (scheduleSettle) {
+      if (workspaceHeaderSettleTimer.current !== null) window.clearTimeout(workspaceHeaderSettleTimer.current);
+      workspaceHeaderSettleTimer.current = window.setTimeout(settleWorkspaceMainHeader, 140);
+    }
+    return Math.min(total, buffer + moved);
+  };
+
+  const handleWorkspaceWheel = (event: React.WheelEvent<HTMLElement>) => {
+    const consumed = updateWorkspaceMainHeader(event.deltaY);
+    if (consumed <= 0) return;
+    event.preventDefault();
+    const remaining = Math.abs(event.deltaY) - consumed;
+    if (remaining > 0 && workspaceScrollRef.current) {
+      workspaceScrollRef.current.scrollTop = Math.max(0, workspaceScrollRef.current.scrollTop + Math.sign(event.deltaY) * remaining);
+    }
+  };
+  const handleWorkspaceTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    if (workspaceHeaderSettleTimer.current !== null) {
+      window.clearTimeout(workspaceHeaderSettleTimer.current);
+      workspaceHeaderSettleTimer.current = null;
+    }
+    workspaceTouchY.current = event.touches[0]?.clientY ?? null;
+  };
+  const handleWorkspaceTouchMove = (event: React.TouchEvent<HTMLElement>) => {
+    const y = event.touches[0]?.clientY;
+    const scroller = workspaceScrollRef.current;
+    if (y === undefined || workspaceTouchY.current === null || !scroller) return;
+    const delta = workspaceTouchY.current - y;
+    workspaceTouchY.current = y;
+    if (!delta) return;
+    const consumed = updateWorkspaceMainHeader(delta, false);
+    // Keep vertical touch scrolling under one owner. Letting the browser's
+    // native pan compete with manual scrollTop updates causes the sticky bar
+    // and the global-header spacer to jump against each other.
+    event.preventDefault();
+    const remaining = Math.max(0, Math.abs(delta) - consumed);
+    if (remaining > 0) {
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + Math.sign(delta) * remaining);
+    }
+  };
+  const handleWorkspaceTouchEnd = () => {
+    workspaceTouchY.current = null;
+    settleWorkspaceMainHeader();
+  };
+
+  // The Editor View Switcher is a dedicated preview-size grip. Its vertical
+  // gesture is isolated from the page's Storyboard/Main Header scroll motion.
+  const setStoryboardPreviewCompactProgress = (progress: number) => {
+    const next = Math.max(0, Math.min(1, progress));
+    storyboardPreviewProgress.current = next;
+    const collapsedPercent = Math.round(next * 52 * 100) / 100;
+    storyboardControlsRef.current?.style.setProperty(
+      '--storyboard-preview-frame-width',
+      `calc(100% - ${collapsedPercent}%)`,
+    );
+  };
+
+  const settleStoryboardPreview = (target?: number) => {
+    if (storyboardPreviewSettleTimer.current !== null) {
+      window.clearTimeout(storyboardPreviewSettleTimer.current);
+      storyboardPreviewSettleTimer.current = null;
+    }
+    const next = target ?? (storyboardPreviewProgress.current >= 0.48 ? 1 : 0);
+    // Let the drag style commit before restoring the normal easing transition.
+    window.requestAnimationFrame(() => {
+      document.documentElement.classList.remove('is-storyboard-preview-dragging');
+      window.requestAnimationFrame(() => setStoryboardPreviewCompactProgress(next));
+    });
+  };
+
+  const handleStoryboardPreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch || event.touches.length !== 1) return;
+    if (storyboardPreviewSettleTimer.current !== null) {
+      window.clearTimeout(storyboardPreviewSettleTimer.current);
+      storyboardPreviewSettleTimer.current = null;
+    }
+    storyboardPreviewDrag.current = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      lastAt: Date.now(),
+      velocity: 0,
+      startProgress: storyboardPreviewProgress.current,
+      moved: false,
+      distance: 0,
+    };
+    // Do not let this gesture reach the generic page/header scroll handlers.
+    event.stopPropagation();
+  };
+
+  const handleStoryboardPreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    const drag = storyboardPreviewDrag.current;
+    if (!touch || !drag || event.touches.length !== 1) return;
+    event.stopPropagation();
+    const totalDelta = drag.startY - touch.clientY;
+    if (Math.abs(totalDelta) < 4 && !drag.moved) return;
+    drag.moved = true;
+    drag.distance = Math.abs(totalDelta);
+    const now = Date.now();
+    const elapsed = Math.max(1, now - drag.lastAt);
+    drag.velocity = (drag.lastY - touch.clientY) / elapsed;
+    drag.lastY = touch.clientY;
+    drag.lastAt = now;
+    event.preventDefault();
+    document.documentElement.classList.add('is-storyboard-preview-dragging');
+    setStoryboardPreviewCompactProgress(drag.startProgress + totalDelta / 118);
+  };
+
+  const finishStoryboardPreviewTouch = (event: React.TouchEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    const drag = storyboardPreviewDrag.current;
+    storyboardPreviewDrag.current = null;
+    if (!drag?.moved) return;
+    const current = storyboardPreviewProgress.current;
+    const flicked = drag.distance >= 24 && Math.abs(drag.velocity) >= 0.55;
+    const target = flicked ? (drag.velocity > 0 ? 1 : 0) : (current >= 0.48 ? 1 : 0);
+    settleStoryboardPreview(target);
+  };
+
+  const handleStoryboardPreviewWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.deltaY) return;
+    const current = storyboardPreviewProgress.current;
+    const next = Math.max(0, Math.min(1, current + event.deltaY / 150));
+    if (Math.abs(next - current) < 0.001) return;
+    event.preventDefault();
+    event.stopPropagation();
+    document.documentElement.classList.add('is-storyboard-preview-dragging');
+    setStoryboardPreviewCompactProgress(next);
+    if (storyboardPreviewSettleTimer.current !== null) window.clearTimeout(storyboardPreviewSettleTimer.current);
+    storyboardPreviewSettleTimer.current = window.setTimeout(() => {
+      settleStoryboardPreview();
+    }, 170);
+  };
+
+  useEffect(() => {
+    storyboardPreviewProgress.current = 0;
+    storyboardControlsRef.current?.style.setProperty('--storyboard-preview-frame-width', '100%');
+    return () => {
+      if (storyboardPreviewSettleTimer.current !== null) {
+        window.clearTimeout(storyboardPreviewSettleTimer.current);
+        storyboardPreviewSettleTimer.current = null;
+      }
+      storyboardPreviewDrag.current = null;
+      document.documentElement.classList.remove('is-storyboard-preview-dragging');
+    };
+  }, [activeStoryboard?.id]);
+
 
   useEffect(() => {
     setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
@@ -146,6 +422,22 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     if (loadedStorageKey !== storageKey) return;
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
   }, [storageKey, loadedStorageKey, storyboards]);
+
+  useEffect(() => {
+    if (!activeStoryboard || !activeStoryboardConfirmed) return;
+    const snapshot = activeStoryboard;
+    const timer = window.setTimeout(() => {
+      const saved = { ...snapshot, updatedAt: new Date().toISOString() };
+      setStoryboards((current) => current.map((item) => item.id === saved.id ? saved : item));
+      void persistStoryboard(saved);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [activeStoryboard, activeStoryboardConfirmed]);
+
+  useLayoutEffect(() => {
+    const content = document.querySelector<HTMLElement>('.profile-subpage-content');
+    if (content) updateStoryboardHeaderCompact(content);
+  }, [activeStoryboard?.id, activeStoryboard?.title, activeStoryboard?.topic, activeStoryboardConfirmed]);
 
   const persistStoryboard = async (item: Storyboard) => {
     const client = supabase;
@@ -205,7 +497,33 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     return () => { cancelled = true; };
   }, [storageKey, isAuthenticated, loadedStorageKey]);
 
-  const openStoryboardEditor = (item: Storyboard) => { setEditingStoryboardId(item.id); setEditDraft({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); };
+  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+
+  const confirmDeleteStoryboard = async () => {
+    if (!storyboardToDelete || isDeletingStoryboard) return;
+    setIsDeletingStoryboard(true);
+    const item = storyboardToDelete;
+    const client = supabase;
+    if (isAuthenticated && client && isPersistableStoryboardId(item.id)) {
+      const { data: authData, error: authError } = await client.auth.getUser();
+      if (authError || !authData.user) {
+        setCloudSyncMessage('Sign in again before deleting this Storyboard.');
+        setIsDeletingStoryboard(false);
+        return;
+      }
+      const { error: deleteError } = await client.from('vyral_storyboards')
+        .delete().eq('id', item.id).eq('user_id', authData.user.id);
+      if (deleteError) {
+        setCloudSyncMessage('Could not delete this Storyboard from the cloud. Please try again.');
+        setIsDeletingStoryboard(false);
+        return;
+      }
+    }
+    setStoryboards((current) => current.filter((storyboard) => storyboard.id !== item.id));
+    setStoryboardToDelete(null);
+    setIsDeletingStoryboard(false);
+    setCloudSyncMessage('');
+  };
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editDraft || !editingStoryboardId) return;
@@ -270,9 +588,515 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setIsSuggesting(false);
   };
 
+  const createDefaultStoryboard = () => {
+    if (!isAuthenticated) { onLoginRequired(); return; }
+    const now = new Date().toISOString();
+    const storyboard: Storyboard = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
+      title: 'A New Storyboard',
+      topic: 'A new video story is ready to take shape. Create your scenes and build your story.',
+      createdAt: now,
+      updatedAt: now,
+      details: { category: '', style: '', mood: '', tags: [], origins: {} },
+    };
+    setSelectedSceneIds([]);
+    setActiveSceneId(null);
+    setActiveStoryboard(storyboard);
+    setActiveStoryboardConfirmed(true);
+    setStoryboardDetailsExpanded(false);
+    setStoryboardEditorView('scenes');
+    setStoryboardAiMessage('Preparing default storyboard details…');
+    setStoryboards((current) => [storyboard, ...current.filter((item) => item.id !== storyboard.id)]);
+    void persistStoryboard(storyboard);
+
+    void requestStoryboardSuggestion('', '', true).then((suggestion) => {
+      if (!suggestion) { setStoryboardAiMessage('Default details are ready.'); return; }
+      setActiveStoryboard((current) => {
+        if (!current || current.id !== storyboard.id) return current;
+        const origins = current.details?.origins || {};
+        const updated: Storyboard = {
+          ...current,
+          title: origins.title === 'creator_edited' ? current.title : (suggestion.title || current.title),
+          topic: origins.topic === 'creator_edited' ? current.topic : (suggestion.topic || current.topic),
+          updatedAt: new Date().toISOString(),
+          details: {
+            ...current.details,
+            category: origins.category === 'creator_edited' ? current.details?.category : suggestion.category,
+            style: origins.style === 'creator_edited' ? current.details?.style : suggestion.style,
+            mood: origins.mood === 'creator_edited' ? current.details?.mood : suggestion.mood,
+            tags: origins.tags === 'creator_edited' ? current.details?.tags : suggestion.tags,
+            origins: {
+              ...origins,
+              ...(suggestion.title && origins.title !== 'creator_edited' ? { title: 'ai_suggested' as const } : {}),
+              ...(suggestion.topic && origins.topic !== 'creator_edited' ? { topic: 'ai_suggested' as const } : {}),
+              ...(suggestion.category && origins.category !== 'creator_edited' ? { category: 'ai_suggested' as const } : {}),
+              ...(suggestion.style && origins.style !== 'creator_edited' ? { style: 'ai_suggested' as const } : {}),
+              ...(suggestion.mood && origins.mood !== 'creator_edited' ? { mood: 'ai_suggested' as const } : {}),
+              ...(suggestion.tags.length && origins.tags !== 'creator_edited' ? { tags: 'ai_suggested' as const } : {}),
+            },
+            ai_provenance: { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt },
+          },
+        };
+        setStoryboards((items) => items.map((item) => item.id === updated.id ? updated : item));
+        void persistStoryboard(updated);
+        return updated;
+      });
+      setStoryboardAiMessage('');
+    }).catch(() => setStoryboardAiMessage('AI suggestions are unavailable. You can edit the default details anytime.'));
+  };
+
+  const cancelStoryboardDraft = () => {
+    setActiveStoryboard(null);
+    setActiveStoryboardConfirmed(false);
+    setStoryboardDetailsExpanded(true);
+    setStoryboardEditorView('scenes');
+    setStoryboardAiMessage('');
+  };
+
+  const confirmStoryboardDraft = () => {
+    if (!activeStoryboard) return;
+    const confirmed: Storyboard = {
+      ...activeStoryboard,
+      title: activeStoryboard.title.trim() || 'Untitled Storyboard',
+      topic: activeStoryboard.topic.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+    setStoryboards((current) => [confirmed, ...current.filter((item) => item.id !== confirmed.id)]);
+    void persistStoryboard(confirmed);
+    setActiveStoryboard(confirmed);
+    setActiveStoryboardConfirmed(true);
+    setStoryboardDetailsExpanded(false);
+    setStoryboardEditorView('scenes');
+    setStoryboardAiMessage('');
+  };
+
+  const updateActiveStoryboard = (field: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
+    setActiveStoryboard((current) => {
+      if (!current) return current;
+      const details = current.details || {};
+      const isDetail = field !== 'title' && field !== 'topic';
+      const origins = { ...details.origins, [field]: 'creator_edited' as const };
+      return {
+        ...current,
+        ...(field === 'title' ? { title: value } : {}),
+        ...(field === 'topic' ? { topic: value } : {}),
+        details: {
+          ...details,
+          ...(field === 'category' || field === 'style' || field === 'mood' ? { [field]: value } : {}),
+          ...(field === 'tags' ? { tags: value.split(',').map((tag) => tag.trim()).filter(Boolean) } : {}),
+          origins,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  };
+
+  const saveActiveStoryboard = () => {
+    if (!activeStoryboard || !activeStoryboardConfirmed) return;
+    const saved = { ...activeStoryboard, updatedAt: new Date().toISOString() };
+    setActiveStoryboard(saved);
+    setStoryboards((current) => current.map((item) => item.id === saved.id ? saved : item));
+    void persistStoryboard(saved);
+    setStoryboardAiMessage('Changes saved.');
+  };
+
+  if (activeStoryboard && activeSceneId) {
+    const scene = (activeStoryboard.details?.scenes || []).find((item) => item.id === activeSceneId);
+    if (scene) {
+      const updateActiveScene = (patch: Partial<StoryboardScene>) => setActiveStoryboard((current) => {
+        if (!current) return current;
+        const now = new Date().toISOString();
+        return {
+          ...current,
+          details: {
+            ...current.details,
+            scenes: (current.details?.scenes || []).map((item) => item.id === scene.id ? {
+              ...item,
+              ...patch,
+              project: item.project ? { ...item.project, updatedAt: now } : item.project,
+            } : item),
+          },
+          updatedAt: now,
+        };
+      });
+      const project: SceneProjectData = scene.project || { id: crypto.randomUUID(), schemaVersion: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), renderRevisionIds: [] };
+      const timeline: SceneProjectTimeline = project.timeline || {
+        duration: scene.duration, fps: 30, width: 1920, height: 1080, tracks: [],
+      };
+      const updateProjectTimeline = (next: SceneProjectTimeline) => updateActiveScene({
+        project: { ...project, timeline: next, updatedAt: new Date().toISOString() },
+      });
+      const updateSceneDuration = (nextDuration: number) => {
+        const duration = Math.max(0.1, Math.min(3600, nextDuration));
+        const nextTimeline: SceneProjectTimeline = {
+          ...timeline,
+          duration,
+          tracks: timeline.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((clip) => {
+              const start = Math.min(clip.start, Math.max(0, duration - 0.1));
+              return { ...clip, start, duration: Math.max(0.1, Math.min(clip.duration, duration - start)) };
+            }),
+          })),
+        };
+        updateActiveScene({ duration, project: { ...project, timeline: nextTimeline, updatedAt: new Date().toISOString() } });
+      };
+      const addProjectTrack = (type: SceneProjectTrack['type']) => {
+        const count = timeline.tracks.filter((track) => track.type === type).length + 1;
+        const track: SceneProjectTrack = {
+          id: crypto.randomUUID(),
+          type,
+          name: (type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Text') + ' ' + count,
+          clips: [],
+        };
+        updateProjectTimeline({ ...timeline, tracks: [...timeline.tracks, track] });
+      };
+      const removeProjectTrack = (trackId: string) => updateProjectTimeline({
+        ...timeline, tracks: timeline.tracks.filter((track) => track.id !== trackId),
+      });
+      const addTextClip = (trackId: string) => {
+        const track = timeline.tracks.find((item) => item.id === trackId);
+        if (!track || track.type !== 'text') return;
+        const clip: SceneProjectClip = {
+          id: crypto.randomUUID(), name: 'Text ' + (track.clips.length + 1),
+          start: 0, duration: Math.min(3, timeline.duration), content: 'Your text',
+        };
+        updateProjectTimeline({
+          ...timeline,
+          tracks: timeline.tracks.map((item) => item.id === trackId ? { ...item, clips: [...item.clips, clip] } : item),
+        });
+      };
+      const updateProjectClip = (trackId: string, clipId: string, patch: Partial<SceneProjectClip>) => updateProjectTimeline({
+        ...timeline,
+        tracks: timeline.tracks.map((track) => track.id !== trackId ? track : {
+          ...track,
+          clips: track.clips.map((clip) => clip.id === clipId ? {
+            ...clip, ...patch,
+            start: Math.max(0, Math.min(timeline.duration, Number(patch.start ?? clip.start) || 0)),
+            duration: Math.max(0.1, Math.min(timeline.duration, Number(patch.duration ?? clip.duration) || 0.1)),
+          } : clip),
+        }),
+      });
+      const removeProjectClip = (trackId: string, clipId: string) => updateProjectTimeline({
+        ...timeline,
+        tracks: timeline.tracks.map((track) => track.id !== trackId ? track : {
+          ...track, clips: track.clips.filter((clip) => clip.id !== clipId),
+        }),
+      });
+      return (
+        <main className="profile-page-main w-full min-w-0 p-0">
+          <div className="profile-subpage-scroll profile-subpage-viewport">
+            <section className="profile-subpage-card storyboard-fullscreen-card">
+              <ProfileSubpageHeader
+                onBack={() => setActiveSceneId(null)}
+                backLabel="Storyboard"
+                icon={<Film size={22} />}
+                title={scene.title}
+                description={'Scene Editor · ' + scene.duration + ' seconds'}
+              />
+              <div className="profile-subpage-content space-y-5 p-4 sm:p-5">
+                <section className="space-y-3">
+                  <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Preview</h2>
+                  <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-[var(--vyra-bg-subtle)]">
+                    <div className="text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scene.description || 'Add media to this scene.'}</p></div>
+                  </div>
+                </section>
+                <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Project</h2>
+                    <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">This Scene has its own independent project record. Changes here belong to this Scene, not to the Master timeline trim.</p>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene title</span>
+                    <input value={scene.title} onChange={(event) => updateActiveScene({ title: event.target.value })} className={inputClass + ' min-h-10'} maxLength={100} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene description</span>
+                    <textarea value={scene.description} onChange={(event) => updateActiveScene({ description: event.target.value })} className={inputClass + ' min-h-24 resize-y py-2'} rows={3} maxLength={1000} placeholder="Describe what happens in this Scene…" />
+                  </label>
+                  <label className="block max-w-48 space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Canonical Scene Duration (seconds)</span>
+                    <input type="number" min="0.1" max="3600" step="0.1" value={scene.duration} onChange={(event) => updateSceneDuration(Number(event.target.value))} className={inputClass + ' min-h-10'} />
+                  </label>
+                </section>
+                <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Timeline</h2>
+                      <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Independent editable tracks for this Scene Project</p>
+                    </div>
+                    <span className="text-xs tabular-nums text-[var(--vyra-text-muted)]">{timeline.duration.toFixed(1)}s</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(['video', 'audio', 'text'] as const).map((type) => (
+                      <button key={type} type="button" onClick={() => addProjectTrack(type)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">
+                        + {type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Text'} Track
+                      </button>
+                    ))}
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-[var(--vyra-border)]">
+                    <div className="flex items-center justify-between border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
+                      <span>Track</span><span>{timeline.fps} FPS · {timeline.width} × {timeline.height}</span>
+                    </div>
+                    {timeline.tracks.length ? timeline.tracks.map((track) => (
+                      <div key={track.id} className="flex min-h-14 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0">
+                        <div className="w-24 shrink-0">
+                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{track.name}</p>
+                          <p className="text-[10px] capitalize text-[var(--vyra-text-muted)]">{track.type} · {track.clips.length} clips</p>
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-2 py-2">
+                          <div className="relative h-8 overflow-hidden rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]">
+                            {track.clips.map((clip) => (
+                              <div key={clip.id + '-lane'} title={clip.name + ' · ' + clip.start.toFixed(1) + 's'} className="absolute top-1 flex h-6 min-w-[2px] items-center overflow-hidden rounded-sm border border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)] px-1 text-[9px] font-medium text-[var(--vyra-text-primary)]" style={{ left: (clip.start / timeline.duration * 100) + '%', width: Math.max(1.5, clip.duration / timeline.duration * 100) + '%' }}>
+                                <span className="truncate">{clip.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {track.type === 'text' && <button type="button" onClick={() => addTextClip(track.id)} className="rounded-md border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">+ Add Text Clip</button>}
+                          {track.clips.map((clip) => (
+                            <div key={clip.id} className="space-y-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-2">
+                              <div className="flex items-center gap-2">
+                                <input aria-label="Clip name" value={clip.name} onChange={(event) => updateProjectClip(track.id, clip.id, { name: event.target.value })} className="min-w-0 flex-1 rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" />
+                                <button type="button" onClick={() => removeProjectClip(track.id, clip.id)} aria-label={'Remove ' + clip.name} className="rounded p-1 text-[var(--vyra-danger)]"><Trash2 size={12} /></button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="text-[10px] text-[var(--vyra-text-muted)]">Start (s)<input type="number" min="0" max={timeline.duration} step="0.1" value={clip.start} onChange={(event) => updateProjectClip(track.id, clip.id, { start: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
+                                <label className="text-[10px] text-[var(--vyra-text-muted)]">Duration (s)<input type="number" min="0.1" max={timeline.duration} step="0.1" value={clip.duration} onChange={(event) => updateProjectClip(track.id, clip.id, { duration: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
+                              </div>
+                              {track.type === 'text' && <textarea aria-label="Text clip content" value={clip.content || ''} onChange={(event) => updateProjectClip(track.id, clip.id, { content: event.target.value })} rows={2} className="w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" placeholder="Text shown in this clip" />}
+                              {track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">Media source linking will be enabled with the Media Library integration.</p>}
+                            </div>
+                          ))}
+                          {!track.clips.length && track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">No media clips. Import a source from My Media Library when asset linking is available.</p>}
+                        </div>
+                        <button type="button" onClick={() => removeProjectTrack(track.id)} aria-label={'Remove ' + track.name} className="rounded p-2 text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={14} /></button>
+                      </div>
+                    )) : <div className="px-4 py-8 text-center text-xs text-[var(--vyra-text-muted)]">Add a track to begin building this Scene independently.</div>}
+                  </div>
+                  <p className="text-[11px] leading-5 text-[var(--vyra-text-muted)]">Track structure is saved with this Scene Project. Media placement, playback, and rendering will be connected in the next stage; no placeholder video is generated.</p>
+                </section>
+              </div>
+            </section>
+          </div>
+        </main>
+      );
+    }
+  }
+
+  if (activeStoryboard) {
+    const details = activeStoryboard.details || {};
+    const leaveStoryboardPage = () => {
+      if (activeStoryboardConfirmed) {
+        const latest = { ...activeStoryboard, updatedAt: new Date().toISOString() };
+        setStoryboards((current) => current.map((item) => item.id === latest.id ? latest : item));
+        void persistStoryboard(latest);
+      }
+      // Leaving the Storyboard Editor returns to the Workspace, where the global
+      // navigation header must always be visible and interactive again.
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-main-header-progress', '0');
+      root.style.setProperty('--vyra-header-spacer-collapse', '0px');
+      root.classList.remove('is-header-dragging');
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
+      setActiveStoryboard(null);
+      setActiveStoryboardConfirmed(false);
+      setStoryboardDetailsExpanded(true);
+      setStoryboardEditorView('scenes');
+      setStoryboardAiMessage('');
+    };
+    return (
+      <main className="profile-page-main h-full min-h-0 w-full min-w-0 overflow-hidden p-0">
+        <div className="profile-subpage-scroll profile-subpage-viewport !h-full !min-h-0 !overflow-hidden">
+          <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
+          <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
+              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
+                <ArrowLeft size={16} /><span>Workspace</span>
+              </button>
+              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Storyboard'}</span>
+            </div>
+            <button type="button" onClick={() => setStoryboardDetailsExpanded((expanded) => !expanded)} aria-label={storyboardDetailsExpanded ? 'Minimize storyboard details' : 'Open storyboard details'} aria-expanded={storyboardDetailsExpanded} className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+              <ChevronDown className={'transition-transform ' + (storyboardDetailsExpanded ? 'rotate-180' : '')} size={18} />
+            </button>
+          </header>
+          {storyboardDetailsExpanded && (
+            <section className="shrink-0 space-y-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-4 sm:px-5">
+              <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Title</span><input value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} maxLength={100} className={inputClass} /></label>
+              <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Description</span><textarea value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} rows={2} maxLength={500} className={inputClass + ' min-h-20 resize-y py-2'} /></label>
+              <div className="grid grid-cols-2 gap-3">
+                {(['category', 'style', 'mood'] as const).map((field) => <label key={field} className="block min-w-0 space-y-1"><span className="text-xs font-semibold capitalize text-[var(--vyra-text-secondary)]">{field === 'style' ? 'Visual style' : field}</span><input value={details[field] || ''} onChange={(event) => updateActiveStoryboard(field, event.target.value)} className={inputClass} /></label>)}
+                <label className="block min-w-0 space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Tags</span><input value={(details.tags || []).join(', ')} onChange={(event) => updateActiveStoryboard('tags', event.target.value)} placeholder="Comma-separated" className={inputClass} /></label>
+              </div>
+            </section>
+          )}
+          <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-4 pt-0 sm:px-0 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
+          {activeStoryboardConfirmed && (
+            <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
+              <div className="profile-storyboard-preview">
+                <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
+                  <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
+                </div>
+              </div>
+              <div className="grid h-12 grid-cols-3 items-center bg-[var(--vyra-bg-surface)] px-3">
+                <span className="justify-self-start font-mono text-[11px] tabular-nums text-[var(--vyra-text-secondary)]">
+                  00:00 <span className="px-1 text-[var(--vyra-text-muted)]">/</span> {(() => {
+                    const total = (activeStoryboard?.details?.scenes || []).reduce((sum, scene) => sum + Math.max(0, Number(scene.duration) || 0), 0);
+                    const minutes = Math.floor(total / 60).toString().padStart(2, '0');
+                    const seconds = Math.floor(total % 60).toString().padStart(2, '0');
+                    return minutes + ':' + seconds;
+                  })()}
+                </span>
+                <button type="button" disabled aria-label="Play preview (available when video media is connected)" title="Preview playback will be available when video media is connected" className="grid size-8 justify-self-center place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)] disabled:cursor-not-allowed disabled:opacity-60">
+                  <Play size={15} fill="currentColor" />
+                </button>
+                <button type="button" onClick={() => { const frame = storyboardPreviewFrameRef.current; if (frame?.requestFullscreen) void frame.requestFullscreen(); }} aria-label="Expand preview" title="Expand preview" className="grid size-8 justify-self-end place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+                  <Maximize2 size={16} />
+                </button>
+              </div>
+              <div className="profile-storyboard-view-tabs flex items-center gap-1 bg-[var(--vyra-bg-surface)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
+                <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
+                <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
+                <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
+              </div>
+            </div>
+          )}
+            {activeStoryboardConfirmed && (() => {
+              const scenes = details.scenes || [];
+              const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
+                if (!current) return current;
+                const master = current.details?.masterTimeline;
+                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString() };
+                const previousInstances = master.sceneInstances || [];
+                const instancesByScene = new Map(previousInstances.map((instance) => [instance.sceneId, instance]));
+                const sceneIds = new Set(nextScenes.map((scene) => scene.id));
+                const orderedInstances = nextScenes.map((scene) => {
+                  const existing = instancesByScene.get(scene.id);
+                  return {
+                    ...(existing || { id: scene.id, sceneId: scene.id }),
+                    sceneId: scene.id,
+                    sourceIn: 0,
+                    sourceOut: scene.duration,
+                    sceneProjectId: scene.project?.id,
+                    renderRevisionId: scene.project?.latestRenderRevisionId ?? null,
+                  };
+                });
+                const transitions = Object.fromEntries(Object.entries(master.transitions || {}).filter(([id]) => sceneIds.has(id) || orderedInstances.some((instance) => instance.id === id)));
+                return {
+                  ...current,
+                  details: {
+                    ...current.details,
+                    scenes: nextScenes,
+                    masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges: {}, transitions },
+                  },
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              const addScene = () => {
+                const now = new Date().toISOString();
+                const scene: StoryboardScene = { id: crypto.randomUUID(), title: 'Scene ' + (scenes.length + 1), description: '', duration: 5, transition: 'Fade', project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] } };
+                updateScenes([...scenes, scene]);
+              };
+              const updateScene = (id: string, patch: Partial<StoryboardScene>) => updateScenes(scenes.map((scene) => scene.id === id ? { ...scene, ...patch } : scene));
+              const moveScene = (index: number, offset: number) => {
+                const target = index + offset;
+                if (target < 0 || target >= scenes.length) return;
+                const next = [...scenes]; [next[index], next[target]] = [next[target], next[index]]; updateScenes(next);
+              };
+              const duplicateScene = (scene: StoryboardScene) => {
+                const now = new Date().toISOString();
+                const copy: StoryboardScene = { ...scene, id: crypto.randomUUID(), title: scene.title + ' copy', project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] } };
+                const index = scenes.findIndex((item) => item.id === scene.id);
+                const next = [...scenes]; next.splice(index + 1, 0, copy); updateScenes(next);
+              };
+              const removeScene = (id: string) => {
+                const next = scenes.filter((scene) => scene.id !== id); updateScenes(next);
+                setSelectedSceneIds((current) => current.filter((sceneId) => sceneId !== id));
+              };
+              return (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3">
+                    {storyboardEditorView === 'scenes' ? (
+<section className="storyboard-editor-pane space-y-3 px-4 pb-4 sm:px-5">
+                    {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                      {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
+                        <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
+                          <span className="text-[10px] font-medium text-[var(--vyra-text-secondary)]">Scene {index + 1}</span>
+                          <button type="button" role="checkbox" aria-checked={selectedSceneIds.includes(scene.id)} aria-label={'Select ' + scene.title} onClick={() => setSelectedSceneIds((current) => current.includes(scene.id) ? current.filter((id) => id !== scene.id) : [...current, scene.id])} className="inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--vyra-accent-primary)]/40">
+                            <span className={'flex size-5 items-center justify-center rounded-full border transition-colors ' + (selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-text-muted)]/45 bg-transparent text-transparent')}>
+                              {selectedSceneIds.includes(scene.id) && <Check size={12} strokeWidth={3} />}
+                            </span>
+                          </button>
+                        </div>
+                        <button type="button" onClick={() => setActiveSceneId(scene.id)} aria-label={'Open Scene Editor: ' + scene.title} className="block w-full p-3 pt-1 text-left">
+                          <div className="mb-2 flex aspect-video items-center justify-center rounded-lg bg-[var(--vyra-bg-subtle)] transition hover:bg-[var(--vyra-bg-hover)]"><Film size={22} className="text-[var(--vyra-text-muted)]" /></div>
+                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-[10px] text-[var(--vyra-text-secondary)]">{scene.duration}s · Open Scene Editor</p>
+                        </button>
+                        <div className="flex items-center justify-between border-t border-[var(--vyra-border-subtle)] px-2 py-1">
+                          <button type="button" onClick={() => moveScene(index, -1)} disabled={index === 0} aria-label="Move scene left" className="rounded p-1.5 text-[var(--vyra-text-secondary)] disabled:opacity-30"><ChevronDown className="rotate-90" size={14} /></button>
+                          <button type="button" onClick={() => duplicateScene(scene)} aria-label="Duplicate scene" className="rounded p-1.5 text-[var(--vyra-text-secondary)]"><Copy size={13} /></button>
+                          <button type="button" onClick={() => moveScene(index, 1)} disabled={index === scenes.length - 1} aria-label="Move scene right" className="rounded p-1.5 text-[var(--vyra-text-secondary)] disabled:opacity-30"><ChevronDown className="-rotate-90" size={14} /></button>
+                          <button type="button" onClick={() => removeScene(scene.id)} aria-label="Delete scene" className="rounded p-1.5 text-[var(--vyra-danger)]"><Trash2 size={13} /></button>
+                        </div>
+                      </div>)}
+                      <button type="button" onClick={addScene} aria-label="Add scene" title="Add scene" className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] text-[var(--vyra-text-muted)] transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-accent-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"><Plus size={20} strokeWidth={1.8} /></button>
+                    </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
+                  </section>
+                    ) : (
+                      <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
+<MasterTimelineEditor
+                    scenes={scenes.map((scene) => ({
+                      ...scene,
+                      projectId: scene.project?.id,
+                      latestRenderRevisionId: scene.project?.latestRenderRevisionId ?? null,
+                    }))}
+                    value={details.masterTimeline}
+                    onSceneOrderChange={(sceneIds) => {
+                      const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+                      const ordered = sceneIds.map((id) => byId.get(id)).filter((scene): scene is StoryboardScene => Boolean(scene));
+                      if (ordered.length === scenes.length && ordered.some((scene, index) => scene.id !== scenes[index]?.id)) updateScenes(ordered);
+                    }}
+                    onSceneDuplicate={(source, index) => {
+                      const original = scenes.find((scene) => scene.id === source.id);
+                      const now = new Date().toISOString();
+                      const copy: StoryboardScene = {
+                        ...(original || { id: source.id, title: source.title, description: '', duration: source.duration, transition: 'Fade' }),
+                        id: crypto.randomUUID(),
+                        title: (original?.title || source.title) + ' copy',
+                        project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+                      };
+                      const next = [...scenes];
+                      next.splice(Math.max(0, Math.min(index, next.length)), 0, copy);
+                      updateScenes(next);
+                      return { id: copy.id, title: copy.title, duration: copy.duration, projectId: copy.project?.id, latestRenderRevisionId: copy.project?.latestRenderRevisionId ?? null };
+                    }}
+                    onSceneDelete={(sceneId) => {
+                      updateScenes(scenes.filter((scene) => scene.id !== sceneId));
+                      setSelectedSceneIds((current) => current.filter((id) => id !== sceneId));
+                      if (activeSceneId === sceneId) setActiveSceneId(null);
+                    }}
+                    onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
+                      ...current,
+                      details: { ...current.details, masterTimeline },
+                      updatedAt: new Date().toISOString(),
+                    } : current)}
+                  />
+                      </div>
+                    )}
+                </div>
+              );
+            })()}
+
+
+          </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="mx-auto w-full max-w-[var(--vyra-content-width)] px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
-      <section className="mb-7">
+    <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+      <section className="mb-7 pt-8 sm:pt-10">
         <div className="mb-5">
           <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
           <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Workspace</h1>
@@ -292,20 +1116,20 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
         </div>
       </section>
 
-      <section className="mb-7 flex items-center justify-between gap-3">
+      <section ref={storyboardBarRef} className="sticky top-0 z-40 -mx-4 mb-2 flex items-center justify-between gap-3 bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
           <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
         {storyboardAiMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
-        {cloudSyncMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{cloudSyncMessage}</p>}
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
+        <Button onClick={createDefaultStoryboard} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
       </section>
 
       {storyboards.length ? (
-        <section aria-label="Your storyboards" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Your storyboards" className="grid grid-cols-1 gap-4 pt-0 sm:grid-cols-2 lg:grid-cols-3">
           {storyboards.map((item) => (
-            <Card key={item.id} padding="none" className="overflow-hidden">
+            <Card key={item.id} padding="none" className="relative overflow-hidden">
+              <button type="button" onClick={() => openStoryboardEditor(item)} aria-label={`Open storyboard: ${item.title}`} className="block w-full text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
               <div className="flex aspect-[16/9] items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.20),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]"><Film size={34} className="text-[var(--vyra-accent-primary)]" strokeWidth={1.5} /></div>
               <div className="p-4">
                 <h2 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.title}</h2>
@@ -313,8 +1137,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                 {item.details?.category && <p className="mt-2 text-[11px] text-[var(--vyra-text-secondary)]">{item.details.category}{item.details.style ? ' · ' + item.details.style : ''}</p>}
                 {item.details?.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.details.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] text-[var(--vyra-text-secondary)]">{tag}</span>)}</div> : null}
                 <p className="mt-3 text-[10px] text-[var(--vyra-text-muted)]">Updated {new Date(item.updatedAt).toLocaleDateString()}</p>
-                <button type="button" onClick={() => openStoryboardEditor(item)} className="mt-3 min-h-9 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] transition hover:bg-[var(--vyra-bg-hover)]">Edit details</button>
               </div>
+              </button>
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setStoryboardToDelete(item); }}
+                aria-label={`Delete storyboard: ${item.title}`}
+                title="Delete storyboard"
+                className="absolute right-3 top-3 grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 text-[var(--vyra-text-secondary)] shadow-sm backdrop-blur transition hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)] hover:text-white focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+              >
+                <Trash2 size={16} />
+              </button>
             </Card>
           ))}
         </section>
@@ -325,6 +1158,20 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
         </section>
       )}
+
+      <ConfirmationDialog
+        open={Boolean(storyboardToDelete)}
+        title="Delete storyboard?"
+        description={storyboardToDelete
+          ? <>“{storyboardToDelete.title}” will be permanently deleted. This action cannot be undone.</>
+          : null}
+        icon={<Trash2 size={20} />}
+        confirmLabel={isDeletingStoryboard ? 'Deleting…' : 'Delete'}
+        destructive
+        loading={isDeletingStoryboard}
+        onClose={() => setStoryboardToDelete(null)}
+        onConfirm={() => void confirmDeleteStoryboard()}
+      />
 
       {editDraft && editingStoryboardId && (
         <div role="presentation" className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditingStoryboardId(null); setEditDraft(null); } }}>

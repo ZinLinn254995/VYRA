@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.extract-vyral-asset-dna-v3]
 verify_jwt = true
 
+[functions.fingerprint-vyral-raster-version]
+verify_jwt = true
+
 [functions.assess-vyral-asset-dna]
 verify_jwt = true
 

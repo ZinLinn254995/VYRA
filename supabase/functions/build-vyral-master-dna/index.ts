@@ -178,7 +178,11 @@ Deno.serve(async (request: Request) => {
       : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
     const sourceSha = typeof nestedSource.sha256 === 'string'
       ? nestedSource.sha256
-      : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
+      : typeof payload.source_file_sha256 === 'string'
+        ? payload.source_file_sha256
+        : typeof asRecord(nestedDna.file).sha256 === 'string'
+          ? asRecord(nestedDna.file).sha256
+          : '';
     const version = latestVersionByAsset.get(record.asset_id);
     const matchesCurrentVersion = Boolean(version && sourceVersionId === version.id &&
       typeof version.sha256 === 'string' && sourceSha.toLowerCase() === version.sha256.toLowerCase());
@@ -212,10 +216,15 @@ Deno.serve(async (request: Request) => {
         : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
       const sourceSha = typeof nestedSource.sha256 === 'string'
         ? nestedSource.sha256
-        : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
+        : typeof payload.source_file_sha256 === 'string'
+          ? payload.source_file_sha256
+          : typeof asRecord(nestedDna.file).sha256 === 'string'
+            ? asRecord(nestedDna.file).sha256
+            : '';
       const supported = (schemaId === 'vyra.asset-dna' && Number(dna?.schema_version) === 3) ||
         (schemaId === 'vyra.asset-file-dna' && Number(dna?.schema_version) === 1);
-      const dnaRecordId = typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dna?.id;
+      // Reconstruction tests reference the database row UUID (the FK), not the portable DNA payload's record_id.
+      const dnaRecordId = dna?.id;
       const expectedComparisonMode = schemaId === 'vyra.asset-file-dna' ? 'byte_exact' : 'decoded_exact';
       const hasExactReconstruction = Boolean(version && dna && dnaRecordId && reconstructionTests.some((item: Row) =>
         item.asset_id === asset.id &&
@@ -273,7 +282,11 @@ Deno.serve(async (request: Request) => {
       : typeof payload.source_version_id === 'string' ? payload.source_version_id : '';
     const sourceSha = typeof nestedSource.sha256 === 'string'
       ? nestedSource.sha256
-      : typeof payload.source_file_sha256 === 'string' ? payload.source_file_sha256 : '';
+      : typeof payload.source_file_sha256 === 'string'
+        ? payload.source_file_sha256
+        : typeof asRecord(nestedDna.file).sha256 === 'string'
+          ? asRecord(nestedDna.file).sha256
+          : '';
     if (!schemaId || sourceVersionId !== version.id || sourceSha.toLowerCase() !== version.sha256.toLowerCase()) {
       return json({ error: 'An Asset DNA record does not match the latest immutable Asset version.', status: 'stale_asset_dna', assetId: asset.id }, 409);
     }
@@ -379,8 +392,8 @@ Deno.serve(async (request: Request) => {
       schemaId && schemaId !== 'vyra.asset-file-dna' &&
       Number(dna.schema_version) < 3 && Object.keys(payload).length > 0
     );
-    const dnaRecordId = typeof nestedDna.record_id === 'string' ? nestedDna.record_id : dna.id;
-    const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, dnaRecordId, semanticDnaAvailable);
+    // Reconstruction tests reference vyral_dna_records.id; nestedDna.record_id is a portable package identifier.
+    const claim = getReconstructionClaim(reconstructionTests as Row[], asset.id, version.id, dna.id, semanticDnaAvailable);
     claims.push(claim);
     if (assetMetadata?.role === 'main') mainAssetIds.push(asset.id);
 

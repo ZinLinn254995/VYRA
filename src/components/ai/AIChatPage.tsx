@@ -723,6 +723,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           };
           blockers?: string[];
           limitations?: string[];
+          semanticCompleteness?: {
+            profile: string;
+            status: 'complete' | 'partial' | 'blocked' | 'unsupported';
+            requiredFieldCount: number;
+            verifiedFieldCount: number;
+            provisionalFieldCount: number;
+            missingFieldCount: number;
+            coveragePercent: number;
+            fields: Array<{ key: string; status: string; evidenceRefs: string[] }>;
+            limitations: string[];
+          };
         } | undefined;
         if (!assessment) throw new Error('The Asset DNA assessment response was incomplete.');
         let proposalStatus = 'not saved';
@@ -756,6 +767,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           `• Structured knowledge: ${assessment.checks?.knowledge ?? 'not available'}`,
           `• Stored payload integrity: ${assessment.checks?.payloadIntegrity ?? 'not available'}`,
           `• Exact reconstruction test: ${assessment.checks?.exactReconstruction ?? 'not available'}`,
+          ...(assessment.semanticCompleteness ? [
+            '',
+            'Semantic DNA completeness:',
+            `• Profile: ${assessment.semanticCompleteness.profile}`,
+            `• Status: ${assessment.semanticCompleteness.status.toUpperCase()}`,
+            `• Trusted coverage: ${assessment.semanticCompleteness.coveragePercent}% (${assessment.semanticCompleteness.verifiedFieldCount}/${assessment.semanticCompleteness.requiredFieldCount})`,
+            `• AI-only provisional fields: ${assessment.semanticCompleteness.provisionalFieldCount}`,
+            `• Missing fields: ${assessment.semanticCompleteness.missingFieldCount}`,
+            ...assessment.semanticCompleteness.fields.map((item) => `• ${item.key}: ${item.status}`),
+            ...assessment.semanticCompleteness.limitations.map((item) => `  Note: ${item}`),
+          ] : []),
           ...(assessment.blockers?.length ? ['Blockers:', ...assessment.blockers.map((item) => `• ${item}`)] : []),
           ...(assessment.limitations?.length ? ['Limitations:', ...assessment.limitations.map((item) => `• ${item}`)] : []),
           ...(improvementPlan.improvements.length ? ['', 'Evidence-backed improvement plan:', ...improvementPlan.improvements.map((item) => `• [${item.priority.toUpperCase()}] ${item.action} Acceptance: ${item.acceptanceEvidence}`)] : []),
