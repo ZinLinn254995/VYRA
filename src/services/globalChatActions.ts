@@ -286,9 +286,9 @@ export type GlobalChatVyralAssetUploadDraft = {
 
 export const extractVyralAssetUploadTarget = (input: string): string | null => {
   const patterns = [
-    /^\\s*(?:add|save|upload|put)\\s+(?:this|the attached file|attachment|file)\\s+(?:to|into)\\s+(?:my\\s+)?vyral\\s+["“']?(.+?)["”']?\\s*[.!?]*\\s*$/i,
-    /^\\s*(?:add|save|upload)\\s+(?:this|the attached file|attachment|file)\\s+(?:to|into)\\s+["“']?(.+?)["”']?\\s+(?:vyral)\\s*[.!?]*\\s*$/i,
-    /^\\s*(?:ဒီဖိုင်ကို|ဒီ Asset ကို|ပူးတွဲဖိုင်ကို)\\s*(?:vyral\\s*)?["“']?(.+?)["”']?\\s*(?:ထဲ|ထဲကို)\\s*(?:ထည့်|သိမ်း)(?:ပေး)?\\s*$/i,
+    /^\s*(?:add|save|upload|put)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+(?:my\s+)?vyral\s+["“']?(.+?)["”']?\s*[.!?]*\s*$/i,
+    /^\s*(?:add|save|upload)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+["“']?(.+?)["”']?\s+(?:vyral)\s*[.!?]*\s*$/i,
+    /^\s*(?:ဒီဖိုင်ကို|ဒီ Asset ကို|ပူးတွဲဖိုင်ကို)\s*(?:vyral\s*)?["“']?(.+?)["”']?\s*(?:ထဲ|ထဲကို)\s*(?:ထည့်|သိမ်း)(?:ပေး)?\s*$/i,
   ];
   for (const pattern of patterns) {
     const match = input.trim().match(pattern);
@@ -309,3 +309,28 @@ export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDra
   '**MIME:** ' + (draft.mimeType || 'unknown') + '\n\n' +
   'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\n\n' +
   'Nothing has been uploaded yet. Reply **Confirm Asset upload** to continue.';
+
+
+export type GlobalChatVyralRecord = { id: string; name: string; description?: string };
+
+export const findMentionedVyrals = (
+  input: string,
+  vyrals: GlobalChatVyralRecord[],
+): GlobalChatVyralRecord[] => {
+  const normalizedInput = input.normalize('NFKC').toLocaleLowerCase();
+  const matches = vyrals
+    .filter((vyral) => vyral.name.trim().length > 0 &&
+      normalizedInput.includes(vyral.name.normalize('NFKC').trim().toLocaleLowerCase()))
+    .sort((a, b) => b.name.length - a.name.length);
+  if (!matches.length) return [];
+  const longest = matches[0].name.length;
+  return matches.filter((item) => item.name.length === longest);
+};
+
+export const isVyralAssetAddIntent = (input: string): boolean =>
+  /\b(?:add|put|save|store|keep|include|attach|upload|place)\b/i.test(input) ||
+  /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး)/.test(input);
+
+export const isVyralAssetContextReference = (input: string): boolean =>
+  /\b(?:this|that|it|there|same one|current vyral|this vyral|that vyral)\b/i.test(input) ||
+  /(?:အဲဒီထဲ|အဲ့ဒီထဲ|အဲဒါထဲ|အဲ့ဒါထဲ|ဒီထဲ|အဲဒီ Vyral|အဲ့ဒီ Vyral)/i.test(input);
