@@ -214,4 +214,16 @@ At the end of each phase:
 
 The repository has an initial Admin Dashboard/API-key management foundation for the OpenAI key, backed by a Development Supabase secret-management function. That foundation is not proof that OpenAI Chat or all generation types are connected. The OpenAI key has not been supplied/configured and must remain unpurchased/unconfigured until the final provider-backed end-to-end verification stage. Continue all key-independent implementation and tests first.
 
-**Next action:** Finish and verify Phase 1 on `feature/my-storyboard`. Then implement Phase 2. Do not treat the roadmap as complete until the phase acceptance gates have been met.
+### Phase 2 progress — conversation history foundation
+
+The following key-independent work has been implemented on `feature/my-storyboard`:
+
+- Added `public.vyra_ai_chat_conversations` in the Development Supabase project.
+- Enabled RLS and verified owner-scoped SELECT/INSERT/UPDATE/DELETE policies for `authenticated`; anonymous access is not granted.
+- Added authenticated-user history loading, automatic transcript/state persistence, and deletion to the AI Chat UI.
+- Conversation records store text messages and safe display metadata only; binary attachment data and provider secrets are not stored in chat history.
+- Chat history reload is tied to Supabase auth changes, and active chat state is cleared when the account signs out or changes.
+
+**Verification status:** The Development table, RLS policies, and role grants have been queried and confirmed. The Cloudflare Preview build for the latest implementation is still pending; UI behavior, refresh/reopen, account isolation, and full Phase 2 acceptance are therefore not yet marked verified.
+
+**Next action:** Complete the Preview build, then verify save → refresh → reopen and cross-account isolation. After that, continue the key-independent OpenAI server-route integration and remaining Phase 2 error/context handling. Do not purchase/configure the OpenAI API key until Phase 6. Do not treat a phase as complete until its acceptance gate has been met.
