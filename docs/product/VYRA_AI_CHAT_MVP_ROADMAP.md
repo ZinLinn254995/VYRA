@@ -453,3 +453,7 @@ Next: After the platform key is intentionally provided by an authorized administ
 Official Runway docs: Model Router dry-run and estimated credits https://docs.dev.runwayml.com/model-routers/generating/ ; API reference https://docs.dev.runwayml.com/api/ ; pricing states 1 credit = USD $0.01 https://docs.dev.runwayml.com/guides/pricing/ .
 
 Next: implement server-side approval consumption and idempotent job submission, but keep live generation blocked until the quote path is tested with a verified non-production key and configured routers.
+
+**Verification update:** The first CI attempt exposed a duplicate Runway settings proxy declaration in src/server/ai.ts. Removed the duplicate while preserving the existing admin settings routes and the new quote route. GitHub Actions run 43305577534 on commit d99d998a094ab7a33364eb424b8267718a6cf24a completed successfully: TypeScript check, all configured regression tests, Deno type-check including quote-runway-media, SEO contracts, and production build passed.
+
+**Development deployment:** Migration media_generation_quotes applied successfully. quote-runway-media is ACTIVE (version 1) with JWT verification enabled. The quotes table is empty as expected. Vault contains no vyra_runway_api_key and no VYRA_RUNWAY_*_ROUTER configuration secrets are present. Therefore the endpoint remains fail-closed and cannot issue a provider quote yet. No Runway preflight request, billable generation, customer credit reservation, production deployment, or merge has occurred.
