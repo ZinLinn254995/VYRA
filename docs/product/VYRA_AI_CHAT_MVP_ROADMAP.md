@@ -441,3 +441,15 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 Official reference: Runway API Reference — Organization information (GET /v1/organization), API version header 2024-11-06: https://docs.dev.runwayml.com/api/
 
 Next: After the platform key is intentionally provided by an authorized administrator, verify it through this non-billable check. Then build the quote and job orchestration around the existing generation ledger. Keep paid generation disabled until the live pricing/quote semantics and persistence path are verified.
+
+### Phase 4 progress — server-side Runway dry-run quote path
+
+- Added Development migration media_generation_quotes. It stores short-lived, user-owned quote records with provider model, Runway credits, USD estimate, request fingerprint, sanitized input, and routing metadata. RLS permits authenticated users to read only their own quotes; inserts and mutations are service-role only.
+- Added quote-runway-media Edge Function. It authenticates the user, accepts only image/video/audio tasks and a strict input allowlist, reads the platform Runway secret from Vault, calls the task-specific Runway Model Router endpoint with dryRun=true, validates the routing/model/credits response, converts Runway credits at the documented USD $0.01 per credit, enforces a caller-supplied maximum USD budget, and stores a five-minute quote. It never creates a generation task or reserves customer credits.
+- Added authenticated POST /media/quote proxy route. The customer cannot supply a Runway key or arbitrary router config ID. Router config slugs are server-side Supabase Function secrets: VYRA_RUNWAY_IMAGE_DRAFT_ROUTER, VYRA_RUNWAY_IMAGE_STANDARD_ROUTER, VYRA_RUNWAY_IMAGE_PREMIUM_ROUTER, and equivalent VIDEO/AUDIO variables. Manual override remains explicitly disabled until a platform-managed model allowlist exists.
+- The quote endpoint is safely unavailable until a verified Runway key and all required task/quality router slugs are configured. No key or router slug has been added; no Runway preflight, generation task, customer credit reservation, or charge was performed.
+- Added the quote function to Supabase config and CI Deno type-check list. AI Chat UI and production services remain untouched.
+
+Official Runway docs: Model Router dry-run and estimated credits https://docs.dev.runwayml.com/model-routers/generating/ ; API reference https://docs.dev.runwayml.com/api/ ; pricing states 1 credit = USD $0.01 https://docs.dev.runwayml.com/guides/pricing/ .
+
+Next: implement server-side approval consumption and idempotent job submission, but keep live generation blocked until the quote path is tested with a verified non-production key and configured routers.
