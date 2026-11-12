@@ -299,7 +299,7 @@ export const extractVyralAssetUploadTarget = (input: string): string | null => {
 };
 
 export const isNaturalChatApproval = (input: string): boolean =>
-  /^\s*(?:yes|yeah|yep|okay|ok|go ahead|do it|proceed|looks good|that's right|sounds good|အေး|ဟုတ်ပြီ|ဟုတ်တယ်|လုပ်လိုက်(?:တော့|ပါ)?|ထည့်လိုက်(?:တော့|ပါ)?|သိမ်းလိုက်(?:တော့|ပါ)?|အတည်ပြု(?:မယ်|ပါ)?)\s*[.!?။]*\s*$/i.test(input);
+  /^\s*(?:yes|yeah|yep|okay|ok|go ahead|do it|proceed|looks good|that's right|sounds good|အေး(?:\s*လုပ်လိုက်(?:တော့|ပါ)?)?|ဟုတ်ပြီ|ဟုတ်တယ်|ရတယ်\s*လုပ်လိုက်(?:တော့|ပါ)?|လုပ်လိုက်(?:တော့|ပါ)?|ထည့်လိုက်(?:တော့|ပါ)?|သိမ်းလိုက်(?:တော့|ပါ)?|အတည်ပြု(?:မယ်|ပါ)?)\s*[.!?။]*\s*$/i.test(input);
 
 export const isVyralAssetUploadConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+(?:asset )?upload|confirm\s+add\s+to\s+vyral|vyral\s+asset\s+upload\s+confirm|Asset\s+ထည့်ရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
