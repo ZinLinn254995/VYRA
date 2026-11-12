@@ -42,3 +42,18 @@ test('AI Chat preserves partial streamed text on errors and keeps retry in the e
   assert.match(source, /previousUserMessage/);
   assert.match(source, /sendMessage\(previousUserMessage\.content\)/);
 });
+
+test('Vyral AI tools are read-only, bounded and scoped to the authenticated owner and active Vyral', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /const VYRAL_READ_TOOLS = \[/);
+  assert.match(source, /name: 'search_vyral_assets'/);
+  assert.match(source, /name: 'get_vyral_asset_details'/);
+  assert.match(source, /name: 'list_vyral_asset_relationships'/);
+  assert.match(source, /executeVyralReadTool\([\s\S]*?userId,[\s\S]*?activeVyralId/);
+  assert.match(source, /\.eq\('vyral_id', vyralId\)\.eq\('user_id', userId\)/);
+  assert.match(source, /parallel_tool_calls: false/);
+  assert.match(source, /toolCalls\.slice\(0, 3\)/);
+  assert.match(source, /max\(1, Math\.min\(20, requestedLimit\)\)/);
+  assert.doesNotMatch(source, /name: '(?:delete|update|create|publish|generate)_/);
+  assert.match(source, /data: ' \+ chunk \+ '\\n\\ndata: \[DONE\]\\n\\n'/);
+});
