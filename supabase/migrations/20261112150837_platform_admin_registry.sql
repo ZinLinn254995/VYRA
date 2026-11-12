@@ -1,4 +1,4 @@
-create table public.platform_admins (
+create table if not exists public.platform_admins (
   user_id uuid primary key references auth.users(id) on delete cascade,
   role text not null default 'owner' check (role in ('owner', 'admin')),
   created_at timestamptz not null default now()
