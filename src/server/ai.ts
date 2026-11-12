@@ -109,7 +109,7 @@ async function callRunwayMediaApprovalFunction(functionName: string, accessToken
 }
 
 router.post('/media/quote/approve-credits', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   try {
     const { response, data } = await callRunwayMediaApprovalFunction('approve-runway-media-credit', match[1], req.body ?? {});
@@ -119,7 +119,7 @@ router.post('/media/quote/approve-credits', async (req: Request, res: Response) 
 });
 
 router.post('/media/jobs', async (req: Request, res: Response) => {
-  const match = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
   try {
     const { response, data } = await callRunwayMediaApprovalFunction('create-runway-media-job', match[1], req.body ?? {});
