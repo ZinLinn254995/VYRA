@@ -122,3 +122,40 @@ test('storyboard update preview and confirmation are explicit', async () => {
   assert.equal(isStoryboardUpdateConfirmation('အတည်ပြု'), true);
   assert.equal(isStoryboardUpdateConfirmation('yes'), false);
 });
+
+
+test('storyboard delete intent requires a named storyboard and rejects unrelated destructive requests', async () => {
+  const {
+    extractStoryboardDeleteTitle,
+    isStoryboardDeleteIntent,
+  } = await import('../src/services/globalChatActions.ts');
+  assert.equal(isStoryboardDeleteIntent('Delete storyboard "Moon Journey"'), true);
+  assert.equal(extractStoryboardDeleteTitle('Delete storyboard "Moon Journey"'), 'Moon Journey');
+  assert.equal(extractStoryboardDeleteTitle('Remove the storyboard Mars Explorer'), 'Mars Explorer');
+  assert.equal(isStoryboardDeleteIntent('Storyboard Moon Journey ကို ဖျက်ပေး'), true);
+  assert.equal(extractStoryboardDeleteTitle('Storyboard Moon Journey ကို ဖျက်ပေး'), 'Moon Journey');
+  assert.equal(isStoryboardDeleteIntent('Delete my Vyrals'), false);
+  assert.equal(isStoryboardDeleteIntent('Delete storyboard'), true);
+  assert.equal(extractStoryboardDeleteTitle('Delete storyboard'), null);
+  assert.equal(isStoryboardDeleteIntent('Show my storyboards'), false);
+  assert.equal(isStoryboardDeleteIntent('Create a storyboard about Mars'), false);
+});
+
+test('storyboard delete requires a specific confirmation phrase', async () => {
+  const {
+    formatStoryboardDeleteDraft,
+    isStoryboardDeleteConfirmation,
+  } = await import('../src/services/globalChatActions.ts');
+  const preview = formatStoryboardDeleteDraft({
+    id: 'delete-draft-1',
+    storyboardId: 'story-1',
+    storyboardTitle: 'Moon Journey',
+    expectedUpdatedAt: '2026-01-02T00:00:00.000Z',
+  });
+  assert.match(preview, /Nothing has been deleted yet/);
+  assert.match(preview, /cannot be undone/);
+  assert.equal(isStoryboardDeleteConfirmation('Confirm delete'), true);
+  assert.equal(isStoryboardDeleteConfirmation('ဖျက်ရန် အတည်ပြု'), true);
+  assert.equal(isStoryboardDeleteConfirmation('yes'), false);
+  assert.equal(isStoryboardDeleteConfirmation('Confirm update'), false);
+});
