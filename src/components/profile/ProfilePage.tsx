@@ -8,7 +8,7 @@ import {
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
-import { GeminiProviderSettings } from './GeminiProviderSettings';
+import { ApiKeySettings } from './ApiKeySettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
@@ -231,7 +231,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 </div>
               </div>
             ) : activePage === 'setting-ai' ? (
-              <GeminiProviderSettings />
+              <ApiKeySettings />
             ) : activePage.startsWith('setting-') ? (
               <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
                 <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
