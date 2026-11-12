@@ -17,7 +17,7 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, extractVyralCreateRequest, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, formatVyralCreateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isVyralAssetUploadConfirmation, isVyralCreateConfirmation, isVyralCreateIntent, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, extractVyralCreateRequest, findMentionedVyrals, findStoryboardMatches, isVyralAssetAddIntent, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, formatVyralCreateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isVyralAssetUploadConfirmation, isVyralCreateConfirmation, isVyralCreateIntent, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 
@@ -350,6 +350,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [selectedVyralContext, setSelectedVyralContext] = useState<string | null>(null);
   const [selectedVyralId, setSelectedVyralId] = useState<string | null>(null);
+  const [activeVyralId, setActiveVyralId] = useState<string | null>(null);
+  const [activeVyralName, setActiveVyralName] = useState<string | null>(null);
   const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
@@ -363,6 +365,38 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const pendingVyralUploadFilesRef = useRef(new Map<string, File>());
 
   useEffect(() => { setSelectedAssets(initialSelectedAssets); }, [initialSelectedAssets]);
+
+  useEffect(() => {
+    let active = true;
+    if (!historyOwnerId || !supabase) {
+      setActiveVyralId(null);
+      setActiveVyralName(null);
+      return () => { active = false; };
+    }
+    const storageKey = 'vyra_active_vyral_v1:' + historyOwnerId;
+    let storedId: string | null = null;
+    try { storedId = localStorage.getItem(storageKey); } catch { storedId = null; }
+    if (!storedId) {
+      setActiveVyralId(null);
+      setActiveVyralName(null);
+      return () => { active = false; };
+    }
+    void supabase.from('vyrals').select('id,name').eq('id', storedId).eq('user_id', historyOwnerId).maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error || !data) {
+          setActiveVyralId(null);
+          setActiveVyralName(null);
+          try { localStorage.removeItem(storageKey); } catch { /* storage is optional */ }
+          return;
+        }
+        setActiveVyralId(String(data.id));
+        setActiveVyralName(String(data.name));
+      });
+    return () => { active = false; };
+  }, [historyOwnerId]);
+
+
 
   useEffect(() => {
     if (!supabase) return;
@@ -616,6 +650,29 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
+      let resolvedActiveVyralId = activeVyralId;
+      let resolvedActiveVyralName = activeVyralName;
+      let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
+      if (supabase && text) {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData.user) {
+          const { data: ownedVyrals } = await supabase.from('vyrals')
+            .select('id,name,description').eq('user_id', authData.user.id).limit(100);
+          if (ownedVyrals) {
+            mentionedVyrals = findMentionedVyrals(text, ownedVyrals.map((item) => ({
+              id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
+            })));
+            if (mentionedVyrals.length === 1) {
+              resolvedActiveVyralId = mentionedVyrals[0].id;
+              resolvedActiveVyralName = mentionedVyrals[0].name;
+              setActiveVyralId(resolvedActiveVyralId);
+              setActiveVyralName(resolvedActiveVyralName);
+              try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, resolvedActiveVyralId); } catch { /* in-memory context remains active */ }
+            }
+          }
+        }
+      }
+
       if (isVyralAssetUploadConfirmation(text)) {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
@@ -665,33 +722,47 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         return;
       }
 
-      if (attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral')) {
-        const targetName = extractVyralAssetUploadTarget(text);
-        if (targetName) {
-          if (!supabase) throw new Error('Vyral library access is unavailable.');
-          if (attachedFile.size > 100 * 1024 * 1024) throw new Error('The maximum Vyral Asset upload size is 100 MB.');
-          const { data: authData, error: authError } = await supabase.auth.getUser();
-          if (authError || !authData.user) throw new Error('Sign in before choosing a destination Vyral.');
-          const { data: destinations, error: destinationError } = await supabase.from('vyrals')
-            .select('id,name,visibility,lifecycle_status').eq('user_id', authData.user.id).eq('name', targetName).limit(2);
-          if (destinationError) throw new Error('Could not find the destination Vyral: ' + destinationError.message);
-          if (!destinations?.length) {
-            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I could not find a Vyral named "' + targetName + '" in your account. Nothing was uploaded. Tell me the exact existing Vyral name, or ask me to create a new Vyral first.', status: 'success' }]);
+      if (attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') && isVyralAssetAddIntent(text)) {
+        if (!supabase) throw new Error('Vyral library access is unavailable.');
+        if (attachedFile.size > 100 * 1024 * 1024) throw new Error('The maximum Vyral Asset upload size is 100 MB.');
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData.user) throw new Error('Sign in before choosing a destination Vyral.');
+        let destinationId = resolvedActiveVyralId;
+        const explicitTarget = extractVyralAssetUploadTarget(text);
+        if (explicitTarget) {
+          const exact = (await supabase.from('vyrals').select('id,name')
+            .eq('user_id', authData.user.id).eq('name', explicitTarget).limit(2));
+          if (exact.error) throw new Error('Could not verify the destination Vyral. Nothing was uploaded.');
+          if (!exact.data?.length) {
+            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I could not find "' + explicitTarget + '" among your Vyrals. Nothing was uploaded. Tell me which existing Vyral you mean, in your own words.', status: 'success' }]);
             return;
           }
-          if (destinations.length > 1) throw new Error('More than one Vyral matched that name. Specify a unique destination before uploading.');
-          const destination = destinations[0];
-          const uploadDraft = {
-            id: crypto.randomUUID(), vyralId: String(destination.id), vyralName: String(destination.name),
-            fileName: attachedFile.name, fileSize: attachedFile.size, mimeType: attachedFile.type || 'application/octet-stream',
-          };
-          pendingVyralUploadFilesRef.current.set(uploadDraft.id, attachedFile);
-          setMessages((previous) => [...previous, {
-            id: makeId(), role: 'assistant', content: formatVyralAssetUploadDraft(uploadDraft),
-            status: 'preview', action: { type: 'vyral-asset-upload-draft', draft: uploadDraft },
-          }]);
+          if (exact.data.length > 1) {
+            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I found more than one Vyral with that name. Which one did you mean? Nothing was uploaded.', status: 'success' }]);
+            return;
+          }
+          destinationId = String(exact.data[0].id);
+        } else if (mentionedVyrals.length > 1) {
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I noticed more than one Vyral in what you said. Which one should receive this file? Nothing was uploaded yet.', status: 'success' }]);
           return;
         }
+        if (!destinationId) {
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'Which Vyral should I put this file into? You can just describe it naturally; I will keep that Vyral as our working context.', status: 'success' }]);
+          return;
+        }
+        const { data: destination, error: destinationError } = await supabase.from('vyrals')
+          .select('id,name,visibility,lifecycle_status').eq('id', destinationId).eq('user_id', authData.user.id).maybeSingle();
+        if (destinationError || !destination) throw new Error('The active Vyral could not be verified for your account. Nothing was uploaded.');
+        const uploadDraft = {
+          id: crypto.randomUUID(), vyralId: String(destination.id), vyralName: String(destination.name),
+          fileName: attachedFile.name, fileSize: attachedFile.size, mimeType: attachedFile.type || 'application/octet-stream',
+        };
+        pendingVyralUploadFilesRef.current.set(uploadDraft.id, attachedFile);
+        setMessages((previous) => [...previous, {
+          id: makeId(), role: 'assistant', content: formatVyralAssetUploadDraft(uploadDraft),
+          status: 'preview', action: { type: 'vyral-asset-upload-draft', draft: uploadDraft },
+        }]);
+        return;
       }
 
       const navigationTarget = extractGlobalChatNavigationTarget(text);
@@ -907,6 +978,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           });
           if (dnaError) throw new Error('The Vyral record exists, but its initial identity DNA could not be saved. Retry the same confirmation; the original Vyral will be reused. ' + dnaError.message);
         }
+        setActiveVyralId(savedVyralId);
+        setActiveVyralName(draft.name);
+        try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, savedVyralId); } catch { /* active context remains for this session */ }
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant',
           content: '**Vyral created:** ' + draft.name + '\n\n' + (draft.description || 'No purpose description was supplied yet.') +
@@ -1840,6 +1914,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
+        ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
         ...(canStreamText ? {
