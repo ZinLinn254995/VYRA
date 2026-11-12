@@ -53,6 +53,7 @@ export const ApiKeySettings: React.FC = () => {
 
   return <div className="max-w-xl space-y-5">
     <section className="rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-4">
+      <p className="mb-3 text-xs leading-5 text-[var(--vyra-text-secondary)]">API key ဝယ်ယူခြင်းနှင့် ထည့်သွင်းခြင်းကို Chat၊ App Actions နှင့် Media Generation integration များ အဆင်သင့်ဖြစ်ပြီး နောက်ဆုံး end-to-end စမ်းသပ်ချိန်အထိ ရွှေ့ဆိုင်းထားနိုင်ပါတယ်။ အခုအချိန်မှာ key မရှိသေးတာ ပုံမှန်ဖြစ်ပါတယ်။</p>
       <div className="flex items-center gap-3">
         <span className="grid size-10 place-items-center rounded-xl bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><KeyRound size={19} /></span>
         <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">OpenAI</p><p className="mt-0.5 text-xs text-[var(--vyra-text-secondary)]">API key used by VYRA AI services.</p></div>
