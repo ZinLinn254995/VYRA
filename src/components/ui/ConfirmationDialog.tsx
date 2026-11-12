@@ -33,6 +33,9 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   const titleId = useId();
   const descriptionId = useId();
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -44,7 +47,17 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !loading) {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
+      } else if (event.key === 'Tab') {
+        const first = cancelButtonRef.current;
+        const last = confirmButtonRef.current;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -52,7 +65,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
       previouslyFocused?.focus();
     };
-  }, [open, loading, onClose]);
+  }, [open, loading]);
 
   if (!open) return null;
 
@@ -95,6 +108,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           <Button
             type="button"
             variant={destructive ? 'danger' : 'primary'}
+            ref={confirmButtonRef}
             loading={loading}
             onClick={onConfirm}
           >
