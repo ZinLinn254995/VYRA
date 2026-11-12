@@ -110,6 +110,10 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /fingerprint-vyral-raster-version/);
   assert.match(details, /Visual fingerprint · dHash-64/);
   assert.match(details, /compareVyralDHash64/);
+  assert.match(details, /verification_status === 'server_verified'/);
+  assert.match(details, /extract-vyral-asset-dna-v3', 'fingerprint-vyral-raster-version'/);
+  assert.match(details, /Number\.isSafeInteger\(Number\(decodedImage\.width\)\)/);
+  assert.match(details, /decodedImage\.channel_layout === previousDecodedImage\.channel_layout/);
   assert.match(details, /perceptual similarity/);
   assert.match(details, /verify both versions to compare them/);
   assert.match(details, /Fingerprint comparison with Version/);
