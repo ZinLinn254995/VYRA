@@ -86,7 +86,8 @@ Deno.serve(async (request: Request) => {
       }
       if (!upstream) return { error: 'Could not connect to Gemini. Please retry.', code: 'GEMINI_UPSTREAM_NETWORK' };
       const payload = await upstream.json().catch(() => ({})) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string; safetyRatings?: unknown[] }>;
+        promptFeedback?: { blockReason?: string; blockReasonMessage?: string };
         usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
         responseId?: string;
         error?: { message?: string; status?: string; code?: number };
@@ -101,8 +102,36 @@ Deno.serve(async (request: Request) => {
           : 'Gemini request failed (HTTP ' + upstream.status + '): ' + upstreamMessage;
         return { error: message, code: 'GEMINI_HTTP_' + upstream.status, providerStatus: payload.error?.status ?? null, model };
       }
-      const text = (payload.candidates?.[0]?.content?.parts ?? []).map((part) => typeof part.text === 'string' ? part.text : '').join('').trim();
-      if (!text) return { error: 'Gemini returned an empty response.', code: 'GEMINI_EMPTY_RESPONSE' };
+      const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+      const text = candidates
+        .flatMap((candidate) => candidate.content?.parts ?? [])
+        .filter((part) => typeof part.text === 'string')
+        .map((part) => part.text as string)
+        .join('')
+        .trim();
+      if (!text) {
+        const finishReasons = candidates.map((candidate) => candidate.finishReason).filter((value): value is string => typeof value === 'string');
+        const blockReason = typeof payload.promptFeedback?.blockReason === 'string' ? payload.promptFeedback.blockReason : null;
+        const blockMessage = typeof payload.promptFeedback?.blockReasonMessage === 'string' ? payload.promptFeedback.blockReasonMessage.slice(0, 240) : null;
+        console.warn('[vyra-gemini-proxy] Gemini returned no text:', JSON.stringify({
+          candidateCount: candidates.length,
+          partCounts: candidates.map((candidate) => candidate.content?.parts?.length ?? 0),
+          finishReasons,
+          blockReason,
+          hasUsage: Boolean(payload.usageMetadata),
+        }));
+        return {
+          error: blockReason
+            ? 'Gemini blocked this analysis (' + blockReason + '). ' + (blockMessage ?? 'Try a different reference image or prompt.')
+            : finishReasons.includes('MAX_TOKENS')
+              ? 'Gemini stopped before producing a usable analysis. The response limit may be too low.'
+              : finishReasons.includes('SAFETY')
+                ? 'Gemini safety checks prevented it from returning an analysis. Try a different reference image or prompt.'
+                : 'Gemini responded successfully but did not include readable analysis text. Please retry.',
+          code: blockReason ? 'GEMINI_PROMPT_BLOCKED' : 'GEMINI_EMPTY_RESPONSE',
+          diagnostics: { candidateCount: candidates.length, finishReasons, blockReason, partCounts: candidates.map((candidate) => candidate.content?.parts?.length ?? 0) },
+        };
+      }
       return {
         text, modelName: model, provider: 'gemini', generationId: typeof payload.responseId === 'string' ? payload.responseId : null,
         usage: payload.usageMetadata ? { promptTokens: payload.usageMetadata.promptTokenCount ?? null, completionTokens: payload.usageMetadata.candidatesTokenCount ?? null, totalTokens: payload.usageMetadata.totalTokenCount ?? null } : null,
