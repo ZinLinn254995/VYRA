@@ -1,6 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
-import { validateMediaCreditPricingAdminAction } from '../../../src/services/mediaCreditPricing.ts';
+import { isMediaCreditPricingAdminRole, validateMediaCreditPricingAdminAction } from '../../../src/services/mediaCreditPricing.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -25,7 +25,7 @@ Deno.serve(async (request: Request) => {
   const { data: admin, error: adminError } = await context.supabaseAdmin.from('platform_admins')
     .select('role').eq('user_id', userId).maybeSingle();
   if (adminError) return json({ error: 'Could not verify administrator access.' }, 503);
-  if (!admin || !['owner', 'admin'].includes(admin.role)) return json({ error: 'Platform administrator access is required.' }, 403);
+  if (!admin || !isMediaCreditPricingAdminRole(admin.role)) return json({ error: 'Platform administrator access is required.' }, 403);
 
   let body: Record<string, unknown>;
   try {
