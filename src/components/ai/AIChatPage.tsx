@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp, Archive, Clock3, Copy, History, Lock, MessageSquare,
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
@@ -350,10 +350,77 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
+  const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setSelectedAssets(initialSelectedAssets); }, [initialSelectedAssets]);
+
+  useEffect(() => {
+    let active = true;
+    if (!isAuthenticated || !supabase) {
+      setHistoryOwnerId(null);
+      setSessions([]);
+      setHistoryError(null);
+      setHistoryReady(true);
+      return () => { active = false; };
+    }
+
+    setHistoryReady(false);
+    setHistoryError(null);
+    const loadHistory = async () => {
+      const { data: userResult, error: userError } = await supabase.auth.getUser();
+      if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
+      const ownerId = userResult.user.id;
+      const { data, error } = await supabase
+        .from('vyra_ai_chat_conversations')
+        .select('id,title,messages,archived,locked,updated_at')
+        .eq('user_id', ownerId)
+        .order('updated_at', { ascending: false })
+        .limit(100);
+      if (error) throw new Error('Saved chat history is temporarily unavailable.');
+      const loaded = (data ?? []).map((row) => {
+        const rawMessages = Array.isArray(row.messages) ? row.messages : [];
+        const safeMessages = rawMessages.flatMap((item: unknown) => {
+          if (!item || typeof item !== 'object') return [];
+          const message = item as Record<string, unknown>;
+          if (typeof message.id !== 'string' ||
+              (message.role !== 'user' && message.role !== 'assistant') ||
+              typeof message.content !== 'string') return [];
+          return [{
+            id: message.id,
+            role: message.role,
+            content: message.content,
+            ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' ? { status: message.status } : {}),
+            ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
+          } as ChatMessage];
+        });
+        const date = new Date(row.updated_at);
+        return {
+          id: row.id,
+          title: typeof row.title === 'string' ? row.title : 'New chat',
+          updatedAt: Number.isNaN(date.getTime()) ? 'Saved' : date.toLocaleDateString(),
+          messages: safeMessages,
+          archived: Boolean(row.archived),
+          locked: Boolean(row.locked),
+        } as ChatSession;
+      }).filter((session) => session.messages.length > 0);
+      if (!active) return;
+      setHistoryOwnerId(ownerId);
+      setSessions(loaded);
+    };
+
+    void loadHistory()
+      .catch((error) => {
+        if (!active) return;
+        setHistoryOwnerId(null);
+        setHistoryError(error instanceof Error ? error.message : 'Saved chat history could not be loaded.');
+      })
+      .finally(() => { if (active) setHistoryReady(true); });
+    return () => { active = false; };
+  }, [isAuthenticated]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -372,10 +439,54 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     return firstUserMessage.length > 42 ? firstUserMessage.slice(0, 42) + '…' : firstUserMessage || 'New chat';
   }, [messages]);
 
+  const persistSession = useCallback(async (session: ChatSession) => {
+    if (!supabase || !historyOwnerId) return false;
+    const storedMessages = session.messages.slice(-250).map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content.slice(0, 24000),
+      ...(message.status ? { status: message.status } : {}),
+      ...(message.providerLabel ? { providerLabel: message.providerLabel.slice(0, 160) } : {}),
+    }));
+    const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
+      id: session.id,
+      user_id: historyOwnerId,
+      title: (session.title || 'New chat').slice(0, 160),
+      messages: storedMessages,
+      archived: Boolean(session.archived),
+      locked: Boolean(session.locked),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+    if (error) {
+      setHistoryError('Chat history could not be saved. Please keep this page open and retry.');
+      return false;
+    }
+    setHistoryError(null);
+    return true;
+  }, [historyOwnerId]);
+
+  useEffect(() => {
+    if (!historyReady || !historyOwnerId || !activeSessionId || !messages.length) return;
+    const session: ChatSession = {
+      id: activeSessionId,
+      title: currentTitle,
+      updatedAt: 'Just now',
+      messages,
+      archived: false,
+      locked: isLocked,
+    };
+    const timeout = window.setTimeout(() => {
+      void persistSession(session).then((saved) => {
+        if (saved) setSessions((previous) => [session, ...previous.filter((item) => item.id !== session.id)]);
+      });
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [historyReady, historyOwnerId, activeSessionId, messages, currentTitle, isLocked, persistSession]);
+
   const saveCurrentSession = (archived = false) => {
     if (!hasMessages) return;
     const session: ChatSession = {
-      id: activeSessionId ?? makeId(),
+      id: activeSessionId ?? crypto.randomUUID(),
       title: currentTitle,
       updatedAt: 'Just now',
       messages,
@@ -383,6 +494,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       locked: isLocked,
     };
     setSessions((previous) => [session, ...previous.filter((item) => item.id !== session.id)]);
+    void persistSession(session);
   };
 
   const startNewChat = () => {
@@ -468,7 +580,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedVyralImages([]);
     setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    if (!activeSessionId) setActiveSessionId(makeId());
+    if (!activeSessionId) setActiveSessionId(crypto.randomUUID());
 
     setIsSending(true);
     try {
@@ -1142,7 +1254,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setActionsOpen(false);
   };
 
-  const deleteCurrentChat = () => {
+  const deleteCurrentChat = async () => {
+    if (activeSessionId && supabase && historyOwnerId) {
+      const { error } = await supabase.from('vyra_ai_chat_conversations')
+        .delete().eq('id', activeSessionId).eq('user_id', historyOwnerId);
+      if (error) {
+        setHistoryError('This conversation could not be deleted. Please try again.');
+        return;
+      }
+    }
     if (activeSessionId) {
       setSessions((previous) => previous.filter((session) => session.id !== activeSessionId));
     }
@@ -1311,12 +1431,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             <div className="flex items-center justify-between border-b border-[var(--vyra-border-subtle)] px-4 py-3.5">
               <div>
                 <h2 id="chat-history-title" className="text-sm font-bold text-[var(--vyra-text-primary)]">Recent chats</h2>
-                <p className="mt-0.5 text-[10px] text-[var(--vyra-text-muted)]">Your conversations</p>
+                <p className="mt-0.5 text-[10px] text-[var(--vyra-text-muted)]">{historyError ?? (historyReady ? 'Your conversations' : 'Loading chat history…')}</p>
               </div>
               <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={17} /></button>
             </div>
             <div className="max-h-[55vh] overflow-y-auto p-2">
-              {sessions.filter((session) => !session.archived).length ? sessions.filter((session) => !session.archived).map((session) => (
+              {!historyReady ? (
+                <div className="px-5 py-12 text-center text-xs text-[var(--vyra-text-muted)]">Loading chat history…</div>
+              ) : sessions.filter((session) => !session.archived).length ? sessions.filter((session) => !session.archived).map((session) => (
                 <button key={session.id} type="button" onClick={() => openSession(session)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-[var(--vyra-bg-hover)]">
                   <MessageSquare size={16} className="shrink-0 text-[var(--vyra-text-muted)]" />
                   <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{session.title}</span>
