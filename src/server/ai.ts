@@ -69,6 +69,19 @@ router.post('/providers/gemini/settings', async (req: Request, res: Response) =>
   }
 });
 
+async function callOpenAIChatFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('OpenAI chat service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/vyra-openai-chat', {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(65000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
 async function callOpenAIKeyManagementFunction(accessToken: string, payload: Record<string, unknown>) {
   const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
   const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
@@ -1060,6 +1073,26 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   const totalMessageChars = messages.reduce((total, message) => total + message.content.length, 0);
   if (totalMessageChars > 30_000) {
     return res.status(413).json({ error: 'Chat history is too long. Start a new conversation or shorten the messages.' });
+  }
+
+  // The global AI Chat uses the platform-owned OpenAI key. Provider secrets never
+  // leave Supabase Vault; the Edge Function verifies the user and reads the key server-side.
+  if (!isDetailsTaskRequest) {
+    if (body.visionImages !== undefined || body.mediaFiles !== undefined) {
+      return res.status(501).json({
+        error: 'Text conversation is available now. Image, document, audio, and video understanding will be connected in the media phase.',
+        code: 'MEDIA_CONTEXT_NOT_ENABLED',
+      });
+    }
+    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
+    try {
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(response.status).json(data);
+    } catch {
+      return res.status(503).json({ error: 'VYRA AI Chat is temporarily unavailable. Please retry.' });
+    }
   }
 
   const visionImages: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[] = [];
