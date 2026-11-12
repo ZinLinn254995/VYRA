@@ -71,6 +71,7 @@ type Props = {
   onSceneOrderChange: (sceneIds: string[]) => void;
   onSceneDuplicate: (scene: Scene, index: number) => Scene;
   onSceneDelete: (sceneId: string) => void;
+  onSelectionChange?: (selection: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null) => void;
 };
 
 const toolbarItems = [
@@ -86,11 +87,37 @@ const toolbarItems = [
  * - zoom changes horizontal pixels-per-second only
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete }) => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    if (selectedTextClip) {
+      const track = (value?.textTracks || []).find((item) => item.id === selectedTextClip.trackId);
+      const clip = track?.clips.find((item) => item.id === selectedTextClip.clipId);
+      onSelectionChange({ kind: 'text-clip', id: selectedTextClip.clipId, trackId: selectedTextClip.trackId, label: clip?.name || clip?.content || 'Text clip' });
+      return;
+    }
+    if (selectedAudioClip) {
+      const track = (value?.audioTracks || []).find((item) => item.id === selectedAudioClip.trackId);
+      const clip = track?.clips.find((item) => item.id === selectedAudioClip.clipId);
+      onSelectionChange({ kind: 'audio-clip', id: selectedAudioClip.clipId, trackId: selectedAudioClip.trackId, label: clip?.name || 'Audio clip' });
+      return;
+    }
+    if (selectedTransitionKey) {
+      onSelectionChange({ kind: 'transition', id: selectedTransitionKey, label: 'Selected transition' });
+      return;
+    }
+    if (selectedSceneIds.length) {
+      const scene = scenes.find((item) => item.id === selectedSceneIds[0]);
+      onSelectionChange({ kind: 'scene', id: selectedSceneIds[0], label: scene?.title || 'Selected scene' });
+      return;
+    }
+    onSelectionChange(null);
+  }, [onSelectionChange, selectedSceneIds, selectedTransitionKey, selectedTextClip, selectedAudioClip, scenes, value?.audioTracks, value?.textTracks]);
+
   const [isTextEditMode, setIsTextEditMode] = useState(false);
   const seededAudioRef = useRef(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
