@@ -100,14 +100,38 @@ function validateParameters(
     if (typeof value === 'number' && !Number.isFinite(value)) return false;
     if (value !== null && !['string', 'number', 'boolean'].includes(typeof value)) return false;
   }
+  const hasExpectedVersion = typeof parameters.expectedUpdatedAt === 'string' &&
+    Number.isFinite(Date.parse(parameters.expectedUpdatedAt));
   if (operation === 'storyboard.create') {
     return typeof parameters.title === 'string' && parameters.title.trim().length > 0 &&
       typeof parameters.topic === 'string' && parameters.topic.trim().length > 0;
   }
+  if (operation === 'storyboard.update') {
+    return ['title', 'topic'].includes(String(parameters.field)) &&
+      typeof parameters.value === 'string' && parameters.value.trim().length > 0 && hasExpectedVersion;
+  }
+  if (operation === 'storyboard.delete') return hasExpectedVersion;
+  if (operation === 'scene.update') {
+    return ['title', 'description', 'duration', 'transition'].includes(String(parameters.field)) &&
+      parameters.value !== undefined && parameters.value !== null && hasExpectedVersion;
+  }
+  if (operation === 'timeline.update') {
+    return ['scene', 'transition', 'text-clip', 'audio-clip'].includes(String(parameters.itemKind)) &&
+      typeof parameters.itemId === 'string' && parameters.itemId.length > 0 &&
+      typeof parameters.field === 'string' && parameters.field.length > 0 &&
+      parameters.value !== undefined && parameters.value !== null && hasExpectedVersion;
+  }
   if (operation === 'vyral.create') return typeof parameters.name === 'string' && parameters.name.trim().length > 0;
+  if (operation === 'asset.upload') {
+    return typeof parameters.fileToken === 'string' && parameters.fileToken.length >= 8 &&
+      typeof parameters.fileName === 'string' && parameters.fileName.trim().length > 0 &&
+      typeof parameters.mimeType === 'string' && parameters.mimeType.length > 0 &&
+      typeof parameters.sizeBytes === 'number' && Number.isSafeInteger(parameters.sizeBytes) && parameters.sizeBytes > 0;
+  }
   if (operation === 'media.generate') {
     return ['image', 'video', 'audio', 'video-edit'].includes(String(parameters.task)) &&
       typeof parameters.prompt === 'string' && parameters.prompt.trim().length > 0 &&
+      ['draft', 'standard', 'premium'].includes(String(parameters.quality)) &&
       typeof parameters.quoteId === 'string' && parameters.quoteId.length > 0 &&
       typeof parameters.maxCredits === 'number' && Number.isInteger(parameters.maxCredits) && parameters.maxCredits > 0;
   }
