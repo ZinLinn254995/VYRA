@@ -3559,6 +3559,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 {observations.slice(0, 30).map((item) => {
                   const review = visionReviews.find((entry) => entry.observation_id === item.id && entry.evidence_kind === 'observation_review');
                   const confirmedKnowledge = visionReviews.filter((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path);
+                  const sourceBindingValid = Boolean(item.asset_version_id && /^[a-f0-9]{64}$/i.test(item.source_sha256 ?? ''));
                   const fields = Object.entries(flattenObservation(item.observation)).slice(0, 8);
                   const assetName = assets.find((asset) => asset.id === item.asset_id)?.name ?? 'Asset';
                   return (
@@ -3567,7 +3568,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         <div className="min-w-0">
                           <p className={'truncate text-xs font-semibold '+primary}>{assetName}</p>
                           <p className={'mt-1 text-[10px] '+muted}>{item.model_provider} · {item.model_id} · {dateLabel(item.created_at)}</p>
-                          <p className={'mt-1 text-[10px] '+muted}>Source version {versions.find((version) => version.id === item.asset_version_id)?.version_number ?? 'unknown'} · SHA-256 {item.source_sha256.slice(0, 12)}…</p>
+                          <p className={'mt-1 text-[10px] '+muted}>Source version {versions.find((version) => version.id === item.asset_version_id)?.version_number ?? 'unknown'} · SHA-256 {String(item.source_sha256 ?? 'unavailable').slice(0, 12)}…</p>
                         </div>
                         <span className={'rounded-full border px-2 py-1 text-[10px] font-semibold '+(review?.decision === 'creator_confirmed' ? 'border-emerald-500/30 text-emerald-600' : review?.decision === 'disputed' ? 'border-amber-500/30 text-amber-600' : 'border-[var(--vyra-border)] '+subtle)}>
                           {review?.decision === 'creator_confirmed' ? 'Creator confirmed' : review?.decision === 'disputed' ? 'Disputed' : 'Needs review'}
@@ -3580,7 +3581,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {!review && (
+                        {!review && sourceBindingValid && (
                           <>
                             <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'creator_confirmed')} className={primaryButton}>
                               <ShieldCheck size={13}/>{reviewingObservationId === item.id ? 'Saving…' : 'Confirm observation'}
@@ -3588,6 +3589,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                             <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'disputed')} className={button}>Dispute</button>
                           </>
                         )}
+                        {!review && !sourceBindingValid && <p className={'text-[10px] '+muted}>This observation has no verifiable source-version binding and cannot be confirmed.</p>}
                         {review?.decision === 'creator_confirmed' && Object.keys(flattenObservation(item.observation)).some((path) => path.startsWith('fields.') && path.endsWith('.value') && !visionReviews.some((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path === 'knowledge.' + path.slice('fields.'.length, -'.value'.length))) && (
                           <button type="button" disabled={promotingObservationId === item.id} onClick={() => void promoteVisionKnowledge(item.id)} className={button}>
                             {promotingObservationId === item.id ? 'Saving…' : 'Confirm a Knowledge field'}
