@@ -119,13 +119,15 @@ export async function ingestVyralAsset(
       name: file.name, original_filename: file.name, asset_type: assetType, mime_type: mimeType,
       size_bytes: file.size, storage_path: storagePath, sha256, processing_status: 'uploading',
       metadata: {
-        upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private',
-        ai_details_status: 'pending', identity_name_origin: 'system_default',
-        identity_description_origin: 'system_default', ...(input.metadata ?? {}),
+        ...(input.metadata ?? {}),
+        upload_source: input.metadata?.upload_source === 'media_generation' ? 'media_generation' : 'creator_workspace',
+        hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending',
+        identity_name_origin: 'system_default', identity_description_origin: 'system_default',
       },
     });
-    await port.uploadOriginal(storagePath, file, mimeType);
+    // A lost upload response can still mean the object was stored; always attempt cleanup on failure.
     storageUploaded = true;
+    await port.uploadOriginal(storagePath, file, mimeType);
     versionId = await port.createVersion({
       asset_id: assetId, vyral_id: input.vyralId, user_id: input.userId, version_number: 1,
       storage_path: storagePath, mime_type: mimeType, size_bytes: file.size, sha256,
