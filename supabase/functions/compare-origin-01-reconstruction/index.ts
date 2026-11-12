@@ -1,5 +1,6 @@
 import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { compareVyralDHash64, computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../_shared/perceptual-fingerprint.ts';
+import { compareNormalizedRaster, compareRedMaskIoU } from '../_shared/reconstruction-metrics.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import {
@@ -130,52 +131,6 @@ const describeImage = (image: { width: number; height: number; rgb: Uint8Array }
   return { width, height, backgroundCornerAverageRgb: background, centerRgb: center, redRegion };
 };
 
-const compareNormalizedGridRgb = (
-  a: { width: number; height: number; rgb: Uint8Array },
-  b: { width: number; height: number; rgb: Uint8Array },
-) => {
-  const aspectA = a.width / a.height;
-  const aspectB = b.width / b.height;
-  const aspectRatioDelta = Math.abs(aspectA - aspectB);
-  if (aspectRatioDelta > 0.001) {
-    return {
-      performed: false,
-      reason: 'Aspect ratios differ; normalized full-image comparison is withheld to avoid silently stretching or cropping either image.',
-      gridWidth: null, gridHeight: null,
-    };
-  }
-
-  // Sample both complete images at corresponding normalized cell centers.
-  // This is a resized-grid comparison, not decoded-pixel equality or SSIM.
-  const gridWidth = Math.max(1, Math.round(256 * Math.min(1, aspectA)));
-  const gridHeight = Math.max(1, Math.round(256 / Math.max(1, aspectA)));
-  let absoluteError = 0;
-  const sampleCount = gridWidth * gridHeight * 3;
-  for (let gy = 0; gy < gridHeight; gy++) {
-    const ay = Math.min(a.height - 1, Math.floor((gy + 0.5) * a.height / gridHeight));
-    const by = Math.min(b.height - 1, Math.floor((gy + 0.5) * b.height / gridHeight));
-    for (let gx = 0; gx < gridWidth; gx++) {
-      const ax = Math.min(a.width - 1, Math.floor((gx + 0.5) * a.width / gridWidth));
-      const bx = Math.min(b.width - 1, Math.floor((gx + 0.5) * b.width / gridWidth));
-      const ai = (ay * a.width + ax) * 3;
-      const bi = (by * b.width + bx) * 3;
-      absoluteError += Math.abs(a.rgb[ai] - b.rgb[bi]);
-      absoluteError += Math.abs(a.rgb[ai + 1] - b.rgb[bi + 1]);
-      absoluteError += Math.abs(a.rgb[ai + 2] - b.rgb[bi + 2]);
-    }
-  }
-  const meanAbsoluteError = absoluteError / sampleCount;
-  return {
-    performed: true,
-    gridWidth,
-    gridHeight,
-    sampleCount: gridWidth * gridHeight,
-    meanAbsoluteErrorPerChannel: round(meanAbsoluteError),
-    normalizedGridRgbSimilarity: round(Math.max(0, 1 - meanAbsoluteError / 255)),
-    aspectRatioDelta: round(aspectRatioDelta),
-    method: 'Nearest-neighbor samples at corresponding normalized cell centers across the full image; no crop or aspect-ratio distortion. Not SSIM and not exact pixel equality.',
-  };
-};
 
 const compareGeometry = (a: ReturnType<typeof describeImage>, b: ReturnType<typeof describeImage>) => {
   if (!a.redRegion || !b.redRegion) return { available: false, reason: 'A red-dominant region was not detected in both images.' };
@@ -458,7 +413,8 @@ Deno.serve(async (request: Request) => {
   }
 
   const geometry = compareGeometry(originalDescription, candidateDescription);
-  const normalizedImageComparison = compareNormalizedGridRgb(originalImage, candidateImage);
+  const normalizedImageComparison = compareNormalizedRaster(originalImage, candidateImage);
+  const redMaskComparison = compareRedMaskIoU(originalImage, candidateImage);
   const backgroundDelta = originalDescription.backgroundCornerAverageRgb && candidateDescription.backgroundCornerAverageRgb
     ? round(Math.sqrt(originalDescription.backgroundCornerAverageRgb.reduce((sum, value, index) => sum + Math.pow(value - candidateDescription.backgroundCornerAverageRgb![index], 2), 0)))
     : null;
@@ -478,6 +434,7 @@ Deno.serve(async (request: Request) => {
       sameDimensions,
       pixelComparison,
       normalizedImageComparison,
+      redRegionMaskComparison: redMaskComparison,
       visualFingerprintComparison: {
         algorithm: VYRAL_DHASH_ALGORITHM,
         originalHash: originalDHash,
