@@ -106,6 +106,12 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /changedPaths\.length/);
   assert.match(details, /unchangedCount/);
   assert.match(details, /does not certify a real asset change/);
+  assert.match(details, /verifyRasterVisualFingerprint/);
+  assert.match(details, /fingerprint-vyral-raster-version/);
+  assert.match(details, /Visual fingerprint · dHash-64/);
+  assert.match(details, /compareVyralDHash64/);
+  assert.match(details, /perceptual similarity/);
+  assert.match(details, /verify both versions to compare them/);
   assert.match(details, /previousObservation && latestObservation/);
   assert.match(details, /!isVyralPackageAsset\(entry\.asset\)/);
   assert.match(details, /const verifyAssetIntegrity = async \(asset: AssetRow, requestedVersionId\?: string\)/);
@@ -159,4 +165,21 @@ test('per-version fingerprint verification hashes protected original bytes and p
   assert.match(verifier, /asset_version_id: version\.id/);
   assert.match(verifier, /status: 'mismatch'/);
   assert.match(verifier, /status: 'verified'/);
+});
+
+
+test('raster visual fingerprint verification is version-pinned, source-hash checked and server generated', async () => {
+  const fingerprint = await readFile(new URL('../supabase/functions/fingerprint-vyral-raster-version/index.ts', import.meta.url), 'utf8');
+  assert.match(fingerprint, /\.eq\('id', versionId\)/);
+  assert.match(fingerprint, /\.eq\('asset_id', assetId\)/);
+  assert.match(fingerprint, /isCanonicalOwnedStoragePath\(version\.storage_path, prefix\)/);
+  assert.match(fingerprint, /sourceSha256 !== version\.sha256\.toLowerCase\(\)/);
+  assert.match(fingerprint, /ImageMagick\.read\(original/);
+  assert.match(fingerprint, /computeVyralDHash64\(samples, width, height, 4\)/);
+  assert.match(fingerprint, /fingerprint_kind: 'perceptual'/);
+  assert.match(fingerprint, /algorithm: VYRAL_DHASH_ALGORITHM/);
+  assert.match(fingerprint, /verification_status: 'server_verified'/);
+  assert.match(fingerprint, /asset_version_id: version\.id/);
+  assert.match(fingerprint, /MAX_PIXELS = 10_000_000/);
+  assert.match(fingerprint, /MAX_BYTES = 20 \* 1024 \* 1024/);
 });
