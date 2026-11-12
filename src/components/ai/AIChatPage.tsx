@@ -17,7 +17,7 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractStoryboardDetailTitle, findStoryboardMatches, formatStoryboardDetail, formatStoryboardList, isStoryboardListRequest, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardDetailTitle, findStoryboardMatches, formatStoryboardDetail, formatStoryboardList, isStoryboardListRequest, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string };
@@ -609,6 +609,38 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
+      const navigationTarget = extractGlobalChatNavigationTarget(text);
+      if (navigationTarget && !selectedFile && selectedAssets.length === 0) {
+        const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
+          workspace: 'Workspace',
+          marketplace: 'Marketplace',
+          'my-vyrals': 'My Vyrals',
+          'my-media-library': 'My Media Library',
+        };
+        const assistantMessage: ChatMessage = {
+          id: makeId(),
+          role: 'assistant',
+          content: 'Opening ' + destinationLabels[navigationTarget] + '… Your conversation has been saved.',
+          status: 'success',
+        };
+        const sessionId = activeSessionId ?? crypto.randomUUID();
+        const sessionToSave: ChatSession = {
+          id: sessionId,
+          title: currentTitle,
+          updatedAt: 'Just now',
+          messages: [...nextMessages, assistantMessage],
+          archived: false,
+          locked: isLocked,
+        };
+        const saved = await persistSession(sessionToSave);
+        if (!saved) throw new Error('I could not confirm that this conversation was saved. Please stay here and try again.');
+        setMessages(sessionToSave.messages);
+        setActiveSessionId(sessionId);
+        setSessions((previous) => [sessionToSave, ...previous.filter((item) => item.id !== sessionId)]);
+        window.dispatchEvent(new CustomEvent('vyra:global-chat-navigate', { detail: { target: navigationTarget } }));
+        return;
+      }
+
       const requestedStoryboardTitle = extractStoryboardDetailTitle(text);
       if (requestedStoryboardTitle && !selectedFile && selectedAssets.length === 0) {
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
