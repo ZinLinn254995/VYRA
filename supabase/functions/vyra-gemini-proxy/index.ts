@@ -59,18 +59,27 @@ Deno.serve(async (request: Request) => {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
       responseId?: string;
+      error?: { message?: string; status?: string; code?: number };
     };
     if (!upstream.ok) {
-      console.error('[vyra-gemini-proxy] Gemini HTTP response:', upstream.status);
+      const upstreamMessage = typeof payload.error?.message === 'string'
+        ? payload.error.message.slice(0, 500)
+        : 'No additional details were provided by Google.';
+      console.error('[vyra-gemini-proxy] Gemini HTTP response:', upstream.status, payload.error?.status ?? 'UNKNOWN');
+      const message = upstream.status === 429
+        ? 'Gemini rate limit reached. Try again later.'
+        : upstream.status === 400
+          ? 'Gemini rejected the request format: ' + upstreamMessage
+          : upstream.status === 401 || upstream.status === 403
+            ? 'Google rejected the stored API key or its API permissions: ' + upstreamMessage
+            : upstream.status === 404
+              ? 'Gemini model "' + model + '" was not found or is unavailable to this API key: ' + upstreamMessage
+              : 'Gemini request failed (HTTP ' + upstream.status + '): ' + upstreamMessage;
       return json({
-        error: upstream.status === 429
-          ? 'Gemini rate limit reached. Try again later.'
-          : upstream.status === 400
-            ? 'Gemini rejected the request format or model configuration.'
-            : upstream.status === 401 || upstream.status === 403
-              ? 'Google rejected the stored API key or its API permissions.'
-              : 'Gemini could not complete the request. Check provider quota and model access.',
+        error: message,
         code: 'GEMINI_HTTP_' + upstream.status,
+        providerStatus: payload.error?.status ?? null,
+        model,
       }, upstream.status === 429 ? 429 : 502);
     }
     const text = (payload.candidates?.[0]?.content?.parts ?? []).map((part) => typeof part.text === 'string' ? part.text : '').join('').trim();
