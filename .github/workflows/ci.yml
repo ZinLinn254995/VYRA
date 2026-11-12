@@ -33,6 +33,8 @@ jobs:
         run: npm run test:global-chat-planner
       - name: VYRA app-wide AI capability policy tests
         run: npm run test:ai-capabilities
+      - name: VYRA AI capability executor security tests
+        run: npm run test:ai-capability-executor
       - name: Media model selection policy tests
         run: npm run test:media-model-selection
       - name: Media generation approval contract tests
