@@ -17,6 +17,8 @@ export interface AIServiceRequest {
   accessToken?: string;
   /** Stable per-generation request ID used only for server-side idempotency. */
   idempotencyKey?: string;
+  /** Receives incremental text chunks for the live chat UI. */
+  onTextDelta?: (chunk: string) => void;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
   visionImages?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[];
   /** Small, user-authorized PDF/audio source files for Gemini multimodal inspection. */
@@ -136,52 +138,15 @@ class ModularAIService implements AIServiceProvider {
             ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
           }),
         });
-        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; modelName?: string };
-        if (!response.ok || typeof data.text !== 'string' || !data.text.trim()) {
-          const message = typeof data.error === 'string' && data.error.trim()
-            ? data.error
-            : 'VYRA could not inspect the selected media Assets. Please retry.';
-          return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
-        }
-        return {
-          content: data.text.trim(),
-          status: 'success',
-          providerName: 'Google Gemini Vision',
-          modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
-        };
-      } catch {
-        const message = 'VYRA could not reach the multimodal inspection service. No text-only preview was substituted.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
-      }
-    }
-
-    if (!request.accessToken) {
-      const message = 'Sign in to VYRA before using AI Chat.';
-      return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
-    }
-
-    try {
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + request.accessToken,
-          ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
-        },
-        body: JSON.stringify({
-          messages: request.messages.filter((message) => message.role !== 'system'),
-          ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
-          ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
-        }),
-      });
-      const data = await response.json().catch(() => ({})) as {
-        text?: string;
-        error?: string;
-        code?: string;
-        provider?: string;
-        modelName?: string;
-        usage?: AIServiceResult['usage'];
-      };
+        const data = !response.ok
+        ? await response.json().catch(() => ({})) as {
+            text?: string; error?: string; code?: string; provider?: string;
+            modelName?: string; usage?: AIServiceResult['usage'];
+          }
+        : {} as {
+            text?: string; error?: string; code?: string; provider?: string;
+            modelName?: string; usage?: AIServiceResult['usage'];
+          };
       if (!response.ok) {
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error
@@ -194,16 +159,88 @@ class ModularAIService implements AIServiceProvider {
           modelName: typeof data.modelName === 'string' ? data.modelName : this.model,
         };
       }
-      if (typeof data.text !== 'string' || !data.text.trim()) {
-        const message = 'OpenAI returned an empty response. Please retry.';
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('text/event-stream') || !response.body) {
+        const fallback = await response.json().catch(() => ({})) as {
+          text?: string; error?: string; modelName?: string; usage?: AIServiceResult['usage'];
+        };
+        if (typeof fallback.text === 'string' && fallback.text.trim()) {
+          return {
+            content: fallback.text.trim(),
+            status: 'success',
+            providerName: 'OpenAI',
+            modelName: typeof fallback.modelName === 'string' ? fallback.modelName : this.model,
+            usage: fallback.usage ?? null,
+          };
+        }
+        const message = typeof fallback.error === 'string' ? fallback.error : 'OpenAI returned an empty response. Please retry.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
       }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let content = '';
+      let usage: AIServiceResult['usage'] = null;
+      let streamModel = this.model;
+      let finished = false;
+      const consumeLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) return;
+        const payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') { finished = true; return; }
+        if (!payload) return;
+        try {
+          const event = JSON.parse(payload) as {
+            model?: string;
+            choices?: Array<{ delta?: { content?: string | null } }>;
+            usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+          };
+          if (typeof event.model === 'string') streamModel = event.model;
+          const chunk = event.choices?.[0]?.delta?.content;
+          if (typeof chunk === 'string' && chunk.length) {
+            content += chunk;
+            request.onTextDelta?.(chunk);
+          }
+          if (event.usage) {
+            usage = {
+              promptTokens: event.usage.prompt_tokens ?? null,
+              completionTokens: event.usage.completion_tokens ?? null,
+              totalTokens: event.usage.total_tokens ?? null,
+              costUsd: null,
+            };
+          }
+        } catch {
+          // Ignore malformed keep-alive or provider event lines; the final empty check remains authoritative.
+        }
+      };
+
+      try {
+        while (!finished) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\\r?\\n/);
+          buffer = lines.pop() ?? '';
+          for (const line of lines) consumeLine(line);
+        }
+        buffer += decoder.decode();
+        if (buffer.trim()) consumeLine(buffer);
+      } finally {
+        reader.releaseLock();
+      }
+
+      if (!content.trim()) {
+        const message = 'OpenAI returned an empty response. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
+      }
       return {
-        content: data.text.trim(),
+        content,
         status: 'success',
         providerName: 'OpenAI',
-        modelName: typeof data.modelName === 'string' ? data.modelName : this.model,
-        usage: data.usage ?? null,
+        modelName: streamModel,
+        usage,
       };
     } catch {
       const message = 'Could not reach VYRA AI Chat. Check your connection and retry.';
