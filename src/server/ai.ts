@@ -1082,13 +1082,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
 
   // The global AI Chat uses the platform-owned OpenAI key. Provider secrets never
   // leave Supabase Vault; the Edge Function verifies the user and reads the key server-side.
-  if (!isDetailsTaskRequest) {
-    if (body.visionImages !== undefined || body.mediaFiles !== undefined) {
-      return res.status(501).json({
-        error: 'Text conversation is available now. Image, document, audio, and video understanding will be connected in the media phase.',
-        code: 'MEDIA_CONTEXT_NOT_ENABLED',
-      });
-    }
+  if (!isDetailsTaskRequest && body.visionImages === undefined && body.mediaFiles === undefined) {
     const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
     if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
     try {
