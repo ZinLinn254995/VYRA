@@ -35,7 +35,7 @@ type DnaRow = {
 };
 type FingerprintRow = { id: string; asset_id: string; asset_version_id: string | null; fingerprint_kind: string; algorithm: string; value: string; metadata?: Record<string, unknown>; created_at: string };
 type ObservationRow = { id: string; asset_id: string; asset_version_id: string; task_kind: string; model_provider: string; model_id: string; confidence: number | null; verification_status: string; observation: Record<string, unknown>; evidence?: Record<string, unknown>; source_sha256: string; created_at: string };
-type VisionReviewRow = { id: string; observation_id: string; evidence_kind: string; decision: string };
+type VisionReviewRow = { id: string; observation_id: string; evidence_kind: string; decision: string; field_path?: string | null };
 type LineageRow = { id: string; parent_asset_id: string; child_asset_id: string; relation_kind: string; created_at: string };
 type MasterRelationshipRow = { id: string; relationship_type: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; rationale: string };
 type MasterAssetDraft = { role: '' | 'main' | 'supporting'; purpose: string; targetAssetId: string; rationale: string };
@@ -234,7 +234,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const [fingerprintResult, observationResult, reviewResult] = assetIds.length ? await Promise.all([
       supabase.from('vyral_fingerprints').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
       supabase.from('vyral_vision_observations').select('*').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
-      supabase.from('vyral_vision_creator_evidence').select('id,observation_id,evidence_kind,decision').in('asset_id', assetIds).eq('evidence_kind', 'observation_review').order('created_at', { ascending: false }).limit(1000),
+      supabase.from('vyral_vision_creator_evidence').select('id,observation_id,evidence_kind,decision,field_path').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
     ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
     if (fingerprintResult.error || observationResult.error) {
       setError(fingerprintResult.error?.message ?? observationResult.error?.message ?? 'Could not load Vyral identity evidence.');
@@ -2944,7 +2944,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const observation = observations.find((item) => item.id === observationId);
     if (!observation) return;
     const fields = flattenObservation(observation.observation);
-    const promotablePaths = Object.keys(fields).filter((path) => path.startsWith('fields.') && path.endsWith('.value'));
+    const promotablePaths = Object.keys(fields).filter((path) => {
+      if (!path.startsWith('fields.') || !path.endsWith('.value')) return false;
+      const fieldName = path.slice('fields.'.length, -'.value'.length);
+      return !visionReviews.some((review) => review.observation_id === observationId && review.evidence_kind === 'field_confirmation' && review.field_path === 'knowledge.' + fieldName);
+    });
     if (!promotablePaths.length) {
       setError('This observation has no structured AI-suggested fields available for Knowledge promotion.');
       return;
@@ -3542,7 +3546,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             {observations.length ? (
               <div className="mt-3 space-y-2">
                 {observations.slice(0, 30).map((item) => {
-                  const review = visionReviews.find((entry) => entry.observation_id === item.id);
+                  const review = visionReviews.find((entry) => entry.observation_id === item.id && entry.evidence_kind === 'observation_review');
+                  const confirmedKnowledge = visionReviews.filter((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path);
                   const fields = Object.entries(flattenObservation(item.observation)).slice(0, 8);
                   const assetName = assets.find((asset) => asset.id === item.asset_id)?.name ?? 'Asset';
                   return (
@@ -3557,6 +3562,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                           {review?.decision === 'creator_confirmed' ? 'Creator confirmed' : review?.decision === 'disputed' ? 'Disputed' : 'Needs review'}
                         </span>
                       </div>
+                      {confirmedKnowledge.length > 0 && <p className={'mt-2 text-[10px] '+muted}>Confirmed Knowledge: {confirmedKnowledge.map((entry) => entry.field_path).join(' · ')}</p>}
                       {fields.length > 0 && (
                         <div className="mt-3 space-y-1">
                           {fields.map(([key,value]) => <p key={key} className={'break-words text-[10px] '+muted}><strong className={primary}>{key}:</strong> {value.slice(0, 240)}</p>)}
@@ -3571,7 +3577,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                             <button type="button" disabled={reviewingObservationId === item.id} onClick={() => void reviewVisionObservation(item.id, 'disputed')} className={button}>Dispute</button>
                           </>
                         )}
-                        {review?.decision === 'creator_confirmed' && Object.keys(flattenObservation(item.observation)).some((path) => path.startsWith('fields.') && path.endsWith('.value')) && (
+                        {review?.decision === 'creator_confirmed' && Object.keys(flattenObservation(item.observation)).some((path) => path.startsWith('fields.') && path.endsWith('.value') && !visionReviews.some((entry) => entry.observation_id === item.id && entry.evidence_kind === 'field_confirmation' && entry.field_path === 'knowledge.' + path.slice('fields.'.length, -'.value'.length))) && (
                           <button type="button" disabled={promotingObservationId === item.id} onClick={() => void promoteVisionKnowledge(item.id)} className={button}>
                             {promotingObservationId === item.id ? 'Saving…' : 'Confirm a Knowledge field'}
                           </button>
