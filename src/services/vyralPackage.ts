@@ -32,9 +32,9 @@ export const getVyralPackageAssetsForImport = <T extends {
 
 /** A nested .vyral package is a package test/input fixture, not a media target for semantic blind reconstruction. */
 export const isVyralPackageAsset = (asset: {
-  name?: string | null;
-  original_filename?: string | null;
-  mime_type?: string | null;
+  name?: unknown;
+  original_filename?: unknown;
+  mime_type?: unknown;
 }) => {
   const mimeType = String(asset.mime_type ?? '').trim().toLowerCase();
   const filename = String(asset.original_filename ?? asset.name ?? '').trim().toLowerCase();
