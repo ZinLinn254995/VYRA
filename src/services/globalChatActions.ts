@@ -13,9 +13,20 @@ export type GlobalChatStoryboardDraft = {
   topic: string;
 };
 
+export type GlobalChatStoryboardUpdateDraft = {
+  id: string;
+  storyboardId: string;
+  storyboardTitle: string;
+  field: 'title' | 'topic';
+  previousValue: string;
+  nextValue: string;
+};
+
 export type GlobalChatStoryboardAction =
   | { type: 'storyboard-create-draft'; draft: GlobalChatStoryboardDraft }
-  | { type: 'storyboard-create-complete'; draftId: string };
+  | { type: 'storyboard-create-complete'; draftId: string }
+  | { type: 'storyboard-update-draft'; draft: GlobalChatStoryboardUpdateDraft }
+  | { type: 'storyboard-update-complete'; draftId: string };
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const value = input.trim();
@@ -148,3 +159,34 @@ export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavi
   for (const [target, pattern] of patterns) if (pattern.test(value)) return target;
   return null;
 };
+
+
+export const isStoryboardUpdateIntent = (input: string): boolean =>
+  /^\\s*(?:(?:update|change|edit)\\s+(?:the\\s+)?storyboard\\b|set\\s+(?:title|topic)\\s+of\\s+(?:the\\s+)?storyboard\\b|storyboard\\s+.+?\\s+ရဲ့\\s+(?:title|topic)\\s+ကို)/i.test(input);
+
+export const extractStoryboardUpdateRequest = (input: string): { storyboardTitle: string; field: 'title' | 'topic'; value: string } | null => {
+  const patterns: Array<{ regex: RegExp; target: number; field: number; value: number }> = [
+    { regex: /^\\s*(?:update|change|edit)\\s+(?:the\\s+)?storyboard\\s+["“']?(.+?)["”']?\\s+(title|topic|name|idea)\\s+(?:to|as|:)\\s+(.+?)\\s*$/i, target: 1, field: 2, value: 3 },
+    { regex: /^\\s*set\\s+(title|topic)\\s+of\\s+(?:the\\s+)?storyboard\\s+["“']?(.+?)["”']?\\s+to\\s+(.+?)\\s*$/i, target: 2, field: 1, value: 3 },
+    { regex: /^\\s*storyboard\\s+(.+?)\\s+ရဲ့\\s+(title|topic)\\s+ကို\\s+(.+?)\\s+ပြောင်း(?:ပေး)?\\s*$/i, target: 1, field: 2, value: 3 },
+  ];
+  for (const pattern of patterns) {
+    const match = input.match(pattern.regex);
+    if (!match) continue;
+    const storyboardTitle = match[pattern.target]?.trim().replace(/^["“']|["”']$/g, '').trim();
+    const rawField = match[pattern.field]?.toLowerCase();
+    const field: 'title' | 'topic' = rawField === 'title' || rawField === 'name' ? 'title' : 'topic';
+    const value = match[pattern.value]?.trim().replace(/^["“']|["”']$/g, '').trim();
+    if (!storyboardTitle || !value || storyboardTitle.length > 160 || value.length > 1000) return null;
+    if (field === 'title' && value.length > 100) return null;
+    return { storyboardTitle, field, value };
+  }
+  return null;
+};
+
+export const formatStoryboardUpdateDraft = (draft: GlobalChatStoryboardUpdateDraft): string =>
+  '**Storyboard update — please review**\\n\\n' +
+  '**Storyboard:** ' + draft.storyboardTitle + '\\n' +
+  '**' + (draft.field === 'title' ? 'Title' : 'Topic') + ':** ' + draft.previousValue + '\\n' +
+  '**New ' + (draft.field === 'title' ? 'title' : 'topic') + ':** ' + draft.nextValue + '\\n\\n' +
+  'Nothing has been changed yet. Reply **Confirm update** (သို့) **အတည်ပြု** to save this change.';
