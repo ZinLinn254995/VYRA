@@ -618,3 +618,13 @@ Next: implement server-side approval consumption and idempotent job submission, 
 
 
 - Follow-up implementation: natural-language short approvals are now scoped to the latest assistant preview across Storyboard create/update/delete and Vyral create/upload. The preview copy no longer asks the user to type a fixed confirmation command. A negated phrase such as “don't add this” is explicitly excluded from upload intent.
+
+
+#### Natural conversation and owner-verified Vyral context — follow-up
+
+- Vyral context selection is inferred from a uniquely mentioned owned Vyral in ordinary user text. If two or more distinct Vyrals are mentioned (for example, a comparison), the active context is not silently changed. Negated mentions such as “don't switch to ORIGIN Story” are excluded.
+- The selected Vyral ID is persisted per signed-in account in local browser storage, revalidated against the authenticated owner on load and before use, and passed through the existing authenticated chat endpoint. The server independently verifies ownership.
+- The chat Edge Function now loads a bounded, owner-scoped canonical context: Vyral description and Master DNA status/revision/purpose, up to 30 non-archived Assets, each Asset's latest available DNA status/revision, up to 30 Asset relationships, and Master DNA fingerprint metadata. It sends no binary file data, storage credentials, API keys, or full raw DNA payloads to the text model. Truncation is explicitly indicated.
+- Creator-authored descriptions, Asset names, tags and relationship rationales are treated as untrusted descriptive data, not system instructions. The model is instructed not to invent missing inventory or claim mutations without a confirmed VYRA action.
+- Natural Asset placement language is recognized conservatively. Strong actions such as add/put/save/store/attach/upload/place are supported; “use this image as part of our current Vyral” is supported only when the Vyral destination is explicit. A generic request to “use this image as a reference” is not treated as an upload.
+- This improves the information available for free-form conversation, but it does not yet make the model an unrestricted executor of all VYRA features. New mutations and billable generation still require explicit, allowlisted VYRA actions and appropriate approval.
