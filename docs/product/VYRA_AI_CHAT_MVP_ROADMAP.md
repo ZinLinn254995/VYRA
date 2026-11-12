@@ -291,3 +291,13 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 **Verification status:** The implementation and tests have been committed to feature/my-storyboard. Automated CI and Preview verification for this new commit are pending; do not treat this step as verified until those checks finish. No production deployment or merge was performed.
 
 **Next Phase 3 step:** Add navigation through the app's existing navigation path, then define safe create/edit operations with explicit confirmation and server-side authorization. Preserve the existing AI Chat UI baseline.
+
+### Phase 3 progress — allowlisted app navigation from AI Chat
+
+- Added explicit navigation intents for Workspace, Marketplace, My Vyrals, and My Media Library (English plus initial Burmese variants).
+- Navigation uses the app's existing section/profile state. It does not introduce new buttons or alter the AI Chat layout.
+- Before navigation, AI Chat persists the current conversation including the navigation request and confirmation message. If persistence cannot be confirmed, it stays on the Chat page and reports the save failure instead of navigating away.
+- Navigation is allowlisted and read-only. Broad or destructive phrases such as deleting Vyrals or creating Storyboards do not trigger a route change.
+- Added intent tests for each supported destination and negative cases.
+
+**Verification:** The previous Storyboard detail-intent fix passed GitHub CI (run 43292879968). CI for the navigation change is running; Preview and manual device verification are still pending. No production deployment or merge was performed. The existing AI Chat visual layout has not been changed.
