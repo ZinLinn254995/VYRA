@@ -301,3 +301,17 @@ The existing AI Chat UI is a user-approved design and is now treated as a visual
 - Added intent tests for each supported destination and negative cases.
 
 **Verification:** Storyboard detail-intent fix passed GitHub CI (run 43292879968). Navigation parser and implementation passed GitHub CI (run 43293945486), including TypeScript check, global AI Chat safe-action tests, Supabase Edge Function type-check, and production build. Preview and manual device verification are still pending. No production deployment or merge was performed. The existing AI Chat visual layout has not been changed.
+
+
+### Phase 3 progress — confirmation-gated Storyboard creation
+
+- Added deterministic English/Burmese create-intent parsing. A request without a topic asks one concise follow-up question; it does not create an empty/default Storyboard.
+- A valid request produces a reviewable draft with title and topic in the existing Chat transcript. The draft carries structured action metadata in the existing conversation message record, so it survives normal chat-history persistence and reload without adding UI controls.
+- Creation happens only after an explicit confirmation such as “Confirm create” or “အတည်ပြု”. The action re-authenticates the current Supabase user and writes one account-owned row to the existing `vyral_storyboards` table using the existing Storyboard fields.
+- The local account cache is updated after the cloud write succeeds. If local cache writing fails, the response reports that the cloud copy is saved and Workspace can refresh it.
+- The Storyboard uses a stable draft UUID as its record ID. A repeated confirmation cannot create a second record for that draft; the completed action is recorded in the chat transcript. No scene data is fabricated, and the user can continue editing the new Storyboard in Workspace.
+- No AI Chat layout, CSS, controls, or visual hierarchy were changed. No API key is needed for this deterministic action.
+
+**Verification status:** Focused tests now cover English/Burmese creation parsing, missing-topic behavior, explicit confirmation phrases, and draft-preview wording. GitHub CI for the implementation is pending. Preview/device interaction and the saved Storyboard appearing in Workspace still require manual verification. No Production deployment or merge was performed.
+
+**Next Phase 3 step:** Verify the create/confirm/reload/Workspace journey in Preview, then implement the next narrowly scoped action only after this creation path passes.
