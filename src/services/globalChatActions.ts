@@ -23,11 +23,20 @@ export type GlobalChatStoryboardUpdateDraft = {
   nextValue: string;
 };
 
+export type GlobalChatStoryboardDeleteDraft = {
+  id: string;
+  storyboardId: string;
+  storyboardTitle: string;
+  expectedUpdatedAt: string;
+};
+
 export type GlobalChatStoryboardAction =
   | { type: 'storyboard-create-draft'; draft: GlobalChatStoryboardDraft }
   | { type: 'storyboard-create-complete'; draftId: string }
   | { type: 'storyboard-update-draft'; draft: GlobalChatStoryboardUpdateDraft }
-  | { type: 'storyboard-update-complete'; draftId: string };
+  | { type: 'storyboard-update-complete'; draftId: string }
+  | { type: 'storyboard-delete-draft'; draft: GlobalChatStoryboardDeleteDraft }
+  | { type: 'storyboard-delete-complete'; draftId: string };
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const value = input.trim();
@@ -194,3 +203,29 @@ export const formatStoryboardUpdateDraft = (draft: GlobalChatStoryboardUpdateDra
 
 export const isStoryboardUpdateConfirmation = (input: string): boolean =>
   /^\s*(?:confirm\s+update|အတည်ပြု(?:မယ်)?|ပြောင်းလဲမှု\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
+
+
+export const isStoryboardDeleteIntent = (input: string): boolean =>
+  /^\\s*(?:delete|remove)\\s+(?:the\\s+)?storyboard\\b|^\\s*storyboard\\s+.+?\\s+ကို\\s+(?:ဖျက်|delete)(?:ပေး)?\\s*$/i.test(input);
+
+export const extractStoryboardDeleteTitle = (input: string): string | null => {
+  const patterns = [
+    /^\\s*(?:delete|remove)\\s+(?:the\\s+)?storyboard\\s+["“']?(.+?)["”']?\\s*[.!?။]*\\s*$/i,
+    /^\\s*storyboard\\s+["“']?(.+?)["”']?\\s+ကို\\s+(?:ဖျက်|delete)(?:ပေး)?\\s*[.!?။]*\\s*$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    const title = match?.[1]?.trim().replace(/^["“']|["”']$/g, '').trim();
+    if (title && title.length <= 160) return title;
+  }
+  return null;
+};
+
+export const formatStoryboardDeleteDraft = (draft: GlobalChatStoryboardDeleteDraft): string =>
+  '**Delete Storyboard — confirmation required**\\n\\n' +
+  'You are about to permanently delete **' + draft.storyboardTitle + '**.\\n' +
+  'This action cannot be undone.\\n\\n' +
+  'Nothing has been deleted yet. Reply **Confirm delete** (သို့) **ဖျက်ရန် အတည်ပြု** to continue.';
+
+export const isStoryboardDeleteConfirmation = (input: string): boolean =>
+  /^\\s*(?:confirm\\s+delete|ဖျက်ရန်\\s+အတည်ပြု|ဖျက်မယ်\\s+အတည်ပြု)\\s*[.!?။]*\\s*$/i.test(input);
