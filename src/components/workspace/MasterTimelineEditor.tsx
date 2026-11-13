@@ -111,6 +111,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [masterPlaybackError, setMasterPlaybackError] = useState('');
   const masterAudioContextRef = useRef<AudioContext | null>(null);
   const masterPlaybackHandleRef = useRef<AudioPlaybackHandle | null>(null);
+  const masterPlaybackRequestIdRef = useRef(0);
   const masterPlaybackFrameRef = useRef<number | null>(null);
   const masterPlaybackClockRef = useRef<{ contextStart: number; timelineStart: number } | null>(null);
   useEffect(() => {
@@ -508,6 +509,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
   const stopMasterTimelinePlayback = () => {
+    masterPlaybackRequestIdRef.current += 1;
     if (masterPlaybackFrameRef.current !== null) {
       cancelAnimationFrame(masterPlaybackFrameRef.current);
       masterPlaybackFrameRef.current = null;
@@ -533,10 +535,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     }
     setMasterPlaybackError('');
     setMasterPlaybackState('loading');
+    const requestId = ++masterPlaybackRequestIdRef.current;
     try {
       const context = masterAudioContextRef.current || new AudioContextConstructor();
       masterAudioContextRef.current = context;
       if (context.state === 'suspended') await context.resume();
+      if (requestId !== masterPlaybackRequestIdRef.current) return;
       const handle = startMasterTimelineAudioPlayback(plan, {
         context,
         resolveAssetUrl: async (assetId, assetVersionId) => {
@@ -551,7 +555,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       });
       masterPlaybackHandleRef.current = handle;
       await handle.ready;
-      if (masterPlaybackHandleRef.current !== handle) return;
+      if (requestId !== masterPlaybackRequestIdRef.current || masterPlaybackHandleRef.current !== handle) {
+        handle.stop();
+        return;
+      }
       const contextStart = handle.startTime ?? context.currentTime;
       masterPlaybackClockRef.current = { contextStart, timelineStart };
       setMasterPlaybackState('playing');
@@ -574,6 +581,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         if (masterPlaybackHandleRef.current === handle) stopMasterTimelinePlayback();
       });
     } catch (error) {
+      if (requestId !== masterPlaybackRequestIdRef.current) return;
       stopMasterTimelinePlayback();
       setMasterPlaybackError(error instanceof Error ? error.message : 'Multi-track Audio playback failed.');
     }
