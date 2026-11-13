@@ -136,6 +136,9 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['vyral.delete', 'Delete a Vyral when retention rules permit'],
     ['vyral.remove_branch', 'Remove a Vyral branch'],
   ]),
+  ...define('assets', 'autonomous', 'reversible', [
+    ['asset.propose_upload', 'Prepare an owner-scoped Asset upload preview with an AI-approved display name without transferring file bytes'],
+  ]),
   ...define('assets', 'autonomous', 'read', [
     ['asset.list', 'List and search Assets'],
     ['asset.read', 'Read Asset metadata and version details'],
