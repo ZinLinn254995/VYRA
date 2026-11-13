@@ -19,6 +19,7 @@ export type VyralAssetIngestionResult = {
   mimeType: string;
   sizeBytes: number;
   dnaKind: 'raster-v3' | 'universal-file-v1';
+  audioTechnicalMetadata?: { schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' };
 };
 
 export type VyralAssetInsert = {
@@ -30,7 +31,7 @@ export type VyralAssetInsert = {
 export type VyralAssetVersionInsert = {
   asset_id: string; vyral_id: string; user_id: string; version_number: 1;
   storage_path: string; mime_type: string; size_bytes: number; sha256: string;
-  source_kind: 'original'; metadata: { original_filename: string };
+  source_kind: 'original'; metadata: { original_filename: string; audio_technical_metadata?: { schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' } };
 };
 export type VyralAssetDnaInsert = {
   id: string; vyral_id: string; user_id: string; asset_id: string; scope: 'asset';
@@ -88,6 +89,73 @@ export function classifyVyralAssetFile(file: Pick<File, 'name' | 'type'>): Vyral
   return 'other';
 }
 
+
+/** Normalize decoded PCM into bounded, deterministic peak samples for the Timeline waveform. */
+export function buildAudioWaveformPeaks(channels: readonly ArrayLike<number>[], bucketCount = 96): number[] {
+  if (!channels.length || !Number.isInteger(bucketCount) || bucketCount < 8 || bucketCount > 256) return [];
+  const length = Math.max(...channels.map((channel) => channel.length));
+  if (!length) return [];
+  const peaks: number[] = [];
+  for (let bucket = 0; bucket < bucketCount; bucket++) {
+    const start = Math.floor(bucket * length / bucketCount);
+    const end = Math.max(start + 1, Math.floor((bucket + 1) * length / bucketCount));
+    let peak = 0;
+    for (const channel of channels) {
+      for (let index = start; index < Math.min(end, channel.length); index++) {
+        const sample = Number(channel[index]);
+        if (Number.isFinite(sample)) peak = Math.max(peak, Math.abs(sample));
+      }
+    }
+    peaks.push(Math.max(0.015, Math.min(1, peak)));
+  }
+  return peaks;
+}
+
+/** Inspect the exact source File. Unsupported codecs keep the Asset but omit Timeline metadata. */
+export async function extractAudioTechnicalMetadata(
+  file: File,
+  sourceSha256: string,
+): Promise<{ schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' } | null> {
+  if (!file.type.toLowerCase().startsWith('audio/') || typeof Audio === 'undefined' || typeof URL === 'undefined') return null;
+  const objectUrl = URL.createObjectURL(file);
+  let audioContext: AudioContext | null = null;
+  try {
+    const durationSeconds = await new Promise<number>((resolve, reject) => {
+      const audio = new Audio();
+      const timeout = globalThis.setTimeout(() => reject(new Error('Audio metadata timeout.')), 15000);
+      const cleanup = () => { globalThis.clearTimeout(timeout); audio.removeAttribute('src'); audio.load(); };
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration;
+        cleanup();
+        if (Number.isFinite(duration) && duration > 0 && duration <= 3600) resolve(duration);
+        else reject(new Error('Unsupported or invalid audio duration.'));
+      };
+      audio.onerror = () => { cleanup(); reject(new Error('The browser could not read audio metadata.')); };
+      audio.src = objectUrl;
+    });
+    let waveformPeaks: number[] = [];
+    const AudioContextConstructor = globalThis.AudioContext;
+    if (AudioContextConstructor && file.size <= 20 * 1024 * 1024) {
+      try {
+        audioContext = new AudioContextConstructor();
+        const decoded = await audioContext.decodeAudioData(await file.arrayBuffer());
+        waveformPeaks = buildAudioWaveformPeaks(
+          Array.from({ length: decoded.numberOfChannels }, (_, channel) => decoded.getChannelData(channel)), 96,
+        );
+      } catch { /* Keep valid duration and omit unsupported waveform data. */ }
+    }
+    return { schemaVersion: 1, sourceSha256, durationSeconds, waveformPeaks, extraction: 'browser-audio-decode' };
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+    if (audioContext && audioContext.state !== 'closed') {
+      try { await audioContext.close(); } catch { /* Best-effort decoder cleanup. */ }
+    }
+  }
+}
+
 export async function ingestVyralAsset(
   port: VyralAssetIngestionPort,
   input: VyralAssetIngestionInput,
@@ -110,6 +178,7 @@ export async function ingestVyralAsset(
   const bytes = await file.arrayBuffer();
   const sha256 = await sha256Hex(bytes);
   const rasterDna = assetType === 'image' && RASTER_MIMES.has(mimeType.toLowerCase());
+  const audioTechnicalMetadata = assetType === 'audio' ? await extractAudioTechnicalMetadata(file, sha256) : null;
   let versionId: string | null = null;
   let storageUploaded = false;
   let dnaCommitted = false;
@@ -124,6 +193,7 @@ export async function ingestVyralAsset(
         upload_source: input.metadata?.upload_source === 'media_generation' ? 'media_generation' : 'creator_workspace',
         hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending',
         identity_name_origin: 'system_default', identity_description_origin: 'system_default',
+        ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}),
       },
     });
     // A lost upload response can still mean the object was stored; always attempt cleanup on failure.
@@ -132,7 +202,7 @@ export async function ingestVyralAsset(
     versionId = await port.createVersion({
       asset_id: assetId, vyral_id: input.vyralId, user_id: input.userId, version_number: 1,
       storage_path: storagePath, mime_type: mimeType, size_bytes: file.size, sha256,
-      source_kind: 'original', metadata: { original_filename: file.name },
+      source_kind: 'original', metadata: { original_filename: file.name, ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}) },
     });
     if (!UUID.test(versionId)) throw new Error('The original Asset Version record did not return a valid ID.');
     await port.createFingerprint({ assetId, versionId, userId: input.userId, sha256 });
@@ -180,6 +250,7 @@ export async function ingestVyralAsset(
     return {
       assetId, versionId, storagePath, sha256, assetType, mimeType,
       sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1',
+      ...(audioTechnicalMetadata ? { audioTechnicalMetadata } : {}),
     };
   } catch (cause) {
     let preserve = dnaCommitted || (cause instanceof VyralAssetIngestionError && cause.preservedForRecovery);
