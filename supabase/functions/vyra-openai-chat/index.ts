@@ -2,7 +2,7 @@ import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMasterTimelineVideoAsset, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
 import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
-import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreatePendingPlan } from '../../../src/server/vyralCreationAction.ts';
+import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreatePendingPlan, validateVyralCreatePendingAction } from '../../../src/server/vyralCreationAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -2155,14 +2155,15 @@ registerAiCapabilityAdapter({
     const pendingActionId = String(input.pending_action_id);
     const vyralId = String(input.vyral_id);
     const { data: pending, error: pendingError } = await admin.from('ai_operator_pending_actions')
-      .select('id,capability_id,plan,expires_at,status')
+      .select('id,user_id,session_id,capability_id,plan,expires_at,status')
       .eq('id', pendingActionId).eq('user_id', execution.userId).eq('session_id', sessionId).maybeSingle();
-    if (pendingError || !pending || pending.status !== 'pending' ||
-        pending.capability_id !== 'vyral.create' || Date.parse(pending.expires_at) <= Date.now()) {
+    if (pendingError || !pending) {
       return { ok: false, message: 'This Vyral creation approval is no longer valid. Nothing was created.' };
     }
-    const plan = parseVyralCreatePendingPlan(pending.plan);
-    if (!plan || plan.target.vyralId !== vyralId || Date.parse(plan.expiresAt) <= Date.now()) {
+    const plan = validateVyralCreatePendingAction(pending, {
+      userId: execution.userId, sessionId, actionId: pendingActionId,
+    });
+    if (!plan || plan.target.vyralId !== vyralId) {
       return { ok: false, message: 'The Vyral creation preview did not pass its final security check. Nothing was created.' };
     }
     const { error: approveError } = await admin.rpc('approve_ai_operator_pending_action', {
@@ -2251,11 +2252,12 @@ async function executePendingVyralCreateApproval(
     verifyApproval: async (request) => {
       if (request.input.pending_action_id !== pending.id || request.input.vyral_id !== plan.target.vyralId) return false;
       const { data: current, error } = await admin.from('ai_operator_pending_actions')
-        .select('id,capability_id,plan,expires_at,status')
+        .select('id,user_id,session_id,capability_id,plan,expires_at,status')
         .eq('id', pending.id).eq('user_id', userId).eq('session_id', sessionId).maybeSingle();
-      if (error || !current || current.status !== 'pending' || current.capability_id !== 'vyral.create' ||
-          Date.parse(current.expires_at) <= Date.now()) return false;
-      const currentPlan = parseVyralCreatePendingPlan(current.plan);
+      if (error || !current) return false;
+      const currentPlan = validateVyralCreatePendingAction(current, {
+        userId, sessionId, actionId: String(pending.id),
+      });
       return Boolean(currentPlan && currentPlan.id === plan.id &&
         currentPlan.target.vyralId === plan.target.vyralId &&
         currentPlan.parameters.name === plan.parameters.name &&
