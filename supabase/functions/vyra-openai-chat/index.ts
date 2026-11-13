@@ -1303,7 +1303,7 @@ async function resolvePendingStoryboardApproval(
   if (!pendingRows?.length) return null;
   if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
   const pending = pendingRows[0];
-  if (!['storyboard.update', 'scene.update', 'scene.reorder', 'scene.duplicate', 'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
+  if (!['storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate', 'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
     return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
   }
   if (reject) {
