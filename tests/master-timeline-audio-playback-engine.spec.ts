@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { startMasterTimelineAudioPlayback } from '../src/server/masterTimelineAudioPlaybackEngine.ts';
 
 function createRuntime() {
@@ -93,4 +94,16 @@ test('stop cancels scheduled audio sources', async () => {
   await handle.ready;
   handle.stop();
   assert.equal(mock.sources.length, 1);
+});
+
+
+test('Master Editor transport supports pause, resume, and debounced seek without replacing its UI', async () => {
+  const source = await readFile(new URL('../src/components/workspace/MasterTimelineEditor.tsx', import.meta.url), 'utf8');
+  assert.match(source, /await context\.suspend\(\)/);
+  assert.match(source, /await context\.resume\(\)/);
+  assert.match(source, /masterPlaybackState === 'paused'/);
+  assert.match(source, /onScroll=\{handleMasterTimelineScroll\}/);
+  assert.match(source, /masterPlaybackSeekTimerRef\.current = setTimeout/);
+  assert.match(source, /launchMasterTimelinePlayback\(seekTime\)/);
+  assert.match(source, /masterPlaybackState === 'paused'\)\s*\{[\s\S]*?stopMasterTimelinePlayback\(\)/);
 });
