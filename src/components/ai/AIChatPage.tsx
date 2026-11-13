@@ -1784,9 +1784,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           if (Number(version.size_bytes) > sourceLimit) throw new Error(`Selected Asset exceeds the ${isPdf || isAudio ? '2 MB document/audio' : '20 MB media'} inspection limit: ${asset.name}`);
           const { data: signed, error: signedError } = await awaitForCurrentRequest(supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60));
           if (signedError || !signed?.signedUrl) throw new Error('Could not securely open the current version of selected Asset: ' + asset.name);
-          const response = await fetch(signed.signedUrl);
+          const response = await fetch(signed.signedUrl, { signal: requestController.signal });
+          assertRequestCurrent();
           if (!response.ok) throw new Error('Could not load the current version of selected Asset: ' + asset.name);
           const blob = await response.blob();
+          assertRequestCurrent();
           if (blob.size > sourceLimit) throw new Error('Selected Asset exceeds its safe inspection limit: ' + asset.name);
           if (mimeType.startsWith('image/')) {
             if (visionImages.length < 4) {
@@ -1820,6 +1822,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             const currentMessage = nextMessages[nextMessages.length - 1];
             currentMessage.content += `\n\nVideo frames attached for visual inspection: ${asset.name}; ${frames.length} sampled frames from the current version (${version.version_number}). Audio track transcription is not included.`;
           }
+          assertRequestCurrent();
         }
       }
       if (requestController.signal.aborted) throw new DOMException('Generation stopped.', 'AbortError');
