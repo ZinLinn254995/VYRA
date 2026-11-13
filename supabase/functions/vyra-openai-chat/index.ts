@@ -991,7 +991,6 @@ async function createMasterTimelineTransitionProposal(
       args.transition_key.length > 100 || !allowedEffects.includes(String(args.effect))) {
     return safeToolError('The requested transition change is invalid.');
   }
-  const requestedSceneIds = args.scene_ids as string[];
   const { data: storyboard, error } = await admin.from('vyral_storyboards')
     .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
   if (error) return safeToolError('The parent Storyboard could not be verified.');
@@ -1193,6 +1192,7 @@ async function createSceneReorderProposal(
       args.scene_ids.some((id) => !isUuid(id)) || new Set(args.scene_ids).size !== args.scene_ids.length) {
     return safeToolError('The ordered Scene IDs are invalid. Use each exact Scene UUID once.');
   }
+  const requestedSceneIds = args.scene_ids as string[];
   const { data: storyboard, error } = await admin.from('vyral_storyboards')
     .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
   if (error) return safeToolError('The parent Storyboard could not be verified.');
