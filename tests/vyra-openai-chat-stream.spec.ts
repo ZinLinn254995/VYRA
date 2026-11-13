@@ -128,3 +128,17 @@ test('AI Audio Asset Timeline insertion derives duration and waveform from sourc
   assert.match(source, /duration: audioDuration/);
   assert.match(source, /source-version-verified duration metadata/);
 });
+
+
+test('AI Scene Video attachment is owner-scoped, version-verified, approval-gated, and read back', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /operation: \\{ type: 'string', enum: \\[.*attach_video/s);
+  assert.match(source, /asset_type', 'video'/);
+  assert.match(source, /video_technical_metadata/);
+  assert.match(source, /videoTechnical\\.sourceSha256 !== videoVersionResult\\.data\\.sha256/);
+  assert.match(source, /timeline\\.attach_video/);
+  assert.match(source, /attachMasterTimelineVideoAsset/);
+  assert.match(source, /VIDEO_ASSET_VERSION_CHANGED/);
+  assert.match(source, /attachedVideoAssetVersionId/);
+  assert.match(source, /assetVersionId: typeof instance\\.assetVersionId === 'string'/);
+});
