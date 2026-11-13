@@ -140,6 +140,8 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.propose_upload', 'Prepare an owner-scoped Asset upload preview with an AI-approved display name without transferring file bytes'],
     ['asset.propose_rename', 'Prepare an owner-scoped Asset display-name change preview without changing the original filename or bytes'],
     ['asset.propose_metadata', 'Prepare an owner-scoped Asset title, description, category, tags, keywords and alt-text update preview'],
+    ['asset.propose_relationship_add', 'Prepare a semantic Asset relationship creation preview'],
+    ['asset.propose_relationship_remove', 'Prepare a semantic Asset relationship removal preview'],
   ]),
   ...define('assets', 'autonomous', 'reversible', [
     ['folder.propose_create', 'Prepare a Vyral folder creation preview without creating it'],
