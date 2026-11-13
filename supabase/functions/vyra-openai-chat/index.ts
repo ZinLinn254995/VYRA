@@ -833,6 +833,7 @@ async function createMasterTimelineEditProposal(
   const raw = details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline) ? details.masterTimeline as Record<string, unknown> : null;
   if (!raw) return safeToolError('This Storyboard has no saved Master Timeline yet.');
   const timeline = {
+    ...raw,
     sceneRanges: raw.sceneRanges && typeof raw.sceneRanges === 'object' && !Array.isArray(raw.sceneRanges) ? raw.sceneRanges : {},
     sceneInstances: Array.isArray(raw.sceneInstances) ? raw.sceneInstances : [],
     transitions: raw.transitions && typeof raw.transitions === 'object' && !Array.isArray(raw.transitions) ? raw.transitions : {},
@@ -848,6 +849,7 @@ async function createMasterTimelineEditProposal(
   };
   const result = applyMasterTimelineEdit(timeline, parameters);
   if (!result.ok) return safeToolError('The Master Editor rejected this edit (' + result.reason + '). No changes were made.');
+  if (JSON.stringify(result.value) === JSON.stringify(timeline)) return { ok: true, changed: false, message: 'The Master Editor rules keep this clip at its current position. No action is needed.' };
   const locate = (source: MasterTimelineData, id: string) => [...source.audioTracks, ...source.textTracks].flatMap((track) => track.clips.map((clip) => ({ ...clip, trackId: track.id, trackName: track.name }))).find((clip) => clip.id === id);
   const before = locate(timeline, String(args.clip_id)), after = locate(result.value, String(args.clip_id));
   if (!before || !after) return safeToolError('The selected clip could not be verified in the current Timeline.');
@@ -1114,6 +1116,7 @@ async function resolvePendingStoryboardApproval(
     const raw = details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline) ? details.masterTimeline as Record<string, unknown> : null;
     if (!raw) return await fail('TIMELINE_NOT_FOUND', 'The saved Master Timeline is no longer available.');
     const timeline = {
+      ...raw,
       sceneRanges: raw.sceneRanges && typeof raw.sceneRanges === 'object' && !Array.isArray(raw.sceneRanges) ? raw.sceneRanges : {},
       sceneInstances: Array.isArray(raw.sceneInstances) ? raw.sceneInstances : [],
       transitions: raw.transitions && typeof raw.transitions === 'object' && !Array.isArray(raw.transitions) ? raw.transitions : {},
