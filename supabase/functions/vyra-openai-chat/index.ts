@@ -7,6 +7,7 @@ import { parseVyralAssetUploadPendingPlan } from '../../../src/server/vyralAsset
 import { parseVyralAssetRenamePendingPlan, validateVyralAssetRenamePendingAction } from '../../../src/server/vyralAssetRenameAction.ts';
 import { parseVyralAssetMetadataPendingPlan, validateVyralAssetMetadataPendingAction, type VyralAssetMetadataValues } from '../../../src/server/vyralAssetMetadataAction.ts';
 import { parseVyralFolderActionPendingPlan, validateVyralFolderActionPendingAction, type VyralFolderActionOperation } from '../../../src/server/vyralFolderAction.ts';
+import { parseVyralAssetRelationshipPendingPlan, validateVyralAssetRelationshipPendingAction } from '../../../src/server/vyralAssetRelationshipAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -24,6 +25,7 @@ const SYSTEM_INSTRUCTION =
   'When the user asks to rename an existing Asset, first use the owner-scoped Vyral Asset search/detail tools to identify the exact Asset, then call propose_vyral_asset_rename with its exact ID and the requested new display name. Show the old and new names and wait for explicit approval. Renaming changes only the display name; never claim the source filename, immutable bytes, versions, DNA or Fingerprints changed. ' +
   'When the user wants to organize a Vyral, use list_vyral_folders to inspect the real folder tree first. Create folders with propose_vyral_folder_create, rename folders with propose_vyral_folder_rename, move folders with propose_vyral_folder_move, and place Assets into a folder or the Vyral root with propose_vyral_asset_move_folder. Identify exact resources from owner-scoped reads. Always show the target Vyral, source and destination before/after, then wait for explicit same-chat approval. Never delete a folder as part of moving it; moving a folder moves its child hierarchy with it. Do not move across Vyrals in this operation. ' +
   'When the user asks to write or edit Asset title, description, category, tags, keywords or alt text, first identify the exact owner-owned Asset with search/detail tools, then call propose_vyral_asset_metadata with only the requested fields. Treat title as the Asset display name. Category is a semantic classification separate from the technical file type. Technical Asset type and MIME type describe the actual file and must not be falsified or changed through metadata edits. Show every before/after field and wait for explicit approval in this same chat. Preserve unrelated metadata, original filename, immutable bytes, versions, DNA and Fingerprints. ' +
+  'When the user asks to connect or remove semantic relationships between Assets, inspect the current graph first, identify exact owner-owned Assets and use propose_vyral_asset_relationship_add or propose_vyral_asset_relationship_remove. Explain relationship direction, type and rationale; show a preview and wait for explicit approval in this same chat. Keep semantic relationships distinct from generation lineage. The database will mark Master DNA stale after a relationship change; never claim a new Master DNA revision exists until rebuilt and verified. ' +
   'For a requested Storyboard title or topic change, use propose_storyboard_update only after identifying the exact owner-owned Storyboard; it creates a preview and never changes data. Explain the exact proposed value and wait for approval in this same chat. Never say it is saved until the server confirms the approved update. ' +
   'For a requested Scene title, description, transition, or duration change, first identify the parent Storyboard and exact Scene from owner-scoped records, then use propose_scene_update. Duration must be a finite number of seconds from 0.1 to 3600. This creates a preview only. For duration changes, synchronize the Scene Project timeline clips and Master Timeline metadata; never modify unrelated tracks or scenes. Never say saved until approval and server confirmation. ' +
   'When a request involves the Master Editor or Timeline, first call get_master_timeline_state for the exact owner-owned Storyboard. Understand the actual scene order, durations, transition keys, track IDs, clip start/end/duration, overlaps, gaps, and editor semantics before proposing any change. Treat seconds as timeline time, preserve unrelated data, and do not assume Scene sourceIn/sourceOut trimming, playback cursor, undo history, or preview playback is available. For existing Audio/Text clips, propose move between existing same-kind tracks, start/end trim, split, clone within the same track, Text name/content update, or delete using propose_master_timeline_edit. You may also create a new Text track and timed text overlay with add_text. For music or sound effects, first search the active Vyral Asset inventory using search_vyral_assets with asset_type audio, inspect the exact Asset, then use add_audio with its exact Asset ID. To attach a Video to a Scene, search the active Vyral inventory for asset_type video, inspect the exact Asset, then use attach_video with the exact Scene and Asset IDs; the server verifies the immutable Video Version and duration. VYRA derives the clip duration and waveform from immutable Asset Version metadata; never guess or override source duration. Never invent an Asset or claim audio playback/rendering; the Timeline clip is an immutable Asset-version reference. Deletion is destructive: show the exact clip and exact DELETE CLIP <six-character-code> phrase from the preview, and accept no generic approval for deletion. For transitions, use an exact key from get_master_timeline_state.timeline.transitionBoundaries with propose_master_timeline_transition and only the six supported effects: dissolve, fade, wipe, slide, zoom, blur; use none to remove. Show exact before/after and wait for approval. For Scene order changes, read the complete exact Scene IDs first and use propose_scene_reorder with every Scene exactly once; show before/after order and wait for approval. Never invent a clip, Scene, transition key, or ID. Do not create or delete arbitrary tracks or alter Scene duration through Timeline editing; add_text may create only its dedicated new Text track. Scene creation, duplication and deletion are available only through propose_scene_mutation; deletion requires its exact separate confirmation phrase. Do not claim playback/undo actions through this tool. Clip deletion is available only through its separate exact destructive confirmation phrase; never accept generic approval for it. ' +
@@ -132,6 +134,30 @@ const GLOBAL_READ_TOOLS = [
         required: ['asset_id', 'asset_name'],
         additionalProperties: false,
       },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_asset_relationship_add',
+      description: 'Prepare an approval preview to add a typed semantic relationship between two Assets or between an Asset and this Vyral root. Never create before approval.',
+      parameters: { type: 'object', properties: {
+        relationship_type: { type: 'string', description: 'Lowercase snake_case relation type, 2–64 characters.' },
+        from_kind: { type: 'string', enum: ['asset','vyral'] },
+        from_asset_id: { type: ['string','null'] },
+        to_kind: { type: 'string', enum: ['asset','vyral'] },
+        to_asset_id: { type: ['string','null'] },
+        rationale: { type: 'string', description: 'Why this directed relationship is meaningful.' },
+        evidence_ref: { type: ['string','null'], description: 'Optional evidence reference.' },
+      }, required: ['relationship_type','from_kind','from_asset_id','to_kind','to_asset_id','rationale','evidence_ref'], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_asset_relationship_remove',
+      description: 'Prepare an approval preview to remove one exact semantic relationship by its ID from the current Vyral.',
+      parameters: { type: 'object', properties: { relationship_id: { type: 'string' } }, required: ['relationship_id'], additionalProperties: false },
     },
   },
   {
@@ -1502,6 +1528,99 @@ async function createVyralFolderActionProposal(
     message:'Preview only. No folder or Asset location has changed. Wait for explicit approval in this same chat.' };
 }
 
+async function createVyralAssetRelationshipProposal(
+  admin: any, userId: string, sessionId: string | null, vyralId: string | null,
+  rawArguments: string, toolCallId: string, operation: 'add' | 'remove',
+): Promise<Record<string, unknown>> {
+  if (!sessionId || !vyralId) return safeToolError('A verified chat session and active Vyral are required.');
+  const { data: vyral, error: vyralError } = await admin.from('vyrals').select('id,name')
+    .eq('id', vyralId).eq('user_id', userId).maybeSingle();
+  if (vyralError || !vyral) return safeToolError('The active Vyral could not be verified.');
+  let args: Record<string, unknown>;
+  try { const parsed: unknown = JSON.parse(rawArguments || '{}'); if (!isPlainRecord(parsed)) return safeToolError('Invalid relationship details.'); args = parsed; }
+  catch { return safeToolError('Invalid relationship details.'); }
+  const now = new Date(), expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+  const relationshipId = crypto.randomUUID();
+  let parameters: Record<string, unknown>, summary: string, capabilityId: string;
+  if (operation === 'add') {
+    const relationship = {
+      relationshipType: args.relationship_type,
+      fromKind: args.from_kind,
+      fromAssetId: args.from_asset_id,
+      toKind: args.to_kind,
+      toAssetId: args.to_asset_id,
+      rationale: args.rationale,
+      evidenceRef: args.evidence_ref,
+    };
+    const draft = { id: crypto.randomUUID(), operation: 'asset.relationship.add', target: { vyralId, relationshipId },
+      parameters: { relationship }, summary: 'Add semantic Asset relationship', createdAt: now.toISOString(), expiresAt: expiresAt.toISOString() };
+    if (!parseVyralAssetRelationshipPendingPlan(draft)) return safeToolError('The relationship type, endpoints, rationale or evidence reference is invalid.');
+    for (const [kind, assetId] of [[relationship.fromKind, relationship.fromAssetId], [relationship.toKind, relationship.toAssetId]] as const) {
+      if (kind === 'asset') {
+        const { data, error } = await admin.from('vyral_assets').select('id,name,processing_status')
+          .eq('id', assetId).eq('vyral_id', vyralId).eq('user_id', userId).maybeSingle();
+        if (error || !data || data.processing_status === 'archived') return safeToolError('Both relationship endpoints must be active Assets in this Vyral.');
+      }
+    }
+    parameters = draft.parameters; summary = draft.summary; capabilityId = 'asset.add_relationship';
+    const pendingPlan = draft;
+    const key = ('aiop-' + sessionId + '-' + toolCallId).slice(0,160);
+    const { data: pending, error } = await admin.rpc('create_ai_operator_pending_action', {
+      p_user_id:userId,p_session_id:sessionId,p_idempotency_key:key,p_capability_id:capabilityId,p_plan:pendingPlan,p_expires_at:pendingPlan.expiresAt,
+    });
+    let saved = pending;
+    if (error || !saved) {
+      const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
+        .select('id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('idempotency_key',key).maybeSingle();
+      const priorPlan = parseVyralAssetRelationshipPendingPlan(prior?.plan);
+      if (priorError || !prior || prior.capability_id !== capabilityId || prior.status !== 'pending' ||
+          Date.parse(prior.expires_at) <= Date.now() || !priorPlan || JSON.stringify(priorPlan.parameters) !== JSON.stringify(parameters)) {
+        return safeToolError('Could not securely save or reuse this relationship preview. No changes were made.');
+      }
+      saved = prior;
+    }
+    const plan = parseVyralAssetRelationshipPendingPlan(saved.plan);
+    if (!plan) return safeToolError('The saved relationship preview could not be verified.');
+    return { ok:true, requiresApproval:true, actionId:saved.id, operation:plan.operation, vyralName:vyral.name,
+      relationshipId:plan.target.relationshipId, relationship:plan.parameters.relationship,
+      summary:plan.summary, expiresAt:saved.expires_at,
+      message:'Preview only. No relationship changed. Wait for explicit approval in this same chat.' };
+  }
+
+  if (!isUuid(args.relationship_id)) return safeToolError('An exact relationship ID is required.');
+  const { data: row, error } = await admin.from('vyral_asset_relationships')
+    .select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,evidence_ref,updated_at')
+    .eq('id',args.relationship_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+  if (error || !row) return safeToolError('That semantic relationship could not be found in this Vyral.');
+  const previous = {
+    relationshipType:row.relationship_type, fromKind:row.from_kind, fromAssetId:row.from_asset_id ?? null,
+    toKind:row.to_kind, toAssetId:row.to_asset_id ?? null, rationale:row.rationale, evidenceRef:row.evidence_ref ?? null,
+  };
+  const draft = { id:crypto.randomUUID(), operation:'asset.relationship.remove', target:{vyralId,relationshipId:String(row.id)},
+    parameters:{previous,expectedUpdatedAt:String(row.updated_at)}, summary:'Remove semantic relationship '+String(row.relationship_type),
+    createdAt:now.toISOString(),expiresAt:expiresAt.toISOString() };
+  if (!parseVyralAssetRelationshipPendingPlan(draft)) return safeToolError('The stored relationship could not be safely snapshotted.');
+  capabilityId='asset.remove_relationship'; parameters=draft.parameters; summary=draft.summary;
+  const key=('aiop-'+sessionId+'-'+toolCallId).slice(0,160);
+  const {data:pending,error:pendingError}=await admin.rpc('create_ai_operator_pending_action',{
+    p_user_id:userId,p_session_id:sessionId,p_idempotency_key:key,p_capability_id:capabilityId,p_plan:draft,p_expires_at:draft.expiresAt,
+  });
+  let saved=pending;
+  if(pendingError||!saved){
+    const {data:prior,error:priorError}=await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('idempotency_key',key).maybeSingle();
+    const priorPlan=parseVyralAssetRelationshipPendingPlan(prior?.plan);
+    if(priorError||!prior||prior.capability_id!==capabilityId||prior.status!=='pending'||Date.parse(prior.expires_at)<=Date.now()||
+      !priorPlan||priorPlan.operation!=='asset.relationship.remove'||priorPlan.target.relationshipId!==row.id)return safeToolError('Could not securely save or reuse this removal preview.');
+    saved=prior;
+  }
+  const plan=parseVyralAssetRelationshipPendingPlan(saved.plan);
+  if(!plan)return safeToolError('The saved removal preview could not be verified.');
+  return {ok:true,requiresApproval:true,actionId:saved.id,operation:plan.operation,vyralName:vyral.name,
+    relationshipId:plan.target.relationshipId,relationship:plan.parameters.previous,summary:plan.summary,expiresAt:saved.expires_at,
+    message:'Preview only. No relationship removed. Wait for explicit approval in this same chat.'};
+}
+
 async function createVyralAssetMetadataProposal(admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required.');
   let args: Record<string, unknown>;
@@ -2387,6 +2506,49 @@ async function resolvePendingVyralFolderActionApproval(
   return 'Approved and moved Asset "'+String(result.name)+'" to '+destination+'.';
 }
 
+async function resolvePendingAssetRelationshipApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
+  if(!sessionId||!/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim()))return null;
+  const {data:rows,error}=await admin.from('ai_operator_pending_actions').select('id,user_id,session_id,capability_id,plan,expires_at,status')
+    .eq('user_id',userId).eq('session_id',sessionId).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(3);
+  if(error||!Array.isArray(rows))return 'I could not verify pending relationship actions. No relationship was changed.';
+  const matches=rows.filter((row:Record<string,unknown>)=>['asset.add_relationship','asset.remove_relationship'].includes(String(row.capability_id))&&parseVyralAssetRelationshipPendingPlan(row.plan));
+  if(!matches.length)return null;
+  if(rows.length!==1||matches.length!==1)return 'There is more than one pending action in this chat. Resolve them one at a time; no relationship was changed.';
+  const pending=matches[0],plan=validateVyralAssetRelationshipPendingAction(pending,{userId,sessionId,actionId:String(pending.id)});
+  if(!plan)return 'The exact relationship preview could not be verified. No changes were made.';
+  const {data:approved,error:approveError}=await admin.rpc('approve_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id});
+  if(approveError||!approved||approved.status!=='approved')return 'VYRA could not record relationship approval. No changes were made.';
+  const {data:claimed,error:claimError}=await admin.rpc('claim_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id});
+  if(claimError||!claimed||claimed.status!=='executing')return 'Approval was recorded, but the relationship action could not be reserved. No changes were made.';
+  let result:any=null,actionError:any=null;
+  if(plan.operation==='asset.relationship.add'){
+    const r=plan.parameters.relationship!;
+    const {data,error}=await admin.from('vyral_asset_relationships').insert({
+      id:plan.target.relationshipId,vyral_id:plan.target.vyralId,user_id:userId,
+      relationship_type:r.relationshipType,from_kind:r.fromKind,from_asset_id:r.fromAssetId,
+      to_kind:r.toKind,to_asset_id:r.toAssetId,rationale:r.rationale,evidence_ref:r.evidenceRef,
+    }).select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,evidence_ref').maybeSingle();
+    result=data;actionError=error;
+  }else{
+    const r=plan.parameters.previous!;
+    const {data,error}=await admin.from('vyral_asset_relationships').delete()
+      .eq('id',plan.target.relationshipId).eq('vyral_id',plan.target.vyralId).eq('user_id',userId)
+      .eq('updated_at',plan.parameters.expectedUpdatedAt)
+      .eq('relationship_type',r.relationshipType).select('id').maybeSingle();
+    result=data;actionError=error;
+  }
+  if(actionError||!result){
+    await admin.rpc('finish_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'failed',p_failure_code:'ASSET_RELATIONSHIP_CONFLICT'});
+    return 'The relationship changed concurrently or could not be saved. No success was reported; refresh the graph and prepare a new preview.';
+  }
+  const {error:finishError}=await admin.rpc('finish_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'completed',
+    p_result_summary:{operation:plan.operation,vyralId:plan.target.vyralId,relationshipId:plan.target.relationshipId},p_failure_code:null});
+  if(finishError)return 'The relationship change was applied, but its audit could not be finalized. Refresh the graph and verify before retrying.';
+  return plan.operation==='asset.relationship.add'
+    ? 'Approved and saved. The semantic Asset relationship was added. Master DNA is now stale and must be rebuilt before it can be reported current.'
+    : 'Approved and removed the semantic Asset relationship. Master DNA is now stale and must be rebuilt before it can be reported current.';
+}
+
 async function resolvePendingAssetMetadataApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
   if(!sessionId||!/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim()))return null;
   const {data:rows,error}=await admin.from('ai_operator_pending_actions').select('id,user_id,session_id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(3);
@@ -2776,6 +2938,8 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'asset.propose_upload': 'propose_vyral_asset_upload',
   'asset.propose_rename': 'propose_vyral_asset_rename',
   'asset.propose_metadata': 'propose_vyral_asset_metadata',
+  'asset.propose_relationship_add': 'propose_vyral_asset_relationship_add',
+  'asset.propose_relationship_remove': 'propose_vyral_asset_relationship_remove',
   'folder.propose_create': 'propose_vyral_folder_create',
   'folder.propose_rename': 'propose_vyral_folder_rename',
   'folder.propose_move': 'propose_vyral_folder_move',
@@ -2795,6 +2959,25 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return Object.keys(input).every((key) => ['vyral_id', 'asset_name'].includes(key)) &&
           isUuid(input.vyral_id) && typeof input.asset_name === 'string' &&
           input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180;
+      }
+      if (capabilityId === 'asset.propose_relationship_add') {
+        return Object.keys(input).sort().join(',') === 'evidence_ref,from_asset_id,from_kind,rationale,relationship_type,to_asset_id,to_kind' &&
+          typeof input.relationship_type === 'string' && /^[a-z][a-z0-9_]{1,63}$/.test(input.relationship_type) &&
+          ['asset','vyral'].includes(String(input.from_kind)) && ['asset','vyral'].includes(String(input.to_kind)) &&
+          (input.from_kind === 'asset' ? isUuid(input.from_asset_id) : input.from_asset_id === null) &&
+          (input.to_kind === 'asset' ? isUuid(input.to_asset_id) : input.to_asset_id === null) &&
+          !(input.from_kind === 'vyral' && input.to_kind === 'vyral') &&
+          !(input.from_kind === 'asset' && input.to_kind === 'asset' && input.from_asset_id === input.to_asset_id) &&
+          typeof input.rationale === 'string' && input.rationale.trim().length > 0 && input.rationale.length <= 2000 &&
+          (input.evidence_ref === null || (typeof input.evidence_ref === 'string' && input.evidence_ref.length <= 512));
+      }
+      if (capabilityId === 'asset.propose_relationship_remove') {
+        return Object.keys(input).length === 1 && isUuid(input.relationship_id);
+      }
+      if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
+        return await createVyralAssetRelationshipProposal(admin, execution.userId, sessionId, activeVyralId,
+          rawArguments, toolCallId, capabilityId === 'asset.propose_relationship_add' ? 'add' : 'remove');
       }
       if (capabilityId === 'asset.propose_metadata') {
         const allowed = ['asset_id', 'title', 'description', 'category', 'tags', 'keywords', 'alt_text'];
@@ -3121,6 +3304,11 @@ async function executeSharedProposalCapability(
     verifyOwner: async (ownerId, parameters) => {
       if (ownerId !== userId) return false;
       if (capabilityId === 'vyral.propose_create') return true;
+      if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
+        if (!activeVyralId) return false;
+        const { data, error } = await admin.from('vyrals').select('id').eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
+        return !error && Boolean(data);
+      }
       if (capabilityId === 'asset.propose_upload') {
         if (!isUuid(parameters.vyral_id)) return false;
         const { data, error } = await admin.from('vyrals').select('id')
@@ -3396,6 +3584,8 @@ Deno.serve(async (request: Request) => {
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
   const folderActionApproval = await resolvePendingVyralFolderActionApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  const assetRelationshipApproval = await resolvePendingAssetRelationshipApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  if (assetRelationshipApproval !== null) return sseResponse(assetRelationshipApproval);
   if (folderActionApproval !== null) return sseResponse(folderActionApproval);
   const assetMetadataApproval = await resolvePendingAssetMetadataApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
   if (assetMetadataApproval !== null) return sseResponse(assetMetadataApproval);
