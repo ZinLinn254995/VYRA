@@ -50,7 +50,7 @@ test('Workspace opens the Vyral and media libraries and storyboard creation entr
   await page.goto('/');
   await openSection(page, 'Workspace');
 
-  await expect(page.getByRole('heading', { name: 'Your Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
   await expect(page.getByRole('button', { name: /My Vyrals/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /My Media Library/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
