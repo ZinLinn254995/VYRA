@@ -306,6 +306,12 @@ test('OpenAI Edge Function bounds raw request bytes and validates chat history b
 });
 
 
+test('OpenAI Edge Function preserves oversized-body responses and handles client aborts during body reads', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /try \{ await reader\.cancel\(\); \} catch \{[\s\S]*?Request body is too large/);
+  assert.match(edge, /catch \{\s*if \(request\.signal\.aborted\) return new Response\(null, \{ status: 499 \}\);\s*return json\(\{ error: 'Request body must be valid JSON\.'/);
+});
+
 test('OpenAI Edge Function rejects malformed chat message roles and content types', () => {
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(edge, /incoming\.some\(\(item\) => !isPlainRecord\(item\)/);
