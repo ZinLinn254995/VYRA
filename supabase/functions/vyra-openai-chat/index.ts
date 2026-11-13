@@ -18,6 +18,37 @@ const SYSTEM_INSTRUCTION =
   'For factual topics, distinguish verified facts from uncertainty and never invent sources or statistics.';
 
 
+const GLOBAL_READ_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_my_storyboards',
+      description: "List or search the signed-in user's Storyboards across Workspace. Read-only; use actual database records only.",
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Optional Storyboard title or topic keyword.' },
+          limit: { type: 'integer', minimum: 1, maximum: 30 },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_storyboard_details',
+      description: 'Read one Storyboard owned by the signed-in user by its exact title. If several match, return candidates and ask the user to choose. Read-only.',
+      parameters: {
+        type: 'object',
+        properties: { title: { type: 'string', description: 'Storyboard title.' } },
+        required: ['title'],
+        additionalProperties: false,
+      },
+    },
+  },
+] as const;
+
 const VYRAL_READ_TOOLS = [
   {
     type: 'function',
@@ -120,6 +151,82 @@ const buildWorkspaceContextInstruction = (raw: unknown): string => {
 };
 
 const safeToolError = (message: string) => ({ ok: false, message });
+
+async function executeGlobalReadTool(admin: any, userId: string, name: string, rawArguments: string): Promise<Record<string, unknown>> {
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid tool arguments.');
+    args = parsed as Record<string, unknown>;
+  } catch {
+    return safeToolError('Invalid tool arguments.');
+  }
+
+  if (name === 'list_my_storyboards') {
+    const query = typeof args.query === 'string' ? args.query.trim().slice(0, 100).replace(/[%,_]/g, '') : '';
+    const requestedLimit = typeof args.limit === 'number' && Number.isInteger(args.limit) ? args.limit : 20;
+    const limit = Math.max(1, Math.min(30, requestedLimit));
+    let request = admin.from('vyral_storyboards')
+      .select('id,title,topic,details,created_at,updated_at', { count: 'exact' })
+      .eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit);
+    if (query) request = request.or('title.ilike.%' + query + '%,topic.ilike.%' + query + '%');
+    const { data, error, count } = await request;
+    if (error) return safeToolError('Your Storyboards could not be loaded.');
+    const rows = data ?? [];
+    return {
+      ok: true, totalMatching: count ?? rows.length, returned: rows.length,
+      storyboards: rows.map((item: Record<string, unknown>) => {
+        const details = item.details && typeof item.details === 'object' && !Array.isArray(item.details) ? item.details as Record<string, unknown> : {};
+        return {
+          id: item.id,
+          title: typeof item.title === 'string' ? item.title.slice(0, 160) : 'Untitled',
+          topic: typeof item.topic === 'string' ? item.topic.slice(0, 1000) : '',
+          sceneCount: Array.isArray(details.scenes) ? details.scenes.length : 0,
+          createdAt: item.created_at, updatedAt: item.updated_at,
+        };
+      }),
+    };
+  }
+
+  if (name === 'get_my_storyboard_details') {
+    const title = typeof args.title === 'string' ? args.title.trim().slice(0, 160) : '';
+    if (!title) return safeToolError('A Storyboard title is required.');
+    const { data, error } = await admin.from('vyral_storyboards')
+      .select('id,title,topic,details,created_at,updated_at')
+      .eq('user_id', userId).ilike('title', title.replace(/[%,_]/g, ''))
+      .order('updated_at', { ascending: false }).limit(3);
+    if (error) return safeToolError('The requested Storyboard could not be loaded.');
+    const rows = data ?? [];
+    if (!rows.length) return { ok: true, found: false, message: 'No Storyboard with that title was found in your account.' };
+    if (rows.length > 1) return { ok: true, ambiguous: true, matches: rows.map((item: Record<string, unknown>) => ({ id: item.id, title: item.title })) };
+    const item = rows[0] as Record<string, unknown>;
+    const details = item.details && typeof item.details === 'object' && !Array.isArray(item.details) ? item.details as Record<string, unknown> : {};
+    const rawScenes = Array.isArray(details.scenes) ? details.scenes : [];
+    return {
+      ok: true, found: true,
+      storyboard: {
+        id: item.id, title: item.title, topic: item.topic,
+        category: details.category ?? null, style: details.style ?? null, mood: details.mood ?? null,
+        tags: Array.isArray(details.tags) ? details.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 20) : [],
+        sceneCount: rawScenes.length,
+        scenes: rawScenes.slice(0, 80).map((raw, index) => {
+          const scene = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+          return {
+            number: index + 1,
+            title: typeof scene.title === 'string' ? scene.title.slice(0, 180) : 'Untitled scene',
+            description: typeof scene.description === 'string' ? scene.description.slice(0, 1200) : '',
+            duration: typeof scene.duration === 'number' && Number.isFinite(scene.duration) ? scene.duration : null,
+            transition: typeof scene.transition === 'string' ? scene.transition.slice(0, 100) : null,
+          };
+        }),
+        createdAt: item.created_at, updatedAt: item.updated_at, scenesTruncated: rawScenes.length > 80,
+      },
+    };
+  }
+  return safeToolError('This global read tool is not available.');
+}
+
+
 
 async function executeVyralReadTool(
   admin: any,
@@ -526,15 +633,15 @@ Deno.serve(async (request: Request) => {
     const baseMessages = [{ role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction }, ...messages];
     let finalMessages: unknown[] = baseMessages;
 
-    // Only owner-verified active Vyrals receive the bounded, read-only tool set.
-    if (activeVyralId) {
+    // Global Workspace reads are available on every page. Vyral-specific reads are added only after server-side ownership verification.
+    {
       const plannerResponse = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
           messages: baseMessages,
-          tools: VYRAL_READ_TOOLS,
+          tools: [...GLOBAL_READ_TOOLS, ...(activeVyralId ? VYRAL_READ_TOOLS : [])],
           tool_choice: 'auto',
           parallel_tool_calls: false,
           temperature: 0.1,
@@ -566,13 +673,11 @@ Deno.serve(async (request: Request) => {
           tool_calls: toolCalls,
         }];
         for (const call of toolCalls) {
-          const toolResult = await executeVyralReadTool(
-            context.supabaseAdmin,
-            userId,
-            activeVyralId,
-            call.function.name,
-            call.function.arguments,
-          );
+          const toolResult = call.function.name === 'list_my_storyboards' || call.function.name === 'get_my_storyboard_details'
+            ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
+            : activeVyralId
+              ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
+              : safeToolError('This tool requires an owner-verified active Vyral.');
           toolMessages.push({
             role: 'tool',
             tool_call_id: call.id,
