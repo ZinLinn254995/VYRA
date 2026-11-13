@@ -641,7 +641,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedVyralImages([]);
     setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    if (!activeSessionId) setActiveSessionId(crypto.randomUUID());
+    const chatSessionId = activeSessionId ?? crypto.randomUUID();
+    if (!activeSessionId) setActiveSessionId(chatSessionId);
 
     setIsSending(true);
     let streamingAssistantId: string | null = null;
@@ -1924,6 +1925,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
+        conversationId: chatSessionId,
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
