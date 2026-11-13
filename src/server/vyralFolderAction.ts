@@ -1,4 +1,4 @@
-export type VyralFolderActionOperation = 'folder.create' | 'folder.rename' | 'folder.move' | 'asset.move_folder';
+export type VyralFolderActionOperation = 'folder.create' | 'folder.rename' | 'folder.move' | 'folder.delete' | 'asset.move_folder';
 
 export interface VyralFolderActionPendingPlan {
   id: string;
@@ -11,11 +11,15 @@ export interface VyralFolderActionPendingPlan {
     nextParentId?: string | null;
     expectedUpdatedAt?: string;
     previousFolderId?: string | null;
+    expectedCreatedAt?: string;
+    confirmationCode?: string;
   };
   summary: string;
   createdAt: string;
   expiresAt: string;
 }
+
+const pOperationIsDelete = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>).operation === 'folder.delete';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const safeName = (v: unknown): v is string =>
@@ -49,6 +53,13 @@ export function parseVyralFolderActionPendingPlan(value: unknown): VyralFolderAc
         !(parameters.previousParentId === null || (typeof parameters.previousParentId === 'string' && UUID.test(parameters.previousParentId))) ||
         !(parameters.nextParentId === null || (typeof parameters.nextParentId === 'string' && UUID.test(parameters.nextParentId))) ||
         parameters.previousParentId === parameters.nextParentId) return null;
+  } else if (op === 'folder.delete') {
+    if (Object.keys(target).sort().join(',') !== 'folderId,vyralId' || !UUID.test(String(target.folderId)) ||
+        Object.keys(parameters).sort().join(',') !== 'confirmationCode,expectedCreatedAt,previousName,previousParentId' ||
+        !safeName(parameters.previousName) ||
+        typeof parameters.expectedCreatedAt !== 'string' || !Number.isFinite(Date.parse(parameters.expectedCreatedAt)) ||
+        typeof parameters.confirmationCode !== 'string' || !/^[A-F0-9]{6}$/.test(parameters.confirmationCode) ||
+        !(parameters.previousParentId === null || (typeof parameters.previousParentId === 'string' && UUID.test(parameters.previousParentId)))) return null;
   } else {
     if (Object.keys(target).sort().join(',') !== 'assetId,vyralId' || !UUID.test(String(target.assetId)) ||
         Object.keys(parameters).sort().join(',') !== 'expectedUpdatedAt,nextParentId,previousFolderId' ||
@@ -73,7 +84,7 @@ export function validateVyralFolderActionPendingAction(row: unknown, expected: {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
   const r = row as Record<string, unknown>, now = expected.now ?? Date.now();
   if (r.id !== expected.actionId || r.user_id !== expected.userId || r.session_id !== expected.sessionId ||
-      r.capability_id !== 'folder.update' || r.status !== 'pending' ||
+      r.capability_id !== (pOperationIsDelete(r.plan) ? 'folder.delete' : 'folder.update') || r.status !== 'pending' ||
       typeof r.expires_at !== 'string' || !Number.isFinite(Date.parse(r.expires_at)) || Date.parse(r.expires_at) <= now) return null;
   const plan = parseVyralFolderActionPendingPlan(r.plan);
   return plan && Date.parse(plan.expiresAt) > now ? plan : null;
