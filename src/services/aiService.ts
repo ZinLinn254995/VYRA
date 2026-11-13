@@ -58,7 +58,7 @@ export interface AIServiceResult {
 export interface AIServiceProvider {
   name: string;
   model: string;
-  checkStatus(): Promise<AIServiceStatus>;
+  checkStatus(accessToken?: string): Promise<AIServiceStatus>;
   generateResponse(request: AIServiceRequest): Promise<AIServiceResult>;
 }
 
@@ -75,29 +75,42 @@ class ModularAIService implements AIServiceProvider {
   public model = 'gpt-4.1-mini';
   private endpoint = '/api/ai/chat';
 
-  public async checkStatus(): Promise<AIServiceStatus> {
+  public async checkStatus(accessToken?: string): Promise<AIServiceStatus> {
+    if (!accessToken) {
+      return {
+        status: 'preview_mode',
+        providerName: this.name,
+        modelName: this.model,
+        backendEndpoint: this.endpoint,
+        message: 'Sign in to VYRA to check the platform-managed OpenAI connection.',
+      };
+    }
+
     try {
       const res = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + accessToken,
+        },
         body: JSON.stringify({ ping: true }),
+        cache: 'no-store',
       });
 
       const data = await res.json().catch(() => ({})) as {
         status?: string;
         modelName?: string;
         message?: string;
+        error?: string;
       };
       const modelName = typeof data.modelName === 'string' && data.modelName.trim()
         ? data.modelName.trim()
         : this.model;
       this.model = modelName;
 
-      // The health probe intentionally returns HTTP 200 even when OpenAI is
-      // not configured. Trust the explicit backend status, not res.ok alone.
       const status: AIServiceStatus['status'] =
         data.status === 'connected' ? 'connected' :
-        data.status === 'error' ? 'error' : 'preview_mode';
+        data.status === 'error' || !res.ok ? 'error' : 'preview_mode';
 
       return {
         status,
@@ -106,22 +119,21 @@ class ModularAIService implements AIServiceProvider {
         backendEndpoint: this.endpoint,
         message: typeof data.message === 'string' && data.message.trim()
           ? data.message
-          : status === 'connected'
-            ? 'Connected to the server-side OpenAI AI engine.'
-            : 'OpenAI is not configured yet. The platform key will be added during final verification.',
+          : typeof data.error === 'string' && data.error.trim()
+            ? data.error
+            : status === 'connected'
+              ? 'Connected to the server-side OpenAI AI engine.'
+              : 'OpenAI is not configured yet. A platform administrator can add the key in Admin Dashboard.',
       };
     } catch {
-      // Keep the UI honest when the API route cannot be reached.
+      return {
+        status: 'error',
+        providerName: this.name,
+        modelName: this.model,
+        backendEndpoint: this.endpoint,
+        message: 'VYRA AI Chat could not reach the platform connection check. Check the Preview deployment and retry.',
+      };
     }
-
-    return {
-      status: 'preview_mode',
-      providerName: this.name,
-      modelName: this.model,
-      backendEndpoint: this.endpoint,
-      message:
-        'VYRA AI Chat is not reachable. Check the Preview deployment and server configuration.',
-    };
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
