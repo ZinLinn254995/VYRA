@@ -1056,8 +1056,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     });
   }
 
-  const verifiedUserId = await requireVerifiedVYraSession(req, res);
-  if (!verifiedUserId) return;
+  if (!await requireVerifiedVYraSession(req, res)) return;
 
   if (body.task) {
     return res.status(501).json({
