@@ -1522,6 +1522,11 @@ async function createVyralFolderActionProposal(
     summary = 'Move folder "' + folder.name + '"';
   } else if (capabilityId === 'folder.propose_delete') {
     operation = 'folder.delete';
+    const { data: activeVyral, error: activeVyralError } = await admin.from('vyrals').select('id,metadata')
+      .eq('id',vyralId).eq('user_id',userId).maybeSingle();
+    const activeMetadata = isPlainRecord(activeVyral?.metadata) ? activeVyral.metadata : {};
+    if (activeVyralError || !activeVyral || activeVyral.id === 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d' || activeMetadata.protected === true)
+      return safeToolError('Folders in this protected Vyral cannot be deleted.');
     const { data: folder, error } = await admin.from('vyral_folders')
       .select('id,name,parent_id,created_at').eq('id',args.folder_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
     if (error || !folder) return safeToolError('That exact folder could not be verified in the active Vyral.');
