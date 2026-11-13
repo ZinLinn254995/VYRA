@@ -2,8 +2,8 @@ import type { MasterTimelineAudioPlaybackItem } from './masterTimelineAudioPlayb
 
 export type AudioPlaybackRuntime = {
   context: AudioContext;
-  fetchAudio: (url: string) => Promise<ArrayBuffer>;
-  resolveAssetUrl: (assetId: string, assetVersionId: string) => Promise<string>;
+  fetchAudio: (url: string, signal: AbortSignal) => Promise<ArrayBuffer>;
+  resolveAssetUrl: (assetId: string, assetVersionId: string, signal: AbortSignal) => Promise<string>;
 };
 
 export type AudioPlaybackHandle = {
@@ -17,7 +17,7 @@ export type AudioPlaybackHandle = {
 /**
  * Preloads every immutable Asset Version before scheduling any source. This
  * prevents network/decode latency from shifting clips relative to one another.
- * The handle is returned immediately, so stop() also cancels in-flight work.
+ * The handle is returned immediately, so stop() aborts network fetches and prevents late scheduling.
  * Signed URLs exist only in memory and are resolved just-in-time.
  */
 export function startMasterTimelineAudioPlayback(
@@ -26,6 +26,7 @@ export function startMasterTimelineAudioPlayback(
 ): AudioPlaybackHandle {
   const sources = new Set<AudioBufferSourceNode>();
   const gains = new Set<GainNode>();
+  const abortController = new AbortController();
   let stopped = false;
   let scheduledStartTime: number | null = null;
   let resolveFinished!: () => void;
@@ -40,6 +41,7 @@ export function startMasterTimelineAudioPlayback(
   const stop = () => {
     if (stopped) return;
     stopped = true;
+    abortController.abort();
     for (const source of sources) {
       try { source.stop(); } catch { /* source may not have started */ }
       try { source.disconnect(); } catch { /* already disconnected */ }
@@ -56,9 +58,9 @@ export function startMasterTimelineAudioPlayback(
     try {
       const prepared = await Promise.all(plan.map(async (item) => {
         if (stopped) return null;
-        const url = await runtime.resolveAssetUrl(item.assetId, item.assetVersionId);
+        const url = await runtime.resolveAssetUrl(item.assetId, item.assetVersionId, abortController.signal);
         if (stopped) return null;
-        const bytes = await runtime.fetchAudio(url);
+        const bytes = await runtime.fetchAudio(url, abortController.signal);
         if (stopped) return null;
         const buffer = await runtime.context.decodeAudioData(bytes.slice(0));
         if (stopped) return null;
@@ -104,6 +106,7 @@ export function startMasterTimelineAudioPlayback(
       resolveReady();
       if (!sources.size) resolveFinished();
     } catch (error) {
+      if (stopped) { resolveReady(); return; }
       stop();
       rejectReady(error);
     }
