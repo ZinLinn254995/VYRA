@@ -20,6 +20,8 @@ export interface AiExecutionContext {
   userId: string;
   requestId: string;
   signal?: AbortSignal;
+  /** Server-only dependencies supplied by the authenticated runtime; never client input. */
+  runtime?: unknown;
 }
 
 export type AiExecutionResult =
@@ -75,6 +77,7 @@ export async function executeAiCapability(
   request: AiExecutionRequest,
   authority: AiCapabilityExecutionAuthority,
   now = new Date(),
+  runtime?: unknown,
 ): Promise<AiExecutionResult> {
   const policy = getAiCapabilityPolicy(request.capabilityId);
   if (!policy) return { ok: false, code: 'UNKNOWN_CAPABILITY', message: 'This AI capability is not recognized.' };
@@ -110,7 +113,7 @@ export async function executeAiCapability(
     await authority.audit({ userId: request.userId, requestId: request.requestId, capabilityId: policy.id, outcome: 'denied', reason: 'executor-not-implemented' });
     return { ok: false, code: 'NO_EXECUTOR', message: 'This capability is recognized but its secure VYRA executor is not connected yet.' };
   }
-  const context: AiExecutionContext = { userId: request.userId, requestId: request.requestId };
+  const context: AiExecutionContext = { userId: request.userId, requestId: request.requestId, runtime };
   try {
     if (!await adapter.validate(request.input, context)) {
       await authority.audit({ userId: request.userId, requestId: request.requestId, capabilityId: policy.id, outcome: 'denied', reason: 'input-validation-failed' });
