@@ -184,3 +184,22 @@ test('AI Chat history mutations ignore results after the authenticated owner cha
   const persistEnd = page.indexOf('const startNewChat', persistStart);
   assert.match(page.slice(persistStart, persistEnd), /if \(historyOwnerRef\.current !== ownerId\) return false;/);
 });
+
+test('AI Chat reset and archive actions cannot clear a different account session', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  for (const [name, nextName] of [
+    ['const startNewChat = async', 'const openSession ='],
+    ['const archiveCurrentChat = async', 'const deleteCurrentChat ='],
+    ['const deleteCurrentChat = async', 'const toggleLock ='],
+  ]) {
+    const start = page.indexOf(name);
+    const end = page.indexOf(nextName, start + name.length);
+    const block = page.slice(start, end);
+    assert.ok(start >= 0 && end > start, `missing handler: ${name}`);
+    assert.match(block, /const ownerAtStart = historyOwnerRef\.current/);
+    assert.match(block, /if \(historyOwnerRef\.current !== ownerAtStart\) return;/);
+  }
+  const removeCurrent = page.slice(page.indexOf('const deleteCurrentChat = async'), page.indexOf('const toggleLock ='));
+  assert.match(removeCurrent, /const sessionId = activeSessionId/);
+  assert.match(removeCurrent, /\.eq\('user_id', ownerId\)/);
+});
