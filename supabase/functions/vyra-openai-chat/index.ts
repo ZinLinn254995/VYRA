@@ -1,6 +1,7 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMasterTimelineVideoAsset, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
+import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -1747,6 +1748,92 @@ async function resolvePendingStoryboardApproval(
       : 'Approved and saved. Storyboard: ' + String(updated.title) + ' — updated ' + String(field) + '.';
 }
 
+const READ_CAPABILITY_TOOLS = {
+  'storyboard.list': 'list_my_storyboards',
+  'storyboard.read': 'get_my_storyboard_details',
+  'timeline.read': 'get_master_timeline_state',
+  'vyral.list': 'list_my_vyrals',
+} as const;
+
+type ReadCapabilityId = keyof typeof READ_CAPABILITY_TOOLS;
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityId[]) {
+  registerAiCapabilityAdapter({
+    capabilityId,
+    validate: (input) => {
+      if (capabilityId === 'storyboard.list' || capabilityId === 'vyral.list') {
+        return (input.query === undefined || (typeof input.query === 'string' && input.query.length <= 100)) &&
+          (input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 30));
+      }
+      if (capabilityId === 'storyboard.read') {
+        return typeof input.title === 'string' && input.title.trim().length > 0 && input.title.length <= 180;
+      }
+      return typeof input.storyboard_id === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.storyboard_id);
+    },
+    execute: async (input, execution) => {
+      const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+      const admin = runtime.admin;
+      if (!admin) throw new Error('Authenticated Supabase admin context is unavailable.');
+      return await executeGlobalReadTool(admin, execution.userId, READ_CAPABILITY_TOOLS[capabilityId], JSON.stringify(input));
+    },
+  });
+}
+
+async function executeSharedReadCapability(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  capabilityId: ReadCapabilityId,
+  input: Record<string, unknown>,
+  toolCallId: string,
+): Promise<Record<string, unknown>> {
+  const requestId = ('aiop-' + toolCallId).slice(0, 120);
+  const authority: AiCapabilityExecutionAuthority = {
+    userAuthenticated: true,
+    isOwnerOrAdmin: false,
+    verifyApproval: async () => false,
+    verifyOwner: async (ownerId, parameters) => {
+      if (ownerId !== userId) return false;
+      if (capabilityId === 'storyboard.list' || capabilityId === 'vyral.list') return true;
+      if (capabilityId === 'storyboard.read') {
+        const title = String(parameters.title ?? '').trim();
+        if (!title) return false;
+        const { data, error } = await admin.from('vyral_storyboards')
+          .select('id').eq('user_id', ownerId).ilike('title', title).limit(2);
+        return !error && Array.isArray(data) && data.length > 0;
+      }
+      const storyboardId = String(parameters.storyboard_id ?? '');
+      const { data, error } = await admin.from('vyral_storyboards')
+        .select('id').eq('id', storyboardId).eq('user_id', ownerId).maybeSingle();
+      return !error && Boolean(data);
+    },
+    audit: async (event) => {
+      const auditEvent = event.outcome === 'started' ? 'claimed'
+        : event.outcome === 'succeeded' ? 'completed' : 'failed';
+      const { error } = await admin.from('ai_operator_action_audit').insert({
+        user_id: event.userId,
+        session_id: sessionId ?? ('request-' + event.requestId).slice(0, 160),
+        capability_id: event.capabilityId,
+        event: auditEvent,
+        detail: event.reason ? { reason: event.reason } : {},
+      });
+      if (error) throw new Error('AI Operator audit could not be persisted.');
+    },
+  };
+  const result = await executeAiCapability(
+    { capabilityId, userId, requestId, input },
+    authority,
+    new Date(),
+    { admin },
+  );
+  if (!result.ok) return safeToolError(result.message);
+  return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
+}
+
 const sseResponse = (content: string) => {
   const chunk = JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: 'stop' }] });
   return new Response('data: ' + chunk + '\n\ndata: [DONE]\n\n', {
@@ -1963,7 +2050,16 @@ Deno.serve(async (request: Request) => {
           tool_calls: toolCalls,
         }];
         for (const call of toolCalls) {
-          const toolResult = call.function.name === 'propose_scene_mutation'
+          const readCapabilityId = Object.entries(READ_CAPABILITY_TOOLS)
+            .find(([, toolName]) => toolName === call.function.name)?.[0] as ReadCapabilityId | undefined;
+          const toolResult = readCapabilityId
+            ? await (() => {
+                let parsed: unknown;
+                try { parsed = JSON.parse(call.function.arguments || '{}'); } catch { return Promise.resolve(safeToolError('Invalid tool arguments.')); }
+                if (!isPlainRecord(parsed)) return Promise.resolve(safeToolError('Invalid tool arguments.'));
+                return executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsed, call.id);
+              })()
+            : call.function.name === 'propose_scene_mutation'
             ? await createSceneMutationProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id, (() => { try { const args = JSON.parse(call.function.arguments || '{}'); return args.operation === 'delete' ? 'delete' : args.operation === 'create' ? 'create' : 'duplicate'; } catch { return 'duplicate'; } })())
             : call.function.name === 'propose_scene_reorder'
             ? await createSceneReorderProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
