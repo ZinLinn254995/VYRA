@@ -47,7 +47,7 @@ export function hasAiCapabilityAdapter(capabilityId: string): boolean { return a
 export function listRegisteredAiCapabilityAdapterIds(): string[] { return [...adapters.keys()].sort(); }
 
 const executionFailed = (message = 'The VYRA action could not be completed safely.') =>
-  ({ ok: false, code: 'EXECUTION_FAILED' as const, message });
+  ({ ok: false as const, code: 'EXECUTION_FAILED' as const, message });
 
 /** Fail-closed dispatcher. Authority, validation, execution and audit failures never grant access. */
 export async function executeAiCapability(
