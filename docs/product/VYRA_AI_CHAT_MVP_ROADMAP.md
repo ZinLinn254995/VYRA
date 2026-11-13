@@ -916,3 +916,15 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - This is a pure scheduling layer only. It is not yet connected to Web Audio / HTMLAudio playback, the visible playhead, or the Master Editor's track mute/volume controls. Do not describe multi-track playback as available until that integration and browser verification are complete.
 - Latest CI workflow lookup for commit `11a494fc3c11f0366d53f1974c70204099851469` returned no workflow run; automated test execution remains unconfirmed.
 - No AI Chat UI/CSS changes, no database or Edge Function changes, no production deployment, no merge, no provider API key, and no customer charges.
+
+
+## Web Audio multi-track playback engine foundation
+
+- Added `src/server/masterTimelineAudioPlaybackEngine.ts` to execute the deterministic schedule through the browser Web Audio API.
+- Resolves private Asset URLs just-in-time from exact Asset ID + immutable Version ID; URLs are not persisted.
+- Fetches and decodes source audio, schedules each clip against AudioContext time, applies per-track gain, applies source offsets and duration bounds against decoded source length.
+- Exposes a stop handle to cancel pending/scheduled playback sources.
+- Added `tests/master-timeline-audio-playback-engine.spec.ts` and a dedicated CI script/step.
+- This engine is not yet wired into MasterTimelineEditor transport controls or playhead scrolling; browser-level multi-track playback and pause/seek/resume are still outstanding.
+- CI workflow lookup for latest commit `48b343f27bcbb437f0dcd6f4fc1a70114c7da133` returned no run. Tests are added but not confirmed executed.
+- No UI/CSS changes, no database/Edge Function changes, no production deploy, no merge, no provider key or charges.
