@@ -1914,6 +1914,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
               : 'The Asset is ready. Master DNA is queued for its next synchronization.';
           } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Vyral workspace refreshes.'; }
+          assertRequestCurrent();
           assetUploadCompletionText = '\n\n**Asset saved to Vyral:** ' + destination.name +
             '\n**Asset name:** ' + assetName +
             '\n**Original file:** ' + sourceFile.name +
