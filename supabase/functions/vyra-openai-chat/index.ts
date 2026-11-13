@@ -1042,8 +1042,12 @@ async function resolvePendingStoryboardApproval(
   const timelineClipId = parameters.clipId;
   const allowedField = isTimelineUpdate ? true : isSceneUpdate
     ? ['title', 'description', 'transition'].includes(String(field)) : ['title', 'topic'].includes(String(field));
+  const capabilityMatchesOperation =
+    (pending.capability_id === 'timeline.move_clip' && ['move','trim'].includes(String(timelineOperation))) ||
+    (pending.capability_id === 'timeline.split_clip' && timelineOperation === 'split') ||
+    (pending.capability_id === 'timeline.update_clip' && timelineOperation === 'update_text');
   const validTimelineParameters = !isTimelineUpdate || (
-    ['move','trim','split','update_text'].includes(String(timelineOperation)) &&
+    capabilityMatchesOperation &&
     ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
     (timelineOperation === 'move'
       ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
@@ -1051,7 +1055,7 @@ async function resolvePendingStoryboardApproval(
         ? isUuid(parameters.trackId) && ['start','end'].includes(String(parameters.edge)) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
         : timelineOperation === 'split'
           ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-          : isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
+          : timelineKind === 'text' && isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
     )
   );
   if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || !allowedField || !validTimelineParameters ||
