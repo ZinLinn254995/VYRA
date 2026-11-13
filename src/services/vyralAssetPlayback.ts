@@ -45,7 +45,7 @@ export async function createVyralAudioPlaybackUrl(
   const mimeType = String(version.mime_type || asset.mime_type || '').toLowerCase();
   const storagePath = typeof version.storage_path === 'string' ? version.storage_path : '';
   const expectedPrefix = user.id + '/' + asset.vyral_id + '/' + asset.id + '/';
-  if (!mimeType.startsWith('audio/') || !storagePath || storagePath !== asset.storage_path ||
+  if (!mimeType.startsWith('audio/') || !storagePath ||
       !storagePath.startsWith(expectedPrefix) || storagePath.includes('..') || storagePath.startsWith('/') || storagePath.includes('\\')) {
     throw new Error('The Audio Version storage reference failed its ownership or file-type checks.');
   }
