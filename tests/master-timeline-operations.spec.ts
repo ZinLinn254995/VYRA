@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
-  updateMasterTimelineClipText, type MasterTimelineData,
+  updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData,
 } from '../src/server/masterTimelineOperations.ts';
 
 const base: MasterTimelineData = {
@@ -82,4 +82,26 @@ test('updates text clip content only and preserves all unrelated timeline data',
     assert.equal(result.value.audioTracks, base.audioTracks);
     assert.equal(result.value.transitions, base.transitions);
   }
+});
+
+
+test('sets only supported transitions and preserves the editor default duration', () => {
+  const timeline = { ...base, transitions: {} };
+  const result = updateMasterTimelineTransition(timeline, 'scene-a:scene-b', 'dissolve', ['scene-a:scene-b']);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.value.transitions['scene-a:scene-b'], { effect: 'dissolve', duration: 0.5 });
+  assert.equal(updateMasterTimelineTransition(timeline, 'scene-a:scene-b', 'spin', ['scene-a:scene-b']).ok, false);
+  assert.equal(updateMasterTimelineTransition(timeline, 'scene-a:scene-c', 'fade', ['scene-a:scene-b']).ok, false);
+});
+
+test('changes an existing transition without changing its duration and removes it with None', () => {
+  const timeline = { ...base, transitions: { 'scene-a:scene-b': { effect: 'fade', duration: 0.8 } } };
+  const changed = updateMasterTimelineTransition(timeline, 'scene-a:scene-b', 'wipe', ['scene-a:scene-b']);
+  assert.equal(changed.ok, true);
+  if (!changed.ok) return;
+  assert.deepEqual(changed.value.transitions['scene-a:scene-b'], { effect: 'wipe', duration: 0.8 });
+  const removed = updateMasterTimelineTransition(changed.value, 'scene-a:scene-b', null, ['scene-a:scene-b']);
+  assert.equal(removed.ok, true);
+  if (removed.ok) assert.equal(Object.hasOwn(removed.value.transitions, 'scene-a:scene-b'), false);
+  assert.deepEqual(timeline.transitions['scene-a:scene-b'], { effect: 'fade', duration: 0.8 });
 });
