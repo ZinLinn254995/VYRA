@@ -180,6 +180,7 @@ class ModularAIService implements AIServiceProvider {
         body: JSON.stringify({
           stream: true,
           messages: request.messages.filter((message) => message.role !== 'system'),
+          ...(request.conversationId ? { conversationId: request.conversationId } : {}),
           ...(request.activeVyralId ? { activeVyralId: request.activeVyralId } : {}),
           ...(request.workspaceContext ? { workspaceContext: request.workspaceContext } : {}),
           ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
