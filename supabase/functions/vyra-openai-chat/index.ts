@@ -2417,6 +2417,7 @@ async function executeSharedProposalCapability(
   input: Record<string, unknown>,
   toolCallId: string,
   activeVyralId: string | null,
+  uploadAttachment: { fileName: string; mimeType: string; sizeBytes: number } | null,
 ): Promise<Record<string, unknown>> {
   const requestId = ('aiop-' + toolCallId).slice(0, 120);
   const authority: AiCapabilityExecutionAuthority = {
@@ -2693,7 +2694,7 @@ Deno.serve(async (request: Request) => {
       ? '\nThis request belongs to the authenticated chat session ' + conversationId + '. Any future pending action or approval must be bound to this exact session and the authenticated user; never infer identity or approval from message text alone.'
       : '\nNo verified chat session ID was supplied. Do not create or approve persistent pending actions in this request.';
     const uploadAttachmentInstruction = uploadAttachment
-       ? '\\n\\nExact local file attached in the current chat turn (metadata only; bytes remain in the browser): ' + JSON.stringify(uploadAttachment) + '. This metadata is a hint for planning only; the browser must match the exact File before transfer.'
+       ? '\n\nExact local file attached in the current chat turn (metadata only; bytes remain in the browser): ' + JSON.stringify(uploadAttachment) + '. This metadata is a hint for planning only; the browser must match the exact File before transfer.'
        : '';
      const baseMessages = [{ role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction + uploadAttachmentInstruction }, ...messages];
     let finalMessages: unknown[] = baseMessages;
@@ -2754,7 +2755,7 @@ Deno.serve(async (request: Request) => {
               : safeToolError('Invalid tool arguments.')
             : proposalCapabilityId
               ? parsedToolArguments
-                ? await executeSharedProposalCapability(context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id, activeVyralId)
+                ? await executeSharedProposalCapability(context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id, activeVyralId, uploadAttachment)
                 : safeToolError('Invalid tool arguments.')
               : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
                 ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
