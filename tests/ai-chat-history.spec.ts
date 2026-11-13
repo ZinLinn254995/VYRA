@@ -220,3 +220,15 @@ test('AI Chat does not clear a chat when saving it for archive or a new chat fai
     assert.match(block, /if \(!saved \|\| historyOwnerRef\.current !== ownerAtStart\) return/);
   }
 });
+
+test('AI Chat refuses to open a stale conversation from a previous account', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const start = page.indexOf('const openSession = (session: ChatSession) =>');
+  const end = page.indexOf('const sendMessage = async', start);
+  const block = page.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(block, /const ownerId = historyOwnerId/);
+  assert.match(block, /historyOwnerRef\.current !== ownerId/);
+  assert.match(block, /!sessions\.some\(\(item\) => item\.id === session\.id\)/);
+  assert.ok(block.indexOf('historyOwnerRef.current !== ownerId') < block.indexOf('setMessages(session.messages)'));
+});
