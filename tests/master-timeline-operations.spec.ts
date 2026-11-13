@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
+  cloneMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
   updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData,
 } from '../src/server/masterTimelineOperations.ts';
 
@@ -104,4 +104,25 @@ test('changes an existing transition without changing its duration and removes i
   assert.equal(removed.ok, true);
   if (removed.ok) assert.equal(Object.hasOwn(removed.value.transitions, 'scene-a:scene-b'), false);
   assert.deepEqual(timeline.transitions['scene-a:scene-b'], { effect: 'fade', duration: 0.8 });
+});
+
+
+test('clones audio and text clips at the end of their own track without changing the source', () => {
+  const audio = cloneMasterTimelineClip(base, 'audio', 'audio-1', 'a', () => 'audio-copy');
+  assert.equal(audio.ok, true);
+  if (audio.ok) {
+    const copy = audio.value.audioTracks[0].clips.find((clip) => clip.id === 'audio-copy');
+    assert.deepEqual(copy, { id: 'audio-copy', name: 'Music', start: 8, duration: 5 });
+    assert.equal(audio.value.audioTracks[0].clips.find((clip) => clip.id === 'a')?.start, 0);
+  }
+  const text = cloneMasterTimelineClip(base, 'text', 'text-1', 't', () => 'text-copy');
+  assert.equal(text.ok, true);
+  if (text.ok) {
+    const copy = text.value.textTracks[0].clips.find((clip) => clip.id === 'text-copy');
+    assert.deepEqual(copy, { id: 'text-copy', name: 'Title', content: 'Hello', start: 7, duration: 3 });
+  }
+});
+
+test('rejects clone IDs that already exist in either media kind', () => {
+  assert.equal(cloneMasterTimelineClip(base, 'audio', 'audio-1', 'a', () => 't').ok, false);
 });
