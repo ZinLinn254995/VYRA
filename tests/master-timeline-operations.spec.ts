@@ -82,7 +82,7 @@ test('adds an owner-verified Audio Asset reference on a new Audio track without 
   const clip = result.value.audioTracks.find((track) => track.id === '10000000-0000-4000-8000-000000000001')?.clips[0];
   assert.deepEqual(clip, {
     id: '20000000-0000-4000-8000-000000000001', name: 'Soundtrack.mp3', content: 'Soundtrack.mp3',
-    start: 0, duration: 12, assetId: '30000000-0000-4000-8000-000000000001',
+    start: 0, duration: 12, waveform: [], assetId: '30000000-0000-4000-8000-000000000001',
     assetVersionId: '40000000-0000-4000-8000-000000000001', assetMimeType: 'audio/mpeg',
   });
   assert.equal(base.audioTracks.length, 1);
