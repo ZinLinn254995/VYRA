@@ -1879,7 +1879,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const lastAssistantAction = [...messages].reverse().find((item) => item.role === 'assistant')?.action;
         const naturalApprovalAttempt = isNaturalChatApproval(text) || isStoryboardDeleteConfirmation(text) ||
           isStoryboardUpdateConfirmation(text) || isVyralAssetUploadConfirmation(text) ||
-          isVyralCreateConfirmation(text) || isStoryboardCreateConfirmation(text);
+          isStoryboardCreateConfirmation(text);
         const preservedUpload = lastAssistantAction?.type === 'vyral-asset-upload-draft' &&
           naturalApprovalAttempt && error instanceof VyralAssetIngestionError && error.preservedForRecovery;
         if (preservedUpload && lastAssistantAction?.type === 'vyral-asset-upload-draft') {
@@ -1888,7 +1888,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const retryDraftAction = preservedUpload || !naturalApprovalAttempt ||
           !lastAssistantAction || ![
             'storyboard-delete-draft', 'storyboard-update-draft', 'storyboard-create-draft',
-            'vyral-create-draft', 'vyral-asset-upload-draft',
+            'vyral-asset-upload-draft',
           ].includes(lastAssistantAction.type)
           ? undefined
           : lastAssistantAction;
