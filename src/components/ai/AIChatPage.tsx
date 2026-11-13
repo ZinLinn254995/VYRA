@@ -1,4 +1,3 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp, Archive, Clock3, Copy, History, Lock, MessageSquare,
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
@@ -359,6 +358,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
   const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
   const historyOwnerRef = useRef<string | null>(null);
+  const historyWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [historyReady, setHistoryReady] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -496,31 +496,37 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     return firstUserMessage.length > 42 ? firstUserMessage.slice(0, 42) + '…' : firstUserMessage || 'New chat';
   }, [messages]);
 
-  const persistSession = useCallback(async (session: ChatSession) => {
-    if (!supabase || !historyOwnerId) return false;
-    const storedMessages = session.messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      content: message.content,
-      ...(message.status ? { status: message.status } : {}),
-      ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
-      ...(message.action ? { action: message.action } : {}),
-    }));
-    const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
-      id: session.id,
-      user_id: historyOwnerId,
-      title: (session.title || 'New chat').slice(0, 160),
-      messages: storedMessages,
-      archived: Boolean(session.archived),
-      locked: Boolean(session.locked),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-    if (error) {
-      setHistoryError('Chat history could not be saved. Please keep this page open and retry.');
-      return false;
-    }
-    setHistoryError(null);
-    return true;
+  const persistSession = useCallback((session: ChatSession) => {
+    if (!supabase || !historyOwnerId) return Promise.resolve(false);
+
+    // Serialize writes so a slower, older transcript cannot overwrite a newer one.
+    const write = historyWriteQueueRef.current.then(async () => {
+      const storedMessages = session.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        ...(message.status ? { status: message.status } : {}),
+        ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
+        ...(message.action ? { action: message.action } : {}),
+      }));
+      const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
+        id: session.id,
+        user_id: historyOwnerId,
+        title: (session.title || 'New chat').slice(0, 160),
+        messages: storedMessages,
+        archived: Boolean(session.archived),
+        locked: Boolean(session.locked),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (error) {
+        setHistoryError('Chat history could not be saved. Please keep this page open and retry.');
+        return false;
+      }
+      setHistoryError(null);
+      return true;
+    });
+    historyWriteQueueRef.current = write.then(() => undefined, () => undefined);
+    return write;
   }, [historyOwnerId]);
 
   useEffect(() => {
