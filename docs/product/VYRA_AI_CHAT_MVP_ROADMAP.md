@@ -740,6 +740,16 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 
 
 
+
+### Second persisted AI Operator write adapter — Scene metadata
+
+- Added the global model tool `propose_scene_update`, available from any Workspace page. It requires the owner-scoped parent Storyboard UUID and Scene UUID, and accepts only `title`, `description`, or `transition` with field-specific length limits. It deliberately excludes Scene duration and Timeline clip edits because those affect dependent timing/track data.
+- The existing owner-scoped `get_my_storyboard_details` tool now returns Scene IDs (in addition to scene numbers and metadata), so the model can resolve the exact Scene before proposing a change. Ambiguous Storyboard lookup still returns candidates rather than guessing.
+- A proposal persists a 10-minute `scene.update` pending action in the same authenticated user/chat session. Approval uses the existing atomic approve → claim → finish lifecycle; execution reloads the parent Storyboard, verifies the Scene still belongs to it, and updates only that Scene object inside the JSONB `details.scenes` array. The parent `updated_at` snapshot prevents stale overwrites.
+- Development `vyra-openai-chat` deployed as version 12 with JWT verification enabled. Follow-up inspection confirmed the deployed source contains the Scene proposal tool, approval handler, and Scene ID projection.
+- No OpenAI live model call or browser E2E test was possible because the platform key remains unset. No user Storyboard/Scene data was changed by deployment. AI Chat UI/CSS, production database, and production deployment remain untouched.
+- Next: add Scene read/context tools for richer scene-specific requests, then Timeline actions with a separate dependency-aware validation model. Keep Scene duration changes disabled until timeline synchronization is implemented.
+
 ### First persisted AI Operator write adapter — Storyboard title/topic
 
 - Added the first model-selectable reversible-write proposal tool: `propose_storyboard_update`. It accepts only an owner-owned Storyboard UUID, one of the two allowed fields (`title` or `topic`), and a bounded new value. The server loads the current row under the authenticated `user_id`; the model cannot supply owner identity, risk, expiry, or the expected database version.
