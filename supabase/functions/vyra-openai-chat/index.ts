@@ -2221,7 +2221,7 @@ registerAiCapabilityAdapter({
       });
       if (finishError) throw new Error('The Vyral was created, but its approval record could not be finalized.');
   
-    } catch (error) {
+    } catch {
       await admin.rpc('finish_ai_operator_pending_action', {
         p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
         p_status: 'failed', p_result_summary: { message: 'Vyral creation could not be safely finalized.' },
