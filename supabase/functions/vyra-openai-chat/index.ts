@@ -25,7 +25,7 @@ const SYSTEM_INSTRUCTION =
   'When someone wants to start a Vyral, help them shape its name and purpose in their own words; never force a command template. If essential information is missing, ask one natural, concise question. Once the name and purpose are clear, call propose_vyral_create to prepare an owner-scoped preview; it creates no database record. Explain the exact name and description, then wait for explicit approval in this same chat. Only after approval may the server create the private Vyral and its initial identity DNA atomically. ' +
   'When a user attaches a local file and asks to add it to a Vyral, use the exact attached-file metadata supplied by VYRA, resolve the destination Vyral from owner-scoped records, and call propose_vyral_asset_upload. Ask the user for the Asset display name in natural language if they have not supplied one; you may suggest a concise descriptive name but must show it and wait for approval. Preserve the original filename separately. The proposal does not transfer file bytes or create an Asset. Never invent file metadata. ' +
   'When the user asks to rename an existing Asset, first use the owner-scoped Vyral Asset search/detail tools to identify the exact Asset, then call propose_vyral_asset_rename with its exact ID and the requested new display name. Show the old and new names and wait for explicit approval. Renaming changes only the display name; never claim the source filename, immutable bytes, versions, DNA or Fingerprints changed. ' +
-  'When the user wants to organize a Vyral, use list_vyral_folders to inspect the real folder tree first. Create folders with propose_vyral_folder_create, rename folders with propose_vyral_folder_rename, move folders with propose_vyral_folder_move, and place Assets into a folder or the Vyral root with propose_vyral_asset_move_folder. Identify exact resources from owner-scoped reads. Always show the target Vyral, source and destination before/after, then wait for explicit same-chat approval. Never delete a folder as part of moving it; moving a folder moves its child hierarchy with it. Do not move across Vyrals in this operation. ' +
+  'When the user wants to organize a Vyral, use list_vyral_folders to inspect the real folder tree first. Create folders with propose_vyral_folder_create, rename folders with propose_vyral_folder_rename, move folders with propose_vyral_folder_move, and place Assets into a folder or the Vyral root with propose_vyral_asset_move_folder. Delete a folder only with propose_vyral_folder_delete, and only when it is empty (no child folders or Assets). Show the folder name and exact DELETE EMPTY FOLDER <six-character-code> phrase; generic yes is not sufficient. If it contains anything, explain that it must be moved first. Never recursively delete a folder tree. Identify exact resources from owner-scoped reads. Always show the target Vyral, source and destination before/after, then wait for explicit same-chat approval. Never delete a folder as part of moving it; moving a folder moves its child hierarchy with it. Do not move across Vyrals in this operation. ' +
   'When the user asks to write or edit Asset title, description, category, tags, keywords or alt text, first identify the exact owner-owned Asset with search/detail tools, then call propose_vyral_asset_metadata with only the requested fields. Treat title as the Asset display name. Category is a semantic classification separate from the technical file type. Technical Asset type and MIME type describe the actual file and must not be falsified or changed through metadata edits. Show every before/after field and wait for explicit approval in this same chat. Preserve unrelated metadata, original filename, immutable bytes, versions, DNA and Fingerprints. ' +
   'When the user asks to connect or remove semantic relationships between Assets, inspect the current graph first, identify exact owner-owned Assets and use propose_vyral_asset_relationship_add or propose_vyral_asset_relationship_remove. Explain relationship direction, type and rationale; show a preview and wait for explicit approval in this same chat. Keep semantic relationships distinct from generation lineage. The database will mark Master DNA stale after a relationship change; never claim a new Master DNA revision exists until rebuilt and verified. ' +
   'Permanent Asset and Asset-version deletion are human-only security actions: never propose, approve, or execute them through AI Chat, even if the user asks or confirms. Explain that permanent deletion is reserved for a separate human-controlled retention workflow. When the user asks to remove an Asset from active use, offer the safe archive operation rather than permanently deleting bytes. First inspect the exact Asset, then call propose_vyral_asset_archive and show the Asset name plus the exact ARCHIVE ASSET <six-character-code> phrase. Do not accept yes, okay, or generic confirmation: the user must send that exact phrase in this same chat. Archiving changes only processing_status to archived; it preserves original file bytes, versions, DNA and Fingerprints and does not permanently delete Storage data. Explain that Master DNA becomes stale and must be rebuilt. Never archive protected Vyrals or protected Assets. ' +
@@ -231,6 +231,14 @@ const GLOBAL_READ_TOOLS = [
         folder_id: { type: 'string' },
         parent_folder_id: { type: ['string','null'], description: 'Destination parent folder UUID, or null for root.' },
       }, required: ['folder_id','parent_folder_id'], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_folder_delete',
+      description: 'Prepare an exact-confirmation preview to delete one empty folder only. Reject folders containing any Assets or child folders. Never delete recursively.',
+      parameters: { type: 'object', properties: { folder_id: { type: 'string' } }, required: ['folder_id'], additionalProperties: false },
     },
   },
   {
@@ -1467,7 +1475,7 @@ async function createVyralAssetRenameProposal(
 
 async function createVyralFolderActionProposal(
   admin: any, userId: string, vyralId: string, sessionId: string, rawArguments: string, toolCallId: string,
-  capabilityId: 'folder.propose_create' | 'folder.propose_rename' | 'folder.propose_move' | 'asset.propose_move_folder',
+  capabilityId: 'folder.propose_create' | 'folder.propose_rename' | 'folder.propose_move' | 'folder.propose_delete' | 'asset.propose_move_folder',
 ): Promise<Record<string, unknown>> {
   let args: Record<string, unknown>;
   try { const parsed: unknown = JSON.parse(rawArguments || '{}'); if (!isPlainRecord(parsed)) return safeToolError('Invalid folder action.'); args = parsed; }
@@ -1512,6 +1520,22 @@ async function createVyralFolderActionProposal(
     target.folderId = String(folder.id);
     parameters = { previousParentId: folder.parent_id ?? null, nextParentId: args.parent_folder_id };
     summary = 'Move folder "' + folder.name + '"';
+  } else if (capabilityId === 'folder.propose_delete') {
+    operation = 'folder.delete';
+    const { data: folder, error } = await admin.from('vyral_folders')
+      .select('id,name,parent_id,created_at').eq('id',args.folder_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if (error || !folder) return safeToolError('That exact folder could not be verified in the active Vyral.');
+    const [{data:children,error:childrenError},{data:assets,error:assetsError}] = await Promise.all([
+      admin.from('vyral_folders').select('id').eq('parent_id',folder.id).eq('vyral_id',vyralId).eq('user_id',userId).limit(1),
+      admin.from('vyral_assets').select('id').eq('folder_id',folder.id).eq('vyral_id',vyralId).eq('user_id',userId).limit(1),
+    ]);
+    if (childrenError || assetsError) return safeToolError('The folder contents could not be safely checked.');
+    if ((children ?? []).length || (assets ?? []).length) return safeToolError('This folder is not empty. Move its child folders and Assets first; recursive deletion is not allowed.');
+    const confirmationCode = crypto.randomUUID().replace(/-/g,'').slice(0,6).toUpperCase();
+    target.folderId = String(folder.id);
+    parameters = { previousName: folder.name, previousParentId: folder.parent_id ?? null,
+      expectedCreatedAt: String(folder.created_at), confirmationCode };
+    summary = 'Delete empty folder "' + folder.name + '"';
   } else {
     operation = 'asset.move_folder';
     const { data: asset, error } = await admin.from('vyral_assets').select('id,name,folder_id,updated_at,processing_status').eq('id',args.asset_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
@@ -1527,14 +1551,14 @@ async function createVyralFolderActionProposal(
   if (!parseVyralFolderActionPendingPlan(plan)) return safeToolError('The folder action preview failed validation.');
   const key = ('aiop-' + sessionId + '-' + toolCallId).slice(0,160);
   const { data: pending, error } = await admin.rpc('create_ai_operator_pending_action', {
-    p_user_id:userId,p_session_id:sessionId,p_idempotency_key:key,p_capability_id:'folder.update',p_plan:plan,p_expires_at:plan.expiresAt,
+    p_user_id:userId,p_session_id:sessionId,p_idempotency_key:key,p_capability_id:operation === 'folder.delete' ? 'folder.delete' : 'folder.update',p_plan:plan,p_expires_at:plan.expiresAt,
   });
   let saved = pending;
   if (error || !saved) {
     const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
       .select('id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('idempotency_key',key).maybeSingle();
     const priorPlan = parseVyralFolderActionPendingPlan(prior?.plan);
-    if (priorError || !prior || prior.capability_id !== 'folder.update' || prior.status !== 'pending' ||
+    if (priorError || !prior || prior.capability_id !== (operation === 'folder.delete' ? 'folder.delete' : 'folder.update') || prior.status !== 'pending' ||
         Date.parse(prior.expires_at) <= Date.now() || !priorPlan || priorPlan.operation !== operation ||
         JSON.stringify(priorPlan.target) !== JSON.stringify(target) || JSON.stringify(priorPlan.parameters) !== JSON.stringify(parameters)) {
       return safeToolError('Could not securely save or reuse this folder preview. No changes were made.');
@@ -3201,6 +3225,7 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'folder.propose_create': 'propose_vyral_folder_create',
   'folder.propose_rename': 'propose_vyral_folder_rename',
   'folder.propose_move': 'propose_vyral_folder_move',
+  'folder.propose_delete': 'propose_vyral_folder_delete',
   'asset.propose_move_folder': 'propose_vyral_asset_move_folder',
 } as const;
 
@@ -3264,6 +3289,9 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return Object.keys(input).every((key) => ['folder_id','name'].includes(key)) &&
           isUuid(input.folder_id) && typeof input.name === 'string' && input.name.trim().length > 0 &&
           input.name.trim().length <= 100 && !/[\\/\u0000-\u001f\u007f]/.test(input.name);
+      }
+      if (capabilityId === 'folder.propose_delete') {
+        return Object.keys(input).length === 1 && isUuid(input.folder_id);
       }
       if (capabilityId === 'folder.propose_move') {
         return Object.keys(input).every((key) => ['folder_id','parent_folder_id'].includes(key)) &&
@@ -3331,7 +3359,7 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
           rawArguments, toolCallId, capabilityId === 'asset.propose_relationship_add' ? 'add' : 'remove');
       }
       if (capabilityId === 'folder.propose_create' || capabilityId === 'folder.propose_rename' ||
-          capabilityId === 'folder.propose_move' || capabilityId === 'asset.propose_move_folder') {
+          capabilityId === 'folder.propose_move' || capabilityId === 'folder.propose_delete' || capabilityId === 'asset.propose_move_folder') {
         const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
         if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
         return await createVyralFolderActionProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId, capabilityId);
