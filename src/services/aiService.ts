@@ -270,7 +270,16 @@ class ModularAIService implements AIServiceProvider {
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() ?? '';
-          for (const line of lines) consumeLine(line);
+          for (const line of lines) {
+            consumeLine(line);
+            if (finished) break;
+          }
+          if (finished) {
+            // Stop reading any trailing bytes once the provider has sent its terminal event.
+            // This also releases the upstream response promptly when the stream stays open.
+            try { await reader.cancel(); } catch { /* The stream may already be closed. */ }
+            break;
+          }
         }
         buffer += decoder.decode();
         if (buffer.trim()) consumeLine(buffer);
