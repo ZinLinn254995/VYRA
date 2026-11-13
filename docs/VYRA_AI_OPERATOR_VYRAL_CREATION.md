@@ -40,3 +40,11 @@ The browser no longer intercepts Vyral creation intents or performs the identity
 The first server-side contract for AI Operator Asset uploads is now present in `src/server/vyralAssetUploadAction.ts`. It validates a bounded, expiring `asset.upload` plan with an exact owner/chat-session/action binding, destination Vyral UUID, client draft UUID, file name, MIME type, and file size (maximum 100 MB). It also provides an exact browser-file metadata match check so the selected local `File` cannot silently drift from the reviewed preview.
 
 This is validation groundwork only: the existing browser file picker and `ingestVyralAsset` lifecycle remain unchanged. The model-driven proposal, approval-to-browser handoff, and server-confirmed completion are not yet connected. The new validator tests are included in CI through `test:vyral-asset-upload-action`.
+
+## Conversational Asset naming and upload proposal
+
+The authenticated OpenAI tool catalogue now includes `propose_vyral_asset_upload`. It receives the exact current attachment metadata from the browser (filename, MIME type, byte size; never file bytes), resolves the destination Vyral against the authenticated owner, and stores a session-bound, expiring `asset.upload` preview. The model must ask for a display name when missing, or propose one in natural language and show it for approval. The plan stores `assetName` separately from `fileName`, preserving the original filename.
+
+The canonical ingestion service now accepts an optional approved `assetName` for the VYRA library display name while always retaining `original_filename` from the actual File. Both upload-plan validation and ingestion reject unsafe/path-like display names. CI includes registry, upload-plan and ingestion tests.
+
+The approval-to-local-File transfer handoff and server-confirmed upload completion are still being connected. Until that handoff is complete, this proposal is not a claim that an Asset has been uploaded. The AI Chat and Master Editor presentation remain unchanged.
