@@ -60,7 +60,7 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.ok(source.includes("if (timelineOperation === 'add_audio')"));
   assert.ok(source.includes("audioAssetVersionId"));
   assert.ok(source.includes("assetVersionId"));
-  assert.match(source, /enum: \['add_text', 'add_audio', 'move', 'trim', 'split', 'clone', 'update_text', 'delete'\]/);
+  assert.match(source, /enum: \['add_text', 'add_audio', 'attach_video', 'move', 'trim', 'split', 'clone', 'update_text', 'delete'\]/);
   assert.match(source, /addMasterTimelineTextClip/);
   assert.match(source, /timeline\.add_text/);
   assert.match(source, /timelineOperation === 'add_text'/);
