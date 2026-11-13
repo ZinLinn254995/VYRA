@@ -14,6 +14,7 @@ const plan = {
   parameters: {
     clientDraftId: '33333333-3333-4333-8333-333333333333',
     fileName: 'scene-reference.png',
+    assetName: 'Red Circle Reference',
     mimeType: 'image/png',
     sizeBytes: 2048,
   },
@@ -30,6 +31,8 @@ test('rejects expired, overlong, malformed, or path-like upload plans', () => {
   assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, expiresAt: new Date(now - 1).toISOString() }), null);
   assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, parameters: { ...plan.parameters, sizeBytes: 100 * 1024 * 1024 + 1 } }), null);
   assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, parameters: { ...plan.parameters, fileName: '../private.png' } }), null);
+  assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, parameters: { ...plan.parameters, assetName: '../private' } }), null);
+  assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, parameters: { ...plan.parameters, assetName: '' } }), null);
   assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, parameters: { ...plan.parameters, mimeType: 'not-a-mime' } }), null);
   assert.equal(parseVyralAssetUploadPendingPlan({ ...plan, parameters: { ...plan.parameters, clientDraftId: 'not-a-uuid' } }), null);
 });
