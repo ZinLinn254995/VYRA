@@ -1037,6 +1037,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     ping?: boolean;
     stream?: boolean;
     task?: string;
+    detailsScope?: string;
     messages?: Array<{ role?: string; content?: string }>;
     conversationId?: string;
     activeVyralId?: string;
@@ -1058,6 +1059,9 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
 
   if (!await requireVerifiedVYraSession(req, res)) return;
 
+  if (body.task === 'suggest_details' && !['asset', 'vyral', 'storyboard'].includes(body.detailsScope ?? 'asset')) {
+    return res.status(400).json({ error: 'Choose a supported metadata scope.' });
+  }
   if (body.task) {
     return res.status(501).json({
       error: 'This AI task is not connected to the OpenAI chat path yet. General AI Chat remains available.',
