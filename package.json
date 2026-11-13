@@ -64,7 +64,8 @@
     "test:master-timeline-audio-playback": "node --import tsx --test tests/master-timeline-audio-playback.spec.ts",
     "test:master-timeline-audio-playback-engine": "node --import tsx --test tests/master-timeline-audio-playback-engine.spec.ts",
     "test:master-timeline-video-playback": "node --import tsx --test tests/master-timeline-video-playback.spec.ts",
-    "test:workspace-video-preview": "node --import tsx --test tests/workspace-video-preview.spec.ts"
+    "test:workspace-video-preview": "node --import tsx --test tests/workspace-video-preview.spec.ts",
+    "test:master-timeline-video-playback-engine": "node --import tsx --test tests/master-timeline-video-playback-engine.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
