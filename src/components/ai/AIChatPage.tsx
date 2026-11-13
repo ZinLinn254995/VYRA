@@ -1764,12 +1764,81 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
         ...(mediaFiles.length ? { mediaFiles } : {}),
       });
+      let assetUploadCompletionText = '';
+      const operatorAction = result.operatorAction;
+      if (operatorAction?.type === 'asset-upload-approved') {
+        const actionId = typeof operatorAction.actionId === 'string' ? operatorAction.actionId : '';
+        const clientDraftId = typeof operatorAction.clientDraftId === 'string' ? operatorAction.clientDraftId : '';
+        const vyralId = typeof operatorAction.vyralId === 'string' ? operatorAction.vyralId : '';
+        const vyralName = typeof operatorAction.vyralName === 'string' ? operatorAction.vyralName : '';
+        const fileName = typeof operatorAction.fileName === 'string' ? operatorAction.fileName : '';
+        const assetName = typeof operatorAction.assetName === 'string' ? operatorAction.assetName : '';
+        const mimeType = typeof operatorAction.mimeType === 'string' ? operatorAction.mimeType : '';
+        const sizeBytes = typeof operatorAction.sizeBytes === 'number' ? operatorAction.sizeBytes : -1;
+        const sourceFile = pendingVyralUploadFilesRef.current.get(clientDraftId);
+        const reportUploadFailure = async () => {
+          if (supabase && actionId) {
+            await supabase.functions.invoke('vyra-openai-chat', {
+              body: { conversationId: chatSessionId, assetUploadCompletion: { actionId, failed: true } },
+            });
+          }
+        };
+        if (!supabase || !actionId || !/^[0-9a-f-]{36}$/i.test(clientDraftId) ||
+            !/^[0-9a-f-]{36}$/i.test(vyralId) || !sourceFile ||
+            sourceFile.name !== fileName || sourceFile.size !== sizeBytes ||
+            (sourceFile.type || 'application/octet-stream').toLowerCase() !== mimeType.toLowerCase()) {
+          await reportUploadFailure();
+          throw new Error('The approved upload no longer matches the exact file attached in this chat. Nothing was transferred. Please attach the file again and prepare a fresh preview.');
+        }
+        try {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData.user) throw new Error('Sign in again before transferring this Asset.');
+          const { data: destination, error: destinationError } = await supabase.from('vyrals')
+            .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle();
+          if (destinationError || !destination || destination.name !== vyralName) {
+            throw new Error('The destination Vyral could not be re-verified for your account. No file was transferred.');
+          }
+          const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
+            vyralId: destination.id, userId: authData.user.id, file: sourceFile, assetName,
+            metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: clientDraftId },
+          });
+          const { data: completion, error: completionError } = await supabase.functions.invoke('vyra-openai-chat', {
+            body: {
+              conversationId: chatSessionId,
+              assetUploadCompletion: { actionId, clientDraftId, assetId: ingested.assetId, versionId: ingested.versionId },
+            },
+          });
+          if (completionError || completion?.status !== 'completed') {
+            throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Vyral before retrying.');
+          }
+          pendingVyralUploadFilesRef.current.delete(clientDraftId);
+          let masterDnaMessage = 'Master DNA will update from the new Asset inventory.';
+          try {
+            const { data: masterResult, error: masterError } = await supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } });
+            masterDnaMessage = !masterError && masterResult?.status === 'ready'
+              ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
+              : 'The Asset is ready. Master DNA is queued for its next synchronization.';
+          } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Vyral workspace refreshes.'; }
+          assetUploadCompletionText = '\n\n**Asset saved to Vyral:** ' + destination.name +
+            '\n**Asset name:** ' + assetName +
+            '\n**Original file:** ' + sourceFile.name +
+            '\n**Asset ID:** ' + ingested.assetId +
+            '\n**DNA:** ' + ingested.dnaKind +
+            '\n**Fingerprint:** SHA-256 recorded' +
+            '\n**Status:** Ready' +
+            '\n' + masterDnaMessage;
+        } catch (uploadError) {
+          await reportUploadFailure();
+          throw uploadError;
+        }
+      }
+
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
-        content: result.status === 'error' && streamedText
+        content: (result.status === 'error' && streamedText
           ? streamedText + '\n\n' + result.content
-          : result.content,
+          : result.content) + assetUploadCompletionText,
         status: result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
