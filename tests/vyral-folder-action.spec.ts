@@ -5,7 +5,7 @@ import { parseVyralFolderActionPendingPlan, validateVyralFolderActionPendingActi
 const now=Date.now();
 const base={id:'11111111-1111-4111-8111-111111111111',target:{vyralId:'22222222-2222-4222-8222-222222222222',folderId:'33333333-3333-4333-8333-333333333333'},parameters:{name:'Characters',nextParentId:null},summary:'Create Characters folder',createdAt:new Date(now-1000).toISOString(),expiresAt:new Date(now+5*60*1000).toISOString(),operation:'folder.create'};
 
-test('validates folder create, rename, move and Asset folder move plans',()=>{
+test('validates folder create, rename, move, empty-folder delete and Asset folder move plans',()=>{
   assert.equal(parseVyralFolderActionPendingPlan(base)?.operation,'folder.create');
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.rename',parameters:{name:'Cast',previousName:'Characters',previousParentId:null}})?.operation,'folder.rename');
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.move',parameters:{previousParentId:null,nextParentId:'44444444-4444-4444-8444-444444444444'}})?.operation,'folder.move');
@@ -29,4 +29,8 @@ test('binds approval to exact owner, session, action and pending state',()=>{
   assert.equal(validateVyralFolderActionPendingAction(row,{...expected,userId:'owner-2'}),null);
   assert.equal(validateVyralFolderActionPendingAction(row,{...expected,sessionId:'chat-2'}),null);
   assert.equal(validateVyralFolderActionPendingAction({...row,status:'approved'},expected),null);
+  const deletePlan={...base,operation:'folder.delete',parameters:{previousName:'Characters',previousParentId:null,expectedCreatedAt:new Date(now-2000).toISOString(),confirmationCode:'A1B2C3'}};
+  const deleteRow={...row,capability_id:'folder.delete',plan:deletePlan};
+  assert.equal(validateVyralFolderActionPendingAction(deleteRow,expected)?.operation,'folder.delete');
+  assert.equal(validateVyralFolderActionPendingAction({...deleteRow,capability_id:'folder.update'},expected),null);
 });
