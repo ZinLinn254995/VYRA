@@ -599,8 +599,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const startNewChat = async () => {
+    const ownerAtStart = historyOwnerRef.current;
     cancelActiveRequest();
     await saveCurrentSession();
+    if (historyOwnerRef.current !== ownerAtStart) return;
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
@@ -2031,7 +2033,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const archiveCurrentChat = async () => {
+    const ownerAtStart = historyOwnerRef.current;
     await saveCurrentSession(true);
+    if (historyOwnerRef.current !== ownerAtStart) return;
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
@@ -2047,16 +2051,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const deleteCurrentChat = async () => {
-    if (activeSessionId && supabase && historyOwnerId) {
+    const ownerAtStart = historyOwnerRef.current;
+    const sessionId = activeSessionId;
+    const ownerId = historyOwnerId;
+    if (sessionId && supabase && ownerId) {
       const { error } = await supabase.from('vyra_ai_chat_conversations')
-        .delete().eq('id', activeSessionId).eq('user_id', historyOwnerId);
+        .delete().eq('id', sessionId).eq('user_id', ownerId);
+      if (historyOwnerRef.current !== ownerAtStart) return;
       if (error) {
         setHistoryError('This conversation could not be deleted. Please try again.');
         return;
       }
     }
-    if (activeSessionId) {
-      setSessions((previous) => previous.filter((session) => session.id !== activeSessionId));
+    if (historyOwnerRef.current !== ownerAtStart) return;
+    if (sessionId) {
+      setSessions((previous) => previous.filter((session) => session.id !== sessionId));
     }
     setMessages([]);
     setDraft('');
