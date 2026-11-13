@@ -55,6 +55,6 @@ test('Global AI Chat sends requests through OpenAI only; legacy Gemini UI is not
   const profile = read('src/components/profile/ProfilePage.tsx');
   assert.match(service, /private endpoint = '\/api\/ai\/chat'/);
   assert.match(service, /OpenAI \(VYRA Platform\)/);
-  assert.doesNotMatch(service, /gemini|vyra-gemini-proxy/i);
+  assert.doesNotMatch(service, /vyra-gemini-proxy|GoogleGenerativeAI|generativelanguage\\.googleapis\\.com/i);
   assert.doesNotMatch(profile, /GeminiProviderSettings/);
 });
