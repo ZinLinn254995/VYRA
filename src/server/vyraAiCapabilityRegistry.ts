@@ -141,6 +141,12 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.propose_rename', 'Prepare an owner-scoped Asset display-name change preview without changing the original filename or bytes'],
     ['asset.propose_metadata', 'Prepare an owner-scoped Asset title, description, category, tags, keywords and alt-text update preview'],
   ]),
+  ...define('assets', 'autonomous', 'reversible', [
+    ['folder.propose_create', 'Prepare a Vyral folder creation preview without creating it'],
+    ['folder.propose_rename', 'Prepare a Vyral folder rename preview'],
+    ['folder.propose_move', 'Prepare a Vyral folder move preview'],
+    ['asset.propose_move_folder', 'Prepare an Asset move into another folder or the Vyral root'],
+  ]),
   ...define('assets', 'autonomous', 'read', [
     ['asset.list', 'List and search Assets'],
     ['asset.read', 'Read Asset metadata and version details'],
