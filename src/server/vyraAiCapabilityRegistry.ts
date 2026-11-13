@@ -177,8 +177,10 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
   ]),
   ...define('assets', 'approval-required', 'destructive', [
     ['asset.archive', 'Archive an Asset'],
-    ['asset.delete', 'Delete an Asset when retention rules permit'],
-    ['asset.delete_version', 'Delete an Asset version when legally and technically permitted'],
+  ]),
+  ...define('assets', 'human-only', 'security', [
+    ['asset.delete', 'Permanently delete an Asset only through a human-controlled retention workflow'],
+    ['asset.delete_version', 'Permanently delete an Asset version only through a human-controlled retention workflow'],
   ]),
   ...define('media-generation', 'autonomous', 'read', [
     ['generation.models.read', 'Read available generation models and capabilities'],
