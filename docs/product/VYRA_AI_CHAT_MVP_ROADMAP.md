@@ -1017,3 +1017,14 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Added regression coverage for server runtime dependency injection. CI run [#43407897679](https://github.com/ZinLinn254995/VYRA/actions/runs/43407897679) passed, including TypeScript, AI executor and coverage tests, Supabase Edge Function Deno type-check, and Production build.
 - This is the first shared-executor integration slice, not a claim that all 153 catalogue capabilities are executable. Existing write proposals and some other read handlers remain outside the shared executor. The coverage report is not yet exposed to AI Chat or an admin endpoint.
 - No Master Editor UI/UX, AI Chat UI/CSS, Edge Function, database, provider credential, or Production changes.
+
+### Universal AI Operator — approval-gated write execution through shared executor
+
+- Connected the persisted approval-to-write path to the shared executeAiCapability boundary for 15 existing reversible/destructive write capabilities: Storyboard update; Scene update, reorder, create, duplicate and delete; and Master Timeline move/trim, split, text update, clone/add clip, add Text, add Audio, attach Video, transition update and clip removal.
+- Before the domain transaction runs, the shared executor checks the registered capability policy, authenticated session, a server-side approval check against the exact pending action ID + owner + chat session + expiry, and a fresh owner check on the target Storyboard.
+- Scene deletion and Timeline clip removal still require the exact destructive confirmation phrase stored in the preview. A generic “yes/confirm” cannot authorize either destructive operation. Rejections continue through the existing atomic pending-action rejection RPC.
+- The existing domain transaction remains the adapter's implementation for this first integration slice. It retains the current optimistic-concurrency checks, immutable Asset/Version verification, Timeline synchronization, atomic claim/finish RPCs, and detailed pending-action audit. The shared executor adds its own capability-level audit events. Further work should extract these domain operations into dedicated adapters rather than treating this bridge as the final architecture.
+- Added an approval-gated storyboard.update executor regression test. CI run [#43409885673](https://github.com/ZinLinn254995/VYRA/actions/runs/43409885673) passed, including TypeScript, AI executor and capability coverage tests, Supabase Edge Function Deno type-check, and Production build.
+- This is code + CI verification only. The Development Edge Function was not redeployed in this step, live OpenAI execution remains unavailable while the platform key is unset, and no browser approval flow was manually exercised.
+- No Master Editor UI/UX, AI Chat UI/CSS, Production database/function, provider key, customer charge, merge, or Production deployment was changed.
+
