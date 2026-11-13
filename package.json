@@ -77,7 +77,8 @@
     "test:vyral-folder-action": "node --import tsx --test tests/vyral-folder-action.spec.ts",
     "test:vyral-asset-relationship-action": "node --import tsx --test tests/vyral-asset-relationship-action.spec.ts",
     "test:vyral-asset-archive-action": "node --import tsx --test tests/vyral-asset-archive-action.spec.ts",
-    "test:vyral-asset-restore-action": "node --import tsx --test tests/vyral-asset-restore-action.spec.ts"
+    "test:vyral-asset-restore-action": "node --import tsx --test tests/vyral-asset-restore-action.spec.ts",
+    "test:ai-chat-history": "node --import tsx --test tests/ai-chat-history.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
