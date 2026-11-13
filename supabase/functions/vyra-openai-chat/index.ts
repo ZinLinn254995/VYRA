@@ -4004,7 +4004,7 @@ Deno.serve(async (request: Request) => {
           max_completion_tokens: 700,
           stream: false,
         }),
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(45000)]),
       });
       const planner = await plannerResponse.json().catch(() => ({})) as {
         error?: { message?: string };
@@ -4080,7 +4080,7 @@ Deno.serve(async (request: Request) => {
         stream: true,
         stream_options: { include_usage: true },
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(60000)]),
     });
     if (upstream.ok) {
       if (!upstream.body) return json({ error: 'OpenAI returned an empty stream. Please retry.' }, 502);
