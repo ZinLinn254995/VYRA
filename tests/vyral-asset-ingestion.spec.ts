@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   classifyVyralAssetFile,
+  extractAudioTechnicalMetadata,
   extractVideoTechnicalMetadata,
   buildAudioWaveformPeaks,
   ingestVyralAsset,
@@ -143,6 +144,29 @@ test('preserves DNA evidence when cancellation arrives after a DNA write', async
   assert.equal(calls.includes('markReady'), false);
   assert.equal(calls.includes('removeStorage'), false);
   assert.equal(calls.includes('deleteAsset'), false);
+});
+
+test('does not start Asset ingestion when cancellation was already requested', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+  assert.deepEqual(calls, []);
+});
+
+test('audio and video metadata extractors propagate cancellation instead of silently treating it as unsupported media', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    extractAudioTechnicalMetadata(makeFile('voice.wav', 'audio/wav'), 'a'.repeat(64), controller.signal),
+    (error: unknown) => error instanceof Error && error.name === 'AbortError',
+  );
+  await assert.rejects(
+    extractVideoTechnicalMetadata(makeFile('clip.mp4', 'video/mp4'), 'a'.repeat(64), controller.signal),
+    (error: unknown) => error instanceof Error && error.name === 'AbortError',
+  );
 });
 
 test('rejects invalid ownership IDs and oversized files before creating records', async () => {
