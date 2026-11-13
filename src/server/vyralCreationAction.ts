@@ -30,7 +30,7 @@ export function parseVyralCreatePendingPlan(value: unknown): VyralCreatePendingP
       typeof parameters.name !== 'string' || !parameters.name.trim() || parameters.name.trim().length > 100 ||
       typeof parameters.description !== 'string' || parameters.description.length > 1000) return null;
   const created = Date.parse(plan.createdAt), expires = Date.parse(plan.expiresAt);
-  if (created > Date.now() || expires <= created || expires - created > 15 * 60 * 1000) return null;
+  if (created > Date.now() || expires <= Date.now() || expires <= created || expires - created > 15 * 60 * 1000) return null;
   return {
     id: plan.id,
     operation: 'vyral.create',
