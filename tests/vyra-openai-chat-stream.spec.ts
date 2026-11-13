@@ -318,3 +318,12 @@ test('OpenAI Edge Function rejects malformed chat message roles and content type
   assert.match(edge, /item\.role !== 'user' && item\.role !== 'assistant'/);
   assert.match(edge, /typeof item\.content !== 'string'/);
 });
+
+
+test('OpenAI browser stream surfaces provider errors emitted after streaming begins', () => {
+  const service = read('src/services/aiService.ts');
+  assert.match(service, /error\?: \{ message\?: string; type\?: string; code\?: string \}/);
+  assert.match(service, /if \(event\.error && typeof event\.error === 'object'\)/);
+  assert.match(service, /streamError = typeof event\.error\.message === 'string'/);
+  assert.match(service, /if \(streamError\) \{[\s\S]*?status: 'error',[\s\S]*?modelName: streamModel/);
+});
