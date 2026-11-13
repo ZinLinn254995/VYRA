@@ -232,6 +232,29 @@ export const cloneMasterTimelineClip = (
   return { ok: true, value: withTracks(timeline, kind, nextTracks), affectedClipId: clipId, createdClipId: newId };
 };
 
+
+/**
+ * Removes one exact Audio/Text clip. Empty tracks are removed to match the
+ * current MasterTimelineEditor delete controls. The caller must provide a
+ * separately confirmed, owner/session-bound destructive approval.
+ */
+export const deleteMasterTimelineClip = (
+  timeline: MasterTimelineData,
+  kind: TimelineClipKind,
+  trackId: string,
+  clipId: string,
+): TimelineResult => {
+  if (!timeline || !Array.isArray(timeline.audioTracks) || !Array.isArray(timeline.textTracks)) return fail('invalid-timeline');
+  const tracks = tracksFor(timeline, kind);
+  const track = tracks.find((item) => item.id === trackId);
+  if (!track) return fail('track-not-found');
+  if (!track.clips.some((item) => item.id === clipId)) return fail('clip-not-found');
+  const nextTracks = tracks
+    .map((item) => item.id !== trackId ? item : { ...item, clips: item.clips.filter((clip) => clip.id !== clipId) })
+    .filter((item) => item.clips.length > 0);
+  return { ok: true, value: withTracks(timeline, kind, nextTracks), affectedClipId: clipId };
+};
+
 export const updateMasterTimelineTransition = (
   timeline: MasterTimelineData,
   transitionKey: string,
