@@ -1039,3 +1039,14 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - GitHub Actions CI run [#43414921860](https://github.com/ZinLinn254995/VYRA/actions/runs/43414921860) completed successfully, including TypeScript, the full test suite, Supabase Edge Function type-check, and Production build.
 - This is executor hardening only. It does not mean all catalogue capabilities are connected; Vyral creation and Asset ingestion still need their server-side action paths migrated into the shared executor. The existing chat-local Vyral creation and file-upload flows remain in place until that migration is implemented and verified.
 - No Master Editor UI/UX, AI Chat UI/CSS, Development or Production database, Edge Function deployment, provider key, customer charge, merge, or Production deployment was changed.
+
+
+### Vyral identity creation — atomic owner-scoped server RPC
+
+- Replaced the two-step browser inserts for a confirmed Vyral identity + initial root DNA with one PostgreSQL RPC, `create_vyral_identity_with_dna`. The Chat preview/confirmation interaction and visual UI are unchanged; the confirmed action now creates the Vyral row and creator-confirmed root DNA within one database transaction.
+- The RPC validates the authenticated owner via `auth.uid()`, validates name/description bounds, fixes the initial private visibility and conservative license defaults server-side, and binds the creation draft ID to the new record.
+- Retry handling is idempotent: a retry with the same draft ID and matching creation metadata reuses the Vyral and creates the root DNA only if missing. A conflicting ID or mismatched metadata is rejected. Advisory transaction locking serializes concurrent retries.
+- The RPC runs as `SECURITY INVOKER` under existing owner-scoped RLS policies. Verified privileges: authenticated can execute; anon/public cannot. Supabase Security Advisor no longer reports this new RPC as an authenticated SECURITY DEFINER function. Existing unrelated advisor findings remain.
+- Applied the additive migration to Development project `wbqheogfoahnjvgkwhxe` only. A transactional test under the authenticated role verified first-call creation, same-ID retry idempotency, exactly one Vyral + one root DNA row, and rollback left zero test rows.
+- CI run [#43416038166](https://github.com/ZinLinn254995/VYRA/actions/runs/43416038166) passed after the retry-guard hardening.
+- This consolidates the existing confirmed-create path; it does not yet move the entire Vyral create proposal/approval flow into the shared AI Capability Executor. That remains a follow-up integration task. No production database/function, deployment, merge, Master Editor UI/UX, or AI Chat visual UI/CSS was changed.
