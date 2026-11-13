@@ -363,6 +363,19 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const historyOwnerRef = useRef<string | null>(null);
   const historyWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const activeRequestControllerRef = useRef<AbortController | null>(null);
+
+  const cancelActiveRequest = () => {
+    const controller = activeRequestControllerRef.current;
+    if (!controller) return;
+    activeRequestControllerRef.current = null;
+    controller.abort();
+    setIsSending(false);
+  };
+
+  useEffect(() => () => {
+    activeRequestControllerRef.current?.abort();
+    activeRequestControllerRef.current = null;
+  }, []);
   const chatScrollRef = useRef<HTMLElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const [historyReady, setHistoryReady] = useState(false);
@@ -581,6 +594,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const startNewChat = async () => {
+    cancelActiveRequest();
     await saveCurrentSession();
     setMessages([]);
     setDraft('');
@@ -598,6 +612,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const openSession = (session: ChatSession) => {
+    cancelActiveRequest();
     setMessages(session.messages);
     setActiveSessionId(session.id);
     setIsLocked(Boolean(session.locked));
@@ -1801,6 +1816,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
         ...(mediaFiles.length ? { mediaFiles } : {}),
       });
+      if (activeRequestControllerRef.current !== requestController) return;
       let assetUploadCompletionText = '';
       const operatorAction = result.operatorAction;
       if (operatorAction?.type === 'asset-upload-approved') {
@@ -1886,6 +1902,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setMessages((previous) => [...previous, completedMessage]);
       }
     } catch (error) {
+      if (activeRequestControllerRef.current !== requestController) return;
       const wasCancelled = requestController.signal.aborted || (error instanceof Error && error.name === 'AbortError');
       const message = wasCancelled ? 'Generation stopped.' : error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
       if (wasCancelled) {
@@ -1923,8 +1940,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }]);
       }
     } finally {
-      if (activeRequestControllerRef.current === requestController) activeRequestControllerRef.current = null;
-      setIsSending(false);
+      if (activeRequestControllerRef.current === requestController) {
+        activeRequestControllerRef.current = null;
+        setIsSending(false);
+      }
     }
   };
 
