@@ -52,6 +52,19 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'get_master_timeline_state',
+      description: 'Read the complete, current Master Timeline structure for one owner-owned Storyboard: scene order and durations, timeline instances, transitions, audio/text tracks, clip positions, gaps, overlaps and track settings. Use this before reasoning about or proposing any Master Editor operation. Read-only.',
+      parameters: {
+        type: 'object',
+        properties: { storyboard_id: { type: 'string', description: 'Storyboard UUID from an owner-scoped Storyboard read.' } },
+        required: ['storyboard_id'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'list_my_vyrals',
       description: "List the signed-in user's Vyrals. Read-only; use actual account records.",
       parameters: {
@@ -345,6 +358,120 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
             dnaVerification: dna?.verification_status ?? null, dnaRevision: dna?.revision_number ?? null };
         }),
         createdAt: row.created_at, updatedAt: row.updated_at,
+      },
+    };
+  }
+
+  if (name === 'get_master_timeline_state') {
+    const storyboardId = typeof args.storyboard_id === 'string' ? args.storyboard_id : '';
+    if (!isUuid(storyboardId)) return safeToolError('A valid Storyboard UUID is required.');
+    const { data: item, error } = await admin.from('vyral_storyboards')
+      .select('id,title,topic,details,updated_at')
+      .eq('id', storyboardId).eq('user_id', userId).maybeSingle();
+    if (error) return safeToolError('The Master Timeline could not be loaded.');
+    if (!item) return { ok: true, found: false, message: 'That Storyboard is not available in your account.' };
+    const details = item.details && typeof item.details === 'object' && !Array.isArray(item.details)
+      ? item.details as Record<string, unknown> : {};
+    const rawScenes = Array.isArray(details.scenes) ? details.scenes : [];
+    const sceneRows = rawScenes.slice(0, 80).map((raw, index) => {
+      const scene = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      return {
+        id: typeof scene.id === 'string' ? scene.id : null,
+        originalIndex: index,
+        title: typeof scene.title === 'string' ? scene.title.slice(0, 180) : 'Untitled scene',
+        duration: typeof scene.duration === 'number' && Number.isFinite(scene.duration) ? Math.max(0.1, scene.duration) : null,
+        transition: typeof scene.transition === 'string' ? scene.transition.slice(0, 80) : null,
+      };
+    });
+    const master = details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline)
+      ? details.masterTimeline as Record<string, unknown> : {};
+    const rawInstances = Array.isArray(master.sceneInstances) ? master.sceneInstances : [];
+    const instanceRows = rawInstances.slice(0, 100).map((raw) => {
+      const instance = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      return {
+        id: typeof instance.id === 'string' ? instance.id : null,
+        sceneId: typeof instance.sceneId === 'string' ? instance.sceneId : null,
+        sourceIn: typeof instance.sourceIn === 'number' && Number.isFinite(instance.sourceIn) ? instance.sourceIn : 0,
+        sourceOut: typeof instance.sourceOut === 'number' && Number.isFinite(instance.sourceOut) ? instance.sourceOut : null,
+        sceneProjectId: typeof instance.sceneProjectId === 'string' ? instance.sceneProjectId : null,
+        renderRevisionId: typeof instance.renderRevisionId === 'string' ? instance.renderRevisionId : null,
+      };
+    });
+    const sceneById = new Map(sceneRows.filter((scene) => scene.id).map((scene) => [scene.id as string, scene]));
+    const orderedIds = instanceRows.map((instance) => instance.sceneId).filter((id): id is string => Boolean(id && sceneById.has(id)));
+    const included = new Set(orderedIds);
+    const orderedScenes = [
+      ...orderedIds.map((id) => sceneById.get(id)!).filter(Boolean),
+      ...sceneRows.filter((scene) => scene.id && !included.has(scene.id)),
+    ];
+    const readTracks = (raw: unknown) => {
+      const tracks = Array.isArray(raw) ? raw.slice(0, 40) : [];
+      return tracks.map((entry) => {
+        const track = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry as Record<string, unknown> : {};
+        const clips = Array.isArray(track.clips) ? track.clips.slice(0, 100) : [];
+        return {
+          id: typeof track.id === 'string' ? track.id : null,
+          name: typeof track.name === 'string' ? track.name.slice(0, 100) : 'Untitled track',
+          muted: track.muted === true,
+          visible: track.visible !== false,
+          collapsed: track.collapsed === true,
+          volume: typeof track.volume === 'number' && Number.isFinite(track.volume) ? Math.max(0, Math.min(1, track.volume)) : null,
+          clips: clips.map((rawClip) => {
+            const clip = rawClip && typeof rawClip === 'object' && !Array.isArray(rawClip) ? rawClip as Record<string, unknown> : {};
+            const start = typeof clip.start === 'number' && Number.isFinite(clip.start) ? Math.max(0, clip.start) : 0;
+            const duration = typeof clip.duration === 'number' && Number.isFinite(clip.duration) ? Math.max(0, clip.duration) : 0;
+            return {
+              id: typeof clip.id === 'string' ? clip.id : null,
+              name: typeof clip.name === 'string' ? clip.name.slice(0, 180) : 'Untitled clip',
+              content: typeof clip.content === 'string' ? clip.content.slice(0, 1000) : null,
+              start, duration, end: start + duration,
+            };
+          }),
+        };
+      });
+    };
+    const audioTracks = readTracks(master.audioTracks);
+    const textTracks = readTracks(master.textTracks);
+    const transitionsRaw = master.transitions && typeof master.transitions === 'object' && !Array.isArray(master.transitions)
+      ? master.transitions as Record<string, unknown> : {};
+    const transitions = Object.entries(transitionsRaw).slice(0, 100).map(([key, raw]) => {
+      const transition = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      return { key, effect: typeof transition.effect === 'string' ? transition.effect : 'unknown',
+        duration: typeof transition.duration === 'number' && Number.isFinite(transition.duration) ? transition.duration : null };
+    });
+    const sceneDuration = orderedScenes.reduce((sum, scene) => sum + (scene.duration ?? 0), 0);
+    const textEnd = textTracks.flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.end), 0);
+    const audioEnd = audioTracks.flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.end), 0);
+    return {
+      ok: true, found: true,
+      storyboard: { id: item.id, title: item.title, topic: item.topic, updatedAt: item.updated_at },
+      timeline: {
+        sceneOrder: orderedScenes.map((scene, index) => ({ position: index + 1, id: scene.id, title: scene.title, duration: scene.duration, transition: scene.transition })),
+        sceneInstances: instanceRows,
+        sceneRanges: master.sceneRanges && typeof master.sceneRanges === 'object' ? master.sceneRanges : {},
+        transitions,
+        audioTracks, textTracks,
+        sceneSequenceDuration: sceneDuration,
+        textContentEnd: textEnd, audioContentEnd: audioEnd,
+        totalDuration: Math.max(1, sceneDuration, textEnd, audioEnd),
+        counts: { scenes: rawScenes.length, instances: rawInstances.length, audioTracks: audioTracks.length,
+          audioClips: audioTracks.reduce((sum, track) => sum + track.clips.length, 0),
+          textTracks: textTracks.length, textClips: textTracks.reduce((sum, track) => sum + track.clips.length, 0),
+          transitions: transitions.length },
+        editorSemantics: {
+          sceneOrderSource: 'sceneInstances order, then any Scenes not yet represented in sceneInstances',
+          sceneDurationSource: 'Storyboard Scene.duration; Master Editor currently treats Scene durations as immutable and does not support Scene trim/split',
+          sceneInstances: 'Instances currently determine ordering and retain source metadata; sourceIn/sourceOut are not applied to displayed Scene duration in the current Master Editor',
+          trackTiming: 'Audio and Text clip start/duration are independent seconds on the shared timeline; clips may overlap across tracks',
+          trackCollision: 'Audio/Text drag avoids overlapping clips within the destination track by placing on a nearest free side; clip trim has a 0.2-second minimum and respects adjacent clips',
+          playhead: 'The visible center line is a fixed viewport overlay; timeline time is derived from horizontal scroll position and zoom, not from a persisted playback cursor',
+          undoRedo: 'Master Editor keeps local in-memory undo/redo stacks; these are not persisted as timeline fields',
+          playback: 'Master preview playback is currently disabled until video media is connected',
+          supportedTransitions: ['dissolve', 'fade', 'wipe', 'slide', 'zoom', 'blur'],
+        },
+        truncated: rawScenes.length > 80 || rawInstances.length > 100 ||
+          (Array.isArray(master.audioTracks) && master.audioTracks.length > 40) ||
+          (Array.isArray(master.textTracks) && master.textTracks.length > 40),
       },
     };
   }
@@ -1083,7 +1210,7 @@ Deno.serve(async (request: Request) => {
             ? await createStoryboardUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
             : call.function.name === 'propose_scene_update'
               ? await createSceneUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
-              : ['list_my_storyboards', 'get_my_storyboard_details', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
+              : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
               ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
               : activeVyralId
               ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
