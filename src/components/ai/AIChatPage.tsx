@@ -441,13 +441,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setHistoryReady(false);
     setHistoryError(null);
     const previousOwnerId = historyOwnerRef.current;
+    // Stop work under the previous identity before any asynchronous auth/history checks.
+    if (previousOwnerId) cancelActiveRequest();
     // Invalidate queued writes immediately while the current auth identity is revalidated.
     historyOwnerRef.current = null;
     const loadHistory = async () => {
       const { data: userResult, error: userError } = await supabaseClient.auth.getUser();
       if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
       const ownerId = userResult.user.id;
-      if (previousOwnerId && previousOwnerId !== ownerId) cancelActiveRequest();
       const { data, error } = await supabaseClient
         .from('vyra_ai_chat_conversations')
         .select('id,title,messages,archived,locked,updated_at')
