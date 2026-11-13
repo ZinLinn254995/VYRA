@@ -132,7 +132,7 @@ test('AI Audio Asset Timeline insertion derives duration and waveform from sourc
 
 test('AI Scene Video attachment is owner-scoped, version-verified, approval-gated, and read back', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
-  assert.ok(source.includes("enum: ['add_text','add_audio','attach_video'"));
+  assert.ok(source.includes("enum: ['add_text', 'add_audio', 'attach_video'"));
   assert.ok(source.includes(".eq('asset_type', 'video')"));
   assert.ok(source.includes('video_technical_metadata'));
   assert.ok(source.includes('videoTechnical.sourceSha256 !== videoVersionResult.data.sha256'));
