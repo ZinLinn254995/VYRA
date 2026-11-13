@@ -76,6 +76,20 @@ export class VyralAssetIngestionError extends Error {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RASTER_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+function awaitWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort);
+    const onAbort = () => { cleanup(); reject(new DOMException('Asset metadata extraction was cancelled.', 'AbortError')); };
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
 const sha256Hex = async (buffer: ArrayBuffer) => {
   if (!globalThis.crypto?.subtle) throw new Error('Web Crypto SHA-256 is unavailable.');
   const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
@@ -166,14 +180,7 @@ export async function extractAudioTechnicalMetadata(
       try {
         audioContext = new AudioContextConstructor();
         const decodePromise = audioContext.decodeAudioData(await file.arrayBuffer());
-        const decoded = signal
-          ? await Promise.race([decodePromise, new Promise<never>((_, reject) => {
-              const onAbort = () => reject(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
-              if (signal.aborted) onAbort();
-              else signal.addEventListener('abort', onAbort, { once: true });
-              decodePromise.finally(() => signal.removeEventListener('abort', onAbort)).catch(() => undefined);
-            })])
-          : await decodePromise;
+        const decoded = await awaitWithAbort(decodePromise, signal);
         assertActive();
         waveformPeaks = buildAudioWaveformPeaks(
           Array.from({ length: decoded.numberOfChannels }, (_, channel) => decoded.getChannelData(channel)), 96,
@@ -408,6 +415,7 @@ export async function ingestGeneratedVyralAsset(
     folderId: input.folderId,
     file: input.file,
     metadata,
+    signal: input.signal,
   });
 }
 
