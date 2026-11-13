@@ -3864,9 +3864,12 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Chat history must contain between 1 and 40 messages.' }, 400);
   }
   const incoming = body.messages;
-  const userMessages = incoming.filter((item) => item && typeof item === 'object' &&
-    ((item as Record<string, unknown>).role === 'user' || (item as Record<string, unknown>).role === 'assistant'));
-  if (userMessages.some((item) => typeof (item as Record<string, unknown>).content !== 'string' ||
+  if (incoming.some((item) => !isPlainRecord(item) ||
+      (item.role !== 'user' && item.role !== 'assistant') ||
+      typeof item.content !== 'string')) {
+    return json({ error: 'Each chat message must contain a valid user or assistant role and text content.' }, 400);
+  }
+  if (incoming.some((item) => (item as Record<string, unknown>).content &&
       ((item as Record<string, unknown>).content as string).length > 12000)) {
     return json({ error: 'Each chat message must contain no more than 12,000 characters.' }, 413);
   }
