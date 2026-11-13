@@ -945,51 +945,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (!supabase) throw new Error('Vyral creation is unavailable in this environment.');
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError || !authData.user) throw new Error('Sign in again before creating a Vyral.');
-        const { data: existing, error: existingError } = await supabase.from('vyrals').select('id,metadata')
-          .eq('id', draft.id).eq('user_id', authData.user.id).maybeSingle();
-        if (existingError) throw new Error('I could not verify whether this Vyral was already created. Please retry confirmation.');
-        let savedVyralId = draft.id;
-        if (existing) {
-          const metadata = existing.metadata && typeof existing.metadata === 'object' ? existing.metadata as Record<string, unknown> : {};
-          if (metadata.creation_draft_id !== draft.id || metadata.creation_source !== 'global_ai_chat') {
-            throw new Error('This Vyral ID is already in use by another record. Nothing was changed.');
-          }
-          savedVyralId = String(existing.id);
-        } else {
-          const initialLicense = {
-            allow_ai_analysis: true, allow_ai_generation: true, allow_remix: false,
-            allow_redistribution: false, commercial_use: false, require_attribution: true,
-          };
-          const { data: created, error: createError } = await supabase.from('vyrals').insert({
-            id: draft.id, user_id: authData.user.id, name: draft.name, description: draft.description,
-            visibility: 'private', lifecycle_status: 'draft', dna_status: 'evolving', dna_schema_version: 1,
-            license_policy: initialLicense,
-            metadata: {
-              identity_initialized: true, package_format: '.vyral', identity_name_origin: 'creator_edited',
-              identity_description_origin: draft.description ? 'creator_edited' : 'system_default',
-              ai_details_status: 'pending', creation_source: 'global_ai_chat', creation_draft_id: draft.id,
-            },
-          }).select('id').single();
-          if (createError || !created) throw new Error('I could not create this Vyral. Nothing was reported as complete. ' + (createError?.message ?? 'No record was returned.'));
-          savedVyralId = String(created.id);
+        const { data: creationResult, error: createError } = await supabase.rpc('create_vyral_identity_with_dna', {
+          p_vyral_id: draft.id,
+          p_name: draft.name,
+          p_description: draft.description,
+        });
+        if (createError || !creationResult || typeof creationResult !== 'object' ||
+            typeof (creationResult as Record<string, unknown>).vyral_id !== 'string' ||
+            (creationResult as Record<string, unknown>).vyral_id !== draft.id ||
+            (creationResult as Record<string, unknown>).identity_dna_status !== 'creator_confirmed') {
+          throw new Error('VYRA could not atomically create the Vyral identity and its initial DNA. Nothing was reported as complete. ' + (createError?.message ?? 'The server returned an incomplete creation result.'));
         }
-        const { data: rootDna, error: rootDnaLookupError } = await supabase.from('vyral_dna_records').select('id')
-          .eq('vyral_id', savedVyralId).eq('user_id', authData.user.id).eq('scope', 'vyral').is('asset_id', null).limit(1).maybeSingle();
-        if (rootDnaLookupError) throw new Error('The Vyral exists, but its initial DNA status could not be checked. Retry the same confirmation to resume safely.');
-        if (!rootDna) {
-          const { error: dnaError } = await supabase.from('vyral_dna_records').insert({
-            id: crypto.randomUUID(), vyral_id: savedVyralId, user_id: authData.user.id, scope: 'vyral',
-            schema_version: 1, dna_status: 'evolving', source_kind: 'creator', verification_status: 'creator_confirmed',
-            payload: {
-              identity: { name: draft.name, description: draft.description },
-              authority: { creator_is_source_of_truth: true },
-              knowledge: { creator_defined: [], vision_observations: [], relationships: [] },
-              reconstruction: { dna_only_test: 'not_tested', exact_reconstruction_verified: false },
-            },
-            reconstruction_data: { original_media_policy: 'preserve_original_binary', reconstruction_runner: 'not_connected' },
-          });
-          if (dnaError) throw new Error('The Vyral record exists, but its initial identity DNA could not be saved. Retry the same confirmation; the original Vyral will be reused. ' + dnaError.message);
-        }
+        const savedVyralId = String((creationResult as Record<string, unknown>).vyral_id);
         setActiveVyralId(savedVyralId);
         try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, savedVyralId); } catch { /* active context remains for this session */ }
         setMessages((previous) => [...previous, {
