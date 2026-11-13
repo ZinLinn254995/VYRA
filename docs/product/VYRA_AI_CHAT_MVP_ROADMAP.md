@@ -1007,9 +1007,10 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 
 ### App-wide AI capability implementation coverage
 
-- Added `src/server/aiCapabilityCoverage.ts` to produce a deterministic coverage report from the actual server-executor IDs supplied by the runtime.
-- Separates connected executors, missing executors, human-controlled operations, and Owner/Admin-gated operations; it never counts catalogue entries as implemented merely because they exist in the registry.
+- Added `src/server/aiCapabilityCoverage.ts` to produce a deterministic coverage report from server-executor registrations.
+- `listRegisteredAiCapabilityAdapterIds()` now returns a sorted snapshot of adapters actually registered in the current runtime; `buildRuntimeAiCapabilityCoverage()` consumes that live snapshot directly instead of relying on a manually maintained ID list.
+- Separates connected executors, missing executors, human-controlled operations, and Owner/Admin-gated operations; catalogue entries are never counted as implemented merely because they exist in the registry.
 - Reports global totals, completion percentage, per-domain totals, and unknown executor IDs so registration mistakes are visible.
-- Added `tests/ai-capability-coverage.spec.ts` and CI coverage validation.
-- This is an implementation-audit foundation, not a claim that all 153 catalogue capabilities are already executable. Existing domain-specific OpenAI tools remain separate until connected to the shared executor safely.
+- Added regression tests for the live adapter inventory and runtime-derived coverage; CI runs both test suites.
+- This remains an implementation-audit foundation, not a claim that all 153 catalogue capabilities are executable. Existing domain-specific OpenAI tool handlers in the Edge Function are still separate and are not counted as shared-executor adapters until safely connected. The report is not yet exposed to AI Chat or an admin endpoint.
 - No Master Editor UI/UX, AI Chat UI/CSS, Edge Function, database, provider credential, or Production changes.
