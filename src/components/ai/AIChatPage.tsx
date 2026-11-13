@@ -1810,9 +1810,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             if (!['application/pdf', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(mediaMime)) {
               throw new Error('This audio format is not supported for direct AI inspection: ' + asset.name);
             }
+            const encodedMedia = await readBlobAsBase64(blob);
+            assertRequestCurrent();
             mediaFiles.push({
               mimeType: mediaMime as typeof mediaFiles[number]['mimeType'],
-              data: await readBlobAsBase64(blob),
+              data: encodedMedia,
               assetId: asset.id,
               assetName: asset.name,
             });
