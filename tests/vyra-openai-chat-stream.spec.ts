@@ -326,6 +326,7 @@ test('OpenAI browser stream surfaces provider errors emitted after streaming beg
   assert.match(service, /if \(event\.error && typeof event\.error === 'object'\)/);
   assert.match(service, /streamError = typeof event\.error\.message === 'string'/);
   assert.match(service, /if \(streamError\) \{[\s\S]*?status: 'error',[\s\S]*?modelName: streamModel/);
+  assert.match(service, /for \(const line of lines\) \{[\s\S]*?consumeLine\(line\);[\s\S]*?if \(finished \|\| streamError\) break;/);
   assert.match(service, /if \(finished \|\| streamError\) \{[\s\S]*?await reader\.cancel\(\)/);
   assert.match(service, /if \(!finished && !streamError && buffer\.trim\(\)\) consumeLine\(buffer\)/);
 });
