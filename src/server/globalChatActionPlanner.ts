@@ -166,10 +166,10 @@ export function validateGlobalChatActionPlan(
   if (policy.requiresVyral && !(isUuid(target.vyralId) && target.vyralId === context.activeVyralId)) {
     return { ok: false, reason: 'missing-target' };
   }
-  if (policy.requiresStoryboard && !(isUuid(target.storyboardId) && target.storyboardId === context.activeStoryboardId)) {
+  if (policy.requiresStoryboard && !isUuid(target.storyboardId)) {
     return { ok: false, reason: 'missing-target' };
   }
-  if (policy.requiresScene && !(isUuid(target.sceneId) && target.sceneId === context.activeSceneId)) {
+  if (policy.requiresScene && !isUuid(target.sceneId)) {
     return { ok: false, reason: 'missing-target' };
   }
   // Explicit targets may refer to another user-owned resource. The active Workspace
