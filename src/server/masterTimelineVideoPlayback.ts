@@ -25,6 +25,8 @@ export type MasterTimelineVideoPlaybackItem = {
   delaySeconds: number;
   sourceOffsetSeconds: number;
   durationSeconds: number;
+  playbackStartSeconds: number;
+  playbackEndSeconds: number;
 };
 
 /**
@@ -89,6 +91,8 @@ export function buildMasterTimelineVideoPlaybackPlan(
       delaySeconds: Math.max(0, sceneStart - playheadTime),
       sourceOffsetSeconds,
       durationSeconds: Math.min(available, sourceOut - sourceOffsetSeconds),
+      playbackStartSeconds: Math.max(sceneStart, playheadTime),
+      playbackEndSeconds: Math.max(sceneStart, playheadTime) + Math.min(available, sourceOut - sourceOffsetSeconds),
     });
   }
   return plan;
