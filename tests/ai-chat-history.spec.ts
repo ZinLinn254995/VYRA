@@ -201,6 +201,7 @@ test('AI Chat reset and archive actions cannot clear a different account session
   }
   const removeCurrent = page.slice(page.indexOf('const deleteCurrentChat = async'), page.indexOf('const toggleLock ='));
   assert.match(removeCurrent, /const sessionId = activeSessionId/);
+  assert.match(removeCurrent, /if \(ownerId !== ownerAtStart\) return/);
   assert.match(removeCurrent, /\.eq\('user_id', ownerId\)/);
 });
 
