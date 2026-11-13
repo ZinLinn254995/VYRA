@@ -170,6 +170,7 @@ const GLOBAL_READ_TOOLS = [
       parameters: { type: 'object', properties: { asset_id: { type: 'string' } }, required: ['asset_id'], additionalProperties: false },
     },
   },
+  {
     type: 'function',
     function: {
       name: 'propose_vyral_asset_metadata',
