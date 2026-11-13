@@ -8,6 +8,7 @@ import { parseVyralAssetRenamePendingPlan, validateVyralAssetRenamePendingAction
 import { parseVyralAssetMetadataPendingPlan, validateVyralAssetMetadataPendingAction, type VyralAssetMetadataValues } from '../../../src/server/vyralAssetMetadataAction.ts';
 import { parseVyralFolderActionPendingPlan, validateVyralFolderActionPendingAction, type VyralFolderActionOperation } from '../../../src/server/vyralFolderAction.ts';
 import { parseVyralAssetRelationshipPendingPlan, validateVyralAssetRelationshipPendingAction } from '../../../src/server/vyralAssetRelationshipAction.ts';
+import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingAction } from '../../../src/server/vyralAssetArchiveAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -26,6 +27,7 @@ const SYSTEM_INSTRUCTION =
   'When the user wants to organize a Vyral, use list_vyral_folders to inspect the real folder tree first. Create folders with propose_vyral_folder_create, rename folders with propose_vyral_folder_rename, move folders with propose_vyral_folder_move, and place Assets into a folder or the Vyral root with propose_vyral_asset_move_folder. Identify exact resources from owner-scoped reads. Always show the target Vyral, source and destination before/after, then wait for explicit same-chat approval. Never delete a folder as part of moving it; moving a folder moves its child hierarchy with it. Do not move across Vyrals in this operation. ' +
   'When the user asks to write or edit Asset title, description, category, tags, keywords or alt text, first identify the exact owner-owned Asset with search/detail tools, then call propose_vyral_asset_metadata with only the requested fields. Treat title as the Asset display name. Category is a semantic classification separate from the technical file type. Technical Asset type and MIME type describe the actual file and must not be falsified or changed through metadata edits. Show every before/after field and wait for explicit approval in this same chat. Preserve unrelated metadata, original filename, immutable bytes, versions, DNA and Fingerprints. ' +
   'When the user asks to connect or remove semantic relationships between Assets, inspect the current graph first, identify exact owner-owned Assets and use propose_vyral_asset_relationship_add or propose_vyral_asset_relationship_remove. Explain relationship direction, type and rationale; show a preview and wait for explicit approval in this same chat. Keep semantic relationships distinct from generation lineage. The database will mark Master DNA stale after a relationship change; never claim a new Master DNA revision exists until rebuilt and verified. ' +
+  'When the user asks to delete an Asset, use the safe archive operation rather than permanently deleting bytes. First inspect the exact Asset, then call propose_vyral_asset_archive and show the Asset name plus the exact ARCHIVE ASSET <six-character-code> phrase. Do not accept yes, okay, or generic confirmation: the user must send that exact phrase in this same chat. Archiving changes only processing_status to archived; it preserves original file bytes, versions, DNA and Fingerprints and does not permanently delete Storage data. Explain that Master DNA becomes stale and must be rebuilt. Never archive protected Vyrals or protected Assets. ' +
   'For a requested Storyboard title or topic change, use propose_storyboard_update only after identifying the exact owner-owned Storyboard; it creates a preview and never changes data. Explain the exact proposed value and wait for approval in this same chat. Never say it is saved until the server confirms the approved update. ' +
   'For a requested Scene title, description, transition, or duration change, first identify the parent Storyboard and exact Scene from owner-scoped records, then use propose_scene_update. Duration must be a finite number of seconds from 0.1 to 3600. This creates a preview only. For duration changes, synchronize the Scene Project timeline clips and Master Timeline metadata; never modify unrelated tracks or scenes. Never say saved until approval and server confirmation. ' +
   'When a request involves the Master Editor or Timeline, first call get_master_timeline_state for the exact owner-owned Storyboard. Understand the actual scene order, durations, transition keys, track IDs, clip start/end/duration, overlaps, gaps, and editor semantics before proposing any change. Treat seconds as timeline time, preserve unrelated data, and do not assume Scene sourceIn/sourceOut trimming, playback cursor, undo history, or preview playback is available. For existing Audio/Text clips, propose move between existing same-kind tracks, start/end trim, split, clone within the same track, Text name/content update, or delete using propose_master_timeline_edit. You may also create a new Text track and timed text overlay with add_text. For music or sound effects, first search the active Vyral Asset inventory using search_vyral_assets with asset_type audio, inspect the exact Asset, then use add_audio with its exact Asset ID. To attach a Video to a Scene, search the active Vyral inventory for asset_type video, inspect the exact Asset, then use attach_video with the exact Scene and Asset IDs; the server verifies the immutable Video Version and duration. VYRA derives the clip duration and waveform from immutable Asset Version metadata; never guess or override source duration. Never invent an Asset or claim audio playback/rendering; the Timeline clip is an immutable Asset-version reference. Deletion is destructive: show the exact clip and exact DELETE CLIP <six-character-code> phrase from the preview, and accept no generic approval for deletion. For transitions, use an exact key from get_master_timeline_state.timeline.transitionBoundaries with propose_master_timeline_transition and only the six supported effects: dissolve, fade, wipe, slide, zoom, blur; use none to remove. Show exact before/after and wait for approval. For Scene order changes, read the complete exact Scene IDs first and use propose_scene_reorder with every Scene exactly once; show before/after order and wait for approval. Never invent a clip, Scene, transition key, or ID. Do not create or delete arbitrary tracks or alter Scene duration through Timeline editing; add_text may create only its dedicated new Text track. Scene creation, duplication and deletion are available only through propose_scene_mutation; deletion requires its exact separate confirmation phrase. Do not claim playback/undo actions through this tool. Clip deletion is available only through its separate exact destructive confirmation phrase; never accept generic approval for it. ' +
@@ -161,6 +163,13 @@ const GLOBAL_READ_TOOLS = [
     },
   },
   {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_asset_archive',
+      description: 'Prepare a safe archive preview for one exact ready Asset. This is not permanent deletion; it preserves file bytes, versions, DNA and Fingerprints. Requires the exact ARCHIVE ASSET code phrase.',
+      parameters: { type: 'object', properties: { asset_id: { type: 'string' } }, required: ['asset_id'], additionalProperties: false },
+    },
+  },
     type: 'function',
     function: {
       name: 'propose_vyral_asset_metadata',
@@ -1629,6 +1638,71 @@ async function createVyralAssetRelationshipProposal(
     message:'Preview only. No relationship removed. Wait for explicit approval in this same chat.'};
 }
 
+async function createVyralAssetArchiveProposal(
+  admin: any, userId: string, sessionId: string | null, activeVyralId: string | null,
+  rawArguments: string, toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId || !activeVyralId) return safeToolError('A verified chat session and active Vyral are required.');
+  let args: Record<string, unknown>;
+  try { const parsed: unknown = JSON.parse(rawArguments || '{}'); if (!isPlainRecord(parsed)) return safeToolError('Invalid Asset archive request.'); args = parsed; }
+  catch { return safeToolError('Invalid Asset archive request.'); }
+  if (Object.keys(args).length !== 1 || !isUuid(args.asset_id)) return safeToolError('An exact Asset ID is required.');
+  const { data: vyral, error: vyralError } = await admin.from('vyrals')
+    .select('id,name,metadata').eq('id', activeVyralId).eq('user_id', userId).maybeSingle();
+  if (vyralError || !vyral) return safeToolError('The active Vyral could not be verified.');
+  const vyralMetadata = isPlainRecord(vyral.metadata) ? vyral.metadata : {};
+  if (vyral.id === 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d' || vyralMetadata.protected === true) {
+    return safeToolError('This protected foundational Vyral cannot be archived.');
+  }
+  const { data: asset, error: assetError } = await admin.from('vyral_assets')
+    .select('id,name,processing_status,updated_at,metadata')
+    .eq('id', args.asset_id).eq('vyral_id', activeVyralId).eq('user_id', userId).maybeSingle();
+  if (assetError || !asset) return safeToolError('That exact Asset was not found in the active Vyral.');
+  const assetMetadata = isPlainRecord(asset.metadata) ? asset.metadata : {};
+  if (assetMetadata.protected === true) return safeToolError('This protected Asset cannot be archived.');
+  if (asset.processing_status !== 'ready' || typeof asset.updated_at !== 'string') {
+    return safeToolError('Only a ready Asset can be archived. No changes were made.');
+  }
+  const now = new Date(), expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+  const confirmationCode = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase();
+  const draft = {
+    id: crypto.randomUUID(), operation: 'asset.archive',
+    target: { vyralId: activeVyralId, assetId: String(asset.id) },
+    parameters: { assetName: String(asset.name), previousStatus: 'ready', expectedUpdatedAt: asset.updated_at, confirmationCode },
+    summary: 'Archive Asset "' + String(asset.name).slice(0, 160) + '"',
+    createdAt: now.toISOString(), expiresAt: expiresAt.toISOString(),
+  };
+  if (!parseVyralAssetArchivePendingPlan(draft)) return safeToolError('The Asset archive preview could not be validated.');
+  const key = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_idempotency_key: key,
+    p_capability_id: 'asset.archive', p_plan: draft, p_expires_at: draft.expiresAt,
+  });
+  let saved = pending;
+  if (error || !saved) {
+    const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status').eq('user_id', userId).eq('session_id', sessionId)
+      .eq('idempotency_key', key).maybeSingle();
+    const priorPlan = parseVyralAssetArchivePendingPlan(prior?.plan);
+    if (priorError || !prior || prior.capability_id !== 'asset.archive' || prior.status !== 'pending' ||
+        Date.parse(prior.expires_at) <= Date.now() || !priorPlan ||
+        priorPlan.target.assetId !== asset.id || priorPlan.parameters.expectedUpdatedAt !== asset.updated_at) {
+      return safeToolError('Could not securely save or reuse this archive preview. No changes were made.');
+    }
+    saved = prior;
+  }
+  const plan = parseVyralAssetArchivePendingPlan(saved.plan);
+  if (!plan) return safeToolError('The saved archive preview could not be verified.');
+  return {
+    ok: true, requiresApproval: true, actionId: saved.id, operation: plan.operation,
+    vyralName: vyral.name, assetId: plan.target.assetId, assetName: plan.parameters.assetName,
+    confirmationPhrase: 'ARCHIVE ASSET ' + plan.parameters.confirmationCode,
+    expiresAt: saved.expires_at, permanentDelete: false,
+    preserved: ['original file bytes', 'immutable versions', 'DNA records', 'Fingerprints'],
+    message: 'Preview only. Nothing has been archived. The user must send the exact confirmation phrase in this same chat.',
+  };
+}
+
 async function createVyralAssetMetadataProposal(admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required.');
   let args: Record<string, unknown>;
@@ -2514,6 +2588,60 @@ async function resolvePendingVyralFolderActionApproval(
   return 'Approved and moved Asset "'+String(result.name)+'" to '+destination+'.';
 }
 
+async function resolvePendingAssetArchiveApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
+  if (!sessionId || !/^ARCHIVE ASSET [A-Z0-9]{6}$/i.test(latestUserText.trim())) return null;
+  const phrase = latestUserText.trim().toUpperCase();
+  const code = phrase.slice('ARCHIVE ASSET '.length);
+  const { data: rows, error } = await admin.from('ai_operator_pending_actions')
+    .select('id,user_id,session_id,capability_id,plan,expires_at,status')
+    .eq('user_id',userId).eq('session_id',sessionId).eq('capability_id','asset.archive')
+    .eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(5);
+  if (error || !Array.isArray(rows)) return 'I could not verify the Asset archive confirmation. No Asset was changed.';
+  const matches = rows.filter((row:Record<string,unknown>) => {
+    const plan = validateVyralAssetArchivePendingAction(row,{userId,sessionId,actionId:String(row.id)});
+    return plan?.parameters.confirmationCode === code;
+  });
+  if (!matches.length) return 'That exact archive confirmation code was not found in this chat or has expired. No Asset was changed.';
+  if (matches.length !== 1) return 'The archive confirmation is ambiguous. Prepare a fresh preview; no Asset was changed.';
+  const pending = matches[0];
+  const plan = validateVyralAssetArchivePendingAction(pending,{userId,sessionId,actionId:String(pending.id)});
+  if (!plan) return 'The exact archive preview could not be verified. No Asset was changed.';
+  const {data:vyral,error:vyralError}=await admin.from('vyrals').select('id,metadata')
+    .eq('id',plan.target.vyralId).eq('user_id',userId).maybeSingle();
+  const vyralMetadata=isPlainRecord(vyral?.metadata)?vyral.metadata:{};
+  if(vyralError||!vyral||vyral.id==='b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d'||vyralMetadata.protected===true)
+    return 'This Vyral is protected or unavailable. The Asset was not archived.';
+  const {data:asset,error:assetReadError}=await admin.from('vyral_assets').select('id,name,processing_status,updated_at,metadata')
+    .eq('id',plan.target.assetId).eq('vyral_id',plan.target.vyralId).eq('user_id',userId).maybeSingle();
+  const assetMetadata=isPlainRecord(asset?.metadata)?asset.metadata:{};
+  if(assetReadError||!asset||assetMetadata.protected===true||asset.name!==plan.parameters.assetName||
+    asset.processing_status!=='ready'||asset.updated_at!==plan.parameters.expectedUpdatedAt)
+    return 'The Asset changed after the preview or is protected. Refresh the Asset and prepare a new archive preview.';
+  const {data:approved,error:approveError}=await admin.rpc('approve_ai_operator_pending_action',{
+    p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,
+  });
+  if(approveError||!approved||approved.status!=='approved')return 'VYRA could not record the exact archive confirmation. No Asset was changed.';
+  const {data:claimed,error:claimError}=await admin.rpc('claim_ai_operator_pending_action',{
+    p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,
+  });
+  if(claimError||!claimed||claimed.status!=='executing')return 'Archive approval was recorded, but execution could not be reserved. No Asset was changed.';
+  const {data:updated,error:updateError}=await admin.from('vyral_assets').update({processing_status:'archived'})
+    .eq('id',plan.target.assetId).eq('vyral_id',plan.target.vyralId).eq('user_id',userId)
+    .eq('processing_status','ready').eq('updated_at',plan.parameters.expectedUpdatedAt)
+    .select('id,name,processing_status').maybeSingle();
+  if(updateError||!updated){
+    await admin.rpc('finish_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'failed',p_failure_code:'ASSET_ARCHIVE_CONFLICT'});
+    return 'The Asset changed concurrently or could not be archived. No success was reported; refresh and prepare a new preview.';
+  }
+  const {error:finishError}=await admin.rpc('finish_ai_operator_pending_action',{
+    p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'completed',
+    p_result_summary:{operation:'asset.archive',assetId:updated.id,vyralId:plan.target.vyralId,processingStatus:'archived',permanentDelete:false},
+    p_failure_code:null,
+  });
+  if(finishError)return 'The Asset was archived, but its audit could not be finalized. Refresh and verify before retrying.';
+  return 'Archived Asset "'+String(updated.name)+'". This was not permanent deletion: original file bytes, immutable versions, DNA and Fingerprints remain preserved. Master DNA is now stale and must be rebuilt before it can be reported current.';
+}
+
 async function resolvePendingAssetRelationshipApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
   if(!sessionId||!/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim()))return null;
   const {data:rows,error}=await admin.from('ai_operator_pending_actions').select('id,user_id,session_id,capability_id,plan,expires_at,status')
@@ -2952,6 +3080,7 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'asset.propose_metadata': 'propose_vyral_asset_metadata',
   'asset.propose_relationship_add': 'propose_vyral_asset_relationship_add',
   'asset.propose_relationship_remove': 'propose_vyral_asset_relationship_remove',
+  'asset.propose_archive': 'propose_vyral_asset_archive',
   'folder.propose_create': 'propose_vyral_folder_create',
   'folder.propose_rename': 'propose_vyral_folder_rename',
   'folder.propose_move': 'propose_vyral_folder_move',
@@ -2985,6 +3114,13 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       }
       if (capabilityId === 'asset.propose_relationship_remove') {
         return Object.keys(input).length === 1 && isUuid(input.relationship_id);
+      }
+      if (capabilityId === 'asset.propose_archive') {
+        return Object.keys(input).length === 1 && isUuid(input.asset_id);
+      }
+      if (capabilityId === 'asset.propose_archive') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
+        return await createVyralAssetArchiveProposal(admin, execution.userId, sessionId, activeVyralId, rawArguments, toolCallId);
       }
       if (capabilityId === 'asset.propose_metadata') {
         const allowed = ['asset_id', 'title', 'description', 'category', 'tags', 'keywords', 'alt_text'];
@@ -3064,6 +3200,12 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       }
       if (capabilityId === 'asset.propose_metadata') {
         return await createVyralAssetMetadataProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'asset.propose_archive') {
+        if (!activeVyralId) return false;
+        const { data, error } = await admin.from('vyrals').select('id')
+          .eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
+        return !error && Boolean(data);
       }
       if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
         const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
@@ -3595,6 +3737,8 @@ Deno.serve(async (request: Request) => {
   if (totalChars > 30000) return json({ error: 'Chat history is too long. Start a new conversation.' }, 413);
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+  const assetArchiveApproval = await resolvePendingAssetArchiveApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  if (assetArchiveApproval !== null) return sseResponse(assetArchiveApproval);
   const folderActionApproval = await resolvePendingVyralFolderActionApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
   const assetRelationshipApproval = await resolvePendingAssetRelationshipApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
   if (assetRelationshipApproval !== null) return sseResponse(assetRelationshipApproval);
