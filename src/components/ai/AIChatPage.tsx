@@ -1837,6 +1837,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
+        ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
