@@ -1943,6 +1943,111 @@ async function applyPendingStoryboardApprovalLegacy(
  * The legacy routine remains the canonical domain transaction for now; the executor
  * gates it with a server-verified, session-bound user approval and owner check.
  */
+async function resolvePendingAssetUploadApproval(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  latestUserText: string,
+): Promise<{ content: string; operatorAction?: Record<string, unknown> } | null> {
+  if (!sessionId || !/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim())) return null;
+  const { data: rows, error } = await admin.from('ai_operator_pending_actions')
+    .select('id,user_id,session_id,capability_id,plan,expires_at,status')
+    .eq('user_id', userId).eq('session_id', sessionId).eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(2);
+  if (error || !Array.isArray(rows) || rows.length !== 1 || rows[0].capability_id !== 'asset.upload') return null;
+  const pending = rows[0];
+  const plan = parseVyralAssetUploadPendingPlan(pending.plan);
+  if (!plan || pending.user_id !== userId || pending.session_id !== sessionId ||
+      pending.id !== plan.id || Date.parse(pending.expires_at) <= Date.now()) {
+    return { content: 'I could not verify that exact Asset upload preview. Nothing was uploaded.' };
+  }
+  const { data: destination, error: destinationError } = await admin.from('vyrals')
+    .select('id,name').eq('id', plan.target.vyralId).eq('user_id', userId).maybeSingle();
+  if (destinationError || !destination) return { content: 'The destination Vyral is no longer available in your account. Nothing was uploaded.' };
+  const { data: approved, error: approveError } = await admin.rpc('approve_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+  });
+  if (approveError || !approved || approved.status !== 'approved') {
+    return { content: 'VYRA could not securely approve this upload preview. No file was uploaded.' };
+  }
+  const { data: claimed, error: claimError } = await admin.rpc('claim_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+  });
+  if (claimError || !claimed || claimed.status !== 'executing') {
+    return { content: 'The upload approval was recorded, but VYRA could not reserve the upload action. No file was uploaded; please prepare a fresh preview.' };
+  }
+  return {
+    content: 'Approved. I am now transferring the attached file into Vyral "' + String(destination.name) + '" as "' + plan.parameters.assetName + '".',
+    operatorAction: {
+      type: 'asset-upload-approved',
+      actionId: pending.id,
+      clientDraftId: plan.parameters.clientDraftId,
+      vyralId: plan.target.vyralId,
+      vyralName: String(destination.name),
+      fileName: plan.parameters.fileName,
+      assetName: plan.parameters.assetName,
+      mimeType: plan.parameters.mimeType,
+      sizeBytes: plan.parameters.sizeBytes,
+    },
+  };
+}
+
+async function completeVyralAssetUpload(
+  admin: any,
+  userId: string,
+  sessionId: string,
+  completion: Record<string, unknown>,
+): Promise<Response> {
+  if (!isUuid(completion.actionId)) return json({ error: 'Invalid upload action reference.' }, 400);
+  const { data: pending, error } = await admin.from('ai_operator_pending_actions')
+    .select('id,user_id,session_id,capability_id,plan,status')
+    .eq('id', completion.actionId).eq('user_id', userId).eq('session_id', sessionId).maybeSingle();
+  const plan = parseVyralAssetUploadPendingPlan(pending?.plan);
+  if (error || !pending || pending.capability_id !== 'asset.upload' || pending.status !== 'executing' || !plan) {
+    return json({ error: 'The approved upload action is not available for completion.' }, 409);
+  }
+  if (completion.failed === true) {
+    const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
+      p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+      p_status: 'failed', p_result_summary: null, p_failure_code: 'BROWSER_UPLOAD_FAILED',
+    });
+    if (finishError) return json({ error: 'Upload failure could not be recorded. Refresh before retrying.' }, 503);
+    return json({ ok: true, status: 'failed' });
+  }
+  if (!isUuid(completion.assetId) || !isUuid(completion.versionId) ||
+      completion.clientDraftId !== plan.parameters.clientDraftId) {
+    return json({ error: 'The completed upload does not match the approved file draft.' }, 400);
+  }
+  const { data: asset, error: assetError } = await admin.from('vyral_assets')
+    .select('id,vyral_id,user_id,name,original_filename,mime_type,size_bytes,sha256,processing_status')
+    .eq('id', completion.assetId).eq('vyral_id', plan.target.vyralId).eq('user_id', userId).maybeSingle();
+  if (assetError || !asset || asset.name !== plan.parameters.assetName ||
+      asset.original_filename !== plan.parameters.fileName || asset.mime_type !== plan.parameters.mimeType ||
+      Number(asset.size_bytes) !== plan.parameters.sizeBytes || asset.processing_status !== 'ready') {
+    return json({ error: 'The uploaded Asset does not match the approved Vyral, name, file or ready status.' }, 409);
+  }
+  const { data: version, error: versionError } = await admin.from('vyral_asset_versions')
+    .select('id,asset_id,user_id,vyral_id,mime_type,size_bytes,sha256')
+    .eq('id', completion.versionId).eq('asset_id', asset.id).eq('user_id', userId)
+    .eq('vyral_id', plan.target.vyralId).maybeSingle();
+  if (versionError || !version || version.mime_type !== plan.parameters.mimeType ||
+      Number(version.size_bytes) !== plan.parameters.sizeBytes || version.sha256 !== asset.sha256) {
+    return json({ error: 'The immutable uploaded Asset Version could not be verified.' }, 409);
+  }
+  const { data: dna, error: dnaError } = await admin.from('vyral_dna_records')
+    .select('id').eq('asset_id', asset.id).eq('vyral_id', plan.target.vyralId)
+    .eq('user_id', userId).eq('scope', 'asset').limit(1).maybeSingle();
+  if (dnaError || !dna) return json({ error: 'The Asset DNA record is not ready; upload completion was not accepted.' }, 409);
+  const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+    p_status: 'completed',
+    p_result_summary: { assetId: asset.id, versionId: version.id, vyralId: plan.target.vyralId, assetName: asset.name, originalFilename: asset.original_filename, dnaVerified: true },
+    p_failure_code: null,
+  });
+  if (finishError) return json({ error: 'The Asset is ready, but VYRA could not finalize the upload audit. Refresh the Vyral before retrying.' }, 503);
+  return json({ ok: true, status: 'completed', assetId: asset.id, versionId: version.id, assetName: asset.name });
+}
+
 async function resolvePendingStoryboardApproval(
   admin: any,
   userClient: any,
@@ -2520,8 +2625,11 @@ async function executeSharedReadCapability(
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
 }
 
-const sseResponse = (content: string) => {
-  const chunk = JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: 'stop' }] });
+const sseResponse = (content: string, operatorAction?: Record<string, unknown>) => {
+  const chunk = JSON.stringify({
+    ...(operatorAction ? { vyra_action: operatorAction } : {}),
+    choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: 'stop' }],
+  });
   return new Response('data: ' + chunk + '\n\ndata: [DONE]\n\n', {
     status: 200,
     headers: {
@@ -2543,6 +2651,17 @@ Deno.serve(async (request: Request) => {
 
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
+
+  const completionUserId = typeof context.userClaims?.id === 'string' ? context.userClaims.id : '';
+  if (body.assetUploadCompletion !== undefined) {
+    const sessionId = typeof body.conversationId === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.conversationId)
+      ? body.conversationId : '';
+    if (!completionUserId || !sessionId || !isPlainRecord(body.assetUploadCompletion)) {
+      return json({ error: 'A verified chat session and upload completion are required.' }, 400);
+    }
+    return await completeVyralAssetUpload(context.supabaseAdmin, completionUserId, sessionId, body.assetUploadCompletion);
+  }
 
   const { data: secret, error: secretError } = await context.supabaseAdmin.rpc('get_vyra_openai_secret');
   if (secretError) return json({ error: 'VYRA could not read the secure AI provider configuration.', code: 'OPENAI_CONFIG_UNAVAILABLE' }, 503);
@@ -2687,6 +2806,8 @@ Deno.serve(async (request: Request) => {
   if (totalChars > 30000) return json({ error: 'Chat history is too long. Start a new conversation.' }, 413);
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+  const assetUploadApproval = await resolvePendingAssetUploadApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  if (assetUploadApproval) return sseResponse(assetUploadApproval.content, assetUploadApproval.operatorAction);
   const approvedActionResult = await resolvePendingStoryboardApproval(context.supabaseAdmin, context.supabase, userId, conversationId, latestUserText);
   if (approvedActionResult !== null) return sseResponse(approvedActionResult);
 
