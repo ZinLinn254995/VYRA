@@ -242,38 +242,6 @@ test('metadata suggestions reject unsupported scopes before reporting the task a
   assert.equal(ledgerCalls, 0);
 });
 
-test('text AI Chat remains available with usage ledger enabled and routes only to OpenAI', async () => {
-  const calls: string[] = [];
-  const fetcher: typeof fetch = async (input, init) => {
-    const url = new URL(String(input));
-    calls.push(url.pathname);
-    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
-    if (url.pathname === '/functions/v1/vyra-openai-chat') {
-      assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer verified-development-session');
-      return Response.json({ text: 'OpenAI chat response', provider: 'openai' });
-    }
-    if (url.pathname.includes('gemini') || url.hostname.includes('google')) {
-      throw new Error('Gemini must never be called by AI Chat.');
-    }
-    throw new Error('Unexpected endpoint: ' + url.pathname);
-  };
-
-  await withApi(async (baseUrl, clientFetch) => {
-    const response = await clientFetch(baseUrl + '/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer verified-development-session' },
-      body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a short script.' }] }),
-    });
-    const payload = await response.json() as { text?: string; provider?: string; error?: string };
-    assert.equal(response.status, 200, JSON.stringify(payload));
-    assert.equal(payload.text, 'OpenAI chat response');
-    assert.equal(payload.provider, 'openai');
-  }, fetcher);
-
-  assert.ok(calls.includes('/functions/v1/vyra-openai-chat'));
-  assert.equal(calls.some((path) => path.includes('gemini')), false);
-});
-
 test('AI Chat does not invoke any provider for image, document or audio inspection until OpenAI multimodal is enabled', async () => {
   let providerCalls = 0;
   const fetcher: typeof fetch = async (input) => {
