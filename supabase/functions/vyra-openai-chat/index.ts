@@ -2858,6 +2858,7 @@ Deno.serve(async (request: Request) => {
         }, plannerResponse.status === 429 ? 429 : 502);
       }
       const assistantTurn = planner.choices?.[0]?.message;
+      let operatorAction: Record<string, unknown> | null = null;
       const toolCalls = Array.isArray(assistantTurn?.tool_calls)
         ? assistantTurn.tool_calls.filter((call) => call && call.type === 'function' && typeof call.id === 'string' && call.id && call.function && typeof call.function.name === 'string').slice(0, 3)
         : [];
@@ -2891,6 +2892,9 @@ Deno.serve(async (request: Request) => {
                 : activeVyralId
                   ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
                   : safeToolError('This tool requires an owner-verified active Vyral.');
+          if (call.function.name === 'propose_vyral_asset_upload' && isPlainRecord(toolResult) && toolResult.ok === true) {
+            operatorAction = { ...toolResult, type: 'asset-upload-preview' };
+          }
           toolMessages.push({
             role: 'tool',
             tool_call_id: call.id,
@@ -2928,6 +2932,7 @@ Deno.serve(async (request: Request) => {
           'Cache-Control': 'no-cache, no-transform',
           Connection: 'keep-alive',
           'X-Accel-Buffering': 'no',
+          ...(operatorAction ? { 'X-Vyra-Operator-Action': encodeURIComponent(JSON.stringify(operatorAction)) } : {}),
         },
       });
     }
