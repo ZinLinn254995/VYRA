@@ -90,3 +90,25 @@ test('AI Chat renders safe Markdown and copyable fenced code blocks', () => {
   assert.match(renderer, /overflow-x-auto/);
   assert.doesNotMatch(renderer, /dangerouslySetInnerHTML|rehypeRaw/i);
 });
+
+
+test('AI Chat follows streamed replies only while the user is near the latest message', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /const chatScrollRef = useRef<HTMLElement \| null>\(null\)/);
+  assert.match(page, /shouldAutoScrollRef\.current = element\.scrollHeight - element\.scrollTop - element\.clientHeight < 120/);
+  assert.match(page, /container\.scrollTo\(\{ top: container\.scrollHeight, behavior: isSending \? 'auto' : 'smooth' \}\)/);
+  assert.match(page, /shouldAutoScrollRef\.current = true;\s*const nextMessages = \[\.\.\.messages, userMessage\]/);
+});
+
+test('AI Chat Stop Generation remains enabled while a request is running', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /onClick=\{isSending \? stopGeneration : undefined\}/);
+  assert.match(page, /disabled=\{isSending \? false : \(\(!draft\.trim\(\)/);
+  assert.match(page, /aria-label=\{isSending \? "Stop generation" : "Send message"\}/);
+});
+
+test('AI Chat assistant responses use the available width for long-form reading', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /'w-full max-w-full sm:max-w-\[94%\]'/);
+  assert.match(page, /overflow-y-auto overscroll-contain/);
+});
