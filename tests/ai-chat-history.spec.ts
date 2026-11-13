@@ -233,3 +233,12 @@ test('AI Chat refuses to open a stale conversation from a previous account', () 
   assert.match(block, /!sessions\.some\(\(item\) => item\.id === session\.id\)/);
   assert.ok(block.indexOf('historyOwnerRef.current !== ownerId') < block.indexOf('setMessages(session.messages)'));
 });
+
+test('AI Chat ignores a completed response if its request was invalidated during post-response work', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const completion = page.indexOf('const completedMessage: ChatMessage =');
+  const guard = page.lastIndexOf('if (activeRequestControllerRef.current !== requestController) return;', completion);
+  const resultGuard = page.indexOf('if (activeRequestControllerRef.current !== requestController) return;', page.indexOf('const result = await aiService.generateResponse'));
+  assert.ok(completion >= 0 && guard > resultGuard);
+  assert.ok(guard < completion);
+});
