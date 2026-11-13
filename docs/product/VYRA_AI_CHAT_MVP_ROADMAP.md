@@ -990,3 +990,16 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - CI run [#43400560132](https://github.com/ZinLinn254995/VYRA/actions/runs/43400560132) completed successfully, including TypeScript, Scene Video preview contract tests, Supabase Edge Function Deno type-check and Production build.
 - Browser/manual verification with a real uploaded Video Asset is still outstanding. This is per-Scene preview only; synchronized multi-Scene Video playback in the Master Timeline, Audio+Video transport, transition compositing and final export remain future work.
 - No AI Chat UI/CSS changes, Production deployment, merge, Production database/function changes, API key or customer charges.
+
+
+## Master Timeline synchronized Scene Video + Audio playback
+
+- Added a deterministic Video playback engine driven by the same Master Timeline clock used by the existing AudioContext-based multi-track Audio engine.
+- The Video planner now provides absolute playback windows as well as source offsets, including correct offsets when starting from a seek position. Duplicate Scene instances are de-duplicated before scheduling.
+- The Video engine resolves exact private Asset + immutable Version URLs on demand, switches sources at Scene boundaries, seeks to the expected source offset, and continuously corrects drift against the shared Timeline time.
+- Scene gaps pause and clear the previous Video frame. Source URL loads are abortable; stale loads and metadata listeners are cleaned up. Autoplay failures are reported once rather than retried every animation frame.
+- Master Timeline Play/Pause/Resume/Seek now drives both the existing multi-track Audio engine and the Scene Video engine from one AudioContext clock. Video-only playback is also supported when there are no eligible Audio clips.
+- A compact preview monitor appears in the Master Editor only when at least one Scene has a verified Video Asset reference. The existing transport control drives it; no separate player controls or AI Chat UI changes were introduced.
+- Added planner, playback-engine and shared-clock integration regression tests; CI run [#43401810181](https://github.com/ZinLinn254995/VYRA/actions/runs/43401810181) passed, including TypeScript, both Video planner/engine tests, Supabase Edge Function type-check and Production build.
+- Real-browser playback with uploaded private Video + Audio Assets is still required. This implementation is sequential Scene playback only: transition compositing, simultaneous multi-layer video, video effects, and final export are not implemented.
+- No Production deployment, merge, Production database/function changes, API keys, provider calls or customer charges.
