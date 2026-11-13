@@ -733,6 +733,6 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Every query is scoped server-side by the authenticated `user_id`; model arguments cannot supply or override ownership.
 - Tool arguments and output are bounded, search filter metacharacters are sanitized, and no writes, publishing, media charges, or privileged operations are exposed by these tools.
 - Existing Vyral Asset/DNA tools remain available only when the active Vyral is independently verified as owned by the authenticated user.
-- Development Supabase Edge Function `vyra-openai-chat` deployed as version 6 with JWT verification enabled.
+- Development Supabase Edge Function `vyra-openai-chat` deployed as version 7 with JWT verification enabled. Search uses separate owner-scoped title/topic queries rather than interpolated filter expressions.
 - This is the first live server-side global Workspace read capability, not completion of the 153-capability catalogue. Write execution, persisted approval integration, and the remaining domain adapters are still pending.
 - AI Chat visual structure and styling were not changed. OpenAI platform key remains unset, so authenticated model-driven runtime verification awaits Phase 6; no provider call was made.
