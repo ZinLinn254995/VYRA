@@ -112,3 +112,12 @@ test('AI Chat assistant responses use the available width for long-form reading'
   assert.match(page, /'w-full max-w-full sm:max-w-\[94%\]'/);
   assert.match(page, /overflow-y-auto overscroll-contain/);
 });
+
+
+test('AI Chat composer controls provide mobile-friendly 44px touch targets', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /grid-cols-\[44px_minmax\(0,1fr\)_44px\]/);
+  assert.match(page, /size-11 min-h-11 min-w-11 place-items-center/);
+  assert.match(page, /!size-11 !min-h-11 !min-w-11/);
+  assert.match(page, /max-h-36 min-h-11 min-w-0 resize-none/);
+});
