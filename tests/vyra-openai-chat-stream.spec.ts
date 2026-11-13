@@ -54,6 +54,11 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.match(source, /parallel_tool_calls: false/);
   assert.match(source, /name: 'propose_master_timeline_edit'/);
   assert.match(source, /name: 'propose_scene_reorder'/);
+  assert.match(source, /'title', 'description', 'transition', 'duration'/);
+  assert.match(source, /args\.value < 0\.1 \|\| args\.value > 3600/);
+  assert.match(source, /timeline: \{ \.\.\.oldTimeline, duration, tracks \}/);
+  assert.match(source, /sourceOut: value/);
+  assert.match(source, /sceneRanges: \{\}/);
   assert.match(source, /name: 'propose_scene_mutation'/);
   assert.match(source, /enum: \['create', 'duplicate', 'delete'\]/);
   assert.match(source, /scene\.create/);
