@@ -71,7 +71,7 @@ test('AI Chat conversations support rename, archive restore, and owner-scoped de
   assert.match(page, /\.delete\(\)\.eq\('id', session\.id\)\.eq\('user_id', historyOwnerId\)/);
   assert.match(page, /window\.confirm\('Delete this conversation permanently\?'\)/);
   assert.match(page, /session\.archived === showArchivedChats/);
-  assert.match(page, />Archived</);
+  assert.match(page, /showArchivedChats \? 'Recent' : 'Archived'/);
   assert.match(page, />Restore</);
   assert.match(page, />Rename</);
 });
