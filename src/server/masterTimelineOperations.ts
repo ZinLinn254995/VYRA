@@ -5,6 +5,9 @@ export type MasterTimelineClip = {
   duration: number;
   waveform?: number[];
   content?: string;
+  assetId?: string;
+  assetVersionId?: string;
+  assetMimeType?: string;
 };
 
 export type MasterTimelineTrack = {
