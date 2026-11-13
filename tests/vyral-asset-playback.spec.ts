@@ -76,3 +76,13 @@ test('rejects version MIME mismatches and never creates a public URL', async () 
   const wrongMime = makeDb({ vyral_asset_versions: { id: versionId, asset_id: assetId, user_id: userId, mime_type: 'image/png', storage_path: path } });
   await assert.rejects(() => createVyralAudioPlaybackUrl(wrongMime, { assetId, versionId }), /storage reference/);
 });
+
+test('allows an older immutable version path within the same owner and Asset namespace', async () => {
+  const olderPath = userId + '/' + vyralId + '/' + assetId + '/v1/' + assetId + '-old.mp3';
+  const db = makeDb({
+    vyral_assets: { id: assetId, user_id: userId, vyral_id: vyralId, asset_type: 'audio', mime_type: 'audio/mpeg', processing_status: 'ready', storage_path: path.replace('/v1/', '/v2/') },
+    vyral_asset_versions: { id: versionId, asset_id: assetId, user_id: userId, mime_type: 'audio/mpeg', storage_path: olderPath },
+  });
+  const result = await createVyralAudioPlaybackUrl(db, { assetId, versionId });
+  assert.equal(result.signedUrl, 'https://storage.example/signed/audio');
+});
