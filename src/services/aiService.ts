@@ -39,6 +39,7 @@ export interface AIServiceRequest {
 
 export interface AIServiceResult {
   content: string;
+  operatorAction?: Record<string, unknown>;
   suggestedActions?: ChatSuggestedAction[];
   isPreviewNotice?: boolean;
   status: 'success' | 'preview' | 'error';
@@ -229,6 +230,11 @@ class ModularAIService implements AIServiceProvider {
       let content = '';
       let usage: AIServiceResult['usage'] = null;
       let streamModel = this.model;
+      let operatorAction: Record<string, unknown> | undefined;
+      const encodedOperatorAction = response.headers.get('X-Vyra-Operator-Action');
+      if (encodedOperatorAction) {
+        try { const parsed: unknown = JSON.parse(decodeURIComponent(encodedOperatorAction)); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) operatorAction = parsed as Record<string, unknown>; } catch { /* Ignore malformed non-authoritative metadata. */ }
+      }
       let finished = false;
       const consumeLine = (line: string) => {
         const trimmed = line.trim();
@@ -241,8 +247,10 @@ class ModularAIService implements AIServiceProvider {
             model?: string;
             choices?: Array<{ delta?: { content?: string | null } }>;
             usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+            vyra_action?: Record<string, unknown>;
           };
           if (typeof event.model === 'string') streamModel = event.model;
+          if (event.vyra_action && typeof event.vyra_action === 'object' && !Array.isArray(event.vyra_action)) operatorAction = event.vyra_action;
           const chunk = event.choices?.[0]?.delta?.content;
           if (typeof chunk === 'string' && chunk.length) {
             content += chunk;
@@ -282,6 +290,7 @@ class ModularAIService implements AIServiceProvider {
       }
       return {
         content,
+        ...(operatorAction ? { operatorAction } : {}),
         status: 'success',
         providerName: 'OpenAI',
         modelName: streamModel,
