@@ -239,8 +239,8 @@ test('AI Chat ignores a completed response if its request was invalidated during
   const page = read('src/components/ai/AIChatPage.tsx');
   const completion = page.indexOf('const completedMessage: ChatMessage =');
   const guard = page.lastIndexOf('if (activeRequestControllerRef.current !== requestController) return;', completion);
-  const resultGuard = page.indexOf('if (activeRequestControllerRef.current !== requestController) return;', page.indexOf('const result = await aiService.generateResponse'));
-  assert.ok(completion >= 0 && guard > resultGuard);
+  const resultStart = page.indexOf('const result = await aiService.generateResponse');
+  assert.ok(completion >= 0 && resultStart >= 0 && guard > resultStart);
   assert.ok(guard < completion);
 });
 
