@@ -622,6 +622,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       assetName?: string;
     }[] = [];
     const attachedFile = selectedFile;
+    const uploadClientDraftId = attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? crypto.randomUUID() : null;
+    if (attachedFile && uploadClientDraftId) pendingVyralUploadFilesRef.current.set(uploadClientDraftId, attachedFile);
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
@@ -1837,7 +1839,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
-        ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
+        ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         idempotencyKey: 'chat-' + makeId(),
