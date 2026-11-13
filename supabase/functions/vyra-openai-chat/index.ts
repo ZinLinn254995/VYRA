@@ -2149,8 +2149,8 @@ registerAiCapabilityAdapter({
   },
   execute: async (input, execution) => {
     const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
-    const admin = runtime.admin;
-    const userClient = runtime.userClient;
+    const admin = runtime.admin as any;
+    const userClient = runtime.userClient as any;
     const sessionId = String(runtime.sessionId);
     const pendingActionId = String(input.pending_action_id);
     const vyralId = String(input.vyral_id);
