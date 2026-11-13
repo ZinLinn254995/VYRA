@@ -28,6 +28,7 @@ import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelin
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
 import { startMasterTimelineVideoPlayback, type MasterTimelineVideoPlaybackHandle } from '../../server/masterTimelineVideoPlaybackEngine';
+import { buildMasterTimelineTextOverlay, type MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
 
 export type TimelineClip = {
   id: string;
@@ -117,6 +118,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [audioPreviewClipKey, setAudioPreviewClipKey] = useState<string | null>(null);
   const [masterPlaybackState, setMasterPlaybackState] = useState<'idle' | 'loading' | 'playing' | 'paused'>('idle');
   const [masterPlaybackError, setMasterPlaybackError] = useState('');
+  const [masterPreviewTextOverlays, setMasterPreviewTextOverlays] = useState<MasterTimelineTextOverlay[]>([]);
+  const masterPreviewTextSignatureRef = useRef('');
   const masterAudioContextRef = useRef<AudioContext | null>(null);
   const masterPlaybackHandleRef = useRef<AudioPlaybackHandle | null>(null);
   const masterVideoPreviewRef = useRef<HTMLVideoElement>(null);
@@ -535,6 +538,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     }
     masterPlaybackClockRef.current = null;
     masterPlaybackTickRef.current = null;
+    masterPreviewTextSignatureRef.current = '';
+    setMasterPreviewTextOverlays([]);
     masterPlaybackHandleRef.current?.stop();
     masterPlaybackHandleRef.current = null;
     masterVideoPlaybackHandleRef.current?.stop();
@@ -620,6 +625,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
         const elapsed = Math.max(0, context.currentTime - clock.contextStart);
         const currentTime = Math.min(totalDuration, clock.timelineStart + elapsed);
         masterVideoPlaybackHandleRef.current?.sync(currentTime);
+        const textOverlays = buildMasterTimelineTextOverlay(textTracks, currentTime);
+        const textSignature = JSON.stringify(textOverlays);
+        if (textSignature !== masterPreviewTextSignatureRef.current) {
+          masterPreviewTextSignatureRef.current = textSignature;
+          setMasterPreviewTextOverlays(textOverlays);
+        }
         const targetScroll = currentTime * pixelsPerSecondRef.current;
         const scrollElement = scrollRef.current;
         if (scrollElement && Math.abs(scrollElement.scrollLeft - targetScroll) > 0.5) {
@@ -1514,14 +1525,25 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
       {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/'))) && (
         <div className="w-full shrink-0 px-3 pt-2">
-          <video
-            ref={masterVideoPreviewRef}
-            playsInline
-            preload="none"
-            className="mx-auto aspect-video max-h-48 w-full max-w-3xl rounded-xl bg-black object-contain"
-            aria-label="Master Timeline Video preview"
-            onError={() => setMasterPlaybackError('The private Scene Video could not be loaded for Master Timeline playback.')}
-          />
+          <div className="relative mx-auto aspect-video max-h-48 w-full max-w-3xl overflow-hidden rounded-xl bg-black">
+            <video
+              ref={masterVideoPreviewRef}
+              playsInline
+              preload="none"
+              className="h-full w-full object-contain"
+              aria-label="Master Timeline Video preview"
+              onError={() => setMasterPlaybackError('The private Scene Video could not be loaded for Master Timeline playback.')}
+            />
+            {masterPreviewTextOverlays.length > 0 && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-1 px-4 pb-4" aria-live="off">
+                {masterPreviewTextOverlays.map((overlay) => (
+                  <p key={overlay.trackId + ':' + overlay.clipId} className="max-w-full whitespace-pre-wrap rounded bg-black/60 px-3 py-1 text-center text-sm font-semibold text-white shadow-sm">
+                    {overlay.content}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
