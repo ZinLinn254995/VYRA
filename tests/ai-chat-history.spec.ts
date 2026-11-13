@@ -318,8 +318,12 @@ test('AI Chat revalidates request ownership after asynchronous provider error-bo
   const page = read('src/components/ai/AIChatPage.tsx');
   const start = page.indexOf('const sendMessage = async');
   const end = page.indexOf('const handleFileSelection', start);
-  const block = page.slice(start, end);
-  const parses = [...block.matchAll(/const payload = await [^\\n]*\\.clone\\(\\)\\.json\\(\\)[^\\n]*;\\s*assertRequestCurrent\\(\\);/g)];
-  assert.equal(parses.length, 8);
-  assert.doesNotMatch(block, /const payload = await [^\\n]*\\.clone\\(\\)\\.json\\(\\);\\s*(?!assertRequestCurrent\\(\\);)/);
+  const lines = page.slice(start, end).split('\\n');
+  const parseLines = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.includes('const payload = await') && line.includes('.clone().json()'));
+  assert.equal(parseLines.length, 8);
+  for (const { index } of parseLines) {
+    assert.equal(lines[index + 1]?.trim(), 'assertRequestCurrent();');
+  }
 });
