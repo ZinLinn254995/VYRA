@@ -20,6 +20,8 @@ export interface AIServiceRequest {
   idempotencyKey?: string;
   /** Owner-verified active Vyral context for natural conversational continuity. */
   activeVyralId?: string;
+  /** Metadata for the exact locally attached File; bytes stay in the browser and are never sent to the text model. */
+  uploadAttachment?: { fileName: string; mimeType: string; sizeBytes: number };
   /** Last known Workspace page and user selections; context only, never authorization. */
   workspaceContext?: WorkspaceAiContext;
   /** Receives incremental text chunks for the live chat UI. */
@@ -182,6 +184,7 @@ class ModularAIService implements AIServiceProvider {
           messages: request.messages.filter((message) => message.role !== 'system'),
           ...(request.conversationId ? { conversationId: request.conversationId } : {}),
           ...(request.activeVyralId ? { activeVyralId: request.activeVyralId } : {}),
+          ...(request.uploadAttachment ? { uploadAttachment: request.uploadAttachment } : {}),
           ...(request.workspaceContext ? { workspaceContext: request.workspaceContext } : {}),
           ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
           ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
