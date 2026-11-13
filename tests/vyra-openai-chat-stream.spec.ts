@@ -280,6 +280,12 @@ test('AI Chat records user-stopped generations as cancelled rather than retryabl
 });
 
 
+test('OpenAI Edge Function distinguishes upstream timeouts from connection failures', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /error\.name === 'TimeoutError'[\s\S]*?code: 'OPENAI_TIMEOUT'[\s\S]*?\}, 504/);
+  assert.match(edge, /if \(request\.signal\.aborted\) return new Response\(null, \{ status: 499 \}\)/);
+});
+
 test('OpenAI Edge Function cancels upstream planner and response when the client disconnects', () => {
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(45000\)\]\)/);
