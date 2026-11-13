@@ -157,8 +157,8 @@ test('AI Chat drops queued transcript writes when authentication changes account
 test('AI Chat aborts and isolates in-flight responses when switching conversations or unmounting', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
   assert.match(page, /const cancelActiveRequest = \(\) => \{[\s\S]*?activeRequestControllerRef\.current = null;[\s\S]*?controller\.abort\(\)/);
-  assert.match(page, /const startNewChat = async \(\) => \{\s*cancelActiveRequest\(\)/);
-  assert.match(page, /const openSession = \(session: ChatSession\) => \{\s*cancelActiveRequest\(\)/);
+  assert.match(page, /const startNewChat = async \(\) => \{\s*const ownerAtStart = historyOwnerRef\.current;\s*cancelActiveRequest\(\)/);
+  assert.match(page, /const openSession = \(session: ChatSession\) => \{[\s\S]*?cancelActiveRequest\(\)/);
   assert.match(page, /useEffect\(\(\) => \(\) => \{\s*activeRequestControllerRef\.current\?\.abort\(\)/);
   assert.match(page, /if \(activeRequestControllerRef\.current !== requestController\) return;/);
   assert.match(page, /if \(!isAuthenticated \|\| !supabaseClient\) \{\s*cancelActiveRequest\(\)/);
