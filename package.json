@@ -66,7 +66,8 @@
     "test:master-timeline-video-playback": "node --import tsx --test tests/master-timeline-video-playback.spec.ts",
     "test:workspace-video-preview": "node --import tsx --test tests/workspace-video-preview.spec.ts",
     "test:master-timeline-video-playback-engine": "node --import tsx --test tests/master-timeline-video-playback-engine.spec.ts",
-    "test:master-timeline-text-overlay": "node --import tsx --test tests/master-timeline-text-overlay.spec.ts"
+    "test:master-timeline-text-overlay": "node --import tsx --test tests/master-timeline-text-overlay.spec.ts",
+    "test:ai-capability-coverage": "node --import tsx --test tests/ai-capability-coverage.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
