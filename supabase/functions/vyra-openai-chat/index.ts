@@ -1218,8 +1218,19 @@ async function createSceneMutationProposal(
   if (operation === 'duplicate' && scenes.length >= 80) return safeToolError('This Storyboard already has the maximum supported 80 Scenes.');
   const now = new Date().toISOString();
   const duplicatedScene = operation === 'duplicate' ? {
-    ...scene, id: crypto.randomUUID(), title: String(scene.title || 'Untitled Scene') + ' copy',
+    id: crypto.randomUUID(), title: String(scene.title || 'Untitled Scene') + ' copy',
+    description: typeof scene.description === 'string' ? scene.description : '',
+    duration: typeof scene.duration === 'number' && Number.isFinite(scene.duration) ? scene.duration : 5,
+    transition: typeof scene.transition === 'string' ? scene.transition : 'Fade',
     project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+  } : null;
+  const deletedSceneSnapshot = operation === 'delete' ? {
+    id: String(scene.id), title: String(scene.title || 'Untitled Scene'),
+    description: typeof scene.description === 'string' ? scene.description.slice(0, 1000) : '',
+    duration: typeof scene.duration === 'number' && Number.isFinite(scene.duration) ? scene.duration : null,
+    transition: typeof scene.transition === 'string' ? scene.transition.slice(0, 40) : '',
+    projectId: scene.project && typeof scene.project === 'object' && typeof (scene.project as Record<string, unknown>).id === 'string'
+      ? (scene.project as Record<string, unknown>).id : null,
   } : null;
   const confirmationPhrase = operation === 'delete' ? 'DELETE SCENE ' + String(args.scene_id).slice(0, 6).toUpperCase() : null;
   const createdAt = new Date();
@@ -1230,7 +1241,7 @@ async function createSceneMutationProposal(
     parameters: {
       expectedUpdatedAt: String(storyboard.updated_at),
       ...(duplicatedScene ? { duplicatedScene } : {}),
-      ...(confirmationPhrase ? { confirmationPhrase, deletedSceneSnapshot: scene } : {}),
+      ...(confirmationPhrase ? { confirmationPhrase, deletedSceneSnapshot } : {}),
     },
     summary: (operation === 'duplicate' ? 'Duplicate Scene “' : 'Delete Scene “') +
       String(scene.title || 'Untitled Scene').slice(0, 100) + '” in “' + String(storyboard.title) + '”',
