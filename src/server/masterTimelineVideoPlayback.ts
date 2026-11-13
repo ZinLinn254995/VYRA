@@ -11,6 +11,8 @@ export type MasterTimelineVideoInstance = {
   assetId?: string | null;
   assetVersionId?: string | null;
   assetMimeType?: string | null;
+  videoSourceIn?: number | null;
+  videoSourceOut?: number | null;
 };
 
 export type MasterTimelineVideoPlaybackItem = {
@@ -65,15 +67,17 @@ export function buildMasterTimelineVideoPlaybackPlan(
     if (!instance || typeof instance.assetId !== 'string' || !instance.assetId ||
         typeof instance.assetVersionId !== 'string' || !instance.assetVersionId ||
         typeof instance.assetMimeType !== 'string' || !/^video\//i.test(instance.assetMimeType) ||
-        !Number.isFinite(instance.sourceIn) || instance.sourceIn < 0 ||
-        !Number.isFinite(instance.sourceOut) || instance.sourceOut <= instance.sourceIn ||
+        !Number.isFinite(instance.videoSourceIn ?? instance.sourceIn) || (instance.videoSourceIn ?? instance.sourceIn) < 0 ||
+        !Number.isFinite(instance.videoSourceOut ?? instance.sourceOut) || (instance.videoSourceOut ?? instance.sourceOut) <= (instance.videoSourceIn ?? instance.sourceIn) ||
         playheadTime >= sceneEnd) continue;
 
     const elapsed = Math.max(0, playheadTime - sceneStart);
-    const sourceOffsetSeconds = instance.sourceIn + elapsed;
-    const sourceDuration = instance.sourceOut - instance.sourceIn;
+    const sourceIn = instance.videoSourceIn ?? instance.sourceIn;
+    const sourceOut = instance.videoSourceOut ?? instance.sourceOut;
+    const sourceOffsetSeconds = sourceIn + elapsed;
+    const sourceDuration = sourceOut - sourceIn;
     const available = Math.min(scene.duration, sourceDuration) - elapsed;
-    if (available <= 0 || sourceOffsetSeconds >= instance.sourceOut) continue;
+    if (available <= 0 || sourceOffsetSeconds >= sourceOut) continue;
 
     plan.push({
       instanceId: instance.id,
@@ -84,7 +88,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
       timelineEndSeconds: sceneEnd,
       delaySeconds: Math.max(0, sceneStart - playheadTime),
       sourceOffsetSeconds,
-      durationSeconds: Math.min(available, instance.sourceOut - sourceOffsetSeconds),
+      durationSeconds: Math.min(available, sourceOut - sourceOffsetSeconds),
     });
   }
   return plan;
