@@ -2675,11 +2675,11 @@ async function resolvePendingVyralFolderActionApproval(
     q=plan.parameters.previousParentId===null?q.is('parent_id',null):q.eq('parent_id',plan.parameters.previousParentId);
     const {data,error}=await q.select('id,name,parent_id').maybeSingle();result=data;actionError=error;
   } else if(plan.operation==='folder.delete'){
-    const {data,error}=await admin.from('vyral_folders').delete()
-      .eq('id',plan.target.folderId).eq('vyral_id',vyralId).eq('user_id',userId)
-      .eq('name',plan.parameters.previousName).eq('created_at',plan.parameters.expectedCreatedAt)
-      .select('id,name').maybeSingle();
-    result=data;actionError=error;
+    const {data,error}=await admin.rpc('delete_empty_vyral_folder',{
+      p_user_id:userId,p_vyral_id:vyralId,p_folder_id:plan.target.folderId,
+      p_expected_name:plan.parameters.previousName,p_expected_created_at:plan.parameters.expectedCreatedAt,
+    });
+    result=Array.isArray(data)?(data[0] ?? null):null;actionError=error;
   } else {
     const {data,error}=await admin.from('vyral_assets').update({folder_id:plan.parameters.nextParentId ?? null})
       .eq('id',plan.target.assetId).eq('vyral_id',vyralId).eq('user_id',userId)
