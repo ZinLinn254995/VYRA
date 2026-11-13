@@ -263,3 +263,12 @@ test('OpenAI provider secret is Vault-backed and callable only by the server ser
   ]) assert.ok(provider.includes(snippet), 'Provider function missing: ' + snippet);
   assert.doesNotMatch(provider, /json\(\{[^}]*apiKey[^}]*\}\)/);
 });
+
+
+test('AI Chat records user-stopped generations as cancelled rather than retryable failures', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /status\?: 'success' \| 'preview' \| 'error' \| 'cancelled'/);
+  assert.match(page, /status: result\.cancelled \? 'cancelled' : result\.status/);
+  assert.match(page, /content: streamedText \? streamedText \+ '\\n\\nGeneration stopped\.' : message, status: 'cancelled'/);
+  assert.match(page, /message\.status === 'success' \|\| message\.status === 'preview' \|\| message\.status === 'error' \|\| message\.status === 'cancelled'/);
+});
