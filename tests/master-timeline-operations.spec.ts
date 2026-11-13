@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
+  addMasterTimelineTextClip, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
   updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData,
 } from '../src/server/masterTimelineOperations.ts';
 
@@ -73,6 +73,20 @@ test('splits audio/text at least 0.2 seconds from either edge', () => {
   }
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 0.1, () => 'new-b').ok, false);
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 2.5, () => 't').ok, false);
+});
+
+test('adds an AI-authored Text clip on a new Text track without mutating existing tracks', () => {
+  const result = addMasterTimelineTextClip(base, 'text-new', 'text-new-clip', 'Opening title', 'A new beginning', 2.5, 4);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const created = result.value.textTracks.find((track) => track.id === 'text-new');
+  assert.equal(created?.name, 'Text');
+  assert.deepEqual(created?.clips[0], { id: 'text-new-clip', name: 'Opening title', content: 'A new beginning', start: 2.5, duration: 4 });
+  assert.equal(base.textTracks.length, 1);
+  assert.equal(result.value.audioTracks, base.audioTracks);
+  assert.equal(addMasterTimelineTextClip(base, 'text-new', 'bad', 'Title', 'Copy', -1, 3).ok, false);
+  assert.equal(addMasterTimelineTextClip(base, 'text-new', 'bad', 'Title', 'Copy', 0, 0.1).ok, false);
+  assert.equal(addMasterTimelineTextClip(base, 'text-1', 'bad', 'Title', 'Copy', 0, 3).ok, false);
 });
 
 test('updates text clip content only and preserves all unrelated timeline data', () => {
