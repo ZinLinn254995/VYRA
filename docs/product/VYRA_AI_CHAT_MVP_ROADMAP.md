@@ -738,6 +738,15 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - AI Chat visual structure and styling were not changed. OpenAI platform key remains unset, so authenticated model-driven runtime verification awaits Phase 6; no provider call was made.
 
 
+
+### AI Operator chat-session binding
+
+- The existing AI Chat session UUID is now carried with each normal text-chat request from the existing composer through the client service and authenticated server route to the Development Edge Function.
+- The browser creates/reuses the active session ID; the server validates UUID shape and never accepts a user ID from the client. The Edge Function derives the owner from the verified Supabase JWT and tells the model that any future pending action must be bound to both that owner and this exact chat session.
+- Requests without a valid session ID are explicitly instructed not to create or approve persistent pending actions. Existing chat UI and styling are unchanged.
+- Development `vyra-openai-chat` deployed as version 9 with JWT verification enabled. This deployment validates/loads the updated Edge Function source; no OpenAI runtime request was made because the platform key remains unset.
+- This is the session-identity bridge only. The Edge Function does not yet create, approve, claim, or execute pending actions through the five lifecycle RPCs; no model-driven writes are enabled yet. Next: implement a narrowly allowlisted proposal/approval flow using server-side pending-action records, then add the first safe write adapter.
+
 ### Expanded global Vyral read coverage
 
 - Added `list_my_vyrals` and `get_my_vyral_details` to the authenticated global AI tool set. These tools are available regardless of the current Workspace page.
