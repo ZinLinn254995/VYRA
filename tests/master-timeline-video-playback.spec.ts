@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMasterTimelineVideoPlaybackPlan } from '../src/server/masterTimelineVideoPlayback';
+import { buildMasterTimelineVideoPlaybackPlan } from '../src/server/masterTimelineVideoPlayback.ts';
 
 const scenes = [
   { id: 'scene-a', duration: 5 },
