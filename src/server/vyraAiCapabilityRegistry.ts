@@ -149,6 +149,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['folder.propose_create', 'Prepare a Vyral folder creation preview without creating it'],
     ['folder.propose_rename', 'Prepare a Vyral folder rename preview'],
     ['folder.propose_move', 'Prepare a Vyral folder move preview'],
+    ['folder.propose_delete', 'Prepare an exact-confirmation preview to delete one empty folder'],
     ['asset.propose_move_folder', 'Prepare an Asset move into another folder or the Vyral root'],
   ]),
   ...define('assets', 'autonomous', 'read', [
@@ -159,6 +160,9 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.verify', 'Verify Asset identity and Fingerprint'],
     ['asset.analyze', 'Analyze Asset content and quality'],
     ['asset.relationships.read', 'Read Asset relationships and lineage'],
+  ]),
+  ...define('assets', 'approval-required', 'destructive', [
+    ['folder.delete', 'Delete an empty folder after exact confirmation'],
   ]),
   ...define('assets', 'approval-required', 'reversible', [
     ['folder.update', 'Create, rename, or move folders and move Assets between folders'],
