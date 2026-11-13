@@ -290,7 +290,8 @@ class ModularAIService implements AIServiceProvider {
           }
         }
         buffer += decoder.decode();
-        if (buffer.trim()) consumeLine(buffer);
+        // A terminal event or provider error wins over any trailing bytes already buffered.
+        if (!finished && !streamError && buffer.trim()) consumeLine(buffer);
       } finally {
         reader.releaseLock();
       }
