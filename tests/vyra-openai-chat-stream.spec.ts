@@ -194,3 +194,22 @@ test('Global AI Chat routes supported text conversations only through OpenAI', (
   assert.match(browser, /providerName: 'OpenAI'/);
   assert.match(browser, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
 });
+
+
+test('OpenAI browser stream supports explicit cancellation and reports truncated streams as retryable errors', () => {
+  const service = read('src/services/aiService.ts');
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(service, /signal\?: AbortSignal/);
+  assert.match(service, /signal: request\.signal/);
+  assert.match(service, /request\.signal\?\.aborted/);
+  assert.match(service, /cancelled: true/);
+  assert.match(service, /if \(!finished\)/);
+  assert.match(service, /connection ended before the response was complete/i);
+  assert.match(page, /activeRequestControllerRef/);
+  assert.match(page, /activeRequestControllerRef\.current\?\.abort\(\)/);
+  assert.match(page, /signal: requestController\.signal/);
+  assert.match(page, /result\.cancelled/);
+  assert.match(page, /aria-label=\{isSending \? "Stop generation" : "Send message"\}/);
+  assert.match(page, /type=\{isSending \? "button" : "submit"\}/);
+  assert.match(page, /wasCancelled/);
+});
