@@ -584,8 +584,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     return () => window.clearTimeout(timeout);
   }, [historyReady, historyOwnerId, activeSessionId, messages, currentTitle, isLocked, persistSession]);
 
-  const saveCurrentSession = async (archived = false) => {
-    if (!hasMessages) return;
+  const saveCurrentSession = async (archived = false): Promise<boolean> => {
+    if (!hasMessages) return true;
     const session: ChatSession = {
       id: activeSessionId ?? crypto.randomUUID(),
       title: currentTitle,
@@ -594,15 +594,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       archived,
       locked: isLocked,
     };
+    const saved = await persistSession(session);
+    if (!saved) return false;
     setSessions((previous) => [session, ...previous.filter((item) => item.id !== session.id)]);
-    await persistSession(session);
+    return true;
   };
 
   const startNewChat = async () => {
     const ownerAtStart = historyOwnerRef.current;
     cancelActiveRequest();
-    await saveCurrentSession();
-    if (historyOwnerRef.current !== ownerAtStart) return;
+    const saved = await saveCurrentSession();
+    if (!saved || historyOwnerRef.current !== ownerAtStart) return;
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
@@ -2034,8 +2036,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
   const archiveCurrentChat = async () => {
     const ownerAtStart = historyOwnerRef.current;
-    await saveCurrentSession(true);
-    if (historyOwnerRef.current !== ownerAtStart) return;
+    const saved = await saveCurrentSession(true);
+    if (!saved || historyOwnerRef.current !== ownerAtStart) return;
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
