@@ -43,6 +43,19 @@ test('AI Chat preserves partial streamed text on errors and keeps retry in the e
   assert.match(source, /sendMessage\(previousUserMessage\.content\)/);
 });
 
+test('Active global Chat uses the authenticated platform-managed OpenAI service, not customer BYOK', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const service = read('src/services/aiService.ts');
+  const legacyStudio = read('src/context/StudioContext.tsx');
+  assert.match(page, /getCurrentAccessToken\(\)/);
+  assert.match(page, /aiService\.generateResponse\(\{/);
+  assert.doesNotMatch(page, /openrouter|gemini/i);
+  assert.match(service, /Authorization:\s*'Bearer ' \+ request\.accessToken/);
+  assert.match(service, /this\.endpoint = '\/api\/ai\/chat'/);
+  assert.doesNotMatch(legacyStudio, /Google Gemini|gemini-[0-9]|vyra_openrouter_key_session/i);
+  assert.match(legacyStudio, /providerName: 'OpenAI \(VYRA Platform\)'/);
+});
+
 test('Vyral AI tools are read-only, bounded and scoped to the authenticated owner and active Vyral', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /const VYRAL_READ_TOOLS = \[/);
