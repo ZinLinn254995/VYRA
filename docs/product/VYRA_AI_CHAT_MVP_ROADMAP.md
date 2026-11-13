@@ -905,3 +905,14 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Deployed the current AI Chat Edge Function source to Development Supabase as `vyra-openai-chat` version 33, ACTIVE, with JWT verification enabled. Post-deploy inspection confirmed the SHA-bound Audio Version metadata checks, derived duration, waveform handling, and strict type-narrowed approval code.
 - This remains a Development/branch-preview change. No production Supabase function or database deployment, no merge, no provider API key, and no live OpenAI request.
 - Browser-level playback against an actual user-owned Audio Asset is still pending. The current feature is a source-file audition control, not full Master Timeline playback or audio mixing.
+
+
+## Master Timeline multi-track Audio playback planning foundation
+
+- Added `src/server/masterTimelineAudioPlayback.ts` with a deterministic playhead-relative schedule for canonical Audio Asset clips.
+- Schedule items include exact Asset and immutable Version IDs, future-start delay, source offset (including trimmed source offset), remaining clip duration, and clamped track gain.
+- Muted tracks, zero-volume tracks, expired clips, placeholder clips without canonical Asset references, and malformed timing/source offsets are excluded.
+- Added `tests/master-timeline-audio-playback.spec.ts`, `test:master-timeline-audio-playback`, and a CI step.
+- This is a pure scheduling layer only. It is not yet connected to Web Audio / HTMLAudio playback, the visible playhead, or the Master Editor's track mute/volume controls. Do not describe multi-track playback as available until that integration and browser verification are complete.
+- Latest CI workflow lookup for commit `11a494fc3c11f0366d53f1974c70204099851469` returned no workflow run; automated test execution remains unconfirmed.
+- No AI Chat UI/CSS changes, no database or Edge Function changes, no production deployment, no merge, no provider API key, and no customer charges.
