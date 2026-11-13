@@ -12,7 +12,9 @@ test('Runway quote preflight records measured provider latency and every outcome
     assert.ok(quoteSource.includes("'" + outcome + "'"), 'missing outcome: ' + outcome);
   }
   assert.match(quoteSource, /provider_request_id: providerRequestId\?\.slice\(0, 160\)/);
-  assert.doesNotMatch(quoteSource, /request_payload:\s*\{\s*input\s*\}/);
+  const telemetryInsert = quoteSource.match(/from\('media_provider_preflight_events'\)\.insert\(\{([\s\S]*?)\n      \}\)/)?.[1] ?? '';
+  assert.ok(telemetryInsert, 'missing telemetry insert payload');
+  assert.doesNotMatch(telemetryInsert, /promptText|referenceImages|request_payload|apiKey/);
 });
 
 test('provider telemetry is inaccessible to anonymous and authenticated clients', () => {
