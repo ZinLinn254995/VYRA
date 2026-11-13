@@ -60,7 +60,8 @@
     "test:global-chat-planner": "node --import tsx --test tests/global-chat-action-planner.spec.ts",
     "test:ai-capabilities": "node --import tsx --test tests/vyra-ai-capability-registry.spec.ts",
     "test:ai-capability-executor": "node --import tsx --test tests/ai-capability-executor.spec.ts",
-    "test:master-timeline-operations": "node --import tsx --test tests/master-timeline-operations.spec.ts"
+    "test:master-timeline-operations": "node --import tsx --test tests/master-timeline-operations.spec.ts",
+    "test:master-timeline-audio-playback": "node --import tsx --test tests/master-timeline-audio-playback.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
