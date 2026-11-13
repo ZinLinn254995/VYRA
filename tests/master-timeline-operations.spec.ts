@@ -44,8 +44,8 @@ test('trims start/end with the 0.2s minimum and neighboring-clip boundaries', ()
   assert.equal(left.ok, true);
   if (left.ok) {
     const clip = left.value.textTracks[0].clips.find((item) => item.id === 't')!;
-    assert.equal(clip.start, 4);
-    assert.equal(clip.duration, 0);
+    assert.equal(clip.start, 3.8);
+    assert.equal(clip.duration, 0.2);
   }
 });
 
