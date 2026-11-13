@@ -1,6 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
+  LoaderCircle,
+  Pause,
+  Play,
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -19,6 +22,8 @@ import {
   Type,
   Undo2,
 } from 'lucide-react';
+import { supabase } from '../../context/AuthContext';
+import { createVyralAudioPlaybackUrl } from '../../services/vyralAssetPlayback';
 
 export type TimelineClip = {
   id: string;
@@ -95,6 +100,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement>(null);
+  const [audioPreviewLoading, setAudioPreviewLoading] = useState(false);
+  const [audioPreviewPlaying, setAudioPreviewPlaying] = useState(false);
+  const [audioPreviewError, setAudioPreviewError] = useState('');
+  const [audioPreviewClipKey, setAudioPreviewClipKey] = useState<string | null>(null);
   useEffect(() => {
     if (!onSelectionChange) return;
     if (selectedTextClip) {
@@ -543,6 +553,60 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     { label: 'Blur', value: 'blur' },
   ];
   const selectedTransition = selectedTransitionKey ? value?.transitions?.[selectedTransitionKey] : undefined;
+  const selectedAudioClipRecord = selectedAudioClip
+    ? (value?.audioTracks || []).find((track) => track.id === selectedAudioClip.trackId)?.clips.find((clip) => clip.id === selectedAudioClip.clipId) ?? null
+    : null;
+  const selectedAudioClipKey = selectedAudioClip ? selectedAudioClip.trackId + ':' + selectedAudioClip.clipId : null;
+  const stopAudioPreview = () => {
+    const audio = audioPreviewRef.current;
+    if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+    setAudioPreviewPlaying(false);
+    setAudioPreviewLoading(false);
+    setAudioPreviewClipKey(null);
+  };
+  const toggleSelectedAudioPreview = async () => {
+    const clip = selectedAudioClipRecord;
+    const audio = audioPreviewRef.current;
+    if (!clip || !clip.assetId || !clip.assetVersionId || !audio) {
+      setAudioPreviewError('This clip has no verified Vyral Audio Asset source.');
+      return;
+    }
+    if (!supabase) { setAudioPreviewError('Private Audio Storage is not configured.'); return; }
+    setAudioPreviewError('');
+    if (audioPreviewClipKey === selectedAudioClipKey && audio.src) {
+      if (audio.paused) {
+        try { await audio.play(); setAudioPreviewPlaying(true); }
+        catch { setAudioPreviewError('Audio preview could not start. Tap Play to try again.'); }
+      } else {
+        audio.pause(); setAudioPreviewPlaying(false);
+      }
+      return;
+    }
+    setAudioPreviewLoading(true);
+    try {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      const result = await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId, versionId: clip.assetVersionId });
+      audio.src = result.signedUrl;
+      audio.load();
+      setAudioPreviewClipKey(selectedAudioClipKey);
+      await audio.play();
+      setAudioPreviewPlaying(true);
+    } catch (error) {
+      audio.pause(); audio.removeAttribute('src'); audio.load();
+      setAudioPreviewPlaying(false);
+      setAudioPreviewClipKey(null);
+      setAudioPreviewError(error instanceof Error ? error.message : 'Audio preview is unavailable.');
+    } finally { setAudioPreviewLoading(false); }
+  };
+  useEffect(() => {
+    if (audioPreviewClipKey && audioPreviewClipKey !== selectedAudioClipKey) stopAudioPreview();
+  }, [audioPreviewClipKey, selectedAudioClipKey]);
+  useEffect(() => () => {
+    const audio = audioPreviewRef.current;
+    if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+  }, []);
   const applyTransition = (effect: string) => {
     if (!selectedTransitionKey) return;
     commitChange({
@@ -576,7 +640,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const nextTrack: TimelineTrack = {
       id: nextTrackId,
       name: 'Audio',
-      clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: Array.from({ length: 32 }, (_, point) => 0.25 + ((point * 11) % 19) / 30) }],
+      clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: [] }],
     };
     commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
     revealNewTimelineRow('audio', nextTrackId);
@@ -1207,6 +1271,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           </>
         ) : selectedAudioClip ? (
           <>
+            <button type="button" title={audioPreviewError || 'Preview original Audio Asset'} aria-label={audioPreviewPlaying ? 'Pause Audio Asset preview' : 'Play Audio Asset preview'} disabled={audioPreviewLoading || !selectedAudioClipRecord?.assetId || !selectedAudioClipRecord?.assetVersionId} onClick={() => void toggleSelectedAudioPreview()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] disabled:cursor-not-allowed disabled:opacity-40">
+              {audioPreviewLoading ? <LoaderCircle size={22} className="animate-spin" /> : audioPreviewPlaying && audioPreviewClipKey === selectedAudioClipKey ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
+            </button>
             <button type="button" title="Split selected audio at playhead" aria-label="Split selected audio at playhead" onClick={runSplitSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Scissors size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Clone selected audio" aria-label="Clone selected audio" onClick={runCloneSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Copy size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Delete selected audio" aria-label="Delete selected audio" onClick={runDeleteSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)]"><Trash2 size={22} strokeWidth={1.8} /></button>
@@ -1240,6 +1307,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+      <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewError('The private Audio Asset could not be loaded.'); }} className="hidden" />
+      {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
       <div className="relative min-h-0 w-full flex-1">
         <div
           ref={scrollRef}
@@ -1454,7 +1523,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                           <AudioLines size={12} className="mr-1 shrink-0 text-sky-500" />
                           <span className="mr-2 shrink-0 truncate">{clip.content || clip.name}</span>
                           <div className="flex h-5 min-w-0 flex-1 items-center gap-px overflow-hidden opacity-70" aria-hidden="true">
-                            {(clip.waveform || Array.from({ length: 32 }, (_, i) => 0.25 + ((i * 7) % 15) / 24)).map((height, index) => (
+                            {(clip.waveform || []).map((height, index) => (
                               <span key={index} className="min-w-px flex-1 rounded-full bg-sky-500/80" style={{ height: `${Math.max(15, Math.min(100, height * 100))}%` }} />
                             ))}
                           </div>
