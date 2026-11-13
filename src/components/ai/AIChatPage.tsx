@@ -607,8 +607,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setHistoryOpen(false);
   };
 
-  const sendMessage = async (value = draft) => {
+  const sendMessage = async (value = draft, retryUserMessageId?: string) => {
     const text = value.trim();
+    const retryUserIndex = retryUserMessageId ? messages.findIndex((message) => message.id === retryUserMessageId && message.role === 'user') : -1;
+    if (retryUserMessageId && retryUserIndex < 0) return;
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
@@ -647,13 +649,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
     const assetContextText = selectedAssets.length ? '\n\nSelected VYRA Assets (explicit user-selected context):\n' + selectedAssets.map((asset, index) => `${index + 1}. ${asset.name} [${asset.assetType}; ${asset.mimeType}] — Vyral: ${asset.vyralName}; Asset ID: ${asset.id}; Visibility: ${asset.visibility}; Description: ${asset.description || 'Not provided'}`).join('\n') + '\nUse only these selected Assets as the requested VYRA library context. This selection does not grant public access; private Assets are owner-authorized context only.' : '';
-    const userMessage: ChatMessage = {
-      id: makeId(),
-      role: 'user',
-      content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
-    };
+    const userMessage: ChatMessage = retryUserIndex >= 0
+      ? messages[retryUserIndex]
+      : {
+          id: makeId(),
+          role: 'user',
+          content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
+        };
     shouldAutoScrollRef.current = true;
-    const nextMessages = [...messages, userMessage];
+    // Retry the original user turn in place; discard the failed assistant turn and anything after it.
+    const nextMessages = retryUserIndex >= 0
+      ? messages.slice(0, retryUserIndex + 1)
+      : [...messages, userMessage];
     setMessages(nextMessages);
     setDraft('');
     setSelectedFile(null);
@@ -2111,7 +2118,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
                   {message.role === 'assistant' && message.status === 'error' && (() => {
                     const previousUserMessage = messages.slice(0, messages.indexOf(message)).reverse().find((item) => item.role === 'user');
                     const canRetry = previousUserMessage && !/Attached file:|Selected VYRA Assets/.test(previousUserMessage.content);
-                    return canRetry ? <button type="button" onClick={() => { void sendMessage(previousUserMessage.content); }} disabled={isSending} className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)] disabled:opacity-40">Retry</button> : null;
+                    return canRetry ? <button type="button" onClick={() => { void sendMessage(previousUserMessage.content, previousUserMessage.id); }} disabled={isSending} className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)] disabled:opacity-40">Retry</button> : null;
                   })()}
                   {message.role === 'assistant' && <button type="button" onClick={() => handleCopy(message.content)} className="mt-2 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]"><Copy size={12} /> Copy</button>}
                 </div>
