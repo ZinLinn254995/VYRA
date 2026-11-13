@@ -2104,7 +2104,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-1 pb-36 pt-20">
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`min-w-0 max-w-[88%] break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
+                <div className={`min-w-0 break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'max-w-[88%]' : 'w-full max-w-full sm:max-w-[94%]'} ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
                   <AIChatMessageContent content={message.content} />
                   {message.role === 'assistant' && message.providerLabel && <p className="mt-2 text-[10px] text-[var(--vyra-text-muted)]">{message.providerLabel}</p>}
                   {message.role === 'assistant' && message.status === 'preview' && <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">Preview response · no live model was confirmed</p>}
