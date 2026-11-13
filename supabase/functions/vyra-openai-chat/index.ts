@@ -97,7 +97,7 @@ const GLOBAL_READ_TOOLS = [
     type: 'function',
     function: {
       name: 'propose_master_timeline_edit',
-      description: "Prepare a reversible edit to the owner's Master Timeline. Supports creating a new Text overlay track/clip (add_text), moving, trimming, splitting, cloning, editing or deleting existing Audio/Text clips. Deletion is destructive and requires a separate exact confirmation phrase. This only creates a preview; do not claim anything changed until explicitly approved in this same chat.",
+      description: "Prepare a reversible edit to the owner's Master Timeline. Supports adding a new Text overlay (add_text), attaching a real ready Audio Asset version as a new Audio clip (add_audio), moving, trimming, splitting, cloning, editing or deleting existing Audio/Text clips. Deletion is destructive and requires a separate exact confirmation phrase. This only creates a preview; do not claim anything changed until explicitly approved in this same chat.",
       parameters: {
         type: 'object',
         properties: {
@@ -114,7 +114,7 @@ const GLOBAL_READ_TOOLS = [
           value: { type: 'string' },
           name: { type: 'string', description: 'Text clip display name, required for add_text.' },
           asset_id: { type: 'string', description: 'Exact ready Audio Asset UUID from the active Vyral inventory, required for add_audio.' }, 
-          duration: { type: 'number', description: 'Text overlay duration in seconds, 0.2–3600.' },
+          duration: { type: 'number', description: 'Clip duration in seconds, 0.2–3600; required for add_audio and add_text.' },
         },
         required: ['storyboard_id', 'operation'], 
         additionalProperties: false,
@@ -1366,7 +1366,7 @@ async function resolvePendingStoryboardApproval(
   const isSceneDuplicate = pending.capability_id === 'scene.duplicate';
   const isSceneDelete = pending.capability_id === 'scene.delete';
   const isSceneMutation = isSceneCreate || isSceneDuplicate || isSceneDelete;
-  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
+  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
   const isTimelineTransitionUpdate = pending.capability_id === 'timeline.add_transition';
   const transitionKey = target.transitionKey;
   const timelineOperation = parameters.operation;
