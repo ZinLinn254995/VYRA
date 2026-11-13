@@ -59,7 +59,7 @@ test('trims start/end with the 0.2s minimum and neighboring-clip boundaries', ()
   if (left.ok) {
     const clip = left.value.textTracks[0].clips.find((item) => item.id === 't')!;
     assert.equal(clip.start, 3.8);
-    assert.equal(clip.duration, 0.2);
+    assert.ok(Math.abs(clip.duration - 0.2) < 1e-9);
   }
 });
 
