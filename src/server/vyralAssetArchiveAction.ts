@@ -16,6 +16,12 @@ export interface VyralAssetArchivePendingPlan {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CODE = /^[A-Z0-9]{6}$/;
 
+export function parseVyralAssetArchiveConfirmation(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match = /^ARCHIVE ASSET ([A-Z0-9]{6})$/i.exec(value.trim());
+  return match ? match[1].toUpperCase() : null;
+}
+
 export function parseVyralAssetArchivePendingPlan(value: unknown): VyralAssetArchivePendingPlan | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const p = value as Record<string, unknown>;
