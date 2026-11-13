@@ -979,7 +979,7 @@ async function createMasterTimelineEditProposal(
   const createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
   const plan = {
     id: crypto.randomUUID(), operation: 'timeline.edit',
-    target: { storyboardId: String(storyboard.id), clipId: String(isVideoAttach ? parameters.sceneId : isAddClip ? parameters.createdClipId : args.clip_id), ...(operation === 'add_audio' || operation === 'attach_video' ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}, ...(operation === 'attach_video' ? { sceneId: parameters.sceneId } : {})) }, 
+    target: { storyboardId: String(storyboard.id), clipId: String(isVideoAttach ? parameters.sceneId : isAddClip ? parameters.createdClipId : args.clip_id), ...(operation === 'add_audio' || operation === 'attach_video' ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}), ...(operation === 'attach_video' ? { sceneId: parameters.sceneId } : {}) }, 
     parameters: { ...parameters, expectedUpdatedAt: String(storyboard.updated_at) },
     summary: 'Master Editor · ' + operation.replace('_',' ') + ' · ' + String(before?.name ?? after?.name ?? 'Text overlay'),
     createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
