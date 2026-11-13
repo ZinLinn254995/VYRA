@@ -67,6 +67,30 @@ test('approval-required capability cannot execute without server-verified approv
   if (!result.ok) assert.equal(result.code, 'APPROVAL_REQUIRED');
 });
 
+test('storyboard update adapter cannot run until the server verifies the chat approval', async () => {
+  registerAiCapabilityAdapter({
+    capabilityId: 'storyboard.update',
+    validate: (input) => typeof input.storyboard_id === 'string',
+    execute: async (input) => ({ savedStoryboardId: input.storyboard_id }),
+  });
+  const request = {
+    capabilityId: 'storyboard.update',
+    userId: 'user-1',
+    requestId: 'approval-0001',
+    input: { storyboard_id: 'storyboard-1' },
+  };
+  const denied = await executeAiCapability(request, authority());
+  assert.equal(denied.ok, false);
+  if (!denied.ok) assert.equal(denied.code, 'APPROVAL_REQUIRED');
+
+  const approved = await executeAiCapability(request, authority({
+    verifyApproval: async () => true,
+    verifyOwner: async () => true,
+  }));
+  assert.equal(approved.ok, true);
+  if (approved.ok) assert.deepEqual(approved.data, { savedStoryboardId: 'storyboard-1' });
+});
+
 test('registered executor requires approval, ownership, validation and audit before success', async () => {
   registerAiCapabilityAdapter({
     capabilityId: 'workspace.organize',
