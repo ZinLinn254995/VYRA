@@ -57,6 +57,9 @@ export type SceneTimelineInstance = {
   sourceOut: number;
   sceneProjectId?: string;
   renderRevisionId?: string | null;
+  assetId?: string;
+  assetVersionId?: string;
+  assetMimeType?: string;
 };
 
 export type MasterTimelineData = {
