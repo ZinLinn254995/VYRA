@@ -479,6 +479,9 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
         sourceOut: typeof instance.sourceOut === 'number' && Number.isFinite(instance.sourceOut) ? instance.sourceOut : null,
         sceneProjectId: typeof instance.sceneProjectId === 'string' ? instance.sceneProjectId : null,
         renderRevisionId: typeof instance.renderRevisionId === 'string' ? instance.renderRevisionId : null,
+        assetId: typeof instance.assetId === 'string' ? instance.assetId : null,
+        assetVersionId: typeof instance.assetVersionId === 'string' ? instance.assetVersionId : null,
+        assetMimeType: typeof instance.assetMimeType === 'string' ? instance.assetMimeType.slice(0, 100) : null,
       };
     });
     const sceneById = new Map(sceneRows.filter((scene) => scene.id).map((scene) => [scene.id as string, scene]));
@@ -887,7 +890,7 @@ async function createMasterTimelineEditProposal(
   const operation = String(args.operation);
   if (!['add_text','add_audio','attach_video'].includes(operation) && !isUuid(args.clip_id)) return safeToolError('Select the exact existing clip.');
   const kind = operation === 'update_text' || operation === 'add_text' ? 'text' : operation === 'add_audio' ? 'audio' : args.kind;
-  if (!['audio','text'].includes(String(kind))) return safeToolError('Choose a valid Audio or Text clip.');
+  if (operation !== 'attach_video' && !['audio','text'].includes(String(kind))) return safeToolError('Choose a valid Audio or Text clip.');
   if (['move','trim','split'].includes(operation) && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)) return safeToolError('Timeline time must be between 0 and 24 hours.');
   if (operation === 'attach_video' && (!isUuid(activeVyralId) || !isUuid(args.asset_id) || !isUuid(args.scene_id))) return safeToolError('Attaching Video requires an exact Scene and a ready Video Asset from your active Vyral.');
   if (operation === 'add_audio' && (!isUuid(activeVyralId) || !isUuid(args.asset_id) || (args.time !== undefined && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)))) return safeToolError('Adding Audio requires a ready Audio Asset from your active Vyral and a start time from 0 to 24 hours. Duration is taken from its immutable source version.');
@@ -1416,12 +1419,12 @@ async function resolvePendingStoryboardApproval(
       ? typeof transitionKey === 'string' && transitionKey.length <= 100 &&
         parameters.transitionKey === transitionKey &&
         (parameters.effect === null || ['dissolve','fade','wipe','slide','zoom','blur'].includes(String(parameters.effect)))
-      : ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
+      : timelineOperation === 'attach_video'
+        ? isUuid(parameters.sceneId) && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^video\\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && parameters.sourceIn === 0 && typeof parameters.sourceOut === 'number' && Number.isFinite(parameters.sourceOut) && parameters.sourceOut >= 0.2 && parameters.sourceOut <= 3600
+        : ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
         (timelineOperation === 'add_text'
           ? timelineKind === 'text' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.value === 'string' && !!parameters.value.trim() && parameters.value.trim().length <= 1000 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
-          : timelineOperation === 'attach_video'
-            ? timelineKind === 'undefined' && isUuid(parameters.sceneId) && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^video\\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && parameters.sourceIn === 0 && typeof parameters.sourceOut === 'number' && Number.isFinite(parameters.sourceOut) && parameters.sourceOut >= 0.2 && parameters.sourceOut <= 3600
-            : timelineOperation === 'add_audio'
+          : timelineOperation === 'add_audio'
             ? timelineKind === 'audio' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^audio\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
             : timelineOperation === 'move'
           ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
@@ -1685,7 +1688,9 @@ async function resolvePendingStoryboardApproval(
       const next = ordered[index + 1];
       return typeof scene.id === 'string' && typeof next?.id === 'string' ? [scene.id + ':' + next.id] : [];
     });
-    const result = applyMasterTimelineEdit(timeline, parameters, validTransitionKeys);
+    const result = timelineOperation === 'attach_video'
+      ? attachMasterTimelineVideoAsset(timeline, String(parameters.sceneId), String(parameters.assetId), String(parameters.assetVersionId), String(parameters.assetMimeType), Number(parameters.sourceIn), Number(parameters.sourceOut))
+      : applyMasterTimelineEdit(timeline, parameters, validTransitionKeys);
     if (!result.ok) return await fail('TIMELINE_RULE_REJECTED', 'The latest Master Timeline no longer satisfies this edit. No change was made; please prepare a fresh preview.');
     const { data: timelineUpdated, error: timelineUpdateError } = await admin.from('vyral_storyboards')
       .update({ details: { ...details, masterTimeline: result.value }, updated_at: new Date().toISOString() })
