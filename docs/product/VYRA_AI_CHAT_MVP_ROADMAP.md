@@ -928,3 +928,16 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - This engine is not yet wired into MasterTimelineEditor transport controls or playhead scrolling; browser-level multi-track playback and pause/seek/resume are still outstanding.
 - CI workflow lookup for latest commit `48b343f27bcbb437f0dcd6f4fc1a70114c7da133` returned no run. Tests are added but not confirmed executed.
 - No UI/CSS changes, no database/Edge Function changes, no production deploy, no merge, no provider key or charges.
+
+
+## Master Timeline multi-track Audio playback integration — Development code
+
+- Reworked the Web Audio engine to return a cancellable handle immediately, preload all exact immutable Asset Versions in parallel, and schedule every decoded clip against one shared AudioContext start time. This avoids track drift caused by sequential network/decode delays.
+- The handle exposes `ready`, `finished`, `stop()`, and the shared scheduled start time. Stop aborts in-flight signed-URL/audio fetch work where supported and prevents late source scheduling.
+- Wired the engine into the existing Master Timeline toolbar with a single Play/Pause transport control. Playback begins at the existing centered Playhead time (`scrollLeft / pixelsPerSecond`) and scrolls the timeline in sync with AudioContext time.
+- The existing track mute and volume values, clip timing, source offsets, immutable Asset Version references, and real decoded source duration are used by the playback plan. No synthetic audio or placeholder clip is played.
+- Playback can be stopped while loading or playing. Request-generation guards prevent a cancelled preload from starting later due to an async race. The private signed URL is only held in memory and is not persisted.
+- Fixed the CI workflow so the Master Timeline operation, playback planner, and playback engine suites are separate valid steps.
+- Added tests for shared scheduling origin, decoded-duration clamping, pending-load cancellation, and scheduled-source stop. Tests are committed but not yet confirmed passing in CI.
+- This is audio-only playback. Scene video/transition rendering is not connected; pause/resume currently stops at the current Playhead and a subsequent Play starts again from that position. Seek-during-playback, continuous pause/resume without re-fetching, scene preview, audio export/mixdown, and browser verification against a real private Asset remain outstanding.
+- No AI Chat UI/CSS changes. No Supabase database/Edge Function, API key, user Timeline data, Production environment, merge, or Production deployment was changed.
