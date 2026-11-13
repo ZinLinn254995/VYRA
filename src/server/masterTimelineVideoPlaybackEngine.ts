@@ -78,7 +78,6 @@ export function startMasterTimelineVideoPlayback(
         if (stopped || controller.signal.aborted || token !== loadToken) return;
         if (!/^https:\/\//i.test(url)) throw new Error('The private Video playback URL is invalid.');
         video.src = url;
-        video.load();
         const onReady: EventListener = () => {
           video.removeEventListener('loadedmetadata', onReady);
           video.removeEventListener('error', onFailure);
@@ -93,6 +92,7 @@ export function startMasterTimelineVideoPlayback(
         };
         video.addEventListener('loadedmetadata', onReady, { once: true });
         video.addEventListener('error', onFailure, { once: true });
+        video.load();
         if (video.readyState >= 1) onReady(new Event('loadedmetadata'));
       })
       .catch(report);
