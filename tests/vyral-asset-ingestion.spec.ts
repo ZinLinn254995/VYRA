@@ -197,6 +197,23 @@ test('generated media uses the same canonical Asset and DNA ingestion path with 
   assert.equal(calls.at(-1), 'markReady');
 });
 
+test('generated media forwards its cancellation signal into the shared ingestion lifecycle', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(ingestGeneratedVyralAsset(port, {
+    vyralId, userId, file: makeFile('generated.wav', 'audio/wav'),
+    signal: controller.signal,
+    provenance: {
+      generationJobId: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45',
+      task: 'audio', provider: 'runway', model: 'gen-4-audio',
+      requestFingerprint: 'b'.repeat(64), promptSha256: 'c'.repeat(64),
+      quoteId: '6d012e44-3f65-4076-9b87-0e1f2a3b4c56', actualCostUsd: 0.25,
+    },
+  }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+  assert.deepEqual(calls, []);
+});
+
 test('builds bounded real audio waveform peaks from decoded PCM channels', () => {
   const peaks = buildAudioWaveformPeaks([
     new Float32Array([0, 0.2, -0.4, 0.1, 0, 0.8, -0.1, 0]),
