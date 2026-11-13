@@ -47,6 +47,33 @@ const GLOBAL_READ_TOOLS = [
       },
     },
   },
+
+  ,
+  {
+    type: 'function',
+    function: {
+      name: 'list_my_vyrals',
+      description: "List the signed-in user's Vyrals. Read-only; use actual account records.",
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Optional Vyral name or description keyword.' }, limit: { type: 'integer', minimum: 1, maximum: 30 } },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_vyral_details',
+      description: 'Read a Vyral by exact or partial name, including its current Master DNA status and asset counts. If ambiguous, ask the user to choose.',
+      parameters: {
+        type: 'object',
+        properties: { name: { type: 'string', description: 'Vyral name or distinctive phrase.' } },
+        required: ['name'],
+        additionalProperties: false,
+      },
+    },
+  }
 ] as const;
 
 const VYRAL_READ_TOOLS = [
@@ -199,6 +226,91 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
           createdAt: item.created_at, updatedAt: item.updated_at,
         };
       }),
+    };
+  }
+
+
+  if (name === 'list_my_vyrals') {
+    const query = typeof args.query === 'string' ? args.query.trim().slice(0, 100).replace(/[%,_().]/g, '') : '';
+    const requestedLimit = typeof args.limit === 'number' && Number.isInteger(args.limit) ? args.limit : 20;
+    const limit = Math.max(1, Math.min(30, requestedLimit));
+    const baseQuery = () => admin.from('vyrals')
+      .select('id,name,description,lifecycle_status,master_dna_status,master_dna_revision,created_at,updated_at', { count: 'exact' })
+      .eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit);
+    let rows: Record<string, unknown>[] = [];
+    let totalMatching = 0;
+    if (query) {
+      const [nameResult, descriptionResult] = await Promise.all([
+        baseQuery().ilike('name', '%' + query + '%'),
+        baseQuery().ilike('description', '%' + query + '%'),
+      ]);
+      if (nameResult.error || descriptionResult.error) return safeToolError('Your Vyrals could not be searched.');
+      const merged = new Map<string, Record<string, unknown>>();
+      for (const item of [...(nameResult.data ?? []), ...(descriptionResult.data ?? [])]) merged.set(String(item.id), item as Record<string, unknown>);
+      rows = [...merged.values()].sort((a, b) => Date.parse(String(b.updated_at)) - Date.parse(String(a.updated_at))).slice(0, limit);
+      totalMatching = merged.size;
+    } else {
+      const { data, error, count } = await baseQuery();
+      if (error) return safeToolError('Your Vyrals could not be loaded.');
+      rows = (data ?? []) as Record<string, unknown>[];
+      totalMatching = count ?? rows.length;
+    }
+    const ids = rows.map((row) => String(row.id)).filter(Boolean);
+    const countByVyral = new Map<string, number>();
+    if (ids.length) {
+      const { data: assets, error: assetError } = await admin.from('vyral_assets')
+        .select('vyral_id').eq('user_id', userId).in('vyral_id', ids).neq('processing_status', 'archived');
+      if (assetError) return safeToolError('Vyral records were found, but their Asset counts could not be loaded.');
+      for (const asset of assets ?? []) countByVyral.set(String(asset.vyral_id), (countByVyral.get(String(asset.vyral_id)) ?? 0) + 1);
+    }
+    return {
+      ok: true, totalMatching, returned: rows.length,
+      vyrals: rows.map((row) => ({
+        id: row.id, name: typeof row.name === 'string' ? row.name.slice(0, 160) : 'Untitled Vyral',
+        description: typeof row.description === 'string' ? row.description.slice(0, 1000) : '',
+        lifecycleStatus: row.lifecycle_status ?? null, masterDnaStatus: row.master_dna_status ?? null,
+        masterDnaRevision: row.master_dna_revision ?? null, assetCount: countByVyral.get(String(row.id)) ?? 0,
+        createdAt: row.created_at, updatedAt: row.updated_at,
+      })),
+    };
+  }
+
+  if (name === 'get_my_vyral_details') {
+    const vyralName = typeof args.name === 'string' ? args.name.trim().slice(0, 160) : '';
+    if (!vyralName) return safeToolError('A Vyral name is required.');
+    const pattern = '%' + vyralName.replace(/[%,_().]/g, '') + '%';
+    const { data, error } = await admin.from('vyrals')
+      .select('id,name,description,lifecycle_status,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses,created_at,updated_at')
+      .eq('user_id', userId).ilike('name', pattern).order('updated_at', { ascending: false }).limit(3);
+    if (error) return safeToolError('The requested Vyral could not be loaded.');
+    const rows = data ?? [];
+    if (!rows.length) return { ok: true, found: false, message: 'No Vyral with that name was found in your account.' };
+    if (rows.length > 1) return { ok: true, ambiguous: true, matches: rows.map((row: Record<string, unknown>) => ({ id: row.id, name: row.name })) };
+    const row = rows[0] as Record<string, unknown>;
+    const [assetResult, dnaResult, masterResult] = await Promise.all([
+      admin.from('vyral_assets').select('id,name,asset_type,mime_type,processing_status').eq('vyral_id', row.id).eq('user_id', userId).neq('processing_status', 'archived').order('updated_at', { ascending: false }).limit(40),
+      admin.from('vyral_dna_records').select('asset_id,dna_status,verification_status,revision_number').eq('vyral_id', row.id).eq('user_id', userId).eq('scope', 'asset').order('revision_number', { ascending: false }).limit(120),
+      admin.from('vyral_master_dna_revisions').select('revision,vyral_fingerprint').eq('vyral_id', row.id).eq('user_id', userId).order('revision', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (assetResult.error || dnaResult.error || masterResult.error) return safeToolError('Vyral details were found, but its Asset/DNA inventory could not be fully loaded.');
+    const dnaByAsset = new Map<string, Record<string, unknown>>();
+    for (const dna of dnaResult.data ?? []) if (!dnaByAsset.has(String(dna.asset_id))) dnaByAsset.set(String(dna.asset_id), dna as Record<string, unknown>);
+    return {
+      ok: true, found: true,
+      vyral: {
+        id: row.id, name: row.name, description: row.description,
+        lifecycleStatus: row.lifecycle_status ?? null, masterDnaStatus: row.master_dna_status ?? null,
+        masterDnaRevision: row.master_dna_revision ?? null, masterDnaPurpose: row.master_dna_purpose ?? null,
+        intendedUses: Array.isArray(row.master_dna_intended_uses) ? row.master_dna_intended_uses.slice(0, 20) : [],
+        latestMasterFingerprint: masterResult.data?.vyral_fingerprint ?? null,
+        assets: (assetResult.data ?? []).map((asset: Record<string, unknown>) => {
+          const dna = dnaByAsset.get(String(asset.id));
+          return { id: asset.id, name: asset.name, type: asset.asset_type, mimeType: asset.mime_type,
+            status: asset.processing_status, dnaStatus: dna?.dna_status ?? null,
+            dnaVerification: dna?.verification_status ?? null, dnaRevision: dna?.revision_number ?? null };
+        }),
+        createdAt: row.created_at, updatedAt: row.updated_at,
+      },
     };
   }
 
