@@ -8,9 +8,9 @@ const scenes = [
   { id: 'scene-c', duration: 4 },
 ];
 const instances = [
-  { id: 'instance-a', sceneId: 'scene-a', sourceIn: 1, sourceOut: 6, assetId: 'asset-a', assetVersionId: 'version-a', assetMimeType: 'video/mp4' },
-  { id: 'instance-b', sceneId: 'scene-b', sourceIn: 2, sourceOut: 12, assetId: 'asset-b', assetVersionId: 'version-b', assetMimeType: 'video/webm' },
-  { id: 'instance-c', sceneId: 'scene-c', sourceIn: 0, sourceOut: 4, assetId: 'asset-c', assetVersionId: 'version-c', assetMimeType: 'video/mp4' },
+  { id: 'instance-a', sceneId: 'scene-a', sourceIn: 0, sourceOut: 99, videoSourceIn: 1, videoSourceOut: 6, assetId: 'asset-a', assetVersionId: 'version-a', assetMimeType: 'video/mp4' },
+  { id: 'instance-b', sceneId: 'scene-b', sourceIn: 0, sourceOut: 99, videoSourceIn: 2, videoSourceOut: 12, assetId: 'asset-b', assetVersionId: 'version-b', assetMimeType: 'video/webm' },
+  { id: 'instance-c', sceneId: 'scene-c', sourceIn: 0, sourceOut: 99, videoSourceIn: 0, videoSourceOut: 4, assetId: 'asset-c', assetVersionId: 'version-c', assetMimeType: 'video/mp4' },
 ];
 
 test('plans ordered Scene video sources against contiguous Master Timeline timing', () => {
@@ -65,4 +65,10 @@ test('does not schedule a Scene that has already ended at the playhead', () => {
   assert.deepEqual(plan.map((item) => item.sceneId), ['scene-c']);
   assert.equal(plan[0].sourceOffsetSeconds, 0);
   assert.equal(plan[0].delaySeconds, 0);
+});
+
+
+test('does not mistake render source ranges for attached Video source ranges', () => {
+  const withoutVideoRange = [{ ...instances[0], videoSourceIn: undefined, videoSourceOut: undefined }];
+  assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([scenes[0]], withoutVideoRange, 0), []);
 });
