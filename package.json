@@ -67,7 +67,8 @@
     "test:workspace-video-preview": "node --import tsx --test tests/workspace-video-preview.spec.ts",
     "test:master-timeline-video-playback-engine": "node --import tsx --test tests/master-timeline-video-playback-engine.spec.ts",
     "test:master-timeline-text-overlay": "node --import tsx --test tests/master-timeline-text-overlay.spec.ts",
-    "test:ai-capability-coverage": "node --import tsx --test tests/ai-capability-coverage.spec.ts"
+    "test:ai-capability-coverage": "node --import tsx --test tests/ai-capability-coverage.spec.ts",
+    "test:vyral-creation-action": "node --import tsx --test tests/vyral-creation-action.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
