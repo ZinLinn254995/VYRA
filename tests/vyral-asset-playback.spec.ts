@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVyralAudioPlaybackUrl } from '../src/services/vyralAssetPlayback';
+import { createVyralAudioPlaybackUrl, createVyralVideoPlaybackUrl } from '../src/services/vyralAssetPlayback';
 
 const userId = '10000000-0000-4000-8000-000000000001';
 const vyralId = '20000000-0000-4000-8000-000000000001';
@@ -85,4 +85,39 @@ test('allows an older immutable version path within the same owner and Asset nam
   });
   const result = await createVyralAudioPlaybackUrl(db, { assetId, versionId });
   assert.equal(result.signedUrl, 'https://storage.example/signed/audio');
+});
+
+
+test('creates a short-lived private URL for an owner-verified immutable Video Asset Version', async () => {
+  const videoPath = userId + '/' + vyralId + '/' + assetId + '/v1/' + assetId + '.mp4';
+  const db = makeDb({
+    vyral_assets: { id: assetId, user_id: userId, vyral_id: vyralId, asset_type: 'video', mime_type: 'video/mp4', processing_status: 'ready', storage_path: videoPath },
+    vyral_asset_versions: { id: versionId, asset_id: assetId, user_id: userId, mime_type: 'video/mp4', storage_path: videoPath },
+  });
+  const result = await createVyralVideoPlaybackUrl(db, { assetId, versionId });
+  assert.equal(result.signedUrl, 'https://storage.example/signed/audio');
+  assert.equal(result.expiresInSeconds, 3600);
+  assert.deepEqual(db.calls.map((call) => call.table), ['vyral_assets', 'vyral_asset_versions']);
+  assert.ok(db.calls[0].filters.some(([field, value]) => field === 'user_id' && value === userId));
+  assert.ok(db.calls[1].filters.some(([field, value]) => field === 'user_id' && value === userId));
+});
+
+test('rejects an Audio Asset when a Video playback URL is requested', async () => {
+  const db = makeDb();
+  await assert.rejects(() => createVyralVideoPlaybackUrl(db, { assetId, versionId }), /unavailable/);
+  assert.equal(db.calls.length, 1);
+});
+
+test('rejects a Video Version with an unsafe path or non-video MIME', async () => {
+  const unsafePath = userId + '/' + vyralId + '/' + assetId + '/..\\\\private.mp4';
+  const unsafe = makeDb({
+    vyral_assets: { id: assetId, user_id: userId, vyral_id: vyralId, asset_type: 'video', mime_type: 'video/mp4', processing_status: 'ready', storage_path: unsafePath },
+    vyral_asset_versions: { id: versionId, asset_id: assetId, user_id: userId, mime_type: 'video/mp4', storage_path: unsafePath },
+  });
+  await assert.rejects(() => createVyralVideoPlaybackUrl(unsafe, { assetId, versionId }), /storage reference/);
+  const wrongMime = makeDb({
+    vyral_assets: { id: assetId, user_id: userId, vyral_id: vyralId, asset_type: 'video', mime_type: 'video/mp4', processing_status: 'ready', storage_path: unsafePath.replace('..\\\\', 'v1/') },
+    vyral_asset_versions: { id: versionId, asset_id: assetId, user_id: userId, mime_type: 'audio/mpeg', storage_path: path },
+  });
+  await assert.rejects(() => createVyralVideoPlaybackUrl(wrongMime, { assetId, versionId }), /storage reference/);
 });
