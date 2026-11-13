@@ -940,10 +940,12 @@ async function createMasterTimelineEditProposal(
   const before = isAddClip ? null : locate(timeline, String(args.clip_id));
   const after = locate(result.value, isAddClip ? String(parameters.createdClipId) : String(args.clip_id));
   if ((!isAddClip && !before) || (operation !== 'delete' && !after) || (operation === 'delete' && after)) return safeToolError('The selected clip could not be verified in the current Timeline.');
+  if (operation === 'delete' && !before) return safeToolError('The selected clip could not be verified for deletion.');
   const confirmationPhrase = operation === 'delete' ? 'DELETE CLIP ' + String(args.clip_id).slice(-6).toUpperCase() : null;
   if (operation === 'delete') {
+    const deletedClip = before as NonNullable<typeof before>;
     parameters.confirmationPhrase = confirmationPhrase;
-    parameters.deletedClipSnapshot = { id: before.id, name: before.name, content: before.content ?? null, start: before.start, duration: before.duration, waveform: Array.isArray(before.waveform) ? before.waveform.slice(0, 256) : null, trackId: before.trackId, trackName: before.trackName, kind };
+    parameters.deletedClipSnapshot = { id: deletedClip.id, name: deletedClip.name, content: deletedClip.content ?? null, start: deletedClip.start, duration: deletedClip.duration, waveform: Array.isArray(deletedClip.waveform) ? deletedClip.waveform.slice(0, 256) : null, trackId: deletedClip.trackId, trackName: deletedClip.trackName, kind };
   }
   const created = result.createdClipId ? locate(result.value, result.createdClipId) : null;
   const createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
@@ -989,6 +991,7 @@ async function createMasterTimelineTransitionProposal(
       args.transition_key.length > 100 || !allowedEffects.includes(String(args.effect))) {
     return safeToolError('The requested transition change is invalid.');
   }
+  const requestedSceneIds = args.scene_ids as string[];
   const { data: storyboard, error } = await admin.from('vyral_storyboards')
     .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
   if (error) return safeToolError('The parent Storyboard could not be verified.');
@@ -1198,19 +1201,19 @@ async function createSceneReorderProposal(
     ? storyboard.details as Record<string, unknown> : {};
   const scenes = Array.isArray(details.scenes) ? details.scenes : [];
   const currentIds = scenes.map((scene) => scene && typeof scene === 'object' && !Array.isArray(scene) ? (scene as Record<string, unknown>).id : null);
-  if (currentIds.length !== args.scene_ids.length || currentIds.some((id) => typeof id !== 'string' || !args.scene_ids.includes(id))) {
+  if (currentIds.length !== requestedSceneIds.length || currentIds.some((id) => typeof id !== 'string' || !requestedSceneIds.includes(id))) {
     return safeToolError('The requested order must contain every current Scene exactly once. No changes were made.');
   }
   const currentTitles = scenes.map((scene) => String((scene as Record<string, unknown>).title || 'Untitled Scene'));
   const byId = new Map(scenes.map((scene) => [String((scene as Record<string, unknown>).id), String((scene as Record<string, unknown>).title || 'Untitled Scene')]));
-  const nextTitles = (args.scene_ids as string[]).map((id) => byId.get(id) || 'Unknown Scene');
-  if (currentIds.every((id, index) => id === args.scene_ids[index])) return { ok: true, changed: false, message: 'The Scenes are already in that order.' };
+  const nextTitles = requestedSceneIds.map((id) => byId.get(id) || 'Unknown Scene');
+  if (currentIds.every((id, index) => id === requestedSceneIds[index])) return { ok: true, changed: false, message: 'The Scenes are already in that order.' };
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
   const plan = {
     id: crypto.randomUUID(), createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
     risk: 'reversible-write', operation: 'scene.reorder', target: { storyboardId: storyboard.id },
-    parameters: { sceneIds: args.scene_ids, expectedUpdatedAt: storyboard.updated_at },
+    parameters: { sceneIds: requestedSceneIds, expectedUpdatedAt: storyboard.updated_at },
     summary: 'Reorder Scenes in “' + storyboard.title + '”',
   };
   const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
@@ -1253,6 +1256,7 @@ async function createSceneMutationProposal(
   const scenes = Array.isArray(details.scenes) ? details.scenes : [];
   const scene = operation === 'create' ? undefined : scenes.find((item) => item && typeof item === 'object' && !Array.isArray(item) && (item as Record<string, unknown>).id === args.scene_id) as Record<string, unknown> | undefined;
   if (operation !== 'create' && !scene) return safeToolError('That Scene does not belong to the selected Storyboard.');
+  const sceneRecord: Record<string, unknown> = scene ?? {};
   if (scenes.length >= 80) return safeToolError('This Storyboard already has the maximum supported 80 Scenes.');
   const now = new Date().toISOString();
   const duplicatedScene = operation === 'duplicate' ? {
@@ -1270,12 +1274,12 @@ async function createSceneMutationProposal(
     project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] },
   } : null;
   const deletedSceneSnapshot = operation === 'delete' ? {
-    id: String(scene.id), title: String(scene.title || 'Untitled Scene'),
-    description: typeof scene.description === 'string' ? scene.description.slice(0, 1000) : '',
-    duration: typeof scene.duration === 'number' && Number.isFinite(scene.duration) ? scene.duration : null,
-    transition: typeof scene.transition === 'string' ? scene.transition.slice(0, 40) : '',
-    projectId: scene.project && typeof scene.project === 'object' && typeof (scene.project as Record<string, unknown>).id === 'string'
-      ? (scene.project as Record<string, unknown>).id : null,
+    id: String(sceneRecord.id), title: String(sceneRecord.title || 'Untitled Scene'),
+    description: typeof sceneRecord.description === 'string' ? sceneRecord.description.slice(0, 1000) : '',
+    duration: typeof sceneRecord.duration === 'number' && Number.isFinite(sceneRecord.duration) ? sceneRecord.duration : null,
+    transition: typeof sceneRecord.transition === 'string' ? sceneRecord.transition.slice(0, 40) : '',
+    projectId: sceneRecord.project && typeof sceneRecord.project === 'object' && typeof (sceneRecord.project as Record<string, unknown>).id === 'string'
+      ? (sceneRecord.project as Record<string, unknown>).id : null,
   } : null;
   const confirmationPhrase = operation === 'delete' ? 'DELETE SCENE ' + String(args.scene_id).slice(0, 6).toUpperCase() : null;
   const createdAt = new Date();
@@ -1579,7 +1583,7 @@ async function resolvePendingStoryboardApproval(
       const master = details.masterTimeline as Record<string, unknown>;
       const previousInstances = Array.isArray(master.sceneInstances) ? master.sceneInstances : [];
       const instancesByScene = new Map(previousInstances.filter((item) => item && typeof item === 'object' && typeof (item as Record<string, unknown>).sceneId === 'string').map((item) => [String((item as Record<string, unknown>).sceneId), item as Record<string, unknown>]));
-      const orderedInstances = nextScenes.map((rawScene) => {
+      const orderedInstances: Array<Record<string, unknown>> = nextScenes.map((rawScene) => {
         const item = rawScene as Record<string, unknown>;
         const existing = instancesByScene.get(String(item.id));
         const sceneProject = item.project && typeof item.project === 'object' ? item.project as Record<string, unknown> : {};
