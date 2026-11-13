@@ -163,7 +163,7 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
   }
 
   if (name === 'list_my_storyboards') {
-    const query = typeof args.query === 'string' ? args.query.trim().slice(0, 100).replace(/[%,_]/g, '') : '';
+    const query = typeof args.query === 'string' ? args.query.trim().slice(0, 100).replace(/[%,_().]/g, '') : '';
     const requestedLimit = typeof args.limit === 'number' && Number.isInteger(args.limit) ? args.limit : 20;
     const limit = Math.max(1, Math.min(30, requestedLimit));
     let request = admin.from('vyral_storyboards')
@@ -193,7 +193,7 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
     if (!title) return safeToolError('A Storyboard title is required.');
     const { data, error } = await admin.from('vyral_storyboards')
       .select('id,title,topic,details,created_at,updated_at')
-      .eq('user_id', userId).ilike('title', title.replace(/[%,_]/g, ''))
+      .eq('user_id', userId).ilike('title', '%' + title.replace(/[%,_().]/g, '') + '%')
       .order('updated_at', { ascending: false }).limit(3);
     if (error) return safeToolError('The requested Storyboard could not be loaded.');
     const rows = data ?? [];
