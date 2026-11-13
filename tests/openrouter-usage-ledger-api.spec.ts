@@ -264,8 +264,8 @@ test('text AI Chat remains available with usage ledger enabled and routes only t
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer verified-development-session' },
       body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a short script.' }] }),
     });
-    assert.equal(response.status, 200);
-    const payload = await response.json() as { text: string; provider: string };
+    const payload = await response.json() as { text?: string; provider?: string; error?: string };
+    assert.equal(response.status, 200, JSON.stringify(payload));
     assert.equal(payload.text, 'OpenAI chat response');
     assert.equal(payload.provider, 'openai');
   }, fetcher);
