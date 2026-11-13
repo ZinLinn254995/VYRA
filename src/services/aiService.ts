@@ -282,8 +282,8 @@ class ModularAIService implements AIServiceProvider {
             consumeLine(line);
             if (finished) break;
           }
-          if (finished) {
-            // Stop reading any trailing bytes once the provider has sent its terminal event.
+          if (finished || streamError) {
+            // Stop reading once the provider sends its terminal event or an in-stream error.
             // This also releases the upstream response promptly when the stream stays open.
             try { await reader.cancel(); } catch { /* The stream may already be closed. */ }
             break;
