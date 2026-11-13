@@ -14,6 +14,7 @@ test('catalogues broad app-wide AI capabilities without granting unimplemented e
   assert.ok(getAiCapabilityPolicy('timeline.move_clip'));
   assert.ok(getAiCapabilityPolicy('timeline.add_transition'));
   assert.ok(getAiCapabilityPolicy('timeline.add_clip'));
+  assert.equal(getAiCapabilityPolicy('timeline.attach_video')?.access, 'approval-required');
   assert.equal(getAiCapabilityPolicy('scene.duplicate')?.access, 'approval-required');
   assert.equal(getAiCapabilityPolicy('scene.delete')?.risk, 'destructive');
   assert.ok(getAiCapabilityPolicy('asset.verify'));
