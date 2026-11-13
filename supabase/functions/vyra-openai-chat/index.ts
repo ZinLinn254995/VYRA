@@ -1,5 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
+import { moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -793,6 +794,88 @@ async function executeVyralReadTool(
 const isUuid = (value: unknown): value is string =>
   typeof value === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+function applyMasterTimelineEdit(timeline: MasterTimelineData, parameters: Record<string, unknown>): TimelineResult {
+  const operation = parameters.operation;
+  const clipId = String(parameters.clipId ?? '');
+  if (operation === 'move') return moveMasterTimelineClip(timeline, parameters.kind as 'audio' | 'text', String(parameters.sourceTrackId), clipId, String(parameters.destinationTrackId), Number(parameters.time));
+  if (operation === 'trim') return trimMasterTimelineClip(timeline, parameters.kind as 'audio' | 'text', String(parameters.trackId), clipId, parameters.edge as 'start' | 'end', Number(parameters.time));
+  if (operation === 'split') return splitMasterTimelineClip(timeline, parameters.kind as 'audio' | 'text', String(parameters.trackId), clipId, Number(parameters.time), () => String(parameters.createdClipId ?? ''));
+  if (operation === 'update_text') return updateMasterTimelineClipText(timeline, String(parameters.trackId), clipId, parameters.field as 'name' | 'content', String(parameters.value ?? ''));
+  return { ok: false, reason: 'invalid-timeline' };
+}
+
+async function createMasterTimelineEditProposal(
+  admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before creating a Timeline preview.');
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid Master Timeline edit arguments.');
+    args = parsed as Record<string, unknown>;
+  } catch { return safeToolError('Invalid Master Timeline edit arguments.'); }
+  const allowedKeys = ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value'];
+  if (Object.keys(args).some((key) => !allowedKeys.includes(key)) || !isUuid(args.storyboard_id) || !isUuid(args.clip_id) ||
+      !['move','trim','split','update_text'].includes(String(args.operation))) return safeToolError('The requested Master Timeline edit is invalid.');
+  const operation = String(args.operation);
+  const kind = operation === 'update_text' ? 'text' : args.kind;
+  if (!['audio','text'].includes(String(kind))) return safeToolError('Choose a valid Audio or Text clip.');
+  if (operation !== 'update_text' && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)) return safeToolError('Timeline time must be between 0 and 24 hours.');
+  if (operation === 'move' && (!isUuid(args.source_track_id) || !isUuid(args.destination_track_id))) return safeToolError('Select an existing source and destination track.');
+  if (['trim','split','update_text'].includes(operation) && !isUuid(args.track_id)) return safeToolError('Select the exact existing track.');
+  if (operation === 'trim' && !['start','end'].includes(String(args.edge))) return safeToolError('Choose whether to trim the clip start or end.');
+  if (operation === 'update_text' && (!['name','content'].includes(String(args.field)) || typeof args.value !== 'string' || !args.value.trim() || args.value.trim().length > (args.field === 'name' ? 180 : 1000))) return safeToolError('Text clip edits must contain a valid name or content value.');
+  const { data: storyboard, error } = await admin.from('vyral_storyboards').select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
+  if (error) return safeToolError('The parent Storyboard could not be verified.');
+  if (!storyboard) return safeToolError('That Storyboard is not available in your account.');
+  const details = storyboard.details && typeof storyboard.details === 'object' && !Array.isArray(storyboard.details) ? storyboard.details as Record<string, unknown> : {};
+  const raw = details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline) ? details.masterTimeline as Record<string, unknown> : null;
+  if (!raw) return safeToolError('This Storyboard has no saved Master Timeline yet.');
+  const timeline = {
+    sceneRanges: raw.sceneRanges && typeof raw.sceneRanges === 'object' && !Array.isArray(raw.sceneRanges) ? raw.sceneRanges : {},
+    sceneInstances: Array.isArray(raw.sceneInstances) ? raw.sceneInstances : [],
+    transitions: raw.transitions && typeof raw.transitions === 'object' && !Array.isArray(raw.transitions) ? raw.transitions : {},
+    audioTracks: Array.isArray(raw.audioTracks) ? raw.audioTracks : [],
+    textTracks: Array.isArray(raw.textTracks) ? raw.textTracks : [],
+  } as MasterTimelineData;
+  const parameters: Record<string, unknown> = {
+    operation, clipId: args.clip_id, kind,
+    ...(operation === 'move' ? { sourceTrackId: args.source_track_id, destinationTrackId: args.destination_track_id, time: args.time } : {}),
+    ...(operation === 'trim' ? { trackId: args.track_id, edge: args.edge, time: args.time } : {}),
+    ...(operation === 'split' ? { trackId: args.track_id, time: args.time, createdClipId: crypto.randomUUID() } : {}),
+    ...(operation === 'update_text' ? { trackId: args.track_id, field: args.field, value: (args.value as string).trim() } : {}),
+  };
+  const result = applyMasterTimelineEdit(timeline, parameters);
+  if (!result.ok) return safeToolError('The Master Editor rejected this edit (' + result.reason + '). No changes were made.');
+  const locate = (source: MasterTimelineData, id: string) => [...source.audioTracks, ...source.textTracks].flatMap((track) => track.clips.map((clip) => ({ ...clip, trackId: track.id, trackName: track.name }))).find((clip) => clip.id === id);
+  const before = locate(timeline, String(args.clip_id)), after = locate(result.value, String(args.clip_id));
+  if (!before || !after) return safeToolError('The selected clip could not be verified in the current Timeline.');
+  const created = result.createdClipId ? locate(result.value, result.createdClipId) : null;
+  const createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(), operation: 'timeline.edit',
+    target: { storyboardId: String(storyboard.id), clipId: String(args.clip_id) },
+    parameters: { ...parameters, expectedUpdatedAt: String(storyboard.updated_at) },
+    summary: 'Master Editor · ' + operation.replace('_',' ') + ' · ' + before.name,
+    createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
+  };
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
+    p_capability_id: 'timeline.update', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+  });
+  if (pendingError || !pending) return safeToolError('VYRA could not securely save this Timeline preview. No changes were made.');
+  return {
+    ok: true, requiresApproval: true, actionId: pending.id, status: pending.status,
+    summary: plan.summary, storyboard: storyboard.title,
+    before: { track: before.trackName, start: before.start, duration: before.duration, name: before.name, content: before.content },
+    after: { track: after.trackName, start: after.start, duration: after.duration, name: after.name, content: after.content },
+    createdClip: created ? { id: created.id, start: created.start, duration: created.duration, name: created.name } : null,
+    expiresAt: pending.expires_at,
+    message: 'Preview only; nothing has changed. Show the exact before/after and wait for explicit approval in this same chat.',
+  };
+}
 
 async function createStoryboardUpdateProposal(
   admin: any,
