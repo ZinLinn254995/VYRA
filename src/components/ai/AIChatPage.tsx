@@ -721,6 +721,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }
     };
     const awaitForCurrentRequest = async <T,>(operation: PromiseLike<T>): Promise<T> => {
+      assertRequestCurrent();
       const result = await operation;
       assertRequestCurrent();
       return result;
