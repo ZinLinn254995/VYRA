@@ -118,3 +118,13 @@ test('VYRA interprets free-form multilingual intent and formats active context w
   assert.match(source, /activeVyralInstruction =\s*'\\n\\nCurrent user-selected Vyral context/);
   assert.doesNotMatch(source, /activeVyralInstruction =\s*'\\\\n/);
 });
+
+test('AI Audio Asset Timeline insertion derives duration and waveform from source-version SHA-bound metadata', async () => {
+  const source = await readFile(new URL('../supabase/functions/vyra-openai-chat/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /audio_technical_metadata/);
+  assert.match(source, /audioTechnical\.sourceSha256 !== audioVersion\.sha256/);
+  assert.match(source, /durationSeconds/);
+  assert.match(source, /waveformPeaks/);
+  assert.match(source, /duration: audioDuration/);
+  assert.match(source, /source-version-verified duration metadata/);
+});
