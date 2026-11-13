@@ -76,3 +76,10 @@ test('does not mistake render source ranges for attached Video source ranges', (
   const withoutVideoRange = [{ ...instances[0], videoSourceIn: undefined, videoSourceOut: undefined }];
   assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([scenes[0]], withoutVideoRange, 0), []);
 });
+
+test('deduplicates repeated Scene instances without replaying a Scene twice', () => {
+  const duplicated = [instances[1], instances[1], instances[0], instances[2]];
+  const plan = buildMasterTimelineVideoPlaybackPlan(scenes, duplicated, 0);
+  assert.deepEqual(plan.map((item) => item.sceneId), ['scene-b', 'scene-a', 'scene-c']);
+  assert.deepEqual(plan.map((item) => item.playbackStartSeconds), [0, 8, 13]);
+});
