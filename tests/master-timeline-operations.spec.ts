@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cloneMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
+  cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
   updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData,
 } from '../src/server/masterTimelineOperations.ts';
 
@@ -126,4 +126,23 @@ test('clones audio and text clips at the end of their own track without changing
 
 test('rejects clone IDs that already exist in either media kind', () => {
   assert.equal(cloneMasterTimelineClip(base, 'audio', 'audio-1', 'a', () => 't').ok, false);
+});
+
+
+test('deletes only the selected Audio/Text clip and removes an empty track like the editor', () => {
+  const audio = deleteMasterTimelineClip(base, 'audio', 'audio-1', 'a');
+  assert.equal(audio.ok, true);
+  if (audio.ok) {
+    assert.deepEqual(audio.value.audioTracks[0].clips.map((clip) => clip.id), ['b']);
+    assert.equal(audio.value.textTracks, base.textTracks);
+  }
+  const text = deleteMasterTimelineClip(base, 'text', 'text-1', 't');
+  assert.equal(text.ok, true);
+  if (text.ok) assert.deepEqual(text.value.textTracks[0].clips.map((clip) => clip.id), ['t2']);
+  const last = deleteMasterTimelineClip({ ...base, textTracks: [{ ...base.textTracks[0], clips: [base.textTracks[0].clips[0]] }] }, 'text', 'text-1', 't');
+  assert.equal(last.ok, true);
+  if (last.ok) assert.deepEqual(last.value.textTracks, []);
+  assert.equal(deleteMasterTimelineClip(base, 'audio', 'missing-track', 'a').ok, false);
+  assert.equal(deleteMasterTimelineClip(base, 'audio', 'audio-1', 'missing-clip').ok, false);
+  assert.equal(base.audioTracks[0].clips.length, 2);
 });
