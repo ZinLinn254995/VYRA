@@ -2986,11 +2986,6 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       if (capabilityId === 'asset.propose_relationship_remove') {
         return Object.keys(input).length === 1 && isUuid(input.relationship_id);
       }
-      if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
-        return await createVyralAssetRelationshipProposal(admin, execution.userId, sessionId, activeVyralId,
-          rawArguments, toolCallId, capabilityId === 'asset.propose_relationship_add' ? 'add' : 'remove');
-      }
       if (capabilityId === 'asset.propose_metadata') {
         const allowed = ['asset_id', 'title', 'description', 'category', 'tags', 'keywords', 'alt_text'];
         return Object.keys(input).every((key) => allowed.includes(key)) && isUuid(input.asset_id) &&
@@ -3069,6 +3064,11 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       }
       if (capabilityId === 'asset.propose_metadata') {
         return await createVyralAssetMetadataProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
+        return await createVyralAssetRelationshipProposal(admin, execution.userId, sessionId, activeVyralId,
+          rawArguments, toolCallId, capabilityId === 'asset.propose_relationship_add' ? 'add' : 'remove');
       }
       if (capabilityId === 'folder.propose_create' || capabilityId === 'folder.propose_rename' ||
           capabilityId === 'folder.propose_move' || capabilityId === 'asset.propose_move_folder') {
