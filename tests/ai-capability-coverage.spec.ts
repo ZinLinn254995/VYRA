@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAiCapabilityCoverage } from '../src/server/aiCapabilityCoverage.ts';
+import { buildAiCapabilityCoverage, buildRuntimeAiCapabilityCoverage } from '../src/server/aiCapabilityCoverage.ts';
+import { registerAiCapabilityAdapter } from '../src/server/aiCapabilityExecutor.ts';
 import { VYRA_AI_CAPABILITIES } from '../src/server/vyraAiCapabilityRegistry.ts';
 
 test('coverage report never treats catalogue entries as implemented', () => {
@@ -30,4 +31,12 @@ test('domain summaries reconcile to global totals and unknown IDs are surfaced',
   assert.equal(report.domains.reduce((sum, item) => sum + item.total, 0), report.total);
   assert.equal(report.domains.reduce((sum, item) => sum + item.connected, 0), report.connected);
   assert.deepEqual(report.unknownExecutorIds, ['not.a.real.capability']);
+});
+
+test('runtime coverage is sourced from the actual executor registry, not a hand-maintained list', () => {
+  registerAiCapabilityAdapter({ capabilityId: 'storyboard.list', validate: () => true, execute: async () => [] });
+  const report = buildRuntimeAiCapabilityCoverage();
+  assert.equal(report.connected, 1);
+  assert.equal(report.capabilities.find((item) => item.id === 'storyboard.list')?.status, 'executor-connected');
+  assert.equal(report.capabilities.find((item) => item.id === 'storyboard.read')?.status, 'executor-missing');
 });
