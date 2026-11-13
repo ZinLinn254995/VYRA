@@ -112,6 +112,9 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['timeline.remove_track', 'Remove a timeline track'],
     ['timeline.clear', 'Clear timeline content'],
   ]),
+  ...define('vyral', 'autonomous', 'reversible', [
+    ['vyral.propose_create', 'Prepare an owner-scoped Vyral identity creation preview without creating persistent data'],
+  ]),
   ...define('vyral', 'autonomous', 'read', [
     ['vyral.list', 'List and search owned Vyrals'],
     ['vyral.read', 'Read Vyral identity, settings, and Master DNA'],
