@@ -865,3 +865,12 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - This creates an editable Text overlay placeholder, not a rendered subtitle/video file. Audio asset attachment, visual styling controls, rendering, and preview inspection remain separate future work. AI Chat UI/CSS and Production are unchanged.
 
 - Deployed to the Development Supabase project as `vyra-openai-chat` v29 with JWT verification enabled. Post-deployment inspection confirmed the Text creation operation, `timeline.add_text` approval capability, bounded input validation, created-ID consistency check, and optimistic Storyboard `updated_at` guard. GitHub returned no workflow run for the latest commit, so automated tests remain unverified; live model/browser verification remains pending because the OpenAI key is intentionally unset.
+
+
+### AI Audio Asset insertion into Master Timeline
+
+- Added `addMasterTimelineAudioAssetClip` to the shared pure operation engine and its Edge Function mirror. It creates a new Audio track and clip that references an immutable canonical Asset ID + Asset Version ID + MIME type; no Storage URL or signed URL is persisted in the Timeline.
+- Extended the Master Editor's existing clip data type with optional source Asset reference fields only. No layout, styling, controls, or visual behavior changed.
+- Extended `propose_master_timeline_edit` with `add_audio`. The AI must first search the active Vyral's real Asset inventory using `search_vyral_assets` with `asset_type: audio`, then use the exact Asset ID. The server checks the active Vyral + authenticated owner, `asset_type=audio`, `processing_status=ready`, and latest immutable version before preparing the preview.
+- Audio insertion is stored as a 10-minute `timeline.add_audio` pending action and requires explicit approval. At approval, the server rechecks Storyboard optimistic concurrency and revalidates the Asset and exact immutable version before saving. Audit includes Asset and version IDs.
+- The action requires an explicit timeline duration because server-side audio duration extraction is not yet implemented. It creates an editable Asset-reference clip, not a playable audio preview or rendered audio mix; actual playback, waveform analysis, mixing, and final render integration remain future work. AI Chat UI/CSS and Production remain unchanged.
