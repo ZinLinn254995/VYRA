@@ -2144,14 +2144,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.vyral,application/vnd.vyra.vyral+zip,application/zip"
             onChange={(event) => { void handleFileSelection(event.target.files?.[0] ?? null); }}
           />
-          <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-end gap-1">
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-end gap-1">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLocked}
               aria-label="Upload file"
               title="Upload file"
-              className={`col-start-1 grid size-9 place-items-center rounded-full text-[var(--vyra-text-muted)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] active:bg-transparent disabled:opacity-40 focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 [-webkit-tap-highlight-color:transparent] ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
+              className={`col-start-1 grid size-11 min-h-11 min-w-11 place-items-center rounded-full text-[var(--vyra-text-muted)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] active:bg-transparent disabled:opacity-40 focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 [-webkit-tap-highlight-color:transparent] ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
             >
               <Plus size={21} />
             </button>
@@ -2165,13 +2165,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               placeholder={isLocked ? 'Chat locked' : isSending ? 'VYRA AI is thinking…' : 'Message VYRA AI…'}
               aria-label="Message VYRA AI"
               style={{ outline: "none", boxShadow: "none", WebkitTapHighlightColor: "transparent", WebkitAppearance: "none" }}
-              className={`col-start-2 row-start-1 w-full max-h-36 min-h-10 min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-appearance:none] [-webkit-tap-highlight-color:transparent]`}
+              className={`col-start-2 row-start-1 w-full max-h-36 min-h-11 min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-appearance:none] [-webkit-tap-highlight-color:transparent]`}
             />
             <Button
               type={isSending ? "button" : "submit"}
               onClick={isSending ? stopGeneration : undefined}
               size="sm"
-              className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
+              className={`col-start-3 !size-11 !min-h-11 !min-w-11 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
               disabled={isSending ? false : ((!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext))}
               aria-label={isSending ? "Stop generation" : "Send message"}
               title={isSending ? "Stop generation" : "Send message"}
