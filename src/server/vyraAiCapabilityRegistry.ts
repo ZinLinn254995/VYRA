@@ -85,7 +85,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['timeline.add_track', 'Add a timeline track'],
     ['timeline.update_track', 'Edit track properties'],
     ['timeline.reorder_tracks', 'Reorder tracks'],
-    ['timeline.add_transition', 'Add or edit transitions'],
+    ['timeline.add_transition', 'Add, change, or remove transitions between adjacent scenes'],
     ['timeline.add_text', 'Add or edit text overlays'],
     ['timeline.add_audio', 'Add or edit audio clips'],
     ['timeline.undo', 'Undo a reversible timeline operation'],
