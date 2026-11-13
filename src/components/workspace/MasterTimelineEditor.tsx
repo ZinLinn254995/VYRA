@@ -922,7 +922,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!track || !clip) return;
     const splitTime = (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
     if (splitTime <= clip.start + 0.2 || splitTime >= clip.start + clip.duration - 0.2) return;
-    const right = { ...clip, id: crypto.randomUUID(), start: splitTime, duration: clip.start + clip.duration - splitTime };
+    const right = { ...clip, id: crypto.randomUUID(), start: splitTime, duration: clip.start + clip.duration - splitTime, sourceIn: (clip.sourceIn ?? 0) + (splitTime - clip.start) };
     const nextTracks = tracks.map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.flatMap((entry) => entry.id !== clip.id ? [entry] : [{ ...entry, duration: splitTime - clip.start }, right]) });
     commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip({ trackId: track.id, clipId: right.id });
@@ -1547,6 +1547,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       handle.dataset.startX = String(event.clientX);
                       handle.dataset.initialStart = String(clip.start);
                       handle.dataset.initialDuration = String(clip.duration);
+                      handle.dataset.initialSourceIn = String(clip.sourceIn ?? 0);
                     };
                     const updateAudioTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
                       const handle = event.currentTarget;
@@ -1561,14 +1562,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       const nextBoundary = others.filter((item) => item.start >= initialStart + initialDuration - 0.0001).reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
                       let nextStart = initialStart;
                       let nextDuration = initialDuration;
+                      let nextSourceIn = Number(handle.dataset.initialSourceIn || 0);
                       if (edge === 'left') {
                         const fixedEnd = initialStart + initialDuration;
                         nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimum, initialStart + delta));
                         nextDuration = fixedEnd - nextStart;
+                        nextSourceIn += nextStart - initialStart;
                       } else {
                         nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, initialDuration + delta));
                       }
-                      const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration } : entry) });
+                      const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration, sourceIn: nextSourceIn } : entry) });
                       commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
                     };
                     const trimHandle = (edge: 'left' | 'right') => (
