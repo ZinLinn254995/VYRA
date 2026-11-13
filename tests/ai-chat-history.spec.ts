@@ -164,3 +164,23 @@ test('AI Chat aborts and isolates in-flight responses when switching conversatio
   assert.match(page, /const previousOwnerId = historyOwnerRef\.current;[\s\S]*?if \(previousOwnerId\) cancelActiveRequest\(\);[\s\S]*?historyOwnerRef\.current = null;/);
   assert.match(page, /if \(activeRequestControllerRef\.current === requestController\) \{\s*activeRequestControllerRef\.current = null;\s*setIsSending\(false\);/);
 });
+
+test('AI Chat history mutations ignore results after the authenticated owner changes', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  for (const [name, nextName] of [
+    ['const renameSession = async', 'const removeSession = async'],
+    ['const removeSession = async', 'const restoreSession = async'],
+    ['const restoreSession = async', 'const shareCurrentChat = async'],
+  ]) {
+    const start = page.indexOf(name);
+    const end = page.indexOf(nextName, start + name.length);
+    const block = page.slice(start, end);
+    assert.ok(start >= 0 && end > start, `missing handler: ${name}`);
+    assert.match(block, /const ownerId = historyOwnerId/);
+    assert.match(block, /if \(historyOwnerRef\.current !== ownerId\) return;/);
+    assert.match(block, /\.eq\('user_id', ownerId\)/);
+  }
+  const persistStart = page.indexOf('const persistSession');
+  const persistEnd = page.indexOf('const startNewChat', persistStart);
+  assert.match(page.slice(persistStart, persistEnd), /if \(historyOwnerRef\.current !== ownerId\) return false;/);
+});
