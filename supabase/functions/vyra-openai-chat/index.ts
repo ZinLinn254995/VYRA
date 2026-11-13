@@ -1017,7 +1017,7 @@ async function resolvePendingStoryboardApproval(
   if (!pendingRows?.length) return null;
   if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
   const pending = pendingRows[0];
-  if (!['storyboard.update', 'scene.update'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
+  if (!['storyboard.update', 'scene.update', 'timeline.update'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
     return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
   }
   if (reject) {
@@ -1036,14 +1036,29 @@ async function resolvePendingStoryboardApproval(
   const expectedUpdatedAt = parameters.expectedUpdatedAt;
   const sceneId = target.sceneId;
   const isSceneUpdate = pending.capability_id === 'scene.update';
-  const allowedField = isSceneUpdate ? ['title', 'description', 'transition'].includes(String(field)) : ['title', 'topic'].includes(String(field));
-  if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || !allowedField ||
-      typeof value !== 'string' || !value.trim() ||
+  const isTimelineUpdate = pending.capability_id === 'timeline.update';
+  const timelineOperation = parameters.operation;
+  const timelineKind = parameters.kind;
+  const timelineClipId = parameters.clipId;
+  const allowedField = isTimelineUpdate ? true : isSceneUpdate
+    ? ['title', 'description', 'transition'].includes(String(field)) : ['title', 'topic'].includes(String(field));
+  const validTimelineParameters = !isTimelineUpdate || (
+    ['move','trim','split','update_text'].includes(String(timelineOperation)) &&
+    ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
+    (timelineOperation === 'move'
+      ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+      : timelineOperation === 'trim'
+        ? isUuid(parameters.trackId) && ['start','end'].includes(String(parameters.edge)) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+        : timelineOperation === 'split'
+          ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+          : isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
+    )
+  );
+  if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || !allowedField || !validTimelineParameters ||
+      (!isTimelineUpdate && (typeof value !== 'string' || !value.trim())) ||
       typeof expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(expectedUpdatedAt)) ||
       typeof plan.id !== 'string' || typeof plan.expiresAt !== 'string' ||
-      Date.parse(plan.expiresAt) <= Date.now()) {
-    return 'The saved action preview failed validation or expired. No changes were made.';
-  }
+      Date.parse(plan.expiresAt) <= Date.now()) return 'The saved action preview failed validation or expired. No changes were made.';
 
   const { data: approved, error: approveError } = await admin.rpc('approve_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
@@ -1085,6 +1100,31 @@ async function resolvePendingStoryboardApproval(
     if (sceneUpdateError) return await fail('SCENE_UPDATE_FAILED', 'The Scene update failed. No successful change was confirmed.');
     if (!sceneUpdated) return await fail('STALE_STORYBOARD', 'The Storyboard changed while applying this update. No change was confirmed.');
     updated = sceneUpdated;
+  } else if (isTimelineUpdate) {
+    const { data: current, error: readError } = await admin.from('vyral_storyboards')
+      .select('id,title,details,updated_at').eq('id', storyboardId).eq('user_id', userId)
+      .eq('updated_at', expectedUpdatedAt).maybeSingle();
+    if (readError) return await fail('TIMELINE_PARENT_READ_FAILED', 'The parent Storyboard could not be checked. No Timeline change was made.');
+    if (!current) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the Timeline preview. Please prepare a fresh preview.');
+    const details = current.details && typeof current.details === 'object' && !Array.isArray(current.details) ? current.details as Record<string, unknown> : {};
+    const raw = details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline) ? details.masterTimeline as Record<string, unknown> : null;
+    if (!raw) return await fail('TIMELINE_NOT_FOUND', 'The saved Master Timeline is no longer available.');
+    const timeline = {
+      sceneRanges: raw.sceneRanges && typeof raw.sceneRanges === 'object' && !Array.isArray(raw.sceneRanges) ? raw.sceneRanges : {},
+      sceneInstances: Array.isArray(raw.sceneInstances) ? raw.sceneInstances : [],
+      transitions: raw.transitions && typeof raw.transitions === 'object' && !Array.isArray(raw.transitions) ? raw.transitions : {},
+      audioTracks: Array.isArray(raw.audioTracks) ? raw.audioTracks : [],
+      textTracks: Array.isArray(raw.textTracks) ? raw.textTracks : [],
+    } as MasterTimelineData;
+    const result = applyMasterTimelineEdit(timeline, parameters);
+    if (!result.ok) return await fail('TIMELINE_RULE_REJECTED', 'The latest Master Timeline no longer satisfies this edit. No change was made; please prepare a fresh preview.');
+    const { data: timelineUpdated, error: timelineUpdateError } = await admin.from('vyral_storyboards')
+      .update({ details: { ...details, masterTimeline: result.value }, updated_at: new Date().toISOString() })
+      .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
+      .select('id,title,topic,updated_at').maybeSingle();
+    if (timelineUpdateError) return await fail('TIMELINE_UPDATE_FAILED', 'The Master Timeline update failed. No successful change was confirmed.');
+    if (!timelineUpdated) return await fail('STALE_STORYBOARD', 'The Storyboard changed while applying this Timeline edit. No change was confirmed.');
+    updated = timelineUpdated;
   } else {
     const { data: storyboardUpdated, error: updateError } = await admin.from('vyral_storyboards')
       .update({ [field as string]: value.trim(), updated_at: new Date().toISOString() })
@@ -1097,13 +1137,15 @@ async function resolvePendingStoryboardApproval(
   const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
     p_status: 'completed',
-    p_result_summary: { storyboardId: updated.id, sceneId: isSceneUpdate ? sceneId : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
+    p_result_summary: { storyboardId: updated.id, sceneId: isSceneUpdate ? sceneId : null, clipId: isTimelineUpdate ? timelineClipId : null, operation: isTimelineUpdate ? timelineOperation : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
     p_failure_code: null,
   });
   if (finishError) return 'The Storyboard update was applied, but its audit completion could not be confirmed. Please refresh the Storyboard before retrying.';
-  return isSceneUpdate
-    ? 'Approved and saved. Updated the Scene ' + String(field) + ' in Storyboard “' + String(updated.title) + '”.'
-    : 'Approved and saved. Storyboard: ' + String(updated.title) + ' — updated ' + String(field) + '.';
+  return isTimelineUpdate
+    ? 'Approved and saved. Master Timeline edit completed in Storyboard “' + String(updated.title) + '”.'
+    : isSceneUpdate
+      ? 'Approved and saved. Updated the Scene ' + String(field) + ' in Storyboard “' + String(updated.title) + '”.'
+      : 'Approved and saved. Storyboard: ' + String(updated.title) + ' — updated ' + String(field) + '.';
 }
 
 const sseResponse = (content: string) => {
