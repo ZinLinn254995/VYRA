@@ -268,6 +268,10 @@ class ModularAIService implements AIServiceProvider {
         reader.releaseLock();
       }
 
+      if (!finished) {
+        const message = 'The connection ended before the response was complete. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
+      }
       if (!content.trim()) {
         const message = 'OpenAI returned an empty response. Please retry.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
