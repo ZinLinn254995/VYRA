@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   executeAiCapability,
   hasAiCapabilityAdapter,
+  listRegisteredAiCapabilityAdapterIds,
   registerAiCapabilityAdapter,
 } from '../src/server/aiCapabilityExecutor.ts';
 
@@ -80,4 +81,10 @@ test('duplicate adapter registration and unknown adapter registration are reject
   assert.throws(() => registerAiCapabilityAdapter({
     capabilityId: 'database.raw_sql', validate: () => true, execute: async () => null,
   }));
+});
+
+test('registered executor inventory is a sorted snapshot of actual adapters', () => {
+  assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), []);
+  registerAiCapabilityAdapter({ capabilityId: 'storyboard.list', validate: () => true, execute: async () => [] });
+  assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), ['storyboard.list']);
 });
