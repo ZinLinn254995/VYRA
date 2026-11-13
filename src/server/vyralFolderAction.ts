@@ -31,7 +31,7 @@ export function parseVyralFolderActionPendingPlan(value: unknown): VyralFolderAc
   const p = value as Record<string, unknown>;
   const target = p.target && typeof p.target === 'object' && !Array.isArray(p.target) ? p.target as Record<string, unknown> : null;
   const parameters = p.parameters && typeof p.parameters === 'object' && !Array.isArray(p.parameters) ? p.parameters as Record<string, unknown> : null;
-  const operations: VyralFolderActionOperation[] = ['folder.create','folder.rename','folder.move','asset.move_folder'];
+  const operations: VyralFolderActionOperation[] = ['folder.create','folder.rename','folder.move','folder.delete','asset.move_folder'];
   if (!operations.includes(p.operation as VyralFolderActionOperation) || typeof p.id !== 'string' || !UUID.test(p.id) ||
       typeof p.summary !== 'string' || !p.summary.trim() || p.summary.length > 500 ||
       typeof p.createdAt !== 'string' || !Number.isFinite(Date.parse(p.createdAt)) ||
