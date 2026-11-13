@@ -854,3 +854,12 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Creation is a reversible `scene.create` pending action, bound to the authenticated owner and exact chat session. It previews the new Scene and requires normal explicit approval; no Scene is inserted before approval.
 - On approval, the executor checks the exact parent owner, expiry, action state, unique new Scene ID, and optimistic Storyboard `updated_at`. It updates `details.scenes` and synchronizes Master Timeline `sceneInstances`, preserving Audio/Text tracks and clips and retaining only valid adjacent Scene transitions.
 - Development `vyra-openai-chat` deployed as version 25, ACTIVE, JWT verification enabled. Post-deploy source inspection confirmed the create tool schema, `scene.create` pending lifecycle, create execution branch, defaults, timeline synchronization and stale-write guard. GitHub returned no workflow run for the latest commit; automated CI remains unverified. Live browser/model execution remains unverified because the OpenAI key is intentionally unset. No AI Chat UI/CSS, production database/function, provider keys, or user data were changed.
+
+
+### AI-created Master Timeline Text overlays
+
+- Added the pure addMasterTimelineTextClip operation to create a new Text track and timed Text clip, matching the Master Editor's existing Text toolbar behavior while accepting AI-authored overlay copy.
+- Added add_text to the existing propose_master_timeline_edit model tool. The model supplies the text, optional display name, start time, and duration; the server generates both track and clip UUIDs and enforces bounded text/timing values.
+- The proposal is persisted as timeline.add_text, bound to the authenticated owner and exact chat session. It previews the new track and clip and requires explicit approval before writing.
+- Approval revalidates the pending plan, owner/session, expiry, and Storyboard updated_at; it applies the pure operation to the latest Timeline snapshot and saves only details.masterTimeline. Audit completion records the created clip ID.
+- This creates an editable Text overlay placeholder, not a rendered subtitle/video file. Audio asset attachment, visual styling controls, rendering, and preview inspection remain separate future work. AI Chat UI/CSS and Production are unchanged.
