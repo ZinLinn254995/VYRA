@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   classifyVyralAssetFile,
+  extractVideoTechnicalMetadata,
   buildAudioWaveformPeaks,
   ingestVyralAsset,
   ingestGeneratedVyralAsset,
@@ -133,4 +134,10 @@ test('builds bounded real audio waveform peaks from decoded PCM channels', () =>
   assert.ok(peaks.every((peak) => peak >= 0 && peak <= 1));
   assert.deepEqual(buildAudioWaveformPeaks([], 8), []);
   assert.deepEqual(buildAudioWaveformPeaks([new Float32Array([1])], 4), []);
+});
+
+
+test('video metadata extraction fails closed outside a browser decoder environment', async () => {
+  const result = await extractVideoTechnicalMetadata(makeFile('clip.mp4', 'video/mp4'), 'a'.repeat(64));
+  assert.equal(result, null);
 });
