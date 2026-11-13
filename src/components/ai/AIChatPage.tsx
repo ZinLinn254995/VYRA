@@ -4,6 +4,7 @@ import {
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
@@ -2095,7 +2096,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`min-w-0 max-w-[88%] break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
-                  <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</p>
+                  <AIChatMessageContent content={message.content} />
                   {message.role === 'assistant' && message.providerLabel && <p className="mt-2 text-[10px] text-[var(--vyra-text-muted)]">{message.providerLabel}</p>}
                   {message.role === 'assistant' && message.status === 'preview' && <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">Preview response · no live model was confirmed</p>}
                   {message.role === 'assistant' && message.status === 'error' && (() => {
