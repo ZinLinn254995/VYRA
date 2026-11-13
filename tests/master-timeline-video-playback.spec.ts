@@ -21,10 +21,12 @@ test('plans ordered Scene video sources against contiguous Master Timeline timin
     delay: item.delaySeconds,
     offset: item.sourceOffsetSeconds,
     duration: item.durationSeconds,
+    playbackStart: item.playbackStartSeconds,
+    playbackEnd: item.playbackEndSeconds,
   })), [
-    { sceneId: 'scene-a', start: 0, delay: 0, offset: 1, duration: 5 },
-    { sceneId: 'scene-b', start: 5, delay: 5, offset: 2, duration: 8 },
-    { sceneId: 'scene-c', start: 13, delay: 13, offset: 0, duration: 4 },
+    { sceneId: 'scene-a', start: 0, delay: 0, offset: 1, duration: 5, playbackStart: 0, playbackEnd: 5 },
+    { sceneId: 'scene-b', start: 5, delay: 5, offset: 2, duration: 8, playbackStart: 5, playbackEnd: 13 },
+    { sceneId: 'scene-c', start: 13, delay: 13, offset: 0, duration: 4, playbackStart: 13, playbackEnd: 17 },
   ]);
 });
 
@@ -35,9 +37,11 @@ test('seeks into the active Scene and schedules following video sources', () => 
     delay: item.delaySeconds,
     offset: item.sourceOffsetSeconds,
     duration: item.durationSeconds,
+    playbackStart: item.playbackStartSeconds,
+    playbackEnd: item.playbackEndSeconds,
   })), [
-    { sceneId: 'scene-b', delay: 0, offset: 4, duration: 6 },
-    { sceneId: 'scene-c', delay: 6, offset: 0, duration: 4 },
+    { sceneId: 'scene-b', delay: 0, offset: 4, duration: 6, playbackStart: 7, playbackEnd: 13 },
+    { sceneId: 'scene-c', delay: 6, offset: 0, duration: 4, playbackStart: 13, playbackEnd: 17 },
   ]);
 });
 
