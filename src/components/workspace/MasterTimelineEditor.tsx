@@ -544,7 +544,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
   const launchMasterTimelinePlayback = async (requestedStart?: number) => {
     masterPlaybackSeekPendingRef.current = false;
-    if (!supabase) { setMasterPlaybackError('Private Audio Storage is not configured.'); return; }
+    if (!supabase) { setMasterPlaybackError('Private Vyral Asset Storage is not configured.'); return; }
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
     const timelineStart = Math.max(0, Math.min(totalDuration, requestedStart ?? ((scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)));
@@ -1425,7 +1425,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
-        <button type="button" title={masterPlaybackError || (masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline')} aria-label={masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline'} onClick={() => void startMasterTimelinePlayback()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+        <button type="button" title={masterPlaybackError || (masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel media loading' : 'Play Master Timeline')} aria-label={masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline'} onClick={() => void startMasterTimelinePlayback()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
           {masterPlaybackState === 'loading' ? <LoaderCircle size={22} className="animate-spin" /> : masterPlaybackState === 'playing' ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
         </button>
         {selectedTransitionKey ? (
