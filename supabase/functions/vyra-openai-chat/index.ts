@@ -2586,19 +2586,26 @@ async function applyPendingStoryboardApprovalLegacy(
 async function resolvePendingVyralFolderActionApproval(
   admin: any, userId: string, sessionId: string | null, latestUserText: string,
 ): Promise<string | null> {
-  if (!sessionId || !/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim())) return null;
+  if (!sessionId) return null;
+  const genericApproval = /^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim());
+  const exactDelete = /^DELETE EMPTY FOLDER ([A-F0-9]{6})$/i.exec(latestUserText.trim());
   const { data: rows, error } = await admin.from('ai_operator_pending_actions')
     .select('id,user_id,session_id,capability_id,plan,expires_at,status')
     .eq('user_id',userId).eq('session_id',sessionId).eq('status','pending')
     .gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(3);
   if (error || !Array.isArray(rows)) return 'I could not verify pending folder actions. Nothing was changed.';
   const matches = rows.filter((row: Record<string,unknown>) =>
-    row.capability_id === 'folder.update' && parseVyralFolderActionPendingPlan(row.plan));
+    (row.capability_id === 'folder.update' || row.capability_id === 'folder.delete') && parseVyralFolderActionPendingPlan(row.plan));
   if (!matches.length) return null;
   if (rows.length !== 1 || matches.length !== 1) return 'There is more than one pending action in this chat. Resolve them one at a time; no folder action was applied.';
   const pending = matches[0];
   const plan = validateVyralFolderActionPendingAction(pending,{userId,sessionId,actionId:String(pending.id)});
   if (!plan) return 'The exact folder action preview could not be verified. Nothing was changed.';
+  if (plan.operation === 'folder.delete') {
+    if (!exactDelete || exactDelete[1].toUpperCase() !== plan.parameters.confirmationCode) {
+      return 'To delete this empty folder, send the exact phrase DELETE EMPTY FOLDER '+String(plan.parameters.confirmationCode)+'. A generic yes is not sufficient.';
+    }
+  } else if (!genericApproval) return null;
   const vyralId = plan.target.vyralId;
   const folderExists = async (id: string | null): Promise<boolean> => {
     if (id === null) return true;
@@ -2626,6 +2633,20 @@ async function resolvePendingVyralFolderActionApproval(
     if((folder.parent_id ?? null)!==(plan.parameters.previousParentId ?? null))return 'The folder location changed after preview. Prepare a fresh action.';
     if(plan.operation==='folder.rename' && folder.name!==plan.parameters.previousName)return 'The folder name changed after preview. Prepare a fresh rename preview.';
     if(plan.operation==='folder.move' && !await folderChainSafe(folderId,plan.parameters.nextParentId ?? null))return 'That destination would create a folder cycle or its hierarchy cannot be verified. No changes were made.';
+  } else if (plan.operation === 'folder.delete') {
+    const folderId=plan.target.folderId!;
+    const {data:folder,error:folderError}=await admin.from('vyral_folders').select('id,name,parent_id,created_at')
+      .eq('id',folderId).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if(folderError||!folder||folder.name!==plan.parameters.previousName||
+      (folder.parent_id ?? null)!==(plan.parameters.previousParentId ?? null)||
+      String(folder.created_at)!==plan.parameters.expectedCreatedAt)
+      return 'The folder changed after preview. Prepare a fresh delete preview.';
+    const [{data:children,error:childrenError},{data:assets,error:assetsError}]=await Promise.all([
+      admin.from('vyral_folders').select('id').eq('parent_id',folderId).eq('vyral_id',vyralId).eq('user_id',userId).limit(1),
+      admin.from('vyral_assets').select('id').eq('folder_id',folderId).eq('vyral_id',vyralId).eq('user_id',userId).limit(1),
+    ]);
+    if(childrenError||assetsError)return 'The folder contents could not be rechecked. No deletion was attempted.';
+    if((children ?? []).length||(assets ?? []).length)return 'This folder is no longer empty. Move its contents first; nothing was deleted.';
   } else {
     const assetId=plan.target.assetId!;
     const {data:asset,error:assetError}=await admin.from('vyral_assets').select('id,name,folder_id,updated_at,processing_status')
@@ -2653,6 +2674,12 @@ async function resolvePendingVyralFolderActionApproval(
       .eq('id',plan.target.folderId).eq('vyral_id',vyralId).eq('user_id',userId);
     q=plan.parameters.previousParentId===null?q.is('parent_id',null):q.eq('parent_id',plan.parameters.previousParentId);
     const {data,error}=await q.select('id,name,parent_id').maybeSingle();result=data;actionError=error;
+  } else if(plan.operation==='folder.delete'){
+    const {data,error}=await admin.from('vyral_folders').delete()
+      .eq('id',plan.target.folderId).eq('vyral_id',vyralId).eq('user_id',userId)
+      .eq('name',plan.parameters.previousName).eq('created_at',plan.parameters.expectedCreatedAt)
+      .select('id,name').maybeSingle();
+    result=data;actionError=error;
   } else {
     const {data,error}=await admin.from('vyral_assets').update({folder_id:plan.parameters.nextParentId ?? null})
       .eq('id',plan.target.assetId).eq('vyral_id',vyralId).eq('user_id',userId)
@@ -2670,6 +2697,7 @@ async function resolvePendingVyralFolderActionApproval(
   });
   if(finishError)return 'The folder action was applied, but its audit could not be finalized. Refresh the folder tree to verify before retrying.';
   const destination=plan.parameters.nextParentId ? 'the selected folder' : 'the Vyral root';
+  if(plan.operation==='folder.delete')return 'Approved and deleted empty folder \"'+String(result.name)+'\". No Assets or child folders were deleted.';
   if(plan.operation==='folder.create')return 'Approved and created folder "'+String(result.name)+'".';
   if(plan.operation==='folder.rename')return 'Approved and renamed the folder to "'+String(result.name)+'".';
   if(plan.operation==='folder.move')return 'Approved and moved the folder and its contents to '+destination+'.';
