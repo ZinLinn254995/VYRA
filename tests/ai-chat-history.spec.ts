@@ -252,6 +252,7 @@ test('AI Chat binds asynchronous chat actions to the validated account owner', (
   assert.match(block, /requestOwnerId !== historyOwnerId/);
   assert.match(block, /const assertRequestCurrent = \(\) =>/);
   assert.match(block, /historyOwnerRef\.current !== requestOwnerId/);
+  assert.match(block, /requestController\.signal\.aborted/);
   assert.match(block, /authData\.user\?\.id !== requestOwnerId/);
   assert.match(block, /historyOwnerRef\.current !== requestOwnerId\) return/);
   assert.ok(block.indexOf('assertRequestCurrent();') < block.indexOf('const result = await aiService.generateResponse'));
@@ -301,7 +302,7 @@ test('AI Chat checks request ownership after every Supabase await in a turn', ()
 
 test('AI Chat ignores streamed chunks when their request no longer belongs to the active account', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
-  assert.match(page, /onTextDelta: \(chunk: string\) => \{\s*if \(activeRequestControllerRef\.current !== requestController \|\|\s*historyOwnerRef\.current !== requestOwnerId\) return;/);
+  assert.match(page, /onTextDelta: \(chunk: string\) => \{\s*if \(activeRequestControllerRef\.current !== requestController \|\|\s*historyOwnerRef\.current !== requestOwnerId \|\|\s*requestController\.signal\.aborted\) return;/);
 });
 
 
