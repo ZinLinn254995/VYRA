@@ -240,7 +240,7 @@ export const addMasterTimelineAudioAssetClip = (
   const allTracks = [...timeline.audioTracks, ...timeline.textTracks];
   if (!uuid.test(trackId) || !uuid.test(clipId) || allTracks.some((track) => track.id === trackId || track.clips.some((clip) => clip.id === clipId))) return fail('invalid-timeline');
   const clip: MasterTimelineClip = {
-    id: clipId, name, content: name, start, duration,
+    id: clipId, name, content: name, start, duration, waveform: [],
     assetId, assetVersionId, assetMimeType,
   };
   const track: MasterTimelineTrack = { id: trackId, name: 'Audio', clips: [clip] };
