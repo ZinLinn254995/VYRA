@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(10);
 insert into auth.users (id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values ('26000000-0000-4000-8000-000000000001','authenticated','authenticated','folder-delete-test@example.invalid','',now(),
  '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now())
@@ -24,6 +24,13 @@ values
  ('26000000-0000-4000-8000-000000000021','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',null,'Empty Folder'),
  ('26000000-0000-4000-8000-000000000022','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',null,'Nonempty Folder'),
  ('26000000-0000-4000-8000-000000000023','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000022','Child Folder');
+insert into public.vyral_folders (id,vyral_id,user_id,parent_id,name)
+values ('26000000-0000-4000-8000-000000000024','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000001',null,'Folder With Asset');
+insert into public.vyral_assets (id,vyral_id,user_id,folder_id,name,original_filename,asset_type,mime_type,size_bytes,storage_path,sha256,processing_status)
+values ('26000000-0000-4000-8000-000000000026','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000024',
+ 'Test Image','test.png','image','image/png',4,'folder-delete-test/test.png',repeat('b',64),'ready');
 select is((select count(*)::int from public.delete_empty_vyral_folder(
  '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
  '26000000-0000-4000-8000-000000000021','Empty Folder',
@@ -42,5 +49,10 @@ select is((select count(*)::int from public.delete_empty_vyral_folder(
  '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000012',
  '26000000-0000-4000-8000-000000000025','Protected Empty Folder',
  (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000025'))),0,'Refuses deletion inside a protected Vyral');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000024','Folder With Asset',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000024'))),0,'Refuses folders containing Assets');
+select is((select count(*)::int from public.vyral_assets where id='26000000-0000-4000-8000-000000000026'),1,'Refused deletion preserves the Asset');
 select * from finish();
 rollback;
