@@ -4,6 +4,7 @@ import {
   isSameVyralCreateIdentity,
   isVyralCreateApprovalText,
   parseVyralCreatePendingPlan,
+  validateVyralCreatePendingAction,
 } from '../src/server/vyralCreationAction.ts';
 
 const plan = {
@@ -46,4 +47,24 @@ test('only reuses an exact same-owner creation draft after an uncertain retry', 
   assert.equal(isSameVyralCreateIdentity(row, 'user-2', plan.target.vyralId, plan.parameters.name, plan.parameters.description), false);
   assert.equal(isSameVyralCreateIdentity({ ...row, name: 'Other' }, 'user-1', plan.target.vyralId, plan.parameters.name, plan.parameters.description), false);
   assert.equal(isSameVyralCreateIdentity({ ...row, metadata: {} }, 'user-1', plan.target.vyralId, plan.parameters.name, plan.parameters.description), false);
+});
+
+test('pending action approval is bound to exact owner, session, capability, status and expiry', () => {
+  const row = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: 'user-1',
+    session_id: 'chat-session-1',
+    capability_id: 'vyral.create',
+    status: 'pending',
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    plan,
+  };
+  const expected = { userId: 'user-1', sessionId: 'chat-session-1', actionId: row.id };
+  assert.deepEqual(validateVyralCreatePendingAction(row, expected), plan);
+  assert.equal(validateVyralCreatePendingAction(row, { ...expected, userId: 'user-2' }), null);
+  assert.equal(validateVyralCreatePendingAction(row, { ...expected, sessionId: 'other-chat' }), null);
+  assert.equal(validateVyralCreatePendingAction({ ...row, capability_id: 'scene.update' }, expected), null);
+  assert.equal(validateVyralCreatePendingAction({ ...row, status: 'approved' }, expected), null);
+  assert.equal(validateVyralCreatePendingAction({ ...row, expires_at: new Date(Date.now() - 1000).toISOString() }, expected), null);
+  assert.equal(validateVyralCreatePendingAction(row, { ...expected, actionId: '44444444-4444-4444-8444-444444444444' }), null);
 });
