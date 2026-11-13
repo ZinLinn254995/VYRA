@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addMasterTimelineTextClip, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
+  addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
   updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData,
 } from '../src/server/masterTimelineOperations.ts';
 
@@ -73,6 +73,22 @@ test('splits audio/text at least 0.2 seconds from either edge', () => {
   }
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 0.1, () => 'new-b').ok, false);
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 2.5, () => 't').ok, false);
+});
+
+test('adds an owner-verified Audio Asset reference on a new Audio track without mutating source data', () => {
+  const result = addMasterTimelineAudioAssetClip(base, '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'audio/mpeg', 'Soundtrack.mp3', 0, 12);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const clip = result.value.audioTracks.find((track) => track.id === '10000000-0000-4000-8000-000000000001')?.clips[0];
+  assert.deepEqual(clip, {
+    id: '20000000-0000-4000-8000-000000000001', name: 'Soundtrack.mp3', content: 'Soundtrack.mp3',
+    start: 0, duration: 12, assetId: '30000000-0000-4000-8000-000000000001',
+    assetVersionId: '40000000-0000-4000-8000-000000000001', assetMimeType: 'audio/mpeg',
+  });
+  assert.equal(base.audioTracks.length, 1);
+  assert.equal(addMasterTimelineAudioAssetClip(base, '10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'bad', '40000000-0000-4000-8000-000000000001', 'audio/mpeg', 'Bad', 0, 2).ok, false);
+  assert.equal(addMasterTimelineAudioAssetClip(base, '10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'image/png', 'Bad', 0, 2).ok, false);
+  assert.equal(addMasterTimelineAudioAssetClip(base, '10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'audio/mpeg', 'Bad', 0, 0.1).ok, false);
 });
 
 test('adds an AI-authored Text clip on a new Text track without mutating existing tracks', () => {
