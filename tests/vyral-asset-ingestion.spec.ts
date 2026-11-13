@@ -113,6 +113,38 @@ test('cleans partial uploads when the storage step fails', async () => {
   assert.equal(calls.includes('deleteAsset'), true);
 });
 
+test('cancels after storage upload and cleans the incomplete Asset safely', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  const uploadOriginal = port.uploadOriginal.bind(port);
+  port.uploadOriginal = async (...args) => {
+    await uploadOriginal(...args);
+    controller.abort();
+  };
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  }), (error: unknown) => error instanceof VyralAssetIngestionError && !error.preservedForRecovery);
+  assert.equal(calls.includes('createVersion'), false);
+  assert.equal(calls.includes('removeStorage'), true);
+  assert.equal(calls.includes('deleteAsset'), true);
+});
+
+test('preserves DNA evidence when cancellation arrives after a DNA write', async () => {
+  const { port, calls } = makePort({ dnaExists: true });
+  const controller = new AbortController();
+  const insertDna = port.insertDna.bind(port);
+  port.insertDna = async (...args) => {
+    await insertDna(...args);
+    controller.abort();
+  };
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  }), (error: unknown) => error instanceof VyralAssetIngestionError && error.preservedForRecovery);
+  assert.equal(calls.includes('markReady'), false);
+  assert.equal(calls.includes('removeStorage'), false);
+  assert.equal(calls.includes('deleteAsset'), false);
+});
+
 test('rejects invalid ownership IDs and oversized files before creating records', async () => {
   const { port, calls } = makePort();
   await assert.rejects(ingestVyralAsset(port, {
