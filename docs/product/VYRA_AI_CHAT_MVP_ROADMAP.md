@@ -736,3 +736,12 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Development Supabase Edge Function `vyra-openai-chat` deployed as version 7 with JWT verification enabled. Search uses separate owner-scoped title/topic queries rather than interpolated filter expressions.
 - This is the first live server-side global Workspace read capability, not completion of the 153-capability catalogue. Write execution, persisted approval integration, and the remaining domain adapters are still pending.
 - AI Chat visual structure and styling were not changed. OpenAI platform key remains unset, so authenticated model-driven runtime verification awaits Phase 6; no provider call was made.
+
+
+### Expanded global Vyral read coverage
+
+- Added `list_my_vyrals` and `get_my_vyral_details` to the authenticated global AI tool set. These tools are available regardless of the current Workspace page.
+- Vyral lookups are strictly scoped to the authenticated user. Search uses separate name/description queries; ambiguous name matches are returned as choices rather than silently selecting one.
+- Detail reads include bounded Asset inventory, latest available Asset DNA verification metadata, Master DNA status/revision, and latest Master DNA fingerprint. No file bytes or storage paths are exposed.
+- Development `vyra-openai-chat` deployed as version 8 with JWT verification enabled. Deployment succeeded, which confirms the Edge Function source compiled; no OpenAI runtime call was made because the platform key remains unset.
+- Remaining: server-persisted approval/action lifecycle integration and safe write adapters; the broader capability registry remains a policy catalogue, not 153 live executors.
