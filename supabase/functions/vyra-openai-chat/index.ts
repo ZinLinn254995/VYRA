@@ -3118,10 +3118,6 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       if (capabilityId === 'asset.propose_archive') {
         return Object.keys(input).length === 1 && isUuid(input.asset_id);
       }
-      if (capabilityId === 'asset.propose_archive') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
-        return await createVyralAssetArchiveProposal(admin, execution.userId, sessionId, activeVyralId, rawArguments, toolCallId);
-      }
       if (capabilityId === 'asset.propose_metadata') {
         const allowed = ['asset_id', 'title', 'description', 'category', 'tags', 'keywords', 'alt_text'];
         return Object.keys(input).every((key) => allowed.includes(key)) && isUuid(input.asset_id) &&
@@ -3202,10 +3198,8 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return await createVyralAssetMetadataProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
       }
       if (capabilityId === 'asset.propose_archive') {
-        if (!activeVyralId) return false;
-        const { data, error } = await admin.from('vyrals').select('id')
-          .eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
-        return !error && Boolean(data);
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
+        return await createVyralAssetArchiveProposal(admin, execution.userId, sessionId, activeVyralId, rawArguments, toolCallId);
       }
       if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
         const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
@@ -3458,7 +3452,7 @@ async function executeSharedProposalCapability(
     verifyOwner: async (ownerId, parameters) => {
       if (ownerId !== userId) return false;
       if (capabilityId === 'vyral.propose_create') return true;
-      if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
+      if (capabilityId === 'asset.propose_archive' || capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
         if (!activeVyralId) return false;
         const { data, error } = await admin.from('vyrals').select('id').eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
         return !error && Boolean(data);
