@@ -2781,12 +2781,6 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
           input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180 &&
           !/[\\/\u0000-\u001f\u007f]/.test(input.asset_name);
       }
-      if (capabilityId === 'folder.propose_create' || capabilityId === 'folder.propose_rename' ||
-          capabilityId === 'folder.propose_move' || capabilityId === 'asset.propose_move_folder') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
-        if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
-        return await createVyralFolderActionProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId, capabilityId);
-      }
       if (capabilityId === 'vyral.propose_create') {
         return Object.keys(input).every((key) => ['name', 'description'].includes(key)) &&
           typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
@@ -2854,6 +2848,12 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       }
       if (capabilityId === 'asset.propose_metadata') {
         return await createVyralAssetMetadataProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'folder.propose_create' || capabilityId === 'folder.propose_rename' ||
+          capabilityId === 'folder.propose_move' || capabilityId === 'asset.propose_move_folder') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
+        if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
+        return await createVyralFolderActionProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId, capabilityId);
       }
       if (capabilityId === 'vyral.propose_create') {
         return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
