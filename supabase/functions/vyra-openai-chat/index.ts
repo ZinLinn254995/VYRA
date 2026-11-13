@@ -3759,8 +3759,41 @@ Deno.serve(async (request: Request) => {
   const { data: context, error: authError } = await createSupabaseContext(request, { auth: 'user' });
   if (authError || !context) return json({ error: 'Sign in to use VYRA AI Chat.' }, authError?.status ?? 401);
 
+  const maxRequestBodyBytes = 1_048_576;
+  const declaredBodyBytes = Number(request.headers.get('content-length') ?? 0);
+  if (Number.isFinite(declaredBodyBytes) && declaredBodyBytes > maxRequestBodyBytes) {
+    return json({ error: 'Request body is too large.' }, 413);
+  }
   let body: Record<string, unknown>;
-  try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
+  try {
+    if (!request.body) return json({ error: 'Request body is required.' }, 400);
+    const reader = request.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let receivedBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > maxRequestBodyBytes) {
+        await reader.cancel();
+        return json({ error: 'Request body is too large.' }, 413);
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(receivedBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return json({ error: 'Request body must be a JSON object.' }, 400);
+    }
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return json({ error: 'Request body must be valid JSON.' }, 400);
+  }
 
   const completionUserId = typeof context.userClaims?.id === 'string' ? context.userClaims.id : '';
   if (body.assetUploadCompletion !== undefined) {
@@ -3827,7 +3860,16 @@ Deno.serve(async (request: Request) => {
     }, 501);
   }
 
-  const incoming = Array.isArray(body.messages) ? body.messages : [];
+  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 40) {
+    return json({ error: 'Chat history must contain between 1 and 40 messages.' }, 400);
+  }
+  const incoming = body.messages;
+  const userMessages = incoming.filter((item) => item && typeof item === 'object' &&
+    ((item as Record<string, unknown>).role === 'user' || (item as Record<string, unknown>).role === 'assistant'));
+  if (userMessages.some((item) => typeof (item as Record<string, unknown>).content !== 'string' ||
+      ((item as Record<string, unknown>).content as string).length > 12000)) {
+    return json({ error: 'Each chat message must contain no more than 12,000 characters.' }, 413);
+  }
   const userId = typeof context.userClaims?.id === 'string' ? context.userClaims.id : '';
   if (!userId) return json({ error: 'Authenticated user identity is unavailable.' }, 401);
   const conversationId = typeof body.conversationId === 'string' &&
