@@ -88,3 +88,16 @@ test('registered executor inventory is a sorted snapshot of actual adapters', ()
   registerAiCapabilityAdapter({ capabilityId: 'storyboard.list', validate: () => true, execute: async () => [] });
   assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), ['storyboard.list', 'workspace.organize']);
 });
+
+test('executor passes authenticated server runtime dependencies only to the adapter context', async () => {
+  registerAiCapabilityAdapter({
+    capabilityId: 'storyboard.read',
+    validate: () => true,
+    execute: async (_input, context) => ({ runtimeMarker: (context.runtime as { marker?: string })?.marker ?? null }),
+  });
+  const result = await executeAiCapability({
+    capabilityId: 'storyboard.read', userId: 'user-1', requestId: 'request-0007', input: { title: 'Owned' },
+  }, authority(), new Date('2026-01-01T00:00:00.000Z'), { marker: 'server-only' });
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.data, { runtimeMarker: 'server-only' });
+});
