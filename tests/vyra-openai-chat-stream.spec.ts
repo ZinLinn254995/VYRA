@@ -55,7 +55,7 @@ test('AI Chat preserves partial streamed text on errors and keeps retry in the e
   assert.match(source, /result\.status === 'error' && streamedText/);
   assert.match(source, /streamedText \+ '\\n\\n' \+ result\.content/);
   assert.match(source, /previousUserMessage/);
-  assert.match(source, /sendMessage\(previousUserMessage\.content\)/);
+  assert.match(source, /sendMessage\(previousUserMessage\.content, previousUserMessage\.id\)/);
 });
 
 test('Active global Chat uses the authenticated platform-managed OpenAI service, not customer BYOK', () => {
