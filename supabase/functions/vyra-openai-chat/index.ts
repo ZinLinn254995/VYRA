@@ -4,6 +4,7 @@ import { addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMaste
 import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
 import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreatePendingPlan, validateVyralCreatePendingAction } from '../../../src/server/vyralCreationAction.ts';
 import { parseVyralAssetUploadPendingPlan } from '../../../src/server/vyralAssetUploadAction.ts';
+import { parseVyralAssetRenamePendingPlan, validateVyralAssetRenamePendingAction } from '../../../src/server/vyralAssetRenameAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -108,6 +109,22 @@ const GLOBAL_READ_TOOLS = [
           asset_name: { type: 'string', description: 'Creator-approved Asset display name, 1–180 characters.' },
         },
         required: ['vyral_id', 'asset_name'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_asset_rename',
+      description: "Prepare an approval preview to rename an existing Asset in an owner-owned Vyral. Preserve the original filename and immutable bytes; only the Asset display name changes. Never rename without explicit approval.",
+      parameters: {
+        type: 'object',
+        properties: {
+          asset_id: { type: 'string', description: 'Exact Asset UUID from an owner-scoped Asset search or detail result.' },
+          asset_name: { type: 'string', description: 'New display name, 1–180 characters.' },
+        },
+        required: ['asset_id', 'asset_name'],
         additionalProperties: false,
       },
     },
@@ -1201,6 +1218,81 @@ async function createVyralAssetUploadProposal(
   };
 }
 
+async function createVyralAssetRenameProposal(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  rawArguments: string,
+  toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before preparing an Asset rename preview.');
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!isPlainRecord(parsed)) return safeToolError('Invalid Asset rename details.');
+    args = parsed;
+  } catch { return safeToolError('Invalid Asset rename details.'); }
+  const assetId = isUuid(args.asset_id) ? String(args.asset_id) : '';
+  const nextName = typeof args.asset_name === 'string' ? args.asset_name.trim() : '';
+  if (Object.keys(args).some((key) => !['asset_id', 'asset_name'].includes(key)) ||
+      !assetId || !nextName || nextName.length > 180 || /[\\/\u0000-\u001f\u007f]/.test(nextName)) {
+    return safeToolError('The Asset ID or new display name is invalid.');
+  }
+  const { data: asset, error } = await admin.from('vyral_assets')
+    .select('id,vyral_id,user_id,name,original_filename,updated_at,processing_status')
+    .eq('id', assetId).eq('user_id', userId).maybeSingle();
+  if (error || !asset) return safeToolError('That Asset could not be verified in your account.');
+  if (asset.processing_status === 'archived') return safeToolError('Archived Assets cannot be renamed until restored.');
+  if (String(asset.name) === nextName) return safeToolError('The Asset already has that display name.');
+  const { data: vyral, error: vyralError } = await admin.from('vyrals')
+    .select('id,name').eq('id', asset.vyral_id).eq('user_id', userId).maybeSingle();
+  if (vyralError || !vyral) return safeToolError('The Asset parent Vyral could not be verified.');
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(),
+    operation: 'asset.rename',
+    target: { vyralId: String(asset.vyral_id), assetId: String(asset.id) },
+    parameters: {
+      previousName: String(asset.name),
+      nextName,
+      expectedUpdatedAt: String(asset.updated_at),
+    },
+    summary: 'Rename Asset "' + String(asset.name) + '" to "' + nextName + '"',
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+  if (!parseVyralAssetRenamePendingPlan(plan)) return safeToolError('The Asset rename preview failed validation.');
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
+    p_capability_id: 'asset.update_metadata', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+  });
+  let saved = pending;
+  if (pendingError || !saved) {
+    const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status')
+      .eq('user_id', userId).eq('session_id', sessionId).eq('idempotency_key', idempotencyKey).maybeSingle();
+    const priorPlan = parseVyralAssetRenamePendingPlan(prior?.plan);
+    if (priorError || !prior || prior.capability_id !== 'asset.update_metadata' || prior.status !== 'pending' ||
+        Date.parse(prior.expires_at) <= Date.now() || !priorPlan ||
+        priorPlan.target.assetId !== assetId || priorPlan.parameters.nextName !== nextName) {
+      return safeToolError('VYRA could not securely save or reuse this rename preview. No changes were made.');
+    }
+    saved = prior;
+  }
+  const savedPlan = parseVyralAssetRenamePendingPlan(saved.plan);
+  if (!savedPlan) return safeToolError('The saved Asset rename preview could not be verified.');
+  return {
+    ok: true, requiresApproval: true, actionId: saved.id,
+    assetId: savedPlan.target.assetId, vyralId: savedPlan.target.vyralId,
+    vyralName: String(vyral.name), previousName: savedPlan.parameters.previousName,
+    assetName: savedPlan.parameters.nextName, originalFilename: String(asset.original_filename),
+    summary: savedPlan.summary, expiresAt: saved.expires_at,
+    message: 'Preview only. The original filename, file bytes, immutable versions and DNA remain unchanged. Wait for explicit approval in this same chat.',
+  };
+}
+
 async function createVyralCreateProposal(
   admin: any,
   userId: string,
@@ -1943,6 +2035,64 @@ async function applyPendingStoryboardApprovalLegacy(
  * The legacy routine remains the canonical domain transaction for now; the executor
  * gates it with a server-verified, session-bound user approval and owner check.
  */
+async function resolvePendingAssetRenameApproval(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  latestUserText: string,
+): Promise<string | null> {
+  if (!sessionId || !/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim())) return null;
+  const { data: rows, error } = await admin.from('ai_operator_pending_actions')
+    .select('id,user_id,session_id,capability_id,plan,expires_at,status')
+    .eq('user_id', userId).eq('session_id', sessionId).eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(3);
+  if (error || !Array.isArray(rows)) return 'I could not safely verify pending actions. No Asset was renamed.';
+  const renameRows = rows.filter((row: Record<string, unknown>) =>
+    row.capability_id === 'asset.update_metadata' && parseVyralAssetRenamePendingPlan(row.plan));
+  if (!renameRows.length) return null;
+  if (rows.length !== 1 || renameRows.length !== 1) return 'There is more than one pending action in this chat. Resolve them one at a time; nothing was renamed.';
+  const pending = renameRows[0];
+  const plan = validateVyralAssetRenamePendingAction(pending, {
+    userId, sessionId, actionId: String(pending.id),
+  });
+  if (!plan) return 'The exact Asset rename preview could not be verified. Nothing was renamed.';
+  const { data: asset, error: assetError } = await admin.from('vyral_assets')
+    .select('id,vyral_id,user_id,name,updated_at,processing_status')
+    .eq('id', plan.target.assetId).eq('vyral_id', plan.target.vyralId).eq('user_id', userId).maybeSingle();
+  if (assetError || !asset || asset.name !== plan.parameters.previousName ||
+      String(asset.updated_at) !== plan.parameters.expectedUpdatedAt || asset.processing_status === 'archived') {
+    return 'The Asset changed after this preview or is no longer available. Nothing was renamed; prepare a fresh preview.';
+  }
+  const { data: approved, error: approveError } = await admin.rpc('approve_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+  });
+  if (approveError || !approved || approved.status !== 'approved') return 'VYRA could not securely record the Asset rename approval. Nothing was changed.';
+  const { data: claimed, error: claimError } = await admin.rpc('claim_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+  });
+  if (claimError || !claimed || claimed.status !== 'executing') return 'The rename approval was recorded, but VYRA could not reserve it. Prepare a fresh preview.';
+  const { data: updated, error: updateError } = await admin.from('vyral_assets')
+    .update({ name: plan.parameters.nextName })
+    .eq('id', plan.target.assetId).eq('vyral_id', plan.target.vyralId).eq('user_id', userId)
+    .eq('name', plan.parameters.previousName).eq('updated_at', plan.parameters.expectedUpdatedAt)
+    .select('id,name,original_filename,updated_at').maybeSingle();
+  if (updateError || !updated) {
+    await admin.rpc('finish_ai_operator_pending_action', {
+      p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+      p_status: 'failed', p_failure_code: 'ASSET_RENAME_CONFLICT',
+    });
+    return 'The Asset could not be renamed because it changed during approval. Nothing was overwritten; prepare a fresh preview.';
+  }
+  const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+    p_status: 'completed',
+    p_result_summary: { assetId: updated.id, vyralId: plan.target.vyralId, previousName: plan.parameters.previousName, assetName: updated.name, originalFilename: updated.original_filename },
+    p_failure_code: null,
+  });
+  if (finishError) return 'The Asset was renamed, but the approval audit could not be finalized. Refresh the Vyral and verify its name before retrying.';
+  return 'Approved and saved. Renamed the Asset to "' + String(updated.name) + '". The original filename, immutable file bytes, versions, DNA and Fingerprints were preserved.';
+}
+
 async function resolvePendingAssetUploadApproval(
   admin: any,
   userId: string,
@@ -2236,6 +2386,7 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'timeline.propose_transition': 'propose_master_timeline_transition',
   'vyral.propose_create': 'propose_vyral_create',
   'asset.propose_upload': 'propose_vyral_asset_upload',
+  'asset.propose_rename': 'propose_vyral_asset_rename',
 } as const;
 
 type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
@@ -2251,6 +2402,12 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return Object.keys(input).every((key) => ['vyral_id', 'asset_name'].includes(key)) &&
           isUuid(input.vyral_id) && typeof input.asset_name === 'string' &&
           input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180;
+      }
+      if (capabilityId === 'asset.propose_rename') {
+        return Object.keys(input).every((key) => ['asset_id', 'asset_name'].includes(key)) &&
+          isUuid(input.asset_id) && typeof input.asset_name === 'string' &&
+          input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180 &&
+          !/[\\/\u0000-\u001f\u007f]/.test(input.asset_name);
       }
       if (capabilityId === 'vyral.propose_create') {
         return Object.keys(input).every((key) => ['name', 'description'].includes(key)) &&
@@ -2294,6 +2451,9 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       if (capabilityId === 'asset.propose_upload') {
         const attachment = isPlainRecord(runtime.uploadAttachment) ? runtime.uploadAttachment : null;
         return await createVyralAssetUploadProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, attachment as { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null);
+      }
+      if (capabilityId === 'asset.propose_rename') {
+        return await createVyralAssetRenameProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
       }
       if (capabilityId === 'vyral.propose_create') {
         return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
@@ -2809,6 +2969,8 @@ Deno.serve(async (request: Request) => {
   if (totalChars > 30000) return json({ error: 'Chat history is too long. Start a new conversation.' }, 413);
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+  const assetRenameApproval = await resolvePendingAssetRenameApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  if (assetRenameApproval !== null) return sseResponse(assetRenameApproval);
   const assetUploadApproval = await resolvePendingAssetUploadApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
   if (assetUploadApproval) return sseResponse(assetUploadApproval.content, assetUploadApproval.operatorAction);
   const approvedActionResult = await resolvePendingStoryboardApproval(context.supabaseAdmin, context.supabase, userId, conversationId, latestUserText);
