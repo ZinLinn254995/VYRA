@@ -1239,10 +1239,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('Select one Asset before reviewing its Vision evidence.');
         if (!supabase) throw new Error('Vision evidence review is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: observations, error: observationsError } = await supabase
+        const { data: observations, error: observationsError } = await awaitForCurrentRequest(supabase
           .from('vyral_vision_observations')
           .select('id,asset_version_id,task_kind,model_provider,model_id,observation,source_sha256,verification_status,created_at')
-          .eq('asset_id', selectedAsset.id).order('created_at', { ascending: false }).limit(10);
+          .eq('asset_id', selectedAsset.id).order('created_at', { ascending: false }).limit(10));
         if (observationsError) throw new Error('Could not load Vision observations: ' + observationsError.message);
         const lines = ['Recent Vision observations for ' + selectedAsset.name + ':'];
         if (!observations?.length) lines.push('No Vision observations have been recorded for this Asset.');
@@ -1268,9 +1268,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (!supabase) throw new Error('Creator evidence review is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
         const observationId = creatorObservationAction[2];
-        const { data: observation, error: observationError } = await supabase
+        const { data: observation, error: observationError } = await awaitForCurrentRequest(supabase
           .from('vyral_vision_observations').select('id,asset_id').eq('id', observationId)
-          .eq('asset_id', selectedAsset.id).maybeSingle();
+          .eq('asset_id', selectedAsset.id).maybeSingle());
         if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
         const decision = creatorObservationAction[1].toLowerCase() === 'confirm' ? 'creator_confirmed' : 'disputed';
         const { data: result, error: reviewError } = await awaitForCurrentRequest(supabase.functions.invoke('record-vyral-vision-review', {
@@ -1295,9 +1295,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const observationId = promoteObservationField[1];
         const observationFieldPath = promoteObservationField[2];
         const fieldPath = promoteObservationField[3] || ('knowledge.' + observationFieldPath);
-        const { data: observation, error: observationError } = await supabase
+        const { data: observation, error: observationError } = await awaitForCurrentRequest(supabase
           .from('vyral_vision_observations').select('id,asset_id,observation')
-          .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle();
+          .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle());
         if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
         let acceptedValue: unknown = observation.observation;
         for (const part of observationFieldPath.split('.')) {
@@ -1355,11 +1355,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To validate a DNA change set, select the Asset whose approved change set you want VYRA to check.');
         if (!supabase) throw new Error('Secure DNA change-set validation is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: approved, error: approvedError } = await supabase
+        const { data: approved, error: approvedError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at,change_set_sha256')
           .eq('asset_id', selectedAsset.id).eq('status','approved').not('change_set','is',null)
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .order('created_at', { ascending: false }).limit(1).maybeSingle());
         if (approvedError) throw new Error('Could not load the prepared DNA change set: ' + approvedError.message);
         if (!approved) throw new Error('No prepared DNA change set exists for this Asset. Approve its proposal and prepare the change set first.');
         const { data: validated, error: validationError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
@@ -1394,7 +1394,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To prepare the DNA change set, select the same Asset whose improvement proposal you approved.');
         if (!supabase) throw new Error('Secure DNA change-set preparation is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: approved, error: approvedError } = await supabase
+        const { data: approved, error: approvedError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at')
           .eq('asset_id', selectedAsset.id).eq('status','approved')
@@ -1427,7 +1427,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To approve or reject a DNA improvement plan, select the same Asset and send “Approve” or “Reject”.');
         if (!supabase) throw new Error('Secure DNA proposal review is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: pending, error: pendingError } = await supabase
+        const { data: pending, error: pendingError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at')
           .eq('asset_id', selectedAsset.id).eq('status','proposed')
@@ -1565,13 +1565,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           throw new Error('To inspect reconstruction attempts, select an Asset from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure reconstruction evidence is unavailable in this environment.');
-        const { data, error } = await supabase
+        const { data, error } = await awaitForCurrentRequest(supabase
           .from('vyral_reconstruction_tests')
           .select('id,asset_id,model_provider,model_id,model_version,prompt_sha256,session_reference,tool_access,blindness_status,attempt_evidence,protocol_version,comparison_mode,test_status,exact_match,similarity_score,created_at')
           .eq('vyral_id', qualityVyralIds[0])
           .eq('protocol_version', 'ORIGIN-01-v3')
           .order('created_at', { ascending: false })
-          .limit(30);
+          .limit(30));
         if (error) throw new Error('Could not load saved reconstruction evidence: ' + error.message);
         const attempts = (data ?? []) as Array<{
           id: string; asset_id: string; model_provider: string; model_id: string; model_version: string | null;
@@ -1746,11 +1746,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
         // Resolve immutable latest versions instead of trusting the Asset row's legacy storage_path.
         const selectedIds = (assetRows ?? []).map((asset) => asset.id);
-        const { data: versionRows, error: versionError } = await supabase
+        const { data: versionRows, error: versionError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_versions')
           .select('id,asset_id,vyral_id,storage_path,mime_type,size_bytes,version_number')
           .in('asset_id', selectedIds)
-          .order('version_number', { ascending: false });
+          .order('version_number', { ascending: false }));
         if (versionError) throw new Error('Could not resolve current selected Asset versions: ' + versionError.message);
         const latestVersionByAsset = new Map<string, { vyral_id: string; storage_path: string; mime_type: string | null; size_bytes: number; version_number: number }>();
         for (const version of versionRows ?? []) {
