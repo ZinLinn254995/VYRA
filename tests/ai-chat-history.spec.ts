@@ -17,13 +17,13 @@ test('AI Chat history is loaded only for the authenticated owner', () => {
 test('AI Chat persists text transcripts and safe metadata without attachment bytes', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
   assert.match(page, /from\('vyra_ai_chat_conversations'\)\.upsert\(/);
-  assert.match(page, /user_id: historyOwnerId/);
+  assert.match(page, /user_id: ownerId/);
   assert.match(page, /messages: storedMessages/);
   assert.match(page, /id: message\.id,[\s\S]*?role: message\.role,[\s\S]*?content: message\.content/);
   assert.doesNotMatch(page.slice(page.indexOf('const persistSession'), page.indexOf('const startNewChat')), /base64|dataUrl|arrayBuffer|fileBytes/i);
   assert.match(page, /historyWriteQueueRef\.current\.then\(async \(\) =>/);
   assert.match(page, /Chat history could not be saved/);
-  assert.match(page, /Please stay here and try again/);
+  assert.match(page, /Please keep this page open and retry/);
 });
 
 test('AI Chat history database enforces owner-scoped RLS and bounded transcript size', () => {
