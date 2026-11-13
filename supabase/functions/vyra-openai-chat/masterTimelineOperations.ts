@@ -204,3 +204,41 @@ export const updateMasterTimelineClipText = (
   });
   return { ok: true, value: { ...timeline, textTracks: nextTracks }, affectedClipId: clipId };
 };
+
+const ALLOWED_TRANSITION_EFFECTS = ['dissolve', 'fade', 'wipe', 'slide', 'zoom', 'blur'] as const;
+
+export const updateMasterTimelineTransition = (
+  timeline: MasterTimelineData,
+  transitionKey: string,
+  effect: string | null,
+  validTransitionKeys: readonly string[],
+): TimelineResult => {
+  if (!timeline || !timeline.transitions || typeof timeline.transitions !== 'object' || Array.isArray(timeline.transitions)) {
+    return fail('invalid-timeline');
+  }
+  if (!transitionKey || transitionKey.length > 100 || !validTransitionKeys.includes(transitionKey)) {
+    return fail('invalid-transition');
+  }
+  const current = timeline.transitions[transitionKey];
+  if (effect === null) {
+    if (!current) return { ok: true, value: timeline };
+    const transitions = Object.fromEntries(
+      Object.entries(timeline.transitions).filter(([key]) => key !== transitionKey),
+    );
+    return { ok: true, value: { ...timeline, transitions } };
+  }
+  if (!ALLOWED_TRANSITION_EFFECTS.includes(effect as typeof ALLOWED_TRANSITION_EFFECTS[number])) {
+    return fail('invalid-transition');
+  }
+  if (current?.effect === effect) return { ok: true, value: timeline };
+  const duration = typeof current?.duration === 'number' && Number.isFinite(current.duration)
+    ? current.duration : 0.5;
+  return {
+    ok: true,
+    value: {
+      ...timeline,
+      transitions: { ...timeline.transitions, [transitionKey]: { effect, duration } },
+    },
+  };
+};
+
