@@ -498,7 +498,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   }, [messages]);
 
   const persistSession = useCallback((session: ChatSession) => {
-    if (!supabase || !historyOwnerId) return Promise.resolve(false);
+    const client = supabase;
+    if (!client || !historyOwnerId) return Promise.resolve(false);
 
     // Serialize writes so a slower, older transcript cannot overwrite a newer one.
     const write = historyWriteQueueRef.current.then(async () => {
@@ -510,7 +511,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
         ...(message.action ? { action: message.action } : {}),
       }));
-      const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
+      const { error } = await client.from('vyra_ai_chat_conversations').upsert({
         id: session.id,
         user_id: historyOwnerId,
         title: (session.title || 'New chat').slice(0, 160),
