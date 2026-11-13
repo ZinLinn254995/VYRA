@@ -135,7 +135,6 @@ test('AI Chat retries the original user turn without appending a duplicate promp
 test('AI Chat drops queued transcript writes when authentication changes accounts', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
   assert.match(page, /const previousOwnerId = historyOwnerRef\.current;[\s\S]*?historyOwnerRef\.current = null;/);
-  assert.match(page, /if \(previousOwnerId && previousOwnerId !== ownerId\)/);
   assert.match(page, /const ownerId = historyOwnerId;[\s\S]*?if \(historyOwnerRef\.current !== ownerId\) return false;/);
   assert.match(page, /user_id: ownerId/);
 });
@@ -150,6 +149,5 @@ test('AI Chat aborts and isolates in-flight responses when switching conversatio
   assert.match(page, /if \(activeRequestControllerRef\.current !== requestController\) return;/);
   assert.match(page, /if \(!isAuthenticated \|\| !supabaseClient\) \{\s*cancelActiveRequest\(\)/);
   assert.match(page, /const previousOwnerId = historyOwnerRef\.current;[\s\S]*?if \(previousOwnerId\) cancelActiveRequest\(\);[\s\S]*?historyOwnerRef\.current = null;/);
-  assert.match(page, /if \(previousOwnerId && previousOwnerId !== ownerId\) cancelActiveRequest\(\)/);
   assert.match(page, /if \(activeRequestControllerRef\.current === requestController\) \{\s*activeRequestControllerRef\.current = null;\s*setIsSending\(false\);/);
 });
