@@ -543,12 +543,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       if (requestId !== masterPlaybackRequestIdRef.current) return;
       const handle = startMasterTimelineAudioPlayback(plan, {
         context,
-        resolveAssetUrl: async (assetId, assetVersionId) => {
+        resolveAssetUrl: async (assetId, assetVersionId, signal) => {
+          if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           const result = await createVyralAudioPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
+          if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           return result.signedUrl;
         },
-        fetchAudio: async (url) => {
-          const response = await fetch(url, { cache: 'no-store' });
+        fetchAudio: async (url, signal) => {
+          const response = await fetch(url, { cache: 'no-store', signal });
           if (!response.ok) throw new Error('A private Audio Asset could not be downloaded for playback.');
           return response.arrayBuffer();
         },
