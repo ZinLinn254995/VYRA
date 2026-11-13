@@ -203,3 +203,20 @@ test('AI Chat reset and archive actions cannot clear a different account session
   assert.match(removeCurrent, /const sessionId = activeSessionId/);
   assert.match(removeCurrent, /\.eq\('user_id', ownerId\)/);
 });
+
+test('AI Chat does not clear a chat when saving it for archive or a new chat fails', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const saveStart = page.indexOf('const saveCurrentSession = async');
+  const saveEnd = page.indexOf('const startNewChat = async', saveStart);
+  const saveBlock = page.slice(saveStart, saveEnd);
+  assert.match(saveBlock, /const saved = await persistSession\(session\)/);
+  assert.match(saveBlock, /if \(!saved\) return false/);
+  assert.match(saveBlock, /return true/);
+  for (const name of ['const startNewChat = async', 'const archiveCurrentChat = async']) {
+    const start = page.indexOf(name);
+    const end = page.indexOf(name.includes('startNewChat') ? 'const openSession =' : 'const deleteCurrentChat =', start + name.length);
+    const block = page.slice(start, end);
+    assert.match(block, /const saved = await saveCurrentSession/);
+    assert.match(block, /if \(!saved \|\| historyOwnerRef\.current !== ownerAtStart\) return/);
+  }
+});
