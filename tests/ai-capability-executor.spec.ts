@@ -27,6 +27,21 @@ test('catalogue entry without adapter cannot be executed or claimed successful',
   });
 });
 
+test('adapter-reported failures are not audited or returned as successful executions', async () => {
+  registerAiCapabilityAdapter({
+    capabilityId: 'storyboard.analyze',
+    validate: () => true,
+    execute: async () => ({ ok: false, message: 'The proposal could not be saved.' }),
+  });
+  const result = await executeAiCapability({
+    capabilityId: 'storyboard.analyze', userId: 'user-1', requestId: 'request-0008', input: {},
+  }, authority());
+  assert.deepEqual(result, {
+    ok: false, code: 'EXECUTION_FAILED', message: 'The proposal could not be saved.',
+  });
+  assert.deepEqual(events.slice(-2).map((event) => event.outcome), ['started', 'failed']);
+});
+
 test('unknown capability fails closed before any adapter or owner operation', async () => {
   const result = await executeAiCapability({
     capabilityId: 'database.raw_sql', userId: 'user-1', requestId: 'request-0002', input: {},
