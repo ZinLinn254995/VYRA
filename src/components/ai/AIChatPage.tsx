@@ -1403,7 +1403,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at')
           .eq('asset_id', selectedAsset.id).eq('status','approved')
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .order('created_at', { ascending: false }).limit(1).maybeSingle());
         if (approvedError) throw new Error('Could not load the approved DNA proposal: ' + approvedError.message);
         if (!approved) throw new Error('No approved DNA improvement proposal exists for this Asset yet. Approve the proposal first.');
         const { data: prepared, error: prepareError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
