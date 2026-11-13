@@ -1503,11 +1503,67 @@ async function resolvePendingStoryboardApproval(
     const nextScenes = scenes.map((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item) || (item as Record<string, unknown>).id !== sceneId) return item;
       found = true;
-      return { ...(item as Record<string, unknown>), [field as string]: stringValue.trim() };
+      const currentScene = item as Record<string, unknown>;
+      if (field !== 'duration') return { ...currentScene, [field as string]: stringValue.trim() };
+      const duration = value as number;
+      const project = currentScene.project && typeof currentScene.project === 'object' && !Array.isArray(currentScene.project)
+        ? currentScene.project as Record<string, unknown> : null;
+      const oldTimeline = project?.timeline && typeof project.timeline === 'object' && !Array.isArray(project.timeline)
+        ? project.timeline as Record<string, unknown> : {
+          duration: Number(currentScene.duration) || 5, fps: 30, width: 1920, height: 1080, tracks: [],
+        };
+      const tracks = Array.isArray(oldTimeline.tracks) ? oldTimeline.tracks.map((rawTrack) => {
+        if (!rawTrack || typeof rawTrack !== 'object' || Array.isArray(rawTrack)) return rawTrack;
+        const track = rawTrack as Record<string, unknown>;
+        if (!Array.isArray(track.clips)) return track;
+        return {
+          ...track,
+          clips: track.clips.map((rawClip) => {
+            if (!rawClip || typeof rawClip !== 'object' || Array.isArray(rawClip)) return rawClip;
+            const clip = rawClip as Record<string, unknown>;
+            const rawStart = typeof clip.start === 'number' && Number.isFinite(clip.start) ? clip.start : 0;
+            const rawDuration = typeof clip.duration === 'number' && Number.isFinite(clip.duration) ? clip.duration : 0.1;
+            const start = Math.min(Math.max(0, rawStart), Math.max(0, duration - 0.1));
+            return { ...clip, start, duration: Math.max(0.1, Math.min(rawDuration, duration - start)) };
+          }),
+        };
+      }) : [];
+      const now = new Date().toISOString();
+      const nextProject = {
+        ...(project || {}),
+        timeline: { ...oldTimeline, duration, tracks },
+        ...(project ? { updatedAt: now } : {}),
+      };
+      return { ...currentScene, duration, project: nextProject };
     });
     if (!found) return await fail('SCENE_NOT_FOUND', 'That Scene no longer exists in this Storyboard. No change was made.');
+    let nextDetails: Record<string, unknown> = { ...details, scenes: nextScenes };
+    if (field === 'duration' && details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline)) {
+      const master = details.masterTimeline as Record<string, unknown>;
+      const instances = Array.isArray(master.sceneInstances) ? master.sceneInstances : [];
+      const changedScene = nextScenes.find((item) => item && typeof item === 'object' && !Array.isArray(item) && (item as Record<string, unknown>).id === sceneId) as Record<string, unknown> | undefined;
+      nextDetails = {
+        ...nextDetails,
+        masterTimeline: {
+          ...master,
+          sceneInstances: instances.map((rawInstance) => {
+            if (!rawInstance || typeof rawInstance !== 'object' || Array.isArray(rawInstance)) return rawInstance;
+            const instance = rawInstance as Record<string, unknown>;
+            if (instance.sceneId !== sceneId) return instance;
+            return {
+              ...instance,
+              sourceIn: 0,
+              sourceOut: value,
+              sceneProjectId: (changedScene?.project as Record<string, unknown> | undefined)?.id,
+              renderRevisionId: ((changedScene?.project as Record<string, unknown> | undefined)?.latestRenderRevisionId ?? null),
+            };
+          }),
+          sceneRanges: {},
+        },
+      };
+    }
     const { data: sceneUpdated, error: sceneUpdateError } = await admin.from('vyral_storyboards')
-      .update({ details: { ...details, scenes: nextScenes }, updated_at: new Date().toISOString() })
+      .update({ details: nextDetails, updated_at: new Date().toISOString() })
       .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
       .select('id,title,topic,updated_at').maybeSingle();
     if (sceneUpdateError) return await fail('SCENE_UPDATE_FAILED', 'The Scene update failed. No successful change was confirmed.');
