@@ -723,3 +723,16 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Added atomic RPC transitions for propose, approve, reject, claim-for-execution, and finish (completed/failed). Approval and claim both re-check owner, session, status, and expiry in the database. Audit events are deduplicated per action/event.
 - The migration is committed and applied to the Development Supabase project. Catalog checks confirmed both tables exist, RLS is enabled with one owner-scoped SELECT policy each, authenticated users cannot insert, and all five lifecycle RPCs are executable by `service_role` but not `authenticated`. The Supabase Security Advisor showed no findings for these new tables or RPCs. The Edge Function does not yet call these RPCs; there is no live model-driven write execution. That integration is the next step.
 - No production database changes, UI changes, provider calls, or customer charges.
+
+
+### Global AI Operator — first autonomous Workspace read adapters
+
+- Extended the authenticated `vyra-openai-chat` Edge Function with two model-selectable, read-only tools available from every app page:
+  - `list_my_storyboards`: lists/searches actual Storyboards belonging to the authenticated user, bounded to 30 records.
+  - `get_my_storyboard_details`: loads a title-matched Storyboard and bounded scene details; reports ambiguity rather than guessing.
+- Every query is scoped server-side by the authenticated `user_id`; model arguments cannot supply or override ownership.
+- Tool arguments and output are bounded, search filter metacharacters are sanitized, and no writes, publishing, media charges, or privileged operations are exposed by these tools.
+- Existing Vyral Asset/DNA tools remain available only when the active Vyral is independently verified as owned by the authenticated user.
+- Development Supabase Edge Function `vyra-openai-chat` deployed as version 6 with JWT verification enabled.
+- This is the first live server-side global Workspace read capability, not completion of the 153-capability catalogue. Write execution, persisted approval integration, and the remaining domain adapters are still pending.
+- AI Chat visual structure and styling were not changed. OpenAI platform key remains unset, so authenticated model-driven runtime verification awaits Phase 6; no provider call was made.
