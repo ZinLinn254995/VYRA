@@ -1003,3 +1003,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Added planner, playback-engine and shared-clock integration regression tests; CI run [#43401810181](https://github.com/ZinLinn254995/VYRA/actions/runs/43401810181) passed, including TypeScript, both Video planner/engine tests, Supabase Edge Function type-check and Production build.
 - Real-browser playback with uploaded private Video + Audio Assets is still required. This implementation is sequential Scene playback only: transition compositing, simultaneous multi-layer video, video effects, and final export are not implemented.
 - No Production deployment, merge, Production database/function changes, API keys, provider calls or customer charges.
+
+
+### App-wide AI capability implementation coverage
+
+- Added `src/server/aiCapabilityCoverage.ts` to produce a deterministic coverage report from the actual server-executor IDs supplied by the runtime.
+- Separates connected executors, missing executors, human-controlled operations, and Owner/Admin-gated operations; it never counts catalogue entries as implemented merely because they exist in the registry.
+- Reports global totals, completion percentage, per-domain totals, and unknown executor IDs so registration mistakes are visible.
+- Added `tests/ai-capability-coverage.spec.ts` and CI coverage validation.
+- This is an implementation-audit foundation, not a claim that all 153 catalogue capabilities are already executable. Existing domain-specific OpenAI tools remain separate until connected to the shared executor safely.
+- No Master Editor UI/UX, AI Chat UI/CSS, Edge Function, database, provider credential, or Production changes.
