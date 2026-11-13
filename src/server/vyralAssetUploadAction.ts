@@ -5,6 +5,7 @@ export interface VyralAssetUploadPendingPlan {
   parameters: {
     clientDraftId: string;
     fileName: string;
+    assetName: string;
     mimeType: string;
     sizeBytes: number;
   };
@@ -29,10 +30,12 @@ export function parseVyralAssetUploadPendingPlan(value: unknown): VyralAssetUplo
   const parameters = plan.parameters && typeof plan.parameters === 'object' && !Array.isArray(plan.parameters)
     ? plan.parameters as Record<string, unknown> : null;
   if (!target || Object.keys(target).length !== 1 || typeof target.vyralId !== 'string' || !UUID.test(target.vyralId) ||
-      !parameters || Object.keys(parameters).some((key) => !['clientDraftId', 'fileName', 'mimeType', 'sizeBytes'].includes(key)) ||
+      !parameters || Object.keys(parameters).some((key) => !['clientDraftId', 'fileName', 'assetName', 'mimeType', 'sizeBytes'].includes(key)) ||
       typeof parameters.clientDraftId !== 'string' || !UUID.test(parameters.clientDraftId) ||
       typeof parameters.fileName !== 'string' || !parameters.fileName.trim() || parameters.fileName.length > 255 ||
       /[\\/\u0000-\u001f\u007f]/.test(parameters.fileName) ||
+      typeof parameters.assetName !== 'string' || !parameters.assetName.trim() || parameters.assetName.length > 180 ||
+      /[\\/\u0000-\u001f\u007f]/.test(parameters.assetName) ||
       typeof parameters.mimeType !== 'string' || !SAFE_MIME.test(parameters.mimeType) ||
       typeof parameters.sizeBytes !== 'number' || !Number.isSafeInteger(parameters.sizeBytes) ||
       parameters.sizeBytes < 1 || parameters.sizeBytes > MAX_UPLOAD_BYTES) return null;
@@ -45,6 +48,7 @@ export function parseVyralAssetUploadPendingPlan(value: unknown): VyralAssetUplo
     parameters: {
       clientDraftId: parameters.clientDraftId,
       fileName: parameters.fileName.trim(),
+      assetName: parameters.assetName.trim(),
       mimeType: parameters.mimeType.toLowerCase(),
       sizeBytes: parameters.sizeBytes,
     },
