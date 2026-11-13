@@ -1921,6 +1921,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           }
           const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
             vyralId: destination.id, userId: authData.user.id, file: sourceFile, assetName,
+            signal: requestController.signal,
             metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: clientDraftId },
           });
           assertRequestCurrent();
