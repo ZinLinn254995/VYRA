@@ -3,13 +3,6 @@ import { test, expect } from '@playwright/test';
 // Live pricing preflight requires a signed-in test session.
 test.use({ storageState: './tests/e2e-auth-state.json' });
 
-async function openAiIdeas(page: import('@playwright/test').Page) {
-  await page.setViewportSize({ width: 1024, height: 768 });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'AI Ideas Chat' }).click();
-  await expect(page.getByPlaceholder('Ask for video ideas, hooks, full scripts, or storyboard visual prompts...')).toBeVisible();
-}
-
 test('Create Video storyboard is not generated when spend confirmation is declined', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.addInitScript(() => {
