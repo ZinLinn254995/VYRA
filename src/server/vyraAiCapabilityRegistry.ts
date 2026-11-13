@@ -54,6 +54,18 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['storyboard.reorder', 'Reorder storyboard scenes'],
     ['storyboard.restore', 'Restore a recoverable storyboard'],
   ]),
+  ...define('storyboard', 'autonomous', 'reversible', [
+    ['storyboard.propose_update', 'Prepare a Storyboard update preview without applying the change'],
+  ]),
+  ...define('scene-editor', 'autonomous', 'reversible', [
+    ['scene.propose_update', 'Prepare a Scene update preview without applying the change'],
+    ['scene.propose_mutation', 'Prepare a Scene create, duplicate, or delete preview without applying the change'],
+    ['scene.propose_reorder', 'Prepare a complete Scene reorder preview without applying the change'],
+  ]),
+  ...define('timeline', 'autonomous', 'reversible', [
+    ['timeline.propose_edit', 'Prepare a Master Timeline edit preview without applying the change'],
+    ['timeline.propose_transition', 'Prepare a transition preview without applying the change'],
+  ]),
   ...define('storyboard', 'approval-required', 'destructive', [
     ['storyboard.delete', 'Delete a storyboard'],
     ['storyboard.delete_permanently', 'Permanently erase a storyboard'],
