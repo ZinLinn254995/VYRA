@@ -23,7 +23,7 @@ test('plans ordered Scene video sources against contiguous Master Timeline timin
     duration: item.durationSeconds,
   })), [
     { sceneId: 'scene-a', start: 0, delay: 0, offset: 1, duration: 5 },
-    { sceneId: 'scene-b', start: 5, delay: 5, offset: 2, duration: 7 },
+    { sceneId: 'scene-b', start: 5, delay: 5, offset: 2, duration: 8 },
     { sceneId: 'scene-c', start: 13, delay: 13, offset: 0, duration: 4 },
   ]);
 });
