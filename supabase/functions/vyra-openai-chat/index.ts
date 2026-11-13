@@ -863,7 +863,7 @@ async function createMasterTimelineEditProposal(
   const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
   const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
-    p_capability_id: 'timeline.update', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+    p_capability_id: operation === 'move' || operation === 'trim' ? 'timeline.move_clip' : operation === 'split' ? 'timeline.split_clip' : 'timeline.update_clip', p_plan: plan, p_expires_at: expiresAt.toISOString(),
   });
   if (pendingError || !pending) return safeToolError('VYRA could not securely save this Timeline preview. No changes were made.');
   return {
@@ -1017,7 +1017,7 @@ async function resolvePendingStoryboardApproval(
   if (!pendingRows?.length) return null;
   if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
   const pending = pendingRows[0];
-  if (!['storyboard.update', 'scene.update', 'timeline.update'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
+  if (!['storyboard.update', 'scene.update', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
     return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
   }
   if (reject) {
@@ -1036,7 +1036,7 @@ async function resolvePendingStoryboardApproval(
   const expectedUpdatedAt = parameters.expectedUpdatedAt;
   const sceneId = target.sceneId;
   const isSceneUpdate = pending.capability_id === 'scene.update';
-  const isTimelineUpdate = pending.capability_id === 'timeline.update';
+  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip'].includes(String(pending.capability_id));
   const timelineOperation = parameters.operation;
   const timelineKind = parameters.kind;
   const timelineClipId = parameters.clipId;
