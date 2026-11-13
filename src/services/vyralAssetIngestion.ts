@@ -169,7 +169,7 @@ export async function extractVideoTechnicalMetadata(
   try {
     const durationSeconds = await new Promise<number>((resolve, reject) => {
       const video = document.createElement('video');
-      const timeout = globalThis.setTimeout(() => reject(new Error('Video metadata timeout.')), 15000);
+      const timeout = globalThis.setTimeout(() => { cleanup(); reject(new Error('Video metadata timeout.')); }, 15000);
       const cleanup = () => {
         globalThis.clearTimeout(timeout);
         video.pause();
