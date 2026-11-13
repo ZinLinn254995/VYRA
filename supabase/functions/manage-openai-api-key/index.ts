@@ -12,6 +12,13 @@ Deno.serve(async (request: Request) => {
   const userId = typeof context.userClaims?.id === 'string' ? context.userClaims.id : '';
   if (!userId) return json({ error: 'Authenticated user identity is unavailable.' }, 401);
 
+  const { data: admin, error: adminError } = await context.supabaseAdmin
+    .from('platform_admins').select('role').eq('user_id', userId).maybeSingle();
+  if (adminError) return json({ error: 'Could not verify platform administrator access.' }, 503);
+  if (!admin || !['owner', 'admin'].includes(admin.role)) {
+    return json({ error: 'Administrator access is required to manage platform AI providers.' }, 403);
+  }
+
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
   if (body.action === 'status') {
