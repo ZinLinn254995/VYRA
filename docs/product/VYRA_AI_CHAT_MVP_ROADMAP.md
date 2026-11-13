@@ -742,6 +742,17 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 
 
 
+### Master Editor operation engine — deterministic reversible clip operations
+
+- Added `src/server/masterTimelineOperations.ts`, a pure server-side transformation layer using the actual `MasterTimelineData` / Track / Clip shape from `MasterTimelineEditor.tsx`.
+- Implemented deterministic move between existing tracks of the same media kind, with the editor's exact single-collision nearest-free-side behavior; ambiguous multi-clip collisions fail closed. Empty source tracks are preserved, matching the UI.
+- Implemented left/right trim with the same 0.2-second minimum and neighboring-clip boundaries used by the current Text and Audio trim handles.
+- Implemented Audio/Text split with the same 0.2-second minimum from either edge and caller-supplied unique IDs.
+- Implemented bounded Text clip name/content update. Every operation returns a new immutable timeline snapshot and preserves unrelated scene ranges, instances, transitions and other track data.
+- Added `tests/master-timeline-operations.spec.ts`, `npm run test:master-timeline-operations`, and a CI step covering move, collision handling, cross-track moves, trim bounds, split and content edits.
+- This is a pure operation engine and test contract only. It is not yet connected to OpenAI tool calling, pending-action approval, owner-scoped optimistic-concurrency persistence, or the live Workspace. No Timeline data has been mutated and no AI Chat UI/CSS was changed.
+- Next: add a server-side proposal/approval adapter that loads the exact owner-owned Storyboard, validates the current `updated_at`, applies one operation to the latest Master Timeline snapshot, persists only after explicit approval, and rejects stale or conflicting changes. Destructive clip deletion, scene duration, source trimming, ripple editing and playback remain disabled until their complete dependency rules are implemented.
+
 ### Master Editor operational understanding — read-only foundation
 
 - Inspected the full current `MasterTimelineEditor.tsx` implementation and its Workspace persistence path before exposing any timeline actions.
