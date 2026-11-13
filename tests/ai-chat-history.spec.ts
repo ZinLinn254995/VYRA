@@ -131,3 +131,11 @@ test('AI Chat retries the original user turn without appending a duplicate promp
   assert.match(page, /messages\.slice\(0, retryUserIndex \+ 1\)/);
   assert.match(page, /sendMessage\(previousUserMessage\.content, previousUserMessage\.id\)/);
 });
+
+test('AI Chat drops queued transcript writes when authentication changes accounts', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /const previousOwnerId = historyOwnerRef\.current;[\s\S]*?historyOwnerRef\.current = null;/);
+  assert.match(page, /if \(previousOwnerId && previousOwnerId !== ownerId\)/);
+  assert.match(page, /const ownerId = historyOwnerId;[\s\S]*?if \(historyOwnerRef\.current !== ownerId\) return false;/);
+  assert.match(page, /user_id: ownerId/);
+});
