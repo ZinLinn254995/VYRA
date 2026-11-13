@@ -82,3 +82,10 @@ The model-driven `propose_vyral_asset_metadata` tool prepares a same-session app
 ## AI Chat Vyral folder organization
 
 The AI Operator can read the active Vyral's real folder tree and direct Asset counts, then prepare same-chat approval previews to create, rename or move folders and to move Assets into folders or back to the Vyral root. Folder hierarchy operations are scoped to the same owner and Vyral; cross-Vyral moves are not included. Folder moves preserve the subtree and prevent cycles. The server rechecks ownership, source location, destination membership and optimistic Asset timestamps before applying an approved action. Folder names are unique within their parent (including root), with database uniqueness constraints providing the final conflict guard. No folder deletion or recursive content deletion is part of this operation.
+
+
+## Semantic Asset relationship foundation
+
+Semantic relationships now have a dedicated `vyral_asset_relationships` table, separate from `vyral_lineage`. The latter remains the canonical record of generation/derivation lineage; it is not overloaded with creator-defined semantic links. The new table supports bounded relation types, human-readable labels, rationale and structured metadata. Composite foreign keys require both endpoint Assets to belong to the same Vyral and owner, self-links and duplicate links are rejected, and authenticated clients are read-only under RLS. Writes are reserved for the server-side AI Operator. Database contract coverage is included in `supabase/tests/database/vyral_asset_semantic_relationships.test.sql`.
+
+This is the storage and security foundation only. AI Chat relationship proposal, approval, create/update/delete execution and automatic Master DNA synchronization remain follow-up work; no relationship operation is advertised as live yet.
