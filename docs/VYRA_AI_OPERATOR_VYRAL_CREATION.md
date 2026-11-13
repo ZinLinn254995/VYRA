@@ -47,4 +47,24 @@ The authenticated OpenAI tool catalogue now includes `propose_vyral_asset_upload
 
 The canonical ingestion service now accepts an optional approved `assetName` for the VYRA library display name while always retaining `original_filename` from the actual File. Both upload-plan validation and ingestion reject unsafe/path-like display names. CI includes registry, upload-plan and ingestion tests.
 
-The approval-to-local-File transfer handoff and server-confirmed upload completion are still being connected. Until that handoff is complete, this proposal is not a claim that an Asset has been uploaded. The AI Chat and Master Editor presentation remain unchanged.
+## Approved upload handoff
+
+The end-to-end server/browser handoff is now connected:
+
+1. AI Chat sends only a stable local draft UUID plus the attached file's name, MIME type and byte size. The file bytes remain in the browser.
+2. The model calls `propose_vyral_asset_upload` after resolving the destination Vyral and the creator-approved Asset display name.
+3. The Edge Function creates a session-bound `asset.upload` pending action and returns structured preview metadata through the existing chat response stream.
+4. A same-session natural-language approval is checked against the exact pending action. The server approves and claims it, then returns a structured upload instruction.
+5. The browser looks up the exact original File by its draft UUID, rechecks filename, MIME type and byte size, re-verifies the signed-in owner and destination Vyral, then runs the existing canonical ingestion pipeline with the AI-approved `assetName`.
+6. The browser sends only the resulting Asset ID and immutable Version ID back to the authenticated Edge Function. The server independently verifies owner, destination Vyral, approved display name, original filename, MIME type, size, ready status, immutable Version hash and presence of Asset DNA before marking the pending action completed.
+7. Master DNA synchronization is requested after the canonical Asset ingestion succeeds.
+
+The original filename is never overwritten: `vyral_assets.name` stores the approved VYRA display name and `original_filename` preserves the source filename. The file bytes are not sent to OpenAI. A missing local File, expired/ambiguous approval, metadata mismatch, failed ingestion, or unverified DNA cannot be reported as a successful upload.
+
+## Verification status
+
+- Asset upload plan parsing, expiry/owner/session binding, exact File metadata matching, safe display-name validation and canonical ingestion naming have automated tests.
+- The latest VYRA CI passed TypeScript, all configured unit/contract tests, Supabase Edge Function Deno type-check and production build.
+- Actual browser upload/approval end-to-end testing still awaits the platform OpenAI key; no live OpenAI request was made.
+- No Development Edge Function deployment, Production database/function change, Production deployment, or merge was performed.
+- The AI Chat and Master Editor presentation/layout/controls were not changed.
