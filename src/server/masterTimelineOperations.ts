@@ -3,6 +3,7 @@ export type MasterTimelineClip = {
   name: string;
   start: number;
   duration: number;
+  sourceIn?: number;
   waveform?: number[];
   content?: string;
   assetId?: string;
@@ -147,6 +148,7 @@ export const trimMasterTimelineClip = (
     .reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
   let start = clip.start;
   let duration = clip.duration;
+  if (kind === 'audio' && clip.sourceIn !== undefined && (!finite(clip.sourceIn) || clip.sourceIn < 0)) return fail('invalid-time');
   if (edge === 'start') {
     start = Math.max(previousEnd, Math.min(originalEnd - MIN_CLIP_DURATION, requestedTime));
     duration = originalEnd - start;
@@ -154,8 +156,11 @@ export const trimMasterTimelineClip = (
     const maxEnd = Number.isFinite(nextStartBoundary) ? nextStartBoundary : Number.POSITIVE_INFINITY;
     duration = Math.max(MIN_CLIP_DURATION, Math.min(maxEnd - clip.start, requestedTime - clip.start));
   }
+  const sourceIn = kind === 'audio' ? (clip.sourceIn ?? 0) + (start - clip.start) : clip.sourceIn;
   const nextTracks = tracks.map((item) => item.id !== trackId ? item : {
-    ...item, clips: item.clips.map((entry) => entry.id === clipId ? { ...entry, start, duration } : entry),
+    ...item, clips: item.clips.map((entry) => entry.id === clipId
+      ? { ...entry, start, duration, ...(kind === 'audio' ? { sourceIn } : {}) }
+      : entry),
   });
   return { ok: true, value: withTracks(timeline, kind, nextTracks), affectedClipId: clipId };
 };
@@ -180,7 +185,7 @@ export const splitMasterTimelineClip = (
   const newId = createId();
   const allTracks = [...timeline.audioTracks, ...timeline.textTracks];
   if (!newId || allTracks.some((item) => item.clips.some((entry) => entry.id === newId))) return fail('invalid-timeline');
-  const rightClip = { ...clip, id: newId, start: splitTime, duration: end - splitTime };
+  const rightClip = { ...clip, id: newId, start: splitTime, duration: end - splitTime, ...(kind === 'audio' ? { sourceIn: (clip.sourceIn ?? 0) + (splitTime - clip.start) } : {}) };
   const nextTracks = tracks.map((item) => item.id !== trackId ? item : {
     ...item,
     clips: item.clips.flatMap((entry) => entry.id !== clipId ? [entry] : [
