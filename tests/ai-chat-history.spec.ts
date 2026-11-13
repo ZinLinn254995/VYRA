@@ -81,7 +81,8 @@ test('AI Chat conversations support rename, archive restore, and owner-scoped de
   assert.match(page, /const restoreSession = async/);
   assert.match(page, /\.update\(\{ archived: false, updated_at:/);
   assert.match(page, /const removeSession = async/);
-  assert.match(page, /\.delete\(\)\.eq\('id', session\.id\)\.eq\('user_id', historyOwnerId\)/);
+  assert.match(page, /\.delete\(\)\.eq\('id', session\.id\)\.eq\('user_id', ownerId\)/);
+  assert.match(page, /if \(historyOwnerRef\.current !== ownerId\) return;/);
   assert.match(page, /window\.confirm\('Delete this conversation permanently\?'\)/);
   assert.match(page, /session\.archived === showArchivedChats/);
   assert.match(page, /showArchivedChats \? 'Recent' : 'Archived'/);
