@@ -242,3 +242,17 @@ test('AI Chat ignores a completed response if its request was invalidated during
   assert.ok(completion >= 0 && guard > resultGuard);
   assert.ok(guard < completion);
 });
+
+test('AI Chat binds asynchronous chat actions to the validated account owner', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const start = page.indexOf('const sendMessage = async');
+  const end = page.indexOf('const handleFileSelection', start);
+  const block = page.slice(start, end);
+  assert.match(block, /const requestOwnerId = historyOwnerRef\.current/);
+  assert.match(block, /requestOwnerId !== historyOwnerId/);
+  assert.match(block, /const assertRequestCurrent = \(\) =>/);
+  assert.match(block, /historyOwnerRef\.current !== requestOwnerId/);
+  assert.match(block, /authData\.user\?\.id !== requestOwnerId/);
+  assert.match(block, /historyOwnerRef\.current !== requestOwnerId\) return/);
+  assert.ok(block.indexOf('assertRequestCurrent();') < block.indexOf('const result = await aiService.generateResponse'));
+});
