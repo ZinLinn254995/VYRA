@@ -67,13 +67,13 @@ export function buildMasterTimelineVideoPlaybackPlan(
     if (!instance || typeof instance.assetId !== 'string' || !instance.assetId ||
         typeof instance.assetVersionId !== 'string' || !instance.assetVersionId ||
         typeof instance.assetMimeType !== 'string' || !/^video\//i.test(instance.assetMimeType) ||
-        !Number.isFinite(instance.videoSourceIn ?? instance.sourceIn) || (instance.videoSourceIn ?? instance.sourceIn) < 0 ||
-        !Number.isFinite(instance.videoSourceOut ?? instance.sourceOut) || (instance.videoSourceOut ?? instance.sourceOut) <= (instance.videoSourceIn ?? instance.sourceIn) ||
+        !Number.isFinite(instance.videoSourceIn) || (instance.videoSourceIn as number) < 0 ||
+        !Number.isFinite(instance.videoSourceOut) || (instance.videoSourceOut as number) <= (instance.videoSourceIn as number) ||
         playheadTime >= sceneEnd) continue;
 
     const elapsed = Math.max(0, playheadTime - sceneStart);
-    const sourceIn = instance.videoSourceIn ?? instance.sourceIn;
-    const sourceOut = instance.videoSourceOut ?? instance.sourceOut;
+    const sourceIn = instance.videoSourceIn as number;
+    const sourceOut = instance.videoSourceOut as number;
     const sourceOffsetSeconds = sourceIn + elapsed;
     const sourceDuration = sourceOut - sourceIn;
     const available = Math.min(scene.duration, sourceDuration) - elapsed;
