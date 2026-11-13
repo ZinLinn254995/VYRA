@@ -1048,13 +1048,21 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   };
 
   if (body?.ping === true) {
-    res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({
-      status: 'preview_mode',
-      provider: 'openai',
-      modelName: 'gpt-4.1-mini',
-      message: 'VYRA AI Chat uses the platform-managed OpenAI provider. Live availability is confirmed when a chat request is sent.',
-    });
+    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    if (!bearer) return res.status(401).json({ status: 'error', error: 'Sign in to check the VYRA AI connection.' });
+    try {
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { healthCheck: true });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(response.status).json(data);
+    } catch {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({
+        status: 'error',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: 'VYRA could not check the platform-managed OpenAI connection.',
+      });
+    }
   }
 
   if (!await requireVerifiedVYraSession(req, res)) return;
