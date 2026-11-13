@@ -6,6 +6,7 @@ import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreateP
 import { parseVyralAssetUploadPendingPlan } from '../../../src/server/vyralAssetUploadAction.ts';
 import { parseVyralAssetRenamePendingPlan, validateVyralAssetRenamePendingAction } from '../../../src/server/vyralAssetRenameAction.ts';
 import { parseVyralAssetMetadataPendingPlan, validateVyralAssetMetadataPendingAction, type VyralAssetMetadataValues } from '../../../src/server/vyralAssetMetadataAction.ts';
+import { parseVyralFolderActionPendingPlan, validateVyralFolderActionPendingAction, type VyralFolderActionOperation } from '../../../src/server/vyralFolderAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -21,6 +22,7 @@ const SYSTEM_INSTRUCTION =
   'When someone wants to start a Vyral, help them shape its name and purpose in their own words; never force a command template. If essential information is missing, ask one natural, concise question. Once the name and purpose are clear, call propose_vyral_create to prepare an owner-scoped preview; it creates no database record. Explain the exact name and description, then wait for explicit approval in this same chat. Only after approval may the server create the private Vyral and its initial identity DNA atomically. ' +
   'When a user attaches a local file and asks to add it to a Vyral, use the exact attached-file metadata supplied by VYRA, resolve the destination Vyral from owner-scoped records, and call propose_vyral_asset_upload. Ask the user for the Asset display name in natural language if they have not supplied one; you may suggest a concise descriptive name but must show it and wait for approval. Preserve the original filename separately. The proposal does not transfer file bytes or create an Asset. Never invent file metadata. ' +
   'When the user asks to rename an existing Asset, first use the owner-scoped Vyral Asset search/detail tools to identify the exact Asset, then call propose_vyral_asset_rename with its exact ID and the requested new display name. Show the old and new names and wait for explicit approval. Renaming changes only the display name; never claim the source filename, immutable bytes, versions, DNA or Fingerprints changed. ' +
+  'When the user wants to organize a Vyral, use list_vyral_folders to inspect the real folder tree first. Create folders with propose_vyral_folder_create, rename folders with propose_vyral_folder_rename, move folders with propose_vyral_folder_move, and place Assets into a folder or the Vyral root with propose_vyral_asset_move_folder. Identify exact resources from owner-scoped reads. Always show the target Vyral, source and destination before/after, then wait for explicit same-chat approval. Never delete a folder as part of moving it; moving a folder moves its child hierarchy with it. Do not move across Vyrals in this operation. ' +
   'When the user asks to write or edit Asset title, description, category, tags, keywords or alt text, first identify the exact owner-owned Asset with search/detail tools, then call propose_vyral_asset_metadata with only the requested fields. Treat title as the Asset display name. Category is a semantic classification separate from the technical file type. Technical Asset type and MIME type describe the actual file and must not be falsified or changed through metadata edits. Show every before/after field and wait for explicit approval in this same chat. Preserve unrelated metadata, original filename, immutable bytes, versions, DNA and Fingerprints. ' +
   'For a requested Storyboard title or topic change, use propose_storyboard_update only after identifying the exact owner-owned Storyboard; it creates a preview and never changes data. Explain the exact proposed value and wait for approval in this same chat. Never say it is saved until the server confirms the approved update. ' +
   'For a requested Scene title, description, transition, or duration change, first identify the parent Storyboard and exact Scene from owner-scoped records, then use propose_scene_update. Duration must be a finite number of seconds from 0.1 to 3600. This creates a preview only. For duration changes, synchronize the Scene Project timeline clips and Master Timeline metadata; never modify unrelated tracks or scenes. Never say saved until approval and server confirmation. ' +
@@ -156,6 +158,49 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_folder_create',
+      description: 'Prepare a same-chat approval preview to create a folder in the current owner-owned Vyral. Supports an optional parent folder. No folder is created before approval.',
+      parameters: { type: 'object', properties: {
+        name: { type: 'string', description: 'Folder name, 1–100 characters.' },
+        parent_folder_id: { type: ['string','null'], description: 'Exact parent folder UUID, or null for Vyral root.' },
+      }, required: ['name','parent_folder_id'], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_folder_rename',
+      description: 'Prepare a same-chat approval preview to rename one exact folder in the current owner-owned Vyral.',
+      parameters: { type: 'object', properties: {
+        folder_id: { type: 'string' }, name: { type: 'string', description: 'New folder name, 1–100 characters.' },
+      }, required: ['folder_id','name'], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_folder_move',
+      description: 'Prepare a same-chat approval preview to move one exact folder and its subtree to another parent folder or the Vyral root. Cannot move a folder into itself or its descendants.',
+      parameters: { type: 'object', properties: {
+        folder_id: { type: 'string' },
+        parent_folder_id: { type: ['string','null'], description: 'Destination parent folder UUID, or null for root.' },
+      }, required: ['folder_id','parent_folder_id'], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_asset_move_folder',
+      description: 'Prepare a same-chat approval preview to move one exact Asset into a folder or back to the Vyral root. Does not move it to another Vyral.',
+      parameters: { type: 'object', properties: {
+        asset_id: { type: 'string' },
+        folder_id: { type: ['string','null'], description: 'Destination folder UUID, or null for Vyral root.' },
+      }, required: ['asset_id','folder_id'], additionalProperties: false },
+    },
+  },
       name: 'propose_storyboard_update',
       description: "Prepare a reversible update to a Storyboard owned by the signed-in user. This only creates a pending preview; never claim the change is saved until the user explicitly approves it in this same chat.",
       parameters: {
@@ -286,6 +331,14 @@ const GLOBAL_READ_TOOLS = [
 ] as const;
 
 const VYRAL_READ_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_vyral_folders',
+      description: 'List the real folder hierarchy and Asset counts in the active owner-owned Vyral. Read-only.',
+      parameters: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false },
+    },
+  },
   {
     type: 'function',
     function: {
@@ -2431,6 +2484,7 @@ const READ_CAPABILITY_TOOLS = {
   'asset.list': 'search_vyral_assets',
   'asset.read': 'get_vyral_asset_details',
   'asset.relationships.read': 'list_vyral_asset_relationships',
+  'folder.list': 'list_vyral_folders',
 } as const;
 
 type ReadCapabilityId = keyof typeof READ_CAPABILITY_TOOLS;
@@ -2454,6 +2508,7 @@ for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityI
           /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.storyboard_id);
       }
       if (capabilityId === 'vyral.read') return Object.keys(input).length === 0;
+      if (capabilityId === 'folder.list') return input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 100);
       if (capabilityId === 'asset.list') {
         return (input.query === undefined || (typeof input.query === 'string' && input.query.length <= 100)) &&
           (input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 20)) &&
@@ -2473,7 +2528,7 @@ for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityI
       const admin = runtime.admin;
       if (!admin) throw new Error('Authenticated Supabase admin context is unavailable.');
       const toolName = READ_CAPABILITY_TOOLS[capabilityId];
-      if (capabilityId === 'asset.list' || capabilityId === 'asset.read' ||
+      if (capabilityId === 'folder.list' || capabilityId === 'asset.list' || capabilityId === 'asset.read' ||
           capabilityId === 'asset.relationships.read' || capabilityId === 'vyral.read') {
         const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
         if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
