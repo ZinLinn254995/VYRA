@@ -27,8 +27,8 @@ select ok(
   'Only trusted service-role validation can attach a validation report'
 );
 select ok(
-  position('first trusted validation evidence' in pg_get_functiondef('public.guard_vyral_asset_dna_proposal_update()'::regprocedure)) > 0,
-  'Change-set status cannot be promoted without validation evidence'
+  position('first prepared or with trusted validation evidence' in pg_get_functiondef('public.guard_vyral_asset_dna_proposal_update()'::regprocedure)) > 0,
+  'Change-set status cannot be changed without initial preparation or trusted validation evidence'
 );
 select ok(
   position('Prepared DNA change-set payload and hash are immutable' in pg_get_functiondef('public.guard_vyral_asset_dna_proposal_update()'::regprocedure)) > 0,

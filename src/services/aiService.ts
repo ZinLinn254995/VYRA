@@ -4,11 +4,12 @@
  *
  * Modular AI Service Interface
  *
- * Designed to separate provider-specific logic (e.g. Google Gemini 2.5/Flash, custom endpoints)
+ * Designed to separate provider-specific logic behind the VYRA server endpoint
  * from UI components. Never exposes API keys or secrets in client-side bundles.
  */
 
 import { ChatMessage, ChatSuggestedAction, AIServiceStatus, ContentCategory } from '../types';
+import type { WorkspaceAiContext } from '../types/workspaceAiContext';
 
 export interface AIServiceRequest {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
@@ -17,6 +18,14 @@ export interface AIServiceRequest {
   accessToken?: string;
   /** Stable per-generation request ID used only for server-side idempotency. */
   idempotencyKey?: string;
+  /** Owner-verified active Vyral context for natural conversational continuity. */
+  activeVyralId?: string;
+  /** Metadata for the exact locally attached File; bytes stay in the browser and are never sent to the text model. */
+  uploadAttachment?: { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number };
+  /** Last known Workspace page and user selections; context only, never authorization. */
+  workspaceContext?: WorkspaceAiContext;
+  /** Receives incremental text chunks for the live chat UI. */
+  onTextDelta?: (chunk: string) => void;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
   visionImages?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[];
   /** Small, user-authorized PDF/audio source files for Gemini multimodal inspection. */
@@ -30,6 +39,7 @@ export interface AIServiceRequest {
 
 export interface AIServiceResult {
   content: string;
+  operatorAction?: Record<string, unknown>;
   suggestedActions?: ChatSuggestedAction[];
   isPreviewNotice?: boolean;
   status: 'success' | 'preview' | 'error';
@@ -61,8 +71,8 @@ export interface AIServiceProvider {
  *    fake AI generation or hallucinated scores.
  */
 class ModularAIService implements AIServiceProvider {
-  public name = 'Google Gemini AI (Server-Proxy Ready)';
-  public model = 'gemini-3.8-flash';
+  public name = 'OpenAI (VYRA Platform)';
+  public model = 'gpt-4.1-mini';
   private endpoint = '/api/ai/chat';
 
   public async checkStatus(): Promise<AIServiceStatus> {
@@ -83,7 +93,7 @@ class ModularAIService implements AIServiceProvider {
         : this.model;
       this.model = modelName;
 
-      // The health probe intentionally returns HTTP 200 even when Gemini is
+      // The health probe intentionally returns HTTP 200 even when OpenAI is
       // not configured. Trust the explicit backend status, not res.ok alone.
       const status: AIServiceStatus['status'] =
         data.status === 'connected' ? 'connected' :
@@ -97,8 +107,8 @@ class ModularAIService implements AIServiceProvider {
         message: typeof data.message === 'string' && data.message.trim()
           ? data.message
           : status === 'connected'
-            ? 'Connected to server-side Gemini AI engine.'
-            : 'Gemini is not verified yet. Check the server configuration.',
+            ? 'Connected to the server-side OpenAI AI engine.'
+            : 'OpenAI is not configured yet. The platform key will be added during final verification.',
       };
     } catch {
       // Keep the UI honest when the API route cannot be reached.
@@ -110,138 +120,186 @@ class ModularAIService implements AIServiceProvider {
       modelName: this.model,
       backendEndpoint: this.endpoint,
       message:
-        'Preview Mode: The VYRA AI endpoint is not reachable. Check the production deployment and server configuration.',
+        'VYRA AI Chat is not reachable. Check the Preview deployment and server configuration.',
     };
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
-    const latestUserMessage = [...request.messages].reverse().find((m) => m.role === 'user')?.content || '';
-
-    // Prefer the user's explicitly configured OpenRouter Text model. The key stays
-    // in sessionStorage and is sent only to the same-origin server proxy.
-    let openRouterKey = '';
-    let openRouterModel = '';
-    try {
-      openRouterKey = sessionStorage.getItem('vyra_openrouter_key_session')?.trim() || '';
-      const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as {
-        text?: unknown;
-      };
-      openRouterModel = typeof selections.text === 'string' ? selections.text.trim() : '';
-    } catch {
-      // Storage may be unavailable in private browsing; continue to the Gemini path.
-    }
-
-    if (openRouterKey && openRouterModel && !request.visionImages?.length && !request.mediaFiles?.length) {
+    // Preserve the existing authenticated multimodal path for Vyral DNA Vision
+    // and selected source inspection. General text conversation uses OpenAI below.
+    if (request.visionImages?.length) {
+      if (!request.accessToken) {
+        const message = 'Sign in to VYRA before inspecting selected Assets.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
+      }
       try {
-        const response = await fetch('/api/providers/openrouter/chat', {
+        const response = await fetch(this.endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-openrouter-api-key': openRouterKey,
-            ...(request.accessToken ? { Authorization: 'Bearer ' + request.accessToken } : {}),
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + request.accessToken,
             ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
           },
           body: JSON.stringify({
-            model: openRouterModel,
-            messages: request.messages.filter((message) => message.role !== 'system'),
+            messages: request.messages,
+            ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
+            ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
           }),
         });
-        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; generationId?: string | null; usage?: AIServiceResult['usage']; modelName?: string };
-        if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; modelName?: string };
+        if (!response.ok || typeof data.text !== 'string' || !data.text.trim()) {
           const message = typeof data.error === 'string' && data.error.trim()
             ? data.error
-            : 'The selected OpenRouter model request failed. Check Settings and retry.';
-          return {
-            content: message,
-            status: 'error',
-            errorMessage: message,
-            providerName: 'OpenRouter',
-            modelName: openRouterModel,
-          };
-        }
-        if (typeof data.text !== 'string' || !data.text.trim()) {
-          const message = 'The selected OpenRouter model returned an empty response.';
-          return {
-            content: message,
-            status: 'error',
-            errorMessage: message,
-            providerName: 'OpenRouter',
-            modelName: openRouterModel,
-          };
+            : 'VYRA could not inspect the selected media Assets. Please retry.';
+          return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
         }
         return {
           content: data.text.trim(),
           status: 'success',
-          providerName: 'OpenRouter',
-          modelName: typeof data.modelName === 'string' ? data.modelName : openRouterModel,
-          generationId: typeof data.generationId === 'string' ? data.generationId : null,
-          usage: data.usage || null,
+          providerName: 'Google Gemini Vision',
+          modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
         };
       } catch {
-        const message = 'Could not reach OpenRouter. Check your connection and retry. VYRA did not switch providers automatically.';
-        return {
-          content: message,
-          status: 'error',
-          errorMessage: message,
-          providerName: 'OpenRouter',
-          modelName: openRouterModel,
-        };
+        const message = 'VYRA could not reach the multimodal inspection service. No text-only preview was substituted.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
       }
     }
 
-    // Step 1: Gemini server proxy (used when no OpenRouter Text model is configured).
+    if (!request.accessToken) {
+      const message = 'Sign in to VYRA before using AI Chat.';
+      return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+    }
+
     try {
-      if (!request.accessToken) {
-        return {
-          content: 'Sign in to VYRA before using the server-side Gemini assistant.',
-          status: 'error',
-          errorMessage: 'Sign in to VYRA before using the server-side Gemini assistant.',
-          providerName: 'Google Gemini',
-          modelName: this.model,
-        };
-      }
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
           Authorization: 'Bearer ' + request.accessToken,
+          ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
         },
-        // Keep the bearer token and idempotency key out of the JSON request body.
-        body: JSON.stringify({ messages: request.messages, context: request.context, ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}), ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}) }),
+        body: JSON.stringify({
+          stream: true,
+          messages: request.messages.filter((message) => message.role !== 'system'),
+          ...(request.conversationId ? { conversationId: request.conversationId } : {}),
+          ...(request.activeVyralId ? { activeVyralId: request.activeVyralId } : {}),
+          ...(request.uploadAttachment ? { uploadAttachment: request.uploadAttachment } : {}),
+          ...(request.workspaceContext ? { workspaceContext: request.workspaceContext } : {}),
+          ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
+          ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
+        }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          content: data.text || data.content,
-          suggestedActions: data.suggestedActions,
-          status: 'success',
-          providerName: 'Google Gemini',
-          modelName: this.model,
-        };
-      }
-      if (request.visionImages?.length || request.mediaFiles?.length) {
-        const data = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string; modelName?: string };
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error
-          : 'VYRA AI could not inspect the selected media Assets. Please retry when the live multimodal service is available.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
+          : 'VYRA AI could not complete this request. Please retry.';
+        return {
+          content: message,
+          status: 'error',
+          errorMessage: message,
+          providerName: 'OpenAI',
+          modelName: typeof data.modelName === 'string' ? data.modelName : this.model,
+        };
       }
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('text/event-stream') || !response.body) {
+        const fallback = await response.json().catch(() => ({})) as {
+          text?: string; error?: string; modelName?: string; usage?: AIServiceResult['usage'];
+        };
+        if (typeof fallback.text === 'string' && fallback.text.trim()) {
+          return {
+            content: fallback.text.trim(),
+            status: 'success',
+            providerName: 'OpenAI',
+            modelName: typeof fallback.modelName === 'string' ? fallback.modelName : this.model,
+            usage: fallback.usage ?? null,
+          };
+        }
+        const message = typeof fallback.error === 'string' ? fallback.error : 'OpenAI returned an empty response. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let content = '';
+      let usage: AIServiceResult['usage'] = null;
+      let streamModel = this.model;
+      let operatorAction: Record<string, unknown> | undefined;
+      const encodedOperatorAction = response.headers.get('X-Vyra-Operator-Action');
+      if (encodedOperatorAction) {
+        try { const parsed: unknown = JSON.parse(decodeURIComponent(encodedOperatorAction)); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) operatorAction = parsed as Record<string, unknown>; } catch { /* Ignore malformed non-authoritative metadata. */ }
+      }
+      let finished = false;
+      const consumeLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) return;
+        const payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') { finished = true; return; }
+        if (!payload) return;
+        try {
+          const event = JSON.parse(payload) as {
+            model?: string;
+            choices?: Array<{ delta?: { content?: string | null } }>;
+            usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+            vyra_action?: Record<string, unknown>;
+          };
+          if (typeof event.model === 'string') streamModel = event.model;
+          if (event.vyra_action && typeof event.vyra_action === 'object' && !Array.isArray(event.vyra_action)) operatorAction = event.vyra_action;
+          const chunk = event.choices?.[0]?.delta?.content;
+          if (typeof chunk === 'string' && chunk.length) {
+            content += chunk;
+            request.onTextDelta?.(chunk);
+          }
+          if (event.usage) {
+            usage = {
+              promptTokens: event.usage.prompt_tokens ?? null,
+              completionTokens: event.usage.completion_tokens ?? null,
+              totalTokens: event.usage.total_tokens ?? null,
+              costUsd: null,
+            };
+          }
+        } catch {
+          // Ignore malformed keep-alive or provider event lines; the final empty check remains authoritative.
+        }
+      };
+
+      try {
+        while (!finished) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop() ?? '';
+          for (const line of lines) consumeLine(line);
+        }
+        buffer += decoder.decode();
+        if (buffer.trim()) consumeLine(buffer);
+      } finally {
+        reader.releaseLock();
+      }
+
+      if (!content.trim()) {
+        const message = 'OpenAI returned an empty response. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
+      }
+      return {
+        content,
+        ...(operatorAction ? { operatorAction } : {}),
+        status: 'success',
+        providerName: 'OpenAI',
+        modelName: streamModel,
+        usage,
+      };
     } catch {
-      if (request.visionImages?.length) {
-        const message = 'VYRA AI could not reach the live Gemini multimodal service. No text-only preview was substituted.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: this.model };
-      }
-      // Endpoint not active; fall through to preview mode response
+      const message = 'Could not reach VYRA AI Chat. Check your connection and retry.';
+      return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
-
-    // Step 2: Honest Preview Mode Response (Adheres to anti-slop & zero-fake rules)
-    // Does NOT claim to be a genuine model stream; transparently provides structured
-    // creative frameworks and actionable buttons to turn the user's idea into a VYRA project.
-    const intent = this.detectPromptIntent(latestUserMessage);
-    const result = this.constructPreviewResponse(latestUserMessage, intent);
-
-    return result;
   }
 
   private detectPromptIntent(prompt: string): 'ideas' | 'script' | 'hooks' | 'outline' | 'storyboard' | 'general' {

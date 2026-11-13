@@ -12,6 +12,7 @@ import { VYRAL_SYSTEM_FILES_VERSION, verifyVyralSystemFileIntegrityV1 } from '..
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, retrievePublicVyralAssetDnaV1, retrievePublicVyralAssetFileDnaV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
 import { createVyralDnaV3EncodedFilePayload, type VyralDnaV3Record } from '../../services/vyralDnaV3';
 import { createVyralFileDnaV1, type VyralFileDnaRecord } from '../../services/vyralFileDnaV1';
+import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion';
 import { createVyralSemanticDnaV1 } from '../../services/vyralSemanticDnaV1';
 import { compareVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../../services/vyralPerceptualFingerprint';
 import { VYRAL_AI_RECONSTRUCTION_GUIDE, VYRAL_PORTABLE_RECONSTRUCTION_SCRIPT } from '../../services/vyralPortableReconstruction';
@@ -2070,108 +2071,19 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       let assetId = '';
       let dnaCommitted = false;
       try {
-        const sourceBuffer = await file.arrayBuffer();
-        const sourceBytes = new Uint8Array(sourceBuffer);
-        const digest = await crypto.subtle.digest('SHA-256', sourceBuffer);
-        const sha256 = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-        assetId = crypto.randomUUID();
-        storagePath = auth.user.id + '/' + vyral.id + '/' + assetId + '/v1/' + storageObjectFilename(assetId, file);
-        const kind = assetType(file);
-        const mime = file.type || 'application/octet-stream';
-        const { error: assetError } = await supabase.from('vyral_assets').insert({
-          id: assetId, vyral_id: vyral.id, user_id: auth.user.id, folder_id: activeFolderId,
-          name: file.name, original_filename: file.name, asset_type: kind, mime_type: mime,
-          size_bytes: file.size, storage_path: storagePath, sha256, processing_status: 'uploading',
-          metadata: { upload_source: 'creator_workspace', hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending', identity_name_origin: 'system_default', identity_description_origin: 'system_default' },
+        setBackgroundJob({ assetName: file.name, stage: 'Building Asset DNA', detail: 'Saving the original file, version, fingerprint and deterministic DNA.' });
+        const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db), {
+          vyralId: vyral.id,
+          userId: auth.user.id,
+          folderId: activeFolderId,
+          file,
         });
-        if (assetError) throw assetError;
-        const { error: storageError } = await supabase.storage.from('vyral-assets').upload(storagePath, file, {
-          contentType: mime, upsert: false, cacheControl: '3600',
-        });
-        if (storageError) throw storageError;
-        const { data: version, error: versionError } = await supabase.from('vyral_asset_versions').insert({
-          asset_id: assetId, vyral_id: vyral.id, user_id: auth.user.id, version_number: 1,
-          storage_path: storagePath, mime_type: mime, size_bytes: file.size, sha256,
-          source_kind: 'original', metadata: { original_filename: file.name },
-        }).select('id').single();
-        if (versionError || !version?.id) throw versionError ?? new Error('Could not create the original asset version record.');
-        const { error: fingerprintError } = await supabase.from('vyral_fingerprints').insert({
-          asset_id: assetId, asset_version_id: version.id, user_id: auth.user.id,
-          fingerprint_kind: 'cryptographic', algorithm: 'SHA-256', value: sha256,
-          metadata: { computed_by: 'browser_web_crypto', verification_status: 'unverified', source: 'original_upload' },
-        });
-        if (fingerprintError) throw fingerprintError;
-
-        const saveFileDnaIdentity = async (fallbackReason?: string) => {
-          const fileDna = await createVyralFileDnaV1({
-            record_id: crypto.randomUUID(),
-            source: { asset_id: assetId, asset_version_id: version.id },
-            bytes: sourceBytes,
-            mime_type: mime || 'application/octet-stream',
-            filename: file.name,
-            include_payload: false,
-          });
-          if (fileDna.record.file.sha256 !== sha256 || fileDna.record.file.size_bytes !== file.size) {
-            throw new Error('Universal File DNA did not match the uploaded source bytes.');
-          }
-          const { error: dnaError } = await db.from('vyral_dna_records').insert({
-            id: fileDna.record.record_id,
-            vyral_id: vyral.id, user_id: auth.user.id, asset_id: assetId, scope: 'asset',
-            schema_version: 1, dna_status: 'evolving', source_kind: 'system',
-            verification_status: 'observed',
-            payload: {
-              dna_schema_id: 'vyra.asset-file-dna',
-              dna_schema_version: 1,
-              dna_record: fileDna.record,
-              source_version_id: version.id,
-              source_file_sha256: sha256,
-              extraction_kind: fallbackReason ? 'deterministic_binary_file_identity_fallback' : 'deterministic_binary_file_identity',
-              ...(fallbackReason ? { image_dna_v3_fallback_reason: fallbackReason.slice(0, 500) } : {}),
-            },
-            reconstruction_data: {
-              source_preservation: 'original_binary_retained',
-              reconstruction_ready: false,
-              recovery_level: 'identity-only',
-              encoded_source_bytes_recoverable: false,
-            },
-          });
-          if (dnaError) throw dnaError;
-          dnaCommitted = true;
-        };
-
-        setBackgroundJob({ assetName: file.name, stage: 'Building Asset DNA', detail: 'Extracting deterministic identity and verifying the original file fingerprint.' });
-        if (kind === 'image' && ['image/png', 'image/jpeg', 'image/webp'].includes(mime.toLowerCase())) {
-          const { data: extraction, error: extractionError } = await supabase.functions.invoke('extract-vyral-asset-dna-v3', {
-            body: { assetId, versionId: version.id },
-          });
-          if (extractionError || extraction?.status !== 'extracted') {
-            const response = (extractionError as unknown as { context?: Response } | null)?.context;
-            let detail = extraction?.error ?? extractionError?.message ?? 'Server-side DNA extraction did not complete.';
-            if (response && typeof response.clone === 'function') {
-              try {
-                const payload = await response.clone().json();
-                if (typeof payload?.error === 'string') detail = payload.error;
-              } catch { /* Keep the SDK error when the response is not JSON. */ }
-            }
-            const { data: committedDna, error: reconcileError } = await db
-              .from('vyral_dna_records')
-              .select('id')
-              .eq('asset_id', assetId)
-              .eq('user_id', auth.user.id)
-              .limit(10);
-            if (reconcileError) throw reconcileError;
-            if ((committedDna?.length ?? 0) > 0) {
-              throw new Error('Image DNA extraction may already have committed. Refresh the Asset before retrying.');
-            }
-            throw new Error('Required raster DNA v3 extraction failed: ' + detail + '. The original upload was not marked ready with identity-only File DNA.');
-          }
-          dnaCommitted = true;
-        } else {
-          await saveFileDnaIdentity();
-        }
-
-        const { error: readyError } = await supabase.from('vyral_assets').update({ processing_status: 'ready' }).eq('id', assetId);
-        if (readyError) throw readyError;
+        assetId = ingestion.assetId;
+        storagePath = ingestion.storagePath;
+        dnaCommitted = true;
+        const kind = ingestion.assetType;
+        const mime = ingestion.mimeType;
+        const version = { id: ingestion.versionId };
         // AI suggestions are best-effort; upload, DNA, and fingerprints remain valid without them.
         try {
           const accessToken = await getCurrentAccessToken();
@@ -2273,7 +2185,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       } catch (cause) {
-        let preserveCommittedAsset = dnaCommitted;
+        let preserveCommittedAsset = dnaCommitted || (cause instanceof VyralAssetIngestionError && cause.preservedForRecovery);
         if (assetId && !preserveCommittedAsset) {
           const { data: committedRows, error: reconcileError } = await supabase
             .from('vyral_dna_records').select('id,payload').eq('asset_id', assetId).limit(10);
@@ -2298,8 +2210,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const { error: assetCleanupError } = await supabase.from('vyral_assets').delete().eq('id', assetId);
             if (assetCleanupError) cleanupErrors.push('Asset cleanup: ' + assetCleanupError.message);
           }
+          const ingestionCleanupErrors = cause instanceof VyralAssetIngestionError ? cause.cleanupErrors : [];
+          const allCleanupErrors = [...ingestionCleanupErrors, ...cleanupErrors];
           failures.push(file.name + ': ' + (cause instanceof Error ? cause.message : 'upload failed.') +
-            (cleanupErrors.length ? ' Cleanup needs attention: ' + cleanupErrors.join(' · ') : ' Incomplete upload records were cleaned up.'));
+            (allCleanupErrors.length ? ' Cleanup needs attention: ' + allCleanupErrors.join(' · ') : ' Incomplete upload records were cleaned up.'));
         }
       }
     }

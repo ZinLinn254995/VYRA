@@ -69,6 +69,141 @@ router.post('/providers/gemini/settings', async (req: Request, res: Response) =>
   }
 });
 
+async function callRunwayMediaQuoteFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('Media quote service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/quote-runway-media', {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(40000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+router.post('/media/quote', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callRunwayMediaQuoteFunction(match[1], req.body ?? {});
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(503).json({ error: 'Media quote service is temporarily unavailable.' });
+  }
+});
+
+async function callMediaCreditPricingFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('Media pricing service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/manage-media-credit-pricing', {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(20000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+router.post('/admin/media-credit-pricing', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callMediaCreditPricingFunction(match[1], req.body ?? {});
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch { return res.status(503).json({ error: 'Media credit pricing administration is temporarily unavailable.' }); }
+});
+
+async function callRunwayMediaApprovalFunction(functionName: string, accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('Media approval service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/' + functionName, {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(20000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+router.post('/media/quote/approve-credits', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callRunwayMediaApprovalFunction('approve-runway-media-credit', match[1], req.body ?? {});
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch { return res.status(503).json({ error: 'Media credit approval is temporarily unavailable.' }); }
+});
+
+router.post('/media/jobs', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callRunwayMediaApprovalFunction('create-runway-media-job', match[1], req.body ?? {});
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch { return res.status(503).json({ error: 'Media job service is temporarily unavailable.' }); }
+});
+
+
+async function callOpenAIChatFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('OpenAI chat service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/vyra-openai-chat', {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: payload.stream === true ? 'text/event-stream' : 'application/json' },
+    body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(65000),
+  });
+  const contentType = response.headers.get('content-type') ?? '';
+  const data = contentType.includes('application/json')
+    ? await response.json().catch(() => ({})) as Record<string, unknown>
+    : {};
+  return { response, data };
+}
+
+async function callOpenAIKeyManagementFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('API key settings service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/manage-openai-api-key', {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(15000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+router.get('/providers/openai/settings', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callOpenAIKeyManagementFunction(match[1], { action: 'status' });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch { return res.status(503).json({ error: 'OpenAI API key settings are temporarily unavailable.' }); }
+});
+
+router.post('/providers/openai/settings', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey : '';
+  if (apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) return res.status(400).json({ error: 'Enter a valid-looking OpenAI API key.' });
+  try {
+    const { response, data } = await callOpenAIKeyManagementFunction(match[1], { action: 'save', apiKey });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch { return res.status(503).json({ error: 'OpenAI API key settings are temporarily unavailable.' }); }
+});
+
 function blockUntrackedGeneration(res: Response, capability: string): boolean {
   if (!isUsageLedgerRequested()) return false;
   res.status(503).json({
@@ -980,19 +1115,29 @@ router.get('/health', async (req: Request, res: Response) => {
 router.post('/ai/chat', async (req: Request, res: Response) => {
   const body = req.body as {
     ping?: boolean;
+    stream?: boolean;
     task?: 'suggest_details';
     detailsScope?: 'asset' | 'vyral' | 'storyboard';
     messages?: Array<{ role?: string; content?: string }>;
+    conversationId?: string;
+    activeVyralId?: string;
+    uploadAttachment?: { clientDraftId?: string; fileName?: string; mimeType?: string; sizeBytes?: number };
+    workspaceContext?: Record<string, unknown>;
     context?: Record<string, unknown>;
     visionImages?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
     mediaFiles?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
   };
 
-  // Status probes must never invoke the model or incur API usage.
+  // Status probes never invoke a model or incur API usage. The provider key
+  // is intentionally configured only during final end-to-end verification.
   if (body?.ping === true) {
-    const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json(await getGeminiStatus(match?.[1]));
+    return res.status(200).json({
+      status: 'preview_mode',
+      provider: 'openai',
+      modelName: 'gpt-4.1-mini',
+      message: 'OpenAI is the primary VYRA AI provider. The platform API key will be configured during final verification.',
+    });
   }
   const verifiedUserId = await requireVerifiedVYraSession(req, res);
   if (!verifiedUserId) return;
@@ -1025,6 +1170,56 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   const totalMessageChars = messages.reduce((total, message) => total + message.content.length, 0);
   if (totalMessageChars > 30_000) {
     return res.status(413).json({ error: 'Chat history is too long. Start a new conversation or shorten the messages.' });
+  }
+
+  // The global AI Chat uses the platform-owned OpenAI key. Provider secrets never
+  // leave Supabase Vault; the Edge Function verifies the user and reads the key server-side.
+  if (!isDetailsTaskRequest && body.visionImages === undefined && body.mediaFiles === undefined) {
+    const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+    if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
+    try {
+      const wantsStream = body.stream === true;
+      const conversationId = typeof body.conversationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.conversationId) ? body.conversationId : undefined;
+      const activeVyralId = typeof body.activeVyralId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.activeVyralId) ? body.activeVyralId : undefined;
+      const workspaceContext = body.workspaceContext && typeof body.workspaceContext === 'object' && !Array.isArray(body.workspaceContext) ? body.workspaceContext : undefined;
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(conversationId ? { conversationId } : {}), ...(activeVyralId ? { activeVyralId } : {}), ...(body.uploadAttachment ? { uploadAttachment: body.uploadAttachment } : {}), ...(workspaceContext ? { workspaceContext } : {}), ...(wantsStream ? { stream: true } : {}) });
+      if (wantsStream && response.ok && response.body && (response.headers.get('content-type') ?? '').includes('text/event-stream')) {
+        res.status(response.status);
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        const operatorActionHeader = response.headers.get('X-Vyra-Operator-Action');
+        if (operatorActionHeader) res.setHeader('X-Vyra-Operator-Action', operatorActionHeader);
+        res.flushHeaders?.();
+        const reader = response.body.getReader();
+        const cancelOnClose = () => { if (!res.writableEnded) void reader.cancel().catch(() => undefined); };
+        res.once('close', cancelOnClose);
+        const decoder = new TextDecoder();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!res.write(decoder.decode(value, { stream: true }))) {
+              await new Promise<void>((resolve) => res.once('drain', resolve));
+            }
+          }
+          const tail = decoder.decode();
+          if (tail) res.write(tail);
+          if (!res.writableEnded) res.end();
+        } catch {
+          if (!res.writableEnded) res.end();
+        } finally {
+          res.off('close', cancelOnClose);
+          reader.releaseLock();
+        }
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(response.status).json(data);
+    } catch {
+      return res.status(503).json({ error: 'VYRA AI Chat is temporarily unavailable. Please retry.' });
+    }
   }
 
   const visionImages: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[] = [];
@@ -1261,6 +1456,57 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       error: 'The Gemini request failed. Check the server configuration and API quota, then try again.',
       code: 'GEMINI_REQUEST_FAILED',
     });
+  }
+});
+
+
+async function callRunwayManagementFunction(accessToken: string, payload: Record<string, unknown>) {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY ?? '').trim();
+  if (!baseUrl || !anonKey) throw new Error('Runway provider settings service is not configured.');
+  const response = await fetch(baseUrl + '/functions/v1/manage-runway-provider', {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      Authorization: 'Bearer ' + accessToken,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { response, data };
+}
+
+// Runway credential management is admin-only in the Edge Function. This
+// authenticated server proxy never reads or returns the stored credential.
+router.get('/providers/runway/settings', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  try {
+    const { response, data } = await callRunwayManagementFunction(match[1], { action: 'status' });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(503).json({ error: 'Runway provider settings are temporarily unavailable.' });
+  }
+});
+
+router.post('/providers/runway/settings', async (req: Request, res: Response) => {
+  const match = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
+  if (!match) return res.status(401).json({ error: 'Sign in to VYRA.' });
+  const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey : '';
+  if (apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) {
+    return res.status(400).json({ error: 'Enter a valid-looking Runway API key.' });
+  }
+  try {
+    const { response, data } = await callRunwayManagementFunction(match[1], { action: 'save', apiKey });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(503).json({ error: 'Runway provider settings are temporarily unavailable.' });
   }
 });
 

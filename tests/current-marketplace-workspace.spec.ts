@@ -50,14 +50,16 @@ test('Workspace opens the Vyral and media libraries and storyboard creation entr
   await page.goto('/');
   await openSection(page, 'Workspace');
 
-  await expect(page.getByRole('heading', { name: 'Your Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
   await expect(page.getByRole('button', { name: /My Vyrals/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /My Media Library/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create Storyboard' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Create Storyboard' }).click();
-  await expect(page.getByRole('heading', { name: /Create Storyboard/ })).toBeVisible();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByText('Sign in to access your account, credits and Workspace.')).toBeVisible();
 });
 
 test('AI Chat opens with its composer without starting a paid request', async ({ page }) => {

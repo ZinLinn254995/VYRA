@@ -8,7 +8,7 @@ import {
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
-import { GeminiProviderSettings } from './GeminiProviderSettings';
+import { ApiKeySettings } from './ApiKeySettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
@@ -56,6 +56,9 @@ const groups: { title: string; items: NavItem[] }[] = [
   { title: 'Creator Tools', items: [
     { key: 'creator-dashboard', label: 'Creator Dashboard', detail: 'Views, uses, sales and earnings', icon: ChartNoAxesCombined },
   ] },
+  { title: 'Platform', items: [
+    { key: 'setting-ai', label: 'Admin Dashboard', detail: 'Manage VYRA platform API keys', icon: KeyRound },
+  ] },
   { title: 'Account', items: [
     { key: 'settings', label: 'Settings', detail: 'Account, security, preferences and privacy', icon: Settings2 },
     { key: 'help', label: 'Help & Support', detail: 'Guides, FAQs and contact support', icon: CircleHelp },
@@ -78,7 +81,7 @@ const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: s
   'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Language preferences are coming soon.' },
   'setting-notifications': { title: 'Notifications', description: 'Choose which alerts and updates you receive.', icon: Bell, note: 'Notification preferences are coming soon.' },
   'setting-billing': { title: 'Plans & Billing', description: 'Manage your subscription, credits, payments and invoices.', icon: CreditCard, note: 'Plans and billing controls are coming soon.' },
-  'setting-ai': { title: 'AI Providers & API Keys', description: 'Manage connected AI providers and API keys.', icon: KeyRound, note: 'Securely connect the AI providers used by VYRA.' },
+  'setting-ai': { title: 'Admin Dashboard', description: 'Manage VYRA platform API keys.', icon: KeyRound, note: 'Manage the API keys used by VYRA.' },
   'setting-legal': { title: 'Terms & Legal', description: 'Review VYRA terms of service and privacy information.', icon: LockKeyhole, note: 'Legal documents are coming soon.' },
   'setting-about': { title: 'About VYRA', description: 'Platform information, version and product details.', icon: Monitor, note: 'VYRA platform information is coming soon.' },
   help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
@@ -96,7 +99,6 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
   { key: 'setting-appearance', label: 'Language & Appearance', detail: 'Language, theme and display preferences', icon: Globe2 },
   { key: 'setting-notifications', label: 'Notifications', detail: 'Choose which alerts you receive', icon: Bell },
   { key: 'setting-billing', label: 'Plans & Billing', detail: 'Subscription, credits, payments and invoices', icon: CreditCard },
-  { key: 'setting-ai', label: 'AI Providers & API Keys', detail: 'Manage connected AI services and keys', icon: KeyRound },
   { key: 'setting-legal', label: 'Terms & Legal', detail: 'Terms of service and privacy policy', icon: LockKeyhole },
   { key: 'setting-about', label: 'About VYRA', detail: 'Platform information and version', icon: Monitor },
 ];
@@ -231,7 +233,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 </div>
               </div>
             ) : activePage === 'setting-ai' ? (
-              <GeminiProviderSettings />
+              <ApiKeySettings />
             ) : activePage.startsWith('setting-') ? (
               <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
                 <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />

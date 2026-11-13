@@ -1,6 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
+  LoaderCircle,
+  Pause,
+  Play,
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -19,14 +22,25 @@ import {
   Type,
   Undo2,
 } from 'lucide-react';
+import { supabase } from '../../context/AuthContext';
+import { createVyralAudioPlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
+import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
+import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
+import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
+import { startMasterTimelineVideoPlayback, type MasterTimelineVideoPlaybackHandle } from '../../server/masterTimelineVideoPlaybackEngine';
+import { buildMasterTimelineTextOverlay, type MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
 
 export type TimelineClip = {
   id: string;
   name: string;
   start: number;
   duration: number;
+  sourceIn?: number;
   waveform?: number[];
   content?: string;
+  assetId?: string;
+  assetVersionId?: string;
+  assetMimeType?: string;
 };
 
 export type TimelineTrack = {
@@ -46,6 +60,11 @@ export type SceneTimelineInstance = {
   sourceOut: number;
   sceneProjectId?: string;
   renderRevisionId?: string | null;
+  assetId?: string;
+  assetVersionId?: string;
+  assetMimeType?: string;
+  videoSourceIn?: number;
+  videoSourceOut?: number;
 };
 
 export type MasterTimelineData = {
@@ -71,6 +90,7 @@ type Props = {
   onSceneOrderChange: (sceneIds: string[]) => void;
   onSceneDuplicate: (scene: Scene, index: number) => Scene;
   onSceneDelete: (sceneId: string) => void;
+  onSelectionChange?: (selection: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null) => void;
 };
 
 const toolbarItems = [
@@ -86,13 +106,58 @@ const toolbarItems = [
  * - zoom changes horizontal pixels-per-second only
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete }) => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement>(null);
+  const [audioPreviewLoading, setAudioPreviewLoading] = useState(false);
+  const [audioPreviewPlaying, setAudioPreviewPlaying] = useState(false);
+  const [audioPreviewError, setAudioPreviewError] = useState('');
+  const [audioPreviewClipKey, setAudioPreviewClipKey] = useState<string | null>(null);
+  const [masterPlaybackState, setMasterPlaybackState] = useState<'idle' | 'loading' | 'playing' | 'paused'>('idle');
+  const [masterPlaybackError, setMasterPlaybackError] = useState('');
+  const [masterPreviewTextOverlays, setMasterPreviewTextOverlays] = useState<MasterTimelineTextOverlay[]>([]);
+  const masterPreviewTextSignatureRef = useRef('');
+  const masterAudioContextRef = useRef<AudioContext | null>(null);
+  const masterPlaybackHandleRef = useRef<AudioPlaybackHandle | null>(null);
+  const masterVideoPreviewRef = useRef<HTMLVideoElement>(null);
+  const masterVideoPlaybackHandleRef = useRef<MasterTimelineVideoPlaybackHandle | null>(null);
+  const masterPlaybackRequestIdRef = useRef(0);
+  const masterPlaybackFrameRef = useRef<number | null>(null);
+  const masterPlaybackClockRef = useRef<{ contextStart: number; timelineStart: number } | null>(null);
+  const masterPlaybackSeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const masterPlaybackProgrammaticScrollRef = useRef<number | null>(null);
+  const masterPlaybackTickRef = useRef<(() => void) | null>(null);
+  const masterPlaybackSeekPendingRef = useRef(false);
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    if (selectedTextClip) {
+      const track = (value?.textTracks || []).find((item) => item.id === selectedTextClip.trackId);
+      const clip = track?.clips.find((item) => item.id === selectedTextClip.clipId);
+      onSelectionChange({ kind: 'text-clip', id: selectedTextClip.clipId, trackId: selectedTextClip.trackId, label: clip?.name || clip?.content || 'Text clip' });
+      return;
+    }
+    if (selectedAudioClip) {
+      const track = (value?.audioTracks || []).find((item) => item.id === selectedAudioClip.trackId);
+      const clip = track?.clips.find((item) => item.id === selectedAudioClip.clipId);
+      onSelectionChange({ kind: 'audio-clip', id: selectedAudioClip.clipId, trackId: selectedAudioClip.trackId, label: clip?.name || 'Audio clip' });
+      return;
+    }
+    if (selectedTransitionKey) {
+      onSelectionChange({ kind: 'transition', id: selectedTransitionKey, label: 'Selected transition' });
+      return;
+    }
+    if (selectedSceneIds.length) {
+      const scene = scenes.find((item) => item.id === selectedSceneIds[0]);
+      onSelectionChange({ kind: 'scene', id: selectedSceneIds[0], label: scene?.title || 'Selected scene' });
+      return;
+    }
+    onSelectionChange(null);
+  }, [onSelectionChange, selectedSceneIds, selectedTransitionKey, selectedTextClip, selectedAudioClip, scenes, value?.audioTracks, value?.textTracks]);
+
   const [isTextEditMode, setIsTextEditMode] = useState(false);
-  const seededAudioRef = useRef(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
   const [textDragYOffset, setTextDragYOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -431,41 +496,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     setSelectedSceneIds((current) => current.filter((id) => scenes.some((scene) => scene.id === id)));
   }, [scenes]);
 
-  useEffect(() => {
-    if (seededAudioRef.current) return;
-    const existing = value?.audioTracks || [];
-    if (existing.length > 0) {
-      seededAudioRef.current = true;
-      return;
-    }
-    seededAudioRef.current = true;
-    const samples = [
-      { name: 'Ambient Flow', duration: 24 },
-      { name: 'Cinematic Rise', duration: 32 },
-      { name: 'Lo-fi Moments', duration: 28 },
-      { name: 'Bright Journey', duration: 30 },
-      { name: 'Calm Piano', duration: 26 },
-    ];
-    const audioTracks = samples.map((sample, index) => ({
-      id: crypto.randomUUID(),
-      name: 'Audio',
-      clips: [{
-        id: crypto.randomUUID(),
-        name: sample.name,
-        content: sample.name,
-        start: 0,
-        duration: sample.duration,
-        waveform: Array.from({ length: 48 }, (_, point) => 0.2 + (((point * 17 + index * 13) % 29) / 40)),
-      }],
-    }));
-    commitChange({
-      sceneRanges: value?.sceneRanges || {},
-      sceneInstances: value?.sceneInstances,
-      transitions: value?.transitions || {},
-      audioTracks,
-      textTracks: value?.textTracks || [],
-    });
-  }, [value?.audioTracks, value?.textTracks, value?.sceneRanges, value?.sceneInstances, value?.transitions, scenes, onChange]);
+  // Audio tracks are never auto-seeded with demo clips; only real Asset references are previewable.
+
 
   const orderedScenes = useMemo(() => {
     const instances = value?.sceneInstances || [];
@@ -493,6 +525,220 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   // Scene source durations remain unchanged; the ruler grows to fit all content.
   const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
+  const stopMasterTimelinePlayback = () => {
+    masterPlaybackRequestIdRef.current += 1;
+    masterPlaybackSeekPendingRef.current = false;
+    if (masterPlaybackSeekTimerRef.current) {
+      clearTimeout(masterPlaybackSeekTimerRef.current);
+      masterPlaybackSeekTimerRef.current = null;
+    }
+    if (masterPlaybackFrameRef.current !== null) {
+      cancelAnimationFrame(masterPlaybackFrameRef.current);
+      masterPlaybackFrameRef.current = null;
+    }
+    masterPlaybackClockRef.current = null;
+    masterPlaybackTickRef.current = null;
+    masterPreviewTextSignatureRef.current = '';
+    setMasterPreviewTextOverlays([]);
+    masterPlaybackHandleRef.current?.stop();
+    masterPlaybackHandleRef.current = null;
+    masterVideoPlaybackHandleRef.current?.stop();
+    masterVideoPlaybackHandleRef.current = null;
+    setMasterPlaybackState('idle');
+  };
+
+  const launchMasterTimelinePlayback = async (requestedStart?: number) => {
+    masterPlaybackSeekPendingRef.current = false;
+    if (!supabase) { setMasterPlaybackError('Private Vyral Asset Storage is not configured.'); return; }
+    const AudioContextConstructor = window.AudioContext;
+    if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
+    const timelineStart = Math.max(0, Math.min(totalDuration, requestedStart ?? ((scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)));
+    const audioPlan = buildMasterTimelineAudioPlaybackPlan({ audioTracks: value?.audioTracks || [] }, timelineStart);
+    const videoPlan = buildMasterTimelineVideoPlaybackPlan(orderedScenes, value?.sceneInstances, timelineStart);
+    if (!audioPlan.length && !videoPlan.length) {
+      setMasterPlaybackError('There are no verified Audio or Video Asset clips after the current Playhead.');
+      setMasterPlaybackState('idle');
+      return;
+    }
+    if (videoPlan.length && !masterVideoPreviewRef.current) {
+      setMasterPlaybackError('The Master Timeline Video preview is not available.');
+      setMasterPlaybackState('idle');
+      return;
+    }
+    setMasterPlaybackError('');
+    setMasterPlaybackState('loading');
+    const requestId = ++masterPlaybackRequestIdRef.current;
+    try {
+      const context = masterAudioContextRef.current || new AudioContextConstructor();
+      masterAudioContextRef.current = context;
+      if (context.state === 'suspended') await context.resume();
+      if (requestId !== masterPlaybackRequestIdRef.current) return;
+      let handle: AudioPlaybackHandle | null = null;
+      if (audioPlan.length) {
+        handle = startMasterTimelineAudioPlayback(audioPlan, {
+        context,
+        resolveAssetUrl: async (assetId, assetVersionId, signal) => {
+          if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+          const result = await createVyralAudioPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
+          if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+          return result.signedUrl;
+        },
+        fetchAudio: async (url, signal) => {
+          const response = await fetch(url, { cache: 'no-store', signal });
+          if (!response.ok) throw new Error('A private Audio Asset could not be downloaded for playback.');
+          return response.arrayBuffer();
+        },
+      });
+        masterPlaybackHandleRef.current = handle;
+        await handle.ready;
+        if (requestId !== masterPlaybackRequestIdRef.current || masterPlaybackHandleRef.current !== handle) {
+          handle.stop();
+          return;
+        }
+      }
+      let videoHandle: MasterTimelineVideoPlaybackHandle | null = null;
+      if (videoPlan.length && masterVideoPreviewRef.current) {
+        videoHandle = startMasterTimelineVideoPlayback(videoPlan, {
+          video: masterVideoPreviewRef.current,
+          resolveAssetUrl: async (assetId, assetVersionId, signal) => {
+            if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            const result = await createVyralVideoPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
+            if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            return result.signedUrl;
+          },
+          onError: (error) => setMasterPlaybackError(error.message),
+        });
+        masterVideoPlaybackHandleRef.current = videoHandle;
+      }
+      if (requestId !== masterPlaybackRequestIdRef.current) {
+        handle?.stop();
+        videoHandle?.stop();
+        return;
+      }
+      const contextStart = handle?.startTime ?? (context.currentTime + 0.05);
+      masterPlaybackClockRef.current = { contextStart, timelineStart };
+      setMasterPlaybackState('playing');
+      const tick = () => {
+        if ((!masterPlaybackHandleRef.current && !masterVideoPlaybackHandleRef.current) || context.state !== 'running') return;
+        const clock = masterPlaybackClockRef.current;
+        if (!clock) return;
+        const elapsed = Math.max(0, context.currentTime - clock.contextStart);
+        const currentTime = Math.min(totalDuration, clock.timelineStart + elapsed);
+        masterVideoPlaybackHandleRef.current?.sync(currentTime);
+        const textOverlays = buildMasterTimelineTextOverlay(textTracks, currentTime);
+        const textSignature = JSON.stringify(textOverlays);
+        if (textSignature !== masterPreviewTextSignatureRef.current) {
+          masterPreviewTextSignatureRef.current = textSignature;
+          setMasterPreviewTextOverlays(textOverlays);
+        }
+        const targetScroll = currentTime * pixelsPerSecondRef.current;
+        const scrollElement = scrollRef.current;
+        if (scrollElement && Math.abs(scrollElement.scrollLeft - targetScroll) > 0.5) {
+          masterPlaybackProgrammaticScrollRef.current = targetScroll;
+          scrollElement.scrollLeft = targetScroll;
+        }
+        if (currentTime >= totalDuration) {
+          stopMasterTimelinePlayback();
+          return;
+        }
+        masterPlaybackFrameRef.current = requestAnimationFrame(tick);
+      };
+      masterPlaybackTickRef.current = tick;
+      masterPlaybackFrameRef.current = requestAnimationFrame(tick);
+      // Audio clips may end before the Scene sequence. Keep the transport and
+      // Playhead running until totalDuration; the animation tick owns completion.
+    } catch (error) {
+      if (requestId !== masterPlaybackRequestIdRef.current) return;
+      stopMasterTimelinePlayback();
+      masterPlaybackHandleRef.current?.stop();
+      masterPlaybackHandleRef.current = null;
+      masterVideoPlaybackHandleRef.current?.stop();
+      masterVideoPlaybackHandleRef.current = null;
+      setMasterPlaybackError(error instanceof Error ? error.message : 'Master Timeline media playback failed.');
+    }
+  };
+
+  const pauseMasterTimelinePlayback = async () => {
+    if (masterPlaybackFrameRef.current !== null) {
+      cancelAnimationFrame(masterPlaybackFrameRef.current);
+      masterPlaybackFrameRef.current = null;
+    }
+    const context = masterAudioContextRef.current;
+    const handle = masterPlaybackHandleRef.current;
+    const videoHandle = masterVideoPlaybackHandleRef.current;
+    if (!context || (!handle && !videoHandle)) return;
+    videoHandle?.pause();
+    try {
+      await context.suspend();
+      if (masterPlaybackHandleRef.current === handle && masterVideoPlaybackHandleRef.current === videoHandle) setMasterPlaybackState('paused');
+    } catch (error) {
+      setMasterPlaybackError(error instanceof Error ? error.message : 'Could not pause Audio playback.');
+    }
+  };
+
+  const resumeMasterTimelinePlayback = async () => {
+    const context = masterAudioContextRef.current;
+    const handle = masterPlaybackHandleRef.current;
+    const videoHandle = masterVideoPlaybackHandleRef.current;
+    if (!context || (!handle && !videoHandle)) {
+      await launchMasterTimelinePlayback();
+      return;
+    }
+    try {
+      await context.resume();
+      if (masterPlaybackHandleRef.current !== handle || masterVideoPlaybackHandleRef.current !== videoHandle) return;
+      videoHandle?.resume();
+      setMasterPlaybackState('playing');
+      masterPlaybackTickRef.current?.();
+    } catch (error) {
+      setMasterPlaybackError(error instanceof Error ? error.message : 'Could not resume Audio playback.');
+    }
+  };
+
+  const startMasterTimelinePlayback = async () => {
+    if (masterPlaybackState === 'loading') {
+      stopMasterTimelinePlayback();
+      return;
+    }
+    if (masterPlaybackState === 'playing') {
+      await pauseMasterTimelinePlayback();
+      return;
+    }
+    if (masterPlaybackState === 'paused') {
+      await resumeMasterTimelinePlayback();
+      return;
+    }
+    await launchMasterTimelinePlayback();
+  };
+
+  const handleMasterTimelineScroll = () => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const programmed = masterPlaybackProgrammaticScrollRef.current;
+    if (programmed !== null && Math.abs(element.scrollLeft - programmed) < 1) {
+      masterPlaybackProgrammaticScrollRef.current = null;
+      return;
+    }
+    masterPlaybackProgrammaticScrollRef.current = null;
+    if (masterPlaybackState === 'paused') {
+      // A manual seek while paused invalidates the old suspended sources.
+      // The next Play starts cleanly from the newly selected Playhead time.
+      stopMasterTimelinePlayback();
+      return;
+    }
+    if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading' && !masterPlaybackSeekPendingRef.current) return;
+    if (masterPlaybackSeekTimerRef.current) clearTimeout(masterPlaybackSeekTimerRef.current);
+    if (!masterPlaybackSeekPendingRef.current) {
+      stopMasterTimelinePlayback();
+      masterPlaybackSeekPendingRef.current = true;
+    }
+    masterPlaybackSeekTimerRef.current = setTimeout(() => {
+      masterPlaybackSeekTimerRef.current = null;
+      masterPlaybackSeekPendingRef.current = false;
+      const seekTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+      void launchMasterTimelinePlayback(seekTime);
+    }, 180);
+  };
   const leadingSpace = viewportWidth / 2;
   // Adapt ruler spacing to zoom level so labels stay readable.
   const rulerStep = pixelsPerSecond >= 56 ? 1 : pixelsPerSecond >= 28 ? 2 : pixelsPerSecond >= 14 ? 5 : pixelsPerSecond >= 8 ? 10 : 20;
@@ -513,6 +759,66 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     { label: 'Blur', value: 'blur' },
   ];
   const selectedTransition = selectedTransitionKey ? value?.transitions?.[selectedTransitionKey] : undefined;
+  const selectedAudioClipRecord = selectedAudioClip
+    ? (value?.audioTracks || []).find((track) => track.id === selectedAudioClip.trackId)?.clips.find((clip) => clip.id === selectedAudioClip.clipId) ?? null
+    : null;
+  const selectedAudioClipKey = selectedAudioClip ? selectedAudioClip.trackId + ':' + selectedAudioClip.clipId : null;
+  const stopAudioPreview = () => {
+    const audio = audioPreviewRef.current;
+    if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+    setAudioPreviewPlaying(false);
+    setAudioPreviewLoading(false);
+    setAudioPreviewClipKey(null);
+  };
+  const toggleSelectedAudioPreview = async () => {
+    if (masterPlaybackState !== 'idle') stopMasterTimelinePlayback();
+    const clip = selectedAudioClipRecord;
+    const audio = audioPreviewRef.current;
+    if (!clip || !clip.assetId || !clip.assetVersionId || !audio) {
+      setAudioPreviewError('This clip has no verified Vyral Audio Asset source.');
+      return;
+    }
+    if (!supabase) { setAudioPreviewError('Private Audio Storage is not configured.'); return; }
+    setAudioPreviewError('');
+    if (audioPreviewClipKey === selectedAudioClipKey && audio.src) {
+      if (audio.paused) {
+        try { if (audio.ended) audio.currentTime = 0; await audio.play(); setAudioPreviewPlaying(true); }
+        catch { audio.pause(); audio.removeAttribute('src'); audio.load(); setAudioPreviewClipKey(null); setAudioPreviewError('Audio preview could not start. Tap Play to refresh the secure link.'); }
+      } else {
+        audio.pause(); setAudioPreviewPlaying(false);
+      }
+      return;
+    }
+    setAudioPreviewLoading(true);
+    try {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      const result = await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId, versionId: clip.assetVersionId });
+      audio.src = result.signedUrl;
+      audio.load();
+      setAudioPreviewClipKey(selectedAudioClipKey);
+      await audio.play();
+      setAudioPreviewPlaying(true);
+    } catch (error) {
+      audio.pause(); audio.removeAttribute('src'); audio.load();
+      setAudioPreviewPlaying(false);
+      setAudioPreviewClipKey(null);
+      setAudioPreviewError(error instanceof Error ? error.message : 'Audio preview is unavailable.');
+    } finally { setAudioPreviewLoading(false); }
+  };
+  useEffect(() => {
+    if (audioPreviewClipKey && audioPreviewClipKey !== selectedAudioClipKey) stopAudioPreview();
+  }, [audioPreviewClipKey, selectedAudioClipKey]);
+  useEffect(() => () => {
+    const audio = audioPreviewRef.current;
+    if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+    if (masterPlaybackFrameRef.current !== null) cancelAnimationFrame(masterPlaybackFrameRef.current);
+    if (masterPlaybackSeekTimerRef.current) clearTimeout(masterPlaybackSeekTimerRef.current);
+    masterPlaybackHandleRef.current?.stop();
+    masterVideoPlaybackHandleRef.current?.stop();
+    void masterAudioContextRef.current?.close();
+  }, []);
   const applyTransition = (effect: string) => {
     if (!selectedTransitionKey) return;
     commitChange({
@@ -546,7 +852,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const nextTrack: TimelineTrack = {
       id: nextTrackId,
       name: 'Audio',
-      clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: Array.from({ length: 32 }, (_, point) => 0.25 + ((point * 11) % 19) / 30) }],
+      clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: [] }],
     };
     commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
     revealNewTimelineRow('audio', nextTrackId);
@@ -768,7 +1074,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (!track || !clip) return;
     const splitTime = (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
     if (splitTime <= clip.start + 0.2 || splitTime >= clip.start + clip.duration - 0.2) return;
-    const right = { ...clip, id: crypto.randomUUID(), start: splitTime, duration: clip.start + clip.duration - splitTime };
+    const right = { ...clip, id: crypto.randomUUID(), start: splitTime, duration: clip.start + clip.duration - splitTime, sourceIn: (clip.sourceIn ?? 0) + (splitTime - clip.start) };
     const nextTracks = tracks.map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.flatMap((entry) => entry.id !== clip.id ? [entry] : [{ ...entry, duration: splitTime - clip.start }, right]) });
     commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip({ trackId: track.id, clipId: right.id });
@@ -1130,6 +1436,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
+        <button type="button" title={masterPlaybackError || (masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel media loading' : 'Play Master Timeline')} aria-label={masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline'} onClick={() => void startMasterTimelinePlayback()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+          {masterPlaybackState === 'loading' ? <LoaderCircle size={22} className="animate-spin" /> : masterPlaybackState === 'playing' ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
+        </button>
         {selectedTransitionKey ? (
           <>
             <button
@@ -1177,6 +1486,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           </>
         ) : selectedAudioClip ? (
           <>
+            <button type="button" title={audioPreviewError || 'Preview original Audio Asset'} aria-label={audioPreviewPlaying ? 'Pause Audio Asset preview' : 'Play Audio Asset preview'} disabled={audioPreviewLoading || !selectedAudioClipRecord?.assetId || !selectedAudioClipRecord?.assetVersionId} onClick={() => void toggleSelectedAudioPreview()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] disabled:cursor-not-allowed disabled:opacity-40">
+              {audioPreviewLoading ? <LoaderCircle size={22} className="animate-spin" /> : audioPreviewPlaying && audioPreviewClipKey === selectedAudioClipKey ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
+            </button>
             <button type="button" title="Split selected audio at playhead" aria-label="Split selected audio at playhead" onClick={runSplitSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Scissors size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Clone selected audio" aria-label="Clone selected audio" onClick={runCloneSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Copy size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Delete selected audio" aria-label="Delete selected audio" onClick={runDeleteSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)]"><Trash2 size={22} strokeWidth={1.8} /></button>
@@ -1210,9 +1522,36 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+      <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
+      {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/'))) && (
+        <div className="w-full shrink-0 px-3 pt-2">
+          <div className="relative mx-auto aspect-video max-h-48 w-full max-w-3xl overflow-hidden rounded-xl bg-black">
+            <video
+              ref={masterVideoPreviewRef}
+              playsInline
+              preload="none"
+              className="h-full w-full object-contain"
+              aria-label="Master Timeline Video preview"
+              onError={() => setMasterPlaybackError('The private Scene Video could not be loaded for Master Timeline playback.')}
+            />
+            {masterPreviewTextOverlays.length > 0 && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-1 px-4 pb-4" aria-live="off">
+                {masterPreviewTextOverlays.map((overlay) => (
+                  <p key={overlay.trackId + ':' + overlay.clipId} className="max-w-full whitespace-pre-wrap rounded bg-black/60 px-3 py-1 text-center text-sm font-semibold text-white shadow-sm">
+                    {overlay.content}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
+      {masterPlaybackError && <span className="sr-only" role="status">{masterPlaybackError}</span>}
       <div className="relative min-h-0 w-full flex-1">
         <div
           ref={scrollRef}
+          onScroll={handleMasterTimelineScroll}
           className="master-timeline-scroll h-full min-h-0 w-full overflow-auto"
           style={{ touchAction: "pan-x pan-y", scrollbarWidth: "none", msOverflowStyle: "none" }}
            onPointerMove={(event) => {
@@ -1384,6 +1723,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       handle.dataset.startX = String(event.clientX);
                       handle.dataset.initialStart = String(clip.start);
                       handle.dataset.initialDuration = String(clip.duration);
+                      handle.dataset.initialSourceIn = String(clip.sourceIn ?? 0);
                     };
                     const updateAudioTrim = (event: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right') => {
                       const handle = event.currentTarget;
@@ -1398,14 +1738,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                       const nextBoundary = others.filter((item) => item.start >= initialStart + initialDuration - 0.0001).reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
                       let nextStart = initialStart;
                       let nextDuration = initialDuration;
+                      let nextSourceIn = Number(handle.dataset.initialSourceIn || 0);
                       if (edge === 'left') {
                         const fixedEnd = initialStart + initialDuration;
                         nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimum, initialStart + delta));
                         nextDuration = fixedEnd - nextStart;
+                        nextSourceIn += nextStart - initialStart;
                       } else {
                         nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, initialDuration + delta));
                       }
-                      const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration } : entry) });
+                      const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration, sourceIn: nextSourceIn } : entry) });
                       commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, textTracks: value?.textTracks || [] });
                     };
                     const trimHandle = (edge: 'left' | 'right') => (
@@ -1424,7 +1766,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
                           <AudioLines size={12} className="mr-1 shrink-0 text-sky-500" />
                           <span className="mr-2 shrink-0 truncate">{clip.content || clip.name}</span>
                           <div className="flex h-5 min-w-0 flex-1 items-center gap-px overflow-hidden opacity-70" aria-hidden="true">
-                            {(clip.waveform || Array.from({ length: 32 }, (_, i) => 0.25 + ((i * 7) % 15) / 24)).map((height, index) => (
+                            {(clip.waveform || []).map((height, index) => (
                               <span key={index} className="min-w-px flex-1 rounded-full bg-sky-500/80" style={{ height: `${Math.max(15, Math.min(100, height * 100))}%` }} />
                             ))}
                           </div>

@@ -10,7 +10,9 @@ import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHe
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
+import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
+import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -21,7 +23,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void };
+type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -72,7 +74,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
@@ -82,6 +84,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
+  const [sceneVideoPreviewUrl, setSceneVideoPreviewUrl] = useState('');
+  const [sceneVideoPreviewLoading, setSceneVideoPreviewLoading] = useState(false);
+  const [sceneVideoPreviewError, setSceneVideoPreviewError] = useState('');
+  const [sceneVideoPreviewSourceIn, setSceneVideoPreviewSourceIn] = useState(0);
+  const [sceneVideoPreviewSourceOut, setSceneVideoPreviewSourceOut] = useState<number | null>(null);
+  const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
@@ -413,6 +421,64 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     };
   }, [activeStoryboard?.id]);
 
+
+  useEffect(() => {
+    let cancelled = false;
+    const sceneInstance = activeStoryboard?.details?.masterTimeline?.sceneInstances?.find((item) => item.sceneId === activeSceneId);
+    const assetId = sceneInstance?.assetId;
+    const versionId = sceneInstance?.assetVersionId;
+    const mimeType = sceneInstance?.assetMimeType || '';
+    const sourceIn = sceneInstance?.videoSourceIn ?? 0;
+    setSceneVideoPreviewUrl('');
+    setSceneVideoPreviewError('');
+    setSceneVideoPreviewSourceIn(sourceIn);
+    setSceneVideoPreviewSourceOut(typeof sceneInstance?.videoSourceOut === 'number' ? sceneInstance.videoSourceOut : null);
+    if (!activeSceneId || !assetId || !versionId || !mimeType.toLowerCase().startsWith('video/')) {
+      setSceneVideoPreviewLoading(false);
+      return () => { cancelled = true; };
+    }
+    if (!supabase) {
+      setSceneVideoPreviewLoading(false);
+      setSceneVideoPreviewError('Private Video Storage is not configured.');
+      return () => { cancelled = true; };
+    }
+    setSceneVideoPreviewLoading(true);
+    void createVyralVideoPlaybackUrl(supabase, { assetId, versionId })
+      .then((result) => { if (!cancelled) setSceneVideoPreviewUrl(result.signedUrl); })
+      .catch((error) => {
+        if (!cancelled) setSceneVideoPreviewError(error instanceof Error ? error.message : 'The private Video Asset could not be opened.');
+      })
+      .finally(() => { if (!cancelled) setSceneVideoPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [
+    activeStoryboard?.id,
+    activeSceneId,
+    activeStoryboard?.details?.masterTimeline?.sceneInstances,
+  ]);
+
+  useEffect(() => {
+    if (!onAiContextChange) return;
+    const scenes = activeStoryboard?.details?.scenes ?? [];
+    const context: WorkspaceAiContext = {
+      page: activeSceneId ? 'scene-editor' : activeStoryboard ? 'storyboard-editor' : 'storyboards',
+      pageLabel: activeSceneId ? 'Workspace / Scene Editor' : activeStoryboard ? 'Workspace / Storyboard Editor' : 'Workspace / Storyboards',
+      activeStoryboard: activeStoryboard ? {
+        id: activeStoryboard.id,
+        title: activeStoryboard.title,
+        topic: activeStoryboard.topic.slice(0, 1200),
+        sceneCount: scenes.length,
+        sceneTitles: scenes.slice(0, 30).map((scene) => scene.title),
+      } : null,
+      ...(activeStoryboard ? { editorView: storyboardEditorView } : {}),
+      selectedSceneIds: selectedSceneIds.slice(0, 30),
+      selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
+      activeSceneId,
+      activeSceneTitle: scenes.find((scene) => scene.id === activeSceneId)?.title ?? null,
+      selectedTimelineItem: selectedTimelineItem ?? null,
+      capturedAt: new Date().toISOString(),
+    };
+    onAiContextChange(context);
+  }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
   useEffect(() => {
     setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
@@ -797,8 +863,39 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               <div className="profile-subpage-content space-y-5 p-4 sm:p-5">
                 <section className="space-y-3">
                   <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Preview</h2>
-                  <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-[var(--vyra-bg-subtle)]">
-                    <div className="text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scene.description || 'Add media to this scene.'}</p></div>
+                  <div className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
+                    {sceneVideoPreviewUrl ? (
+                      <video
+                        key={sceneVideoPreviewUrl}
+                        src={sceneVideoPreviewUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        onLoadedMetadata={(event) => {
+                          const video = event.currentTarget;
+                          if (sceneVideoPreviewSourceIn > 0 && sceneVideoPreviewSourceIn < video.duration) {
+                            try { video.currentTime = sceneVideoPreviewSourceIn; } catch { /* Browser will seek when metadata is ready. */ }
+                          }
+                        }}
+                        onTimeUpdate={(event) => {
+                          if (sceneVideoPreviewSourceOut !== null && event.currentTarget.currentTime >= sceneVideoPreviewSourceOut) {
+                            event.currentTarget.pause();
+                          }
+                        }}
+                        onError={() => {
+                          setSceneVideoPreviewUrl('');
+                          setSceneVideoPreviewError('The private Video Asset could not be played by this browser.');
+                        }}
+                        className="h-full w-full object-contain"
+                        aria-label={scene.title + ' Video preview'}
+                      />
+                    ) : (
+                      <div className="px-4 text-center">
+                        {sceneVideoPreviewLoading ? <Film size={34} className="mx-auto mb-3 animate-pulse text-[var(--vyra-text-muted)]" /> : <Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />}
+                        <p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{sceneVideoPreviewLoading ? 'Loading Video…' : scene.title}</p>
+                        <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{sceneVideoPreviewError || (sceneVideoPreviewUrl ? '' : sceneVideoPreviewLoading ? 'Preparing secure preview.' : scene.description || 'Attach a Video Asset to this Scene through AI Chat.')}</p>
+                      </div>
+                    )}
                   </div>
                 </section>
                 <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
@@ -1074,6 +1171,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       setSelectedSceneIds((current) => current.filter((id) => id !== sceneId));
                       if (activeSceneId === sceneId) setActiveSceneId(null);
                     }}
+                    onSelectionChange={(selection) => setSelectedTimelineItem((current) => JSON.stringify(current) === JSON.stringify(selection) ? current : selection)}
                     onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
                       ...current,
                       details: { ...current.details, masterTimeline },
@@ -1097,11 +1195,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   return (
     <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
-        <div className="mb-5">
-          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vyra-accent-primary)] sm:text-[11px]"><Clapperboard size={14} /> CREATIVE WORKSPACE</p>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-2xl">Your Workspace</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Manage your Vyrals, media library and storyboards in one place.</p>
-        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={21} /></span>
