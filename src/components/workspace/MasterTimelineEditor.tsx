@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl } from '../../services/vyralAssetPlayback';
+import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
+import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 
 export type TimelineClip = {
   id: string;
@@ -105,6 +107,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [audioPreviewPlaying, setAudioPreviewPlaying] = useState(false);
   const [audioPreviewError, setAudioPreviewError] = useState('');
   const [audioPreviewClipKey, setAudioPreviewClipKey] = useState<string | null>(null);
+  const [masterPlaybackState, setMasterPlaybackState] = useState<'idle' | 'loading' | 'playing'>('idle');
+  const [masterPlaybackError, setMasterPlaybackError] = useState('');
+  const masterAudioContextRef = useRef<AudioContext | null>(null);
+  const masterPlaybackHandleRef = useRef<AudioPlaybackHandle | null>(null);
+  const masterPlaybackFrameRef = useRef<number | null>(null);
+  const masterPlaybackClockRef = useRef<{ contextStart: number; timelineStart: number } | null>(null);
   useEffect(() => {
     if (!onSelectionChange) return;
     if (selectedTextClip) {
@@ -499,6 +507,77 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   // Scene source durations remain unchanged; the ruler grows to fit all content.
   const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
+  const stopMasterTimelinePlayback = () => {
+    if (masterPlaybackFrameRef.current !== null) {
+      cancelAnimationFrame(masterPlaybackFrameRef.current);
+      masterPlaybackFrameRef.current = null;
+    }
+    masterPlaybackClockRef.current = null;
+    masterPlaybackHandleRef.current?.stop();
+    masterPlaybackHandleRef.current = null;
+    setMasterPlaybackState('idle');
+  };
+  const startMasterTimelinePlayback = async () => {
+    if (masterPlaybackState !== 'idle') {
+      stopMasterTimelinePlayback();
+      return;
+    }
+    if (!supabase) { setMasterPlaybackError('Private Audio Storage is not configured.'); return; }
+    const AudioContextConstructor = window.AudioContext;
+    if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
+    const timelineStart = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+    const plan = buildMasterTimelineAudioPlaybackPlan({ audioTracks: value?.audioTracks || [] }, timelineStart);
+    if (!plan.length) {
+      setMasterPlaybackError('There are no verified Audio Asset clips after the current Playhead.');
+      return;
+    }
+    setMasterPlaybackError('');
+    setMasterPlaybackState('loading');
+    try {
+      const context = masterAudioContextRef.current || new AudioContextConstructor();
+      masterAudioContextRef.current = context;
+      if (context.state === 'suspended') await context.resume();
+      const handle = startMasterTimelineAudioPlayback(plan, {
+        context,
+        resolveAssetUrl: async (assetId, assetVersionId) => {
+          const result = await createVyralAudioPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
+          return result.signedUrl;
+        },
+        fetchAudio: async (url) => {
+          const response = await fetch(url, { cache: 'no-store' });
+          if (!response.ok) throw new Error('A private Audio Asset could not be downloaded for playback.');
+          return response.arrayBuffer();
+        },
+      });
+      masterPlaybackHandleRef.current = handle;
+      await handle.ready;
+      if (masterPlaybackHandleRef.current !== handle) return;
+      const contextStart = handle.startTime ?? context.currentTime;
+      masterPlaybackClockRef.current = { contextStart, timelineStart };
+      setMasterPlaybackState('playing');
+      const tick = () => {
+        if (masterPlaybackHandleRef.current !== handle) return;
+        const clock = masterPlaybackClockRef.current;
+        if (!clock) return;
+        const elapsed = Math.max(0, context.currentTime - clock.contextStart);
+        const currentTime = Math.min(totalDuration, clock.timelineStart + elapsed);
+        const scrollElement = scrollRef.current;
+        if (scrollElement) scrollElement.scrollLeft = currentTime * pixelsPerSecondRef.current;
+        if (currentTime >= totalDuration) {
+          stopMasterTimelinePlayback();
+          return;
+        }
+        masterPlaybackFrameRef.current = requestAnimationFrame(tick);
+      };
+      masterPlaybackFrameRef.current = requestAnimationFrame(tick);
+      void handle.finished.then(() => {
+        if (masterPlaybackHandleRef.current === handle) stopMasterTimelinePlayback();
+      });
+    } catch (error) {
+      stopMasterTimelinePlayback();
+      setMasterPlaybackError(error instanceof Error ? error.message : 'Multi-track Audio playback failed.');
+    }
+  };
   const leadingSpace = viewportWidth / 2;
   // Adapt ruler spacing to zoom level so labels stay readable.
   const rulerStep = pixelsPerSecond >= 56 ? 1 : pixelsPerSecond >= 28 ? 2 : pixelsPerSecond >= 14 ? 5 : pixelsPerSecond >= 8 ? 10 : 20;
@@ -572,6 +651,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   useEffect(() => () => {
     const audio = audioPreviewRef.current;
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+    if (masterPlaybackFrameRef.current !== null) cancelAnimationFrame(masterPlaybackFrameRef.current);
+    masterPlaybackHandleRef.current?.stop();
+    void masterAudioContextRef.current?.close();
   }, []);
   const applyTransition = (effect: string) => {
     if (!selectedTransitionKey) return;
@@ -1190,6 +1272,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
+        <button type="button" title={masterPlaybackError || (masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline')} aria-label={masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline'} onClick={() => void startMasterTimelinePlayback()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+          {masterPlaybackState === 'loading' ? <LoaderCircle size={22} className="animate-spin" /> : masterPlaybackState === 'playing' ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
+        </button>
         {selectedTransitionKey ? (
           <>
             <button
@@ -1275,6 +1360,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
+      {masterPlaybackError && <span className="sr-only" role="status">{masterPlaybackError}</span>}
       <div className="relative min-h-0 w-full flex-1">
         <div
           ref={scrollRef}
