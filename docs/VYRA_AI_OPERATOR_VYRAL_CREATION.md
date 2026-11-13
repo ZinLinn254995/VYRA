@@ -72,3 +72,8 @@ The original filename is never overwritten: `vyral_assets.name` stores the appro
 ## AI Chat Asset naming and rename
 
 Asset ingestion now accepts a validated AI/user-approved display name while preserving the exact original source filename separately in both the Asset and immutable Version metadata. Existing Asset display names can also be changed through `propose_vyral_asset_rename`: the server verifies ownership, snapshots the prior name and `updated_at`, presents a same-chat approval preview, and applies the rename only if the Asset has not changed since preview. Rename does not alter file bytes, immutable versions, DNA, or Fingerprints. The new parser/owner/session/expiry tests run in CI.
+
+
+## AI Chat Asset metadata authoring
+
+The model-driven `propose_vyral_asset_metadata` tool prepares a same-session approval preview for Asset title/display name, description/details, semantic category, tags, keywords and accessibility alt text. The server snapshots the current values and `updated_at`, validates bounded fields, then applies only the approved fields after rechecking owner, session, expiry and optimistic concurrency. Classification data is stored under `metadata.ai_organization` while unrelated metadata keys are preserved. The technical `asset_type` and MIME type remain tied to the actual file and cannot be changed by descriptive metadata edits. Original filename, immutable bytes, versions, DNA and Fingerprints are not modified.
