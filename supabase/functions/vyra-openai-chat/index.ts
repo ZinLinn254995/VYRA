@@ -1532,9 +1532,9 @@ async function resolvePendingStoryboardApproval(
       }) : [];
       const now = new Date().toISOString();
       const nextProject = {
-        ...(project || {}),
+        ...(project || { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, renderRevisionIds: [] }),
         timeline: { ...oldTimeline, duration, tracks },
-        ...(project ? { updatedAt: now } : {}),
+        updatedAt: now,
       };
       return { ...currentScene, duration, project: nextProject };
     });
@@ -1542,26 +1542,28 @@ async function resolvePendingStoryboardApproval(
     let nextDetails: Record<string, unknown> = { ...details, scenes: nextScenes };
     if (field === 'duration' && details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline)) {
       const master = details.masterTimeline as Record<string, unknown>;
-      const instances = Array.isArray(master.sceneInstances) ? master.sceneInstances : [];
-      const changedScene = nextScenes.find((item) => item && typeof item === 'object' && !Array.isArray(item) && (item as Record<string, unknown>).id === sceneId) as Record<string, unknown> | undefined;
+      const previousInstances = Array.isArray(master.sceneInstances) ? master.sceneInstances : [];
+      const instancesByScene = new Map(previousInstances.filter((item) => item && typeof item === 'object' && typeof (item as Record<string, unknown>).sceneId === 'string').map((item) => [String((item as Record<string, unknown>).sceneId), item as Record<string, unknown>]));
+      const orderedInstances = nextScenes.map((rawScene) => {
+        const item = rawScene as Record<string, unknown>;
+        const existing = instancesByScene.get(String(item.id));
+        const sceneProject = item.project && typeof item.project === 'object' ? item.project as Record<string, unknown> : {};
+        return {
+          ...(existing || { id: item.id, sceneId: item.id }),
+          sceneId: item.id,
+          sourceIn: 0,
+          sourceOut: Number(item.duration) || 0,
+          sceneProjectId: sceneProject.id,
+          renderRevisionId: sceneProject.latestRenderRevisionId ?? null,
+        };
+      });
+      const sceneIds = new Set(nextScenes.map((item) => String((item as Record<string, unknown>).id)));
+      const transitions = master.transitions && typeof master.transitions === 'object' && !Array.isArray(master.transitions)
+        ? Object.fromEntries(Object.entries(master.transitions as Record<string, unknown>).filter(([id]) => sceneIds.has(id) || orderedInstances.some((instance) => instance.id === id)))
+        : {};
       nextDetails = {
         ...nextDetails,
-        masterTimeline: {
-          ...master,
-          sceneInstances: instances.map((rawInstance) => {
-            if (!rawInstance || typeof rawInstance !== 'object' || Array.isArray(rawInstance)) return rawInstance;
-            const instance = rawInstance as Record<string, unknown>;
-            if (instance.sceneId !== sceneId) return instance;
-            return {
-              ...instance,
-              sourceIn: 0,
-              sourceOut: value,
-              sceneProjectId: (changedScene?.project as Record<string, unknown> | undefined)?.id,
-              renderRevisionId: ((changedScene?.project as Record<string, unknown> | undefined)?.latestRenderRevisionId ?? null),
-            };
-          }),
-          sceneRanges: {},
-        },
+        masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges: {}, transitions },
       };
     }
     const { data: sceneUpdated, error: sceneUpdateError } = await admin.from('vyral_storyboards')
