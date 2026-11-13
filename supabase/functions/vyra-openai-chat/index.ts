@@ -1091,7 +1091,6 @@ async function createStoryboardUpdateProposal(
   sessionId: string | null,
   rawArguments: string,
   toolCallId: string,
-  activeVyralId: string | null,
 ): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required before creating an action preview.');
   let args: Record<string, unknown>;
