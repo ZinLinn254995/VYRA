@@ -213,3 +213,33 @@ test('OpenAI browser stream supports explicit cancellation and reports truncated
   assert.match(page, /type=\{isSending \? "button" : "submit"\}/);
   assert.match(page, /wasCancelled/);
 });
+
+
+test('Admin Dashboard exposes platform provider controls only under the Platform section', () => {
+  const profile = read('src/components/profile/ProfilePage.tsx');
+  const settings = read('src/components/profile/ApiKeySettings.tsx');
+  assert.match(profile, /title: 'Platform'[\\s\\S]*?label: 'Admin Dashboard'[\\s\\S]*?detail: 'Manage VYRA platform API keys'/);
+  assert.match(profile, /activePage === 'setting-ai'[\\s\\S]*?<ApiKeySettings \\/>/);
+  assert.match(settings, /fetch\\('\\/api\\/providers\\/openai\\/settings'/);
+  assert.match(settings, /Stored in Supabase Vault/);
+  assert.match(settings, /The saved key is never returned to the browser/);
+});
+
+test('OpenAI provider secret is Vault-backed and callable only by the server service role', () => {
+  const migration = read('supabase/migrations/20261112172000_vyra_openai_api_key_vault.sql');
+  const provider = read('supabase/functions/manage-openai-api-key/index.ts');
+  assert.match(migration, /security definer[\\s\\S]*?set search_path = ''/);
+  assert.match(migration, /vault\\.create_secret/);
+  assert.match(migration, /vault\\.update_secret/);
+  assert.match(migration, /vault\\.decrypted_secrets/);
+  assert.match(migration, /revoke all on function public\\.set_vyra_openai_secret\\(text\\) from public, anon, authenticated/);
+  assert.match(migration, /revoke all on function public\\.get_vyra_openai_secret\\(\\) from public, anon, authenticated/);
+  assert.match(migration, /grant execute on function public\\.set_vyra_openai_secret\\(text\\) to service_role/);
+  assert.match(migration, /grant execute on function public\\.get_vyra_openai_secret\\(\\) to service_role/);
+  assert.match(provider, /createSupabaseContext\\(request, \\{ auth: 'user' \\}\\)/);
+  assert.match(provider, /from\\('platform_admins'\\)\\.select\\('role'\\)/);
+  assert.match(provider, /!\\['owner', 'admin'\\]\\.includes\\(admin\\.role\\)/);
+  assert.match(provider, /AbortSignal\\.timeout\\(12000\\)/);
+  assert.match(provider, /return json\\(\\{ configured: typeof data === 'string' && data\\.length > 0, provider: 'openai' \\}\\)/);
+  assert.doesNotMatch(provider, /json\\(\\{[^}]*apiKey[^}]*\\}\\)/);
+});
