@@ -1204,8 +1204,8 @@ async function createSceneMutationProposal(
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid Scene arguments.');
     args = parsed as Record<string, unknown>;
   } catch { return safeToolError('Invalid Scene arguments.'); }
-  if (Object.keys(args).some((key) => !['storyboard_id', 'scene_id'].includes(key)) ||
-      !isUuid(args.storyboard_id) || !isUuid(args.scene_id)) return safeToolError('A valid Storyboard and Scene ID are required.');
+  if (Object.keys(args).some((key) => !['storyboard_id', 'scene_id', 'operation'].includes(key)) ||
+      args.operation !== operation || !isUuid(args.storyboard_id) || !isUuid(args.scene_id)) return safeToolError('A valid operation, Storyboard ID, and Scene ID are required.');
   const { data: storyboard, error } = await admin.from('vyral_storyboards')
     .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
   if (error) return safeToolError('The parent Storyboard could not be verified.');
