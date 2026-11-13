@@ -148,5 +148,7 @@ test('AI Chat aborts and isolates in-flight responses when switching conversatio
   assert.match(page, /const openSession = \(session: ChatSession\) => \{\s*cancelActiveRequest\(\)/);
   assert.match(page, /useEffect\(\(\) => \(\) => \{\s*activeRequestControllerRef\.current\?\.abort\(\)/);
   assert.match(page, /if \(activeRequestControllerRef\.current !== requestController\) return;/);
+  assert.match(page, /if \(!isAuthenticated \|\| !supabaseClient\) \{\s*cancelActiveRequest\(\)/);
+  assert.match(page, /if \(previousOwnerId && previousOwnerId !== ownerId\) cancelActiveRequest\(\)/);
   assert.match(page, /if \(activeRequestControllerRef\.current === requestController\) \{\s*activeRequestControllerRef\.current = null;\s*setIsSending\(false\);/);
 });
