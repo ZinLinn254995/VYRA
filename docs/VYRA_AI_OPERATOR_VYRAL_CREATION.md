@@ -34,3 +34,9 @@ The browser no longer intercepts Vyral creation intents or performs the identity
 - The Dev Edge Function has not been redeployed as part of this repository change.
 - No OpenAI key/provider call, production database change, production function deployment, production deployment, or merge is performed here.
 - Browser-level live approval testing remains pending until the platform OpenAI key is configured.
+
+## Asset upload action groundwork
+
+The first server-side contract for AI Operator Asset uploads is now present in `src/server/vyralAssetUploadAction.ts`. It validates a bounded, expiring `asset.upload` plan with an exact owner/chat-session/action binding, destination Vyral UUID, client draft UUID, file name, MIME type, and file size (maximum 100 MB). It also provides an exact browser-file metadata match check so the selected local `File` cannot silently drift from the reviewed preview.
+
+This is validation groundwork only: the existing browser file picker and `ingestVyralAsset` lifecycle remain unchanged. The model-driven proposal, approval-to-browser handoff, and server-confirmed completion are not yet connected. The new validator tests are included in CI through `test:vyral-asset-upload-action`.
