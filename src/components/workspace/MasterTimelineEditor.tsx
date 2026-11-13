@@ -594,9 +594,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       };
       masterPlaybackTickRef.current = tick;
       masterPlaybackFrameRef.current = requestAnimationFrame(tick);
-      void handle.finished.then(() => {
-        if (masterPlaybackHandleRef.current === handle) stopMasterTimelinePlayback();
-      });
+      // Audio clips may end before the Scene sequence. Keep the transport and
+      // Playhead running until totalDuration; the animation tick owns completion.
     } catch (error) {
       if (requestId !== masterPlaybackRequestIdRef.current) return;
       stopMasterTimelinePlayback();
