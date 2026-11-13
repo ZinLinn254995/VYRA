@@ -621,6 +621,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const openSession = (session: ChatSession) => {
+    // A stale history row must not be opened after the authenticated owner changes.
+    const ownerId = historyOwnerId;
+    if (!ownerId || historyOwnerRef.current !== ownerId ||
+        !sessions.some((item) => item.id === session.id)) return;
     cancelActiveRequest();
     setMessages(session.messages);
     setActiveSessionId(session.id);
