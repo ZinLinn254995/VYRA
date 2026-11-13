@@ -971,7 +971,7 @@ async function createMasterTimelineEditProposal(
   if (operation === 'delete' && !before) return safeToolError('The selected clip could not be verified for deletion.');
   const confirmationPhrase = operation === 'delete' ? 'DELETE CLIP ' + String(args.clip_id).slice(-6).toUpperCase() : null;
   if (operation === 'delete') {
-    const deletedClip = before as NonNullable<typeof before>;
+    const deletedClip = before as NonNullable<ReturnType<typeof locate>>;
     parameters.confirmationPhrase = confirmationPhrase;
     parameters.deletedClipSnapshot = { id: deletedClip.id, name: deletedClip.name, content: deletedClip.content ?? null, start: deletedClip.start, duration: deletedClip.duration, waveform: Array.isArray(deletedClip.waveform) ? deletedClip.waveform.slice(0, 256) : null, trackId: deletedClip.trackId, trackName: deletedClip.trackName, kind };
   }
