@@ -482,6 +482,8 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
         assetId: typeof instance.assetId === 'string' ? instance.assetId : null,
         assetVersionId: typeof instance.assetVersionId === 'string' ? instance.assetVersionId : null,
         assetMimeType: typeof instance.assetMimeType === 'string' ? instance.assetMimeType.slice(0, 100) : null,
+        videoSourceIn: typeof instance.videoSourceIn === 'number' && Number.isFinite(instance.videoSourceIn) ? instance.videoSourceIn : null,
+        videoSourceOut: typeof instance.videoSourceOut === 'number' && Number.isFinite(instance.videoSourceOut) ? instance.videoSourceOut : null,
       };
     });
     const sceneById = new Map(sceneRows.filter((scene) => scene.id).map((scene) => [scene.id as string, scene]));
@@ -922,7 +924,7 @@ async function createMasterTimelineEditProposal(
   const videoDuration = typeof videoTechnical.durationSeconds === 'number' && Number.isFinite(videoTechnical.durationSeconds) ? videoTechnical.durationSeconds : null;
   if (operation === 'attach_video' && (videoVersionResult?.error || !videoVersionResult?.data || typeof videoVersionResult.data.storage_path !== 'string' || !videoVersionResult.data.storage_path || !String(videoVersionResult.data.mime_type || videoAsset?.mime_type || '').toLowerCase().startsWith('video/') || videoTechnical.schemaVersion !== 1 || videoTechnical.sourceSha256 !== videoVersionResult.data.sha256 || videoDuration === null || videoDuration < 0.2 || videoDuration > 3600)) return safeToolError('This Video Asset does not yet have source-version-verified duration metadata. No Scene change was prepared.');
   const videoVersion = videoVersionResult?.data as Record<string, unknown> | null;
-  if (operation === 'attach_video' && !timeline.sceneInstances.some((instance: Record<string, unknown>) => instance.sceneId === args.scene_id)) return safeToolError('That Scene has no Master Timeline instance yet. Refresh the Master Timeline before attaching Video.');
+  if (operation === 'attach_video' && !(timeline.sceneInstances ?? []).some((instance) => instance.sceneId === args.scene_id)) return safeToolError('That Scene has no Master Timeline instance yet. Refresh the Master Timeline before attaching Video.');
   const audioAssetResult = operation === 'add_audio' ? await admin.from('vyral_assets').select('id,name,asset_type,mime_type,processing_status').eq('id', args.asset_id).eq('vyral_id', activeVyralId).eq('user_id', userId).eq('asset_type', 'audio').eq('processing_status', 'ready').maybeSingle() : null;
   if (operation === 'add_audio' && (audioAssetResult?.error || !audioAssetResult?.data)) return safeToolError('That Audio Asset is not ready or is not owned by your active Vyral.');
   const audioAsset = audioAssetResult?.data as Record<string, unknown> | null;
@@ -959,10 +961,10 @@ async function createMasterTimelineEditProposal(
   const videoBefore = isVideoAttach ? timeline.sceneInstances?.find((instance) => instance.sceneId === parameters.sceneId) : null;
   const videoAfter = isVideoAttach ? result.value.sceneInstances?.find((instance) => instance.sceneId === parameters.sceneId) : null;
   const before = isVideoAttach
-    ? (videoBefore ? { trackName: 'Scene', name: videoBefore.assetId ?? 'No Video attached', start: videoBefore.sourceIn, duration: Math.max(0, videoBefore.sourceOut - videoBefore.sourceIn), content: null } : null)
+    ? (videoBefore ? { trackName: 'Scene', name: videoBefore.assetId ?? 'No Video attached', start: videoBefore.videoSourceIn ?? 0, duration: Math.max(0, (videoBefore.videoSourceOut ?? 0) - (videoBefore.videoSourceIn ?? 0)), content: null } : null)
     : isAddClip ? null : locate(timeline, String(args.clip_id));
   const after = isVideoAttach
-    ? (videoAfter ? { trackName: 'Scene', name: String(parameters.name), start: videoAfter.sourceIn, duration: Math.max(0, videoAfter.sourceOut - videoAfter.sourceIn), content: null } : null)
+    ? (videoAfter ? { trackName: 'Scene', name: String(parameters.name), start: videoAfter.videoSourceIn ?? 0, duration: Math.max(0, (videoAfter.videoSourceOut ?? 0) - (videoAfter.videoSourceIn ?? 0)), content: null } : null)
     : locate(result.value, isAddClip ? String(parameters.createdClipId) : String(args.clip_id));
   if ((!isAddClip && !before) || (operation !== 'delete' && !after) || (operation === 'delete' && after)) return safeToolError('The selected clip could not be verified in the current Timeline.');
   if (operation === 'delete' && !before) return safeToolError('The selected clip could not be verified for deletion.');
@@ -976,7 +978,7 @@ async function createMasterTimelineEditProposal(
   const createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
   const plan = {
     id: crypto.randomUUID(), operation: 'timeline.edit',
-    target: { storyboardId: String(storyboard.id), clipId: String(isAddClip ? parameters.createdClipId : args.clip_id), ...(operation === 'add_audio' || operation === 'attach_video' ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}, ...(operation === 'attach_video' ? { sceneId: parameters.sceneId } : {})) }, 
+    target: { storyboardId: String(storyboard.id), clipId: String(isVideoAttach ? parameters.sceneId : isAddClip ? parameters.createdClipId : args.clip_id), ...(operation === 'add_audio' || operation === 'attach_video' ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}, ...(operation === 'attach_video' ? { sceneId: parameters.sceneId } : {})) }, 
     parameters: { ...parameters, expectedUpdatedAt: String(storyboard.updated_at) },
     summary: 'Master Editor · ' + operation.replace('_',' ') + ' · ' + String(before?.name ?? after?.name ?? 'Text overlay'),
     createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
@@ -1665,7 +1667,7 @@ async function resolvePendingStoryboardApproval(
       const metadata = version?.metadata && typeof version.metadata === 'object' && !Array.isArray(version.metadata) ? version.metadata as Record<string, unknown> : {};
       const technical = metadata.video_technical_metadata && typeof metadata.video_technical_metadata === 'object' && !Array.isArray(metadata.video_technical_metadata) ? metadata.video_technical_metadata as Record<string, unknown> : {};
       if (versionError || !version || typeof version.storage_path !== 'string' || !version.storage_path || !String(version.mime_type || asset.mime_type || '').toLowerCase().startsWith('video/') || technical.schemaVersion !== 1 || technical.sourceSha256 !== version.sha256 || technical.durationSeconds !== parameters.sourceOut || String(asset.name) !== String(parameters.name)) return await fail('VIDEO_ASSET_VERSION_CHANGED', 'The selected immutable Video Version could not be reverified. No Scene change was made.');
-      if (!timeline.sceneInstances.some((instance: Record<string, unknown>) => instance.sceneId === parameters.sceneId)) return await fail('SCENE_INSTANCE_MISSING', 'The Scene no longer has a Timeline instance. Refresh and prepare a new preview.');
+      if (!(timeline.sceneInstances ?? []).some((instance) => instance.sceneId === parameters.sceneId)) return await fail('SCENE_INSTANCE_MISSING', 'The Scene no longer has a Timeline instance. Refresh and prepare a new preview.');
     }
     if (timelineOperation === 'add_audio') {
       const { data: asset, error: assetError } = await admin.from('vyral_assets')
