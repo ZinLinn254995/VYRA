@@ -44,6 +44,7 @@ export function startMasterTimelineVideoPlayback(
   let activeKey: string | null = null;
   let activeScene: string | null = null;
   let activeController: AbortController | null = null;
+  let removeActiveListeners: (() => void) | null = null;
   let lastTimelineTime = 0;
   let sourceReady = false;
   let playBlocked = false;
@@ -67,6 +68,8 @@ export function startMasterTimelineVideoPlayback(
 
   const loadItem = (item: MasterTimelineVideoPlaybackItem) => {
     activeController?.abort();
+    removeActiveListeners?.();
+    removeActiveListeners = null;
     activeController = new AbortController();
     const controller = activeController;
     const token = ++loadToken;
@@ -94,6 +97,10 @@ export function startMasterTimelineVideoPlayback(
         };
         video.addEventListener('loadedmetadata', onReady, { once: true });
         video.addEventListener('error', onFailure, { once: true });
+        removeActiveListeners = () => {
+          video.removeEventListener('loadedmetadata', onReady);
+          video.removeEventListener('error', onFailure);
+        };
         video.load();
         if (video.readyState >= 1) onReady(new Event('loadedmetadata'));
       })
@@ -110,6 +117,8 @@ export function startMasterTimelineVideoPlayback(
     if (!item) {
       activeController?.abort();
       activeController = null;
+      removeActiveListeners?.();
+      removeActiveListeners = null;
       loadToken += 1;
       const hadActiveSource = activeKey !== null;
       activeKey = null;
@@ -150,6 +159,8 @@ export function startMasterTimelineVideoPlayback(
     loadToken += 1;
     activeController?.abort();
     activeController = null;
+    removeActiveListeners?.();
+    removeActiveListeners = null;
     activeKey = null;
     activeScene = null;
     sourceReady = false;
