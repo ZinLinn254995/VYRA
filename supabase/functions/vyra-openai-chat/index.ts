@@ -1762,7 +1762,11 @@ async function resolvePendingStoryboardApproval(
   if (!sessionId) return null;
   const normalized = latestUserText.trim().toLowerCase();
   const approve = /^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(normalized);
-  if (!approve) return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+  const deleteClipConfirmation = /^delete clip [0-9a-f]{6}$/i.test(normalized);
+  const deleteSceneConfirmation = /^delete scene [0-9a-f]{6}$/i.test(normalized);
+  if (!approve && !deleteClipConfirmation && !deleteSceneConfirmation) {
+    return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+  }
 
   const { data: pendingRows, error } = await admin.from('ai_operator_pending_actions')
     .select('id,capability_id,plan,expires_at,status')
@@ -1770,15 +1774,41 @@ async function resolvePendingStoryboardApproval(
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false }).limit(2);
   if (error) return 'I could not safely verify the pending action. No changes were made.';
-  if (!pendingRows?.length || pendingRows.length !== 1 || pendingRows[0].capability_id !== 'storyboard.update') {
+  if (!pendingRows?.length || pendingRows.length !== 1) {
     return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
   }
 
   const pending = pendingRows[0];
-  const plan = isPlainRecord(pending.plan) ? pending.plan : {};
+  const supportedWriteCapabilities = [
+    'storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate',
+    'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip',
+    'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video',
+    'timeline.add_transition', 'timeline.remove_clip',
+  ];
+  if (!supportedWriteCapabilities.includes(String(pending.capability_id)) ||
+      !isPlainRecord(pending.plan) || !isUuid(pending.id)) {
+    return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+  }
+
+  const capabilityId = String(pending.capability_id);
+  const plan = pending.plan as Record<string, unknown>;
   const target = isPlainRecord(plan.target) ? plan.target : {};
+  const parameters = isPlainRecord(plan.parameters) ? plan.parameters : {};
   const storyboardId = target.storyboardId;
-  if (!isUuid(pending.id) || !isUuid(storyboardId)) {
+  if (!isUuid(storyboardId)) {
+    return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+  }
+
+  const destructivePhrase = capabilityId === 'scene.delete'
+    ? parameters.confirmationPhrase
+    : capabilityId === 'timeline.remove_clip' ? parameters.confirmationPhrase : null;
+  const confirmationIsValid = destructivePhrase !== null
+    ? typeof destructivePhrase === 'string' &&
+      ((capabilityId === 'scene.delete' && deleteSceneConfirmation) ||
+       (capabilityId === 'timeline.remove_clip' && deleteClipConfirmation)) &&
+      normalized === String(destructivePhrase).toLowerCase()
+    : approve;
+  if (!confirmationIsValid) {
     return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
   }
 
@@ -1787,15 +1817,17 @@ async function resolvePendingStoryboardApproval(
     isOwnerOrAdmin: false,
     verifyApproval: async (request) => {
       if (request.input.pending_action_id !== pending.id ||
-          request.input.storyboard_id !== storyboardId || !approve) return false;
+          request.input.storyboard_id !== storyboardId || !confirmationIsValid) return false;
       const { data: current, error: readError } = await admin.from('ai_operator_pending_actions')
         .select('id,capability_id,plan,expires_at,status')
         .eq('id', pending.id).eq('user_id', userId).eq('session_id', sessionId).maybeSingle();
       if (readError || !current || current.status !== 'pending' ||
-          current.capability_id !== 'storyboard.update' || Date.parse(current.expires_at) <= Date.now()) return false;
+          current.capability_id !== capabilityId || Date.parse(current.expires_at) <= Date.now()) return false;
       const currentPlan = isPlainRecord(current.plan) ? current.plan : {};
       const currentTarget = isPlainRecord(currentPlan.target) ? currentPlan.target : {};
-      return currentTarget.storyboardId === storyboardId;
+      const currentParameters = isPlainRecord(currentPlan.parameters) ? currentPlan.parameters : {};
+      return currentTarget.storyboardId === storyboardId &&
+        (destructivePhrase === null || currentParameters.confirmationPhrase === destructivePhrase);
     },
     verifyOwner: async (ownerId, input) => {
       if (ownerId !== userId || input.storyboard_id !== storyboardId) return false;
@@ -1819,7 +1851,7 @@ async function resolvePendingStoryboardApproval(
   };
 
   const result = await executeAiCapability({
-    capabilityId: 'storyboard.update',
+    capabilityId,
     userId,
     requestId: ('approval-' + pending.id).slice(0, 120),
     input: { storyboard_id: storyboardId, pending_action_id: pending.id },
@@ -1827,7 +1859,7 @@ async function resolvePendingStoryboardApproval(
 
   if (!result.ok) return result.message;
   const data = isPlainRecord(result.data) ? result.data : {};
-  return typeof data.message === 'string' ? data.message : 'The approved Storyboard action finished.';
+  return typeof data.message === 'string' ? data.message : 'The approved VYRA action finished.';
 }
 
 const READ_CAPABILITY_TOOLS = {
@@ -1966,29 +1998,40 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
   });
 }
 
-registerAiCapabilityAdapter({
-  capabilityId: 'storyboard.update',
-  validate: (input) =>
-    Object.keys(input).length === 2 &&
-    isUuid(input.storyboard_id) &&
-    isUuid(input.pending_action_id),
-  execute: async (_input, execution) => {
-    const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
-    const admin = runtime.admin;
-    const sessionId = typeof runtime.sessionId === 'string' ? runtime.sessionId : null;
-    const latestUserText = typeof runtime.latestUserText === 'string' ? runtime.latestUserText : '';
-    if (!admin || !sessionId || !latestUserText) {
-      throw new Error('Verified approval runtime is unavailable.');
-    }
-    const message = await applyPendingStoryboardApprovalLegacy(
-      admin, execution.userId, sessionId, latestUserText,
-    );
-    if (typeof message !== 'string' || !message.startsWith('Approved and saved.')) {
-      return { ok: false, message: message ?? 'The pending Storyboard update could not be applied.' };
-    }
-    return { ok: true, message };
-  },
-});
+const APPROVED_WRITE_CAPABILITY_IDS = [
+  'storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate',
+  'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip',
+  'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video',
+  'timeline.add_transition', 'timeline.remove_clip',
+] as const;
+
+for (const capabilityId of APPROVED_WRITE_CAPABILITY_IDS) {
+  registerAiCapabilityAdapter({
+    capabilityId,
+    validate: (input) =>
+      Object.keys(input).length === 2 &&
+      isUuid(input.storyboard_id) &&
+      isUuid(input.pending_action_id),
+    execute: async (_input, execution) => {
+      const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+      const admin = runtime.admin;
+      const sessionId = typeof runtime.sessionId === 'string' ? runtime.sessionId : null;
+      const latestUserText = typeof runtime.latestUserText === 'string' ? runtime.latestUserText : '';
+      if (!admin || !sessionId || !latestUserText) {
+        throw new Error('Verified approval runtime is unavailable.');
+      }
+      const message = await applyPendingStoryboardApprovalLegacy(
+        admin, execution.userId, sessionId, latestUserText,
+      );
+      const succeeded = typeof message === 'string' &&
+        (message.startsWith('Approved and saved.') || message.startsWith('Confirmed and deleted'));
+      if (!succeeded) {
+        return { ok: false, message: message ?? 'The pending VYRA action could not be applied.' };
+      }
+      return { ok: true, message };
+    },
+  });
+}
 
 async function executeSharedProposalCapability(
   admin: any,
