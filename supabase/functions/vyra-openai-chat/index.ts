@@ -962,6 +962,7 @@ async function createMasterTimelineEditProposal(
     after: after ? { track: after.trackName, start: after.start, duration: after.duration, name: after.name, content: after.content } : null,
     ...(operation === 'delete' ? { destructive: true, confirmationPhrase, message: 'This deletion will remove the selected clip. To confirm, send exactly: ' + confirmationPhrase + '. Ordinary approval phrases will not delete it.' } : {}),
     createdClip: created ? { id: created.id, start: created.start, duration: created.duration, name: created.name } : null,
+    ...(operation === 'add_audio' ? { sourceAsset: { id: parameters.assetId, versionId: parameters.assetVersionId, name: parameters.name, mimeType: parameters.assetMimeType } } : {}),
     expiresAt: pending.expires_at,
     message: 'Preview only; nothing has changed. Show the exact before/after and wait for explicit approval in this same chat.',
   };
@@ -1393,7 +1394,7 @@ async function resolvePendingStoryboardApproval(
         (timelineOperation === 'add_text'
           ? timelineKind === 'text' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.value === 'string' && !!parameters.value.trim() && parameters.value.trim().length <= 1000 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
           : timelineOperation === 'add_audio'
-            ? timelineKind === 'audio' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^audio\\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
+            ? timelineKind === 'audio' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^audio\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
             : timelineOperation === 'move'
           ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
           : timelineOperation === 'trim'
