@@ -1848,6 +1848,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         idempotencyKey: 'chat-' + makeId(),
         ...(canStreamText ? {
           onTextDelta: (chunk: string) => {
+            if (activeRequestControllerRef.current !== requestController ||
+                historyOwnerRef.current !== requestOwnerId) return;
             const messageId = streamingAssistantId;
             if (!messageId) return;
             streamedText += chunk;
