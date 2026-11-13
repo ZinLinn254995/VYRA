@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 // provider credentials in browser storage or request headers.
 test.use({ storageState: './tests/e2e-auth-state.json' });
 
-test('AI Ideas Chat streams through platform-managed OpenAI without a customer API key', async ({ page }) => {
+test('Global AI Chat streams through platform-managed OpenAI without a customer API key', async ({ page }) => {
   let capturedRequest: { stream?: boolean; messages?: Array<{ role: string; content: string }> } | null = null;
   let capturedAuthorization = '';
   let legacyProviderRequests = 0;
@@ -34,9 +34,9 @@ test('AI Ideas Chat streams through platform-managed OpenAI without a customer A
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'AI Ideas Chat' }).click();
+  await page.getByRole('button', { name: 'AI Chat' }).click();
 
-  const composer = page.getByPlaceholder('Ask for video ideas, hooks, full scripts, or storyboard visual prompts...');
+  const composer = page.getByPlaceholder('Message VYRA AI…');
   await expect(composer).toBeVisible();
   await composer.fill('Explain how quantum computing works in simple terms.');
   await composer.press('Enter');
