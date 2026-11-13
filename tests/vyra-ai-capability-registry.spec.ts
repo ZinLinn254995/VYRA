@@ -37,6 +37,10 @@ test('reversible and billable actions require approval before execution', () => 
     { allowed: false, reason: 'approval-required' });
   assert.deepEqual(mayAiPerformCapability('scene.update', { userAuthenticated: true, approvalGranted: true }),
     { allowed: true, reason: 'allowed' });
+  assert.deepEqual(mayAiPerformCapability('vyral.create', { userAuthenticated: true }),
+    { allowed: false, reason: 'approval-required' });
+  assert.deepEqual(mayAiPerformCapability('vyral.create', { userAuthenticated: true, approvalGranted: true }),
+    { allowed: true, reason: 'allowed' });
   assert.deepEqual(mayAiPerformCapability('generation.video', { userAuthenticated: true }),
     { allowed: false, reason: 'approval-required' });
 });
