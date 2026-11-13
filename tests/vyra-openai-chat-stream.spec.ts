@@ -51,7 +51,7 @@ test('Active global Chat uses the authenticated platform-managed OpenAI service,
   assert.match(page, /aiService\.generateResponse\(\{/);
   assert.doesNotMatch(page, /openrouter|gemini/i);
   assert.match(service, /Authorization:\s*'Bearer ' \+ request\.accessToken/);
-  assert.match(service, /this\.endpoint = '\/api\/ai\/chat'/);
+  assert.match(service, /private endpoint = '\/api\/ai\/chat'/);
   assert.doesNotMatch(legacyStudio, /Google Gemini|gemini-[0-9]|vyra_openrouter_key_session/i);
   assert.match(legacyStudio, /providerName: 'OpenAI \(VYRA Platform\)'/);
 });
