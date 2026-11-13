@@ -1864,7 +1864,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(canStreamText ? {
           onTextDelta: (chunk: string) => {
             if (activeRequestControllerRef.current !== requestController ||
-                historyOwnerRef.current !== requestOwnerId) return;
+                historyOwnerRef.current !== requestOwnerId ||
+                requestController.signal.aborted) return;
             const messageId = streamingAssistantId;
             if (!messageId) return;
             streamedText += chunk;
