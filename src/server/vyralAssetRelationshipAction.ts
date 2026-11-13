@@ -89,7 +89,7 @@ export function validateVyralAssetRelationshipPendingAction(row: unknown, expect
       r.status !== 'pending' || typeof r.expires_at !== 'string' ||
       !Number.isFinite(Date.parse(r.expires_at)) || Date.parse(r.expires_at) <= now) return null;
   const plan = parseVyralAssetRelationshipPendingPlan(r.plan);
-  if (!plan || Date.parse(plan.expiresAt) <= now) return null;
+  if (!plan || Date.parse(plan.expiresAt) <= now || Date.parse(plan.expiresAt) !== Date.parse(r.expires_at)) return null;
   if ((plan.operation === 'asset.relationship.add' && r.capability_id !== 'asset.add_relationship') ||
       (plan.operation === 'asset.relationship.remove' && r.capability_id !== 'asset.remove_relationship')) return null;
   return plan;
