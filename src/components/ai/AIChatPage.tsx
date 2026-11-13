@@ -361,6 +361,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
   const historyOwnerRef = useRef<string | null>(null);
   const historyWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const activeRequestControllerRef = useRef<AbortController | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -656,6 +657,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     if (!activeSessionId) setActiveSessionId(chatSessionId);
 
     setIsSending(true);
+    const requestController = new AbortController();
+    activeRequestControllerRef.current = requestController;
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
@@ -1742,6 +1745,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           }
         }
       }
+      if (requestController.signal.aborted) throw new DOMException('Generation stopped.', 'AbortError');
       const accessToken = await getCurrentAccessToken();
       const canStreamText = visionImages.length === 0 && mediaFiles.length === 0;
       if (canStreamText) {
@@ -1759,6 +1763,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
+        signal: requestController.signal,
         idempotencyKey: 'chat-' + makeId(),
         ...(canStreamText ? {
           onTextDelta: (chunk: string) => {
@@ -1845,9 +1850,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
-        content: (result.status === 'error' && streamedText
-          ? streamedText + '\n\n' + result.content
-          : result.content) + assetUploadCompletionText,
+        content: result.cancelled
+          ? (streamedText ? streamedText + '\n\nGeneration stopped.' : 'Generation stopped before a response was received.')
+          : (result.status === 'error' && streamedText ? streamedText + '\n\n' + result.content : result.content) + assetUploadCompletionText,
         status: result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
@@ -1858,8 +1863,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setMessages((previous) => [...previous, completedMessage]);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
-      if (streamingAssistantId) {
+      const wasCancelled = requestController.signal.aborted || (error instanceof Error && error.name === 'AbortError');
+      const message = wasCancelled ? 'Generation stopped.' : error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
+      if (wasCancelled) {
+        const cancelledMessage: ChatMessage = { id: streamingAssistantId ?? makeId(), role: 'assistant', content: streamedText ? streamedText + '\n\nGeneration stopped.' : message, status: 'error' };
+        if (streamingAssistantId) setMessages((previous) => previous.map((item) => item.id === streamingAssistantId ? cancelledMessage : item));
+        else setMessages((previous) => [...previous, cancelledMessage]);
+      } else if (streamingAssistantId) {
         const messageId = streamingAssistantId;
         setMessages((previous) => previous.map((item) => item.id === messageId
           ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
@@ -1890,8 +1900,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }]);
       }
     } finally {
+      if (activeRequestControllerRef.current === requestController) activeRequestControllerRef.current = null;
       setIsSending(false);
     }
+  };
+
+  const stopGeneration = () => {
+    activeRequestControllerRef.current?.abort();
   };
 
   const handleFileSelection = async (file: File | null) => {
@@ -2149,7 +2164,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               disabled={(!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
               aria-label="Send message"
             >
-              {isSending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <ArrowUp size={17} />}
+              {isSending ? <button type="button" onClick={stopGeneration} aria-label="Stop generation" title="Stop generation" className="grid size-9 place-items-center rounded-full text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><span className="size-3.5 rounded-[3px] bg-current" /></button> : <ArrowUp size={17} />}
             </Button>
           </div>
         </form>
