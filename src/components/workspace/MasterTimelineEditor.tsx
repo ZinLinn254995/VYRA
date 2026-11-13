@@ -23,9 +23,11 @@ import {
   Undo2,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
-import { createVyralAudioPlaybackUrl } from '../../services/vyralAssetPlayback';
+import { createVyralAudioPlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
+import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
+import { startMasterTimelineVideoPlayback, type MasterTimelineVideoPlaybackHandle } from '../../server/masterTimelineVideoPlaybackEngine';
 
 export type TimelineClip = {
   id: string;
@@ -117,6 +119,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const [masterPlaybackError, setMasterPlaybackError] = useState('');
   const masterAudioContextRef = useRef<AudioContext | null>(null);
   const masterPlaybackHandleRef = useRef<AudioPlaybackHandle | null>(null);
+  const masterVideoPreviewRef = useRef<HTMLVideoElement>(null);
+  const masterVideoPlaybackHandleRef = useRef<MasterTimelineVideoPlaybackHandle | null>(null);
   const masterPlaybackRequestIdRef = useRef(0);
   const masterPlaybackFrameRef = useRef<number | null>(null);
   const masterPlaybackClockRef = useRef<{ contextStart: number; timelineStart: number } | null>(null);
@@ -533,6 +537,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     masterPlaybackTickRef.current = null;
     masterPlaybackHandleRef.current?.stop();
     masterPlaybackHandleRef.current = null;
+    masterVideoPlaybackHandleRef.current?.stop();
+    masterVideoPlaybackHandleRef.current = null;
     setMasterPlaybackState('idle');
   };
 
@@ -542,9 +548,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
     const timelineStart = Math.max(0, Math.min(totalDuration, requestedStart ?? ((scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)));
-    const plan = buildMasterTimelineAudioPlaybackPlan({ audioTracks: value?.audioTracks || [] }, timelineStart);
-    if (!plan.length) {
-      setMasterPlaybackError('There are no verified Audio Asset clips after the current Playhead.');
+    const audioPlan = buildMasterTimelineAudioPlaybackPlan({ audioTracks: value?.audioTracks || [] }, timelineStart);
+    const videoPlan = buildMasterTimelineVideoPlaybackPlan(orderedScenes, value?.sceneInstances, timelineStart);
+    if (!audioPlan.length && !videoPlan.length) {
+      setMasterPlaybackError('There are no verified Audio or Video Asset clips after the current Playhead.');
+      setMasterPlaybackState('idle');
+      return;
+    }
+    if (videoPlan.length && !masterVideoPreviewRef.current) {
+      setMasterPlaybackError('The Master Timeline Video preview is not available.');
       setMasterPlaybackState('idle');
       return;
     }
@@ -556,7 +568,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       masterAudioContextRef.current = context;
       if (context.state === 'suspended') await context.resume();
       if (requestId !== masterPlaybackRequestIdRef.current) return;
-      const handle = startMasterTimelineAudioPlayback(plan, {
+      let handle: AudioPlaybackHandle | null = null;
+      if (audioPlan.length) {
+        handle = startMasterTimelineAudioPlayback(audioPlan, {
         context,
         resolveAssetUrl: async (assetId, assetVersionId, signal) => {
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
@@ -570,21 +584,42 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
           return response.arrayBuffer();
         },
       });
-      masterPlaybackHandleRef.current = handle;
-      await handle.ready;
-      if (requestId !== masterPlaybackRequestIdRef.current || masterPlaybackHandleRef.current !== handle) {
-        handle.stop();
+        masterPlaybackHandleRef.current = handle;
+        await handle.ready;
+        if (requestId !== masterPlaybackRequestIdRef.current || masterPlaybackHandleRef.current !== handle) {
+          handle.stop();
+          return;
+        }
+      }
+      let videoHandle: MasterTimelineVideoPlaybackHandle | null = null;
+      if (videoPlan.length && masterVideoPreviewRef.current) {
+        videoHandle = startMasterTimelineVideoPlayback(videoPlan, {
+          video: masterVideoPreviewRef.current,
+          resolveAssetUrl: async (assetId, assetVersionId, signal) => {
+            if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            const result = await createVyralVideoPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
+            if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            return result.signedUrl;
+          },
+          onError: (error) => setMasterPlaybackError(error.message),
+        });
+        masterVideoPlaybackHandleRef.current = videoHandle;
+      }
+      if (requestId !== masterPlaybackRequestIdRef.current) {
+        handle?.stop();
+        videoHandle?.stop();
         return;
       }
-      const contextStart = handle.startTime ?? context.currentTime;
+      const contextStart = handle?.startTime ?? (context.currentTime + 0.05);
       masterPlaybackClockRef.current = { contextStart, timelineStart };
       setMasterPlaybackState('playing');
       const tick = () => {
-        if (masterPlaybackHandleRef.current !== handle || context.state !== 'running') return;
+        if ((!masterPlaybackHandleRef.current && !masterVideoPlaybackHandleRef.current) || context.state !== 'running') return;
         const clock = masterPlaybackClockRef.current;
         if (!clock) return;
         const elapsed = Math.max(0, context.currentTime - clock.contextStart);
         const currentTime = Math.min(totalDuration, clock.timelineStart + elapsed);
+        masterVideoPlaybackHandleRef.current?.sync(currentTime);
         const targetScroll = currentTime * pixelsPerSecondRef.current;
         const scrollElement = scrollRef.current;
         if (scrollElement && Math.abs(scrollElement.scrollLeft - targetScroll) > 0.5) {
@@ -604,7 +639,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     } catch (error) {
       if (requestId !== masterPlaybackRequestIdRef.current) return;
       stopMasterTimelinePlayback();
-      setMasterPlaybackError(error instanceof Error ? error.message : 'Multi-track Audio playback failed.');
+      masterPlaybackHandleRef.current?.stop();
+      masterPlaybackHandleRef.current = null;
+      masterVideoPlaybackHandleRef.current?.stop();
+      masterVideoPlaybackHandleRef.current = null;
+      setMasterPlaybackError(error instanceof Error ? error.message : 'Master Timeline media playback failed.');
     }
   };
 
@@ -615,10 +654,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     }
     const context = masterAudioContextRef.current;
     const handle = masterPlaybackHandleRef.current;
-    if (!context || !handle) return;
+    const videoHandle = masterVideoPlaybackHandleRef.current;
+    if (!context || (!handle && !videoHandle)) return;
+    videoHandle?.pause();
     try {
       await context.suspend();
-      if (masterPlaybackHandleRef.current === handle) setMasterPlaybackState('paused');
+      if (masterPlaybackHandleRef.current === handle && masterVideoPlaybackHandleRef.current === videoHandle) setMasterPlaybackState('paused');
     } catch (error) {
       setMasterPlaybackError(error instanceof Error ? error.message : 'Could not pause Audio playback.');
     }
@@ -627,13 +668,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const resumeMasterTimelinePlayback = async () => {
     const context = masterAudioContextRef.current;
     const handle = masterPlaybackHandleRef.current;
-    if (!context || !handle) {
+    const videoHandle = masterVideoPlaybackHandleRef.current;
+    if (!context || (!handle && !videoHandle)) {
       await launchMasterTimelinePlayback();
       return;
     }
     try {
       await context.resume();
-      if (masterPlaybackHandleRef.current !== handle) return;
+      if (masterPlaybackHandleRef.current !== handle || masterVideoPlaybackHandleRef.current !== videoHandle) return;
+      videoHandle?.resume();
       setMasterPlaybackState('playing');
       masterPlaybackTickRef.current?.();
     } catch (error) {
@@ -762,6 +805,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     if (masterPlaybackFrameRef.current !== null) cancelAnimationFrame(masterPlaybackFrameRef.current);
     if (masterPlaybackSeekTimerRef.current) clearTimeout(masterPlaybackSeekTimerRef.current);
     masterPlaybackHandleRef.current?.stop();
+    masterVideoPlaybackHandleRef.current?.stop();
     void masterAudioContextRef.current?.close();
   }, []);
   const applyTransition = (effect: string) => {
@@ -1468,6 +1512,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
+      {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/'))) && (
+        <div className="w-full shrink-0 px-3 pt-2">
+          <video
+            ref={masterVideoPreviewRef}
+            playsInline
+            preload="none"
+            className="mx-auto aspect-video max-h-48 w-full max-w-3xl rounded-xl bg-black object-contain"
+            aria-label="Master Timeline Video preview"
+            onError={() => setMasterPlaybackError('The private Scene Video could not be loaded for Master Timeline playback.')}
+          />
+        </div>
+      )}
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
       {masterPlaybackError && <span className="sr-only" role="status">{masterPlaybackError}</span>}
       <div className="relative min-h-0 w-full flex-1">
