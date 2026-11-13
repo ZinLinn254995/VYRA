@@ -1562,6 +1562,14 @@ async function createVyralAssetRelationshipProposal(
         if (error || !data || data.processing_status === 'archived') return safeToolError('Both relationship endpoints must be active Assets in this Vyral.');
       }
     }
+    let duplicateQuery = admin.from('vyral_asset_relationships').select('id')
+      .eq('vyral_id',vyralId).eq('user_id',userId).eq('relationship_type',relationship.relationshipType)
+      .eq('from_kind',relationship.fromKind).eq('to_kind',relationship.toKind);
+    duplicateQuery = relationship.fromAssetId ? duplicateQuery.eq('from_asset_id',relationship.fromAssetId) : duplicateQuery.is('from_asset_id',null);
+    duplicateQuery = relationship.toAssetId ? duplicateQuery.eq('to_asset_id',relationship.toAssetId) : duplicateQuery.is('to_asset_id',null);
+    const {data:duplicate,error:duplicateError}=await duplicateQuery.limit(1);
+    if(duplicateError)return safeToolError('Existing semantic relationships could not be checked. No preview was created.');
+    if(duplicate?.length)return safeToolError('That exact semantic relationship already exists.');
     parameters = draft.parameters; summary = draft.summary; capabilityId = 'asset.add_relationship';
     const pendingPlan = draft;
     const key = ('aiop-' + sessionId + '-' + toolCallId).slice(0,160);
@@ -2531,10 +2539,14 @@ async function resolvePendingAssetRelationshipApproval(admin: any,userId: string
     result=data;actionError=error;
   }else{
     const r=plan.parameters.previous!;
-    const {data,error}=await admin.from('vyral_asset_relationships').delete()
+    let removeQuery=admin.from('vyral_asset_relationships').delete()
       .eq('id',plan.target.relationshipId).eq('vyral_id',plan.target.vyralId).eq('user_id',userId)
-      .eq('updated_at',plan.parameters.expectedUpdatedAt)
-      .eq('relationship_type',r.relationshipType).select('id').maybeSingle();
+      .eq('updated_at',plan.parameters.expectedUpdatedAt).eq('relationship_type',r.relationshipType)
+      .eq('from_kind',r.fromKind).eq('to_kind',r.toKind).eq('rationale',r.rationale);
+    removeQuery=r.fromAssetId ? removeQuery.eq('from_asset_id',r.fromAssetId) : removeQuery.is('from_asset_id',null);
+    removeQuery=r.toAssetId ? removeQuery.eq('to_asset_id',r.toAssetId) : removeQuery.is('to_asset_id',null);
+    removeQuery=r.evidenceRef===null ? removeQuery.is('evidence_ref',null) : removeQuery.eq('evidence_ref',r.evidenceRef);
+    const {data,error}=await removeQuery.select('id').maybeSingle();
     result=data;actionError=error;
   }
   if(actionError||!result){
