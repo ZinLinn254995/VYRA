@@ -72,6 +72,9 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['scene.merge', 'Merge selected scenes'],
     ['scene.restore', 'Restore a scene revision'],
   ]),
+  ...define('scene-editor', 'approval-required', 'destructive', [
+    ['scene.delete', 'Delete a scene with explicit destructive confirmation'],
+  ]),
   ...define('timeline', 'autonomous', 'read', [
     ['timeline.read', 'Read timeline tracks, clips, timing, and selection'],
     ['timeline.analyze', 'Analyze timing, gaps, overlaps, and synchronization'],
