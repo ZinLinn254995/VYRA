@@ -172,6 +172,9 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.move', 'Move an Asset between owned Vyrals'],
     ['asset.copy', 'Copy an Asset to another owned Vyral'],
   ]),
+  ...define('assets', 'approval-required', 'reversible', [
+    ['asset.restore', 'Restore an archived Asset'],
+  ]),
   ...define('assets', 'approval-required', 'destructive', [
     ['asset.archive', 'Archive an Asset'],
     ['asset.delete', 'Delete an Asset when retention rules permit'],
