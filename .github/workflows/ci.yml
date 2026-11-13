@@ -59,6 +59,8 @@ jobs:
         run: npm run test:media-generation-contract
       - name: Provider performance telemetry contract tests
         run: npm run test:provider-performance
+      - name: Media generation job lifecycle telemetry contract tests
+        run: npm run test:media-job-telemetry
       - name: Media credit pricing exact-decimal tests
         run: npm run test:media-credit-pricing
       - name: Vyral generated Asset provenance contract tests
