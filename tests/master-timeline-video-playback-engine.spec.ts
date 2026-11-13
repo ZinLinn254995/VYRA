@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { startMasterTimelineVideoPlayback, type MasterTimelineVideoElement } from '../src/server/masterTimelineVideoPlaybackEngine.ts';
 import type { MasterTimelineVideoPlaybackItem } from '../src/server/masterTimelineVideoPlayback.ts';
@@ -121,4 +123,16 @@ test('pauses in gaps and aborts stale Video URL resolution', async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.notEqual(mock.video.src, 'https://private.example/stale');
   handle.stop();
+});
+
+test('Master Timeline shares one AudioContext clock for Audio and Scene Video transport', () => {
+  const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
+  assert.match(editor, /buildMasterTimelineVideoPlaybackPlan\(orderedScenes, value\?\.sceneInstances, timelineStart\)/);
+  assert.match(editor, /startMasterTimelineVideoPlayback\(videoPlan/);
+  assert.match(editor, /masterVideoPlaybackHandleRef\.current\?\.sync\(currentTime\)/);
+  assert.match(editor, /videoHandle\?\.pause\(\)/);
+  assert.match(editor, /videoHandle\?\.resume\(\)/);
+  assert.match(editor, /contextStart = handle\?\.startTime \?\? \(context\.currentTime \+ 0\.05\)/);
+  assert.match(editor, /createVyralVideoPlaybackUrl\(supabase, \{ assetId, versionId: assetVersionId \}\)/);
+  assert.match(editor, /ref=\{masterVideoPreviewRef\}/);
 });
