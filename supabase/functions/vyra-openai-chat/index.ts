@@ -2268,6 +2268,99 @@ async function applyPendingStoryboardApprovalLegacy(
  * The legacy routine remains the canonical domain transaction for now; the executor
  * gates it with a server-verified, session-bound user approval and owner check.
  */
+async function resolvePendingVyralFolderActionApproval(
+  admin: any, userId: string, sessionId: string | null, latestUserText: string,
+): Promise<string | null> {
+  if (!sessionId || !/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim())) return null;
+  const { data: rows, error } = await admin.from('ai_operator_pending_actions')
+    .select('id,user_id,session_id,capability_id,plan,expires_at,status')
+    .eq('user_id',userId).eq('session_id',sessionId).eq('status','pending')
+    .gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(3);
+  if (error || !Array.isArray(rows)) return 'I could not verify pending folder actions. Nothing was changed.';
+  const matches = rows.filter((row: Record<string,unknown>) =>
+    row.capability_id === 'folder.update' && parseVyralFolderActionPendingPlan(row.plan));
+  if (!matches.length) return null;
+  if (rows.length !== 1 || matches.length !== 1) return 'There is more than one pending action in this chat. Resolve them one at a time; no folder action was applied.';
+  const pending = matches[0];
+  const plan = validateVyralFolderActionPendingAction(pending,{userId,sessionId,actionId:String(pending.id)});
+  if (!plan) return 'The exact folder action preview could not be verified. Nothing was changed.';
+  const vyralId = plan.target.vyralId;
+  const folderExists = async (id: string | null): Promise<boolean> => {
+    if (id === null) return true;
+    const {data,error} = await admin.from('vyral_folders').select('id').eq('id',id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    return !error && Boolean(data);
+  };
+  const folderChainSafe = async (folderId: string, parentId: string | null): Promise<boolean> => {
+    let cursor = parentId, depth = 0;
+    while (cursor && depth++ < 100) {
+      if (cursor === folderId) return false;
+      const {data,error} = await admin.from('vyral_folders').select('parent_id').eq('id',cursor).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+      if (error || !data) return false;
+      cursor = data.parent_id ?? null;
+    }
+    return !cursor;
+  };
+  if (!await folderExists(plan.parameters.nextParentId ?? null)) return 'The destination folder no longer exists in this Vyral. No changes were made.';
+  if (plan.operation === 'folder.create') {
+    if (!await folderExists(plan.parameters.nextParentId ?? null)) return 'The parent folder is no longer available. No changes were made.';
+  } else if (plan.operation === 'folder.rename' || plan.operation === 'folder.move') {
+    const folderId = plan.target.folderId!;
+    const {data:folder,error:folderError}=await admin.from('vyral_folders').select('id,name,parent_id')
+      .eq('id',folderId).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if(folderError||!folder)return 'The source folder no longer exists. No changes were made.';
+    if((folder.parent_id ?? null)!==(plan.parameters.previousParentId ?? null))return 'The folder location changed after preview. Prepare a fresh action.';
+    if(plan.operation==='folder.rename' && folder.name!==plan.parameters.previousName)return 'The folder name changed after preview. Prepare a fresh rename preview.';
+    if(plan.operation==='folder.move' && !await folderChainSafe(folderId,plan.parameters.nextParentId ?? null))return 'That destination would create a folder cycle or its hierarchy cannot be verified. No changes were made.';
+  } else {
+    const assetId=plan.target.assetId!;
+    const {data:asset,error:assetError}=await admin.from('vyral_assets').select('id,name,folder_id,updated_at,processing_status')
+      .eq('id',assetId).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if(assetError||!asset||asset.processing_status==='archived'||(asset.folder_id ?? null)!==(plan.parameters.previousFolderId ?? null)||
+      String(asset.updated_at)!==plan.parameters.expectedUpdatedAt)return 'The Asset or its location changed after preview. Prepare a fresh move preview.';
+  }
+  const {data:approved,error:approveError}=await admin.rpc('approve_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id});
+  if(approveError||!approved||approved.status!=='approved')return 'VYRA could not record folder action approval. Nothing was changed.';
+  const {data:claimed,error:claimError}=await admin.rpc('claim_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id});
+  if(claimError||!claimed||claimed.status!=='executing')return 'Approval was recorded, but the folder action could not be reserved. Nothing was changed.';
+  let result:any=null, actionError:any=null;
+  if(plan.operation==='folder.create'){
+    const {data,error}=await admin.from('vyral_folders').insert({
+      id:plan.target.folderId,vyral_id:vyralId,user_id:userId,
+      parent_id:plan.parameters.nextParentId ?? null,name:plan.parameters.name,
+    }).select('id,name,parent_id').maybeSingle(); result=data; actionError=error;
+  } else if(plan.operation==='folder.rename'){
+    let q=admin.from('vyral_folders').update({name:plan.parameters.name})
+      .eq('id',plan.target.folderId).eq('vyral_id',vyralId).eq('user_id',userId).eq('name',plan.parameters.previousName);
+    q=plan.parameters.previousParentId===null?q.is('parent_id',null):q.eq('parent_id',plan.parameters.previousParentId);
+    const {data,error}=await q.select('id,name,parent_id').maybeSingle();result=data;actionError=error;
+  } else if(plan.operation==='folder.move'){
+    let q=admin.from('vyral_folders').update({parent_id:plan.parameters.nextParentId ?? null})
+      .eq('id',plan.target.folderId).eq('vyral_id',vyralId).eq('user_id',userId);
+    q=plan.parameters.previousParentId===null?q.is('parent_id',null):q.eq('parent_id',plan.parameters.previousParentId);
+    const {data,error}=await q.select('id,name,parent_id').maybeSingle();result=data;actionError=error;
+  } else {
+    const {data,error}=await admin.from('vyral_assets').update({folder_id:plan.parameters.nextParentId ?? null})
+      .eq('id',plan.target.assetId).eq('vyral_id',vyralId).eq('user_id',userId)
+      .eq('updated_at',plan.parameters.expectedUpdatedAt).select('id,name,folder_id').maybeSingle();
+    result=data;actionError=error;
+  }
+  if(actionError||!result){
+    await admin.rpc('finish_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'failed',p_failure_code:'VYRAL_FOLDER_ACTION_FAILED'});
+    return 'The folder action could not be applied (for example, a duplicate folder name or concurrent change). No successful change was reported; please refresh and prepare a new preview.';
+  }
+  const {error:finishError}=await admin.rpc('finish_ai_operator_pending_action',{
+    p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'completed',
+    p_result_summary:{operation:plan.operation,vyralId,folderId:plan.target.folderId ?? null,assetId:plan.target.assetId ?? null,result},
+    p_failure_code:null,
+  });
+  if(finishError)return 'The folder action was applied, but its audit could not be finalized. Refresh the folder tree to verify before retrying.';
+  const destination=plan.parameters.nextParentId ? 'the selected folder' : 'the Vyral root';
+  if(plan.operation==='folder.create')return 'Approved and created folder "'+String(result.name)+'".';
+  if(plan.operation==='folder.rename')return 'Approved and renamed the folder to "'+String(result.name)+'".';
+  if(plan.operation==='folder.move')return 'Approved and moved the folder and its contents to '+destination+'.';
+  return 'Approved and moved Asset "'+String(result.name)+'" to '+destination+'.';
+}
+
 async function resolvePendingAssetMetadataApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
   if(!sessionId||!/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim()))return null;
   const {data:rows,error}=await admin.from('ai_operator_pending_actions').select('id,user_id,session_id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(3);
@@ -3276,6 +3369,8 @@ Deno.serve(async (request: Request) => {
   if (totalChars > 30000) return json({ error: 'Chat history is too long. Start a new conversation.' }, 413);
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+  const folderActionApproval = await resolvePendingVyralFolderActionApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  if (folderActionApproval !== null) return sseResponse(folderActionApproval);
   const assetMetadataApproval = await resolvePendingAssetMetadataApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
   if (assetMetadataApproval !== null) return sseResponse(assetMetadataApproval);
   const assetRenameApproval = await resolvePendingAssetRenameApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
