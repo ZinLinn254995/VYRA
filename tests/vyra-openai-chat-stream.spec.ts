@@ -25,7 +25,7 @@ test('Authenticated server route forwards SSE incrementally with backpressure', 
   assert.match(source, /res\.once\('close', cancelOnClose\)/);
 });
 
-test('Browser service parses OpenAI SSE deltas and usage without replacing the Vyral Vision path', () => {
+test('Browser service parses OpenAI SSE deltas and never routes media requests to Gemini', () => {
   const source = read('src/services/aiService.ts');
   assert.match(source, /Accept:\s*'text\/event-stream'/);
   assert.match(source, /payload === '\[DONE\]'/);
@@ -153,4 +153,16 @@ test('OpenAI platform key management is restricted to platform owners and admins
   assert.match(settingsSource, /Administrator access required/);
   assert.match(providerSource, /get_vyra_openai_secret/);
   assert.match(providerSource, /set_vyra_openai_secret/);
+});
+
+test('Global AI Chat routes supported text conversations only through OpenAI', () => {
+  const server = read('src/server/ai.ts');
+  const browser = read('src/services/aiService.ts');
+  assert.match(server, /callOpenAIChatFunction\(bearer\[1\]/);
+  assert.match(server, /OPENAI_MULTIMODAL_NOT_ENABLED/);
+  assert.match(server, /AI_TASK_NOT_ENABLED/);
+  assert.doesNotMatch(server, /gemini|Google Gemini/i);
+  assert.doesNotMatch(browser, /Google Gemini|gemini-[0-9]/i);
+  assert.match(browser, /providerName: 'OpenAI'/);
+  assert.match(browser, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
 });
