@@ -739,6 +739,16 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 
 
 
+
+### First persisted AI Operator write adapter — Storyboard title/topic
+
+- Added the first model-selectable reversible-write proposal tool: `propose_storyboard_update`. It accepts only an owner-owned Storyboard UUID, one of the two allowed fields (`title` or `topic`), and a bounded new value. The server loads the current row under the authenticated `user_id`; the model cannot supply owner identity, risk, expiry, or the expected database version.
+- The Edge Function creates a 10-minute pending action through `create_ai_operator_pending_action`, bound to the authenticated user and exact chat session. The persisted plan includes the Storyboard ID, field, proposed value, and the current `updated_at` snapshot. The tool only returns a preview; it does not mutate the Storyboard.
+- A short natural-language approval or rejection is resolved only when exactly one unexpired pending action exists in that same user/session. Approval uses the database approve → atomic claim lifecycle, then an owner-scoped optimistic-concurrency update. Stale records fail closed. Completion/failure is written through the finish RPC and audit event.
+- The current executor supports only `storyboard.update` for this model-driven persisted flow. Destructive deletes, scene/timeline edits, media generation, publishing, purchases, and privileged operations are not enabled through this adapter.
+- Development `vyra-openai-chat` deployed as version 10 with JWT verification enabled. Deployment succeeded and the Edge Function source was accepted/compiled. The OpenAI key remains unset, so the new tool has not been exercised through a live model call; no Storyboard write has been performed by this deployment.
+- AI Chat UI/CSS and the existing direct preview workflows were not changed. Browser end-to-end verification and automated tests for the new Edge Function flow remain outstanding.
+
 ### AI Operator chat-session binding
 
 - The existing AI Chat session UUID is now carried with each normal text-chat request from the existing composer through the client service and authenticated server route to the Development Edge Function.
