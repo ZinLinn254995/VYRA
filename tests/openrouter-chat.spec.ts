@@ -1,59 +1,33 @@
 import { test, expect } from '@playwright/test';
 
-// This test exercises the authenticated OpenRouter Text path with a fake, non-production session.
+// AI Chat must use the platform-managed OpenAI route. Customers never supply
+// provider credentials in browser storage or request headers.
 test.use({ storageState: './tests/e2e-auth-state.json' });
 
-test('AI Ideas Chat uses the configured OpenRouter Text model', async ({ page }) => {
-  let capturedRequest: { model?: string; apiKey?: string } = {};
+test('AI Ideas Chat streams through platform-managed OpenAI without a customer API key', async ({ page }) => {
+  let capturedRequest: { stream?: boolean; messages?: Array<{ role: string; content: string }> } | null = null;
+  let capturedAuthorization = '';
+  let legacyProviderRequests = 0;
 
-  await page.route('**/api/auth/session', async route => {
+  await page.route('**/api/ai/chat', async (route) => {
+    capturedRequest = route.request().postDataJSON() as typeof capturedRequest;
+    capturedAuthorization = route.request().headers()['authorization'] || '';
     await route.fulfill({
       status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ authenticated: true, user: { id: '00000000-0000-4000-8000-000000000001' } }),
+      headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache' },
+      body: [
+        'data: {"model":"gpt-4.1-mini","choices":[{"delta":{"content":"OpenAI platform chat response."}}]}',
+        '',
+        'data: [DONE]',
+        '',
+        '',
+      ].join('\\n'),
     });
   });
-
-  await page.addInitScript(() => {
-    sessionStorage.setItem('vyra_openrouter_key_session', 'or-test-key-not-a-real-secret');
-    sessionStorage.setItem('vyra_openrouter_models_v1', JSON.stringify({
-      text: 'openai/gpt-4.1-mini',
-    }));
+  await page.route('**/api/providers/openrouter/**', async (route) => {
+    legacyProviderRequests += 1;
+    await route.abort();
   });
-
-  await page.route('**/api/providers/openrouter/chat', async (route) => {
-    const request = route.request();
-    const body = request.postDataJSON() as { model?: string };
-    capturedRequest = {
-      model: body.model,
-      apiKey: request.headers()['x-openrouter-api-key'],
-    };
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        text: 'OpenRouter test response from the selected model.',
-        modelName: 'openai/gpt-4.1-mini',
-        provider: 'openrouter',
-      }),
-    });
-  });
-
-  await page.route('**/api/providers/openrouter/estimate', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        estimate: {
-          status: 'unavailable',
-          estimatedCostUsd: null,
-          reason: 'parameters_incomplete',
-          message: 'Exact prompt token count is required.',
-        },
-      }),
-    });
-  });
-  page.on('dialog', (dialog) => dialog.accept());
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
@@ -64,7 +38,9 @@ test('AI Ideas Chat uses the configured OpenRouter Text model', async ({ page })
   await composer.fill('Explain how quantum computing works in simple terms.');
   await composer.press('Enter');
 
-  await expect(page.getByText('OpenRouter test response from the selected model.')).toBeVisible();
-  expect(capturedRequest.model).toBe('openai/gpt-4.1-mini');
-  expect(capturedRequest.apiKey).toBe('or-test-key-not-a-real-secret');
+  await expect(page.getByText('OpenAI platform chat response.')).toBeVisible();
+  expect(capturedRequest?.stream).toBe(true);
+  expect(capturedRequest?.messages?.some((message) => message.role === 'user' && message.content.includes('quantum computing'))).toBe(true);
+  expect(capturedAuthorization).toMatch(/^Bearer\\s+\\S+/i);
+  expect(legacyProviderRequests).toBe(0);
 });
