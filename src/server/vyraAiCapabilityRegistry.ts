@@ -91,6 +91,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['timeline.add_transition', 'Add, change, or remove transitions between adjacent scenes'],
     ['timeline.add_text', 'Add or edit text overlays'],
     ['timeline.add_audio', 'Add or edit audio clips'],
+    ['timeline.attach_video', 'Attach a verified immutable Video Asset version to a Scene'],
     ['timeline.undo', 'Undo a reversible timeline operation'],
     ['timeline.redo', 'Redo a reversible timeline operation'],
   ]),
