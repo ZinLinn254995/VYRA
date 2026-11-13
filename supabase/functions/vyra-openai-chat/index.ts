@@ -2185,7 +2185,7 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       if (!admin || !sessionId || !toolCallId) throw new Error('Verified proposal runtime is unavailable.');
       if (capabilityId === 'asset.propose_upload') {
         const attachment = isPlainRecord(runtime.uploadAttachment) ? runtime.uploadAttachment : null;
-        return await createVyralAssetUploadProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, attachment as { fileName: string; mimeType: string; sizeBytes: number } | null);
+        return await createVyralAssetUploadProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, attachment as { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null);
       }
       if (capabilityId === 'vyral.propose_create') {
         return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
@@ -2417,7 +2417,7 @@ async function executeSharedProposalCapability(
   input: Record<string, unknown>,
   toolCallId: string,
   activeVyralId: string | null,
-  uploadAttachment: { fileName: string; mimeType: string; sizeBytes: number } | null,
+  uploadAttachment: { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null,
 ): Promise<Record<string, unknown>> {
   const requestId = ('aiop-' + toolCallId).slice(0, 120);
   const authority: AiCapabilityExecutionAuthority = {
@@ -2514,7 +2514,7 @@ async function executeSharedReadCapability(
     { capabilityId, userId, requestId, input },
     authority,
     new Date(),
-    { admin, activeVyralId },
+    { admin, activeVyralId, uploadAttachment },
   );
   if (!result.ok) return safeToolError(result.message);
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
@@ -2566,6 +2566,14 @@ Deno.serve(async (request: Request) => {
   const conversationId = typeof body.conversationId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.conversationId)
     ? body.conversationId : null;
+  const rawUploadAttachment = isPlainRecord(body.uploadAttachment) ? body.uploadAttachment : null;
+  const uploadAttachment = rawUploadAttachment &&
+    typeof rawUploadAttachment.clientDraftId === 'string' && isUuid(rawUploadAttachment.clientDraftId) &&
+    typeof rawUploadAttachment.fileName === 'string' && rawUploadAttachment.fileName.length > 0 && rawUploadAttachment.fileName.length <= 255 &&
+    typeof rawUploadAttachment.mimeType === 'string' && rawUploadAttachment.mimeType.length <= 128 &&
+    Number.isSafeInteger(rawUploadAttachment.sizeBytes) && Number(rawUploadAttachment.sizeBytes) > 0 && Number(rawUploadAttachment.sizeBytes) <= 100 * 1024 * 1024
+      ? { clientDraftId: rawUploadAttachment.clientDraftId, fileName: rawUploadAttachment.fileName, mimeType: rawUploadAttachment.mimeType, sizeBytes: Number(rawUploadAttachment.sizeBytes) }
+      : null;
   const activeVyralId = typeof body.activeVyralId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.activeVyralId)
     ? body.activeVyralId : null;
