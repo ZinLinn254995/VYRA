@@ -7,7 +7,7 @@ create or replace function public.create_vyral_identity_with_dna(
   p_description text default ''
 ) returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $function$
 declare
@@ -55,8 +55,8 @@ begin
       where id = p_vyral_id
       for update;
     if not found or v_existing.user_id <> v_user_id
-       or v_existing.metadata ->> 'creation_draft_id' <> p_vyral_id::text
-       or v_existing.metadata ->> 'creation_source' <> 'global_ai_chat' then
+       or v_existing.metadata ->> 'creation_draft_id' is distinct from p_vyral_id::text
+       or v_existing.metadata ->> 'creation_source' is distinct from 'global_ai_chat' then
       raise exception 'Vyral ID is already in use by another record.' using errcode = '23505';
     end if;
   end if;
