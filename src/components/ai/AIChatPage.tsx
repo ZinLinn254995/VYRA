@@ -1793,10 +1793,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           if (mimeType.startsWith('image/')) {
             if (visionImages.length < 4) {
               const preview = await createSelectedAssetVisionPreview(blob);
+              assertRequestCurrent();
               visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
             }
           } else if (isTextLike) {
-            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
+            const decodedBytes = await blob.arrayBuffer();
+            assertRequestCurrent();
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(decodedBytes);
             const bounded = decoded.slice(0, 24000);
             const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
             const currentMessage = nextMessages[nextMessages.length - 1];
@@ -1818,6 +1821,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           } else if (isVideo) {
             const remaining = Math.max(0, 4 - visionImages.length);
             const frames = await extractSelectedVideoFrames(blob, asset.id, asset.name, remaining);
+            assertRequestCurrent();
             visionImages.push(...frames);
             const currentMessage = nextMessages[nextMessages.length - 1];
             currentMessage.content += `\n\nVideo frames attached for visual inspection: ${asset.name}; ${frames.length} sampled frames from the current version (${version.version_number}). Audio track transcription is not included.`;
@@ -1861,7 +1865,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
         ...(mediaFiles.length ? { mediaFiles } : {}),
       });
-      if (activeRequestControllerRef.current !== requestController) return;
+      assertRequestCurrent();
       let assetUploadCompletionText = '';
       const operatorAction = result.operatorAction;
       if (operatorAction?.type === 'asset-upload-approved') {
