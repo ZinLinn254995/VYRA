@@ -39,7 +39,7 @@ select ok(
   'Proposal snapshot immutability and state transitions are guarded'
 );
 select ok(
-  has_function('public','guard_vyral_asset_dna_proposal_update',0),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'guard_vyral_asset_dna_proposal_update' and p.pronargs = 0),
   'Proposal lifecycle guard function exists'
 );
 
