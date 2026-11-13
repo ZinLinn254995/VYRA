@@ -18,7 +18,7 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, extractVyralCreateRequest, findMentionedVyrals, findStoryboardMatches, isVyralAssetAddIntent, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, formatVyralCreateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, isVyralCreateConfirmation, isVyralCreateIntent, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, findMentionedVyrals, findStoryboardMatches, isVyralAssetAddIntent, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 
@@ -929,45 +929,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
-      if ((isVyralCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'vyral-create-draft') {
-        const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
-        const pendingAction = previousAssistant?.action;
-        if (pendingAction?.type !== 'vyral-create-draft') {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'There is no pending Vyral creation draft to confirm. Tell me the Vyral name and purpose first.', status: 'success' }]);
-          return;
-        }
-        const draft = pendingAction.draft;
-        const alreadyCompleted = messages.some((message) => message.role === 'assistant' && message.action?.type === 'vyral-create-complete' && message.action.draftId === draft.id);
-        if (alreadyCompleted) {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'This Vyral has already been created. I did not create a duplicate.', status: 'success' }]);
-          return;
-        }
-        if (!supabase) throw new Error('Vyral creation is unavailable in this environment.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError || !authData.user) throw new Error('Sign in again before creating a Vyral.');
-        const { data: creationResult, error: createError } = await supabase.rpc('create_vyral_identity_with_dna', {
-          p_vyral_id: draft.id,
-          p_name: draft.name,
-          p_description: draft.description,
-        });
-        if (createError || !creationResult || typeof creationResult !== 'object' ||
-            typeof (creationResult as Record<string, unknown>).vyral_id !== 'string' ||
-            (creationResult as Record<string, unknown>).vyral_id !== draft.id ||
-            (creationResult as Record<string, unknown>).identity_dna_status !== 'creator_confirmed') {
-          throw new Error('VYRA could not atomically create the Vyral identity and its initial DNA. Nothing was reported as complete. ' + (createError?.message ?? 'The server returned an incomplete creation result.'));
-        }
-        const savedVyralId = String((creationResult as Record<string, unknown>).vyral_id);
-        setActiveVyralId(savedVyralId);
-        try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, savedVyralId); } catch { /* active context remains for this session */ }
-        setMessages((previous) => [...previous, {
-          id: makeId(), role: 'assistant',
-          content: '**Vyral created:** ' + draft.name + '\n\n' + (draft.description || 'No purpose description was supplied yet.') +
-            '\n\nPrivate Vyral ID: ' + savedVyralId + '\nInitial identity DNA: saved. Asset DNA and Master DNA will evolve from the Assets and relationships added next.',
-          status: 'success', action: { type: 'vyral-create-complete', draftId: draft.id },
-        }]);
-        return;
-      }
-
       if ((isStoryboardCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-create-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
@@ -1157,24 +1118,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', content: formatStoryboardUpdateDraft(draft),
           status: 'preview', action: { type: 'storyboard-update-draft', draft },
-        }]);
-        return;
-      }
-
-      if (isVyralCreateIntent(text) && !selectedFile && selectedAssets.length === 0) {
-        const parsed = extractVyralCreateRequest(text);
-        if (!parsed?.name) {
-          setMessages((previous) => [...previous, {
-            id: makeId(), role: 'assistant',
-            content: 'Let’s define your Vyral first. Tell me its name and, optionally, what it is for.\n\nExample: Create a Vyral named "ORIGIN Story" about the foundational sample collection.',
-            status: 'success',
-          }]);
-          return;
-        }
-        const draft = { id: crypto.randomUUID(), name: parsed.name, description: parsed.description };
-        setMessages((previous) => [...previous, {
-          id: makeId(), role: 'assistant', content: formatVyralCreateDraft(draft),
-          status: 'preview', action: { type: 'vyral-create-draft', draft },
         }]);
         return;
       }
