@@ -8,7 +8,7 @@ import { parseVyralAssetRenamePendingPlan, validateVyralAssetRenamePendingAction
 import { parseVyralAssetMetadataPendingPlan, validateVyralAssetMetadataPendingAction, type VyralAssetMetadataValues } from '../../../src/server/vyralAssetMetadataAction.ts';
 import { parseVyralFolderActionPendingPlan, validateVyralFolderActionPendingAction, type VyralFolderActionOperation } from '../../../src/server/vyralFolderAction.ts';
 import { parseVyralAssetRelationshipPendingPlan, validateVyralAssetRelationshipPendingAction } from '../../../src/server/vyralAssetRelationshipAction.ts';
-import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingAction } from '../../../src/server/vyralAssetArchiveAction.ts';
+import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingAction, parseVyralAssetArchiveConfirmation } from '../../../src/server/vyralAssetArchiveAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -2589,9 +2589,8 @@ async function resolvePendingVyralFolderActionApproval(
 }
 
 async function resolvePendingAssetArchiveApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
-  if (!sessionId || !/^ARCHIVE ASSET [A-Z0-9]{6}$/i.test(latestUserText.trim())) return null;
-  const phrase = latestUserText.trim().toUpperCase();
-  const code = phrase.slice('ARCHIVE ASSET '.length);
+  const code = parseVyralAssetArchiveConfirmation(latestUserText);
+  if (!sessionId || !code) return null;
   const { data: rows, error } = await admin.from('ai_operator_pending_actions')
     .select('id,user_id,session_id,capability_id,plan,expires_at,status')
     .eq('user_id',userId).eq('session_id',sessionId).eq('capability_id','asset.archive')
