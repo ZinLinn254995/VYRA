@@ -46,6 +46,7 @@ export function startMasterTimelineVideoPlayback(
   let activeController: AbortController | null = null;
   let lastTimelineTime = 0;
   let sourceReady = false;
+  let playBlocked = false;
   let loadToken = 0;
 
   const report = (error: unknown) => {
@@ -54,13 +55,13 @@ export function startMasterTimelineVideoPlayback(
   };
 
   const playAtLatestTime = async (token: number, item: MasterTimelineVideoPlaybackItem) => {
-    if (stopped || paused || token !== loadToken || activeKey !== item.instanceId || !sourceReady) return;
+    if (stopped || paused || playBlocked || token !== loadToken || activeKey !== item.instanceId || !sourceReady) return;
     const offset = item.sourceOffsetSeconds + Math.max(0, lastTimelineTime - item.playbackStartSeconds);
     if (Math.abs(video.currentTime - offset) > DRIFT_CORRECTION_SECONDS) {
       try { video.currentTime = offset; } catch { /* Metadata may not permit seeking yet. */ }
     }
     if (video.paused) {
-      try { await video.play(); } catch (error) { report(error); }
+      try { await video.play(); } catch (error) { playBlocked = true; report(error); }
     }
   };
 
@@ -72,6 +73,7 @@ export function startMasterTimelineVideoPlayback(
     activeKey = item.instanceId;
     activeScene = item.sceneId;
     sourceReady = false;
+    playBlocked = false;
     video.pause();
     void runtime.resolveAssetUrl(item.assetId, item.assetVersionId, controller.signal)
       .then((url) => {
@@ -109,10 +111,17 @@ export function startMasterTimelineVideoPlayback(
       activeController?.abort();
       activeController = null;
       loadToken += 1;
+      const hadActiveSource = activeKey !== null;
       activeKey = null;
       activeScene = null;
       sourceReady = false;
+      playBlocked = false;
       video.pause();
+      if (hadActiveSource) {
+        video.removeAttribute?.('src');
+        video.src = '';
+        video.load();
+      }
       return;
     }
     if (activeKey !== item.instanceId) {
@@ -131,6 +140,7 @@ export function startMasterTimelineVideoPlayback(
   const resume = () => {
     if (stopped) return;
     paused = false;
+    playBlocked = false;
     sync(lastTimelineTime);
   };
 
