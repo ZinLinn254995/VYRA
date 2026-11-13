@@ -62,6 +62,23 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'propose_storyboard_update',
+      description: "Prepare a reversible update to a Storyboard owned by the signed-in user. This only creates a pending preview; never claim the change is saved until the user explicitly approves it in this same chat.",
+      parameters: {
+        type: 'object',
+        properties: {
+          storyboard_id: { type: 'string', description: 'UUID of the Storyboard to update, obtained from an owner-scoped read.' },
+          field: { type: 'string', enum: ['title', 'topic'] },
+          value: { type: 'string', description: 'The complete new title or topic.' },
+        },
+        required: ['storyboard_id', 'field', 'value'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_my_vyral_details',
       description: 'Read a Vyral by exact or partial name, including its current Master DNA status and asset counts. If ambiguous, ask the user to choose.',
       parameters: {
@@ -589,6 +606,157 @@ async function executeVyralReadTool(
   }
 
   return safeToolError('This tool is not available.');
+}
+
+
+const isUuid = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+async function createStoryboardUpdateProposal(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  rawArguments: string,
+  toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before creating an action preview.');
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid Storyboard update arguments.');
+    args = parsed as Record<string, unknown>;
+  } catch {
+    return safeToolError('Invalid Storyboard update arguments.');
+  }
+  if (Object.keys(args).some((key) => !['storyboard_id', 'field', 'value'].includes(key)) ||
+      !isUuid(args.storyboard_id) || !['title', 'topic'].includes(String(args.field)) ||
+      typeof args.value !== 'string' || !args.value.trim() ||
+      args.value.trim().length > (args.field === 'topic' ? 4000 : 160)) {
+    return safeToolError('The requested Storyboard update is invalid or exceeds its allowed limits.');
+  }
+
+  const { data: storyboard, error } = await admin.from('vyral_storyboards')
+    .select('id,title,topic,updated_at')
+    .eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
+  if (error) return safeToolError('The Storyboard could not be verified.');
+  if (!storyboard) return safeToolError('That Storyboard is not available in your account.');
+  const field = args.field as 'title' | 'topic';
+  const value = args.value.trim();
+  if (String(storyboard[field] ?? '') === value) {
+    return { ok: true, changed: false, message: 'The Storyboard already has that value; no action is needed.' };
+  }
+
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(),
+    operation: 'storyboard.update',
+    target: { storyboardId: String(storyboard.id) },
+    parameters: { field, value, expectedUpdatedAt: String(storyboard.updated_at) },
+    summary: 'Update Storyboard ' + String(storyboard.title ?? 'Untitled') + ' — ' + field + ' to “' + value.slice(0, 160) + '”',
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId,
+    p_session_id: sessionId,
+    p_idempotency_key: idempotencyKey,
+    p_capability_id: 'storyboard.update',
+    p_plan: plan,
+    p_expires_at: expiresAt.toISOString(),
+  });
+  if (pendingError || !pending) return safeToolError('VYRA could not securely save this action preview. No Storyboard changes were made.');
+  return {
+    ok: true,
+    requiresApproval: true,
+    actionId: pending.id,
+    status: pending.status,
+    summary: plan.summary,
+    currentValue: storyboard[field],
+    proposedValue: value,
+    expiresAt: pending.expires_at,
+    message: 'Preview saved. Nothing has changed yet. Show the exact current and proposed values and wait for explicit approval in this same chat session.',
+  };
+}
+
+async function resolvePendingStoryboardApproval(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  latestUserText: string,
+): Promise<string | null> {
+  if (!sessionId) return null;
+  const normalized = latestUserText.trim().toLowerCase();
+  const approve = /^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(normalized);
+  const reject = /^(no|no thanks|cancel|cancel it|don't do it|do not do it|မလုပ်တော့|ပယ်ချမယ်|မလုပ်ပါနဲ့)$/i.test(normalized);
+  if (!approve && !reject) return null;
+
+  const { data: pendingRows, error: pendingError } = await admin.from('ai_operator_pending_actions')
+    .select('id,capability_id,plan,expires_at,status')
+    .eq('user_id', userId).eq('session_id', sessionId).eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false }).limit(2);
+  if (pendingError) return 'I could not safely check this chat’s pending action. No changes were made.';
+  if (!pendingRows?.length) return null;
+  if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
+  const pending = pendingRows[0];
+  if (pending.capability_id !== 'storyboard.update' || !pending.plan || typeof pending.plan !== 'object') {
+    return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
+  }
+  if (reject) {
+    const { error } = await admin.rpc('reject_ai_operator_pending_action', {
+      p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+    });
+    return error ? 'I could not reject that pending action. Nothing was changed.' : 'Cancelled. The Storyboard was not changed.';
+  }
+
+  const plan = pending.plan as Record<string, unknown>;
+  const target = plan.target && typeof plan.target === 'object' ? plan.target as Record<string, unknown> : {};
+  const parameters = plan.parameters && typeof plan.parameters === 'object' ? plan.parameters as Record<string, unknown> : {};
+  const storyboardId = target.storyboardId;
+  const field = parameters.field;
+  const value = parameters.value;
+  const expectedUpdatedAt = parameters.expectedUpdatedAt;
+  if (!isUuid(storyboardId) || !['title', 'topic'].includes(String(field)) ||
+      typeof value !== 'string' || !value.trim() ||
+      typeof expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(expectedUpdatedAt)) ||
+      typeof plan.id !== 'string' || typeof plan.expiresAt !== 'string' ||
+      Date.parse(plan.expiresAt) <= Date.now()) {
+    return 'The saved action preview failed validation or expired. No changes were made.';
+  }
+
+  const { data: approved, error: approveError } = await admin.rpc('approve_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+  });
+  if (approveError || !approved || approved.status !== 'approved') return 'This action could not be approved (it may have expired). No changes were made.';
+  const { data: claimed, error: claimError } = await admin.rpc('claim_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+  });
+  if (claimError || !claimed || claimed.status !== 'executing') return 'This action was already handled or could not be claimed. No changes were made.';
+
+  const fail = async (code: string, message: string) => {
+    await admin.rpc('finish_ai_operator_pending_action', {
+      p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+      p_status: 'failed', p_result_summary: { message }, p_failure_code: code,
+    });
+    return message;
+  };
+  const { data: updated, error: updateError } = await admin.from('vyral_storyboards')
+    .update({ [field as string]: value.trim(), updated_at: new Date().toISOString() })
+    .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
+    .select('id,title,topic,updated_at').maybeSingle();
+  if (updateError) return await fail('STORYBOARD_UPDATE_FAILED', 'The Storyboard update failed. No successful change was confirmed.');
+  if (!updated) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the preview. Please ask me to prepare a fresh preview.');
+  const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
+    p_status: 'completed',
+    p_result_summary: { storyboardId: updated.id, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
+    p_failure_code: null,
+  });
+  if (finishError) return 'The Storyboard update was applied, but its audit completion could not be confirmed. Please refresh the Storyboard before retrying.';
+  return 'Approved and saved. Storyboard: ' + String(updated.title) + '\\nUpdated ' + String(field) + '.';
 }
 
 const sseResponse = (content: string) => {
