@@ -1035,6 +1035,7 @@ async function resolvePendingStoryboardApproval(
   const storyboardId = target.storyboardId;
   const field = parameters.field;
   const value = parameters.value;
+  const stringValue = typeof value === 'string' ? value : '';
   const expectedUpdatedAt = parameters.expectedUpdatedAt;
   const sceneId = target.sceneId;
   const isSceneUpdate = pending.capability_id === 'scene.update';
@@ -1096,7 +1097,7 @@ async function resolvePendingStoryboardApproval(
     const nextScenes = scenes.map((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item) || (item as Record<string, unknown>).id !== sceneId) return item;
       found = true;
-      return { ...(item as Record<string, unknown>), [field as string]: value.trim() };
+      return { ...(item as Record<string, unknown>), [field as string]: stringValue.trim() };
     });
     if (!found) return await fail('SCENE_NOT_FOUND', 'That Scene no longer exists in this Storyboard. No change was made.');
     const { data: sceneUpdated, error: sceneUpdateError } = await admin.from('vyral_storyboards')
@@ -1134,13 +1135,14 @@ async function resolvePendingStoryboardApproval(
     updated = timelineUpdated;
   } else {
     const { data: storyboardUpdated, error: updateError } = await admin.from('vyral_storyboards')
-      .update({ [field as string]: value.trim(), updated_at: new Date().toISOString() })
+      .update({ [field as string]: stringValue.trim(), updated_at: new Date().toISOString() })
       .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
       .select('id,title,topic,updated_at').maybeSingle();
     if (updateError) return await fail('STORYBOARD_UPDATE_FAILED', 'The Storyboard update failed. No successful change was confirmed.');
     if (!storyboardUpdated) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the preview. Please ask me to prepare a fresh preview.');
     updated = storyboardUpdated;
   }
+  if (!updated) return await fail('ACTION_RESULT_MISSING', 'The action did not return a verified updated Storyboard.');
   const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
     p_status: 'completed',
