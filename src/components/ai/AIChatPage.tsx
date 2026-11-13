@@ -2060,6 +2060,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     const ownerAtStart = historyOwnerRef.current;
     const sessionId = activeSessionId;
     const ownerId = historyOwnerId;
+    // Do not run a destructive action while auth state and its validated owner ref disagree.
+    if (ownerId !== ownerAtStart) return;
     if (sessionId && supabase && ownerId) {
       const { error } = await supabase.from('vyra_ai_chat_conversations')
         .delete().eq('id', sessionId).eq('user_id', ownerId);
