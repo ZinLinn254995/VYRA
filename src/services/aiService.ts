@@ -28,7 +28,7 @@ export interface AIServiceRequest {
   onTextDelta?: (chunk: string) => void;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
   visionImages?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[];
-  /** Small, user-authorized PDF/audio source files for Gemini multimodal inspection. */
+  /** Small, user-authorized PDF/audio source files; currently not sent until OpenAI multimodal support is enabled. */
   mediaFiles?: { mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac'; data: string; assetId?: string; assetName?: string }[];
   context?: {
     category?: ContentCategory;
@@ -125,45 +125,12 @@ class ModularAIService implements AIServiceProvider {
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
-    // Preserve the existing authenticated multimodal path for Vyral DNA Vision
-    // and selected source inspection. General text conversation uses OpenAI below.
-    if (request.visionImages?.length) {
-      if (!request.accessToken) {
-        const message = 'Sign in to VYRA before inspecting selected Assets.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
-      }
-      try {
-        const response = await fetch(this.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: 'Bearer ' + request.accessToken,
-            ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
-          },
-          body: JSON.stringify({
-            messages: request.messages,
-            ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
-            ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
-          }),
-        });
-        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; modelName?: string };
-        if (!response.ok || typeof data.text !== 'string' || !data.text.trim()) {
-          const message = typeof data.error === 'string' && data.error.trim()
-            ? data.error
-            : 'VYRA could not inspect the selected media Assets. Please retry.';
-          return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
-        }
-        return {
-          content: data.text.trim(),
-          status: 'success',
-          providerName: 'Google Gemini Vision',
-          modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
-        };
-      } catch {
-        const message = 'VYRA could not reach the multimodal inspection service. No text-only preview was substituted.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
-      }
+    // VYRA no longer routes any request to Gemini. Until OpenAI multimodal
+    // support is enabled in the platform Edge Function, fail clearly instead
+    // of silently falling back to another provider.
+    if (request.visionImages?.length || request.mediaFiles?.length) {
+      const message = 'OpenAI text chat is available. Image, document and audio inspection will be enabled after the OpenAI multimodal path is connected.';
+      return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
 
     if (!request.accessToken) {
