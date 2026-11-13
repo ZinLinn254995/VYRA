@@ -1393,6 +1393,89 @@ async function createVyralAssetRenameProposal(
   };
 }
 
+async function createVyralFolderActionProposal(
+  admin: any, userId: string, vyralId: string, sessionId: string, rawArguments: string, toolCallId: string,
+  capabilityId: 'folder.propose_create' | 'folder.propose_rename' | 'folder.propose_move' | 'asset.propose_move_folder',
+): Promise<Record<string, unknown>> {
+  let args: Record<string, unknown>;
+  try { const parsed: unknown = JSON.parse(rawArguments || '{}'); if (!isPlainRecord(parsed)) return safeToolError('Invalid folder action.'); args = parsed; }
+  catch { return safeToolError('Invalid folder action.'); }
+  let operation: VyralFolderActionOperation;
+  const target: Record<string,string> = { vyralId };
+  let parameters: Record<string,unknown> = {};
+  let summary = '';
+  const checkParent = async (parentId: unknown): Promise<boolean> => {
+    if (parentId === null) return true;
+    if (!isUuid(parentId)) return false;
+    const { data, error } = await admin.from('vyral_folders').select('id').eq('id',parentId).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    return !error && Boolean(data);
+  };
+  if (capabilityId === 'folder.propose_create') {
+    operation = 'folder.create';
+    if (!await checkParent(args.parent_folder_id) || typeof args.name !== 'string') return safeToolError('The parent folder or name could not be verified.');
+    target.folderId = crypto.randomUUID();
+    parameters = { name: args.name.trim(), nextParentId: args.parent_folder_id };
+    summary = 'Create folder "' + args.name.trim() + '"';
+  } else if (capabilityId === 'folder.propose_rename') {
+    operation = 'folder.rename';
+    const { data: folder, error } = await admin.from('vyral_folders').select('id,name,parent_id').eq('id',args.folder_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if (error || !folder || typeof args.name !== 'string') return safeToolError('That folder could not be verified in the active Vyral.');
+    if (folder.name === args.name.trim()) return safeToolError('The folder already has that name.');
+    target.folderId = String(folder.id);
+    parameters = { name: args.name.trim(), previousName: folder.name, previousParentId: folder.parent_id ?? null };
+    summary = 'Rename folder "' + folder.name + '" to "' + args.name.trim() + '"';
+  } else if (capabilityId === 'folder.propose_move') {
+    operation = 'folder.move';
+    const { data: folder, error } = await admin.from('vyral_folders').select('id,name,parent_id').eq('id',args.folder_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if (error || !folder || !await checkParent(args.parent_folder_id)) return safeToolError('The source or destination folder could not be verified.');
+    if ((folder.parent_id ?? null) === args.parent_folder_id) return safeToolError('The folder is already in that location.');
+    let cursor = args.parent_folder_id as string | null, depth = 0;
+    while (cursor && depth++ < 100) {
+      if (cursor === folder.id) return safeToolError('A folder cannot be moved into itself or one of its descendants.');
+      const { data: parent, error: parentError } = await admin.from('vyral_folders').select('parent_id').eq('id',cursor).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+      if (parentError || !parent) return safeToolError('The destination folder hierarchy could not be verified.');
+      cursor = parent.parent_id ?? null;
+    }
+    if (depth >= 100 && cursor) return safeToolError('The destination folder hierarchy is too deep to verify safely.');
+    target.folderId = String(folder.id);
+    parameters = { previousParentId: folder.parent_id ?? null, nextParentId: args.parent_folder_id };
+    summary = 'Move folder "' + folder.name + '"';
+  } else {
+    operation = 'asset.move_folder';
+    const { data: asset, error } = await admin.from('vyral_assets').select('id,name,folder_id,updated_at,processing_status').eq('id',args.asset_id).eq('vyral_id',vyralId).eq('user_id',userId).maybeSingle();
+    if (error || !asset || asset.processing_status === 'archived' || !await checkParent(args.folder_id)) return safeToolError('The Asset or destination folder could not be verified.');
+    if ((asset.folder_id ?? null) === args.folder_id) return safeToolError('The Asset is already in that folder.');
+    target.assetId = String(asset.id);
+    parameters = { previousFolderId: asset.folder_id ?? null, nextParentId: args.folder_id, expectedUpdatedAt: String(asset.updated_at) };
+    summary = 'Move Asset "' + asset.name + '"';
+  }
+  const now = new Date();
+  const plan = { id: crypto.randomUUID(), operation, target, parameters, summary,
+    createdAt: now.toISOString(), expiresAt: new Date(now.getTime()+10*60*1000).toISOString() };
+  if (!parseVyralFolderActionPendingPlan(plan)) return safeToolError('The folder action preview failed validation.');
+  const key = ('aiop-' + sessionId + '-' + toolCallId).slice(0,160);
+  const { data: pending, error } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id:userId,p_session_id:sessionId,p_idempotency_key:key,p_capability_id:'folder.update',p_plan:plan,p_expires_at:plan.expiresAt,
+  });
+  let saved = pending;
+  if (error || !saved) {
+    const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('idempotency_key',key).maybeSingle();
+    const priorPlan = parseVyralFolderActionPendingPlan(prior?.plan);
+    if (priorError || !prior || prior.capability_id !== 'folder.update' || prior.status !== 'pending' ||
+        Date.parse(prior.expires_at) <= Date.now() || !priorPlan || priorPlan.operation !== operation ||
+        JSON.stringify(priorPlan.target) !== JSON.stringify(target) || JSON.stringify(priorPlan.parameters) !== JSON.stringify(parameters)) {
+      return safeToolError('Could not securely save or reuse this folder preview. No changes were made.');
+    }
+    saved = prior;
+  }
+  const savedPlan = parseVyralFolderActionPendingPlan(saved.plan);
+  if (!savedPlan) return safeToolError('The saved folder preview could not be verified.');
+  return { ok:true, requiresApproval:true, actionId:saved.id, operation:savedPlan.operation, target:savedPlan.target,
+    parameters:savedPlan.parameters, summary:savedPlan.summary, expiresAt:saved.expires_at,
+    message:'Preview only. No folder or Asset location has changed. Wait for explicit approval in this same chat.' };
+}
+
 async function createVyralAssetMetadataProposal(admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required.');
   let args: Record<string, unknown>;
@@ -2574,6 +2657,10 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'asset.propose_upload': 'propose_vyral_asset_upload',
   'asset.propose_rename': 'propose_vyral_asset_rename',
   'asset.propose_metadata': 'propose_vyral_asset_metadata',
+  'folder.propose_create': 'propose_vyral_folder_create',
+  'folder.propose_rename': 'propose_vyral_folder_rename',
+  'folder.propose_move': 'propose_vyral_folder_move',
+  'asset.propose_move_folder': 'propose_vyral_asset_move_folder',
 } as const;
 
 type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
@@ -2601,10 +2688,35 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
           input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180 &&
           !/[\\/\u0000-\u001f\u007f]/.test(input.asset_name);
       }
+      if (capabilityId === 'folder.propose_create' || capabilityId === 'folder.propose_rename' ||
+          capabilityId === 'folder.propose_move' || capabilityId === 'asset.propose_move_folder') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
+        if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
+        return await createVyralFolderActionProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId, capabilityId);
+      }
       if (capabilityId === 'vyral.propose_create') {
         return Object.keys(input).every((key) => ['name', 'description'].includes(key)) &&
           typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
           (input.description === undefined || (typeof input.description === 'string' && input.description.length <= 1000));
+      }
+      if (capabilityId === 'folder.propose_create') {
+        return Object.keys(input).every((key) => ['name','parent_folder_id'].includes(key)) &&
+          typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
+          !/[\\/\u0000-\u001f\u007f]/.test(input.name) &&
+          (input.parent_folder_id === null || isUuid(input.parent_folder_id));
+      }
+      if (capabilityId === 'folder.propose_rename') {
+        return Object.keys(input).every((key) => ['folder_id','name'].includes(key)) &&
+          isUuid(input.folder_id) && typeof input.name === 'string' && input.name.trim().length > 0 &&
+          input.name.trim().length <= 100 && !/[\\/\u0000-\u001f\u007f]/.test(input.name);
+      }
+      if (capabilityId === 'folder.propose_move') {
+        return Object.keys(input).every((key) => ['folder_id','parent_folder_id'].includes(key)) &&
+          isUuid(input.folder_id) && (input.parent_folder_id === null || isUuid(input.parent_folder_id));
+      }
+      if (capabilityId === 'asset.propose_move_folder') {
+        return Object.keys(input).every((key) => ['asset_id','folder_id'].includes(key)) &&
+          isUuid(input.asset_id) && (input.folder_id === null || isUuid(input.folder_id));
       }
       if (!isUuid(input.storyboard_id)) return false;
       if (capabilityId === 'storyboard.propose_update') {
