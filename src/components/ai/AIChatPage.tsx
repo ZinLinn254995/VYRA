@@ -1899,6 +1899,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
       }
 
+      // A provider response or post-response Asset transfer may finish after sign-out.
+      // Never publish that old request's completion into the next account's chat.
+      if (activeRequestControllerRef.current !== requestController) return;
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
