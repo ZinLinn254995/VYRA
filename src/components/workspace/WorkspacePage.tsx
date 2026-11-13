@@ -454,7 +454,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     activeStoryboard?.id,
     activeSceneId,
     activeStoryboard?.details?.masterTimeline?.sceneInstances,
-    sceneVideoPreviewSourceOut,
   ]);
 
   useEffect(() => {
