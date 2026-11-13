@@ -20,6 +20,9 @@ test('catalogues broad app-wide AI capabilities without granting unimplemented e
   assert.ok(getAiCapabilityPolicy('asset.verify'));
   assert.ok(getAiCapabilityPolicy('generation.video'));
   assert.ok(getAiCapabilityPolicy('marketplace.publish_listing'));
+  for (const id of ['storyboard.propose_update', 'scene.propose_update', 'scene.propose_mutation', 'scene.propose_reorder', 'timeline.propose_edit', 'timeline.propose_transition']) {
+    assert.equal(getAiCapabilityPolicy(id)?.access, 'autonomous', id);
+  }
 });
 
 test('autonomous read capability is available only to authenticated users', () => {
