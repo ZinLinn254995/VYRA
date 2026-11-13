@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(8);
 insert into auth.users (id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values ('26000000-0000-4000-8000-000000000001','authenticated','authenticated','folder-delete-test@example.invalid','',now(),
  '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now())
@@ -13,6 +13,12 @@ select ok(has_function_privilege('service_role','public.delete_empty_vyral_folde
 insert into public.vyrals (id,user_id,name,metadata,master_dna_purpose,master_dna_status)
 values ('26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',
  'Folder Delete Test Vyral','{}'::jsonb,'A test Vyral for empty-folder deletion.','stale');
+insert into public.vyrals (id,user_id,name,metadata,master_dna_purpose,master_dna_status)
+values ('26000000-0000-4000-8000-000000000012','26000000-0000-4000-8000-000000000001',
+ 'Protected Folder Test Vyral','{"protected":true}'::jsonb,'Protected test fixture.','stale');
+insert into public.vyral_folders (id,vyral_id,user_id,parent_id,name)
+values ('26000000-0000-4000-8000-000000000025','26000000-0000-4000-8000-000000000012',
+ '26000000-0000-4000-8000-000000000001',null,'Protected Empty Folder');
 insert into public.vyral_folders (id,vyral_id,user_id,parent_id,name)
 values
  ('26000000-0000-4000-8000-000000000021','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',null,'Empty Folder'),
@@ -32,5 +38,9 @@ select is((select count(*)::int from public.delete_empty_vyral_folder(
  '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
  '26000000-0000-4000-8000-000000000022','Wrong Name',
  (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000022'))),0,'Refuses stale or mismatched folder identity');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000012',
+ '26000000-0000-4000-8000-000000000025','Protected Empty Folder',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000025'))),0,'Refuses deletion inside a protected Vyral');
 select * from finish();
 rollback;
