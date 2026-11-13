@@ -2220,7 +2220,13 @@ registerAiCapabilityAdapter({
         p_result_summary: { vyral_id: vyralId, name: plan.parameters.name, initial_master_dna_record_id: rootDna[0].id },
       });
       if (finishError) throw new Error('The Vyral was created, but its approval record could not be finalized.');
-  
+      return {
+        ok: true,
+        message: 'Created your private Vyral "' + plan.parameters.name + '" and verified its initial identity DNA.',
+        vyral: { id: vyralId, name: plan.parameters.name, visibility: verifiedVyral.visibility },
+        initialDnaRecordId: rootDna[0].id,
+        creation: creationResult,
+      };
     } catch {
       await admin.rpc('finish_ai_operator_pending_action', {
         p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
@@ -2232,13 +2238,6 @@ registerAiCapabilityAdapter({
         message: 'VYRA could not safely finalize this Vyral creation attempt. It has been marked for recovery; please prepare a fresh preview before retrying.',
       };
     }
-    return {
-      ok: true,
-      message: 'Created your private Vyral "' + plan.parameters.name + '" and verified its initial identity DNA.',
-      vyral: { id: vyralId, name: plan.parameters.name, visibility: verifiedVyral.visibility },
-      initialDnaRecordId: rootDna[0].id,
-      creation: creationResult,
-    };
   },
 });
 
