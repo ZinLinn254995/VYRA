@@ -97,7 +97,7 @@ test('AI Chat follows streamed replies only while the user is near the latest me
   assert.match(page, /const chatScrollRef = useRef<HTMLElement \| null>\(null\)/);
   assert.match(page, /shouldAutoScrollRef\.current = element\.scrollHeight - element\.scrollTop - element\.clientHeight < 120/);
   assert.match(page, /container\.scrollTo\(\{ top: container\.scrollHeight, behavior: isSending \? 'auto' : 'smooth' \}\)/);
-  assert.match(page, /shouldAutoScrollRef\.current = true;\s*const nextMessages = \[\.\.\.messages, userMessage\]/);
+  assert.match(page, /shouldAutoScrollRef\.current = true;\s*const nextMessages = retryUserIndex >= 0/);\n  assert.match(page, /: \[\.\.\.messages, userMessage\]/);
 });
 
 test('AI Chat Stop Generation remains enabled while a request is running', () => {
