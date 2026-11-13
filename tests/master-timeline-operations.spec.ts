@@ -72,6 +72,7 @@ test('splits audio/text at least 0.2 seconds from either edge', () => {
     assert.deepEqual(clips.find((item) => item.id === 'new-a'), { id: 'new-a', name: 'Music', start: 2.5, duration: 2.5 });
   }
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 0.1, () => 'new-b').ok, false);
+  assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 2.5, () => 't').ok, false);
 });
 
 test('updates text clip content only and preserves all unrelated timeline data', () => {
