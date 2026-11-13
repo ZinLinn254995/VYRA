@@ -21,6 +21,7 @@ test('AI Chat persists text transcripts and safe metadata without attachment byt
   assert.match(page, /messages: storedMessages/);
   assert.match(page, /id: message\.id,[\s\S]*?role: message\.role,[\s\S]*?content: message\.content/);
   assert.doesNotMatch(page.slice(page.indexOf('const persistSession'), page.indexOf('const startNewChat')), /base64|dataUrl|arrayBuffer|fileBytes/i);
+  assert.match(page, /historyWriteQueueRef\.current\.then\(async \(\) =>/);
   assert.match(page, /Chat history could not be saved/);
   assert.match(page, /Please stay here and try again/);
 });
