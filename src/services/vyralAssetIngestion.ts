@@ -11,6 +11,8 @@ export type VyralAssetIngestionInput = {
   folderId?: string | null;
   metadata?: Record<string, unknown>;
   maxBytes?: number;
+  /** Cancels pending ingestion at safe checkpoints; committed DNA is preserved for recovery. */
+  signal?: AbortSignal;
 };
 export type VyralVideoTechnicalMetadata = { schemaVersion: 1; sourceSha256: string; durationSeconds: number; extraction: 'browser-video-metadata' };
 export type VyralAssetIngestionResult = {
@@ -210,6 +212,10 @@ export async function ingestVyralAsset(
     throw new Error('The source file is empty or exceeds the configured upload limit.');
   }
 
+  const assertNotAborted = () => {
+    if (input.signal?.aborted) throw new DOMException('Asset ingestion was cancelled.', 'AbortError');
+  };
+  assertNotAborted();
   const file = input.file;
   const assetName = typeof input.assetName === 'string' ? input.assetName.trim() : file.name;
   if (!assetName || assetName.length > 180 || /[\\/\u0000-\u001f\u007f]/.test(assetName)) {
@@ -221,10 +227,14 @@ export async function ingestVyralAsset(
   const extension = file.name.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
   const storagePath = input.userId + '/' + input.vyralId + '/' + assetId + '/v1/' + assetId + '.' + extension;
   const bytes = await file.arrayBuffer();
+  assertNotAborted();
   const sha256 = await sha256Hex(bytes);
+  assertNotAborted();
   const rasterDna = assetType === 'image' && RASTER_MIMES.has(mimeType.toLowerCase());
   const audioTechnicalMetadata = assetType === 'audio' ? await extractAudioTechnicalMetadata(file, sha256) : null;
+  assertNotAborted();
   const videoTechnicalMetadata = assetType === 'video' ? await extractVideoTechnicalMetadata(file, sha256) : null;
+  assertNotAborted();
   let versionId: string | null = null;
   let storageUploaded = false;
   let dnaCommitted = false;
@@ -243,19 +253,24 @@ export async function ingestVyralAsset(
         ...(videoTechnicalMetadata ? { video_technical_metadata: videoTechnicalMetadata } : {}),
       },
     });
+    assertNotAborted();
     // A lost upload response can still mean the object was stored; always attempt cleanup on failure.
     storageUploaded = true;
     await port.uploadOriginal(storagePath, file, mimeType);
+    assertNotAborted();
     versionId = await port.createVersion({
       asset_id: assetId, vyral_id: input.vyralId, user_id: input.userId, version_number: 1,
       storage_path: storagePath, mime_type: mimeType, size_bytes: file.size, sha256,
       source_kind: 'original', metadata: { original_filename: file.name, ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}), ...(videoTechnicalMetadata ? { video_technical_metadata: videoTechnicalMetadata } : {}) },
     });
+    assertNotAborted();
     if (!UUID.test(versionId)) throw new Error('The original Asset Version record did not return a valid ID.');
     await port.createFingerprint({ assetId, versionId, userId: input.userId, sha256 });
+    assertNotAborted();
 
     if (rasterDna) {
       const extraction = await port.extractRasterDna(assetId, versionId);
+      assertNotAborted();
       if (extraction.status !== 'extracted') {
         const alreadyCommitted = await port.hasDnaRecord(assetId, input.userId);
         if (alreadyCommitted) {
@@ -290,10 +305,13 @@ export async function ingestVyralAsset(
           recovery_level: 'identity-only', encoded_source_bytes_recoverable: false,
         },
       });
+      assertNotAborted();
       dnaCommitted = true;
     }
 
+    assertNotAborted();
     await port.markReady(assetId, input.userId);
+    assertNotAborted();
     return {
       assetId, versionId, storagePath, sha256, assetType, mimeType,
       sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1',
