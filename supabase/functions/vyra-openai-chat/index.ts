@@ -373,6 +373,7 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
         scenes: rawScenes.slice(0, 80).map((raw, index) => {
           const scene = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
           return {
+            id: typeof scene.id === 'string' ? scene.id : null,
             number: index + 1,
             title: typeof scene.title === 'string' ? scene.title.slice(0, 180) : 'Untitled scene',
             description: typeof scene.description === 'string' ? scene.description.slice(0, 1200) : '',
