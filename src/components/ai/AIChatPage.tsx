@@ -18,7 +18,7 @@ import { requestsVyralAssetDnaAssessmentV1 } from '../../services/vyralAssetDnaA
 import { requestsVyralReconstructionHistoryV1 } from '../../services/vyralReconstructionHistoryIntentV1.ts';
 import { summarizeVyralReconstructionEvidenceV1 } from '../../services/vyralReconstructionEvidenceSummaryV1.ts';
 import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImprovementPlanV1.ts';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, extractVyralAssetUploadTarget, findMentionedVyrals, findStoryboardMatches, isVyralAssetAddIntent, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, formatVyralAssetUploadDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 
@@ -685,98 +685,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             }
           }
         }
-      }
-
-      if ((isVyralAssetUploadConfirmation(text) || isNaturalChatApproval(text)) && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'vyral-asset-upload-draft') {
-        const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
-        const pendingAction = previousAssistant?.action;
-        if (pendingAction?.type !== 'vyral-asset-upload-draft') {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'There is no pending Asset upload preview. Attach a file and tell me which Vyral should receive it.', status: 'success' }]);
-          return;
-        }
-        const uploadDraft = pendingAction.draft;
-        const sourceFile = pendingVyralUploadFilesRef.current.get(uploadDraft.id);
-        if (!sourceFile) {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'This upload preview is from an earlier chat session and its local file is no longer available. Please attach the file again and repeat the Vyral upload request.', status: 'error', action: pendingAction }]);
-          return;
-        }
-        if (!supabase) throw new Error('Secure Vyral Asset storage is unavailable.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError || !authData.user) throw new Error('Sign in again before uploading an Asset.');
-        const { data: destination, error: destinationError } = await supabase.from('vyrals')
-          .select('id,name,visibility,lifecycle_status,license_policy')
-          .eq('id', uploadDraft.vyralId).eq('user_id', authData.user.id).maybeSingle();
-        if (destinationError || !destination || destination.name !== uploadDraft.vyralName) {
-          throw new Error('The destination Vyral could not be re-verified for your account. No Asset was uploaded.');
-        }
-        if (sourceFile.name !== uploadDraft.fileName || sourceFile.size !== uploadDraft.fileSize || (sourceFile.type || 'application/octet-stream') !== uploadDraft.mimeType) {
-          throw new Error('The attached file no longer matches the reviewed upload preview. Please prepare a new preview.');
-        }
-        const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
-          vyralId: destination.id, userId: authData.user.id, file: sourceFile,
-          metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: uploadDraft.id },
-        });
-        pendingVyralUploadFilesRef.current.delete(uploadDraft.id);
-        let masterDnaMessage = 'Master DNA will update from the new Asset inventory.';
-        try {
-          const { data: masterResult, error: masterError } = await supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } });
-          masterDnaMessage = !masterError && masterResult?.status === 'ready'
-            ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
-            : 'The Asset is ready. Master DNA is queued for its next synchronization.';
-        } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Vyral workspace refreshes.'; }
-        setMessages((previous) => [...previous, {
-          id: makeId(), role: 'assistant',
-          content: '**Asset saved to Vyral:** ' + destination.name + '\\n\\n' +
-            '**File:** ' + sourceFile.name + '\\n' +
-            '**Asset ID:** ' + ingested.assetId + '\\n' +
-            '**DNA:** ' + ingested.dnaKind + '\\n' +
-            '**Fingerprint:** SHA-256 recorded\\n**Status:** Ready\\n\\n' + masterDnaMessage,
-          status: 'success', action: { type: 'vyral-asset-upload-complete', draftId: uploadDraft.id },
-        }]);
-        return;
-      }
-
-      if (attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') && isVyralAssetAddIntent(text)) {
-        if (!supabase) throw new Error('Vyral library access is unavailable.');
-        if (attachedFile.size > 100 * 1024 * 1024) throw new Error('The maximum Vyral Asset upload size is 100 MB.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError || !authData.user) throw new Error('Sign in before choosing a destination Vyral.');
-        let destinationId = resolvedActiveVyralId;
-        const explicitTarget = extractVyralAssetUploadTarget(text);
-        if (explicitTarget) {
-          const exact = (await supabase.from('vyrals').select('id,name')
-            .eq('user_id', authData.user.id).eq('name', explicitTarget).limit(2));
-          if (exact.error) throw new Error('Could not verify the destination Vyral. Nothing was uploaded.');
-          if (!exact.data?.length) {
-            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I could not find "' + explicitTarget + '" among your Vyrals. Nothing was uploaded. Tell me which existing Vyral you mean, in your own words.', status: 'success' }]);
-            return;
-          }
-          if (exact.data.length > 1) {
-            setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I found more than one Vyral with that name. Which one did you mean? Nothing was uploaded.', status: 'success' }]);
-            return;
-          }
-          destinationId = String(exact.data[0].id);
-        } else if (mentionedVyrals.length > 1) {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'I noticed more than one Vyral in what you said. Which one should receive this file? Nothing was uploaded yet.', status: 'success' }]);
-          return;
-        }
-        if (!destinationId) {
-          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', content: 'Which Vyral should I put this file into? You can just describe it naturally; I will keep that Vyral as our working context.', status: 'success' }]);
-          return;
-        }
-        const { data: destination, error: destinationError } = await supabase.from('vyrals')
-          .select('id,name,visibility,lifecycle_status').eq('id', destinationId).eq('user_id', authData.user.id).maybeSingle();
-        if (destinationError || !destination) throw new Error('The active Vyral could not be verified for your account. Nothing was uploaded.');
-        const uploadDraft = {
-          id: crypto.randomUUID(), vyralId: String(destination.id), vyralName: String(destination.name),
-          fileName: attachedFile.name, fileSize: attachedFile.size, mimeType: attachedFile.type || 'application/octet-stream',
-        };
-        pendingVyralUploadFilesRef.current.set(uploadDraft.id, attachedFile);
-        setMessages((previous) => [...previous, {
-          id: makeId(), role: 'assistant', content: formatVyralAssetUploadDraft(uploadDraft),
-          status: 'preview', action: { type: 'vyral-asset-upload-draft', draft: uploadDraft },
-        }]);
-        return;
       }
 
       const navigationTarget = extractGlobalChatNavigationTarget(text);
