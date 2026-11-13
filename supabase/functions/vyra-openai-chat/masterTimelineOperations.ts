@@ -207,6 +207,30 @@ export const updateMasterTimelineClipText = (
 
 const ALLOWED_TRANSITION_EFFECTS = ['dissolve', 'fade', 'wipe', 'slide', 'zoom', 'blur'] as const;
 
+export const cloneMasterTimelineClip = (
+  timeline: MasterTimelineData,
+  kind: TimelineClipKind,
+  trackId: string,
+  clipId: string,
+  createId: () => string,
+): TimelineResult => {
+  if (!timeline || !Array.isArray(timeline.audioTracks) || !Array.isArray(timeline.textTracks)) return fail('invalid-timeline');
+  const tracks = tracksFor(timeline, kind);
+  const track = tracks.find((item) => item.id === trackId);
+  if (!track) return fail('track-not-found');
+  const clip = track.clips.find((item) => item.id === clipId);
+  if (!clip) return fail('clip-not-found');
+  if (!finite(clip.start) || clip.start < 0 || !finite(clip.duration) || clip.duration < MIN_CLIP_DURATION) return fail('invalid-duration');
+  const newId = createId();
+  const allClips = [...timeline.audioTracks, ...timeline.textTracks].flatMap((item) => item.clips);
+  if (!newId || allClips.some((item) => item.id === newId)) return fail('invalid-timeline');
+  const cloneStart = track.clips.reduce((end, item) => Math.max(end, item.start + item.duration), 0);
+  if (!finite(cloneStart)) return fail('invalid-time');
+  const cloned = { ...clip, ...(Array.isArray(clip.waveform) ? { waveform: [...clip.waveform] } : {}), id: newId, start: cloneStart };
+  const nextTracks = tracks.map((item) => item.id !== trackId ? item : { ...item, clips: [...item.clips, cloned] });
+  return { ok: true, value: withTracks(timeline, kind, nextTracks), affectedClipId: clipId, createdClipId: newId };
+};
+
 export const updateMasterTimelineTransition = (
   timeline: MasterTimelineData,
   transitionKey: string,
