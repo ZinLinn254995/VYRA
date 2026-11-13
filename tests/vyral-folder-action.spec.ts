@@ -10,6 +10,7 @@ test('validates folder create, rename, move and Asset folder move plans',()=>{
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.rename',parameters:{name:'Cast',previousName:'Characters',previousParentId:null}})?.operation,'folder.rename');
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.move',parameters:{previousParentId:null,nextParentId:'44444444-4444-4444-8444-444444444444'}})?.operation,'folder.move');
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'asset.move_folder',target:{vyralId:base.target.vyralId,assetId:'55555555-5555-4555-8555-555555555555'},parameters:{previousFolderId:null,nextParentId:base.target.folderId,expectedUpdatedAt:new Date(now-2000).toISOString()}})?.operation,'asset.move_folder');
+  assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.delete',parameters:{previousName:'Characters',previousParentId:null,expectedCreatedAt:new Date(now-2000).toISOString(),confirmationCode:'A1B2C3'}})?.operation,'folder.delete');
 });
 
 test('rejects unsafe names, malformed targets, same destination and expired plans',()=>{
@@ -18,6 +19,7 @@ test('rejects unsafe names, malformed targets, same destination and expired plan
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.rename',parameters:{name:'A',previousName:'A',previousParentId:null}}),null);
   assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.move',parameters:{previousParentId:null,nextParentId:null}}),null);
   assert.equal(parseVyralFolderActionPendingPlan({...base,expiresAt:new Date(now-1).toISOString()}),null);
+  assert.equal(parseVyralFolderActionPendingPlan({...base,operation:'folder.delete',parameters:{previousName:'Characters',previousParentId:null,expectedCreatedAt:new Date(now-2000).toISOString(),confirmationCode:'bad'}}),null);
 });
 
 test('binds approval to exact owner, session, action and pending state',()=>{
