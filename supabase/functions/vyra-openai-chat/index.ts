@@ -166,15 +166,29 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
     const query = typeof args.query === 'string' ? args.query.trim().slice(0, 100).replace(/[%,_().]/g, '') : '';
     const requestedLimit = typeof args.limit === 'number' && Number.isInteger(args.limit) ? args.limit : 20;
     const limit = Math.max(1, Math.min(30, requestedLimit));
-    let request = admin.from('vyral_storyboards')
+    const baseQuery = () => admin.from('vyral_storyboards')
       .select('id,title,topic,details,created_at,updated_at', { count: 'exact' })
       .eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit);
-    if (query) request = request.or('title.ilike.%' + query + '%,topic.ilike.%' + query + '%');
-    const { data, error, count } = await request;
-    if (error) return safeToolError('Your Storyboards could not be loaded.');
-    const rows = data ?? [];
+    let rows: Record<string, unknown>[] = [];
+    let totalMatching = 0;
+    if (query) {
+      const [titleResult, topicResult] = await Promise.all([
+        baseQuery().ilike('title', '%' + query + '%'),
+        baseQuery().ilike('topic', '%' + query + '%'),
+      ]);
+      if (titleResult.error || topicResult.error) return safeToolError('Your Storyboards could not be searched.');
+      const merged = new Map<string, Record<string, unknown>>();
+      for (const item of [...(titleResult.data ?? []), ...(topicResult.data ?? [])]) merged.set(String(item.id), item as Record<string, unknown>);
+      rows = [...merged.values()].sort((a, b) => Date.parse(String(b.updated_at)) - Date.parse(String(a.updated_at))).slice(0, limit);
+      totalMatching = merged.size;
+    } else {
+      const { data, error, count } = await baseQuery();
+      if (error) return safeToolError('Your Storyboards could not be loaded.');
+      rows = (data ?? []) as Record<string, unknown>[];
+      totalMatching = count ?? rows.length;
+    }
     return {
-      ok: true, totalMatching: count ?? rows.length, returned: rows.length,
+      ok: true, totalMatching, returned: rows.length,
       storyboards: rows.map((item: Record<string, unknown>) => {
         const details = item.details && typeof item.details === 'object' && !Array.isArray(item.details) ? item.details as Record<string, unknown> : {};
         return {
