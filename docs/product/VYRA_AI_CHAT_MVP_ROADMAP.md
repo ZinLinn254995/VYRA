@@ -876,3 +876,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - The action requires an explicit timeline duration because server-side audio duration extraction is not yet implemented. It creates an editable Asset-reference clip, not a playable audio preview or rendered audio mix; actual playback, waveform analysis, mixing, and final render integration remain future work. AI Chat UI/CSS and Production remain unchanged.
 
 - Development deployment verified: `vyra-openai-chat` v31 is ACTIVE with JWT verification enabled. The deployed source includes `add_audio`, owner/active-Vyral checks, exact Asset Version revalidation, the `timeline.add_audio` approval path, and immutable Asset-reference fields. The Edge Function deployment/bundling succeeded. GitHub CI run details are not available from the current workflow lookup, so the automated tests and full Deno CI checks are not being marked as passed.
+
+
+### Audio Asset technical metadata — source-bound duration and waveform
+
+- Canonical Asset ingestion now attempts to inspect audio duration from the original browser-decoded media file and derive up to 96 normalized waveform peak samples from decoded PCM (for files up to 20 MB).
+- The bounded metadata is stored on the Asset and immutable Asset Version, including the original source SHA-256. Timeline insertion trusts only the immutable Version record and verifies that metadata SHA-256 matches that exact Version.
+- AI no longer supplies or guesses the Audio clip duration. `add_audio` derives duration and waveform from source-version metadata; if verified duration metadata is absent, the proposal fails closed instead of creating a clip with an invented length.
+- Unsupported browser codecs may yield no technical metadata. The Asset remains stored and usable as a file, but cannot yet be inserted as a duration-aware Timeline clip; a server-side audio analysis path remains future work.
+- Waveform peaks are real decoded-audio measurements, not generated decorative samples. No signed Storage URL is persisted in Timeline JSON.
+- This does not yet add audio playback, timeline mixing, Master preview playback, or final video rendering.
