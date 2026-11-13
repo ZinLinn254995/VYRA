@@ -35,6 +35,8 @@ jobs:
         run: npm run test:ai-capabilities
       - name: VYRA AI capability executor security tests
         run: npm run test:ai-capability-executor
+      - name: Vyral creation approval and retry-safety tests
+        run: npm run test:vyral-creation-action
       - name: VYRA AI capability implementation coverage tests
         run: npm run test:ai-capability-coverage
       - name: Master Timeline operation validation tests
