@@ -400,7 +400,7 @@ const VYRAL_READ_TOOLS = [
     type: 'function',
     function: {
       name: 'list_vyral_asset_relationships',
-      description: 'List recorded relationships between Assets in the current Vyral. Read-only.',
+      description: 'Read semantic Asset-to-Asset/Vyral relationships separately from generation and derivation lineage in the current Vyral. Read-only.',
       parameters: {
         type: 'object',
         properties: { limit: { type: 'integer', minimum: 1, maximum: 30 } },
