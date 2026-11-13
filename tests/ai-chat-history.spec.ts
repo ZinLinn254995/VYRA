@@ -121,3 +121,12 @@ test('AI Chat composer controls provide mobile-friendly 44px touch targets', () 
   assert.match(page, /!size-11 !min-h-11 !min-w-11/);
   assert.match(page, /max-h-36 min-h-11 min-w-0 resize-none/);
 });
+
+
+test('AI Chat retries the original user turn without appending a duplicate prompt', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /sendMessage = async \(value = draft, retryUserMessageId\?: string\)/);
+  assert.match(page, /messages\.findIndex\(\(message\) => message\.id === retryUserMessageId && message\.role === 'user'\)/);
+  assert.match(page, /messages\.slice\(0, retryUserIndex \+ 1\)/);
+  assert.match(page, /sendMessage\(previousUserMessage\.content, previousUserMessage\.id\)/);
+});
