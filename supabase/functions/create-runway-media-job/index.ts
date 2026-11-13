@@ -18,7 +18,7 @@ Deno.serve(async (request: Request) => {
   if (typeof body.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,160}$/.test(body.idempotencyKey))
     return json({ error: 'A valid generation idempotency key is required.' }, 400);
   const { data: quote, error: quoteError } = await context.supabaseAdmin.from('media_generation_quotes')
-    .select('id,status,approved_max_credit_units,credit_approval_confirmed_at,pricing_policy_id,expires_at')
+    .select('id,status,task,quality,provider,provider_model_id,approved_max_credit_units,credit_approval_confirmed_at,pricing_policy_id,expires_at')
     .eq('id', body.quoteId).eq('user_id', userId).maybeSingle();
   if (quoteError || !quote) return json({ error: 'Approved quote not found.' }, quoteError ? 503 : 404);
   if (!['approved', 'used'].includes(quote.status) || !quote.credit_approval_confirmed_at || !quote.pricing_policy_id ||
@@ -41,6 +41,20 @@ Deno.serve(async (request: Request) => {
       : status === 402 ? 'Insufficient VYRA credits. No job or reservation was created.'
       : status === 404 ? 'Approved quote not found.' : 'The generation job could not be created safely.' }, status);
   }
+  // Record the reserved-job milestone without storing prompts or media payloads.
+  // This insert is best-effort and idempotent via the partial unique index on job_id.
+  try {
+    await context.supabaseAdmin.from('media_generation_job_events').insert({
+      job_id: job.id,
+      provider: quote.provider,
+      task: quote.task,
+      quality: quote.quality,
+      event_type: 'reserved',
+      model_id: quote.provider_model_id,
+      started_at: job.created_at ?? new Date().toISOString(),
+    });
+  } catch { /* telemetry must never block a safely reserved job */ }
+
   return json({ job: { id: job.id, status: job.status, quoteId: body.quoteId, reservedCreditUnits: quote.approved_max_credit_units },
     message: 'Generation job created and approved maximum credits reserved atomically. No provider task has been submitted yet.' });
 });
