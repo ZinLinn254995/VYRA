@@ -20,7 +20,7 @@ test('catalogues broad app-wide AI capabilities without granting unimplemented e
   assert.ok(getAiCapabilityPolicy('asset.verify'));
   assert.ok(getAiCapabilityPolicy('generation.video'));
   assert.ok(getAiCapabilityPolicy('marketplace.publish_listing'));
-  for (const id of ['storyboard.propose_update', 'scene.propose_update', 'scene.propose_mutation', 'scene.propose_reorder', 'timeline.propose_edit', 'timeline.propose_transition', 'vyral.propose_create', 'asset.propose_upload', 'asset.propose_rename', 'asset.propose_metadata', 'asset.propose_relationship_add', 'asset.propose_relationship_remove', 'asset.propose_archive', 'folder.list', 'folder.propose_create', 'folder.propose_rename', 'folder.propose_move', 'asset.propose_move_folder']) {
+  for (const id of ['storyboard.propose_update', 'scene.propose_update', 'scene.propose_mutation', 'scene.propose_reorder', 'timeline.propose_edit', 'timeline.propose_transition', 'vyral.propose_create', 'asset.propose_upload', 'asset.propose_rename', 'asset.propose_metadata', 'asset.propose_relationship_add', 'asset.propose_relationship_remove', 'asset.propose_archive', 'asset.propose_restore', 'folder.list', 'folder.propose_create', 'folder.propose_rename', 'folder.propose_move', 'asset.propose_move_folder']) {
     assert.equal(getAiCapabilityPolicy(id)?.access, 'autonomous', id);
   }
 });
