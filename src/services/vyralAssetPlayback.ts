@@ -49,7 +49,7 @@ export async function createVyralMediaPlaybackUrl(
   const storagePath = typeof version.storage_path === 'string' ? version.storage_path : '';
   const expectedPrefix = user.id + '/' + asset.vyral_id + '/' + asset.id + '/';
   if (!mimeType.startsWith(mediaType + '/') || !storagePath ||
-      !storagePath.startsWith(expectedPrefix) || storagePath.includes('..') || storagePath.startsWith('/') || storagePath.includes('\\\\')) {
+      !storagePath.startsWith(expectedPrefix) || storagePath.includes('..') || storagePath.startsWith('/') || storagePath.includes('\\')) {
     throw new Error('The ' + label + ' Version storage reference failed its ownership or file-type checks.');
   }
 
