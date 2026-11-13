@@ -146,6 +146,8 @@ export async function extractAudioTechnicalMetadata(
     const durationSeconds = await new Promise<number>((resolve, reject) => {
       const audio = new Audio();
       let settled = false;
+      let timeout: ReturnType<typeof globalThis.setTimeout>;
+      let onAbort: () => void;
       const cleanup = () => {
         globalThis.clearTimeout(timeout);
         signal?.removeEventListener('abort', onAbort);
@@ -160,8 +162,8 @@ export async function extractAudioTechnicalMetadata(
         cleanup();
         if (error) reject(error); else resolve(value as number);
       };
-      const onAbort = () => finish(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
-      const timeout = globalThis.setTimeout(() => finish(new Error('Audio metadata timeout.')), 15000);
+      onAbort = () => finish(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
+      timeout = globalThis.setTimeout(() => finish(new Error('Audio metadata timeout.')), 15000);
       signal?.addEventListener('abort', onAbort, { once: true });
       if (signal?.aborted) return onAbort();
       audio.preload = 'metadata';
@@ -217,6 +219,8 @@ export async function extractVideoTechnicalMetadata(
     const durationSeconds = await new Promise<number>((resolve, reject) => {
       const video = document.createElement('video');
       let settled = false;
+      let timeout: ReturnType<typeof globalThis.setTimeout>;
+      let onAbort: () => void;
       const cleanup = () => {
         globalThis.clearTimeout(timeout);
         signal?.removeEventListener('abort', onAbort);
@@ -232,8 +236,8 @@ export async function extractVideoTechnicalMetadata(
         cleanup();
         if (error) reject(error); else resolve(value as number);
       };
-      const onAbort = () => finish(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
-      const timeout = globalThis.setTimeout(() => finish(new Error('Video metadata timeout.')), 15000);
+      onAbort = () => finish(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
+      timeout = globalThis.setTimeout(() => finish(new Error('Video metadata timeout.')), 15000);
       signal?.addEventListener('abort', onAbort, { once: true });
       if (signal?.aborted) return onAbort();
       video.preload = 'metadata';
