@@ -2563,7 +2563,7 @@ async function executeSharedProposalCapability(
     { capabilityId, userId, requestId, input },
     authority,
     new Date(),
-    { admin, sessionId, toolCallId, activeVyralId },
+    { admin, sessionId, toolCallId, activeVyralId, uploadAttachment },
   );
   if (!result.ok) return safeToolError(result.message);
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
@@ -2622,7 +2622,7 @@ async function executeSharedReadCapability(
     { capabilityId, userId, requestId, input },
     authority,
     new Date(),
-    { admin, activeVyralId, uploadAttachment },
+    { admin, activeVyralId },
   );
   if (!result.ok) return safeToolError(result.message);
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
@@ -2832,6 +2832,7 @@ Deno.serve(async (request: Request) => {
     let finalMessages: unknown[] = baseMessages;
 
     // Global Workspace reads are available on every page. Vyral-specific reads are added only after server-side ownership verification.
+    let operatorAction: Record<string, unknown> | null = null;
     {
       const plannerResponse = await fetch(endpoint, {
         method: 'POST',
@@ -2861,7 +2862,6 @@ Deno.serve(async (request: Request) => {
         }, plannerResponse.status === 429 ? 429 : 502);
       }
       const assistantTurn = planner.choices?.[0]?.message;
-      let operatorAction: Record<string, unknown> | null = null;
       const toolCalls = Array.isArray(assistantTurn?.tool_calls)
         ? assistantTurn.tool_calls.filter((call) => call && call.type === 'function' && typeof call.id === 'string' && call.id && call.function && typeof call.function.name === 'string').slice(0, 3)
         : [];
