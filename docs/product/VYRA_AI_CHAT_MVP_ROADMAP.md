@@ -1028,3 +1028,14 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - This is code + CI verification only. The Development Edge Function was not redeployed in this step, live OpenAI execution remains unavailable while the platform key is unset, and no browser approval flow was manually exercised.
 - No Master Editor UI/UX, AI Chat UI/CSS, Production database/function, provider key, customer charge, merge, or Production deployment was changed.
 
+
+
+### Shared AI Capability Executor — fail-closed audit and authority hardening
+
+- Hardened the shared executor so approval-verifier and owner-verifier exceptions fail closed and are recorded as denied; a failed start-audit prevents adapter execution; adapter-reported `{ ok: false }` results are never reported as successful; and a failed completion-audit is surfaced as an uncertain completion requiring the resource to be refreshed before retry.
+- Security-audit persistence failure blocks execution before the action starts. The executor does not convert an audit failure into permission to continue.
+- Added regression tests for approval-verifier exceptions, owner-verifier exceptions, start-audit failure, and completion-audit failure.
+- CI initially caught a TypeScript discriminant widening in the failure-result helper. Fixed the literal `ok: false` type and reran the full workflow.
+- GitHub Actions CI run [#43414921860](https://github.com/ZinLinn254995/VYRA/actions/runs/43414921860) completed successfully, including TypeScript, the full test suite, Supabase Edge Function type-check, and Production build.
+- This is executor hardening only. It does not mean all catalogue capabilities are connected; Vyral creation and Asset ingestion still need their server-side action paths migrated into the shared executor. The existing chat-local Vyral creation and file-upload flows remain in place until that migration is implemented and verified.
+- No Master Editor UI/UX, AI Chat UI/CSS, Development or Production database, Edge Function deployment, provider key, customer charge, merge, or Production deployment was changed.
