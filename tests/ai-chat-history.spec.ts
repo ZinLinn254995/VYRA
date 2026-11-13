@@ -313,3 +313,13 @@ test('AI Chat revalidates request ownership after asynchronous selected-asset pr
   assert.match(page, /extractSelectedVideoFrames\(blob, asset\.id, asset\.name, remaining\);\s*assertRequestCurrent\(\);/);
   assert.match(page, /const result = await aiService\.generateResponse\([\s\S]*?\);\s*assertRequestCurrent\(\);\s*let assetUploadCompletionText/);
 });
+
+test('AI Chat revalidates request ownership after asynchronous provider error-body parsing', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const start = page.indexOf('const sendMessage = async');
+  const end = page.indexOf('const handleFileSelection', start);
+  const block = page.slice(start, end);
+  const parses = [...block.matchAll(/const payload = await [^\\n]*\\.clone\\(\\)\\.json\\(\\)[^\\n]*;\\s*assertRequestCurrent\\(\\);/g)];
+  assert.equal(parses.length, 8);
+  assert.doesNotMatch(block, /const payload = await [^\\n]*\\.clone\\(\\)\\.json\\(\\);\\s*(?!assertRequestCurrent\\(\\);)/);
+});
