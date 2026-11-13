@@ -42,6 +42,22 @@ export function parseVyralCreatePendingPlan(value: unknown): VyralCreatePendingP
   };
 }
 
+export function validateVyralCreatePendingAction(
+  row: unknown,
+  expected: { userId: string; sessionId: string; actionId: string; now?: number },
+): VyralCreatePendingPlan | null {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+  const pending = row as Record<string, unknown>;
+  if (pending.id !== expected.actionId || pending.user_id !== expected.userId ||
+      pending.session_id !== expected.sessionId || pending.capability_id !== 'vyral.create' ||
+      pending.status !== 'pending' || typeof pending.expires_at !== 'string' ||
+      !Number.isFinite(Date.parse(pending.expires_at)) ||
+      Date.parse(pending.expires_at) <= (expected.now ?? Date.now())) return null;
+  const plan = parseVyralCreatePendingPlan(pending.plan);
+  if (!plan || Date.parse(plan.expiresAt) <= (expected.now ?? Date.now())) return null;
+  return plan;
+}
+
 export function isSameVyralCreateIdentity(
   existing: unknown,
   userId: string,
