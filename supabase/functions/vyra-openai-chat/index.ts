@@ -1818,6 +1818,7 @@ async function executeSharedReadCapability(
   capabilityId: ReadCapabilityId,
   input: Record<string, unknown>,
   toolCallId: string,
+  activeVyralId: string | null,
 ): Promise<Record<string, unknown>> {
   const requestId = ('aiop-' + toolCallId).slice(0, 120);
   const authority: AiCapabilityExecutionAuthority = {
