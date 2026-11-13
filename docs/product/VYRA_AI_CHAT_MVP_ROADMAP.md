@@ -966,3 +966,15 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Added authorization tests for Video Asset ownership, ready status, MIME type, immutable Version, and unsafe Storage paths, plus planner tests for Scene ordering, seek, source offsets, missing references, and completed Scenes.
 - This is a secure URL and scheduling foundation only. Video references are not yet attached to Scene instances by the UI/AI, the planner is not wired to a Video element or transport, and transitions are not rendered. No claim of working Video Preview is made.
 - No AI Chat UI/CSS, database, Edge Function, provider key, customer charge, Production environment, merge, or Production deployment was changed.
+
+
+## AI Scene Video Asset attachment foundation
+
+- Added an approval-gated `attach_video` operation to the existing Master Timeline AI edit tool. The AI must first search the active Vyral's Video Asset inventory and read the exact Scene/Storyboard state; it cannot invent IDs or attach an Asset from another Vyral.
+- Proposal creation verifies the signed-in owner, active Vyral, ready Video Asset, exact immutable Asset Version, `video/*` MIME type, private Storage reference, and SHA-256-bound `video_technical_metadata` duration. The Scene must already have a Master Timeline instance. The source range is derived from the verified Video Version metadata, not guessed.
+- The pending action is bound to the exact user and chat session, expires after ten minutes, requires explicit approval, and captures the exact Scene, Asset and immutable Version IDs. Approval rechecks ownership, ready status, immutable Version, SHA-256-bound duration metadata, and Storyboard optimistic concurrency before updating only that Scene instance's Video source reference.
+- The Master Timeline read tool now returns Scene instance Video Asset/Version/MIME references. The editor's existing Scene instance type accepts these optional references without changing its UI.
+- Added pure operation tests, AI Edge Function contract tests, and capability-registry approval policy coverage.
+- Important prerequisite: the current Asset ingestion path must actually write `video_technical_metadata` with `schemaVersion: 1`, the matching source SHA-256, and `durationSeconds`. If it does not, VYRA safely refuses the attachment; this work does not invent metadata or silently fall back to a guessed Scene duration.
+- This does not yet wire the Video playback planner to an HTML Video element or the Master Timeline transport. No working Video preview/render is claimed.
+- Development Edge Function deployment is intentionally pending CI and source validation. No Production changes, user Timeline mutations, API keys, charges, merge, or Production deployment.
