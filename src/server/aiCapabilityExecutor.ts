@@ -121,6 +121,14 @@ export async function executeAiCapability(
     }
     await authority.audit({ userId: request.userId, requestId: request.requestId, capabilityId: policy.id, outcome: 'started' });
     const data = await adapter.execute(request.input, context);
+    if (data && typeof data === 'object' && !Array.isArray(data) &&
+        (data as Record<string, unknown>).ok === false) {
+      const message = typeof (data as Record<string, unknown>).message === 'string'
+        ? String((data as Record<string, unknown>).message)
+        : 'The VYRA action could not be completed.';
+      await authority.audit({ userId: request.userId, requestId: request.requestId, capabilityId: policy.id, outcome: 'failed', reason: 'adapter-reported-failure' });
+      return { ok: false, code: 'EXECUTION_FAILED', message };
+    }
     await authority.audit({ userId: request.userId, requestId: request.requestId, capabilityId: policy.id, outcome: 'succeeded' });
     return { ok: true, capabilityId: policy.id, data, completedAt: now.toISOString() };
   } catch {
