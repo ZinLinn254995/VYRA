@@ -1668,7 +1668,7 @@ async function resolvePendingStoryboardApproval(
       const metadata = version?.metadata && typeof version.metadata === 'object' && !Array.isArray(version.metadata) ? version.metadata as Record<string, unknown> : {};
       const technical = metadata.video_technical_metadata && typeof metadata.video_technical_metadata === 'object' && !Array.isArray(metadata.video_technical_metadata) ? metadata.video_technical_metadata as Record<string, unknown> : {};
       if (versionError || !version || typeof version.storage_path !== 'string' || !version.storage_path || !String(version.mime_type || asset.mime_type || '').toLowerCase().startsWith('video/') || technical.schemaVersion !== 1 || technical.sourceSha256 !== version.sha256 || technical.durationSeconds !== parameters.sourceOut || String(asset.name) !== String(parameters.name)) return await fail('VIDEO_ASSET_VERSION_CHANGED', 'The selected immutable Video Version could not be reverified. No Scene change was made.');
-      if (!sceneById.has(String(parameters.sceneId))) return await fail('SCENE_NOT_FOUND', 'The Scene is no longer part of this Storyboard. No change was made.');
+      if (!Array.isArray(details.scenes) || !details.scenes.some((scene: Record<string, unknown>) => scene?.id === parameters.sceneId)) return await fail('SCENE_NOT_FOUND', 'The Scene is no longer part of this Storyboard. No change was made.');
       if (!(timeline.sceneInstances ?? []).some((instance) => instance.sceneId === parameters.sceneId)) return await fail('SCENE_INSTANCE_MISSING', 'The Scene no longer has a Timeline instance. Refresh and prepare a new preview.');
     }
     if (timelineOperation === 'add_audio') {
