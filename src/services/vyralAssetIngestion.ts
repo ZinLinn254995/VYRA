@@ -10,6 +10,7 @@ export type VyralAssetIngestionInput = {
   metadata?: Record<string, unknown>;
   maxBytes?: number;
 };
+export type VyralVideoTechnicalMetadata = { schemaVersion: 1; sourceSha256: string; durationSeconds: number; extraction: 'browser-video-metadata' };
 export type VyralAssetIngestionResult = {
   assetId: string;
   versionId: string;
@@ -20,6 +21,7 @@ export type VyralAssetIngestionResult = {
   sizeBytes: number;
   dnaKind: 'raster-v3' | 'universal-file-v1';
   audioTechnicalMetadata?: { schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' };
+  videoTechnicalMetadata?: VyralVideoTechnicalMetadata;
 };
 
 export type VyralAssetInsert = {
@@ -31,7 +33,7 @@ export type VyralAssetInsert = {
 export type VyralAssetVersionInsert = {
   asset_id: string; vyral_id: string; user_id: string; version_number: 1;
   storage_path: string; mime_type: string; size_bytes: number; sha256: string;
-  source_kind: 'original'; metadata: { original_filename: string; audio_technical_metadata?: { schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' } };
+  source_kind: 'original'; metadata: { original_filename: string; audio_technical_metadata?: { schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' }; video_technical_metadata?: VyralVideoTechnicalMetadata };
 };
 export type VyralAssetDnaInsert = {
   id: string; vyral_id: string; user_id: string; asset_id: string; scope: 'asset';
@@ -156,6 +158,43 @@ export async function extractAudioTechnicalMetadata(
   }
 }
 
+
+/** Read duration from the exact uploaded Video File without uploading or persisting a temporary URL. */
+export async function extractVideoTechnicalMetadata(
+  file: File,
+  sourceSha256: string,
+): Promise<VyralVideoTechnicalMetadata | null> {
+  if (!file.type.toLowerCase().startsWith('video/') || typeof document === 'undefined' || typeof URL === 'undefined') return null;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const durationSeconds = await new Promise<number>((resolve, reject) => {
+      const video = document.createElement('video');
+      const timeout = globalThis.setTimeout(() => reject(new Error('Video metadata timeout.')), 15000);
+      const cleanup = () => {
+        globalThis.clearTimeout(timeout);
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      };
+      video.preload = 'metadata';
+      video.muted = true;
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        cleanup();
+        if (Number.isFinite(duration) && duration >= 0.2 && duration <= 3600) resolve(duration);
+        else reject(new Error('Unsupported or invalid Video duration.'));
+      };
+      video.onerror = () => { cleanup(); reject(new Error('The browser could not read Video metadata.')); };
+      video.src = objectUrl;
+    });
+    return { schemaVersion: 1, sourceSha256, durationSeconds, extraction: 'browser-video-metadata' };
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export async function ingestVyralAsset(
   port: VyralAssetIngestionPort,
   input: VyralAssetIngestionInput,
@@ -179,6 +218,7 @@ export async function ingestVyralAsset(
   const sha256 = await sha256Hex(bytes);
   const rasterDna = assetType === 'image' && RASTER_MIMES.has(mimeType.toLowerCase());
   const audioTechnicalMetadata = assetType === 'audio' ? await extractAudioTechnicalMetadata(file, sha256) : null;
+  const videoTechnicalMetadata = assetType === 'video' ? await extractVideoTechnicalMetadata(file, sha256) : null;
   let versionId: string | null = null;
   let storageUploaded = false;
   let dnaCommitted = false;
@@ -194,6 +234,7 @@ export async function ingestVyralAsset(
         hash_algorithm: 'SHA-256', visibility: 'private', ai_details_status: 'pending',
         identity_name_origin: 'system_default', identity_description_origin: 'system_default',
         ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}),
+        ...(videoTechnicalMetadata ? { video_technical_metadata: videoTechnicalMetadata } : {}),
       },
     });
     // A lost upload response can still mean the object was stored; always attempt cleanup on failure.
@@ -202,7 +243,7 @@ export async function ingestVyralAsset(
     versionId = await port.createVersion({
       asset_id: assetId, vyral_id: input.vyralId, user_id: input.userId, version_number: 1,
       storage_path: storagePath, mime_type: mimeType, size_bytes: file.size, sha256,
-      source_kind: 'original', metadata: { original_filename: file.name, ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}) },
+      source_kind: 'original', metadata: { original_filename: file.name, ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}), ...(videoTechnicalMetadata ? { video_technical_metadata: videoTechnicalMetadata } : {}) },
     });
     if (!UUID.test(versionId)) throw new Error('The original Asset Version record did not return a valid ID.');
     await port.createFingerprint({ assetId, versionId, userId: input.userId, sha256 });
@@ -251,6 +292,7 @@ export async function ingestVyralAsset(
       assetId, versionId, storagePath, sha256, assetType, mimeType,
       sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1',
       ...(audioTechnicalMetadata ? { audioTechnicalMetadata } : {}),
+      ...(videoTechnicalMetadata ? { videoTechnicalMetadata } : {}),
     };
   } catch (cause) {
     let preserve = dnaCommitted || (cause instanceof VyralAssetIngestionError && cause.preservedForRecovery);
