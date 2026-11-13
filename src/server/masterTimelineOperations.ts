@@ -175,7 +175,8 @@ export const splitMasterTimelineClip = (
   const end = clip.start + clip.duration;
   if (splitTime <= clip.start + MIN_CLIP_DURATION || splitTime >= end - MIN_CLIP_DURATION) return fail('invalid-time');
   const newId = createId();
-  if (!newId || tracks.some((item) => item.clips.some((entry) => entry.id === newId))) return fail('invalid-timeline');
+  const allTracks = [...timeline.audioTracks, ...timeline.textTracks];
+  if (!newId || allTracks.some((item) => item.clips.some((entry) => entry.id === newId))) return fail('invalid-timeline');
   const rightClip = { ...clip, id: newId, start: splitTime, duration: end - splitTime };
   const nextTracks = tracks.map((item) => item.id !== trackId ? item : {
     ...item,
