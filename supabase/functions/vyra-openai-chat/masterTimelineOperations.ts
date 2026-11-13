@@ -27,6 +27,7 @@ export type MasterTimelineData = {
     id: string; sceneId: string; sourceIn: number; sourceOut: number;
     sceneProjectId?: string; renderRevisionId?: string | null;
     assetId?: string; assetVersionId?: string; assetMimeType?: string;
+    videoSourceIn?: number; videoSourceOut?: number;
   }>;
   transitions: Record<string, { effect: string; duration: number }>;
   audioTracks: MasterTimelineTrack[];
@@ -377,11 +378,11 @@ export const attachMasterTimelineVideoAsset = (
   const index = timeline.sceneInstances.findIndex((instance) => instance.sceneId === sceneId);
   if (index < 0) return fail('clip-not-found');
   const current = timeline.sceneInstances[index];
-  if (current.assetId === assetId && current.assetVersionId === assetVersionId && current.assetMimeType === assetMimeType && current.sourceIn === sourceIn && current.sourceOut === sourceOut) {
+  if (current.assetId === assetId && current.assetVersionId === assetVersionId && current.assetMimeType === assetMimeType && current.videoSourceIn === sourceIn && current.videoSourceOut === sourceOut) {
     return { ok: true, value: timeline };
   }
   const sceneInstances = timeline.sceneInstances.map((instance, position) => position === index
-    ? { ...instance, sourceIn, sourceOut, assetId, assetVersionId, assetMimeType }
+    ? { ...instance, videoSourceIn: sourceIn, videoSourceOut: sourceOut, assetId, assetVersionId, assetMimeType }
     : instance);
   return { ok: true, value: { ...timeline, sceneInstances } };
 };
