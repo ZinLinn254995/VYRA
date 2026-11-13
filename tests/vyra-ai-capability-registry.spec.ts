@@ -56,7 +56,7 @@ test('reversible and billable actions require approval before execution', () => 
 });
 
 test('human-controlled and privileged operations remain unavailable to ordinary AI actions', () => {
-  for (const id of ['auth.password.change', 'auth.account.delete', 'marketplace.withdraw', 'platform.production.deploy']) {
+  for (const id of ['auth.password.change', 'auth.account.delete', 'marketplace.withdraw', 'platform.production.deploy', 'asset.delete', 'asset.delete_version']) {
     assert.equal(mayAiPerformCapability(id, { userAuthenticated: true, isOwnerOrAdmin: true, approvalGranted: true }).allowed, false, id);
   }
   assert.deepEqual(mayAiPerformCapability('admin.provider_key.manage', { userAuthenticated: true }),
