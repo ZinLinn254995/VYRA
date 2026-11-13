@@ -140,3 +140,60 @@ test('executor passes authenticated server runtime dependencies only to the adap
   assert.equal(result.ok, true);
   if (result.ok) assert.deepEqual(result.data, { runtimeMarker: 'server-only' });
 });
+
+
+test('approval verifier exceptions fail closed and are audited as denied', async () => {
+  const result = await executeAiCapability({
+    capabilityId: 'storyboard.update', userId: 'user-1', requestId: 'approval-0002', input: { storyboard_id: 'storyboard-1' },
+  }, authority({ verifyApproval: async () => { throw new Error('db unavailable'); } }));
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'APPROVAL_REQUIRED');
+  assert.equal(events.at(-1)?.outcome, 'denied');
+});
+
+test('owner verifier exceptions fail closed without executing the adapter', async () => {
+  let executed = false;
+  registerAiCapabilityAdapter({
+    capabilityId: 'scene.analyze',
+    validate: () => true,
+    execute: async () => { executed = true; return { ok: true }; },
+  });
+  const result = await executeAiCapability({
+    capabilityId: 'scene.analyze', userId: 'user-1', requestId: 'owner-0001', input: {},
+  }, authority({ verifyOwner: async () => { throw new Error('owner lookup failed'); } }));
+  assert.equal(result.ok, false);
+  assert.equal(executed, false);
+  assert.equal(events.at(-1)?.outcome, 'denied');
+});
+
+test('start-audit failure prevents adapter execution', async () => {
+  let executed = false;
+  registerAiCapabilityAdapter({
+    capabilityId: 'scene.suggest',
+    validate: () => true,
+    execute: async () => { executed = true; return { suggestion: 'safe' }; },
+  });
+  const result = await executeAiCapability({
+    capabilityId: 'scene.suggest', userId: 'user-1', requestId: 'audit-0001', input: {},
+  }, authority({ audit: async (event: { outcome: string }) => {
+    if (event.outcome === 'started') throw new Error('audit unavailable');
+  } }));
+  assert.equal(result.ok, false);
+  assert.equal(executed, false);
+  if (!result.ok) assert.match(result.message, /start audit/);
+});
+
+test('completion-audit failure never reports an action as fully successful', async () => {
+  registerAiCapabilityAdapter({
+    capabilityId: 'scene.read',
+    validate: () => true,
+    execute: async () => ({ read: true }),
+  });
+  const result = await executeAiCapability({
+    capabilityId: 'scene.read', userId: 'user-1', requestId: 'audit-0002', input: {},
+  }, authority({ audit: async (event: { outcome: string }) => {
+    if (event.outcome === 'succeeded') throw new Error('audit unavailable');
+  } }));
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.message, /completion audit/);
+});
