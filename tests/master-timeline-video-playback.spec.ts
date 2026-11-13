@@ -54,7 +54,7 @@ test('rejects invalid playheads and malformed or missing immutable source refere
   assert.deepEqual(buildMasterTimelineVideoPlaybackPlan(scenes, instances, Number.NaN), []);
   const malformed = [
     { ...instances[0], assetVersionId: '' },
-    { ...instances[1], sourceOut: 1 },
+    { ...instances[1], videoSourceOut: 1 },
     { ...instances[2], assetMimeType: 'application/octet-stream' },
   ];
   assert.deepEqual(buildMasterTimelineVideoPlaybackPlan(scenes, malformed, 0), []);
