@@ -216,6 +216,12 @@ test('OpenAI browser stream supports explicit cancellation and reports truncated
 
 
 
+test('OpenAI browser stream cancels the response reader after the terminal SSE event', () => {
+  const service = read('src/services/aiService.ts');
+  assert.match(service, /if \(finished\) \{[\s\S]*?await reader\.cancel\(\)[\s\S]*?break;/);
+  assert.match(service, /reader\.releaseLock\(\)/);
+});
+
 test('OpenAI browser stream has a bounded timeout distinct from user cancellation', () => {
   const service = read('src/services/aiService.ts');
   assert.match(service, /setTimeout\(\(\) => \{[\s\S]*?timedOut = true;[\s\S]*?requestController\.abort\(\);[\s\S]*?120_000/);
