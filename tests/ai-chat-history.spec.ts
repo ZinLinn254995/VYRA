@@ -276,4 +276,7 @@ test('AI Chat revalidates account ownership before irreversible Workspace and As
   }
   assert.ok(block.indexOf('assertRequestCurrent();', block.indexOf('const ingested = await ingestVyralAsset')) >
     block.indexOf('const ingested = await ingestVyralAsset'));
+  const failureReporter = block.slice(block.indexOf('const reportUploadFailure = async'), block.indexOf('if (!supabase || !actionId', block.indexOf('const reportUploadFailure = async')));
+  assert.match(failureReporter, /historyOwnerRef\.current !== requestOwnerId/);
+  assert.match(failureReporter, /activeRequestControllerRef\.current !== requestController/);
 });
