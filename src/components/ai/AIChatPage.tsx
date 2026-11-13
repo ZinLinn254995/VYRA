@@ -447,6 +447,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     historyOwnerRef.current = null;
     const loadHistory = async () => {
       const { data: userResult, error: userError } = await supabaseClient.auth.getUser();
+      if (!active) return;
       if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
       const ownerId = userResult.user.id;
       const { data, error } = await supabaseClient
@@ -461,7 +462,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setActiveSessionId(null);
         setIsLocked(false);
       }
-      historyOwnerRef.current = ownerId;
       const loaded = (data ?? []).map((row) => {
         const rawMessages = Array.isArray(row.messages) ? row.messages : [];
         const safeMessages = rawMessages.flatMap((item: unknown) => {
@@ -490,6 +490,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         } as ChatSession;
       }).filter((session) => session.messages.length > 0);
       if (!active) return;
+      historyOwnerRef.current = ownerId;
       setHistoryOwnerId(ownerId);
       setSessions(loaded);
     };
