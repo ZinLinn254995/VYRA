@@ -31,7 +31,7 @@ test('Browser service parses OpenAI SSE deltas and never routes media requests t
   assert.match(source, /payload === '\[DONE\]'/);
   assert.match(source, /request\.onTextDelta\?\.\(chunk\)/);
   assert.match(source, /promptTokens:\s*event\.usage\.prompt_tokens/);
-  assert.match(source, /if \(request\.visionImages\?\.length\)/);
+  assert.match(source, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
 });
 
 test('AI Chat preserves partial streamed text on errors and keeps retry in the existing message actions', () => {
