@@ -26,7 +26,8 @@ test('moves a clip into a free position and resolves a single collision like the
 });
 
 test('rejects ambiguous multi-clip collisions instead of jumping a clip unpredictably', () => {
-  const result = moveMasterTimelineClip(base, 'text', 'text-1', 't', 'text-1', 5.5);
+  const crowded = { ...base, textTracks: [{ ...base.textTracks[0], clips: [...base.textTracks[0].clips, { id: 't3', name: 'Third', start: 8, duration: 1 }] }] };
+  const result = moveMasterTimelineClip(crowded, 'text', 'text-1', 't', 'text-1', 5.5);
   assert.deepEqual(result, { ok: false, reason: 'clip-collision' });
 });
 
