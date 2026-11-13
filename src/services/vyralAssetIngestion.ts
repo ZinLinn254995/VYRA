@@ -136,7 +136,7 @@ export async function extractAudioTechnicalMetadata(
     });
     let waveformPeaks: number[] = [];
     const AudioContextConstructor = globalThis.AudioContext;
-    if (AudioContextConstructor && file.size <= 20 * 1024 * 1024) {
+    if (AudioContextConstructor && file.size <= 10 * 1024 * 1024 && durationSeconds <= 300) {
       try {
         audioContext = new AudioContextConstructor();
         const decoded = await audioContext.decodeAudioData(await file.arrayBuffer());
