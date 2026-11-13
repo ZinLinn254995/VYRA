@@ -955,8 +955,15 @@ async function createMasterTimelineEditProposal(
   if (JSON.stringify(result.value) === JSON.stringify(timeline)) return { ok: true, changed: false, message: 'The Master Editor rules keep this clip at its current position. No action is needed.' };
   const locate = (source: MasterTimelineData, id: string) => [...source.audioTracks, ...source.textTracks].flatMap((track) => track.clips.map((clip) => ({ ...clip, trackId: track.id, trackName: track.name }))).find((clip) => clip.id === id);
   const isAddClip = operation === 'add_text' || operation === 'add_audio';
-  const before = isAddClip ? null : locate(timeline, String(args.clip_id));
-  const after = locate(result.value, isAddClip ? String(parameters.createdClipId) : String(args.clip_id));
+  const isVideoAttach = operation === 'attach_video';
+  const videoBefore = isVideoAttach ? timeline.sceneInstances?.find((instance) => instance.sceneId === parameters.sceneId) : null;
+  const videoAfter = isVideoAttach ? result.value.sceneInstances?.find((instance) => instance.sceneId === parameters.sceneId) : null;
+  const before = isVideoAttach
+    ? (videoBefore ? { trackName: 'Scene', name: videoBefore.assetId ?? 'No Video attached', start: videoBefore.sourceIn, duration: Math.max(0, videoBefore.sourceOut - videoBefore.sourceIn), content: null } : null)
+    : isAddClip ? null : locate(timeline, String(args.clip_id));
+  const after = isVideoAttach
+    ? (videoAfter ? { trackName: 'Scene', name: String(parameters.name), start: videoAfter.sourceIn, duration: Math.max(0, videoAfter.sourceOut - videoAfter.sourceIn), content: null } : null)
+    : locate(result.value, isAddClip ? String(parameters.createdClipId) : String(args.clip_id));
   if ((!isAddClip && !before) || (operation !== 'delete' && !after) || (operation === 'delete' && after)) return safeToolError('The selected clip could not be verified in the current Timeline.');
   if (operation === 'delete' && !before) return safeToolError('The selected clip could not be verified for deletion.');
   const confirmationPhrase = operation === 'delete' ? 'DELETE CLIP ' + String(args.clip_id).slice(-6).toUpperCase() : null;
@@ -983,8 +990,8 @@ async function createMasterTimelineEditProposal(
   return {
     ok: true, requiresApproval: true, actionId: pending.id, status: pending.status,
     summary: plan.summary, storyboard: storyboard.title,
-    before: before ? { track: before.trackName, start: before.start, duration: before.duration, name: before.name, content: before.content } : null,
-    after: after ? { track: after.trackName, start: after.start, duration: after.duration, name: after.name, content: after.content } : null,
+    before: before ? { track: before.trackName, start: before.start, duration: before.duration, name: before.name, content: before.content, ...(isVideoAttach ? { assetId: videoBefore?.assetId ?? null, assetVersionId: videoBefore?.assetVersionId ?? null } : {}) } : null,
+    after: after ? { track: after.trackName, start: after.start, duration: after.duration, name: after.name, content: after.content, ...(isVideoAttach ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}) } : null,
     ...(operation === 'delete' ? { destructive: true, confirmationPhrase, message: 'This deletion will remove the selected clip. To confirm, send exactly: ' + confirmationPhrase + '. Ordinary approval phrases will not delete it.' } : {}),
     createdClip: created ? { id: created.id, start: created.start, duration: created.duration, name: created.name } : null,
     ...(operation === 'attach_video' ? { attachedVideo: { sceneId: parameters.sceneId, assetId: parameters.assetId, assetVersionId: parameters.assetVersionId, name: parameters.name, mimeType: parameters.assetMimeType, sourceDurationSeconds: parameters.sourceOut } } : {}),
@@ -1395,7 +1402,7 @@ async function resolvePendingStoryboardApproval(
   const isSceneDuplicate = pending.capability_id === 'scene.duplicate';
   const isSceneDelete = pending.capability_id === 'scene.delete';
   const isSceneMutation = isSceneCreate || isSceneDuplicate || isSceneDelete;
-  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
+  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
   const isTimelineTransitionUpdate = pending.capability_id === 'timeline.add_transition';
   const transitionKey = target.transitionKey;
   const timelineOperation = parameters.operation;
