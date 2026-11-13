@@ -21,7 +21,7 @@ export interface AIServiceRequest {
   /** Owner-verified active Vyral context for natural conversational continuity. */
   activeVyralId?: string;
   /** Metadata for the exact locally attached File; bytes stay in the browser and are never sent to the text model. */
-  uploadAttachment?: { fileName: string; mimeType: string; sizeBytes: number };
+  uploadAttachment?: { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number };
   /** Last known Workspace page and user selections; context only, never authorization. */
   workspaceContext?: WorkspaceAiContext;
   /** Receives incremental text chunks for the live chat UI. */
