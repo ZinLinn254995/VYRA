@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(13);
 
 select has_table('public','vyral_asset_relationships',
   'Canonical semantic Asset relationship table exists');
@@ -44,6 +44,17 @@ select ok(
   exists (select 1 from pg_indexes where schemaname='public' and tablename='vyral_asset_relationships' and indexname='vyral_asset_relationships_from_idx')
   and exists (select 1 from pg_indexes where schemaname='public' and tablename='vyral_asset_relationships' and indexname='vyral_asset_relationships_to_idx'),
   'Relationship traversal indexes exist'
+);
+select ok(
+  exists (
+    select 1
+    from pg_index i
+    join pg_class idx on idx.oid = i.indexrelid
+    where idx.relname = 'vyral_asset_relationships_edge_unique'
+      and i.indisunique
+      and i.indnullsnotdistinct
+  ),
+  'Directed semantic edges are unique, including NULL Vyral-root endpoints'
 );
 
 select * from finish();
