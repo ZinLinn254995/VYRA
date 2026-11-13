@@ -3,6 +3,7 @@ import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMasterTimelineVideoAsset, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
 import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
 import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreatePendingPlan, validateVyralCreatePendingAction } from '../../../src/server/vyralCreationAction.ts';
+import { parseVyralAssetUploadPendingPlan } from '../../../src/server/vyralAssetUploadAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -16,6 +17,7 @@ const SYSTEM_INSTRUCTION =
   'Respond in the language the user uses. Be clear, useful, and honest. ' +
   'Users speak naturally and should never need to memorize command syntax. Infer intent from ordinary conversation, previous turns, attached files, and the active Vyral context. Understand references such as this, that, there, continue it, and the one we were working on. If the user clearly mentions another Vyral, follow that context. Ask one short clarification only when the intended Vyral or action is genuinely ambiguous. Interpret meaning rather than matching fixed phrases: paraphrases, indirect requests, casual Burmese, English, and mixed-language instructions should lead to the same intent when their meaning is clear. Use conversation history and verified Vyral context together; do not ask users to repeat details already established. For multi-step requests, explain or perform only the next safe step, and never invent tool results. ' +
   'When someone wants to start a Vyral, help them shape its name and purpose in their own words; never force a command template. If essential information is missing, ask one natural, concise question. Once the name and purpose are clear, call propose_vyral_create to prepare an owner-scoped preview; it creates no database record. Explain the exact name and description, then wait for explicit approval in this same chat. Only after approval may the server create the private Vyral and its initial identity DNA atomically. ' +
+  'When a user attaches a local file and asks to add it to a Vyral, use the exact attached-file metadata supplied by VYRA, resolve the destination Vyral from owner-scoped records, and call propose_vyral_asset_upload. Ask the user for the Asset display name in natural language if they have not supplied one; you may suggest a concise descriptive name but must show it and wait for approval. Preserve the original filename separately. The proposal does not transfer file bytes or create an Asset. Never invent file metadata. ' +
   'For a requested Storyboard title or topic change, use propose_storyboard_update only after identifying the exact owner-owned Storyboard; it creates a preview and never changes data. Explain the exact proposed value and wait for approval in this same chat. Never say it is saved until the server confirms the approved update. ' +
   'For a requested Scene title, description, transition, or duration change, first identify the parent Storyboard and exact Scene from owner-scoped records, then use propose_scene_update. Duration must be a finite number of seconds from 0.1 to 3600. This creates a preview only. For duration changes, synchronize the Scene Project timeline clips and Master Timeline metadata; never modify unrelated tracks or scenes. Never say saved until approval and server confirmation. ' +
   'When a request involves the Master Editor or Timeline, first call get_master_timeline_state for the exact owner-owned Storyboard. Understand the actual scene order, durations, transition keys, track IDs, clip start/end/duration, overlaps, gaps, and editor semantics before proposing any change. Treat seconds as timeline time, preserve unrelated data, and do not assume Scene sourceIn/sourceOut trimming, playback cursor, undo history, or preview playback is available. For existing Audio/Text clips, propose move between existing same-kind tracks, start/end trim, split, clone within the same track, Text name/content update, or delete using propose_master_timeline_edit. You may also create a new Text track and timed text overlay with add_text. For music or sound effects, first search the active Vyral Asset inventory using search_vyral_assets with asset_type audio, inspect the exact Asset, then use add_audio with its exact Asset ID. To attach a Video to a Scene, search the active Vyral inventory for asset_type video, inspect the exact Asset, then use attach_video with the exact Scene and Asset IDs; the server verifies the immutable Video Version and duration. VYRA derives the clip duration and waveform from immutable Asset Version metadata; never guess or override source duration. Never invent an Asset or claim audio playback/rendering; the Timeline clip is an immutable Asset-version reference. Deletion is destructive: show the exact clip and exact DELETE CLIP <six-character-code> phrase from the preview, and accept no generic approval for deletion. For transitions, use an exact key from get_master_timeline_state.timeline.transitionBoundaries with propose_master_timeline_transition and only the six supported effects: dissolve, fade, wipe, slide, zoom, blur; use none to remove. Show exact before/after and wait for approval. For Scene order changes, read the complete exact Scene IDs first and use propose_scene_reorder with every Scene exactly once; show before/after order and wait for approval. Never invent a clip, Scene, transition key, or ID. Do not create or delete arbitrary tracks or alter Scene duration through Timeline editing; add_text may create only its dedicated new Text track. Scene creation, duplication and deletion are available only through propose_scene_mutation; deletion requires its exact separate confirmation phrase. Do not claim playback/undo actions through this tool. Clip deletion is available only through its separate exact destructive confirmation phrase; never accept generic approval for it. ' +
@@ -90,6 +92,22 @@ const GLOBAL_READ_TOOLS = [
           description: { type: 'string', description: 'The Vyral purpose or description, up to 1000 characters.' },
         },
         required: ['name'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_asset_upload',
+      description: "Prepare an owner-scoped Asset upload preview for the exact file currently attached to this AI Chat turn. The creator chooses or approves the Asset display name. The original source filename is preserved separately. No bytes are transferred and no Asset is created until the user approves.",
+      parameters: {
+        type: 'object',
+        properties: {
+          vyral_id: { type: 'string', description: 'Exact Vyral UUID from an owner-scoped Vyral read or verified active Vyral context.' },
+          asset_name: { type: 'string', description: 'Creator-approved Asset display name, 1–180 characters.' },
+        },
+        required: ['vyral_id', 'asset_name'],
         additionalProperties: false,
       },
     },
@@ -1102,6 +1120,87 @@ async function createMasterTimelineTransitionProposal(
   };
 }
 
+async function createVyralAssetUploadProposal(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  rawArguments: string,
+  toolCallId: string,
+  attachment: { fileName: string; mimeType: string; sizeBytes: number } | null,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before preparing an Asset upload preview.');
+  if (!attachment || !attachment.fileName || !attachment.mimeType ||
+      !Number.isSafeInteger(attachment.sizeBytes) || attachment.sizeBytes < 1 || attachment.sizeBytes > 100 * 1024 * 1024 ||
+      attachment.fileName.length > 255 || /[\\/\u0000-\u001f\u007f]/.test(attachment.fileName)) {
+    return safeToolError('Attach the exact source file in this chat before preparing an upload preview. No file was uploaded.');
+  }
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!isPlainRecord(parsed)) return safeToolError('Invalid Asset upload details.');
+    args = parsed;
+  } catch { return safeToolError('Invalid Asset upload details.'); }
+  const assetName = typeof args.asset_name === 'string' ? args.asset_name.trim() : '';
+  if (Object.keys(args).some((key) => !['vyral_id', 'asset_name'].includes(key)) ||
+      !isUuid(args.vyral_id) || !assetName || assetName.length > 180 ||
+      /[\\/\u0000-\u001f\u007f]/.test(assetName)) {
+    return safeToolError('The destination Vyral or Asset display name is invalid.');
+  }
+  const { data: vyral, error: vyralError } = await admin.from('vyrals')
+    .select('id,name,user_id').eq('id', args.vyral_id).eq('user_id', userId).maybeSingle();
+  if (vyralError || !vyral) return safeToolError('That destination Vyral could not be verified for your account. Nothing was uploaded.');
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(),
+    operation: 'asset.upload',
+    target: { vyralId: String(vyral.id) },
+    parameters: {
+      clientDraftId: crypto.randomUUID(),
+      fileName: attachment.fileName,
+      assetName,
+      mimeType: attachment.mimeType.toLowerCase(),
+      sizeBytes: attachment.sizeBytes,
+    },
+    summary: 'Add "' + assetName + '" to Vyral "' + String(vyral.name) + '"',
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+  if (!parseVyralAssetUploadPendingPlan(plan)) return safeToolError('The upload details could not pass validation. Nothing was uploaded.');
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
+    p_capability_id: 'asset.upload', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+  });
+  let savedPending = pending;
+  if (error || !savedPending) {
+    const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status')
+      .eq('user_id', userId).eq('session_id', sessionId).eq('idempotency_key', idempotencyKey).maybeSingle();
+    const priorPlan = parseVyralAssetUploadPendingPlan(prior?.plan);
+    if (priorError || !prior || prior.capability_id !== 'asset.upload' ||
+        prior.status !== 'pending' || Date.parse(prior.expires_at) <= Date.now() ||
+        !priorPlan || priorPlan.target.vyralId !== plan.target.vyralId ||
+        priorPlan.parameters.fileName !== attachment.fileName ||
+        priorPlan.parameters.assetName !== assetName ||
+        priorPlan.parameters.mimeType !== attachment.mimeType.toLowerCase() ||
+        priorPlan.parameters.sizeBytes !== attachment.sizeBytes) {
+      return safeToolError('VYRA could not securely save or reuse this upload preview. No Asset was created.');
+    }
+    savedPending = prior;
+  }
+  const savedPlan = parseVyralAssetUploadPendingPlan(savedPending.plan);
+  if (!savedPlan) return safeToolError('The saved upload preview could not be verified.');
+  return {
+    ok: true, requiresApproval: true, actionId: savedPending.id, status: savedPending.status,
+    vyralId: savedPlan.target.vyralId, vyralName: String(vyral.name),
+    fileName: savedPlan.parameters.fileName, assetName: savedPlan.parameters.assetName,
+    mimeType: savedPlan.parameters.mimeType, sizeBytes: savedPlan.parameters.sizeBytes,
+    summary: savedPlan.summary, expiresAt: savedPending.expires_at,
+    message: 'Preview only. No file bytes were transferred and no Asset was created. Show the exact Vyral, display name, original filename, type and size; wait for explicit approval in this same chat.',
+  };
+}
+
 async function createVyralCreateProposal(
   admin: any,
   userId: string,
@@ -2028,6 +2127,7 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'timeline.propose_edit': 'propose_master_timeline_edit',
   'timeline.propose_transition': 'propose_master_timeline_transition',
   'vyral.propose_create': 'propose_vyral_create',
+  'asset.propose_upload': 'propose_vyral_asset_upload',
 } as const;
 
 type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
@@ -2039,6 +2139,11 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
       if (!runtime.admin || typeof runtime.sessionId !== 'string' || !runtime.sessionId ||
           typeof runtime.toolCallId !== 'string' || !runtime.toolCallId) return false;
+      if (capabilityId === 'asset.propose_upload') {
+        return Object.keys(input).every((key) => ['vyral_id', 'asset_name'].includes(key)) &&
+          isUuid(input.vyral_id) && typeof input.asset_name === 'string' &&
+          input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180;
+      }
       if (capabilityId === 'vyral.propose_create') {
         return Object.keys(input).every((key) => ['name', 'description'].includes(key)) &&
           typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
@@ -2078,6 +2183,10 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       const toolCallId = typeof runtime.toolCallId === 'string' ? runtime.toolCallId : '';
       const rawArguments = JSON.stringify(input);
       if (!admin || !sessionId || !toolCallId) throw new Error('Verified proposal runtime is unavailable.');
+      if (capabilityId === 'asset.propose_upload') {
+        const attachment = isPlainRecord(runtime.uploadAttachment) ? runtime.uploadAttachment : null;
+        return await createVyralAssetUploadProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, attachment as { fileName: string; mimeType: string; sizeBytes: number } | null);
+      }
       if (capabilityId === 'vyral.propose_create') {
         return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
       }
@@ -2317,6 +2426,12 @@ async function executeSharedProposalCapability(
     verifyOwner: async (ownerId, parameters) => {
       if (ownerId !== userId) return false;
       if (capabilityId === 'vyral.propose_create') return true;
+      if (capabilityId === 'asset.propose_upload') {
+        if (!isUuid(parameters.vyral_id)) return false;
+        const { data, error } = await admin.from('vyrals').select('id')
+          .eq('id', parameters.vyral_id).eq('user_id', ownerId).maybeSingle();
+        return !error && Boolean(data);
+      }
       if (!isUuid(parameters.storyboard_id)) return false;
       const { data, error } = await admin.from('vyral_storyboards').select('id')
         .eq('id', parameters.storyboard_id).eq('user_id', ownerId).maybeSingle();
@@ -2577,7 +2692,10 @@ Deno.serve(async (request: Request) => {
     const conversationSessionInstruction = conversationId
       ? '\nThis request belongs to the authenticated chat session ' + conversationId + '. Any future pending action or approval must be bound to this exact session and the authenticated user; never infer identity or approval from message text alone.'
       : '\nNo verified chat session ID was supplied. Do not create or approve persistent pending actions in this request.';
-    const baseMessages = [{ role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction }, ...messages];
+    const uploadAttachmentInstruction = uploadAttachment
+       ? '\\n\\nExact local file attached in the current chat turn (metadata only; bytes remain in the browser): ' + JSON.stringify(uploadAttachment) + '. This metadata is a hint for planning only; the browser must match the exact File before transfer.'
+       : '';
+     const baseMessages = [{ role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction + uploadAttachmentInstruction }, ...messages];
     let finalMessages: unknown[] = baseMessages;
 
     // Global Workspace reads are available on every page. Vyral-specific reads are added only after server-side ownership verification.
