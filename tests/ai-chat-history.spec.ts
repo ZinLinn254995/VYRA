@@ -279,4 +279,8 @@ test('AI Chat revalidates account ownership before irreversible Workspace and As
   const failureReporter = block.slice(block.indexOf('const reportUploadFailure = async'), block.indexOf('if (!supabase || !actionId', block.indexOf('const reportUploadFailure = async')));
   assert.match(failureReporter, /historyOwnerRef\.current !== requestOwnerId/);
   assert.match(failureReporter, /activeRequestControllerRef\.current !== requestController/);
+  const masterSync = block.indexOf('const { data: masterResult');
+  const uploadSummary = block.indexOf('assetUploadCompletionText =', masterSync);
+  assert.ok(masterSync > 0 && uploadSummary > masterSync);
+  assert.ok(block.lastIndexOf('assertRequestCurrent();', uploadSummary) > masterSync);
 });
