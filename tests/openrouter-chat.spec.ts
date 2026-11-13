@@ -10,8 +10,11 @@ test('AI Ideas Chat streams through platform-managed OpenAI without a customer A
   let legacyProviderRequests = 0;
 
   await page.route('**/api/ai/chat', async (route) => {
-    capturedRequest = route.request().postDataJSON() as typeof capturedRequest;
-    capturedAuthorization = route.request().headers()['authorization'] || '';
+    const body = route.request().postDataJSON() as { stream?: boolean; messages?: Array<{ role: string; content: string }> } | null;
+    if (body?.messages) {
+      capturedRequest = body;
+      capturedAuthorization = route.request().headers()['authorization'] || '';
+    }
     await route.fulfill({
       status: 200,
       headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache' },
@@ -21,7 +24,7 @@ test('AI Ideas Chat streams through platform-managed OpenAI without a customer A
         'data: [DONE]',
         '',
         '',
-      ].join('\\n'),
+      ].join('\n'),
     });
   });
   await page.route('**/api/providers/openrouter/**', async (route) => {
@@ -41,6 +44,6 @@ test('AI Ideas Chat streams through platform-managed OpenAI without a customer A
   await expect(page.getByText('OpenAI platform chat response.')).toBeVisible();
   expect(capturedRequest?.stream).toBe(true);
   expect(capturedRequest?.messages?.some((message) => message.role === 'user' && message.content.includes('quantum computing'))).toBe(true);
-  expect(capturedAuthorization).toMatch(/^Bearer\\s+\\S+/i);
+  expect(capturedAuthorization).toMatch(/^Bearer\s+\S+/i);
   expect(legacyProviderRequests).toBe(0);
 });
