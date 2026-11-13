@@ -292,6 +292,7 @@ test('AI Chat checks request ownership after every Supabase await in a turn', ()
   const end = page.indexOf('const handleFileSelection', start);
   const block = page.slice(start, end);
   assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\)/);
+  assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\): Promise<T> => \{\s*assertRequestCurrent\(\);\s*const result = await operation;\s*assertRequestCurrent\(\);/);
   assert.doesNotMatch(block, /await supabase\s*\./);
   assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 40);
   assert.match(block, /const accessToken = await getCurrentAccessToken\(\);\s*assertRequestCurrent\(\);/);
