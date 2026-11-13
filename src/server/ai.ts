@@ -1121,6 +1121,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     messages?: Array<{ role?: string; content?: string }>;
     conversationId?: string;
     activeVyralId?: string;
+    uploadAttachment?: { clientDraftId?: string; fileName?: string; mimeType?: string; sizeBytes?: number };
     workspaceContext?: Record<string, unknown>;
     context?: Record<string, unknown>;
     visionImages?: Array<{ mimeType?: string; data?: string; assetId?: string; assetName?: string }>;
@@ -1181,13 +1182,15 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       const conversationId = typeof body.conversationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.conversationId) ? body.conversationId : undefined;
       const activeVyralId = typeof body.activeVyralId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.activeVyralId) ? body.activeVyralId : undefined;
       const workspaceContext = body.workspaceContext && typeof body.workspaceContext === 'object' && !Array.isArray(body.workspaceContext) ? body.workspaceContext : undefined;
-      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(conversationId ? { conversationId } : {}), ...(activeVyralId ? { activeVyralId } : {}), ...(workspaceContext ? { workspaceContext } : {}), ...(wantsStream ? { stream: true } : {}) });
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(conversationId ? { conversationId } : {}), ...(activeVyralId ? { activeVyralId } : {}), ...(body.uploadAttachment ? { uploadAttachment: body.uploadAttachment } : {}), ...(workspaceContext ? { workspaceContext } : {}), ...(wantsStream ? { stream: true } : {}) });
       if (wantsStream && response.ok && response.body && (response.headers.get('content-type') ?? '').includes('text/event-stream')) {
         res.status(response.status);
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-transform');
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no');
+        const operatorActionHeader = response.headers.get('X-Vyra-Operator-Action');
+        if (operatorActionHeader) res.setHeader('X-Vyra-Operator-Action', operatorActionHeader);
         res.flushHeaders?.();
         const reader = response.body.getReader();
         const cancelOnClose = () => { if (!res.writableEnded) void reader.cancel().catch(() => undefined); };
