@@ -216,6 +216,34 @@ export const addMasterTimelineTextClip = (
   return { ok: true, value: { ...timeline, textTracks: [...timeline.textTracks, newTrack] }, createdClipId: clipId };
 };
 
+
+/** Adds one canonical, owner-verified Vyral Audio Asset as an editable Timeline clip. */
+export const addMasterTimelineAudioAssetClip = (
+  timeline: MasterTimelineData,
+  trackId: string,
+  clipId: string,
+  assetId: string,
+  assetVersionId: string,
+  assetMimeType: string,
+  assetName: string,
+  start: number,
+  duration: number,
+): TimelineResult => {
+  if (!timeline || !Array.isArray(timeline.audioTracks) || !Array.isArray(timeline.textTracks)) return fail('invalid-timeline');
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const name = assetName.trim();
+  if (!uuid.test(assetId) || !uuid.test(assetVersionId) || !name || name.length > 180 || !/^audio\/[a-z0-9.+-]+$/i.test(assetMimeType)) return fail('invalid-content');
+  if (!finite(start) || start < 0 || !finite(duration) || duration < MIN_CLIP_DURATION || duration > 3600) return fail('invalid-time');
+  const allTracks = [...timeline.audioTracks, ...timeline.textTracks];
+  if (!uuid.test(trackId) || !uuid.test(clipId) || allTracks.some((track) => track.id === trackId || track.clips.some((clip) => clip.id === clipId))) return fail('invalid-timeline');
+  const clip: MasterTimelineClip = {
+    id: clipId, name, content: name, start, duration,
+    assetId, assetVersionId, assetMimeType,
+  };
+  const track: MasterTimelineTrack = { id: trackId, name: 'Audio', clips: [clip] };
+  return { ok: true, value: { ...timeline, audioTracks: [...timeline.audioTracks, track] }, createdClipId: clipId };
+};
+
 export const updateMasterTimelineClipText = (
   timeline: MasterTimelineData,
   trackId: string,
