@@ -23,7 +23,7 @@ import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extr
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string; action?: GlobalChatAction };
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction };
 type ChatSession = {
   id: string;
   title: string;
@@ -474,7 +474,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             id: message.id,
             role: message.role,
             content: message.content,
-            ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' ? { status: message.status } : {}),
+            ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' || message.status === 'cancelled' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
             ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete', 'storyboard-delete-draft', 'storyboard-delete-complete', 'vyral-create-draft', 'vyral-create-complete', 'vyral-asset-upload-draft', 'vyral-asset-upload-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatAction } : {}),
           } as ChatMessage];
@@ -1895,7 +1895,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         content: result.cancelled
           ? (streamedText ? streamedText + '\n\nGeneration stopped.' : 'Generation stopped before a response was received.')
           : (result.status === 'error' && streamedText ? streamedText + '\n\n' + result.content : result.content) + assetUploadCompletionText,
-        status: result.status,
+        status: result.cancelled ? 'cancelled' : result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
       if (streamingAssistantId) {
@@ -1909,7 +1909,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       const wasCancelled = requestController.signal.aborted || (error instanceof Error && error.name === 'AbortError');
       const message = wasCancelled ? 'Generation stopped.' : error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
       if (wasCancelled) {
-        const cancelledMessage: ChatMessage = { id: streamingAssistantId ?? makeId(), role: 'assistant', content: streamedText ? streamedText + '\n\nGeneration stopped.' : message, status: 'error' };
+        const cancelledMessage: ChatMessage = { id: streamingAssistantId ?? makeId(), role: 'assistant', content: streamedText ? streamedText + '\n\nGeneration stopped.' : message, status: 'cancelled' };
         if (streamingAssistantId) setMessages((previous) => previous.map((item) => item.id === streamingAssistantId ? cancelledMessage : item));
         else setMessages((previous) => [...previous, cancelledMessage]);
       } else if (streamingAssistantId) {
