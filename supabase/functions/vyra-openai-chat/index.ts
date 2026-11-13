@@ -1144,20 +1144,34 @@ async function createVyralCreateProposal(
     p_plan: plan,
     p_expires_at: expiresAt.toISOString(),
   });
-  if (error || !pending) return safeToolError('VYRA could not securely save this Vyral creation preview. Nothing was created.');
-  const storedPlan = parseVyralCreatePendingPlan(pending.plan);
-  if (!storedPlan || storedPlan.target.vyralId !== vyralId) return safeToolError('The saved Vyral preview could not be verified. Nothing was created.');
+  let savedPending = pending;
+  if (error || !savedPending) {
+    // A retried model tool call can reuse its idempotency key. Reuse the exact
+    // original preview only when its owner/session and requested identity match.
+    const { data: prior, error: priorError } = await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status')
+      .eq('user_id', userId).eq('session_id', sessionId).eq('idempotency_key', idempotencyKey).maybeSingle();
+    const priorPlan = parseVyralCreatePendingPlan(prior?.plan);
+    if (priorError || !prior || prior.capability_id !== 'vyral.create' ||
+        prior.status !== 'pending' || Date.parse(prior.expires_at) <= Date.now() ||
+        !priorPlan || priorPlan.parameters.name !== name || priorPlan.parameters.description !== description) {
+      return safeToolError('VYRA could not securely save or reuse this Vyral creation preview. Nothing was created.');
+    }
+    savedPending = prior;
+  }
+  const storedPlan = parseVyralCreatePendingPlan(savedPending.plan);
+  if (!storedPlan) return safeToolError('The saved Vyral preview could not be verified. Nothing was created.');
   return {
     ok: true,
     requiresApproval: true,
-    actionId: pending.id,
-    status: pending.status,
-    vyralId,
-    name,
-    description,
+    actionId: savedPending.id,
+    status: savedPending.status,
+    vyralId: storedPlan.target.vyralId,
+    name: storedPlan.parameters.name,
+    description: storedPlan.parameters.description,
     visibility: 'private',
     initialDna: 'created atomically after approval',
-    expiresAt: pending.expires_at,
+    expiresAt: savedPending.expires_at,
     message: 'Preview only; no Vyral or DNA record has been created. Review the name and description, then approve in this same chat.',
   };
 }
