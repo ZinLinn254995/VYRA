@@ -1279,6 +1279,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (reviewError) {
           let message = 'Creator review could not be recorded.';
           try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
@@ -1311,6 +1312,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (promoteError) {
           let message = 'Creator field confirmation could not be saved.';
           try { const payload = await (promoteError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
@@ -1368,6 +1370,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (validationError) {
           let message = 'VYRA could not validate the DNA change set.';
           try { const payload = await (validationError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         const report = validated?.report;
@@ -1407,6 +1410,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (prepareError) {
           let message = 'VYRA could not prepare the DNA change set.';
           try { const payload = await (prepareError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         const changeSet = prepared?.changeSet;
@@ -1440,6 +1444,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (reviewError) {
           let message = 'VYRA could not save this proposal review.';
           try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         const result = review?.proposal;
@@ -1462,6 +1467,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           let message = 'VYRA could not assess this Asset DNA.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            assertRequestCurrent();
             if (payload?.error) message = payload.error;
           } catch {
             // Keep the safe generic message when the function response is unavailable.
@@ -1643,6 +1649,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           let message = 'VYRA could not load this Vyral’s quality history.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            assertRequestCurrent();
             if (payload?.error) message = payload.error;
           } catch {
             // Keep the safe generic message when the function response is unavailable.
@@ -1695,6 +1702,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           let message = 'VYRA could not complete the quality evaluation.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            assertRequestCurrent();
             if (payload?.error) message = payload.error;
           } catch {
             // Keep the safe generic message when the function response is unavailable.
