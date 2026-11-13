@@ -344,6 +344,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
@@ -1918,6 +1919,35 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFileStatus('File metadata only · full content parsing is not available for this file type yet');
   };
 
+  const renameSession = async (session: ChatSession) => {
+    if (!supabase || !historyOwnerId) return;
+    const proposed = window.prompt('Rename conversation', session.title);
+    if (proposed === null) return;
+    const title = proposed.trim().slice(0, 160);
+    if (!title || title === session.title) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ title, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', historyOwnerId);
+    if (error) { setHistoryError('This conversation could not be renamed. Please try again.'); return; }
+    setSessions((previous) => previous.map((item) => item.id === session.id ? { ...item, title } : item));
+    setHistoryError(null);
+  };
+
+  const removeSession = async (session: ChatSession) => {
+    if (!supabase || !historyOwnerId || !window.confirm('Delete this conversation permanently?')) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').delete().eq('id', session.id).eq('user_id', historyOwnerId);
+    if (error) { setHistoryError('This conversation could not be deleted. Please try again.'); return; }
+    setSessions((previous) => previous.filter((item) => item.id !== session.id));
+    if (activeSessionId === session.id) { setMessages([]); setActiveSessionId(null); setIsLocked(false); }
+    setHistoryError(null);
+  };
+
+  const restoreSession = async (session: ChatSession) => {
+    if (!supabase || !historyOwnerId) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ archived: false, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', historyOwnerId);
+    if (error) { setHistoryError('This conversation could not be restored. Please try again.'); return; }
+    setSessions((previous) => previous.map((item) => item.id === session.id ? { ...item, archived: false } : item));
+    setHistoryError(null);
+  };
+
   const shareCurrentChat = async () => {
     const transcript = messages.map((message) => `${message.role === 'user' ? 'You' : 'VYRA AI'}: ${message.content}`).join('\n\n');
     try {
@@ -2133,18 +2163,26 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
                 <h2 id="chat-history-title" className="text-sm font-bold text-[var(--vyra-text-primary)]">Recent chats</h2>
                 <p className="mt-0.5 text-[10px] text-[var(--vyra-text-muted)]">{historyError ?? (historyReady ? 'Your conversations' : 'Loading chat history…')}</p>
               </div>
-              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={17} /></button>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setShowArchivedChats((value) => !value)} className="rounded-lg px-2 py-1.5 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]">{showArchivedChats ? 'Recent' : 'Archived'}</button>
+                <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={17} /></button>
+              </div>
             </div>
             <div className="max-h-[55vh] overflow-y-auto p-2">
               {!historyReady ? (
                 <div className="px-5 py-12 text-center text-xs text-[var(--vyra-text-muted)]">Loading chat history…</div>
-              ) : sessions.filter((session) => !session.archived).length ? sessions.filter((session) => !session.archived).map((session) => (
-                <button key={session.id} type="button" onClick={() => openSession(session)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-[var(--vyra-bg-hover)]">
-                  <MessageSquare size={16} className="shrink-0 text-[var(--vyra-text-muted)]" />
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{session.title}</span>
-                  <span className="shrink-0 text-[10px] text-[var(--vyra-text-muted)]">{session.updatedAt}</span>
-                </button>
-              )) : (
+              ) : sessions.filter((session) => session.archived === showArchivedChats).length ? sessions.filter((session) => session.archived === showArchivedChats).map((session) => (
+                <div key={session.id} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-[var(--vyra-bg-hover)]">
+                  <button type="button" onClick={() => openSession(session)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 text-left">
+                    <MessageSquare size={16} className="shrink-0 text-[var(--vyra-text-muted)]" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{session.title}</span>
+                    <span className="shrink-0 text-[10px] text-[var(--vyra-text-muted)]">{session.updatedAt}</span>
+                  </button>
+                  {session.archived && <button type="button" onClick={() => void restoreSession(session)} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-surface)]">Restore</button>}
+                  <button type="button" onClick={() => void renameSession(session)} aria-label={'Rename '+session.title} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-surface)]">Rename</button>
+                  <button type="button" onClick={() => void removeSession(session)} aria-label={'Delete '+session.title} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-surface)]">Delete</button>
+                </div>
+
                 <div className="px-5 py-12 text-center">
                   <Clock3 size={23} className="mx-auto text-[var(--vyra-text-muted)]" />
                   <p className="mt-3 text-xs font-semibold text-[var(--vyra-text-primary)]">No recent chats yet</p>
