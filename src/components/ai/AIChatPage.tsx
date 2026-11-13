@@ -426,6 +426,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let active = true;
     const supabaseClient = supabase;
     if (!isAuthenticated || !supabaseClient) {
+      cancelActiveRequest();
       historyOwnerRef.current = null;
       setHistoryOwnerId(null);
       setSessions([]);
@@ -446,6 +447,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       const { data: userResult, error: userError } = await supabaseClient.auth.getUser();
       if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
       const ownerId = userResult.user.id;
+      if (previousOwnerId && previousOwnerId !== ownerId) cancelActiveRequest();
       const { data, error } = await supabaseClient
         .from('vyra_ai_chat_conversations')
         .select('id,title,messages,archived,locked,updated_at')
