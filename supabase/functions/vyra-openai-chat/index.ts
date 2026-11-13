@@ -97,7 +97,7 @@ const GLOBAL_READ_TOOLS = [
     type: 'function',
     function: {
       name: 'propose_master_timeline_edit',
-      description: "Prepare a reversible edit to an existing Audio/Text clip in the owner's Master Timeline. Supported operations: move, trim, split, clone, update_text, delete. Deletion is destructive and requires a separate exact confirmation phrase. This only creates a preview; do not claim anything changed until explicitly approved in this same chat.",
+      description: "Prepare a reversible edit to the owner's Master Timeline. Supports creating a new Text overlay track/clip (add_text), moving, trimming, splitting, cloning, editing or deleting existing Audio/Text clips. Deletion is destructive and requires a separate exact confirmation phrase. This only creates a preview; do not claim anything changed until explicitly approved in this same chat.",
       parameters: {
         type: 'object',
         properties: {
