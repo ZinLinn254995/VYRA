@@ -70,7 +70,8 @@
     "test:ai-capability-coverage": "node --import tsx --test tests/ai-capability-coverage.spec.ts",
     "test:vyral-creation-action": "node --import tsx --test tests/vyral-creation-action.spec.ts",
     "test:vyral-asset-upload-action": "node --import tsx --test tests/vyral-asset-upload-action.spec.ts",
-    "test:vyral-asset-rename-action": "node --import tsx --test tests/vyral-asset-rename-action.spec.ts"
+    "test:vyral-asset-rename-action": "node --import tsx --test tests/vyral-asset-rename-action.spec.ts",
+    "test:vyral-asset-metadata-action": "node --import tsx --test tests/vyral-asset-metadata-action.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
