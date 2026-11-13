@@ -44,6 +44,8 @@ export interface AIServiceResult {
   operatorAction?: Record<string, unknown>;
   suggestedActions?: ChatSuggestedAction[];
   isPreviewNotice?: boolean;
+  /** True when the user explicitly stopped an in-flight generation. */
+  cancelled?: boolean;
   status: 'success' | 'preview' | 'error';
   errorMessage?: string;
   providerName?: string;
