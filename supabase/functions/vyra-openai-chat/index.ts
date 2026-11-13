@@ -158,9 +158,6 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
-  {
-    type: 'function',
-    function: {
       name: 'propose_vyral_folder_create',
       description: 'Prepare a same-chat approval preview to create a folder in the current owner-owned Vyral. Supports an optional parent folder. No folder is created before approval.',
       parameters: { type: 'object', properties: {
@@ -201,6 +198,9 @@ const GLOBAL_READ_TOOLS = [
       }, required: ['asset_id','folder_id'], additionalProperties: false },
     },
   },
+  {
+    type: 'function',
+    function: {
       name: 'propose_storyboard_update',
       description: "Prepare a reversible update to a Storyboard owned by the signed-in user. This only creates a pending preview; never claim the change is saved until the user explicitly approves it in this same chat.",
       parameters: {
