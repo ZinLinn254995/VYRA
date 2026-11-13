@@ -68,12 +68,17 @@ test('clamps playback to actual decoded source duration', async () => {
 test('stop during pending asset resolution prevents source creation', async () => {
   const mock = createRuntime();
   let release!: (url: string) => void;
-  mock.runtime.resolveAssetUrl = async () => new Promise<string>((resolve) => { release = resolve; });
+  let capturedSignal: AbortSignal | undefined;
+  mock.runtime.resolveAssetUrl = async (_assetId: string, _versionId: string, signal?: AbortSignal) => {
+    capturedSignal = signal;
+    return new Promise<string>((resolve) => { release = resolve; });
+  };
   const handle = startMasterTimelineAudioPlayback([{
     trackId: 'track', clipId: 'clip', assetId: 'asset', assetVersionId: 'version',
     delaySeconds: 0, sourceOffsetSeconds: 0, durationSeconds: 5, gain: 1,
   }], mock.runtime);
   handle.stop();
+  assert.equal(capturedSignal?.aborted, true);
   release('https://private-signed-url.invalid/audio');
   await handle.ready;
   assert.equal(mock.sources.length, 0);
