@@ -118,6 +118,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const masterPlaybackSeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const masterPlaybackProgrammaticScrollRef = useRef<number | null>(null);
   const masterPlaybackTickRef = useRef<(() => void) | null>(null);
+  const masterPlaybackSeekPendingRef = useRef(false);
   useEffect(() => {
     if (!onSelectionChange) return;
     if (selectedTextClip) {
@@ -514,6 +515,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const timelineWidth = totalDuration * pixelsPerSecond;
   const stopMasterTimelinePlayback = () => {
     masterPlaybackRequestIdRef.current += 1;
+    masterPlaybackSeekPendingRef.current = false;
     if (masterPlaybackSeekTimerRef.current) {
       clearTimeout(masterPlaybackSeekTimerRef.current);
       masterPlaybackSeekTimerRef.current = null;
@@ -530,6 +532,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   };
 
   const launchMasterTimelinePlayback = async (requestedStart?: number) => {
+    masterPlaybackSeekPendingRef.current = false;
     if (!supabase) { setMasterPlaybackError('Private Audio Storage is not configured.'); return; }
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
@@ -659,14 +662,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return;
     }
     masterPlaybackProgrammaticScrollRef.current = null;
-    if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading') return;
+    if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading' && !masterPlaybackSeekPendingRef.current) return;
     if (masterPlaybackSeekTimerRef.current) clearTimeout(masterPlaybackSeekTimerRef.current);
-    stopMasterTimelinePlayback();
+    if (!masterPlaybackSeekPendingRef.current) {
+      stopMasterTimelinePlayback();
+      masterPlaybackSeekPendingRef.current = true;
+    }
     masterPlaybackSeekTimerRef.current = setTimeout(() => {
       masterPlaybackSeekTimerRef.current = null;
+      masterPlaybackSeekPendingRef.current = false;
       const seekTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
       void launchMasterTimelinePlayback(seekTime);
-    }, 140);
+    }, 180);
   };
   const leadingSpace = viewportWidth / 2;
   // Adapt ruler spacing to zoom level so labels stay readable.
