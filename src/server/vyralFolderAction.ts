@@ -51,7 +51,7 @@ export function parseVyralFolderActionPendingPlan(value: unknown): VyralFolderAc
         parameters.previousParentId === parameters.nextParentId) return null;
   } else {
     if (Object.keys(target).sort().join(',') !== 'assetId,vyralId' || !UUID.test(String(target.assetId)) ||
-        Object.keys(parameters).sort().join(',') !== 'expectedUpdatedAt,previousFolderId,nextParentId' ||
+        Object.keys(parameters).sort().join(',') !== 'expectedUpdatedAt,nextParentId,previousFolderId' ||
         typeof parameters.expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(parameters.expectedUpdatedAt)) ||
         !(parameters.previousFolderId === null || (typeof parameters.previousFolderId === 'string' && UUID.test(parameters.previousFolderId))) ||
         !(parameters.nextParentId === null || (typeof parameters.nextParentId === 'string' && UUID.test(parameters.nextParentId))) ||
