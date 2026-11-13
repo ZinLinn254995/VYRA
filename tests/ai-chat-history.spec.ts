@@ -303,3 +303,13 @@ test('AI Chat ignores streamed chunks when their request no longer belongs to th
   const page = read('src/components/ai/AIChatPage.tsx');
   assert.match(page, /onTextDelta: \(chunk: string\) => \{\s*if \(activeRequestControllerRef\.current !== requestController \|\|\s*historyOwnerRef\.current !== requestOwnerId\) return;/);
 });
+
+
+test('AI Chat revalidates request ownership after asynchronous selected-asset processing and provider completion', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /createSelectedAssetVisionPreview\(blob\);\s*assertRequestCurrent\(\);/);
+  assert.match(page, /const decodedBytes = await blob\.arrayBuffer\(\);\s*assertRequestCurrent\(\);/);
+  assert.match(page, /const encodedMedia = await readBlobAsBase64\(blob\);\s*assertRequestCurrent\(\);/);
+  assert.match(page, /extractSelectedVideoFrames\(blob, asset\.id, asset\.name, remaining\);\s*assertRequestCurrent\(\);/);
+  assert.match(page, /const result = await aiService\.generateResponse\([\s\S]*?\);\s*assertRequestCurrent\(\);\s*let assetUploadCompletionText/);
+});
