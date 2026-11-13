@@ -554,6 +554,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         locked: Boolean(session.locked),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
+      if (historyOwnerRef.current !== ownerId) return false;
       if (error) {
         setHistoryError('Chat history could not be saved. Please keep this page open and retry.');
         return false;
@@ -1981,20 +1982,24 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const renameSession = async (session: ChatSession) => {
-    if (!supabase || !historyOwnerId) return;
+    const ownerId = historyOwnerId;
+    if (!supabase || !ownerId || historyOwnerRef.current !== ownerId) return;
     const proposed = window.prompt('Rename conversation', session.title);
     if (proposed === null) return;
     const title = proposed.trim().slice(0, 160);
     if (!title || title === session.title) return;
-    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ title, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', historyOwnerId);
+    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ title, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', ownerId);
+    if (historyOwnerRef.current !== ownerId) return;
     if (error) { setHistoryError('This conversation could not be renamed. Please try again.'); return; }
     setSessions((previous) => previous.map((item) => item.id === session.id ? { ...item, title } : item));
     setHistoryError(null);
   };
 
   const removeSession = async (session: ChatSession) => {
-    if (!supabase || !historyOwnerId || !window.confirm('Delete this conversation permanently?')) return;
-    const { error } = await supabase.from('vyra_ai_chat_conversations').delete().eq('id', session.id).eq('user_id', historyOwnerId);
+    const ownerId = historyOwnerId;
+    if (!supabase || !ownerId || historyOwnerRef.current !== ownerId || !window.confirm('Delete this conversation permanently?')) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').delete().eq('id', session.id).eq('user_id', ownerId);
+    if (historyOwnerRef.current !== ownerId) return;
     if (error) { setHistoryError('This conversation could not be deleted. Please try again.'); return; }
     setSessions((previous) => previous.filter((item) => item.id !== session.id));
     if (activeSessionId === session.id) { setMessages([]); setActiveSessionId(null); setIsLocked(false); }
@@ -2002,8 +2007,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const restoreSession = async (session: ChatSession) => {
-    if (!supabase || !historyOwnerId) return;
-    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ archived: false, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', historyOwnerId);
+    const ownerId = historyOwnerId;
+    if (!supabase || !ownerId || historyOwnerRef.current !== ownerId) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ archived: false, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', ownerId);
+    if (historyOwnerRef.current !== ownerId) return;
     if (error) { setHistoryError('This conversation could not be restored. Please try again.'); return; }
     setSessions((previous) => previous.map((item) => item.id === session.id ? { ...item, archived: false } : item));
     setHistoryError(null);
