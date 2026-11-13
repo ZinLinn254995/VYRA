@@ -900,17 +900,22 @@ async function executeVyralReadTool(
   if (name === 'list_vyral_asset_relationships') {
     const requestedLimit = typeof args.limit === 'number' && Number.isInteger(args.limit) ? args.limit : 20;
     const limit = Math.max(1, Math.min(30, requestedLimit));
-    const { data, error } = await admin.from('vyral_asset_relationships')
-      .select('relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,created_at')
+    const { data, error } = await admin.from('vyral_lineage')
+      .select('relation_kind,parent_asset_id,child_asset_id,metadata,created_at')
       .eq('vyral_id', vyralId).eq('user_id', userId)
       .order('created_at', { ascending: false }).limit(limit);
     if (error) return safeToolError('Asset relationships could not be loaded.');
-    return { ok: true, relationships: (data ?? []).map((item: Record<string, unknown>) => ({
-      type: item.relationship_type,
-      from: item.from_kind === 'vyral' ? 'this Vyral' : item.from_asset_id,
-      to: item.to_kind === 'vyral' ? 'this Vyral' : item.to_asset_id,
-      rationale: typeof item.rationale === 'string' ? item.rationale.slice(0, 240) : '',
-    })) };
+    return { ok: true, relationships: (data ?? []).map((item: Record<string, unknown>) => {
+      const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
+        ? item.metadata as Record<string, unknown> : {};
+      return {
+        type: item.relation_kind,
+        from: item.parent_asset_id,
+        to: item.child_asset_id,
+        rationale: typeof metadata.rationale === 'string' ? metadata.rationale.slice(0, 240) : '',
+        createdAt: item.created_at,
+      };
+    }) };
   }
 
   if (name === 'get_vyral_master_dna_summary') {
