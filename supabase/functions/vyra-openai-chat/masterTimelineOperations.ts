@@ -372,7 +372,7 @@ export const attachMasterTimelineVideoAsset = (
   sourceOut: number,
 ): TimelineResult => {
   if (!timeline || !Array.isArray(timeline.sceneInstances)) return fail('invalid-timeline');
-  if (!sceneId || !assetId || !assetVersionId || !/^video\\//i.test(assetMimeType)) return fail('invalid-content');
+  if (!sceneId || !assetId || !assetVersionId || !/^video\//i.test(assetMimeType)) return fail('invalid-content');
   if (!finite(sourceIn) || !finite(sourceOut) || sourceIn < 0 || sourceOut <= sourceIn) return fail('invalid-duration');
   const index = timeline.sceneInstances.findIndex((instance) => instance.sceneId === sceneId);
   if (index < 0) return fail('clip-not-found');
