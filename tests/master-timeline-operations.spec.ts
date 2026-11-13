@@ -205,9 +205,10 @@ test('attaches a verified immutable Video Asset version to one exact Scene insta
   assert.equal(attached.ok, true);
   if (attached.ok) {
     assert.deepEqual(attached.value.sceneInstances?.[0], timeline.sceneInstances?.[0]);
-    assert.deepEqual(attached.value.sceneInstances?.[1], { ...timeline.sceneInstances![1], sourceIn: 0, sourceOut: 12.5, assetId: 'asset-video', assetVersionId: 'version-video', assetMimeType: 'video/mp4' });
+    assert.deepEqual(attached.value.sceneInstances?.[1], { ...timeline.sceneInstances![1], videoSourceIn: 0, videoSourceOut: 12.5, assetId: 'asset-video', assetVersionId: 'version-video', assetMimeType: 'video/mp4' });
   }
   assert.equal(attachMasterTimelineVideoAsset(timeline, 'missing-scene', 'asset-video', 'version-video', 'video/mp4', 0, 12.5).ok, false);
   assert.equal(attachMasterTimelineVideoAsset(timeline, 'scene-a', 'asset-video', 'version-video', 'audio/mpeg', 0, 12.5).ok, false);
   assert.deepEqual(timeline.sceneInstances?.[1], { id: 'instance-b', sceneId: 'scene-b', sourceIn: 0, sourceOut: 7 });
+    assert.equal(attached.value.sceneInstances?.[1].sourceOut, 7);
 });
