@@ -978,3 +978,15 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Extended canonical Asset ingestion to inspect the exact uploaded Video File with the browser's native video metadata decoder and persist `video_technical_metadata` on both the Asset and immutable Version. The record includes `schemaVersion: 1`, source SHA-256, duration, and extraction method. Unsupported codecs, browsers, or invalid durations safely omit this metadata; the AI attachment workflow then refuses the request instead of guessing.
 - This does not yet wire the Video playback planner to an HTML Video element or the Master Timeline transport. No working Video preview/render is claimed.
 - GitHub Actions CI passed on code commit `2847eef0b8708da9f2056b572ce826d816b62250` (run `43399543101`), including TypeScript, Master Timeline Video planner tests, Asset ingestion tests, Deno Edge Function type-check, and Production build. Development `vyra-openai-chat` Edge Function v34 is ACTIVE with JWT verification enabled; deployed files include the Video attachment operation and its mirrored Timeline helper. The OpenAI key remains unset, so live model-driven browser verification is still pending. No Production changes, user Timeline mutations, API keys, charges, merge, or Production deployment.
+
+
+## Scene Editor private Video Preview integration
+
+- Replaced the existing Scene Preview placeholder only when that Scene has a verified Video Asset reference. The existing preview frame is reused; no new layout or separate Video panel is introduced.
+- Resolves the active Scene's exact Asset ID and immutable Version ID from its Master Timeline Scene instance, then obtains a short-lived signed URL through `createVyralVideoPlaybackUrl`. The browser never creates a public Storage URL.
+- Preview seeks to the attached Video source-in point after metadata loads and pauses at the configured source-out boundary. The signed URL is held only in component memory and discarded when the active Scene/reference changes or the component unmounts.
+- Handles loading, unsupported/missing Asset, private Storage errors and browser playback errors. A stale async URL response cannot overwrite the newly selected Scene.
+- Added `tests/workspace-video-preview.spec.ts` and CI step `test:workspace-video-preview`.
+- CI run [#43400560132](https://github.com/ZinLinn254995/VYRA/actions/runs/43400560132) completed successfully, including TypeScript, Scene Video preview contract tests, Supabase Edge Function Deno type-check and Production build.
+- Browser/manual verification with a real uploaded Video Asset is still outstanding. This is per-Scene preview only; synchronized multi-Scene Video playback in the Master Timeline, Audio+Video transport, transition compositing and final export remain future work.
+- No AI Chat UI/CSS changes, Production deployment, merge, Production database/function changes, API key or customer charges.
