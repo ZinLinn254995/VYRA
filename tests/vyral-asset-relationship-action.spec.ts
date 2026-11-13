@@ -64,4 +64,7 @@ test('binds pending action to exact owner, session, action and capability', () =
   assert.equal(validateVyralAssetRelationshipPendingAction({
     ...row, capability_id: 'asset.remove_relationship',
   }, { userId: 'owner-1', sessionId: 'session-1', actionId: ids.action, now }), null);
+  assert.equal(validateVyralAssetRelationshipPendingAction({
+    ...row, expires_at: new Date(now + 4 * 60 * 1000).toISOString(),
+  }, { userId: 'owner-1', sessionId: 'session-1', actionId: ids.action, now }), null);
 });
