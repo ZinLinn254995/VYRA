@@ -88,7 +88,7 @@ test('storyboard creation requires an explicit confirmation phrase', async () =>
   assert.equal(isStoryboardCreateConfirmation('yes'), false);
   const preview = formatStoryboardCreateDraft({ id: 'draft-1', title: 'Moon Journey', topic: 'A child explores the moon' });
   assert.match(preview, /Nothing has been saved yet/);
-  assert.match(preview, /Confirm create/);
+  assert.match(preview, /go ahead in your own words/);
 });
 
 
