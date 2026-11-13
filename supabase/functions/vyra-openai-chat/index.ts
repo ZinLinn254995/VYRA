@@ -507,6 +507,9 @@ async function executeGlobalReadTool(admin: any, userId: string, name: string, r
               id: typeof clip.id === 'string' ? clip.id : null,
               name: typeof clip.name === 'string' ? clip.name.slice(0, 180) : 'Untitled clip',
               content: typeof clip.content === 'string' ? clip.content.slice(0, 1000) : null,
+              assetId: typeof clip.assetId === 'string' ? clip.assetId : null,
+              assetVersionId: typeof clip.assetVersionId === 'string' ? clip.assetVersionId : null,
+              assetMimeType: typeof clip.assetMimeType === 'string' ? clip.assetMimeType.slice(0, 100) : null,
               start, duration, end: start + duration,
             };
           }),
@@ -1616,6 +1619,22 @@ async function resolvePendingStoryboardApproval(
       audioTracks: Array.isArray(raw.audioTracks) ? raw.audioTracks : [],
       textTracks: Array.isArray(raw.textTracks) ? raw.textTracks : [],
     } as MasterTimelineData;
+    if (timelineOperation === 'add_audio') {
+      const { data: asset, error: assetError } = await admin.from('vyral_assets')
+        .select('id,name,asset_type,mime_type,processing_status')
+        .eq('id', parameters.assetId).eq('vyral_id', parameters.vyralId).eq('user_id', userId)
+        .eq('asset_type', 'audio').eq('processing_status', 'ready').maybeSingle();
+      if (assetError || !asset) return await fail('AUDIO_ASSET_UNAVAILABLE', 'The selected Audio Asset is no longer ready or owned by the active Vyral. No Timeline change was made.');
+      const { data: version, error: versionError } = await admin.from('vyral_asset_versions')
+        .select('id,mime_type,storage_path')
+        .eq('id', parameters.assetVersionId).eq('asset_id', parameters.assetId)
+        .eq('vyral_id', parameters.vyralId).eq('user_id', userId).maybeSingle();
+      if (versionError || !version || typeof version.storage_path !== 'string' || !version.storage_path ||
+          !String(version.mime_type || asset.mime_type || '').toLowerCase().startsWith('audio/') ||
+          String(asset.name) !== String(parameters.name)) {
+        return await fail('AUDIO_ASSET_VERSION_CHANGED', 'The selected Audio Asset version could not be reverified. No Timeline change was made.');
+      }
+    }
     const rawScenes = Array.isArray(details.scenes) ? details.scenes.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) as Array<Record<string, unknown>> : [];
     const sceneById = new Map(rawScenes.filter((scene) => typeof scene.id === 'string').map((scene) => [String(scene.id), scene]));
     const ordered = (Array.isArray(raw.sceneInstances) ? raw.sceneInstances : []).map((instance) => {
@@ -1896,7 +1915,7 @@ Deno.serve(async (request: Request) => {
             : call.function.name === 'propose_scene_update'
               ? await createSceneUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
               : call.function.name === 'propose_master_timeline_edit'
-                ? await createMasterTimelineEditProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
+                ? await createMasterTimelineEditProposal(context.supabaseAdmin, userId, activeVyralId, conversationId, call.function.arguments, call.id)
                 : call.function.name === 'propose_master_timeline_transition'
                   ? await createMasterTimelineTransitionProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
                 : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
