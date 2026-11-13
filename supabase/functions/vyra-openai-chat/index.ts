@@ -1345,7 +1345,7 @@ async function createSceneMutationProposal(
   };
 }
 
-async function resolvePendingStoryboardApproval(
+async function applyPendingStoryboardApprovalLegacy(
   admin: any,
   userId: string,
   sessionId: string | null,
@@ -1748,6 +1748,88 @@ async function resolvePendingStoryboardApproval(
       : 'Approved and saved. Storyboard: ' + String(updated.title) + ' — updated ' + String(field) + '.';
 }
 
+/**
+ * First real write path through the shared capability executor.
+ * The legacy routine remains the canonical domain transaction for now; the executor
+ * gates it with a server-verified, session-bound user approval and owner check.
+ */
+async function resolvePendingStoryboardApproval(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  latestUserText: string,
+): Promise<string | null> {
+  if (!sessionId) return null;
+  const normalized = latestUserText.trim().toLowerCase();
+  const approve = /^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(normalized);
+  if (!approve) return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+
+  const { data: pendingRows, error } = await admin.from('ai_operator_pending_actions')
+    .select('id,capability_id,plan,expires_at,status')
+    .eq('user_id', userId).eq('session_id', sessionId).eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false }).limit(2);
+  if (error) return 'I could not safely verify the pending action. No changes were made.';
+  if (!pendingRows?.length || pendingRows.length !== 1 || pendingRows[0].capability_id !== 'storyboard.update') {
+    return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+  }
+
+  const pending = pendingRows[0];
+  const plan = isPlainRecord(pending.plan) ? pending.plan : {};
+  const target = isPlainRecord(plan.target) ? plan.target : {};
+  const storyboardId = target.storyboardId;
+  if (!isUuid(pending.id) || !isUuid(storyboardId)) {
+    return await applyPendingStoryboardApprovalLegacy(admin, userId, sessionId, latestUserText);
+  }
+
+  const authority: AiCapabilityExecutionAuthority = {
+    userAuthenticated: true,
+    isOwnerOrAdmin: false,
+    verifyApproval: async (request) => {
+      if (request.input.pending_action_id !== pending.id ||
+          request.input.storyboard_id !== storyboardId || !approve) return false;
+      const { data: current, error: readError } = await admin.from('ai_operator_pending_actions')
+        .select('id,capability_id,plan,expires_at,status')
+        .eq('id', pending.id).eq('user_id', userId).eq('session_id', sessionId).maybeSingle();
+      if (readError || !current || current.status !== 'pending' ||
+          current.capability_id !== 'storyboard.update' || Date.parse(current.expires_at) <= Date.now()) return false;
+      const currentPlan = isPlainRecord(current.plan) ? current.plan : {};
+      const currentTarget = isPlainRecord(currentPlan.target) ? currentPlan.target : {};
+      return currentTarget.storyboardId === storyboardId;
+    },
+    verifyOwner: async (ownerId, input) => {
+      if (ownerId !== userId || input.storyboard_id !== storyboardId) return false;
+      const { data, error: ownerError } = await admin.from('vyral_storyboards')
+        .select('id').eq('id', storyboardId).eq('user_id', ownerId).maybeSingle();
+      return !ownerError && Boolean(data);
+    },
+    audit: async (event) => {
+      const auditEvent = event.outcome === 'started' ? 'claimed'
+        : event.outcome === 'succeeded' ? 'completed' : 'failed';
+      const { error: auditError } = await admin.from('ai_operator_action_audit').insert({
+        action_id: null,
+        user_id: event.userId,
+        session_id: sessionId,
+        capability_id: event.capabilityId,
+        event: auditEvent,
+        detail: { requestId: event.requestId, ...(event.reason ? { reason: event.reason } : {}) },
+      });
+      if (auditError) throw new Error('AI Operator execution audit could not be persisted.');
+    },
+  };
+
+  const result = await executeAiCapability({
+    capabilityId: 'storyboard.update',
+    userId,
+    requestId: ('approval-' + pending.id).slice(0, 120),
+    input: { storyboard_id: storyboardId, pending_action_id: pending.id },
+  }, authority, new Date(), { admin, sessionId, latestUserText, pendingActionId: pending.id });
+
+  if (!result.ok) return result.message;
+  const data = isPlainRecord(result.data) ? result.data : {};
+  return typeof data.message === 'string' ? data.message : 'The approved Storyboard action finished.';
+}
+
 const READ_CAPABILITY_TOOLS = {
   'storyboard.list': 'list_my_storyboards',
   'storyboard.read': 'get_my_storyboard_details',
@@ -1883,6 +1965,30 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
     },
   });
 }
+
+registerAiCapabilityAdapter({
+  capabilityId: 'storyboard.update',
+  validate: (input) =>
+    Object.keys(input).length === 2 &&
+    isUuid(input.storyboard_id) &&
+    isUuid(input.pending_action_id),
+  execute: async (_input, execution) => {
+    const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+    const admin = runtime.admin;
+    const sessionId = typeof runtime.sessionId === 'string' ? runtime.sessionId : null;
+    const latestUserText = typeof runtime.latestUserText === 'string' ? runtime.latestUserText : '';
+    if (!admin || !sessionId || !latestUserText) {
+      throw new Error('Verified approval runtime is unavailable.');
+    }
+    const message = await applyPendingStoryboardApprovalLegacy(
+      admin, execution.userId, sessionId, latestUserText,
+    );
+    if (typeof message !== 'string' || !message.startsWith('Approved and saved.')) {
+      return { ok: false, message: message ?? 'The pending Storyboard update could not be applied.' };
+    }
+    return { ok: true, message };
+  },
+});
 
 async function executeSharedProposalCapability(
   admin: any,
