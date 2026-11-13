@@ -60,6 +60,8 @@ export type SceneTimelineInstance = {
   assetId?: string;
   assetVersionId?: string;
   assetMimeType?: string;
+  videoSourceIn?: number;
+  videoSourceOut?: number;
 };
 
 export type MasterTimelineData = {
