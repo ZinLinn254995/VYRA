@@ -18,6 +18,13 @@ begin
     return;
   end if;
 
+  if p_vyral_id = 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d'::uuid or exists (
+    select 1 from public.vyrals v
+    where v.id = p_vyral_id and v.user_id = p_user_id and coalesce(v.metadata->>'protected','false') = 'true'
+  ) then
+    return;
+  end if;
+
   -- Serialize folder-content insertion against deletion. FK checks for new
   -- child folders and Assets take a key-share lock on this row.
   select * into v_folder
