@@ -1354,7 +1354,7 @@ async function resolvePendingStoryboardApproval(
     ? parameters.duplicatedScene && typeof parameters.duplicatedScene === 'object' && isUuid((parameters.duplicatedScene as Record<string, unknown>).id) && (parameters.duplicatedScene as Record<string, unknown>).project && typeof (parameters.duplicatedScene as Record<string, unknown>).project === 'object' && isUuid(((parameters.duplicatedScene as Record<string, unknown>).project as Record<string, unknown>).id)
     : typeof parameters.confirmationPhrase === 'string' && /^DELETE SCENE [0-9A-F]{6}$/.test(parameters.confirmationPhrase) && parameters.deletedSceneSnapshot && typeof parameters.deletedSceneSnapshot === 'object'));
   if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || !validSceneMutation || (isTimelineUpdate && !isTimelineTransitionUpdate && !isUuid(timelineClipId)) || !allowedField || !validTimelineParameters ||
-      (!isTimelineUpdate && !isSceneReorder && (typeof value !== 'string' || !value.trim())) ||
+      (!isTimelineUpdate && !isSceneReorder && !isSceneMutation && (typeof value !== 'string' || !value.trim())) ||
       typeof expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(expectedUpdatedAt)) ||
       (isSceneReorder && (!Array.isArray(parameters.sceneIds) || parameters.sceneIds.length < 1 || parameters.sceneIds.length > 80 || parameters.sceneIds.some((id) => !isUuid(id)) || new Set(parameters.sceneIds).size !== parameters.sceneIds.length)) ||
       typeof plan.id !== 'string' || typeof plan.expiresAt !== 'string' ||
