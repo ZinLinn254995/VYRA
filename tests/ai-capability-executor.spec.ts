@@ -84,7 +84,7 @@ test('duplicate adapter registration and unknown adapter registration are reject
 });
 
 test('registered executor inventory is a sorted snapshot of actual adapters', () => {
-  assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), []);
+  assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), ['workspace.organize']);
   registerAiCapabilityAdapter({ capabilityId: 'storyboard.list', validate: () => true, execute: async () => [] });
-  assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), ['storyboard.list']);
+  assert.deepEqual(listRegisteredAiCapabilityAdapterIds(), ['storyboard.list', 'workspace.organize']);
 });
