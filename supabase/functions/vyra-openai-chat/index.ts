@@ -80,6 +80,24 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'propose_scene_update',
+      description: "Prepare a reversible edit to a Scene owned by the signed-in user. Only title, description, or transition can be changed. This creates a preview; never claim the Scene is saved until explicit approval in this same chat.",
+      parameters: {
+        type: 'object',
+        properties: {
+          storyboard_id: { type: 'string', description: 'Parent Storyboard UUID from an owner-scoped read.' },
+          scene_id: { type: 'string', description: 'Scene UUID from that Storyboard.' },
+          field: { type: 'string', enum: ['title', 'description', 'transition'] },
+          value: { type: 'string', description: 'Complete new value.' },
+        },
+        required: ['storyboard_id', 'scene_id', 'field', 'value'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_my_vyral_details',
       description: 'Read a Vyral by exact or partial name, including its current Master DNA status and asset counts. If ambiguous, ask the user to choose.',
       parameters: {
@@ -682,6 +700,57 @@ async function createStoryboardUpdateProposal(
   };
 }
 
+async function createSceneUpdateProposal(
+  admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before creating an action preview.');
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid Scene update arguments.');
+    args = parsed as Record<string, unknown>;
+  } catch { return safeToolError('Invalid Scene update arguments.'); }
+  if (Object.keys(args).some((key) => !['storyboard_id', 'scene_id', 'field', 'value'].includes(key)) ||
+      !isUuid(args.storyboard_id) || !isUuid(args.scene_id) ||
+      !['title', 'description', 'transition'].includes(String(args.field)) ||
+      typeof args.value !== 'string' || !args.value.trim() ||
+      args.value.trim().length > (args.field === 'description' ? 1000 : args.field === 'title' ? 100 : 40)) {
+    return safeToolError('The requested Scene update is invalid or exceeds its allowed limits.');
+  }
+  const { data: storyboard, error } = await admin.from('vyral_storyboards')
+    .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
+  if (error) return safeToolError('The parent Storyboard could not be verified.');
+  if (!storyboard) return safeToolError('That Storyboard is not available in your account.');
+  const details = storyboard.details && typeof storyboard.details === 'object' && !Array.isArray(storyboard.details)
+    ? storyboard.details as Record<string, unknown> : {};
+  const scenes = Array.isArray(details.scenes) ? details.scenes : [];
+  const scene = scenes.find((item) => item && typeof item === 'object' && !Array.isArray(item) &&
+    (item as Record<string, unknown>).id === args.scene_id) as Record<string, unknown> | undefined;
+  if (!scene) return safeToolError('That Scene does not belong to the selected Storyboard.');
+  const field = args.field as 'title' | 'description' | 'transition';
+  const value = args.value.trim();
+  if (String(scene[field] ?? '') === value) return { ok: true, changed: false, message: 'The Scene already has that value; no action is needed.' };
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(), operation: 'scene.update',
+    target: { storyboardId: String(storyboard.id), sceneId: String(args.scene_id) },
+    parameters: { field, value, expectedUpdatedAt: String(storyboard.updated_at) },
+    summary: 'Update Scene “' + String(scene.title ?? 'Untitled Scene').slice(0, 100) + '” — ' + field + ' to “' + value.slice(0, 120) + '”',
+    createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
+  };
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
+    p_capability_id: 'scene.update', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+  });
+  if (pendingError || !pending) return safeToolError('VYRA could not securely save this Scene preview. No changes were made.');
+  return { ok: true, requiresApproval: true, actionId: pending.id, status: pending.status,
+    summary: plan.summary, currentValue: scene[field] ?? '', proposedValue: value,
+    expiresAt: pending.expires_at,
+    message: 'Preview saved. Nothing has changed yet. Show the exact current and proposed values and wait for explicit approval in this same chat session.' };
+}
+
 async function resolvePendingStoryboardApproval(
   admin: any,
   userId: string,
@@ -703,7 +772,7 @@ async function resolvePendingStoryboardApproval(
   if (!pendingRows?.length) return null;
   if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
   const pending = pendingRows[0];
-  if (pending.capability_id !== 'storyboard.update' || !pending.plan || typeof pending.plan !== 'object') {
+  if (!['storyboard.update', 'scene.update'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
     return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
   }
   if (reject) {
@@ -720,7 +789,10 @@ async function resolvePendingStoryboardApproval(
   const field = parameters.field;
   const value = parameters.value;
   const expectedUpdatedAt = parameters.expectedUpdatedAt;
-  if (!isUuid(storyboardId) || !['title', 'topic'].includes(String(field)) ||
+  const sceneId = target.sceneId;
+  const isSceneUpdate = pending.capability_id === 'scene.update';
+  const allowedField = isSceneUpdate ? ['title', 'description', 'transition'].includes(String(field)) : ['title', 'topic'].includes(String(field));
+  if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || !allowedField ||
       typeof value !== 'string' || !value.trim() ||
       typeof expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(expectedUpdatedAt)) ||
       typeof plan.id !== 'string' || typeof plan.expiresAt !== 'string' ||
@@ -744,20 +816,49 @@ async function resolvePendingStoryboardApproval(
     });
     return message;
   };
-  const { data: updated, error: updateError } = await admin.from('vyral_storyboards')
-    .update({ [field as string]: value.trim(), updated_at: new Date().toISOString() })
-    .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
-    .select('id,title,topic,updated_at').maybeSingle();
-  if (updateError) return await fail('STORYBOARD_UPDATE_FAILED', 'The Storyboard update failed. No successful change was confirmed.');
-  if (!updated) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the preview. Please ask me to prepare a fresh preview.');
+  let updated: Record<string, unknown> | null = null;
+  if (isSceneUpdate) {
+    const { data: current, error: readError } = await admin.from('vyral_storyboards')
+      .select('id,title,details,updated_at').eq('id', storyboardId).eq('user_id', userId)
+      .eq('updated_at', expectedUpdatedAt).maybeSingle();
+    if (readError) return await fail('SCENE_PARENT_READ_FAILED', 'The parent Storyboard could not be checked. No Scene change was made.');
+    if (!current) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the preview. Please ask me to prepare a fresh Scene preview.');
+    const details = current.details && typeof current.details === 'object' && !Array.isArray(current.details)
+      ? current.details as Record<string, unknown> : {};
+    const scenes = Array.isArray(details.scenes) ? details.scenes : [];
+    let found = false;
+    const nextScenes = scenes.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item) || (item as Record<string, unknown>).id !== sceneId) return item;
+      found = true;
+      return { ...(item as Record<string, unknown>), [field as string]: value.trim() };
+    });
+    if (!found) return await fail('SCENE_NOT_FOUND', 'That Scene no longer exists in this Storyboard. No change was made.');
+    const { data: sceneUpdated, error: sceneUpdateError } = await admin.from('vyral_storyboards')
+      .update({ details: { ...details, scenes: nextScenes }, updated_at: new Date().toISOString() })
+      .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
+      .select('id,title,topic,updated_at').maybeSingle();
+    if (sceneUpdateError) return await fail('SCENE_UPDATE_FAILED', 'The Scene update failed. No successful change was confirmed.');
+    if (!sceneUpdated) return await fail('STALE_STORYBOARD', 'The Storyboard changed while applying this update. No change was confirmed.');
+    updated = sceneUpdated;
+  } else {
+    const { data: storyboardUpdated, error: updateError } = await admin.from('vyral_storyboards')
+      .update({ [field as string]: value.trim(), updated_at: new Date().toISOString() })
+      .eq('id', storyboardId).eq('user_id', userId).eq('updated_at', expectedUpdatedAt)
+      .select('id,title,topic,updated_at').maybeSingle();
+    if (updateError) return await fail('STORYBOARD_UPDATE_FAILED', 'The Storyboard update failed. No successful change was confirmed.');
+    if (!storyboardUpdated) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the preview. Please ask me to prepare a fresh preview.');
+    updated = storyboardUpdated;
+  }
   const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
     p_status: 'completed',
-    p_result_summary: { storyboardId: updated.id, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
+    p_result_summary: { storyboardId: updated.id, sceneId: isSceneUpdate ? sceneId : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
     p_failure_code: null,
   });
   if (finishError) return 'The Storyboard update was applied, but its audit completion could not be confirmed. Please refresh the Storyboard before retrying.';
-  return 'Approved and saved. Storyboard: ' + String(updated.title) + '\\nUpdated ' + String(field) + '.';
+  return isSceneUpdate
+    ? 'Approved and saved. Updated the Scene ' + String(field) + ' in Storyboard “' + String(updated.title) + '”.'
+    : 'Approved and saved. Storyboard: ' + String(updated.title) + ' — updated ' + String(field) + '.';
 }
 
 const sseResponse = (content: string) => {
@@ -978,7 +1079,9 @@ Deno.serve(async (request: Request) => {
         for (const call of toolCalls) {
           const toolResult = call.function.name === 'propose_storyboard_update'
             ? await createStoryboardUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
-            : ['list_my_storyboards', 'get_my_storyboard_details', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
+            : call.function.name === 'propose_scene_update'
+              ? await createSceneUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
+              : ['list_my_storyboards', 'get_my_storyboard_details', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
               ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
               : activeVyralId
               ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
