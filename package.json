@@ -62,7 +62,8 @@
     "test:ai-capability-executor": "node --import tsx --test tests/ai-capability-executor.spec.ts",
     "test:master-timeline-operations": "node --import tsx --test tests/master-timeline-operations.spec.ts",
     "test:master-timeline-audio-playback": "node --import tsx --test tests/master-timeline-audio-playback.spec.ts",
-    "test:master-timeline-audio-playback-engine": "node --import tsx --test tests/master-timeline-audio-playback-engine.spec.ts"
+    "test:master-timeline-audio-playback-engine": "node --import tsx --test tests/master-timeline-audio-playback-engine.spec.ts",
+    "test:master-timeline-video-playback": "node --import tsx --test tests/master-timeline-video-playback.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
