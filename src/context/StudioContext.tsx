@@ -300,10 +300,23 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     message: 'Checking the platform-managed OpenAI connection.',
   });
 
-  // Check AI service endpoint status on mount
+  // Verify the platform-managed OpenAI connection whenever the signed-in session changes.
   useEffect(() => {
-    aiService.checkStatus().then(setAiStatus);
-  }, []);
+    let active = true;
+    if (!authSession?.access_token) {
+      setAiStatus({
+        status: 'preview_mode',
+        providerName: 'OpenAI (VYRA Platform)',
+        modelName: 'gpt-4.1-mini',
+        message: 'Sign in to VYRA to check the platform-managed OpenAI connection.',
+      });
+      return () => { active = false; };
+    }
+    void aiService.checkStatus(authSession.access_token).then((status) => {
+      if (active) setAiStatus(status);
+    });
+    return () => { active = false; };
+  }, [authSession?.access_token]);
 
   // Sync conversations to localStorage
   useEffect(() => {
