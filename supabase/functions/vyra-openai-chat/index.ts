@@ -1126,10 +1126,10 @@ async function createVyralAssetUploadProposal(
   sessionId: string | null,
   rawArguments: string,
   toolCallId: string,
-  attachment: { fileName: string; mimeType: string; sizeBytes: number } | null,
+  attachment: { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null,
 ): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required before preparing an Asset upload preview.');
-  if (!attachment || !attachment.fileName || !attachment.mimeType ||
+  if (!attachment || !isUuid(attachment.clientDraftId) || !attachment.fileName || !attachment.mimeType ||
       !Number.isSafeInteger(attachment.sizeBytes) || attachment.sizeBytes < 1 || attachment.sizeBytes > 100 * 1024 * 1024 ||
       attachment.fileName.length > 255 || /[\\/\u0000-\u001f\u007f]/.test(attachment.fileName)) {
     return safeToolError('Attach the exact source file in this chat before preparing an upload preview. No file was uploaded.');
@@ -1156,7 +1156,7 @@ async function createVyralAssetUploadProposal(
     operation: 'asset.upload',
     target: { vyralId: String(vyral.id) },
     parameters: {
-      clientDraftId: crypto.randomUUID(),
+      clientDraftId: attachment.clientDraftId,
       fileName: attachment.fileName,
       assetName,
       mimeType: attachment.mimeType.toLowerCase(),
