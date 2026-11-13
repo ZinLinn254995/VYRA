@@ -143,6 +143,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.propose_relationship_add', 'Prepare a semantic Asset relationship creation preview'],
     ['asset.propose_relationship_remove', 'Prepare a semantic Asset relationship removal preview'],
     ['asset.propose_archive', 'Prepare a destructive Asset archive confirmation preview without changing the Asset'],
+    ['asset.propose_restore', 'Prepare an exact-confirmation preview to restore one archived Asset'],
   ]),
   ...define('assets', 'autonomous', 'reversible', [
     ['folder.propose_create', 'Prepare a Vyral folder creation preview without creating it'],
