@@ -14,6 +14,19 @@ test('AI Chat history is loaded only for the authenticated owner', () => {
   assert.match(page, /historyOwnerRef\.current !== ownerId/);
 });
 
+test('AI Chat ignores stale authentication history loads before querying or restoring owner state', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const loadStart = page.indexOf('const loadHistory = async');
+  const userLookup = page.indexOf('supabaseClient.auth.getUser()', loadStart);
+  const earlyGuard = page.indexOf('if (!active) return;', userLookup);
+  const historyQuery = page.indexOf("from('vyra_ai_chat_conversations')", earlyGuard);
+  const ownerAssignment = page.indexOf('historyOwnerRef.current = ownerId;', historyQuery);
+  const finalGuard = page.indexOf('if (!active) return;', ownerAssignment);
+  assert.ok(loadStart >= 0 && userLookup > loadStart);
+  assert.ok(earlyGuard > userLookup && earlyGuard < historyQuery);
+  assert.ok(ownerAssignment > historyQuery && finalGuard > ownerAssignment);
+});
+
 test('AI Chat persists text transcripts and safe metadata without attachment bytes', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
   assert.match(page, /from\('vyra_ai_chat_conversations'\)\.upsert\(/);
