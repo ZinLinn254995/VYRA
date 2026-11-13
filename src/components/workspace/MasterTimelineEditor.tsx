@@ -32,6 +32,7 @@ export type TimelineClip = {
   name: string;
   start: number;
   duration: number;
+  sourceIn?: number;
   waveform?: number[];
   content?: string;
   assetId?: string;
@@ -620,6 +621,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     setAudioPreviewClipKey(null);
   };
   const toggleSelectedAudioPreview = async () => {
+    if (masterPlaybackState !== 'idle') stopMasterTimelinePlayback();
     const clip = selectedAudioClipRecord;
     const audio = audioPreviewRef.current;
     if (!clip || !clip.assetId || !clip.assetVersionId || !audio) {
