@@ -63,6 +63,8 @@ jobs:
         run: npm run test:vyral-generated-asset-provenance
       - name: Vyral Asset ingestion lifecycle tests
         run: npm run test:vyral-asset-ingestion
+      - name: Vyral Asset upload action validation tests
+        run: npm run test:vyral-asset-upload-action
       - name: Vyral private Asset playback authorization tests
         run: npm run test:vyral-asset-playback
       - name: Supabase auth verification tests
