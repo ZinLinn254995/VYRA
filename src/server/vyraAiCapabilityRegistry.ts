@@ -148,6 +148,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.propose_move_folder', 'Prepare an Asset move into another folder or the Vyral root'],
   ]),
   ...define('assets', 'autonomous', 'read', [
+    ['folder.list', 'List folders and their hierarchy in the active Vyral'],
     ['asset.list', 'List and search Assets'],
     ['asset.read', 'Read Asset metadata and version details'],
     ['asset.compare', 'Compare Asset versions and reconstructions'],
@@ -156,6 +157,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['asset.relationships.read', 'Read Asset relationships and lineage'],
   ]),
   ...define('assets', 'approval-required', 'reversible', [
+    ['folder.update', 'Create, rename, or move folders and move Assets between folders'],
     ['asset.upload', 'Upload and ingest an Asset'],
     ['asset.update_metadata', 'Edit Asset metadata and tags'],
     ['asset.add_relationship', 'Add an Asset relationship'],
