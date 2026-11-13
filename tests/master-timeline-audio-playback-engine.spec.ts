@@ -41,33 +41,51 @@ function createRuntime() {
   };
 }
 
-test('resolves immutable asset versions and schedules offsets/delays against AudioContext time', async () => {
+test('resolves immutable asset versions and schedules offsets/delays against one AudioContext origin', async () => {
   const mock = createRuntime();
-  const handle = await startMasterTimelineAudioPlayback([{
+  const handle = startMasterTimelineAudioPlayback([{
     trackId: 'track', clipId: 'clip', assetId: 'asset', assetVersionId: 'version',
     delaySeconds: 2, sourceOffsetSeconds: 4, durationSeconds: 6, gain: 0.5,
   }], mock.runtime);
+  await handle.ready;
   assert.deepEqual(mock.urls, ['asset/version']);
-  assert.deepEqual(mock.starts, [{ when: 52, offset: 4, duration: 6 }]);
+  assert.deepEqual(mock.starts, [{ when: 52.05, offset: 4, duration: 6 }]);
+  assert.equal(handle.startTime, 50.05);
   handle.stop();
 });
 
 test('clamps playback to actual decoded source duration', async () => {
   const mock = createRuntime();
-  const handle = await startMasterTimelineAudioPlayback([{
+  const handle = startMasterTimelineAudioPlayback([{
     trackId: 'track', clipId: 'clip', assetId: 'asset', assetVersionId: 'version',
     delaySeconds: 0, sourceOffsetSeconds: 28, durationSeconds: 8, gain: 1,
   }], mock.runtime);
-  assert.deepEqual(mock.starts, [{ when: 50, offset: 28, duration: 2 }]);
+  await handle.ready;
+  assert.deepEqual(mock.starts, [{ when: 50.05, offset: 28, duration: 2 }]);
   handle.stop();
+});
+
+test('stop during pending asset resolution prevents source creation', async () => {
+  const mock = createRuntime();
+  let release!: (url: string) => void;
+  mock.runtime.resolveAssetUrl = async () => new Promise<string>((resolve) => { release = resolve; });
+  const handle = startMasterTimelineAudioPlayback([{
+    trackId: 'track', clipId: 'clip', assetId: 'asset', assetVersionId: 'version',
+    delaySeconds: 0, sourceOffsetSeconds: 0, durationSeconds: 5, gain: 1,
+  }], mock.runtime);
+  handle.stop();
+  release('https://private-signed-url.invalid/audio');
+  await handle.ready;
+  assert.equal(mock.sources.length, 0);
 });
 
 test('stop cancels scheduled audio sources', async () => {
   const mock = createRuntime();
-  const handle = await startMasterTimelineAudioPlayback([{
+  const handle = startMasterTimelineAudioPlayback([{
     trackId: 'track', clipId: 'clip', assetId: 'asset', assetVersionId: 'version',
     delaySeconds: 0, sourceOffsetSeconds: 0, durationSeconds: 5, gain: 1,
   }], mock.runtime);
+  await handle.ready;
   handle.stop();
   assert.equal(mock.sources.length, 1);
 });
