@@ -1119,6 +1119,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     task?: 'suggest_details';
     detailsScope?: 'asset' | 'vyral' | 'storyboard';
     messages?: Array<{ role?: string; content?: string }>;
+    conversationId?: string;
     activeVyralId?: string;
     workspaceContext?: Record<string, unknown>;
     context?: Record<string, unknown>;
@@ -1177,9 +1178,10 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
     try {
       const wantsStream = body.stream === true;
+      const conversationId = typeof body.conversationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.conversationId) ? body.conversationId : undefined;
       const activeVyralId = typeof body.activeVyralId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.activeVyralId) ? body.activeVyralId : undefined;
       const workspaceContext = body.workspaceContext && typeof body.workspaceContext === 'object' && !Array.isArray(body.workspaceContext) ? body.workspaceContext : undefined;
-      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(activeVyralId ? { activeVyralId } : {}), ...(workspaceContext ? { workspaceContext } : {}), ...(wantsStream ? { stream: true } : {}) });
+      const { response, data } = await callOpenAIChatFunction(bearer[1], { messages, ...(conversationId ? { conversationId } : {}), ...(activeVyralId ? { activeVyralId } : {}), ...(workspaceContext ? { workspaceContext } : {}), ...(wantsStream ? { stream: true } : {}) });
       if (wantsStream && response.ok && response.body && (response.headers.get('content-type') ?? '').includes('text/event-stream')) {
         res.status(response.status);
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
