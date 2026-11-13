@@ -1864,6 +1864,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const sizeBytes = typeof operatorAction.sizeBytes === 'number' ? operatorAction.sizeBytes : -1;
         const sourceFile = pendingVyralUploadFilesRef.current.get(clientDraftId);
         const reportUploadFailure = async () => {
+          // Never acknowledge an old account's upload action using a newly signed-in session.
+          if (historyOwnerRef.current !== requestOwnerId ||
+              activeRequestControllerRef.current !== requestController) return;
           if (supabase && actionId) {
             await supabase.functions.invoke('vyra-openai-chat', {
               body: { conversationId: chatSessionId, assetUploadCompletion: { actionId, failed: true } },
