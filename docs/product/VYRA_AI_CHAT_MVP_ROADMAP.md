@@ -741,6 +741,17 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 
 
 
+
+### Master Editor operational understanding — read-only foundation
+
+- Inspected the full current `MasterTimelineEditor.tsx` implementation and its Workspace persistence path before exposing any timeline actions.
+- Added global read tool `get_master_timeline_state`. It loads a Storyboard by UUID with authenticated owner scoping and returns bounded, sanitized current state: actual scene order, Scene durations, instance IDs and source metadata, transition keys/effects/durations, audio/text track IDs and settings, clip IDs/content/start/duration/end, total timeline extent, and item counts.
+- The tool also returns implementation-grounded editor semantics so the model does not assume unsupported behavior: Scene durations are sourced from Storyboard Scene records and currently immutable in Master Editor; `sceneInstances` establish order while sourceIn/sourceOut are not applied to displayed duration; Audio/Text clips use independent seconds and can overlap across tracks; trim respects neighboring clips and a 0.2-second minimum; the centered playhead line is a fixed viewport overlay whose time is derived from horizontal scroll/zoom, not a persisted playback cursor; undo/redo are in-memory; Master preview playback is disabled.
+- Added a system rule requiring the model to read the exact owner-owned Master Timeline before reasoning about timeline changes, preserve unrelated data, use real IDs only, and refuse to claim unsupported edits.
+- Development `vyra-openai-chat` deployed as version 13 with JWT verification enabled. Deployment inspection confirmed the Master Timeline read tool, dispatch allowlist, and editor semantics are in the deployed source.
+- This is a read/understanding foundation only: no Master Timeline write executor is enabled yet, no user timeline data was changed, and no OpenAI live model/browser E2E test was performed because the platform key remains unset. AI Chat UI/CSS and production remain untouched.
+- Next: create a pure, testable Master Timeline operation/validation layer based on these verified editor semantics, then connect one reversible operation at a time with persisted preview/approval and optimistic concurrency. Do not enable duration, source trim, ripple, or playback operations until the editor supports their full dependency behavior.
+
 ### Second persisted AI Operator write adapter — Scene metadata
 
 - Added the global model tool `propose_scene_update`, available from any Workspace page. It requires the owner-scoped parent Storyboard UUID and Scene UUID, and accepts only `title`, `description`, or `transition` with field-specific length limits. It deliberately excludes Scene duration and Timeline clip edits because those affect dependent timing/track data.
