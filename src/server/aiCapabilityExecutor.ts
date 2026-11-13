@@ -65,6 +65,11 @@ export function hasAiCapabilityAdapter(capabilityId: string): boolean {
   return adapters.has(capabilityId);
 }
 
+/** Returns a stable snapshot of adapters actually registered in this runtime. */
+export function listRegisteredAiCapabilityAdapterIds(): string[] {
+  return [...adapters.keys()].sort();
+}
+
 /** Fail-closed dispatcher. No capability is executable merely because it exists in the catalogue. */
 export async function executeAiCapability(
   request: AiExecutionRequest,
