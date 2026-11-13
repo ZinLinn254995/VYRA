@@ -13,7 +13,8 @@ values ('25000000-0000-4000-8000-000000000011','25000000-0000-4000-8000-00000000
  'Asset Restore Test Vyral','{}'::jsonb,'A test Vyral for archive and restore lifecycle.','stale');
 insert into public.vyral_assets (id,vyral_id,user_id,name,original_filename,asset_type,mime_type,size_bytes,storage_path,sha256,processing_status)
 values ('25000000-0000-4000-8000-000000000021','25000000-0000-4000-8000-000000000011',
- 'Reference Image','reference.png','image','image/png',1234,'asset-restore-test/reference.png',repeat('a',64),'ready');
+ '25000000-0000-4000-8000-000000000001','Reference Image','reference.png','image','image/png',1234,
+ 'asset-restore-test/reference.png',repeat('a',64),'ready');
 insert into public.vyral_master_dna_asset_metadata (asset_id,vyral_id,user_id,role,purpose)
 values ('25000000-0000-4000-8000-000000000021','25000000-0000-4000-8000-000000000011',
  '25000000-0000-4000-8000-000000000001','main','Primary reference image for restore lifecycle testing.');
