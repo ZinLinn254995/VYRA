@@ -25,10 +25,23 @@ test('moves a clip into a free position and resolves a single collision like the
   assert.equal(base.audioTracks[0].clips[0].start, 0);
 });
 
-test('rejects ambiguous multi-clip collisions instead of jumping a clip unpredictably', () => {
+test('restores a same-track drop to its original time when the destination gap is too small', () => {
   const crowded = { ...base, textTracks: [{ ...base.textTracks[0], clips: [...base.textTracks[0].clips, { id: 't3', name: 'Third', start: 8, duration: 1 }] }] };
   const result = moveMasterTimelineClip(crowded, 'text', 'text-1', 't', 'text-1', 5.5);
-  assert.deepEqual(result, { ok: false, reason: 'clip-collision' });
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.textTracks[0].clips.find((clip) => clip.id === 't')?.start, 1);
+});
+
+test('restores a cross-track drop to its exact source track and time when multiple clips collide', () => {
+  const crowded = { ...base, audioTracks: [...base.audioTracks, { id: 'audio-2', name: 'Audio 2', clips: [
+    { id: 'c', name: 'C', start: 2, duration: 1 }, { id: 'd', name: 'D', start: 4, duration: 1 },
+  ] }] };
+  const result = moveMasterTimelineClip(crowded, 'audio', 'audio-1', 'b', 'audio-2', 2.5);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.value.audioTracks.find((track) => track.id === 'audio-1')?.clips.find((clip) => clip.id === 'b')?.start, 6);
+    assert.equal(result.value.audioTracks.find((track) => track.id === 'audio-2')?.clips.length, 2);
+  }
 });
 
 test('moves a clip across tracks of the same media kind without mutating the source snapshot', () => {
