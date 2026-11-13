@@ -292,3 +292,11 @@ test('OpenAI Edge Function bounds raw request bytes and validates chat history b
   assert.match(edge, /content as string\)\.length > 12000/);
   assert.match(edge, /totalChars > 30000/);
 });
+
+
+test('OpenAI Edge Function rejects malformed chat message roles and content types', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /incoming\.some\(\(item\) => !isPlainRecord\(item\)/);
+  assert.match(edge, /item\.role !== 'user' && item\.role !== 'assistant'/);
+  assert.match(edge, /typeof item\.content !== 'string'/);
+});
