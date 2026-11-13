@@ -426,6 +426,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setHistoryReady(false);
     setHistoryError(null);
+    const previousOwnerId = historyOwnerRef.current;
+    // Invalidate queued writes immediately while the current auth identity is revalidated.
+    historyOwnerRef.current = null;
     const loadHistory = async () => {
       const { data: userResult, error: userError } = await supabaseClient.auth.getUser();
       if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
@@ -437,7 +440,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         .order('updated_at', { ascending: false })
         .limit(100);
       if (error) throw new Error('Saved chat history is temporarily unavailable.');
-      if (historyOwnerRef.current && historyOwnerRef.current !== ownerId) {
+      if (previousOwnerId && previousOwnerId !== ownerId) {
         setMessages([]);
         setActiveSessionId(null);
         setIsLocked(false);
@@ -510,10 +513,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
   const persistSession = useCallback((session: ChatSession) => {
     const client = supabase;
-    if (!client || !historyOwnerId) return Promise.resolve(false);
+    const ownerId = historyOwnerId;
+    if (!client || !ownerId) return Promise.resolve(false);
 
     // Serialize writes so a slower, older transcript cannot overwrite a newer one.
     const write = historyWriteQueueRef.current.then(async () => {
+      // A queued write must never run after sign-out or an account switch.
+      if (historyOwnerRef.current !== ownerId) return false;
       const storedMessages = session.messages.map((message) => ({
         id: message.id,
         role: message.role,
@@ -524,7 +530,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }));
       const { error } = await client.from('vyra_ai_chat_conversations').upsert({
         id: session.id,
-        user_id: historyOwnerId,
+        user_id: ownerId,
         title: (session.title || 'New chat').slice(0, 160),
         messages: storedMessages,
         archived: Boolean(session.archived),
