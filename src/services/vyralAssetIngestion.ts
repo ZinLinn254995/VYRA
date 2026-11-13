@@ -51,7 +51,7 @@ export type VyralAssetIngestionPort = {
   uploadOriginal(path: string, file: File, mimeType: string): Promise<void>;
   createVersion(record: VyralAssetVersionInsert): Promise<string>;
   createFingerprint(input: { assetId: string; versionId: string; userId: string; sha256: string }): Promise<void>;
-  extractRasterDna(assetId: string, versionId: string): Promise<{ status: string; error?: string }>;
+  extractRasterDna(assetId: string, versionId: string, signal?: AbortSignal): Promise<{ status: string; error?: string }>;
   insertDna(record: VyralAssetDnaInsert): Promise<void>;
   hasDnaRecord(assetId: string, userId: string): Promise<boolean>;
   markReady(assetId: string, userId: string): Promise<void>;
@@ -181,7 +181,9 @@ export async function extractAudioTechnicalMetadata(
     if (AudioContextConstructor && file.size <= 10 * 1024 * 1024 && durationSeconds <= 300) {
       try {
         audioContext = new AudioContextConstructor();
-        const decodePromise = audioContext.decodeAudioData(await file.arrayBuffer());
+        const audioBytes = await file.arrayBuffer();
+        assertActive();
+        const decodePromise = audioContext.decodeAudioData(audioBytes);
         const decoded = await awaitWithAbort(decodePromise, signal);
         assertActive();
         waveformPeaks = buildAudioWaveformPeaks(
@@ -330,7 +332,7 @@ export async function ingestVyralAsset(
     assertNotAborted();
 
     if (rasterDna) {
-      const extraction = await port.extractRasterDna(assetId, versionId);
+      const extraction = await port.extractRasterDna(assetId, versionId, input.signal);
       assertNotAborted();
       if (extraction.status !== 'extracted') {
         const alreadyCommitted = await port.hasDnaRecord(assetId, input.userId);
@@ -449,8 +451,10 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
       });
       if (error) throw error;
     },
-    async extractRasterDna(assetId, versionId) {
-      const { data, error } = await db.functions.invoke('extract-vyral-asset-dna-v3', { body: { assetId, versionId } });
+    async extractRasterDna(assetId, versionId, signal) {
+      const { data, error } = await db.functions.invoke('extract-vyral-asset-dna-v3', {
+        body: { assetId, versionId }, signal,
+      });
       if (!error && data?.status === 'extracted') return { status: 'extracted' };
       let detail = data?.error ?? error?.message ?? 'Server-side DNA extraction did not complete.';
       const response = (error as { context?: Response } | null)?.context;
