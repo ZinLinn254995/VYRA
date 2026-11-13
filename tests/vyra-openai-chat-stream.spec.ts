@@ -58,6 +58,10 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.match(source, /timeline\.update_clip/);
   assert.match(source, /timeline\.add_clip/);
   assert.match(source, /cloneMasterTimelineClip/);
+  assert.match(source, /deleteMasterTimelineClip/);
+  assert.match(source, /timeline\.remove_clip/);
+  assert.match(source, /confirmationPhrase/);
+  assert.match(source, /General approvals do not authorize deletion/);
   assert.match(source, /timelineOperation === 'clone'/);
   assert.match(source, /name: 'propose_master_timeline_transition'/);
   assert.match(source, /transitionBoundaries: orderedScenes\.slice\(0, -1\)/);
