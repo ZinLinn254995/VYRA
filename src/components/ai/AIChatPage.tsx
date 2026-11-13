@@ -363,6 +363,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const historyOwnerRef = useRef<string | null>(null);
   const historyWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const activeRequestControllerRef = useRef<AbortController | null>(null);
+  const chatScrollRef = useRef<HTMLElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -482,6 +484,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       .finally(() => { if (active) setHistoryReady(true); });
     return () => { active = false; };
   }, [isAuthenticated, historyAuthRevision]);
+
+  useLayoutEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container || !shouldAutoScrollRef.current) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: isSending ? 'auto' : 'smooth' });
+  }, [messages, isSending]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -644,6 +652,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       role: 'user',
       content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
     };
+    shouldAutoScrollRef.current = true;
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     setDraft('');
@@ -2080,7 +2089,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         </div>
       </header>
 
-      <section className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth [scrollbar-gutter:stable]">
+      <section ref={chatScrollRef} onScroll={(event) => { const element = event.currentTarget; shouldAutoScrollRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120; }} className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
         {!hasMessages ? (
           <div className="flex min-h-full flex-col items-center justify-center px-4 pb-32 pt-20 text-center">
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
@@ -2163,7 +2172,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               onClick={isSending ? stopGeneration : undefined}
               size="sm"
               className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
-              disabled={(!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
+              disabled={isSending ? false : ((!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext))}
               aria-label={isSending ? "Stop generation" : "Send message"}
               title={isSending ? "Stop generation" : "Send message"}
             >
