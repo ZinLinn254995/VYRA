@@ -1117,7 +1117,7 @@ async function resolvePendingStoryboardApproval(
   if (!pendingRows?.length) return null;
   if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
   const pending = pendingRows[0];
-  if (!['storyboard.update', 'scene.update', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
+  if (!['storyboard.update', 'scene.update', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_transition'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
     return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
   }
   if (reject) {
@@ -1137,7 +1137,9 @@ async function resolvePendingStoryboardApproval(
   const expectedUpdatedAt = parameters.expectedUpdatedAt;
   const sceneId = target.sceneId;
   const isSceneUpdate = pending.capability_id === 'scene.update';
-  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip'].includes(String(pending.capability_id));
+  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_transition'].includes(String(pending.capability_id));
+  const isTimelineTransitionUpdate = pending.capability_id === 'timeline.add_transition';
+  const transitionKey = target.transitionKey;
   const timelineOperation = parameters.operation;
   const timelineKind = parameters.kind;
   const timelineClipId = parameters.clipId;
@@ -1146,20 +1148,26 @@ async function resolvePendingStoryboardApproval(
   const capabilityMatchesOperation =
     (pending.capability_id === 'timeline.move_clip' && ['move','trim'].includes(String(timelineOperation))) ||
     (pending.capability_id === 'timeline.split_clip' && timelineOperation === 'split') ||
-    (pending.capability_id === 'timeline.update_clip' && timelineOperation === 'update_text');
+    (pending.capability_id === 'timeline.update_clip' && timelineOperation === 'update_text') ||
+    (pending.capability_id === 'timeline.add_transition' && timelineOperation === 'set_transition');
   const validTimelineParameters = !isTimelineUpdate || (
     capabilityMatchesOperation &&
-    ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
-    (timelineOperation === 'move'
-      ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-      : timelineOperation === 'trim'
-        ? isUuid(parameters.trackId) && ['start','end'].includes(String(parameters.edge)) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-        : timelineOperation === 'split'
-          ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-          : timelineKind === 'text' && isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
+    (isTimelineTransitionUpdate
+      ? typeof transitionKey === 'string' && transitionKey.length <= 100 &&
+        parameters.transitionKey === transitionKey &&
+        (parameters.effect === null || ['dissolve','fade','wipe','slide','zoom','blur'].includes(String(parameters.effect)))
+      : ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
+        (timelineOperation === 'move'
+          ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+          : timelineOperation === 'trim'
+            ? isUuid(parameters.trackId) && ['start','end'].includes(String(parameters.edge)) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+            : timelineOperation === 'split'
+              ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+              : timelineKind === 'text' && isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
+        )
     )
   );
-  if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || !allowedField || !validTimelineParameters ||
+  if (!isUuid(storyboardId) || (isSceneUpdate && !isUuid(sceneId)) || (isTimelineUpdate && !isTimelineTransitionUpdate && !isUuid(timelineClipId)) || !allowedField || !validTimelineParameters ||
       (!isTimelineUpdate && (typeof value !== 'string' || !value.trim())) ||
       typeof expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(expectedUpdatedAt)) ||
       typeof plan.id !== 'string' || typeof plan.expiresAt !== 'string' ||
@@ -1222,7 +1230,19 @@ async function resolvePendingStoryboardApproval(
       audioTracks: Array.isArray(raw.audioTracks) ? raw.audioTracks : [],
       textTracks: Array.isArray(raw.textTracks) ? raw.textTracks : [],
     } as MasterTimelineData;
-    const result = applyMasterTimelineEdit(timeline, parameters);
+    const rawScenes = Array.isArray(details.scenes) ? details.scenes.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) as Array<Record<string, unknown>> : [];
+    const sceneById = new Map(rawScenes.filter((scene) => typeof scene.id === 'string').map((scene) => [String(scene.id), scene]));
+    const ordered = (Array.isArray(raw.sceneInstances) ? raw.sceneInstances : []).map((instance) => {
+      const item = instance && typeof instance === 'object' && !Array.isArray(instance) ? instance as Record<string, unknown> : {};
+      return typeof item.sceneId === 'string' ? sceneById.get(item.sceneId) : undefined;
+    }).filter((scene): scene is Record<string, unknown> => Boolean(scene));
+    const included = new Set(ordered.map((scene) => String(scene.id)));
+    ordered.push(...rawScenes.filter((scene) => typeof scene.id === 'string' && !included.has(String(scene.id))));
+    const validTransitionKeys = ordered.slice(0, -1).flatMap((scene, index) => {
+      const next = ordered[index + 1];
+      return typeof scene.id === 'string' && typeof next?.id === 'string' ? [scene.id + ':' + next.id] : [];
+    });
+    const result = applyMasterTimelineEdit(timeline, parameters, validTransitionKeys);
     if (!result.ok) return await fail('TIMELINE_RULE_REJECTED', 'The latest Master Timeline no longer satisfies this edit. No change was made; please prepare a fresh preview.');
     const { data: timelineUpdated, error: timelineUpdateError } = await admin.from('vyral_storyboards')
       .update({ details: { ...details, masterTimeline: result.value }, updated_at: new Date().toISOString() })
@@ -1244,12 +1264,12 @@ async function resolvePendingStoryboardApproval(
   const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
     p_status: 'completed',
-    p_result_summary: { storyboardId: updated.id, sceneId: isSceneUpdate ? sceneId : null, clipId: isTimelineUpdate ? timelineClipId : null, operation: isTimelineUpdate ? timelineOperation : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
+    p_result_summary: { storyboardId: updated.id, sceneId: isSceneUpdate ? sceneId : null, clipId: isTimelineUpdate && !isTimelineTransitionUpdate ? timelineClipId : null, transitionKey: isTimelineTransitionUpdate ? transitionKey : null, operation: isTimelineUpdate ? timelineOperation : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
     p_failure_code: null,
   });
   if (finishError) return 'The Storyboard update was applied, but its audit completion could not be confirmed. Please refresh the Storyboard before retrying.';
   return isTimelineUpdate
-    ? 'Approved and saved. Master Timeline edit completed in Storyboard “' + String(updated.title) + '”.'
+    ? (isTimelineTransitionUpdate ? 'Approved and saved. Master Timeline transition updated in Storyboard “' : 'Approved and saved. Master Timeline edit completed in Storyboard “') + String(updated.title) + '”.'
     : isSceneUpdate
       ? 'Approved and saved. Updated the Scene ' + String(field) + ' in Storyboard “' + String(updated.title) + '”.'
       : 'Approved and saved. Storyboard: ' + String(updated.title) + ' — updated ' + String(field) + '.';
