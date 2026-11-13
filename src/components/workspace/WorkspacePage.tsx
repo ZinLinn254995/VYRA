@@ -10,6 +10,7 @@ import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHe
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
+import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
 
@@ -83,6 +84,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
+  const [sceneVideoPreviewUrl, setSceneVideoPreviewUrl] = useState('');
+  const [sceneVideoPreviewLoading, setSceneVideoPreviewLoading] = useState(false);
+  const [sceneVideoPreviewError, setSceneVideoPreviewError] = useState('');
+  const [sceneVideoPreviewSourceIn, setSceneVideoPreviewSourceIn] = useState(0);
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
@@ -415,6 +420,39 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     };
   }, [activeStoryboard?.id]);
 
+
+  useEffect(() => {
+    let cancelled = false;
+    const sceneInstance = activeStoryboard?.details?.masterTimeline?.sceneInstances?.find((item) => item.sceneId === activeSceneId);
+    const assetId = sceneInstance?.assetId;
+    const versionId = sceneInstance?.assetVersionId;
+    const mimeType = sceneInstance?.assetMimeType || '';
+    const sourceIn = sceneInstance?.videoSourceIn ?? 0;
+    setSceneVideoPreviewUrl('');
+    setSceneVideoPreviewError('');
+    setSceneVideoPreviewSourceIn(sourceIn);
+    if (!activeSceneId || !assetId || !versionId || !mimeType.toLowerCase().startsWith('video/')) {
+      setSceneVideoPreviewLoading(false);
+      return () => { cancelled = true; };
+    }
+    if (!supabase) {
+      setSceneVideoPreviewLoading(false);
+      setSceneVideoPreviewError('Private Video Storage is not configured.');
+      return () => { cancelled = true; };
+    }
+    setSceneVideoPreviewLoading(true);
+    void createVyralVideoPlaybackUrl(supabase, { assetId, versionId })
+      .then((result) => { if (!cancelled) setSceneVideoPreviewUrl(result.signedUrl); })
+      .catch((error) => {
+        if (!cancelled) setSceneVideoPreviewError(error instanceof Error ? error.message : 'The private Video Asset could not be opened.');
+      })
+      .finally(() => { if (!cancelled) setSceneVideoPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [
+    activeStoryboard?.id,
+    activeSceneId,
+    activeStoryboard?.details?.masterTimeline?.sceneInstances,
+  ]);
 
   useEffect(() => {
     if (!onAiContextChange) return;
@@ -823,8 +861,34 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               <div className="profile-subpage-content space-y-5 p-4 sm:p-5">
                 <section className="space-y-3">
                   <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Preview</h2>
-                  <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-[var(--vyra-bg-subtle)]">
-                    <div className="text-center"><Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" /><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{scene.description || 'Add media to this scene.'}</p></div>
+                  <div className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-[var(--vyra-bg-subtle)]">
+                    {sceneVideoPreviewUrl ? (
+                      <video
+                        key={sceneVideoPreviewUrl}
+                        src={sceneVideoPreviewUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        onLoadedMetadata={(event) => {
+                          const video = event.currentTarget;
+                          if (sceneVideoPreviewSourceIn > 0 && sceneVideoPreviewSourceIn < video.duration) {
+                            try { video.currentTime = sceneVideoPreviewSourceIn; } catch { /* Browser will seek when metadata is ready. */ }
+                          }
+                        }}
+                        onError={() => {
+                          setSceneVideoPreviewUrl('');
+                          setSceneVideoPreviewError('The private Video Asset could not be played by this browser.');
+                        }}
+                        className="h-full w-full object-contain"
+                        aria-label={scene.title + ' Video preview'}
+                      />
+                    ) : (
+                      <div className="px-4 text-center">
+                        {sceneVideoPreviewLoading ? <Film size={34} className="mx-auto mb-3 animate-pulse text-[var(--vyra-text-muted)]" /> : <Film size={34} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />}
+                        <p className="text-sm font-semibold text-[var(--vyra-text-primary)]">{sceneVideoPreviewLoading ? 'Loading Video…' : scene.title}</p>
+                        <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">{sceneVideoPreviewError || (sceneVideoPreviewUrl ? '' : sceneVideoPreviewLoading ? 'Preparing secure preview.' : scene.description || 'Attach a Video Asset to this Scene through AI Chat.')}</p>
+                      </div>
+                    )}
                   </div>
                 </section>
                 <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
