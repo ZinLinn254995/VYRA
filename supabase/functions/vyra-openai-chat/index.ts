@@ -900,22 +900,43 @@ async function executeVyralReadTool(
   if (name === 'list_vyral_asset_relationships') {
     const requestedLimit = typeof args.limit === 'number' && Number.isInteger(args.limit) ? args.limit : 20;
     const limit = Math.max(1, Math.min(30, requestedLimit));
-    const { data, error } = await admin.from('vyral_lineage')
-      .select('relation_kind,parent_asset_id,child_asset_id,metadata,created_at')
-      .eq('vyral_id', vyralId).eq('user_id', userId)
-      .order('created_at', { ascending: false }).limit(limit);
-    if (error) return safeToolError('Asset relationships could not be loaded.');
-    return { ok: true, relationships: (data ?? []).map((item: Record<string, unknown>) => {
-      const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
-        ? item.metadata as Record<string, unknown> : {};
-      return {
-        type: item.relation_kind,
-        from: item.parent_asset_id,
-        to: item.child_asset_id,
-        rationale: typeof metadata.rationale === 'string' ? metadata.rationale.slice(0, 240) : '',
+    const [semanticResult, lineageResult] = await Promise.all([
+      admin.from('vyral_asset_relationships')
+        .select('id,relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale,evidence_ref,metadata,created_at')
+        .eq('vyral_id', vyralId).eq('user_id', userId)
+        .order('created_at', { ascending: false }).limit(limit),
+      admin.from('vyral_lineage')
+        .select('relation_kind,parent_asset_id,child_asset_id,metadata,created_at')
+        .eq('vyral_id', vyralId).eq('user_id', userId)
+        .order('created_at', { ascending: false }).limit(limit),
+    ]);
+    if (semanticResult.error || lineageResult.error) return safeToolError('Asset relationships could not be loaded.');
+    return {
+      ok: true,
+      semanticRelationships: (semanticResult.data ?? []).map((item: Record<string, unknown>) => ({
+        id: item.id,
+        type: item.relationship_type,
+        from: { kind: item.from_kind, assetId: item.from_asset_id ?? null },
+        to: { kind: item.to_kind, assetId: item.to_asset_id ?? null },
+        rationale: typeof item.rationale === 'string' ? item.rationale.slice(0, 1000) : '',
+        evidenceRef: typeof item.evidence_ref === 'string' ? item.evidence_ref.slice(0, 512) : null,
+        metadata: item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
+          ? item.metadata : {},
         createdAt: item.created_at,
-      };
-    }) };
+      })),
+      generationLineage: (lineageResult.data ?? []).map((item: Record<string, unknown>) => {
+        const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
+          ? item.metadata as Record<string, unknown> : {};
+        return {
+          type: item.relation_kind,
+          fromAssetId: item.parent_asset_id,
+          toAssetId: item.child_asset_id,
+          rationale: typeof metadata.rationale === 'string' ? metadata.rationale.slice(0, 240) : '',
+          createdAt: item.created_at,
+        };
+      }),
+      message: 'Semantic relationships and generation lineage are separate records; this operation is read-only.',
+    };
   }
 
   if (name === 'get_vyral_master_dna_summary') {
