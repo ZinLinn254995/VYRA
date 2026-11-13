@@ -809,3 +809,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Detail reads include bounded Asset inventory, latest available Asset DNA verification metadata, Master DNA status/revision, and latest Master DNA fingerprint. No file bytes or storage paths are exposed.
 - Development `vyra-openai-chat` deployed as version 8 with JWT verification enabled. Deployment succeeded, which confirms the Edge Function source compiled; no OpenAI runtime call was made because the platform key remains unset.
 - Remaining: server-persisted approval/action lifecycle integration and safe write adapters; the broader capability registry remains a policy catalogue, not 153 live executors.
+
+### Master Timeline transition editing — implementation in progress
+
+- Inspected the actual MasterTimelineEditor transition controls. Supported effects are exactly `dissolve`, `fade`, `wipe`, `slide`, `zoom`, and `blur`; the editor's None control removes a transition. Applying a new effect preserves the current duration, or uses the editor default of 0.5 seconds when no transition exists. There is no duration-edit control in the current UI, so AI does not invent one.
+- Added the pure `updateMasterTimelineTransition` operation. It accepts only one of the six editor-supported effects or removal, requires the transition key to be in the exact adjacent-Scene boundary allowlist, preserves existing duration, and leaves unrelated timeline data untouched. Unit tests cover adding, changing, removing, unsupported effects, and non-adjacent keys.
+- Added `propose_master_timeline_transition` to the Development Edge Function tool contract. It loads the owner-owned Storyboard, derives Scene ordering exactly like `MasterTimelineEditor`, verifies the requested transition key is a real adjacent Scene boundary, and stores a 10-minute preview bound to the same user and chat session.
+- Transition changes use the existing `timeline.add_transition` approval-required capability and persisted pending-action lifecycle. Approval re-reads the exact Storyboard snapshot, re-derives valid adjacency, applies the operation, and saves only `details.masterTimeline` with an optimistic `updated_at` guard. Rejection/expiry/stale snapshots do not modify the Timeline.
+- The preview reports current and proposed effect/duration. `none` removes the transition. The AI Chat UI and CSS are untouched.
+- Source and Edge Function operation modules are synchronized. GitHub Actions is still running for the integrated Edge Function changes; no claim of CI success until the run completes.
+- Not yet deployed to Development. No API key, live OpenAI call, user Timeline mutation, production database/deployment, or merge.
