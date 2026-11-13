@@ -88,6 +88,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [sceneVideoPreviewLoading, setSceneVideoPreviewLoading] = useState(false);
   const [sceneVideoPreviewError, setSceneVideoPreviewError] = useState('');
   const [sceneVideoPreviewSourceIn, setSceneVideoPreviewSourceIn] = useState(0);
+  const [sceneVideoPreviewSourceOut, setSceneVideoPreviewSourceOut] = useState<number | null>(null);
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
@@ -431,6 +432,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     setSceneVideoPreviewUrl('');
     setSceneVideoPreviewError('');
     setSceneVideoPreviewSourceIn(sourceIn);
+    setSceneVideoPreviewSourceOut(typeof sceneInstance?.videoSourceOut === 'number' ? sceneInstance.videoSourceOut : null);
     if (!activeSceneId || !assetId || !versionId || !mimeType.toLowerCase().startsWith('video/')) {
       setSceneVideoPreviewLoading(false);
       return () => { cancelled = true; };
@@ -452,6 +454,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     activeStoryboard?.id,
     activeSceneId,
     activeStoryboard?.details?.masterTimeline?.sceneInstances,
+    sceneVideoPreviewSourceOut,
   ]);
 
   useEffect(() => {
@@ -873,6 +876,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                           const video = event.currentTarget;
                           if (sceneVideoPreviewSourceIn > 0 && sceneVideoPreviewSourceIn < video.duration) {
                             try { video.currentTime = sceneVideoPreviewSourceIn; } catch { /* Browser will seek when metadata is ready. */ }
+                          }
+                        }}
+                        onTimeUpdate={(event) => {
+                          if (sceneVideoPreviewSourceOut !== null && event.currentTarget.currentTime >= sceneVideoPreviewSourceOut) {
+                            event.currentTarget.pause();
                           }
                         }}
                         onError={() => {
