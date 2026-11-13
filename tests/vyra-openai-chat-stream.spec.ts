@@ -218,7 +218,7 @@ test('OpenAI browser stream supports explicit cancellation and reports truncated
 
 test('OpenAI browser stream cancels the response reader after the terminal SSE event', () => {
   const service = read('src/services/aiService.ts');
-  assert.match(service, /if \(finished\) \{[\s\S]*?await reader\.cancel\(\)[\s\S]*?break;/);
+  assert.match(service, /if \(finished \|\| streamError\) \{[\s\S]*?await reader\.cancel\(\)[\s\S]*?break;/);
   assert.match(service, /reader\.releaseLock\(\)/);
 });
 
