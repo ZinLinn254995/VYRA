@@ -284,3 +284,14 @@ test('AI Chat revalidates account ownership before irreversible Workspace and As
   assert.ok(masterSync > 0 && uploadSummary > masterSync);
   assert.ok(block.lastIndexOf('assertRequestCurrent();', uploadSummary) > masterSync);
 });
+
+test('AI Chat checks request ownership after every Supabase await in a turn', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const start = page.indexOf('const sendMessage = async');
+  const end = page.indexOf('const handleFileSelection', start);
+  const block = page.slice(start, end);
+  assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\)/);
+  assert.doesNotMatch(block, /await supabase\s*\./);
+  assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 40);
+  assert.match(block, /const accessToken = await getCurrentAccessToken\(\);\s*assertRequestCurrent\(\);/);
+});
