@@ -48,6 +48,7 @@ export function startMasterTimelineVideoPlayback(
   let lastTimelineTime = 0;
   let sourceReady = false;
   let playBlocked = false;
+  let playPendingToken: number | null = null;
   let loadToken = 0;
 
   const report = (error: unknown) => {
@@ -61,8 +62,14 @@ export function startMasterTimelineVideoPlayback(
     if (Math.abs(video.currentTime - offset) > DRIFT_CORRECTION_SECONDS) {
       try { video.currentTime = offset; } catch { /* Metadata may not permit seeking yet. */ }
     }
-    if (video.paused) {
-      try { await video.play(); } catch (error) { playBlocked = true; report(error); }
+    if (video.paused && playPendingToken !== token) {
+      playPendingToken = token;
+      try { await video.play(); }
+      catch (error) {
+        if (token === loadToken) { playBlocked = true; report(error); }
+      } finally {
+        if (playPendingToken === token) playPendingToken = null;
+      }
     }
   };
 
