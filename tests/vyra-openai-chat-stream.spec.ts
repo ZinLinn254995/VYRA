@@ -132,13 +132,13 @@ test('AI Audio Asset Timeline insertion derives duration and waveform from sourc
 
 test('AI Scene Video attachment is owner-scoped, version-verified, approval-gated, and read back', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
-  assert.match(source, /operation: \\{ type: 'string', enum: \\[.*attach_video/s);
-  assert.match(source, /asset_type', 'video'/);
-  assert.match(source, /video_technical_metadata/);
-  assert.match(source, /videoTechnical\\.sourceSha256 !== videoVersionResult\\.data\\.sha256/);
-  assert.match(source, /timeline\\.attach_video/);
-  assert.match(source, /attachMasterTimelineVideoAsset/);
-  assert.match(source, /VIDEO_ASSET_VERSION_CHANGED/);
-  assert.match(source, /attachedVideoAssetVersionId/);
-  assert.match(source, /assetVersionId: typeof instance\\.assetVersionId === 'string'/);
+  assert.ok(source.includes("enum: ['add_text','add_audio','attach_video'"));
+  assert.ok(source.includes(".eq('asset_type', 'video')"));
+  assert.ok(source.includes('video_technical_metadata'));
+  assert.ok(source.includes('videoTechnical.sourceSha256 !== videoVersionResult.data.sha256'));
+  assert.ok(source.includes('timeline.attach_video'));
+  assert.ok(source.includes('attachMasterTimelineVideoAsset'));
+  assert.ok(source.includes('VIDEO_ASSET_VERSION_CHANGED'));
+  assert.ok(source.includes('attachedVideoAssetVersionId'));
+  assert.ok(source.includes("assetVersionId: typeof instance.assetVersionId === 'string'"));
 });
