@@ -942,3 +942,16 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Added tests for shared scheduling origin, decoded-duration clamping, pending-load cancellation, and scheduled-source stop. Tests are committed but not yet confirmed passing in CI.
 - This is audio-only playback. Scene video/transition rendering is not connected; pause/resume currently stops at the current Playhead and a subsequent Play starts again from that position. Seek-during-playback, continuous pause/resume without re-fetching, scene preview, audio export/mixdown, and browser verification against a real private Asset remain outstanding.
 - No AI Chat UI/CSS changes. No Supabase database/Edge Function, API key, user Timeline data, Production environment, merge, or Production deployment was changed.
+
+
+## Master Timeline Audio transport — Pause, Resume and Seek
+
+- Extended the existing Master Timeline Play/Pause control without redesigning the toolbar or changing the AI Chat UI.
+- Pause suspends the shared Web Audio context, preserving the currently scheduled AudioBufferSource positions and pending clips. Resume resumes the same context and continues the same playback session rather than fetching/restarting the sources.
+- While playing, manual horizontal scrolling is treated as a seek. The current session is cancelled and a new playback plan is built from the settled Playhead time after a short debounce, preserving multi-track alignment.
+- Manual seeking while paused invalidates the old suspended sources; the next Play starts from the newly selected Playhead time.
+- Programmatic Playhead scrolling is distinguished from user scrolling so playback does not accidentally seek itself.
+- Added a regression contract test for pause, resume, active seek, paused seek and existing transport UI preservation.
+- GitHub Actions CI passed for the pause/resume implementation and TypeScript check on commit `dc8e246fefc3bd6f5233cb34c8f9b45d3401ccd0`. Follow-up paused-seek and regression-test commits are queued for CI verification.
+- Real browser testing with a private Audio Asset is still required. This transport currently plays Audio only; video preview, rendered transition playback, continuous mixed export and waveform-based rendering remain future work.
+- No AI Chat UI/CSS changes, Production changes, database migrations, provider keys, customer charges, merge, or Production deployment.
