@@ -956,3 +956,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - GitHub Actions CI passed for the pause/resume implementation and TypeScript check on commit `dc8e246fefc3bd6f5233cb34c8f9b45d3401ccd0`. Follow-up paused-seek and regression-test commits are queued for CI verification.
 - Real browser testing with a private Audio Asset is still required. This transport currently plays Audio only; video preview, rendered transition playback, continuous mixed export and waveform-based rendering remain future work.
 - No AI Chat UI/CSS changes, Production changes, database migrations, provider keys, customer charges, merge, or Production deployment.
+
+
+## Master Timeline private Video Asset playback foundation
+
+- Generalized the existing owner-verified private media playback URL path to support exact immutable Video Asset Versions as well as Audio. Video resolution requires the signed-in owner, `asset_type='video'`, ready processing status, matching immutable Version ownership, a `video/*` MIME type, and a safe owner/Vyral/Asset-scoped private Storage path. Signed URLs remain short-lived (one hour) and are never persisted.
+- Added `createVyralVideoPlaybackUrl`; the existing Audio playback API remains compatible through its Audio-specific wrapper.
+- Added a deterministic Master Timeline Video playback planner. It follows the current Editor's contiguous Scene-duration ordering, honors explicit Scene instance order, resolves each source by immutable Asset and Version IDs, calculates source offsets/delays for seek positions, and ignores unverified/non-video references.
+- Added authorization tests for Video Asset ownership, ready status, MIME type, immutable Version, and unsafe Storage paths, plus planner tests for Scene ordering, seek, source offsets, missing references, and completed Scenes.
+- This is a secure URL and scheduling foundation only. Video references are not yet attached to Scene instances by the UI/AI, the planner is not wired to a Video element or transport, and transitions are not rendered. No claim of working Video Preview is made.
+- No AI Chat UI/CSS, database, Edge Function, provider key, customer charge, Production environment, merge, or Production deployment was changed.
