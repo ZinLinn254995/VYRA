@@ -62,12 +62,12 @@ test('ingests raster files only after server DNA v3 succeeds and then marks read
 });
 
 test('forwards the active cancellation signal into server-side raster DNA extraction', async () => {
-  const { port, rasterSignal } = makePort();
+  const fixture = makePort();
   const controller = new AbortController();
-  await ingestVyralAsset(port, {
+  await ingestVyralAsset(fixture.port, {
     vyralId, userId, file: makeFile('image.png', 'image/png'), signal: controller.signal,
   });
-  assert.equal(rasterSignal, controller.signal);
+  assert.equal(fixture.rasterSignal, controller.signal);
 });
 
 test('uses the AI-approved display name while preserving the original source filename', async () => {
