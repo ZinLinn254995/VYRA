@@ -225,6 +225,7 @@ class ModularAIService implements AIServiceProvider {
       let usage: AIServiceResult['usage'] = null;
       let streamModel = this.model;
       let operatorAction: Record<string, unknown> | undefined;
+      let streamError: string | null = null;
       const encodedOperatorAction = response.headers.get('X-Vyra-Operator-Action');
       if (encodedOperatorAction) {
         try { const parsed: unknown = JSON.parse(decodeURIComponent(encodedOperatorAction)); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) operatorAction = parsed as Record<string, unknown>; } catch { /* Ignore malformed non-authoritative metadata. */ }
@@ -242,8 +243,15 @@ class ModularAIService implements AIServiceProvider {
             choices?: Array<{ delta?: { content?: string | null } }>;
             usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
             vyra_action?: Record<string, unknown>;
+            error?: { message?: string; type?: string; code?: string };
           };
           if (typeof event.model === 'string') streamModel = event.model;
+          if (event.error && typeof event.error === 'object') {
+            streamError = typeof event.error.message === 'string' && event.error.message.trim()
+              ? event.error.message.trim().slice(0, 500)
+              : 'OpenAI stopped the response unexpectedly. Please retry.';
+            return;
+          }
           if (event.vyra_action && typeof event.vyra_action === 'object' && !Array.isArray(event.vyra_action)) operatorAction = event.vyra_action;
           const chunk = event.choices?.[0]?.delta?.content;
           if (typeof chunk === 'string' && chunk.length) {
@@ -287,6 +295,9 @@ class ModularAIService implements AIServiceProvider {
         reader.releaseLock();
       }
 
+      if (streamError) {
+        return { content: streamError, status: 'error', errorMessage: streamError, providerName: 'OpenAI', modelName: streamModel };
+      }
       if (!finished) {
         const message = 'The connection ended before the response was complete. Please retry.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
