@@ -95,6 +95,31 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'propose_master_timeline_edit',
+      description: "Prepare a reversible edit to an existing Audio/Text clip in the owner's Master Timeline. Supported operations: move, trim, split, update_text. This only creates a preview; do not claim anything changed until explicit approval in this same chat.",
+      parameters: {
+        type: 'object',
+        properties: {
+          storyboard_id: { type: 'string' },
+          operation: { type: 'string', enum: ['move', 'trim', 'split', 'update_text'] },
+          kind: { type: 'string', enum: ['audio', 'text'] },
+          clip_id: { type: 'string' },
+          source_track_id: { type: 'string' },
+          destination_track_id: { type: 'string' },
+          track_id: { type: 'string' },
+          edge: { type: 'string', enum: ['start', 'end'] },
+          time: { type: 'number', description: 'Timeline time in seconds; absolute drop position for move, absolute trim edge or split point for trim/split.' },
+          field: { type: 'string', enum: ['name', 'content'] },
+          value: { type: 'string' },
+        },
+        required: ['storyboard_id', 'operation', 'clip_id'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'propose_scene_update',
       description: "Prepare a reversible edit to a Scene owned by the signed-in user. Only title, description, or transition can be changed. This creates a preview; never claim the Scene is saved until explicit approval in this same chat.",
       parameters: {
