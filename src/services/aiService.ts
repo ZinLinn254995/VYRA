@@ -154,6 +154,16 @@ class ModularAIService implements AIServiceProvider {
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
 
+    const requestController = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      requestController.abort();
+    }, 120_000);
+    const abortFromCaller = () => requestController.abort();
+    if (request.signal?.aborted) requestController.abort();
+    else request.signal?.addEventListener('abort', abortFromCaller, { once: true });
+
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
@@ -163,7 +173,7 @@ class ModularAIService implements AIServiceProvider {
           Authorization: 'Bearer ' + request.accessToken,
           ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
         },
-        signal: request.signal,
+        signal: requestController.signal,
         body: JSON.stringify({
           stream: true,
           messages: request.messages.filter((message) => message.role !== 'system'),
@@ -285,12 +295,23 @@ class ModularAIService implements AIServiceProvider {
         usage,
       };
     } catch (error) {
-      if (request.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+      if (request.signal?.aborted) {
+        const message = 'Generation stopped.';
+        return { content: message, status: 'error', errorMessage: message, cancelled: true, providerName: 'OpenAI', modelName: this.model };
+      }
+      if (timedOut) {
+        const message = 'This response took too long. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+      }
+      if (error instanceof Error && error.name === 'AbortError') {
         const message = 'Generation stopped.';
         return { content: message, status: 'error', errorMessage: message, cancelled: true, providerName: 'OpenAI', modelName: this.model };
       }
       const message = 'Could not reach VYRA AI Chat. Check your connection and retry.';
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+    } finally {
+      clearTimeout(timeoutId);
+      request.signal?.removeEventListener('abort', abortFromCaller);
     }
   }
 
