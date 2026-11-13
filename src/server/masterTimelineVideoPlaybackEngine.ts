@@ -9,7 +9,7 @@ export type MasterTimelineVideoElement = {
   pause: () => void;
   load: () => void;
   removeAttribute?: (name: string) => void;
-  addEventListener: (type: string, listener: EventListener, options?: unknown) => void;
+  addEventListener: (type: string, listener: EventListener, options?: boolean | AddEventListenerOptions) => void;
   removeEventListener: (type: string, listener: EventListener) => void;
 };
 
