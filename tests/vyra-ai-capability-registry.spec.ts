@@ -13,6 +13,7 @@ test('catalogues broad app-wide AI capabilities without granting unimplemented e
   assert.ok(summary.domains.length >= 12);
   assert.ok(getAiCapabilityPolicy('timeline.move_clip'));
   assert.ok(getAiCapabilityPolicy('timeline.add_transition'));
+  assert.ok(getAiCapabilityPolicy('timeline.add_clip'));
   assert.ok(getAiCapabilityPolicy('asset.verify'));
   assert.ok(getAiCapabilityPolicy('generation.video'));
   assert.ok(getAiCapabilityPolicy('marketplace.publish_listing'));
