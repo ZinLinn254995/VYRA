@@ -896,3 +896,12 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Selecting a linked Audio Asset clip exposes a small Play/Pause control in the existing selected-Audio toolbar. It auditions the original source file; it does not yet represent timeline-synchronized playback, trim-aware playback, track mixing, or Master preview playback.
 - Legacy placeholder Audio clips without an Asset/Version reference cannot be previewed. Synthetic placeholder waveforms were removed; only measured source waveform samples are drawn.
 - Added authorization tests for owner binding, ready/audio checks, immutable Version binding, path safety, and signed URL TTL.
+
+
+### Audio preview verification and Development Edge Function v33
+
+- GitHub Actions run `43382488345` completed successfully on `feature/my-storyboard`: TypeScript check, AI/action/timeline tests, Asset ingestion and private playback authorization tests, Deno Edge Function type-check, and production build all passed.
+- Cloudflare Workers branch Preview build `bdaa655c-4285-420a-9a49-63e74e744f4a` completed successfully for `feature-my-storyboard`.
+- Deployed the current AI Chat Edge Function source to Development Supabase as `vyra-openai-chat` version 33, ACTIVE, with JWT verification enabled. Post-deploy inspection confirmed the SHA-bound Audio Version metadata checks, derived duration, waveform handling, and strict type-narrowed approval code.
+- This remains a Development/branch-preview change. No production Supabase function or database deployment, no merge, no provider API key, and no live OpenAI request.
+- Browser-level playback against an actual user-owned Audio Asset is still pending. The current feature is a source-file audition control, not full Master Timeline playback or audio mixing.
