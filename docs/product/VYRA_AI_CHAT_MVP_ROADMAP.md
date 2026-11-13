@@ -713,3 +713,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Adapter registration rejects unknown capabilities and duplicate registrations. Execution results are returned only after the adapter and success-audit operation complete; failures are reported without claiming success.
 - Added tests for unimplemented capability refusal, unknown operation refusal, human-only boundaries, approval gating, owner verification, adapter validation/registration, and audit ordering. Registered `test:ai-capability-executor` in package scripts and CI.
 - This is the reusable execution boundary, not yet the complete live integration: individual app domains still need narrowly scoped adapters and server-persisted approval/idempotency records. No UI changes, provider keys, production deployment, or merge.
+
+
+### AI Operator pending-action persistence — database foundation
+
+- Added a Development-ready migration for `ai_operator_pending_actions` and `ai_operator_action_audit`.
+- Pending actions are scoped to the authenticated owner and chat session, have short expiry windows, bounded JSON plans, and an idempotency key. Reusing an idempotency key with a different capability or plan is rejected.
+- Browser access is read-only and owner-scoped through RLS. All lifecycle writes are restricted to service-role RPCs intended to be called only from an authenticated Edge Function.
+- Added atomic RPC transitions for propose, approve, reject, claim-for-execution, and finish (completed/failed). Approval and claim both re-check owner, session, status, and expiry in the database. Audit events are deduplicated per action/event.
+- This migration is committed but has **not yet been applied** to Development. The Edge Function does not yet call these RPCs; there is no live model-driven write execution. That integration is the next step.
+- No production database changes, UI changes, provider calls, or customer charges.
