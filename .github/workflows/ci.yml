@@ -35,6 +35,8 @@ jobs:
         run: npm run test:ai-capabilities
       - name: VYRA AI capability executor security tests
         run: npm run test:ai-capability-executor
+      - name: VYRA AI capability implementation coverage tests
+        run: npm run test:ai-capability-coverage
       - name: Master Timeline operation validation tests
         run: npm run test:master-timeline-operations
       - name: Master Timeline audio playback planner tests
