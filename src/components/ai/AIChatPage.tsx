@@ -715,8 +715,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     activeRequestControllerRef.current = requestController;
     const assertRequestCurrent = () => {
       if (activeRequestControllerRef.current !== requestController ||
-          historyOwnerRef.current !== requestOwnerId) {
-        throw new DOMException('This chat request belongs to a previous account.', 'AbortError');
+          historyOwnerRef.current !== requestOwnerId ||
+          requestController.signal.aborted) {
+        throw new DOMException('This chat request is no longer active.', 'AbortError');
       }
     };
     const awaitForCurrentRequest = async <T,>(operation: PromiseLike<T>): Promise<T> => {
