@@ -50,10 +50,16 @@ export function buildMasterTimelineVideoPlaybackPlan(
     }
   }
 
-  const orderedScenes = instances?.length
+  const orderedSceneIds: string[] = [];
+  for (const instance of instances || []) {
+    if (instance && sceneById.has(instance.sceneId) && !orderedSceneIds.includes(instance.sceneId)) {
+      orderedSceneIds.push(instance.sceneId);
+    }
+  }
+  const orderedScenes = orderedSceneIds.length
     ? [
-        ...instances.map((instance) => sceneById.get(instance.sceneId)).filter((scene): scene is MasterTimelineVideoScene => Boolean(scene)),
-        ...scenes.filter((scene) => !(instances || []).some((instance) => instance.sceneId === scene.id)),
+        ...orderedSceneIds.map((sceneId) => sceneById.get(sceneId) as MasterTimelineVideoScene),
+        ...scenes.filter((scene) => !orderedSceneIds.includes(scene.id)),
       ]
     : scenes;
 
