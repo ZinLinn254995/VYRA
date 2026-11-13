@@ -3776,6 +3776,44 @@ Deno.serve(async (request: Request) => {
   const { data: secret, error: secretError } = await context.supabaseAdmin.rpc('get_vyra_openai_secret');
   if (secretError) return json({ error: 'VYRA could not read the secure AI provider configuration.', code: 'OPENAI_CONFIG_UNAVAILABLE' }, 503);
   const apiKey = typeof secret === 'string' ? secret : '';
+  if (body.healthCheck === true) {
+    if (!apiKey) return json({
+      status: 'preview_mode',
+      provider: 'openai',
+      modelName: 'gpt-4.1-mini',
+      message: 'OpenAI API key has not been configured by a platform administrator yet.',
+    });
+    try {
+      const verification = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + apiKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!verification.ok) return json({
+        status: 'error',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: verification.status === 401 || verification.status === 403
+          ? 'The saved OpenAI API key is no longer accepted. Ask a platform administrator to replace it.'
+          : verification.status === 429
+            ? 'OpenAI is temporarily rate-limiting connection checks. Chat requests can still be attempted.'
+            : 'OpenAI could not verify the saved platform key right now.',
+      });
+      return json({
+        status: 'connected',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: 'Connected to OpenAI with the platform-managed API key.',
+      });
+    } catch {
+      return json({
+        status: 'error',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: 'Could not reach OpenAI to verify the platform connection.',
+      });
+    }
+  }
   if (!apiKey) return json({
     error: 'OpenAI is not configured yet. VYRA AI Chat is ready, but the platform API key will be added during final end-to-end verification.',
     code: 'OPENAI_NOT_CONFIGURED',
