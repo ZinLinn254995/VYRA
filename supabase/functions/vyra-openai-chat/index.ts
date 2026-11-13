@@ -4143,7 +4143,11 @@ Deno.serve(async (request: Request) => {
     }
     if (upstream.status === 429) return json({ error: 'OpenAI rate limit or quota reached. Please try again later.', code: 'OPENAI_RATE_LIMITED' }, 429);
     return json({ error: 'OpenAI could not complete this chat request. Please check the provider configuration and try again.', code: 'OPENAI_REQUEST_FAILED' }, 502);
-  } catch {
+  } catch (error) {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return json({ error: 'OpenAI took too long to respond. Please retry.', code: 'OPENAI_TIMEOUT' }, 504);
+    }
     return json({ error: 'Could not reach the OpenAI service. Please check the connection and retry.', code: 'OPENAI_CONNECTION_FAILED' }, 502);
   }
 });
