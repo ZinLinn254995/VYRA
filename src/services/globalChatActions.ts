@@ -40,7 +40,7 @@ export type GlobalChatStoryboardAction =
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const rawValue = input.trim();
-    /\\b(?:i want|i'd like)\\s+(?:(?:this|that|it)|(?:this|that)\\s+(?:image|picture|file|asset))\\s+(?:in|inside|with|(?:to be\\s+)?part of)\\b/i.test(input) ||
+    /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|(?:to be\s+)?part of)\b/i.test(input) ||
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
