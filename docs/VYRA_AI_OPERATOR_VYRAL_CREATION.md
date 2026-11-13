@@ -77,3 +77,8 @@ Asset ingestion now accepts a validated AI/user-approved display name while pres
 ## AI Chat Asset metadata authoring
 
 The model-driven `propose_vyral_asset_metadata` tool prepares a same-session approval preview for Asset title/display name, description/details, semantic category, tags, keywords and accessibility alt text. The server snapshots the current values and `updated_at`, validates bounded fields, then applies only the approved fields after rechecking owner, session, expiry and optimistic concurrency. Classification data is stored under `metadata.ai_organization` while unrelated metadata keys are preserved. The technical `asset_type` and MIME type remain tied to the actual file and cannot be changed by descriptive metadata edits. Original filename, immutable bytes, versions, DNA and Fingerprints are not modified.
+
+
+## AI Chat Vyral folder organization
+
+The AI Operator can read the active Vyral's real folder tree and direct Asset counts, then prepare same-chat approval previews to create, rename or move folders and to move Assets into folders or back to the Vyral root. Folder hierarchy operations are scoped to the same owner and Vyral; cross-Vyral moves are not included. Folder moves preserve the subtree and prevent cycles. The server rechecks ownership, source location, destination membership and optimistic Asset timestamps before applying an approved action. Folder names are unique within their parent (including root), with database uniqueness constraints providing the final conflict guard. No folder deletion or recursive content deletion is part of this operation.
