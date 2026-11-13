@@ -34,7 +34,8 @@ create table if not exists public.ai_operator_action_audit (
   capability_id text not null,
   event text not null check (event in ('proposed','approved','claimed','completed','rejected','expired','failed')),
   detail jsonb not null default '{}'::jsonb check (pg_catalog.octet_length(detail::text) <= 4000),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (action_id, event)
 );
 
 alter table public.ai_operator_pending_actions enable row level security;
@@ -102,7 +103,8 @@ begin
     if v_row.status='pending' and v_row.expires_at <= pg_catalog.now() then
       update public.ai_operator_pending_actions set status='expired',updated_at=pg_catalog.now() where id=v_row.id returning * into v_row;
       insert into public.ai_operator_action_audit(action_id,user_id,session_id,capability_id,event)
-        values(v_row.id,p_user_id,p_session_id,v_row.capability_id,'expired');
+        values(v_row.id,p_user_id,p_session_id,v_row.capability_id,'expired') on conflict do nothing;
+      return v_row;
     end if;
     raise exception 'Pending action is no longer approvable.' using errcode='55000';
   end if;
@@ -148,7 +150,7 @@ begin
   if coalesce(auth.jwt() ->> 'role','') <> 'service_role' then
     raise exception 'Service role required.' using errcode='42501';
   end if;
-  if p_status not in ('completed','failed') or
+  if p_status is null or p_status not in ('completed','failed') or
      (p_result_summary is not null and pg_catalog.octet_length(p_result_summary::text)>4000) then
     raise exception 'Invalid action completion.' using errcode='22023';
   end if;
