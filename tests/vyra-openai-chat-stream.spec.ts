@@ -200,7 +200,7 @@ test('OpenAI browser stream supports explicit cancellation and reports truncated
   const service = read('src/services/aiService.ts');
   const page = read('src/components/ai/AIChatPage.tsx');
   assert.match(service, /signal\?: AbortSignal/);
-  assert.match(service, /signal: request\.signal/);
+  assert.match(service, /signal: requestController\.signal/);
   assert.match(service, /request\.signal\?\.aborted/);
   assert.match(service, /cancelled: true/);
   assert.match(service, /if \(!finished\)/);
