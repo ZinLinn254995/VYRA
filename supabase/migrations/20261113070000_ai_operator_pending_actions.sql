@@ -79,6 +79,9 @@ begin
   if v_row.user_id <> p_user_id or v_row.session_id <> p_session_id then
     raise exception 'Idempotency scope mismatch.' using errcode='42501';
   end if;
+  if v_row.capability_id <> p_capability_id or v_row.plan <> p_plan then
+    raise exception 'Idempotency key was already used for a different action.' using errcode='23505';
+  end if;
   insert into public.ai_operator_action_audit(action_id,user_id,session_id,capability_id,event)
     values(v_row.id,p_user_id,p_session_id,p_capability_id,'proposed')
     on conflict do nothing;
@@ -113,6 +116,29 @@ begin
     where id=v_row.id returning * into v_row;
   insert into public.ai_operator_action_audit(action_id,user_id,session_id,capability_id,event)
     values(v_row.id,p_user_id,p_session_id,v_row.capability_id,'approved');
+  return v_row;
+end;
+$function$;
+
+
+create or replace function public.reject_ai_operator_pending_action(
+  p_user_id uuid, p_session_id text, p_action_id uuid
+) returns public.ai_operator_pending_actions
+language plpgsql security definer set search_path = ''
+as $function$
+declare v_row public.ai_operator_pending_actions;
+begin
+  if coalesce(auth.jwt() ->> 'role','') <> 'service_role' then
+    raise exception 'Service role required.' using errcode='42501';
+  end if;
+  update public.ai_operator_pending_actions
+    set status='rejected',updated_at=pg_catalog.now()
+    where id=p_action_id and user_id=p_user_id and session_id=p_session_id
+      and status='pending' and expires_at > pg_catalog.now()
+    returning * into v_row;
+  if not found then raise exception 'Pending action cannot be rejected.' using errcode='55000'; end if;
+  insert into public.ai_operator_action_audit(action_id,user_id,session_id,capability_id,event)
+    values(v_row.id,p_user_id,p_session_id,v_row.capability_id,'rejected') on conflict do nothing;
   return v_row;
 end;
 $function$;
@@ -171,8 +197,10 @@ $function$;
 revoke all on function public.create_ai_operator_pending_action(uuid,text,text,text,jsonb,timestamptz) from public,anon,authenticated;
 revoke all on function public.approve_ai_operator_pending_action(uuid,text,uuid) from public,anon,authenticated;
 revoke all on function public.claim_ai_operator_pending_action(uuid,text,uuid) from public,anon,authenticated;
+revoke all on function public.reject_ai_operator_pending_action(uuid,text,uuid) from public,anon,authenticated;
 revoke all on function public.finish_ai_operator_pending_action(uuid,text,uuid,text,jsonb,text) from public,anon,authenticated;
 grant execute on function public.create_ai_operator_pending_action(uuid,text,text,text,jsonb,timestamptz) to service_role;
 grant execute on function public.approve_ai_operator_pending_action(uuid,text,uuid) to service_role;
 grant execute on function public.claim_ai_operator_pending_action(uuid,text,uuid) to service_role;
+grant execute on function public.reject_ai_operator_pending_action(uuid,text,uuid) to service_role;
 grant execute on function public.finish_ai_operator_pending_action(uuid,text,uuid,text,jsonb,text) to service_role;
