@@ -280,7 +280,7 @@ class ModularAIService implements AIServiceProvider {
           buffer = lines.pop() ?? '';
           for (const line of lines) {
             consumeLine(line);
-            if (finished) break;
+            if (finished || streamError) break;
           }
           if (finished || streamError) {
             // Stop reading once the provider sends its terminal event or an in-stream error.
