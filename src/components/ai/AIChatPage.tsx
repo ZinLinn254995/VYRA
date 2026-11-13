@@ -2158,13 +2158,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               className={`col-start-2 row-start-1 w-full max-h-36 min-h-10 min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-appearance:none] [-webkit-tap-highlight-color:transparent]`}
             />
             <Button
-              type="submit"
+              type={isSending ? "button" : "submit"}
+              onClick={isSending ? stopGeneration : undefined}
               size="sm"
               className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
               disabled={(!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
-              aria-label="Send message"
+              aria-label={isSending ? "Stop generation" : "Send message"}
+              title={isSending ? "Stop generation" : "Send message"}
             >
-              {isSending ? <button type="button" onClick={stopGeneration} aria-label="Stop generation" title="Stop generation" className="grid size-9 place-items-center rounded-full text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><span className="size-3.5 rounded-[3px] bg-current" /></button> : <ArrowUp size={17} />}
+              {isSending ? <span className="size-3.5 rounded-[3px] bg-current" /> : <ArrowUp size={17} />}
             </Button>
           </div>
         </form>
