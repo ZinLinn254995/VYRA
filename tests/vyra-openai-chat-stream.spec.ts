@@ -272,3 +272,10 @@ test('AI Chat records user-stopped generations as cancelled rather than retryabl
   assert.match(page, /content: streamedText \? streamedText \+ '\\n\\nGeneration stopped\.' : message, status: 'cancelled'/);
   assert.match(page, /message\.status === 'success' \|\| message\.status === 'preview' \|\| message\.status === 'error' \|\| message\.status === 'cancelled'/);
 });
+
+
+test('OpenAI Edge Function cancels upstream planner and response when the client disconnects', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(45000\)\]\)/);
+  assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(60000\)\]\)/);
+});
