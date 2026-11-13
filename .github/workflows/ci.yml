@@ -45,6 +45,8 @@ jobs:
         run: npm run test:master-timeline-video-playback
       - name: Master Timeline video playback engine tests
         run: npm run test:master-timeline-video-playback-engine
+      - name: Master Timeline Text overlay tests
+        run: npm run test:master-timeline-text-overlay
       - name: Workspace secure Video preview tests
         run: npm run test:workspace-video-preview
       - name: Media model selection policy tests
