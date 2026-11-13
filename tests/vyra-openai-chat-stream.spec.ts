@@ -53,6 +53,13 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.match(source, /\.eq\('vyral_id', vyralId\)\.eq\('user_id', userId\)/);
   assert.match(source, /parallel_tool_calls: false/);
   assert.match(source, /name: 'propose_master_timeline_edit'/);
+  assert.ok(source.includes("enum: ['add_text', 'add_audio', 'move', 'trim', 'split', 'clone', 'update_text', 'delete']"));
+  assert.ok(source.includes("addMasterTimelineAudioAssetClip"));
+  assert.ok(source.includes("timeline.add_audio"));
+  assert.ok(source.includes(".eq('vyral_id', activeVyralId).eq('user_id', userId)"));
+  assert.ok(source.includes("if (timelineOperation === 'add_audio')"));
+  assert.ok(source.includes("audioAssetVersionId"));
+  assert.ok(source.includes("assetVersionId"));
   assert.match(source, /enum: \['add_text', 'move', 'trim', 'split', 'clone', 'update_text', 'delete'\]/);
   assert.match(source, /name: 'addMasterTimelineTextClip'/);
   assert.match(source, /timeline\.add_text/);
