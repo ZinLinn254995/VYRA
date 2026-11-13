@@ -16,6 +16,21 @@ test('OpenAI Edge Function streams SSE and keeps provider credentials server-sid
   assert.match(source, /totalChars > 30000/);
 });
 
+test('OpenAI health checks verify the configured key server-side without returning it', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const route = read('src/server/ai.ts');
+  const service = read('src/services/aiService.ts');
+  const studio = read('src/context/StudioContext.tsx');
+  assert.match(edge, /body\.healthCheck === true/);
+  assert.match(edge, /https:\/\/api\.openai\.com\/v1\/models/);
+  assert.match(edge, /status: 'connected'/);
+  assert.match(edge, /status: 'preview_mode'/);
+  assert.match(edge, /status: 'error'/);
+  assert.match(route, /callOpenAIChatFunction\(bearer\[1\], \{ healthCheck: true \}\)/);
+  assert.match(service, /Authorization: 'Bearer ' \+ accessToken/);
+  assert.match(studio, /aiService\.checkStatus\(authSession\.access_token\)/);
+});
+
 test('Authenticated server route forwards SSE incrementally with backpressure', () => {
   const source = read('src/server/ai.ts');
   assert.match(source, /Accept:\s*payload\.stream === true \? 'text\/event-stream'/);
