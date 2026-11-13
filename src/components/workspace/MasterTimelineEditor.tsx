@@ -662,6 +662,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       return;
     }
     masterPlaybackProgrammaticScrollRef.current = null;
+    if (masterPlaybackState === 'paused') {
+      // A manual seek while paused invalidates the old suspended sources.
+      // The next Play starts cleanly from the newly selected Playhead time.
+      stopMasterTimelinePlayback();
+      return;
+    }
     if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading' && !masterPlaybackSeekPendingRef.current) return;
     if (masterPlaybackSeekTimerRef.current) clearTimeout(masterPlaybackSeekTimerRef.current);
     if (!masterPlaybackSeekPendingRef.current) {
