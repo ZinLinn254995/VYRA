@@ -75,3 +75,18 @@ test('AI Chat conversations support rename, archive restore, and owner-scoped de
   assert.match(page, />Restore</);
   assert.match(page, />Rename</);
 });
+
+
+test('AI Chat renders safe Markdown and copyable fenced code blocks', () => {
+  const renderer = read('src/components/ai/AIChatMessageContent.tsx');
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /<AIChatMessageContent content=\{message\.content\} \/>/);
+  assert.match(renderer, /<strong/);
+  assert.match(renderer, /<em/);
+  assert.match(renderer, /<ul/);
+  assert.match(renderer, /<ol/);
+  assert.match(renderer, /aria-label="Copy code"/);
+  assert.match(renderer, /navigator\.clipboard\?\.writeText/);
+  assert.match(renderer, /overflow-x-auto/);
+  assert.doesNotMatch(renderer, /dangerouslySetInnerHTML|rehypeRaw/i);
+});
