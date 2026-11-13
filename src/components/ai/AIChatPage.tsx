@@ -669,6 +669,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       onLoginRequired();
       return;
     }
+    // Bind this entire turn to the owner whose history is currently validated.
+    const requestOwnerId = historyOwnerRef.current;
+    if (!requestOwnerId || requestOwnerId !== historyOwnerId) return;
     let visionImages = [...selectedVyralImages];
     const mediaFiles: {
       mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac';
@@ -710,6 +713,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setIsSending(true);
     const requestController = new AbortController();
     activeRequestControllerRef.current = requestController;
+    const assertRequestCurrent = () => {
+      if (activeRequestControllerRef.current !== requestController ||
+          historyOwnerRef.current !== requestOwnerId) {
+        throw new DOMException('This chat request belongs to a previous account.', 'AbortError');
+      }
+    };
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
@@ -724,6 +733,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
       if (supabase && text) {
         const { data: authData } = await supabase.auth.getUser();
+        assertRequestCurrent();
+        if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this request.', 'AbortError');
         if (authData.user) {
           const { data: ownedVyrals } = await supabase.from('vyrals')
             .select('id,name,description').eq('user_id', authData.user.id).limit(100);
@@ -797,6 +808,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           }
           if (!supabase) throw new Error('Storyboard deletion is unavailable in this environment.');
           const { data: authData, error: authError } = await supabase.auth.getUser();
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before deleting this Storyboard.');
           const { data: currentCloud, error: loadError } = await supabase.from('vyral_storyboards')
             .select('id,updated_at')
@@ -853,6 +866,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           }
           if (!supabase) throw new Error('Storyboard updates are unavailable in this environment.');
           const { data: authData, error: authError } = await supabase.auth.getUser();
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before updating this Storyboard.');
           const { data: currentCloud, error: loadError } = await supabase.from('vyral_storyboards')
             .select('id,title,topic,created_at,updated_at')
@@ -917,6 +932,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           }
           if (!supabase) throw new Error('Storyboard creation is unavailable in this environment.');
           const { data: authData, error: authError } = await supabase.auth.getUser();
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before creating a Storyboard.');
           const now = new Date().toISOString();
           const storyboard = {
@@ -1858,6 +1875,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
         try {
           const { data: authData, error: authError } = await supabase.auth.getUser();
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before transferring this Asset.');
           const { data: destination, error: destinationError } = await supabase.from('vyrals')
             .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle();
@@ -1918,7 +1937,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setMessages((previous) => [...previous, completedMessage]);
       }
     } catch (error) {
-      if (activeRequestControllerRef.current !== requestController) return;
+      if (activeRequestControllerRef.current !== requestController ||
+          historyOwnerRef.current !== requestOwnerId) return;
       const wasCancelled = requestController.signal.aborted || (error instanceof Error && error.name === 'AbortError');
       const message = wasCancelled ? 'Generation stopped.' : error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
       if (wasCancelled) {
