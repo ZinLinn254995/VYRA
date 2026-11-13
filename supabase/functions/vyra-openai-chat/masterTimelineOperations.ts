@@ -26,6 +26,7 @@ export type MasterTimelineData = {
   sceneInstances?: Array<{
     id: string; sceneId: string; sourceIn: number; sourceOut: number;
     sceneProjectId?: string; renderRevisionId?: string | null;
+    assetId?: string; assetVersionId?: string; assetMimeType?: string;
   }>;
   transitions: Record<string, { effect: string; duration: number }>;
   audioTracks: MasterTimelineTrack[];
@@ -358,3 +359,29 @@ export const updateMasterTimelineTransition = (
   };
 };
 
+
+
+/** Attach one verified immutable Video Asset Version to an existing Scene instance. */
+export const attachMasterTimelineVideoAsset = (
+  timeline: MasterTimelineData,
+  sceneId: string,
+  assetId: string,
+  assetVersionId: string,
+  assetMimeType: string,
+  sourceIn: number,
+  sourceOut: number,
+): TimelineResult => {
+  if (!timeline || !Array.isArray(timeline.sceneInstances)) return fail('invalid-timeline');
+  if (!sceneId || !assetId || !assetVersionId || !/^video\\//i.test(assetMimeType)) return fail('invalid-content');
+  if (!finite(sourceIn) || !finite(sourceOut) || sourceIn < 0 || sourceOut <= sourceIn) return fail('invalid-duration');
+  const index = timeline.sceneInstances.findIndex((instance) => instance.sceneId === sceneId);
+  if (index < 0) return fail('clip-not-found');
+  const current = timeline.sceneInstances[index];
+  if (current.assetId === assetId && current.assetVersionId === assetVersionId && current.assetMimeType === assetMimeType && current.sourceIn === sourceIn && current.sourceOut === sourceOut) {
+    return { ok: true, value: timeline };
+  }
+  const sceneInstances = timeline.sceneInstances.map((instance, position) => position === index
+    ? { ...instance, sourceIn, sourceOut, assetId, assetVersionId, assetMimeType }
+    : instance);
+  return { ok: true, value: { ...timeline, sceneInstances } };
+};
