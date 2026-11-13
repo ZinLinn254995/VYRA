@@ -139,6 +139,7 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
   ...define('assets', 'autonomous', 'reversible', [
     ['asset.propose_upload', 'Prepare an owner-scoped Asset upload preview with an AI-approved display name without transferring file bytes'],
     ['asset.propose_rename', 'Prepare an owner-scoped Asset display-name change preview without changing the original filename or bytes'],
+    ['asset.propose_metadata', 'Prepare an owner-scoped Asset title, description, category, tags, keywords and alt-text update preview'],
   ]),
   ...define('assets', 'autonomous', 'read', [
     ['asset.list', 'List and search Assets'],
