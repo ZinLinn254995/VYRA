@@ -40,7 +40,7 @@ export type GlobalChatStoryboardAction =
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const rawValue = input.trim();
-    /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|(?:to be\s+)?part of)\b/i.test(input) ||
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
@@ -361,7 +361,7 @@ export const isVyralAssetAddIntent = (input: string): boolean => {
     /\buse\s+(?:this|that|it)(?:\s+(?:image|picture|file|asset))?\s+as\s+part\s+of\s+(?:my|our|this|the)?\s*(?:current\s+)?vyral\b/i.test(input) ||
     /\b(?:make|keep)\s+(?:this|that|it)\s+(?:part|one)\s+of\b/i.test(input) ||
     /\b(?:this|that|it)\s+(?:belongs|should go|needs to go)\s+(?:in|into|with)\b/i.test(input) ||
-    /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|part of)\b/i.test(input) ||
+    /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|(?:to be\s+)?part of)\b/i.test(input) ||
     /\b(?:this|that)\s+(?:image|picture|file|asset)\s+(?:should|needs to)\s+be\s+(?:in|inside|part of)\b/i.test(input) ||
     /(?:ထည့်|သိမ်း|ထည့်ပေး|သိမ်းပေး|အဲဒီထဲထား|အဲ့ဒီထဲထား)/.test(input);
 };
