@@ -2,6 +2,7 @@ import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMasterTimelineVideoAsset, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
 import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
+import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreatePendingPlan } from '../../../src/server/vyralCreationAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -14,7 +15,7 @@ const SYSTEM_INSTRUCTION =
   'Help users brainstorm, plan, write scripts, develop storyboards, and understand their creative work. ' +
   'Respond in the language the user uses. Be clear, useful, and honest. ' +
   'Users speak naturally and should never need to memorize command syntax. Infer intent from ordinary conversation, previous turns, attached files, and the active Vyral context. Understand references such as this, that, there, continue it, and the one we were working on. If the user clearly mentions another Vyral, follow that context. Ask one short clarification only when the intended Vyral or action is genuinely ambiguous. Interpret meaning rather than matching fixed phrases: paraphrases, indirect requests, casual Burmese, English, and mixed-language instructions should lead to the same intent when their meaning is clear. Use conversation history and verified Vyral context together; do not ask users to repeat details already established. For multi-step requests, explain or perform only the next safe step, and never invent tool results. ' +
-  'When someone wants to start a Vyral, help them shape its name and purpose in their own words; never force a command template. If essential information is missing, ask one natural, concise question. For any persistent change, present what will happen and wait for the user to approve it through the connected VYRA action. ' +
+  'When someone wants to start a Vyral, help them shape its name and purpose in their own words; never force a command template. If essential information is missing, ask one natural, concise question. Once the name and purpose are clear, call propose_vyral_create to prepare an owner-scoped preview; it creates no database record. Explain the exact name and description, then wait for explicit approval in this same chat. Only after approval may the server create the private Vyral and its initial identity DNA atomically. ' +
   'For a requested Storyboard title or topic change, use propose_storyboard_update only after identifying the exact owner-owned Storyboard; it creates a preview and never changes data. Explain the exact proposed value and wait for approval in this same chat. Never say it is saved until the server confirms the approved update. ' +
   'For a requested Scene title, description, transition, or duration change, first identify the parent Storyboard and exact Scene from owner-scoped records, then use propose_scene_update. Duration must be a finite number of seconds from 0.1 to 3600. This creates a preview only. For duration changes, synchronize the Scene Project timeline clips and Master Timeline metadata; never modify unrelated tracks or scenes. Never say saved until approval and server confirmation. ' +
   'When a request involves the Master Editor or Timeline, first call get_master_timeline_state for the exact owner-owned Storyboard. Understand the actual scene order, durations, transition keys, track IDs, clip start/end/duration, overlaps, gaps, and editor semantics before proposing any change. Treat seconds as timeline time, preserve unrelated data, and do not assume Scene sourceIn/sourceOut trimming, playback cursor, undo history, or preview playback is available. For existing Audio/Text clips, propose move between existing same-kind tracks, start/end trim, split, clone within the same track, Text name/content update, or delete using propose_master_timeline_edit. You may also create a new Text track and timed text overlay with add_text. For music or sound effects, first search the active Vyral Asset inventory using search_vyral_assets with asset_type audio, inspect the exact Asset, then use add_audio with its exact Asset ID. To attach a Video to a Scene, search the active Vyral inventory for asset_type video, inspect the exact Asset, then use attach_video with the exact Scene and Asset IDs; the server verifies the immutable Video Version and duration. VYRA derives the clip duration and waveform from immutable Asset Version metadata; never guess or override source duration. Never invent an Asset or claim audio playback/rendering; the Timeline clip is an immutable Asset-version reference. Deletion is destructive: show the exact clip and exact DELETE CLIP <six-character-code> phrase from the preview, and accept no generic approval for deletion. For transitions, use an exact key from get_master_timeline_state.timeline.transitionBoundaries with propose_master_timeline_transition and only the six supported effects: dissolve, fade, wipe, slide, zoom, blur; use none to remove. Show exact before/after and wait for approval. For Scene order changes, read the complete exact Scene IDs first and use propose_scene_reorder with every Scene exactly once; show before/after order and wait for approval. Never invent a clip, Scene, transition key, or ID. Do not create or delete arbitrary tracks or alter Scene duration through Timeline editing; add_text may create only its dedicated new Text track. Scene creation, duplication and deletion are available only through propose_scene_mutation; deletion requires its exact separate confirmation phrase. Do not claim playback/undo actions through this tool. Clip deletion is available only through its separate exact destructive confirmation phrase; never accept generic approval for it. ' +
@@ -73,6 +74,22 @@ const GLOBAL_READ_TOOLS = [
       parameters: {
         type: 'object',
         properties: { query: { type: 'string', description: 'Optional Vyral name or description keyword.' }, limit: { type: 'integer', minimum: 1, maximum: 30 } },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_vyral_create',
+      description: 'Prepare a private Vyral identity creation preview with its initial identity DNA. This does not create anything until the user approves in this same chat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'The creator-chosen Vyral name, 1–100 characters.' },
+          description: { type: 'string', description: 'The Vyral purpose or description, up to 1000 characters.' },
+        },
+        required: ['name'],
         additionalProperties: false,
       },
     },
@@ -1085,6 +1102,66 @@ async function createMasterTimelineTransitionProposal(
   };
 }
 
+async function createVyralCreateProposal(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  rawArguments: string,
+  toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before creating a Vyral preview.');
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid Vyral creation details.');
+    args = parsed as Record<string, unknown>;
+  } catch { return safeToolError('Invalid Vyral creation details.'); }
+  if (Object.keys(args).some((key) => !['name', 'description'].includes(key)) ||
+      typeof args.name !== 'string' || !args.name.trim() || args.name.trim().length > 100 ||
+      (args.description !== undefined && (typeof args.description !== 'string' || args.description.length > 1000))) {
+    return safeToolError('The Vyral name or description is invalid.');
+  }
+  const name = args.name.trim();
+  const description = typeof args.description === 'string' ? args.description.trim() : '';
+  const vyralId = crypto.randomUUID();
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(),
+    operation: 'vyral.create',
+    target: { vyralId },
+    parameters: { name, description },
+    summary: 'Create private Vyral · ' + name,
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId,
+    p_session_id: sessionId,
+    p_idempotency_key: idempotencyKey,
+    p_capability_id: 'vyral.create',
+    p_plan: plan,
+    p_expires_at: expiresAt.toISOString(),
+  });
+  if (error || !pending) return safeToolError('VYRA could not securely save this Vyral creation preview. Nothing was created.');
+  const storedPlan = parseVyralCreatePendingPlan(pending.plan);
+  if (!storedPlan || storedPlan.target.vyralId !== vyralId) return safeToolError('The saved Vyral preview could not be verified. Nothing was created.');
+  return {
+    ok: true,
+    requiresApproval: true,
+    actionId: pending.id,
+    status: pending.status,
+    vyralId,
+    name,
+    description,
+    visibility: 'private',
+    initialDna: 'created atomically after approval',
+    expiresAt: pending.expires_at,
+    message: 'Preview only; no Vyral or DNA record has been created. Review the name and description, then approve in this same chat.',
+  };
+}
+
 async function createStoryboardUpdateProposal(
   admin: any,
   userId: string,
@@ -1755,6 +1832,7 @@ async function applyPendingStoryboardApprovalLegacy(
  */
 async function resolvePendingStoryboardApproval(
   admin: any,
+  userClient: any,
   userId: string,
   sessionId: string | null,
   latestUserText: string,
@@ -1779,6 +1857,9 @@ async function resolvePendingStoryboardApproval(
   }
 
   const pending = pendingRows[0];
+  if (pending.capability_id === 'vyral.create') {
+    return await executePendingVyralCreateApproval(admin, userClient, userId, sessionId, pending, latestUserText);
+  }
   const supportedWriteCapabilities = [
     'storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate',
     'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip',
@@ -1932,6 +2013,7 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'scene.propose_reorder': 'propose_scene_reorder',
   'timeline.propose_edit': 'propose_master_timeline_edit',
   'timeline.propose_transition': 'propose_master_timeline_transition',
+  'vyral.propose_create': 'propose_vyral_create',
 } as const;
 
 type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
@@ -1942,7 +2024,13 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
     validate: (input, execution) => {
       const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
       if (!runtime.admin || typeof runtime.sessionId !== 'string' || !runtime.sessionId ||
-          typeof runtime.toolCallId !== 'string' || !runtime.toolCallId || !isUuid(input.storyboard_id)) return false;
+          typeof runtime.toolCallId !== 'string' || !runtime.toolCallId) return false;
+      if (capabilityId === 'vyral.propose_create') {
+        return Object.keys(input).every((key) => ['name', 'description'].includes(key)) &&
+          typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
+          (input.description === undefined || (typeof input.description === 'string' && input.description.length <= 1000));
+      }
+      if (!isUuid(input.storyboard_id)) return false;
       if (capabilityId === 'storyboard.propose_update') {
         return Object.keys(input).every((key) => ['storyboard_id', 'field', 'value'].includes(key)) &&
           ['title', 'topic'].includes(String(input.field)) && typeof input.value === 'string';
@@ -1976,6 +2064,9 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       const toolCallId = typeof runtime.toolCallId === 'string' ? runtime.toolCallId : '';
       const rawArguments = JSON.stringify(input);
       if (!admin || !sessionId || !toolCallId) throw new Error('Verified proposal runtime is unavailable.');
+      if (capabilityId === 'vyral.propose_create') {
+        return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
       if (capabilityId === 'storyboard.propose_update') {
         return await createStoryboardUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
       }
@@ -2033,6 +2124,156 @@ for (const capabilityId of APPROVED_WRITE_CAPABILITY_IDS) {
   });
 }
 
+registerAiCapabilityAdapter({
+  capabilityId: 'vyral.create',
+  validate: (input, execution) => {
+    const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+    return Object.keys(input).length === 2 &&
+      isUuid(input.pending_action_id) && isUuid(input.vyral_id) &&
+      Boolean(runtime.admin) && Boolean(runtime.userClient) &&
+      typeof runtime.sessionId === 'string' && runtime.sessionId.length > 0;
+  },
+  execute: async (input, execution) => {
+    const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+    const admin = runtime.admin;
+    const userClient = runtime.userClient;
+    const sessionId = String(runtime.sessionId);
+    const pendingActionId = String(input.pending_action_id);
+    const vyralId = String(input.vyral_id);
+    const { data: pending, error: pendingError } = await admin.from('ai_operator_pending_actions')
+      .select('id,capability_id,plan,expires_at,status')
+      .eq('id', pendingActionId).eq('user_id', execution.userId).eq('session_id', sessionId).maybeSingle();
+    if (pendingError || !pending || pending.status !== 'pending' ||
+        pending.capability_id !== 'vyral.create' || Date.parse(pending.expires_at) <= Date.now()) {
+      return { ok: false, message: 'This Vyral creation approval is no longer valid. Nothing was created.' };
+    }
+    const plan = parseVyralCreatePendingPlan(pending.plan);
+    if (!plan || plan.target.vyralId !== vyralId || Date.parse(plan.expiresAt) <= Date.now()) {
+      return { ok: false, message: 'The Vyral creation preview did not pass its final security check. Nothing was created.' };
+    }
+    const { error: approveError } = await admin.rpc('approve_ai_operator_pending_action', {
+      p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+    });
+    if (approveError) return { ok: false, message: 'VYRA could not record your approval. Nothing was created.' };
+    const { error: claimError } = await admin.rpc('claim_ai_operator_pending_action', {
+      p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+    });
+    if (claimError) return { ok: false, message: 'VYRA could not securely claim this approved action. Nothing was created.' };
+
+    const { data: existing, error: existingError } = await admin.from('vyrals')
+      .select('id,user_id,name,description,metadata').eq('id', vyralId).maybeSingle();
+    if (existingError) throw new Error('Could not verify the Vyral identity before creation.');
+    let creationResult: Record<string, unknown> = {};
+    if (existing) {
+      if (!isSameVyralCreateIdentity(existing, execution.userId, vyralId, plan.parameters.name, plan.parameters.description)) {
+        throw new Error('The generated Vyral identity ID is already in use.');
+      }
+      creationResult = { vyral_id: vyralId, created: false, dna_created: false, recovered_existing: true };
+    } else {
+      const { data, error } = await userClient.rpc('create_vyral_identity_with_dna', {
+        p_vyral_id: vyralId,
+        p_name: plan.parameters.name,
+        p_description: plan.parameters.description,
+      });
+      if (error) {
+        await admin.rpc('finish_ai_operator_pending_action', {
+          p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+          p_status: 'failed', p_failure_code: 'vyral_identity_rpc_failed',
+        });
+        return { ok: false, message: 'VYRA could not create the Vyral and its initial DNA. No success was recorded; please retry from a fresh preview.' };
+      }
+      creationResult = isPlainRecord(data) ? data : {};
+    }
+
+    const { data: verifiedVyral, error: verifyError } = await admin.from('vyrals')
+      .select('id,user_id,name,description,visibility,metadata')
+      .eq('id', vyralId).eq('user_id', execution.userId).maybeSingle();
+    const { data: rootDna, error: dnaError } = await admin.from('vyral_dna_records')
+      .select('id').eq('vyral_id', vyralId).eq('user_id', execution.userId)
+      .eq('scope', 'vyral').is('asset_id', null).limit(2);
+    if (verifyError || dnaError || !verifiedVyral ||
+        !isSameVyralCreateIdentity(verifiedVyral, execution.userId, vyralId, plan.parameters.name, plan.parameters.description) ||
+        !Array.isArray(rootDna) || rootDna.length !== 1) {
+      await admin.rpc('finish_ai_operator_pending_action', {
+        p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+        p_status: 'failed', p_failure_code: 'vyral_creation_verification_failed',
+      });
+      return { ok: false, message: 'VYRA could not verify both the Vyral identity and its single initial DNA record. The result needs recovery; it is not being reported as complete.' };
+    }
+    const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
+      p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+      p_status: 'completed',
+      p_result_summary: { vyral_id: vyralId, name: plan.parameters.name, initial_master_dna_record_id: rootDna[0].id },
+    });
+    if (finishError) throw new Error('The Vyral was created, but its approval record could not be finalized.');
+    return {
+      ok: true,
+      message: 'Created your private Vyral "' + plan.parameters.name + '" and verified its initial identity DNA.',
+      vyral: { id: vyralId, name: plan.parameters.name, visibility: verifiedVyral.visibility },
+      initialDnaRecordId: rootDna[0].id,
+      creation: creationResult,
+    };
+  },
+});
+
+async function executePendingVyralCreateApproval(
+  admin: any,
+  userClient: any,
+  userId: string,
+  sessionId: string,
+  pending: Record<string, unknown>,
+  latestUserText: string,
+): Promise<string> {
+  if (!isVyralCreateApprovalText(latestUserText) || !isUuid(pending.id)) {
+    return 'Please approve the exact Vyral creation preview in this same chat. Nothing was created.';
+  }
+  const plan = parseVyralCreatePendingPlan(pending.plan);
+  if (!plan || Date.parse(String(pending.expires_at)) <= Date.now()) {
+    return 'This Vyral creation preview has expired or is invalid. Nothing was created.';
+  }
+  const authority: AiCapabilityExecutionAuthority = {
+    userAuthenticated: true,
+    isOwnerOrAdmin: false,
+    verifyApproval: async (request) => {
+      if (request.input.pending_action_id !== pending.id || request.input.vyral_id !== plan.target.vyralId) return false;
+      const { data: current, error } = await admin.from('ai_operator_pending_actions')
+        .select('id,capability_id,plan,expires_at,status')
+        .eq('id', pending.id).eq('user_id', userId).eq('session_id', sessionId).maybeSingle();
+      if (error || !current || current.status !== 'pending' || current.capability_id !== 'vyral.create' ||
+          Date.parse(current.expires_at) <= Date.now()) return false;
+      const currentPlan = parseVyralCreatePendingPlan(current.plan);
+      return Boolean(currentPlan && currentPlan.id === plan.id &&
+        currentPlan.target.vyralId === plan.target.vyralId &&
+        currentPlan.parameters.name === plan.parameters.name &&
+        currentPlan.parameters.description === plan.parameters.description);
+    },
+    verifyOwner: async (ownerId, input) => {
+      if (ownerId !== userId || input.vyral_id !== plan.target.vyralId) return false;
+      const { data, error } = await admin.from('vyrals').select('id,user_id,name,description,metadata')
+        .eq('id', plan.target.vyralId).maybeSingle();
+      if (error) return false;
+      return !data || isSameVyralCreateIdentity(data, ownerId, plan.target.vyralId, plan.parameters.name, plan.parameters.description);
+    },
+    audit: async (event) => {
+      const auditEvent = event.outcome === 'started' ? 'claimed'
+        : event.outcome === 'succeeded' ? 'completed' : 'failed';
+      const { error } = await admin.from('ai_operator_action_audit').insert({
+        action_id: null, user_id: event.userId, session_id: sessionId,
+        capability_id: event.capabilityId, event: auditEvent,
+        detail: { requestId: event.requestId, ...(event.reason ? { reason: event.reason } : {}) },
+      });
+      if (error) throw new Error('Vyral creation audit could not be persisted.');
+    },
+  };
+  const result = await executeAiCapability({
+    capabilityId: 'vyral.create', userId, requestId: ('vyral-create-' + pending.id).slice(0, 120),
+    input: { pending_action_id: pending.id, vyral_id: plan.target.vyralId },
+  }, authority, new Date(), { admin, userClient, sessionId });
+  if (!result.ok) return result.message;
+  const data = isPlainRecord(result.data) ? result.data : {};
+  return typeof data.message === 'string' ? data.message : 'The approved Vyral creation completed.';
+}
+
 async function executeSharedProposalCapability(
   admin: any,
   userId: string,
@@ -2048,7 +2289,9 @@ async function executeSharedProposalCapability(
     isOwnerOrAdmin: false,
     verifyApproval: async () => false,
     verifyOwner: async (ownerId, parameters) => {
-      if (ownerId !== userId || !isUuid(parameters.storyboard_id)) return false;
+      if (ownerId !== userId) return false;
+      if (capabilityId === 'vyral.propose_create') return true;
+      if (!isUuid(parameters.storyboard_id)) return false;
       const { data, error } = await admin.from('vyral_storyboards').select('id')
         .eq('id', parameters.storyboard_id).eq('user_id', ownerId).maybeSingle();
       return !error && Boolean(data);
@@ -2294,7 +2537,7 @@ Deno.serve(async (request: Request) => {
   if (totalChars > 30000) return json({ error: 'Chat history is too long. Start a new conversation.' }, 413);
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
-  const approvedActionResult = await resolvePendingStoryboardApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  const approvedActionResult = await resolvePendingStoryboardApproval(context.supabaseAdmin, context.supabase, userId, conversationId, latestUserText);
   if (approvedActionResult !== null) return sseResponse(approvedActionResult);
 
   try {
