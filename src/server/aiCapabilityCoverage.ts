@@ -1,4 +1,5 @@
 import { VYRA_AI_CAPABILITIES, type AiCapabilityAccess } from './vyraAiCapabilityRegistry.ts';
+import { listRegisteredAiCapabilityAdapterIds } from './aiCapabilityExecutor.ts';
 
 export type AiCapabilityCoverageStatus =
   | 'executor-connected'
@@ -80,4 +81,9 @@ export function buildAiCapabilityCoverage(
     capabilities,
     unknownExecutorIds: [...connected].filter((id) => !known.has(id)).sort(),
   };
+}
+
+/** Builds coverage directly from the live server adapter registry. */
+export function buildRuntimeAiCapabilityCoverage(): AiCapabilityCoverageReport {
+  return buildAiCapabilityCoverage(listRegisteredAiCapabilityAdapterIds());
 }
