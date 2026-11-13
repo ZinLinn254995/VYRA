@@ -1091,6 +1091,7 @@ async function createStoryboardUpdateProposal(
   sessionId: string | null,
   rawArguments: string,
   toolCallId: string,
+  activeVyralId: string | null,
 ): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required before creating an action preview.');
   let args: Record<string, unknown>;
@@ -1753,6 +1754,10 @@ const READ_CAPABILITY_TOOLS = {
   'storyboard.read': 'get_my_storyboard_details',
   'timeline.read': 'get_master_timeline_state',
   'vyral.list': 'list_my_vyrals',
+  'vyral.read': 'get_vyral_master_dna_summary',
+  'asset.list': 'search_vyral_assets',
+  'asset.read': 'get_vyral_asset_details',
+  'asset.relationships.read': 'list_vyral_asset_relationships',
 } as const;
 
 type ReadCapabilityId = keyof typeof READ_CAPABILITY_TOOLS;
@@ -1771,14 +1776,37 @@ for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityI
       if (capabilityId === 'storyboard.read') {
         return typeof input.title === 'string' && input.title.trim().length > 0 && input.title.length <= 180;
       }
-      return typeof input.storyboard_id === 'string' &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.storyboard_id);
+      if (capabilityId === 'timeline.read') {
+        return typeof input.storyboard_id === 'string' &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.storyboard_id);
+      }
+      if (capabilityId === 'vyral.read') return Object.keys(input).length === 0;
+      if (capabilityId === 'asset.list') {
+        return (input.query === undefined || (typeof input.query === 'string' && input.query.length <= 100)) &&
+          (input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 20)) &&
+          (input.asset_type === undefined || ['image', 'video', 'audio', 'model_3d', 'archive', 'document', 'other'].includes(String(input.asset_type)));
+      }
+      if (capabilityId === 'asset.read') {
+        const validId = typeof input.asset_id === 'string' &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.asset_id);
+        const validName = typeof input.asset_name === 'string' && input.asset_name.trim().length > 0 && input.asset_name.length <= 180;
+        return validId || validName;
+      }
+      return input.limit === undefined ||
+        (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 30);
     },
     execute: async (input, execution) => {
       const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
       const admin = runtime.admin;
       if (!admin) throw new Error('Authenticated Supabase admin context is unavailable.');
-      return await executeGlobalReadTool(admin, execution.userId, READ_CAPABILITY_TOOLS[capabilityId], JSON.stringify(input));
+      const toolName = READ_CAPABILITY_TOOLS[capabilityId];
+      if (capabilityId === 'asset.list' || capabilityId === 'asset.read' ||
+          capabilityId === 'asset.relationships.read' || capabilityId === 'vyral.read') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
+        if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
+        return await executeVyralReadTool(admin, execution.userId, activeVyralId, toolName, JSON.stringify(input));
+      }
+      return await executeGlobalReadTool(admin, execution.userId, toolName, JSON.stringify(input));
     },
   });
 }
@@ -1799,6 +1827,13 @@ async function executeSharedReadCapability(
     verifyOwner: async (ownerId, parameters) => {
       if (ownerId !== userId) return false;
       if (capabilityId === 'storyboard.list' || capabilityId === 'vyral.list') return true;
+      if (capabilityId === 'asset.list' || capabilityId === 'asset.read' ||
+          capabilityId === 'asset.relationships.read' || capabilityId === 'vyral.read') {
+        if (!activeVyralId) return false;
+        const { data, error } = await admin.from('vyrals').select('id')
+          .eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
+        return !error && Boolean(data);
+      }
       if (capabilityId === 'storyboard.read') {
         const title = String(parameters.title ?? '').trim();
         if (!title) return false;
@@ -1828,7 +1863,7 @@ async function executeSharedReadCapability(
     { capabilityId, userId, requestId, input },
     authority,
     new Date(),
-    { admin },
+    { admin, activeVyralId },
   );
   if (!result.ok) return safeToolError(result.message);
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
@@ -2057,7 +2092,7 @@ Deno.serve(async (request: Request) => {
                 let parsed: unknown;
                 try { parsed = JSON.parse(call.function.arguments || '{}'); } catch { return Promise.resolve(safeToolError('Invalid tool arguments.')); }
                 if (!isPlainRecord(parsed)) return Promise.resolve(safeToolError('Invalid tool arguments.'));
-                return executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsed, call.id);
+                return executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsed, call.id, activeVyralId);
               })()
             : call.function.name === 'propose_scene_mutation'
             ? await createSceneMutationProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id, (() => { try { const args = JSON.parse(call.function.arguments || '{}'); return args.operation === 'delete' ? 'delete' : args.operation === 'create' ? 'create' : 'duplicate'; } catch { return 'duplicate'; } })())
