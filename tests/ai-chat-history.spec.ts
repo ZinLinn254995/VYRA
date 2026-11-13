@@ -297,3 +297,9 @@ test('AI Chat checks request ownership after every Supabase await in a turn', ()
   assert.match(block, /fetch\(signed\.signedUrl, \{ signal: requestController\.signal \}\)/);
   assert.match(block, /const blob = await response\.blob\(\);\s*assertRequestCurrent\(\);/);
 });
+
+
+test('AI Chat ignores streamed chunks when their request no longer belongs to the active account', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /onTextDelta: \(chunk: string\) => \{\s*if \(activeRequestControllerRef\.current !== requestController \|\|\s*historyOwnerRef\.current !== requestOwnerId\) return;/);
+});
