@@ -940,7 +940,7 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Audio left-trimming and splitting now advance the immutable source offset for the resulting clip segments, both in the editor and in the shared AI operation engine. This prevents playback from restarting at the wrong point in the original file after trim/split operations.
 - Fixed the CI workflow so the Master Timeline operation, playback planner, and playback engine suites are separate valid steps.
 - Added tests for shared scheduling origin, decoded-duration clamping, pending-load cancellation, and scheduled-source stop. Tests are committed but not yet confirmed passing in CI.
-- This is audio-only playback. Scene video/transition rendering is not connected; pause/resume currently stops at the current Playhead and a subsequent Play starts again from that position. Seek-during-playback, continuous pause/resume without re-fetching, scene preview, audio export/mixdown, and browser verification against a real private Asset remain outstanding.
+- This is audio-only playback. Scene video/transition rendering is not connected. Pause/resume continues the same AudioContext session, and seeking rebuilds playback from the selected Playhead. Scene preview, audio export/mixdown, and browser verification against a real private Asset remain outstanding.
 - No AI Chat UI/CSS changes. No Supabase database/Edge Function, API key, user Timeline data, Production environment, merge, or Production deployment was changed.
 
 
@@ -951,6 +951,7 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - While playing, manual horizontal scrolling is treated as a seek. The current session is cancelled and a new playback plan is built from the settled Playhead time after a short debounce, preserving multi-track alignment.
 - Manual seeking while paused invalidates the old suspended sources; the next Play starts from the newly selected Playhead time.
 - Programmatic Playhead scrolling is distinguished from user scrolling so playback does not accidentally seek itself.
+- Audio source completion no longer stops the entire Master Timeline transport early. The Playhead continues through the remaining Scene/timeline duration and stops only when the timeline end is reached.
 - Added a regression contract test for pause, resume, active seek, paused seek and existing transport UI preservation.
 - GitHub Actions CI passed for the pause/resume implementation and TypeScript check on commit `dc8e246fefc3bd6f5233cb34c8f9b45d3401ccd0`. Follow-up paused-seek and regression-test commits are queued for CI verification.
 - Real browser testing with a private Audio Asset is still required. This transport currently plays Audio only; video preview, rendered transition playback, continuous mixed export and waveform-based rendering remain future work.
