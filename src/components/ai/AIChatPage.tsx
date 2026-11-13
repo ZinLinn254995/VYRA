@@ -1437,7 +1437,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at')
           .eq('asset_id', selectedAsset.id).eq('status','proposed')
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .order('created_at', { ascending: false }).limit(1).maybeSingle());
         if (pendingError) throw new Error('Could not load the pending DNA improvement proposal: ' + pendingError.message);
         if (!pending) throw new Error('There is no pending DNA improvement proposal for this Asset. Run a fresh DNA assessment first.');
         const { data: review, error: reviewError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
