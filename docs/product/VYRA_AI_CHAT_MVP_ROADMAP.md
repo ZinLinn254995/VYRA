@@ -886,3 +886,13 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Unsupported browser codecs may yield no technical metadata. The Asset remains stored and usable as a file, but cannot yet be inserted as a duration-aware Timeline clip; a server-side audio analysis path remains future work.
 - Waveform peaks are real decoded-audio measurements, not generated decorative samples. No signed Storage URL is persisted in Timeline JSON.
 - This does not yet add audio playback, timeline mixing, Master preview playback, or final video rendering.
+
+
+### Secure Master Timeline Audio source preview
+
+- Added a client-side playback service that obtains the current authenticated user from Supabase, verifies the exact ready Audio Asset and immutable Version under owner-scoped RLS, checks the MIME type and canonical private Storage path, then creates a one-hour signed URL from the private `vyral-assets` bucket.
+- Development database inspection confirmed `vyral-assets` is private, the Storage SELECT policy is scoped to the user's own first path segment, and both Asset and Asset Version tables have owner-scoped SELECT RLS.
+- The signed URL is kept only in the in-memory audio element for preview; it is not written into Storyboard JSON, Timeline clips, local storage, or the database.
+- Selecting a linked Audio Asset clip exposes a small Play/Pause control in the existing selected-Audio toolbar. It auditions the original source file; it does not yet represent timeline-synchronized playback, trim-aware playback, track mixing, or Master preview playback.
+- Legacy placeholder Audio clips without an Asset/Version reference cannot be previewed. Synthetic placeholder waveforms were removed; only measured source waveform samples are drawn.
+- Added authorization tests for owner binding, ready/audio checks, immutable Version binding, path safety, and signed URL TTL.
