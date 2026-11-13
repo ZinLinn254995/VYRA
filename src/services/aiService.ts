@@ -26,6 +26,8 @@ export interface AIServiceRequest {
   workspaceContext?: WorkspaceAiContext;
   /** Receives incremental text chunks for the live chat UI. */
   onTextDelta?: (chunk: string) => void;
+  /** Cancels an in-flight provider request when the user stops generation. */
+  signal?: AbortSignal;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
   visionImages?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[];
   /** Small, user-authorized PDF/audio source files; currently not sent until OpenAI multimodal support is enabled. */
@@ -159,6 +161,7 @@ class ModularAIService implements AIServiceProvider {
           Authorization: 'Bearer ' + request.accessToken,
           ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
         },
+        signal: request.signal,
         body: JSON.stringify({
           stream: true,
           messages: request.messages.filter((message) => message.role !== 'system'),
@@ -275,7 +278,11 @@ class ModularAIService implements AIServiceProvider {
         modelName: streamModel,
         usage,
       };
-    } catch {
+    } catch (error) {
+      if (request.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+        const message = 'Generation stopped.';
+        return { content: message, status: 'error', errorMessage: message, cancelled: true, providerName: 'OpenAI', modelName: this.model };
+      }
       const message = 'Could not reach VYRA AI Chat. Check your connection and retry.';
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
