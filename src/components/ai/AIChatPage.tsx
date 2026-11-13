@@ -2182,7 +2182,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
                   <button type="button" onClick={() => void renameSession(session)} aria-label={'Rename '+session.title} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-surface)]">Rename</button>
                   <button type="button" onClick={() => void removeSession(session)} aria-label={'Delete '+session.title} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-surface)]">Delete</button>
                 </div>
-
+              )) : (
                 <div className="px-5 py-12 text-center">
                   <Clock3 size={23} className="mx-auto text-[var(--vyra-text-muted)]" />
                   <p className="mt-3 text-xs font-semibold text-[var(--vyra-text-primary)]">No recent chats yet</p>
