@@ -231,6 +231,7 @@ export const addMasterTimelineAudioAssetClip = (
   assetName: string,
   start: number,
   duration: number,
+  waveformPeaks: number[] = [],
 ): TimelineResult => {
   if (!timeline || !Array.isArray(timeline.audioTracks) || !Array.isArray(timeline.textTracks)) return fail('invalid-timeline');
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -239,8 +240,10 @@ export const addMasterTimelineAudioAssetClip = (
   if (!finite(start) || start < 0 || !finite(duration) || duration < MIN_CLIP_DURATION || duration > 3600) return fail('invalid-time');
   const allTracks = [...timeline.audioTracks, ...timeline.textTracks];
   if (!uuid.test(trackId) || !uuid.test(clipId) || allTracks.some((track) => track.id === trackId || track.clips.some((clip) => clip.id === clipId))) return fail('invalid-timeline');
+  const peaks = Array.isArray(waveformPeaks) && waveformPeaks.length <= 128 && waveformPeaks.every((value) => finite(value) && value >= 0 && value <= 1)
+    ? [...waveformPeaks] : [];
   const clip: MasterTimelineClip = {
-    id: clipId, name, content: name, start, duration, waveform: [],
+    id: clipId, name, content: name, start, duration, waveform: peaks,
     assetId, assetVersionId, assetMimeType,
   };
   const track: MasterTimelineTrack = { id: trackId, name: 'Audio', clips: [clip] };
