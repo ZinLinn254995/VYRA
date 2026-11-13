@@ -256,3 +256,24 @@ test('AI Chat binds asynchronous chat actions to the validated account owner', (
   assert.match(block, /historyOwnerRef\.current !== requestOwnerId\) return/);
   assert.ok(block.indexOf('assertRequestCurrent();') < block.indexOf('const result = await aiService.generateResponse'));
 });
+
+test('AI Chat revalidates account ownership before irreversible Workspace and Asset operations', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const start = page.indexOf('const sendMessage = async');
+  const end = page.indexOf('const handleFileSelection', start);
+  const block = page.slice(start, end);
+  for (const marker of [
+    'const { data: deletedRows, error: deleteError }',
+    'const { error: updateError }',
+    'const { error: createError }',
+    'const ingested = await ingestVyralAsset',
+    'const { data: completion, error: completionError }',
+  ]) {
+    const operation = block.indexOf(marker);
+    assert.ok(operation > 0, `missing operation: ${marker}`);
+    assert.ok(block.lastIndexOf('assertRequestCurrent();', operation) > block.lastIndexOf('const sendMessage = async', 0),
+      `owner must be revalidated before: ${marker}`);
+  }
+  assert.ok(block.indexOf('assertRequestCurrent();', block.indexOf('const ingested = await ingestVyralAsset')) >
+    block.indexOf('const ingested = await ingestVyralAsset'));
+});
