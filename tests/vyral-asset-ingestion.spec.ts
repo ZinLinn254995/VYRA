@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   classifyVyralAssetFile,
+  buildAudioWaveformPeaks,
   ingestVyralAsset,
   ingestGeneratedVyralAsset,
   VyralAssetIngestionError,
@@ -119,4 +120,17 @@ test('generated media uses the same canonical Asset and DNA ingestion path with 
   assert.equal(calls[0], 'createAsset');
   assert.equal(calls.includes('extractRasterDna'), true);
   assert.equal(calls.at(-1), 'markReady');
+});
+
+test('builds bounded real audio waveform peaks from decoded PCM channels', () => {
+  const peaks = buildAudioWaveformPeaks([
+    new Float32Array([0, 0.2, -0.4, 0.1, 0, 0.8, -0.1, 0]),
+    new Float32Array([0, -0.1, 0.3, 0, 0, -0.5, 0.2, 0]),
+  ], 8);
+  assert.equal(peaks.length, 8);
+  assert.ok(Math.abs(peaks[2] - 0.4) < 1e-6);
+  assert.ok(Math.abs(peaks[5] - 0.8) < 1e-6);
+  assert.ok(peaks.every((peak) => peak >= 0 && peak <= 1));
+  assert.deepEqual(buildAudioWaveformPeaks([], 8), []);
+  assert.deepEqual(buildAudioWaveformPeaks([new Float32Array([1])], 4), []);
 });
