@@ -47,8 +47,6 @@ const GLOBAL_READ_TOOLS = [
       },
     },
   },
-
-  ,
   {
     type: 'function',
     function: {
@@ -799,7 +797,7 @@ Deno.serve(async (request: Request) => {
           tool_calls: toolCalls,
         }];
         for (const call of toolCalls) {
-          const toolResult = call.function.name === 'list_my_storyboards' || call.function.name === 'get_my_storyboard_details'
+          const toolResult = ['list_my_storyboards', 'get_my_storyboard_details', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
             ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
             : activeVyralId
               ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
