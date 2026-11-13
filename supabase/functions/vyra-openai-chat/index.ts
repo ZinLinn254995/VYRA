@@ -5,6 +5,7 @@ import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExec
 import { isSameVyralCreateIdentity, isVyralCreateApprovalText, parseVyralCreatePendingPlan, validateVyralCreatePendingAction } from '../../../src/server/vyralCreationAction.ts';
 import { parseVyralAssetUploadPendingPlan } from '../../../src/server/vyralAssetUploadAction.ts';
 import { parseVyralAssetRenamePendingPlan, validateVyralAssetRenamePendingAction } from '../../../src/server/vyralAssetRenameAction.ts';
+import { parseVyralAssetMetadataPendingPlan, validateVyralAssetMetadataPendingAction, type VyralAssetMetadataValues } from '../../../src/server/vyralAssetMetadataAction.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -20,6 +21,7 @@ const SYSTEM_INSTRUCTION =
   'When someone wants to start a Vyral, help them shape its name and purpose in their own words; never force a command template. If essential information is missing, ask one natural, concise question. Once the name and purpose are clear, call propose_vyral_create to prepare an owner-scoped preview; it creates no database record. Explain the exact name and description, then wait for explicit approval in this same chat. Only after approval may the server create the private Vyral and its initial identity DNA atomically. ' +
   'When a user attaches a local file and asks to add it to a Vyral, use the exact attached-file metadata supplied by VYRA, resolve the destination Vyral from owner-scoped records, and call propose_vyral_asset_upload. Ask the user for the Asset display name in natural language if they have not supplied one; you may suggest a concise descriptive name but must show it and wait for approval. Preserve the original filename separately. The proposal does not transfer file bytes or create an Asset. Never invent file metadata. ' +
   'When the user asks to rename an existing Asset, first use the owner-scoped Vyral Asset search/detail tools to identify the exact Asset, then call propose_vyral_asset_rename with its exact ID and the requested new display name. Show the old and new names and wait for explicit approval. Renaming changes only the display name; never claim the source filename, immutable bytes, versions, DNA or Fingerprints changed. ' +
+  'When the user asks to write or edit Asset title, description, category, tags, keywords or alt text, first identify the exact owner-owned Asset with search/detail tools, then call propose_vyral_asset_metadata with only the requested fields. Treat title as the Asset display name. Category is a semantic classification separate from the technical file type. Technical Asset type and MIME type describe the actual file and must not be falsified or changed through metadata edits. Show every before/after field and wait for explicit approval in this same chat. Preserve unrelated metadata, original filename, immutable bytes, versions, DNA and Fingerprints. ' +
   'For a requested Storyboard title or topic change, use propose_storyboard_update only after identifying the exact owner-owned Storyboard; it creates a preview and never changes data. Explain the exact proposed value and wait for approval in this same chat. Never say it is saved until the server confirms the approved update. ' +
   'For a requested Scene title, description, transition, or duration change, first identify the parent Storyboard and exact Scene from owner-scoped records, then use propose_scene_update. Duration must be a finite number of seconds from 0.1 to 3600. This creates a preview only. For duration changes, synchronize the Scene Project timeline clips and Master Timeline metadata; never modify unrelated tracks or scenes. Never say saved until approval and server confirmation. ' +
   'When a request involves the Master Editor or Timeline, first call get_master_timeline_state for the exact owner-owned Storyboard. Understand the actual scene order, durations, transition keys, track IDs, clip start/end/duration, overlaps, gaps, and editor semantics before proposing any change. Treat seconds as timeline time, preserve unrelated data, and do not assume Scene sourceIn/sourceOut trimming, playback cursor, undo history, or preview playback is available. For existing Audio/Text clips, propose move between existing same-kind tracks, start/end trim, split, clone within the same track, Text name/content update, or delete using propose_master_timeline_edit. You may also create a new Text track and timed text overlay with add_text. For music or sound effects, first search the active Vyral Asset inventory using search_vyral_assets with asset_type audio, inspect the exact Asset, then use add_audio with its exact Asset ID. To attach a Video to a Scene, search the active Vyral inventory for asset_type video, inspect the exact Asset, then use attach_video with the exact Scene and Asset IDs; the server verifies the immutable Video Version and duration. VYRA derives the clip duration and waveform from immutable Asset Version metadata; never guess or override source duration. Never invent an Asset or claim audio playback/rendering; the Timeline clip is an immutable Asset-version reference. Deletion is destructive: show the exact clip and exact DELETE CLIP <six-character-code> phrase from the preview, and accept no generic approval for deletion. For transitions, use an exact key from get_master_timeline_state.timeline.transitionBoundaries with propose_master_timeline_transition and only the six supported effects: dissolve, fade, wipe, slide, zoom, blur; use none to remove. Show exact before/after and wait for approval. For Scene order changes, read the complete exact Scene IDs first and use propose_scene_reorder with every Scene exactly once; show before/after order and wait for approval. Never invent a clip, Scene, transition key, or ID. Do not create or delete arbitrary tracks or alter Scene duration through Timeline editing; add_text may create only its dedicated new Text track. Scene creation, duplication and deletion are available only through propose_scene_mutation; deletion requires its exact separate confirmation phrase. Do not claim playback/undo actions through this tool. Clip deletion is available only through its separate exact destructive confirmation phrase; never accept generic approval for it. ' +
@@ -133,6 +135,24 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'propose_vyral_asset_metadata',
+      description: "Prepare an approval preview to update one owner-owned Asset's title, description, semantic category, tags, keywords and alt text. Technical MIME/file type is derived from the actual file and cannot be changed. Preserve unrelated metadata and immutable file data.",
+      parameters: {
+        type: 'object',
+        properties: {
+          asset_id: { type: 'string' },
+          title: { type: 'string', description: 'New display title/name, up to 180 characters.' },
+          description: { type: 'string', description: 'Descriptive details, up to 2000 characters.' },
+          category: { type: 'string', description: 'Semantic category, not technical file type.' },
+          tags: { type: 'array', items: { type: 'string' } },
+          keywords: { type: 'array', items: { type: 'string' } },
+          alt_text: { type: 'string', description: 'Accessibility description, up to 500 characters.' },
+        },
+        required: ['asset_id'],
+        additionalProperties: false,
+      },
+    },
+  {
       name: 'propose_storyboard_update',
       description: "Prepare a reversible update to a Storyboard owned by the signed-in user. This only creates a pending preview; never claim the change is saved until the user explicitly approves it in this same chat.",
       parameters: {
@@ -1294,6 +1314,56 @@ async function createVyralAssetRenameProposal(
   };
 }
 
+async function createVyralAssetMetadataProposal(admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required.');
+  let args: Record<string, unknown>;
+  try { const parsed: unknown = JSON.parse(rawArguments || '{}'); if (!isPlainRecord(parsed)) return safeToolError('Invalid Asset metadata.'); args = parsed; }
+  catch { return safeToolError('Invalid Asset metadata.'); }
+  const assetId = isUuid(args.asset_id) ? String(args.asset_id) : '';
+  const keyMap: Record<string, keyof VyralAssetMetadataValues> = { title:'title', description:'description', category:'category', tags:'tags', keywords:'keywords', alt_text:'altText' };
+  const next: VyralAssetMetadataValues = {};
+  for (const [key,value] of Object.entries(args)) {
+    if (key === 'asset_id') continue;
+    const field = keyMap[key];
+    if (!field) return safeToolError('Unsupported Asset metadata field.');
+    (next as Record<string,unknown>)[field] = value;
+  }
+  if (!assetId || !Object.keys(next).length) return safeToolError('An exact Asset ID and at least one metadata field are required.');
+  if (next.tags) next.tags = next.tags.map((v) => typeof v === 'string' ? v.trim() : v);
+  if (next.keywords) next.keywords = next.keywords.map((v) => typeof v === 'string' ? v.trim() : v);
+  const { data: asset, error } = await admin.from('vyral_assets').select('id,vyral_id,user_id,name,description,metadata,updated_at,processing_status,asset_type,mime_type').eq('id',assetId).eq('user_id',userId).maybeSingle();
+  if (error || !asset || asset.processing_status === 'archived') return safeToolError('That active Asset could not be verified.');
+  const metadata = isPlainRecord(asset.metadata) ? asset.metadata : {};
+  const org = isPlainRecord(metadata.ai_organization) ? metadata.ai_organization : {};
+  const previous = {
+    title:String(asset.name ?? ''), description:String(asset.description ?? ''),
+    organization:{
+      category:typeof org.category==='string'?org.category:'Uncategorized',
+      tags:Array.isArray(org.tags)?org.tags:[], keywords:Array.isArray(org.keywords)?org.keywords:[],
+      altText:typeof org.altText==='string'?org.altText:'',
+    },
+  };
+  const now = new Date();
+  const draft = { id:crypto.randomUUID(), operation:'asset.update_metadata',
+    target:{vyralId:String(asset.vyral_id),assetId:String(asset.id)},
+    parameters:{previous,next,expectedUpdatedAt:String(asset.updated_at)},
+    summary:'Update Asset metadata for "'+String(next.title ?? asset.name)+'"',
+    createdAt:now.toISOString(),expiresAt:new Date(now.getTime()+10*60*1000).toISOString() };
+  if (!parseVyralAssetMetadataPendingPlan(draft)) return safeToolError('Metadata fields are invalid or exceed allowed limits.');
+  const key=('aiop-'+sessionId+'-'+toolCallId).slice(0,160);
+  const {data:pending,error:pendingError}=await admin.rpc('create_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_idempotency_key:key,p_capability_id:'asset.update_metadata',p_plan:draft,p_expires_at:draft.expiresAt});
+  let saved=pending;
+  if(pendingError||!saved){
+    const {data:prior,error:priorError}=await admin.from('ai_operator_pending_actions').select('id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('idempotency_key',key).maybeSingle();
+    const priorPlan=parseVyralAssetMetadataPendingPlan(prior?.plan);
+    if(priorError||!prior||prior.capability_id!=='asset.update_metadata'||prior.status!=='pending'||Date.parse(prior.expires_at)<=Date.now()||!priorPlan||priorPlan.target.assetId!==assetId||JSON.stringify(priorPlan.parameters.next)!==JSON.stringify(next)) return safeToolError('Could not securely save or reuse the metadata preview. No changes were made.');
+    saved=prior;
+  }
+  const plan=parseVyralAssetMetadataPendingPlan(saved.plan);
+  if(!plan)return safeToolError('Saved metadata preview could not be verified.');
+  return {ok:true,requiresApproval:true,actionId:saved.id,assetId,previous:plan.parameters.previous,next:plan.parameters.next,technicalType:asset.asset_type,mimeType:asset.mime_type,summary:plan.summary,expiresAt:saved.expires_at,message:'Preview only. No metadata changed. Technical file type comes from actual MIME type. Wait for explicit approval in this same chat.'};
+}
+
 async function createVyralCreateProposal(
   admin: any,
   userId: string,
@@ -2036,6 +2106,40 @@ async function applyPendingStoryboardApprovalLegacy(
  * The legacy routine remains the canonical domain transaction for now; the executor
  * gates it with a server-verified, session-bound user approval and owner check.
  */
+async function resolvePendingAssetMetadataApproval(admin: any,userId: string,sessionId: string|null,latestUserText: string): Promise<string|null> {
+  if(!sessionId||!/^(yes|yes please|go ahead|do it|please do|confirm|approved|looks good|perfect|လုပ်ပါ|ဆက်လုပ်|ဆက်လုပ်ပါ|အေး|အေး လုပ်လိုက်|အတည်ပြု|အတည်ပြုမယ်)$/i.test(latestUserText.trim()))return null;
+  const {data:rows,error}=await admin.from('ai_operator_pending_actions').select('id,user_id,session_id,capability_id,plan,expires_at,status').eq('user_id',userId).eq('session_id',sessionId).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(3);
+  if(error||!Array.isArray(rows))return 'I could not safely verify pending actions. No Asset metadata was changed.';
+  const matches=rows.filter((row:Record<string,unknown>)=>row.capability_id==='asset.update_metadata'&&parseVyralAssetMetadataPendingPlan(row.plan));
+  if(!matches.length)return null;
+  if(rows.length!==1||matches.length!==1)return 'There is more than one pending action in this chat. Resolve them one at a time; no metadata was changed.';
+  const pending=matches[0],plan=validateVyralAssetMetadataPendingAction(pending,{userId,sessionId,actionId:String(pending.id)});
+  if(!plan)return 'The exact metadata preview could not be verified. No changes were made.';
+  const {data:asset,error:readError}=await admin.from('vyral_assets').select('id,vyral_id,user_id,name,description,metadata,updated_at,processing_status').eq('id',plan.target.assetId).eq('vyral_id',plan.target.vyralId).eq('user_id',userId).maybeSingle();
+  if(readError||!asset||asset.processing_status==='archived'||asset.name!==plan.parameters.previous.title||asset.description!==plan.parameters.previous.description||String(asset.updated_at)!==plan.parameters.expectedUpdatedAt)return 'The Asset changed after preview. No metadata was overwritten; prepare a fresh preview.';
+  const meta=isPlainRecord(asset.metadata)?asset.metadata:{},org=isPlainRecord(meta.ai_organization)?meta.ai_organization:{};
+  const currentOrg={category:typeof org.category==='string'?org.category:'Uncategorized',tags:Array.isArray(org.tags)?org.tags:[],keywords:Array.isArray(org.keywords)?org.keywords:[],altText:typeof org.altText==='string'?org.altText:''};
+  if(JSON.stringify(currentOrg)!==JSON.stringify(plan.parameters.previous.organization))return 'Asset classification changed after preview. No metadata was overwritten; prepare a fresh preview.';
+  const {data:approved,error:approveError}=await admin.rpc('approve_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id});
+  if(approveError||!approved||approved.status!=='approved')return 'VYRA could not record metadata approval. No changes were made.';
+  const {data:claimed,error:claimError}=await admin.rpc('claim_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id});
+  if(claimError||!claimed||claimed.status!=='executing')return 'Approval was recorded, but VYRA could not reserve the action. Prepare a fresh preview.';
+  const next=plan.parameters.next,patch:Record<string,unknown>={},nextMeta={...meta,ai_organization:{...org}};
+  const nextOrg=nextMeta.ai_organization as Record<string,unknown>;
+  if(next.title!==undefined)patch.name=next.title;
+  if(next.description!==undefined)patch.description=next.description;
+  if(next.category!==undefined)nextOrg.category=next.category;
+  if(next.tags!==undefined)nextOrg.tags=next.tags;
+  if(next.keywords!==undefined)nextOrg.keywords=next.keywords;
+  if(next.altText!==undefined)nextOrg.altText=next.altText;
+  patch.metadata=nextMeta;
+  const {data:updated,error:updateError}=await admin.from('vyral_assets').update(patch).eq('id',plan.target.assetId).eq('vyral_id',plan.target.vyralId).eq('user_id',userId).eq('updated_at',plan.parameters.expectedUpdatedAt).select('id,name,description').maybeSingle();
+  if(updateError||!updated){await admin.rpc('finish_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'failed',p_failure_code:'ASSET_METADATA_CONFLICT'});return 'Asset changed during approval. No metadata was overwritten; prepare a fresh preview.';}
+  const {error:finishError}=await admin.rpc('finish_ai_operator_pending_action',{p_user_id:userId,p_session_id:sessionId,p_action_id:pending.id,p_status:'completed',p_result_summary:{assetId:updated.id,vyralId:plan.target.vyralId,changedFields:Object.keys(next),title:updated.name},p_failure_code:null});
+  if(finishError)return 'Metadata was updated, but its audit could not be finalized. Refresh and verify the Asset before retrying.';
+  return 'Approved and saved. Updated Asset metadata: '+Object.keys(next).join(', ')+'. Technical file type, original filename, immutable bytes, versions, DNA and Fingerprints were preserved.';
+}
+
 async function resolvePendingAssetRenameApproval(
   admin: any,
   userId: string,
@@ -2388,6 +2492,7 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'vyral.propose_create': 'propose_vyral_create',
   'asset.propose_upload': 'propose_vyral_asset_upload',
   'asset.propose_rename': 'propose_vyral_asset_rename',
+  'asset.propose_metadata': 'propose_vyral_asset_metadata',
 } as const;
 
 type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
@@ -2403,6 +2508,11 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return Object.keys(input).every((key) => ['vyral_id', 'asset_name'].includes(key)) &&
           isUuid(input.vyral_id) && typeof input.asset_name === 'string' &&
           input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180;
+      }
+      if (capabilityId === 'asset.propose_metadata') {
+        const allowed = ['asset_id', 'title', 'description', 'category', 'tags', 'keywords', 'alt_text'];
+        return Object.keys(input).every((key) => allowed.includes(key)) && isUuid(input.asset_id) &&
+          Object.keys(input).some((key) => key !== 'asset_id');
       }
       if (capabilityId === 'asset.propose_rename') {
         return Object.keys(input).every((key) => ['asset_id', 'asset_name'].includes(key)) &&
@@ -2455,6 +2565,9 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       }
       if (capabilityId === 'asset.propose_rename') {
         return await createVyralAssetRenameProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'asset.propose_metadata') {
+        return await createVyralAssetMetadataProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
       }
       if (capabilityId === 'vyral.propose_create') {
         return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
@@ -2970,6 +3083,8 @@ Deno.serve(async (request: Request) => {
   if (totalChars > 30000) return json({ error: 'Chat history is too long. Start a new conversation.' }, 413);
 
   const latestUserText = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+  const assetMetadataApproval = await resolvePendingAssetMetadataApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
+  if (assetMetadataApproval !== null) return sseResponse(assetMetadataApproval);
   const assetRenameApproval = await resolvePendingAssetRenameApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
   if (assetRenameApproval !== null) return sseResponse(assetRenameApproval);
   const assetUploadApproval = await resolvePendingAssetUploadApproval(context.supabaseAdmin, userId, conversationId, latestUserText);
