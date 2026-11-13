@@ -142,3 +142,15 @@ test('AI Scene Video attachment is owner-scoped, version-verified, approval-gate
   assert.ok(source.includes('attachedVideoAssetVersionId'));
   assert.ok(source.includes("assetVersionId: typeof instance.assetVersionId === 'string'"));
 });
+
+test('OpenAI platform key management is restricted to platform owners and admins', () => {
+  const providerSource = read('supabase/functions/manage-openai-api-key/index.ts');
+  const settingsSource = read('src/components/profile/ApiKeySettings.tsx');
+  assert.match(providerSource, /from\('platform_admins'\)\.select\('role'\)/);
+  assert.match(providerSource, /!\['owner', 'admin'\]\.includes\(admin\.role\)/);
+  assert.match(providerSource, /Administrator access is required to manage platform AI providers/);
+  assert.match(settingsSource, /response\.status === 403/);
+  assert.match(settingsSource, /Administrator access required/);
+  assert.match(providerSource, /get_vyra_openai_secret/);
+  assert.match(providerSource, /set_vyra_openai_secret/);
+});
