@@ -8,6 +8,7 @@ export type MasterTimelineVideoElement = {
   play: () => Promise<void>;
   pause: () => void;
   load: () => void;
+  removeAttribute?: (name: string) => void;
   addEventListener: (type: string, listener: EventListener, options?: unknown) => void;
   removeEventListener: (type: string, listener: EventListener) => void;
 };
