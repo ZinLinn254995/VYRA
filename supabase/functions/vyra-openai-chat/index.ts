@@ -1954,11 +1954,14 @@ async function resolvePendingAssetUploadApproval(
     .select('id,user_id,session_id,capability_id,plan,expires_at,status')
     .eq('user_id', userId).eq('session_id', sessionId).eq('status', 'pending')
     .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(2);
-  if (error || !Array.isArray(rows) || rows.length !== 1 || rows[0].capability_id !== 'asset.upload') return null;
-  const pending = rows[0];
+  if (error || !Array.isArray(rows)) return { content: 'I could not safely verify pending actions. Nothing was uploaded.' };
+  const uploadRows = rows.filter((row: Record<string, unknown>) => row.capability_id === 'asset.upload');
+  if (!uploadRows.length) return null;
+  if (rows.length !== 1 || uploadRows.length !== 1) return { content: 'There is more than one pending action in this chat. Please resolve them one at a time; nothing was uploaded.' };
+  const pending = uploadRows[0];
   const plan = parseVyralAssetUploadPendingPlan(pending.plan);
   if (!plan || pending.user_id !== userId || pending.session_id !== sessionId ||
-      pending.id !== plan.id || Date.parse(pending.expires_at) <= Date.now()) {
+      Date.parse(pending.expires_at) <= Date.now()) {
     return { content: 'I could not verify that exact Asset upload preview. Nothing was uploaded.' };
   }
   const { data: destination, error: destinationError } = await admin.from('vyrals')
