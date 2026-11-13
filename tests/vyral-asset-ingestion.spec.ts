@@ -16,8 +16,9 @@ const versionId = '4b8f0c22-1d43-4e54-8f65-7c8d9e0f1a23';
 
 function makePort(options: { rasterStatus?: string; dnaExists?: boolean; failAt?: string } = {}) {
   const calls: string[] = [];
+  const assetRecords: Array<{ name: string; original_filename: string }> = [];
   const port: VyralAssetIngestionPort = {
-    async createAsset() { calls.push('createAsset'); if (options.failAt === 'createAsset') throw new Error('insert failed'); },
+    async createAsset(record) { calls.push('createAsset'); assetRecords.push({ name: record.name, original_filename: record.original_filename }); if (options.failAt === 'createAsset') throw new Error('insert failed'); },
     async uploadOriginal() { calls.push('uploadOriginal'); if (options.failAt === 'uploadOriginal') throw new Error('storage failed'); },
     async createVersion() { calls.push('createVersion'); if (options.failAt === 'createVersion') throw new Error('version failed'); return versionId; },
     async createFingerprint() { calls.push('createFingerprint'); if (options.failAt === 'createFingerprint') throw new Error('fingerprint failed'); },
@@ -30,7 +31,7 @@ function makePort(options: { rasterStatus?: string; dnaExists?: boolean; failAt?
     async deleteVersions() { calls.push('deleteVersions'); },
     async deleteAsset() { calls.push('deleteAsset'); },
   };
-  return { port, calls };
+  return { port, calls, assetRecords };
 }
 
 const makeFile = (name: string, type: string, content = 'source bytes') =>
@@ -56,6 +57,23 @@ test('ingests raster files only after server DNA v3 succeeds and then marks read
   assert.equal(calls.indexOf('extractRasterDna') < calls.indexOf('markReady'), true);
   assert.equal(calls.includes('insertDna'), false);
   assert.match(result.storagePath, new RegExp('^' + userId + '/' + vyralId + '/'));
+});
+
+test('uses the AI-approved display name while preserving the original source filename', async () => {
+  const { port, assetRecords } = makePort();
+  await ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('IMG_0042.png', 'image/png'),
+    assetName: 'Red Circle Reference',
+  });
+  assert.deepEqual(assetRecords, [{ name: 'Red Circle Reference', original_filename: 'IMG_0042.png' }]);
+});
+
+test('rejects unsafe AI-approved Asset display names before creating records', async () => {
+  const { port, calls } = makePort();
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('image.png', 'image/png'), assetName: '../private',
+  }));
+  assert.deepEqual(calls, []);
 });
 
 test('non-raster files receive source-bound universal File DNA before ready', async () => {
