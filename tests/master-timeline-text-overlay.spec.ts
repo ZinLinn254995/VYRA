@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { buildMasterTimelineTextOverlay } from '../src/server/masterTimelineTextOverlay.ts';
 
 const tracks = [
@@ -38,4 +40,12 @@ test('fails closed for invalid times, malformed clips and invisible tracks', () 
       { id: 'negative', content: 'Negative', start: -1, duration: 2 },
     ] },
   ], 1), []);
+});
+
+test('Master Editor renders Text overlays against the shared playback clock', () => {
+  const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
+  assert.match(editor, /buildMasterTimelineTextOverlay\(textTracks, currentTime\)/);
+  assert.match(editor, /masterPreviewTextSignatureRef\.current/);
+  assert.match(editor, /masterPreviewTextOverlays\.map\(\(overlay\)/);
+  assert.match(editor, /ref=\{masterVideoPreviewRef\}/);
 });
