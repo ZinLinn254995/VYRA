@@ -279,3 +279,16 @@ test('OpenAI Edge Function cancels upstream planner and response when the client
   assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(45000\)\]\)/);
   assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(60000\)\]\)/);
 });
+
+
+test('OpenAI Edge Function bounds raw request bytes and validates chat history before planning', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /const maxRequestBodyBytes = 1_048_576/);
+  assert.match(edge, /declaredBodyBytes > maxRequestBodyBytes/);
+  assert.match(edge, /receivedBytes > maxRequestBodyBytes/);
+  assert.match(edge, /await reader\.cancel\(\)/);
+  assert.match(edge, /parsed: unknown = JSON\.parse/);
+  assert.match(edge, /body\.messages\.length > 40/);
+  assert.match(edge, /content as string\)\.length > 12000/);
+  assert.match(edge, /totalChars > 30000/);
+});
