@@ -216,6 +216,17 @@ test('OpenAI browser stream supports explicit cancellation and reports truncated
 
 
 
+test('OpenAI browser stream has a bounded timeout distinct from user cancellation', () => {
+  const service = read('src/services/aiService.ts');
+  assert.match(service, /setTimeout\(\(\) => \{[\s\S]*?timedOut = true;[\s\S]*?requestController\.abort\(\);[\s\S]*?120_000/);
+  assert.match(service, /signal: requestController\.signal/);
+  assert.match(service, /if \(request\.signal\?\.aborted\)/);
+  assert.match(service, /if \(timedOut\)/);
+  assert.match(service, /This response took too long\. Please retry\./);
+  assert.match(service, /clearTimeout\(timeoutId\)/);
+  assert.match(service, /removeEventListener\('abort', abortFromCaller\)/);
+});
+
 test('Admin Dashboard exposes platform provider controls only under the Platform section', () => {
   const profile = read('src/components/profile/ProfilePage.tsx');
   const settings = read('src/components/profile/ApiKeySettings.tsx');
