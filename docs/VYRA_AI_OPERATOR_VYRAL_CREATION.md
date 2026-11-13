@@ -6,6 +6,8 @@ This slice connects natural-language Vyral creation in AI Chat to the shared cap
 
 ## Flow
 
+The browser no longer intercepts Vyral creation intents or performs the identity RPC directly. It forwards the conversation to the authenticated server tool flow; the existing AI Chat presentation and controls remain unchanged.
+
 1. The authenticated chat model calls `propose_vyral_create` with the creator-chosen name and optional description.
 2. The server validates bounded fields and creates a server-generated Vyral UUID and action plan.
 3. The plan is stored as a `vyral.create` pending action, scoped to the authenticated user and exact conversation session. The preview does not create a Vyral row or DNA record.
