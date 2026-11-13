@@ -1558,8 +1558,8 @@ async function createVyralAssetRelationshipProposal(
     for (const [kind, assetId] of [[relationship.fromKind, relationship.fromAssetId], [relationship.toKind, relationship.toAssetId]] as const) {
       if (kind === 'asset') {
         const { data, error } = await admin.from('vyral_assets').select('id,name,processing_status')
-          .eq('id', assetId).eq('vyral_id', vyralId).eq('user_id', userId).maybeSingle();
-        if (error || !data || data.processing_status === 'archived') return safeToolError('Both relationship endpoints must be active Assets in this Vyral.');
+          .eq('id', assetId).eq('vyral_id', vyralId).eq('user_id', userId).eq('processing_status', 'ready').maybeSingle();
+        if (error || !data) return safeToolError('Both relationship endpoints must be ready Assets in this Vyral.');
       }
     }
     let duplicateQuery = admin.from('vyral_asset_relationships').select('id')
