@@ -92,7 +92,20 @@ export const moveMasterTimelineClip = (
   if (!clip) return fail('clip-not-found');
   if (!finite(clip.duration) || clip.duration < MIN_CLIP_DURATION) return fail('invalid-duration');
   const resolvedStart = nearestFreeStart(destination.clips, clipId, desiredStart, clip.duration);
-  if (resolvedStart === null) return fail('clip-collision');
+  if (resolvedStart === null) {
+    // Match MasterTimelineEditor.settleClipDrop: if the destination gap cannot
+    // fit the clip, restore it to its exact original track and time.
+    if (sourceTrackId === destinationTrackId) return { ok: true, value: timeline, affectedClipId: clipId };
+    const restoredTracks = tracks.map((track) => {
+      if (track.id === sourceTrackId) {
+        const without = track.clips.filter((item) => item.id !== clipId);
+        return { ...track, clips: [...without, { ...clip }] };
+      }
+      if (track.id === destinationTrackId) return { ...track, clips: track.clips.filter((item) => item.id !== clipId) };
+      return track;
+    }).filter((track) => track.clips.length > 0);
+    return { ok: true, value: withTracks(timeline, kind, restoredTracks), affectedClipId: clipId };
+  }
 
   const nextTracks = tracks.map((track) => {
     if (sourceTrackId === destinationTrackId && track.id === sourceTrackId) {
@@ -101,7 +114,7 @@ export const moveMasterTimelineClip = (
     if (track.id === sourceTrackId) return { ...track, clips: track.clips.filter((item) => item.id !== clipId) };
     if (track.id === destinationTrackId) return { ...track, clips: [...track.clips, { ...clip, start: resolvedStart }] };
     return track;
-  }).filter((track) => track.clips.length > 0 || track.id === sourceTrackId);
+  }).filter((track) => track.clips.length > 0);
   return { ok: true, value: withTracks(timeline, kind, nextTracks), affectedClipId: clipId };
 };
 
