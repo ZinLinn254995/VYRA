@@ -1810,6 +1810,123 @@ for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityI
   });
 }
 
+
+const PROPOSAL_CAPABILITY_TOOLS = {
+  'storyboard.propose_update': 'propose_storyboard_update',
+  'scene.propose_update': 'propose_scene_update',
+  'scene.propose_mutation': 'propose_scene_mutation',
+  'scene.propose_reorder': 'propose_scene_reorder',
+  'timeline.propose_edit': 'propose_master_timeline_edit',
+  'timeline.propose_transition': 'propose_master_timeline_transition',
+} as const;
+
+type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
+
+for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCapabilityId[]) {
+  registerAiCapabilityAdapter({
+    capabilityId,
+    validate: (input, execution) => {
+      const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+      if (!runtime.admin || typeof runtime.sessionId !== 'string' || !runtime.sessionId ||
+          typeof runtime.toolCallId !== 'string' || !runtime.toolCallId || !isUuid(input.storyboard_id)) return false;
+      if (capabilityId === 'storyboard.propose_update') {
+        return Object.keys(input).every((key) => ['storyboard_id', 'field', 'value'].includes(key)) &&
+          ['title', 'topic'].includes(String(input.field)) && typeof input.value === 'string';
+      }
+      if (capabilityId === 'scene.propose_update') {
+        return Object.keys(input).every((key) => ['storyboard_id', 'scene_id', 'field', 'value'].includes(key)) &&
+          isUuid(input.scene_id) && ['title', 'description', 'transition', 'duration'].includes(String(input.field));
+      }
+      if (capabilityId === 'scene.propose_mutation') {
+        return Object.keys(input).every((key) => ['storyboard_id', 'scene_id', 'operation', 'title', 'description', 'duration'].includes(key)) &&
+          ['create', 'duplicate', 'delete'].includes(String(input.operation)) &&
+          (input.operation === 'create' ? input.scene_id === undefined : isUuid(input.scene_id));
+      }
+      if (capabilityId === 'scene.propose_reorder') {
+        return Object.keys(input).every((key) => ['storyboard_id', 'scene_ids'].includes(key)) &&
+          Array.isArray(input.scene_ids) && input.scene_ids.length > 0 && input.scene_ids.length <= 80 &&
+          input.scene_ids.every(isUuid);
+      }
+      if (capabilityId === 'timeline.propose_edit') {
+        return Object.keys(input).every((key) => ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration','asset_id','scene_id'].includes(key)) &&
+          ['add_text','add_audio','attach_video','move','trim','split','clone','update_text','delete'].includes(String(input.operation));
+      }
+      return Object.keys(input).every((key) => ['storyboard_id', 'transition_key', 'effect'].includes(key)) &&
+        typeof input.transition_key === 'string' &&
+        ['dissolve', 'fade', 'wipe', 'slide', 'zoom', 'blur', 'none'].includes(String(input.effect));
+    },
+    execute: async (input, execution) => {
+      const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
+      const admin = runtime.admin;
+      const sessionId = typeof runtime.sessionId === 'string' ? runtime.sessionId : null;
+      const toolCallId = typeof runtime.toolCallId === 'string' ? runtime.toolCallId : '';
+      const rawArguments = JSON.stringify(input);
+      if (!admin || !sessionId || !toolCallId) throw new Error('Verified proposal runtime is unavailable.');
+      if (capabilityId === 'storyboard.propose_update') {
+        return await createStoryboardUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'scene.propose_update') {
+        return await createSceneUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'scene.propose_mutation') {
+        const operation = input.operation === 'delete' ? 'delete' : input.operation === 'create' ? 'create' : 'duplicate';
+        return await createSceneMutationProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, operation);
+      }
+      if (capabilityId === 'scene.propose_reorder') {
+        return await createSceneReorderProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'timeline.propose_edit') {
+        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
+        return await createMasterTimelineEditProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId);
+      }
+      return await createMasterTimelineTransitionProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+    },
+  });
+}
+
+async function executeSharedProposalCapability(
+  admin: any,
+  userId: string,
+  sessionId: string | null,
+  capabilityId: ProposalCapabilityId,
+  input: Record<string, unknown>,
+  toolCallId: string,
+  activeVyralId: string | null,
+): Promise<Record<string, unknown>> {
+  const requestId = ('aiop-' + toolCallId).slice(0, 120);
+  const authority: AiCapabilityExecutionAuthority = {
+    userAuthenticated: true,
+    isOwnerOrAdmin: false,
+    verifyApproval: async () => false,
+    verifyOwner: async (ownerId, parameters) => {
+      if (ownerId !== userId || !isUuid(parameters.storyboard_id)) return false;
+      const { data, error } = await admin.from('vyral_storyboards').select('id')
+        .eq('id', parameters.storyboard_id).eq('user_id', ownerId).maybeSingle();
+      return !error && Boolean(data);
+    },
+    audit: async (event) => {
+      const auditEvent = event.outcome === 'started' ? 'claimed'
+        : event.outcome === 'succeeded' ? 'completed' : 'failed';
+      const { error } = await admin.from('ai_operator_action_audit').insert({
+        user_id: event.userId,
+        session_id: sessionId ?? ('request-' + event.requestId).slice(0, 160),
+        capability_id: event.capabilityId,
+        event: auditEvent,
+        detail: event.reason ? { reason: event.reason } : {},
+      });
+      if (error) throw new Error('AI Operator proposal audit could not be persisted.');
+    },
+  };
+  const result = await executeAiCapability(
+    { capabilityId, userId, requestId, input },
+    authority,
+    new Date(),
+    { admin, sessionId, toolCallId, activeVyralId },
+  );
+  if (!result.ok) return safeToolError(result.message);
+  return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
+}
+
 async function executeSharedReadCapability(
   admin: any,
   userId: string,
@@ -2087,30 +2204,27 @@ Deno.serve(async (request: Request) => {
         for (const call of toolCalls) {
           const readCapabilityId = Object.entries(READ_CAPABILITY_TOOLS)
             .find(([, toolName]) => toolName === call.function.name)?.[0] as ReadCapabilityId | undefined;
+          const proposalCapabilityId = Object.entries(PROPOSAL_CAPABILITY_TOOLS)
+            .find(([, toolName]) => toolName === call.function.name)?.[0] as ProposalCapabilityId | undefined;
+          const parsedToolArguments = (() => {
+            try {
+              const parsed: unknown = JSON.parse(call.function.arguments || '{}');
+              return isPlainRecord(parsed) ? parsed : null;
+            } catch { return null; }
+          })();
           const toolResult = readCapabilityId
-            ? await (() => {
-                let parsed: unknown;
-                try { parsed = JSON.parse(call.function.arguments || '{}'); } catch { return Promise.resolve(safeToolError('Invalid tool arguments.')); }
-                if (!isPlainRecord(parsed)) return Promise.resolve(safeToolError('Invalid tool arguments.'));
-                return executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsed, call.id, activeVyralId);
-              })()
-            : call.function.name === 'propose_scene_mutation'
-            ? await createSceneMutationProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id, (() => { try { const args = JSON.parse(call.function.arguments || '{}'); return args.operation === 'delete' ? 'delete' : args.operation === 'create' ? 'create' : 'duplicate'; } catch { return 'duplicate'; } })())
-            : call.function.name === 'propose_scene_reorder'
-            ? await createSceneReorderProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
-            : call.function.name === 'propose_storyboard_update'
-            ? await createStoryboardUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
-            : call.function.name === 'propose_scene_update'
-              ? await createSceneUpdateProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
-              : call.function.name === 'propose_master_timeline_edit'
-                ? await createMasterTimelineEditProposal(context.supabaseAdmin, userId, activeVyralId, conversationId, call.function.arguments, call.id)
-                : call.function.name === 'propose_master_timeline_transition'
-                  ? await createMasterTimelineTransitionProposal(context.supabaseAdmin, userId, conversationId, call.function.arguments, call.id)
-                : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
-                  ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
-                  : activeVyralId
-                    ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
-                    : safeToolError('This tool requires an owner-verified active Vyral.');
+            ? parsedToolArguments
+              ? await executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsedToolArguments, call.id, activeVyralId)
+              : safeToolError('Invalid tool arguments.')
+            : proposalCapabilityId
+              ? parsedToolArguments
+                ? await executeSharedProposalCapability(context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id, activeVyralId)
+                : safeToolError('Invalid tool arguments.')
+              : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
+                ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
+                : activeVyralId
+                  ? await executeVyralReadTool(context.supabaseAdmin, userId, activeVyralId, call.function.name, call.function.arguments)
+                  : safeToolError('This tool requires an owner-verified active Vyral.');
           toolMessages.push({
             role: 'tool',
             tool_call_id: call.id,
