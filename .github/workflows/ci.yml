@@ -71,6 +71,8 @@ jobs:
         run: npm run test:vyral-asset-metadata-action
       - name: Vyral folder action validation tests
         run: npm run test:vyral-folder-action
+      - name: Test Asset relationship action validation
+        run: npm run test:vyral-asset-relationship-action
       - name: Vyral private Asset playback authorization tests
         run: npm run test:vyral-asset-playback
       - name: Supabase auth verification tests
