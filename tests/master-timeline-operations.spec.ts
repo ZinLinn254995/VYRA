@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
+  addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMasterTimelineVideoAsset, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip,
   updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData,
 } from '../src/server/masterTimelineOperations.ts';
 
@@ -193,4 +193,21 @@ test('deletes only the selected Audio/Text clip and removes an empty track like 
   assert.equal(deleteMasterTimelineClip(base, 'audio', 'missing-track', 'a').ok, false);
   assert.equal(deleteMasterTimelineClip(base, 'audio', 'audio-1', 'missing-clip').ok, false);
   assert.equal(base.audioTracks[0].clips.length, 2);
+});
+
+
+test('attaches a verified immutable Video Asset version to one exact Scene instance', () => {
+  const timeline: MasterTimelineData = { ...base, sceneInstances: [
+    { id: 'instance-a', sceneId: 'scene-a', sourceIn: 0, sourceOut: 5 },
+    { id: 'instance-b', sceneId: 'scene-b', sourceIn: 0, sourceOut: 7 },
+  ] };
+  const attached = attachMasterTimelineVideoAsset(timeline, 'scene-b', 'asset-video', 'version-video', 'video/mp4', 0, 12.5);
+  assert.equal(attached.ok, true);
+  if (attached.ok) {
+    assert.deepEqual(attached.value.sceneInstances?.[0], timeline.sceneInstances?.[0]);
+    assert.deepEqual(attached.value.sceneInstances?.[1], { ...timeline.sceneInstances![1], sourceIn: 0, sourceOut: 12.5, assetId: 'asset-video', assetVersionId: 'version-video', assetMimeType: 'video/mp4' });
+  }
+  assert.equal(attachMasterTimelineVideoAsset(timeline, 'missing-scene', 'asset-video', 'version-video', 'video/mp4', 0, 12.5).ok, false);
+  assert.equal(attachMasterTimelineVideoAsset(timeline, 'scene-a', 'asset-video', 'version-video', 'audio/mpeg', 0, 12.5).ok, false);
+  assert.deepEqual(timeline.sceneInstances?.[1], { id: 'instance-b', sceneId: 'scene-b', sourceIn: 0, sourceOut: 7 });
 });
