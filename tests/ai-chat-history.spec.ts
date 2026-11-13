@@ -198,7 +198,7 @@ test('AI Chat reset and archive actions cannot clear a different account session
     const block = page.slice(start, end);
     assert.ok(start >= 0 && end > start, `missing handler: ${name}`);
     assert.match(block, /const ownerAtStart = historyOwnerRef\.current/);
-    assert.match(block, /if \(historyOwnerRef\.current !== ownerAtStart\) return;/);
+    assert.match(block, /if \(!saved \|\| historyOwnerRef\.current !== ownerAtStart\) return;/);
   }
   const removeCurrent = page.slice(page.indexOf('const deleteCurrentChat = async'), page.indexOf('const toggleLock ='));
   assert.match(removeCurrent, /const sessionId = activeSessionId/);
