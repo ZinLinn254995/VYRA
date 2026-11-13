@@ -763,6 +763,29 @@ async function executeVyralReadTool(
     return safeToolError('Invalid tool arguments.');
   }
 
+  if (name === 'list_vyral_folders') {
+    const { data: folders, error: folderError } = await admin.from('vyral_folders')
+      .select('id,name,parent_id,created_at')
+      .eq('vyral_id', vyralId).eq('user_id', userId)
+      .order('name', { ascending: true }).limit(100);
+    if (folderError) return safeToolError('The Vyral folder hierarchy could not be loaded.');
+    const { data: assets, error: assetError } = await admin.from('vyral_assets')
+      .select('folder_id,id')
+      .eq('vyral_id', vyralId).eq('user_id', userId).neq('processing_status', 'archived').limit(1000);
+    if (assetError) return safeToolError('Folders were loaded, but their Asset counts could not be verified.');
+    const counts = new Map<string, number>();
+    for (const asset of assets ?? []) if (asset.folder_id) counts.set(String(asset.folder_id), (counts.get(String(asset.folder_id)) ?? 0) + 1);
+    return {
+      ok: true, vyralId, totalFolders: (folders ?? []).length,
+      folders: (folders ?? []).map((folder: Record<string, unknown>) => ({
+        id: folder.id, name: folder.name, parentId: folder.parent_id ?? null,
+        directAssetCount: counts.get(String(folder.id)) ?? 0, createdAt: folder.created_at,
+      })),
+      unfiledAssetCount: (assets ?? []).filter((asset: Record<string, unknown>) => !asset.folder_id).length,
+      message: 'Folder tree and direct Asset counts only; no changes were made.',
+    };
+  }
+
   if (name === 'search_vyral_assets') {
     const query = typeof args.query === 'string' ? args.query.trim().slice(0, 100) : '';
     const assetType = typeof args.asset_type === 'string' ? args.asset_type : '';
