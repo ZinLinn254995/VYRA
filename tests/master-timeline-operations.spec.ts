@@ -63,13 +63,31 @@ test('trims start/end with the 0.2s minimum and neighboring-clip boundaries', ()
   }
 });
 
+test('audio start trimming advances the immutable source offset', () => {
+  const withSourceOffset: MasterTimelineData = {
+    ...base,
+    audioTracks: [{ ...base.audioTracks[0], clips: [
+      { ...base.audioTracks[0].clips[0], sourceIn: 3 },
+      base.audioTracks[0].clips[1],
+    ] }],
+  };
+  const result = trimMasterTimelineClip(withSourceOffset, 'audio', 'audio-1', 'a', 'start', 1.5);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const clip = result.value.audioTracks[0].clips.find((item) => item.id === 'a')!;
+    assert.equal(clip.start, 1.5);
+    assert.equal(clip.duration, 3.5);
+    assert.equal(clip.sourceIn, 4.5);
+  }
+});
+
 test('splits audio/text at least 0.2 seconds from either edge', () => {
   const result = splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 2.5, () => 'new-a');
   assert.equal(result.ok, true);
   if (result.ok) {
     const clips = result.value.audioTracks[0].clips;
     assert.equal(clips.find((item) => item.id === 'a')?.duration, 2.5);
-    assert.deepEqual(clips.find((item) => item.id === 'new-a'), { id: 'new-a', name: 'Music', start: 2.5, duration: 2.5 });
+    assert.deepEqual(clips.find((item) => item.id === 'new-a'), { id: 'new-a', name: 'Music', start: 2.5, duration: 2.5, sourceIn: 2.5 });
   }
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 0.1, () => 'new-b').ok, false);
   assert.equal(splitMasterTimelineClip(base, 'audio', 'audio-1', 'a', 2.5, () => 't').ok, false);
