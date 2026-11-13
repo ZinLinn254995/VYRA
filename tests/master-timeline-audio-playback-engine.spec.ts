@@ -107,3 +107,10 @@ test('Master Editor transport supports pause, resume, and debounced seek without
   assert.match(source, /launchMasterTimelinePlayback\(seekTime\)/);
   assert.match(source, /masterPlaybackState === 'paused'\)\s*\{[\s\S]*?stopMasterTimelinePlayback\(\)/);
 });
+
+
+test('Master Timeline transport continues to the full timeline end after audio clips finish', async () => {
+  const source = await readFile(new URL('../src/components/workspace/MasterTimelineEditor.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if \(currentTime >= totalDuration\) \{\s*stopMasterTimelinePlayback\(\)/);
+  assert.doesNotMatch(source, /handle\.finished\.then\(\(\) => \{\s*if \(masterPlaybackHandleRef\.current === handle\) stopMasterTimelinePlayback\(\);/);
+});
