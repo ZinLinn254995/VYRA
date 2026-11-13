@@ -187,6 +187,35 @@ export const splitMasterTimelineClip = (
   return { ok: true, value: withTracks(timeline, kind, nextTracks), affectedClipId: clipId, createdClipId: newId };
 };
 
+
+/**
+ * Adds a new Text track and clip, matching the Master Editor's Text toolbar
+ * behavior while allowing AI to supply the actual overlay copy and timing.
+ */
+export const addMasterTimelineTextClip = (
+  timeline: MasterTimelineData,
+  trackId: string,
+  clipId: string,
+  name: string,
+  content: string,
+  start: number,
+  duration: number,
+): TimelineResult => {
+  if (!timeline || !Array.isArray(timeline.audioTracks) || !Array.isArray(timeline.textTracks)) return fail('invalid-timeline');
+  const normalizedName = name.trim();
+  const normalizedContent = content.trim();
+  if (!normalizedName || normalizedName.length > 180 || !normalizedContent || normalizedContent.length > 1000) return fail('invalid-content');
+  if (!finite(start) || start < 0 || !finite(duration) || duration < MIN_CLIP_DURATION || duration > 3600) return fail('invalid-time');
+  const allTracks = [...timeline.audioTracks, ...timeline.textTracks];
+  if (!trackId || !clipId || allTracks.some((track) => track.id === trackId || track.clips.some((clip) => clip.id === clipId))) return fail('invalid-timeline');
+  const newTrack: MasterTimelineTrack = {
+    id: trackId,
+    name: 'Text',
+    clips: [{ id: clipId, name: normalizedName, content: normalizedContent, start, duration }],
+  };
+  return { ok: true, value: { ...timeline, textTracks: [...timeline.textTracks, newTrack] }, createdClipId: clipId };
+};
+
 export const updateMasterTimelineClipText = (
   timeline: MasterTimelineData,
   trackId: string,
