@@ -2175,50 +2175,63 @@ registerAiCapabilityAdapter({
     });
     if (claimError) return { ok: false, message: 'VYRA could not securely claim this approved action. Nothing was created.' };
 
-    const { data: existing, error: existingError } = await admin.from('vyrals')
-      .select('id,user_id,name,description,metadata').eq('id', vyralId).maybeSingle();
-    if (existingError) throw new Error('Could not verify the Vyral identity before creation.');
-    if (existing &&
-        !isSameVyralCreateIdentity(existing, execution.userId, vyralId, plan.parameters.name, plan.parameters.description)) {
-      throw new Error('The generated Vyral identity ID is already in use.');
-    }
-    // Always invoke the idempotent RPC, even for an exact prior identity: it also
-    // repairs a missing initial Root DNA record after an uncertain earlier attempt.
-    const { data: creationData, error: creationError } = await userClient.rpc('create_vyral_identity_with_dna', {
-      p_vyral_id: vyralId,
-      p_name: plan.parameters.name,
-      p_description: plan.parameters.description,
-    });
-    if (creationError) {
+    try {
+      const { data: existing, error: existingError } = await admin.from('vyrals')
+        .select('id,user_id,name,description,metadata').eq('id', vyralId).maybeSingle();
+      if (existingError) throw new Error('Could not verify the Vyral identity before creation.');
+      if (existing &&
+          !isSameVyralCreateIdentity(existing, execution.userId, vyralId, plan.parameters.name, plan.parameters.description)) {
+        throw new Error('The generated Vyral identity ID is already in use.');
+      }
+      // Always invoke the idempotent RPC, even for an exact prior identity: it also
+      // repairs a missing initial Root DNA record after an uncertain earlier attempt.
+      const { data: creationData, error: creationError } = await userClient.rpc('create_vyral_identity_with_dna', {
+        p_vyral_id: vyralId,
+        p_name: plan.parameters.name,
+        p_description: plan.parameters.description,
+      });
+      if (creationError) {
+        await admin.rpc('finish_ai_operator_pending_action', {
+          p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+          p_status: 'failed', p_failure_code: 'vyral_identity_rpc_failed',
+        });
+        return { ok: false, message: 'VYRA could not create the Vyral and its initial DNA. No success was recorded; please retry from a fresh preview.' };
+      }
+      const creationResult = isPlainRecord(creationData) ? creationData : {};
+  
+      const { data: verifiedVyral, error: verifyError } = await admin.from('vyrals')
+        .select('id,user_id,name,description,visibility,metadata')
+        .eq('id', vyralId).eq('user_id', execution.userId).maybeSingle();
+      const { data: rootDna, error: dnaError } = await admin.from('vyral_dna_records')
+        .select('id').eq('vyral_id', vyralId).eq('user_id', execution.userId)
+        .eq('scope', 'vyral').is('asset_id', null).limit(2);
+      if (verifyError || dnaError || !verifiedVyral ||
+          !isSameVyralCreateIdentity(verifiedVyral, execution.userId, vyralId, plan.parameters.name, plan.parameters.description) ||
+          !Array.isArray(rootDna) || rootDna.length !== 1) {
+        await admin.rpc('finish_ai_operator_pending_action', {
+          p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+          p_status: 'failed', p_failure_code: 'vyral_creation_verification_failed',
+        });
+        return { ok: false, message: 'VYRA could not verify both the Vyral identity and its single initial DNA record. The result needs recovery; it is not being reported as complete.' };
+      }
+      const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
+        p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
+        p_status: 'completed',
+        p_result_summary: { vyral_id: vyralId, name: plan.parameters.name, initial_master_dna_record_id: rootDna[0].id },
+      });
+      if (finishError) throw new Error('The Vyral was created, but its approval record could not be finalized.');
+  
+    } catch (error) {
       await admin.rpc('finish_ai_operator_pending_action', {
         p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
-        p_status: 'failed', p_failure_code: 'vyral_identity_rpc_failed',
+        p_status: 'failed', p_result_summary: { message: 'Vyral creation could not be safely finalized.' },
+        p_failure_code: 'vyral_creation_execution_failed',
       });
-      return { ok: false, message: 'VYRA could not create the Vyral and its initial DNA. No success was recorded; please retry from a fresh preview.' };
+      return {
+        ok: false,
+        message: 'VYRA could not safely finalize this Vyral creation attempt. It has been marked for recovery; please prepare a fresh preview before retrying.',
+      };
     }
-    const creationResult = isPlainRecord(creationData) ? creationData : {};
-
-    const { data: verifiedVyral, error: verifyError } = await admin.from('vyrals')
-      .select('id,user_id,name,description,visibility,metadata')
-      .eq('id', vyralId).eq('user_id', execution.userId).maybeSingle();
-    const { data: rootDna, error: dnaError } = await admin.from('vyral_dna_records')
-      .select('id').eq('vyral_id', vyralId).eq('user_id', execution.userId)
-      .eq('scope', 'vyral').is('asset_id', null).limit(2);
-    if (verifyError || dnaError || !verifiedVyral ||
-        !isSameVyralCreateIdentity(verifiedVyral, execution.userId, vyralId, plan.parameters.name, plan.parameters.description) ||
-        !Array.isArray(rootDna) || rootDna.length !== 1) {
-      await admin.rpc('finish_ai_operator_pending_action', {
-        p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
-        p_status: 'failed', p_failure_code: 'vyral_creation_verification_failed',
-      });
-      return { ok: false, message: 'VYRA could not verify both the Vyral identity and its single initial DNA record. The result needs recovery; it is not being reported as complete.' };
-    }
-    const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
-      p_user_id: execution.userId, p_session_id: sessionId, p_action_id: pendingActionId,
-      p_status: 'completed',
-      p_result_summary: { vyral_id: vyralId, name: plan.parameters.name, initial_master_dna_record_id: rootDna[0].id },
-    });
-    if (finishError) throw new Error('The Vyral was created, but its approval record could not be finalized.');
     return {
       ok: true,
       message: 'Created your private Vyral "' + plan.parameters.name + '" and verified its initial identity DNA.',
