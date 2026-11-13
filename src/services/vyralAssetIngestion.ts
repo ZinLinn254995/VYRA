@@ -212,7 +212,7 @@ export async function ingestVyralAsset(
 
   const file = input.file;
   const assetName = typeof input.assetName === 'string' ? input.assetName.trim() : file.name;
-  if (!assetName || assetName.length > 180 || /[\\/\\u0000-\\u001f\\u007f]/.test(assetName)) {
+  if (!assetName || assetName.length > 180 || /[\\/\u0000-\u001f\u007f]/.test(assetName)) {
     throw new Error('The Asset display name is invalid. Use 1–180 characters without path separators or control characters.');
   }
   const assetId = globalThis.crypto.randomUUID();
