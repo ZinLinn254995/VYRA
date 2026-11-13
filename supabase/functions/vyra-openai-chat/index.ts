@@ -3775,7 +3775,7 @@ Deno.serve(async (request: Request) => {
       if (done) break;
       receivedBytes += value.byteLength;
       if (receivedBytes > maxRequestBodyBytes) {
-        await reader.cancel();
+        try { await reader.cancel(); } catch { /* Preserve the size-limit response if the stream is already closed. */ }
         return json({ error: 'Request body is too large.' }, 413);
       }
       chunks.push(value);
@@ -3792,6 +3792,7 @@ Deno.serve(async (request: Request) => {
     }
     body = parsed as Record<string, unknown>;
   } catch {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
     return json({ error: 'Request body must be valid JSON.' }, 400);
   }
 
