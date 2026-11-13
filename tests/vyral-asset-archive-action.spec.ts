@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingAction } from '../src/server/vyralAssetArchiveAction.ts';
+import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingAction, parseVyralAssetArchiveConfirmation } from '../src/server/vyralAssetArchiveAction.ts';
 
 const now = Date.now();
 const plan = {
@@ -20,6 +20,15 @@ const plan = {
   createdAt: new Date(now - 1000).toISOString(),
   expiresAt: new Date(now + 5 * 60 * 1000).toISOString(),
 };
+
+test('requires the exact ARCHIVE ASSET code phrase, not generic approval', () => {
+  assert.equal(parseVyralAssetArchiveConfirmation('ARCHIVE ASSET A7K2Q9'), 'A7K2Q9');
+  assert.equal(parseVyralAssetArchiveConfirmation('archive asset a7k2q9'), 'A7K2Q9');
+  assert.equal(parseVyralAssetArchiveConfirmation('yes'), null);
+  assert.equal(parseVyralAssetArchiveConfirmation('confirm'), null);
+  assert.equal(parseVyralAssetArchiveConfirmation('ARCHIVE ASSET A7K2Q8'), 'A7K2Q8');
+  assert.equal(parseVyralAssetArchiveConfirmation('ARCHIVE ASSET A7K2Q9 please'), null);
+});
 
 test('accepts a bounded archive preview for one ready Asset', () => {
   assert.equal(parseVyralAssetArchivePendingPlan(plan)?.operation, 'asset.archive');
