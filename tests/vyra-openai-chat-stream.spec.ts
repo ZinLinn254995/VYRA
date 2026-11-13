@@ -56,7 +56,10 @@ test('Vyral AI tools are read-only, bounded and scoped to the authenticated owne
   assert.match(source, /timeline\.move_clip/);
   assert.match(source, /timeline\.split_clip/);
   assert.match(source, /timeline\.update_clip/);
-  assert.match(source, /applyMasterTimelineEdit\(timeline, parameters\)/);
+  assert.match(source, /name: 'propose_master_timeline_transition'/);
+  assert.match(source, /timeline\.add_transition/);
+  assert.match(source, /applyMasterTimelineEdit\(timeline, parameters, validTransitionKeys\)/);
+  assert.match(source, /updateMasterTimelineTransition/);
   assert.match(source, /assistantTurn\.tool_calls\.filter\(\(call\) =>.*\.slice\(0, 3\)/);
   assert.match(source, /max\(1, Math\.min\(20, requestedLimit\)\)/);
   assert.match(source, /const validAssetId = \/\^\[0-9a-f\]/);
