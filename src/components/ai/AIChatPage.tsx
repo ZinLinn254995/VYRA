@@ -785,6 +785,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           locked: isLocked,
         };
         const saved = await persistSession(sessionToSave);
+        assertRequestCurrent();
         if (!saved) throw new Error('I could not confirm that this conversation was saved. Please stay here and try again.');
         setMessages(sessionToSave.messages);
         setActiveSessionId(sessionId);
@@ -816,6 +817,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             .eq('id', draft.storyboardId)
             .eq('user_id', authData.user.id)
             .maybeSingle();
+          assertRequestCurrent();
           if (loadError) throw new Error('I could not verify this Storyboard before deletion. Nothing was deleted.');
           if (currentCloud && String(currentCloud.updated_at) !== draft.expectedUpdatedAt) {
             throw new Error('This Storyboard changed after the delete preview was prepared. Nothing was deleted. Ask me to prepare the delete again.');
@@ -874,6 +876,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             .eq('id', draft.storyboardId)
             .eq('user_id', authData.user.id)
             .maybeSingle();
+          assertRequestCurrent();
           if (loadError) throw new Error('I could not verify this Storyboard before updating it. Please retry confirmation.');
           if (!currentCloud) throw new Error('This Storyboard is no longer available in your account. No changes were made.');
           if (String(currentCloud.updated_at) !== draft.expectedUpdatedAt) throw new Error('This Storyboard changed after the draft was prepared. Ask me to prepare the update again so no newer changes are overwritten.');
@@ -950,6 +953,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             .eq('id', draft.id)
             .eq('user_id', authData.user.id)
             .maybeSingle();
+          assertRequestCurrent();
           if (existingError) throw new Error('I could not verify whether this Storyboard was already saved. Please retry confirmation.');
           let savedCreatedAt = now;
           let savedUpdatedAt = now;
@@ -1880,6 +1884,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           if (authError || !authData.user) throw new Error('Sign in again before transferring this Asset.');
           const { data: destination, error: destinationError } = await supabase.from('vyrals')
             .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle();
+          assertRequestCurrent();
           if (destinationError || !destination || destination.name !== vyralName) {
             throw new Error('The destination Vyral could not be re-verified for your account. No file was transferred.');
           }
@@ -1887,12 +1892,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             vyralId: destination.id, userId: authData.user.id, file: sourceFile, assetName,
             metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: clientDraftId },
           });
+          assertRequestCurrent();
           const { data: completion, error: completionError } = await supabase.functions.invoke('vyra-openai-chat', {
             body: {
               conversationId: chatSessionId,
               assetUploadCompletion: { actionId, clientDraftId, assetId: ingested.assetId, versionId: ingested.versionId },
             },
           });
+          assertRequestCurrent();
           if (completionError || completion?.status !== 'completed') {
             throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Vyral before retrying.');
           }
