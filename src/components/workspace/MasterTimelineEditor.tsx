@@ -132,7 +132,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   }, [onSelectionChange, selectedSceneIds, selectedTransitionKey, selectedTextClip, selectedAudioClip, scenes, value?.audioTracks, value?.textTracks]);
 
   const [isTextEditMode, setIsTextEditMode] = useState(false);
-  const seededAudioRef = useRef(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
   const [textDragYOffset, setTextDragYOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -471,41 +470,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     setSelectedSceneIds((current) => current.filter((id) => scenes.some((scene) => scene.id === id)));
   }, [scenes]);
 
-  useEffect(() => {
-    if (seededAudioRef.current) return;
-    const existing = value?.audioTracks || [];
-    if (existing.length > 0) {
-      seededAudioRef.current = true;
-      return;
-    }
-    seededAudioRef.current = true;
-    const samples = [
-      { name: 'Ambient Flow', duration: 24 },
-      { name: 'Cinematic Rise', duration: 32 },
-      { name: 'Lo-fi Moments', duration: 28 },
-      { name: 'Bright Journey', duration: 30 },
-      { name: 'Calm Piano', duration: 26 },
-    ];
-    const audioTracks = samples.map((sample, index) => ({
-      id: crypto.randomUUID(),
-      name: 'Audio',
-      clips: [{
-        id: crypto.randomUUID(),
-        name: sample.name,
-        content: sample.name,
-        start: 0,
-        duration: sample.duration,
-        waveform: Array.from({ length: 48 }, (_, point) => 0.2 + (((point * 17 + index * 13) % 29) / 40)),
-      }],
-    }));
-    commitChange({
-      sceneRanges: value?.sceneRanges || {},
-      sceneInstances: value?.sceneInstances,
-      transitions: value?.transitions || {},
-      audioTracks,
-      textTracks: value?.textTracks || [],
-    });
-  }, [value?.audioTracks, value?.textTracks, value?.sceneRanges, value?.sceneInstances, value?.transitions, scenes, onChange]);
+  // Audio tracks are never auto-seeded with demo clips; only real Asset references are previewable.
+
 
   const orderedScenes = useMemo(() => {
     const instances = value?.sceneInstances || [];
@@ -575,8 +541,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
     setAudioPreviewError('');
     if (audioPreviewClipKey === selectedAudioClipKey && audio.src) {
       if (audio.paused) {
-        try { await audio.play(); setAudioPreviewPlaying(true); }
-        catch { setAudioPreviewError('Audio preview could not start. Tap Play to try again.'); }
+        try { if (audio.ended) audio.currentTime = 0; await audio.play(); setAudioPreviewPlaying(true); }
+        catch { audio.pause(); audio.removeAttribute('src'); audio.load(); setAudioPreviewClipKey(null); setAudioPreviewError('Audio preview could not start. Tap Play to refresh the secure link.'); }
       } else {
         audio.pause(); setAudioPreviewPlaying(false);
       }
@@ -1307,7 +1273,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
-      <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewError('The private Audio Asset could not be loaded.'); }} className="hidden" />
+      <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
       <div className="relative min-h-0 w-full flex-1">
         <div
