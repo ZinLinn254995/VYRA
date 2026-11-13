@@ -119,6 +119,7 @@ test('pauses in gaps and aborts stale Video URL resolution', async () => {
   assert.equal(mock.video.src, 'https://private.example/asset-b');
   handle.sync(10);
   assert.equal(mock.video.paused, true);
+  assert.equal(mock.video.src, '');
   resolveOld('https://private.example/stale');
   await new Promise((resolve) => setImmediate(resolve));
   assert.notEqual(mock.video.src, 'https://private.example/stale');
@@ -135,4 +136,29 @@ test('Master Timeline shares one AudioContext clock for Audio and Scene Video tr
   assert.match(editor, /contextStart = handle\?\.startTime \?\? \(context\.currentTime \+ 0\.05\)/);
   assert.match(editor, /createVyralVideoPlaybackUrl\(supabase, \{ assetId, versionId: assetVersionId \}\)/);
   assert.match(editor, /ref=\{masterVideoPreviewRef\}/);
+});
+
+test('does not retry a browser-blocked autoplay request on every animation frame', async () => {
+  const mock = createVideo();
+  let errors = 0;
+  mock.video.play = async () => { mock.calls.plays += 1; throw new Error('Autoplay blocked'); };
+  const handle = startMasterTimelineVideoPlayback(plan, {
+    video: mock.video,
+    resolveAssetUrl: async () => 'https://private.example/asset-a',
+    onError: () => { errors += 1; },
+  });
+  handle.sync(0);
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.video.readyState = 1;
+  mock.dispatch('loadedmetadata');
+  await new Promise((resolve) => setImmediate(resolve));
+  handle.sync(0.1);
+  handle.sync(0.2);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(mock.calls.plays, 1);
+  assert.equal(errors, 1);
+  handle.resume();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(mock.calls.plays, 2);
+  handle.stop();
 });
