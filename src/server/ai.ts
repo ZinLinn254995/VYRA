@@ -1048,7 +1048,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   };
 
   if (body?.ping === true) {
-    const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+    const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
     if (!bearer) return res.status(401).json({ status: 'error', error: 'Sign in to check the VYRA AI connection.' });
     try {
       const { response, data } = await callOpenAIChatFunction(bearer[1], { healthCheck: true });
@@ -1097,7 +1097,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
   const totalChars = messages.reduce((sum, item) => sum + item.content.length, 0);
   if (totalChars > 30000) return res.status(413).json({ error: 'Chat history is too long. Start a new conversation.' });
 
-  const bearer = /^Bearer ([^\\s]+)$/i.exec(req.header('authorization') ?? '');
+  const bearer = /^Bearer ([^\s]+)$/i.exec(req.header('authorization') ?? '');
   if (!bearer) return res.status(401).json({ error: 'Sign in to use VYRA AI Chat.' });
   const conversationId = typeof body.conversationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.conversationId) ? body.conversationId : undefined;
   const activeVyralId = typeof body.activeVyralId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.activeVyralId) ? body.activeVyralId : undefined;
