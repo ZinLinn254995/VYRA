@@ -118,9 +118,9 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     : [...new Set([...previous, ...filteredItems.map((item) => item.id)])]);
 
   const deleteSelected = async () => {
-    if (!selectedIds.length || !window.confirm('Delete ' + selectedIds.length + ' selected file(s)? This permanently removes the stored files.')) return;
+    if (!selectedIds.length || !window.confirm('Remove ' + selectedIds.length + ' selected item(s) from My Media Library? Uploaded files will be deleted; Vyral Assets remain in their Vyral.')) return;
     const count = selectedIds.length;
-    await withBusy(async () => { await deleteMediaLibraryItems(selectedIds); setSelectedIds([]); }, count + (count === 1 ? ' file deleted.' : ' files deleted.'));
+    await withBusy(async () => { await deleteMediaLibraryItems(selectedIds); setSelectedIds([]); }, 'Removed ' + count + (count === 1 ? ' item from My Media Library.' : ' items from My Media Library.'));
   };
 
   const renameItem = async (item: MediaLibraryItem) => {
