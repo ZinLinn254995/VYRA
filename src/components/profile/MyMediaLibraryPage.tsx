@@ -50,7 +50,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
   const suppressClickRef = useRef<string | null>(null);
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
@@ -69,10 +69,6 @@ export const MyMediaLibraryPage: React.FC = () => {
     }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => {
-    const breadcrumb = breadcrumbScrollRef.current;
-    if (breadcrumb) breadcrumb.scrollLeft = breadcrumb.scrollWidth;
-  }, [activeFolderId, breadcrumbs]);
   useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
@@ -87,6 +83,10 @@ export const MyMediaLibraryPage: React.FC = () => {
     }
     return chain;
   }, [activeFolderId, folderById]);
+  useEffect(() => {
+    const breadcrumb = breadcrumbScrollRef.current;
+    if (breadcrumb) breadcrumb.scrollLeft = breadcrumb.scrollWidth;
+  }, [activeFolderId, breadcrumbs]);
 
   const folderTree = useMemo(() => {
     const result: Array<{ folder: MediaLibraryFolder; depth: number }> = [];
