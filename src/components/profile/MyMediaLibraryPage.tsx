@@ -37,6 +37,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [view, setView] = useState<ViewMode>('list');
   const [filter, setFilter] = useState<FilterKind>('all');
   const [query, setQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -221,6 +222,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}><ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/><button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className="max-w-36 shrink-0 truncate rounded-md px-1.5 py-1.5 text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{folder.name}</button></React.Fragment>)}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={() => setShowSearch((value) => !value)} className={`grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] ${showSearch ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : ''}`} aria-label={showSearch ? "Hide search" : "Show search"} title="Search"><Search size={16}/></button>
           <button type="button" onClick={() => { setCreatingFolder((value) => !value); setFolderName(''); }} disabled={busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label="New folder" title="New folder"><FolderPlus size={16}/></button>
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label="Upload files" title="Upload files"><Upload size={16}/></button>
           {activeFolderId && <button type="button" onClick={() => navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Go to parent folder"><ArrowLeft size={16}/></button>}
@@ -228,13 +230,13 @@ export const MyMediaLibraryPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative min-w-[170px] flex-1 sm:max-w-xs">
+      {showSearch && <div className="w-full">
+        <label className="relative block w-full">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]"/>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this folder" aria-label="Search current folder" className="min-h-10 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this folder" aria-label="Search current folder" className="min-h-10 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
         </label>
-        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => void handleUpload(event)}/>
-      </div>
+      </div>}
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => void handleUpload(event)}/>
 
       {creatingFolder && <form onSubmit={(event) => void createFolder(event)} className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-3">
         <Folder size={17} className="text-[var(--vyra-accent-primary)]"/>
