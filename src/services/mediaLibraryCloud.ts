@@ -216,52 +216,60 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
 export async function uploadMediaLibraryFiles(
   files: File[], folderId: string | null,
   onProgress?: (completed: number, total: number, currentFileName: string) => void,
+  onFileError?: (file: File, error: Error) => void,
 ): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
   let uploaded = 0;
   for (const file of files) {
-    if (!file.size) throw new Error(file.name + ' is empty.');
-    if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
-    const id = crypto.randomUUID();
-    // Keep the user's original filename in the Library record, but never use it
-    // as a Storage object key: Unicode and punctuation can be rejected by the
-    // storage backend. UUID + a conservative extension gives every upload a safe,
-    // collision-resistant object path on every platform.
-    const fileName = file.name.replace(/[\\u0000-\\u001F\\u007F]/g, '').trim() || 'upload-' + id;
-    const storagePath = userId + '/media-library/' + id + SAFE_STORAGE_EXTENSION(fileName);
-    const mimeType = file.type || 'application/octet-stream';
-    const { error: uploadError } = await db.storage.from('vyral-assets').upload(storagePath, file, {
-      contentType: mimeType, upsert: false, cacheControl: '3600',
-    });
-    if (uploadError) throw new Error('Could not upload ' + file.name + ': ' + uploadError.message);
-    let thumbnailPath: string | null = null;
-    const thumbnailBlob = await createMediaThumbnail(file);
-    if (thumbnailBlob) {
-      const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
-      const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
-      const candidatePath = userId + '/media-library-thumbnails/' + id + '.' + thumbnailExtension;
-      const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
-        contentType: thumbnailType, upsert: false, cacheControl: '86400',
+    try {
+      if (!file.size) throw new Error(file.name + ' is empty.');
+      if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
+      const id = crypto.randomUUID();
+      // Keep the user's original filename in the Library record, but never use it
+      // as a Storage object key: Unicode and punctuation can be rejected by the
+      // storage backend. UUID + a conservative extension gives every upload a safe,
+      // collision-resistant object path on every platform.
+      const fileName = file.name.replace(/[\\u0000-\\u001F\\u007F]/g, '').trim() || 'upload-' + id;
+      const storagePath = userId + '/media-library/' + id + SAFE_STORAGE_EXTENSION(fileName);
+      const mimeType = file.type || 'application/octet-stream';
+      const { error: uploadError } = await db.storage.from('vyral-assets').upload(storagePath, file, {
+        contentType: mimeType, upsert: false, cacheControl: '3600',
       });
-      if (!thumbnailError) thumbnailPath = candidatePath;
+      if (uploadError) throw new Error('Could not upload ' + file.name + ': ' + uploadError.message);
+      let thumbnailPath: string | null = null;
+      const thumbnailBlob = await createMediaThumbnail(file);
+      if (thumbnailBlob) {
+        const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+        const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+        const candidatePath = userId + '/media-library-thumbnails/' + id + '.' + thumbnailExtension;
+        const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
+          contentType: thumbnailType, upsert: false, cacheControl: '86400',
+        });
+        if (!thumbnailError) thumbnailPath = candidatePath;
+      }
+      const { error: insertError } = await db.from('media_library_items').insert({
+        id, user_id: userId, folder_id: folderId, source_kind: 'upload', source_asset_id: null,
+        bucket_id: 'vyral-assets', storage_path: storagePath, file_name: fileName,
+        mime_type: mimeType, size_bytes: file.size,
+        metadata: { upload_source: 'media_library', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
+      });
+      if (insertError) {
+        await db.storage.from('vyral-assets').remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])]);
+        throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
+      }
+      uploaded += 1;
+      onProgress?.(uploaded, files.length, file.name);
+    } catch (cause) {
+      const failure = cause instanceof Error ? cause : new Error('Could not upload ' + file.name + '.');
+      // Keep the original fail-fast contract for existing callers. The Library UI
+      // opts into per-file reporting so later files can still finish.
+      if (!onFileError) throw failure;
+      onFileError(file, failure);
     }
-    const { error: insertError } = await db.from('media_library_items').insert({
-      id, user_id: userId, folder_id: folderId, source_kind: 'upload', source_asset_id: null,
-      bucket_id: 'vyral-assets', storage_path: storagePath, file_name: fileName,
-      mime_type: mimeType, size_bytes: file.size,
-      metadata: { upload_source: 'media_library', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
-    });
-    if (insertError) {
-      await db.storage.from('vyral-assets').remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])]);
-      throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
-    }
-    uploaded += 1;
-    onProgress?.(uploaded, files.length, file.name);
   }
   return uploaded;
 }
-
 /** Adds a successfully ingested Chat/Workspace Asset to the unified Library without duplicating its binary. */
 export async function registerVyralAssetInMediaLibrary(input: {
   assetId: string; userId: string; fileName: string; mimeType: string; sizeBytes: number; storagePath: string;
