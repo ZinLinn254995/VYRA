@@ -338,7 +338,12 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await moveDestination.selectOption('e2e-folder-archive');
   await expect(page.getByText('1 file moved.')).toBeVisible();
   expect(uploadedRecord?.folder_id).toBe('e2e-folder-archive');
-  await page.getByTestId('media-library-entry-' + uploadedRecord!.id).click();
+  // Moving into a different folder removes the file from the root listing.
+  // Open the destination folder before asserting/deleting the moved file.
+  await page.getByTestId('media-library-entry-e2e-folder-archive').dblclick();
+  const movedFileRow = page.getByTestId('media-library-entry-' + uploadedRecord!.id);
+  await expect(movedFileRow).toBeVisible();
+  await movedFileRow.click();
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Delete selected items' }).click();
   await expect.poll(() => deletedMediaItemIds.includes(uploadedRecord!.id)).toBe(true);
