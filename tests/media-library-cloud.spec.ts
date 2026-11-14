@@ -18,6 +18,13 @@ test('Media Library database is cloud-backed and owner-isolated', () => {
   assert.ok(safeMoves.includes('with recursive descendants(id)'));
   assert.ok(safeMoves.includes('union'));
   assert.ok(safeMoves.includes('A folder cannot be moved into one of its descendants'));
+  const safeDelete = read('supabase/migrations/20261114170000_media_library_prevent_nonempty_folder_delete.sql');
+  assert.ok(safeDelete.includes('prevent_nonempty_media_library_folder_delete'));
+  assert.ok(safeDelete.includes('before delete on public.media_library_folders'));
+  assert.ok(safeDelete.includes('parent_id = old.id'), 'The database must reject deletion while child folders remain.');
+  assert.ok(safeDelete.includes('folder_id = old.id'), 'The database must reject deletion while files remain.');
+  assert.ok(safeDelete.includes('pg_trigger_depth() > 1'), 'Account-level cascading deletion must remain possible.');
+  assert.ok(safeDelete.includes('Media Library folder is not empty'));
   assert.ok(migration.includes('source_asset_id uuid references public.vyral_assets(id) on delete cascade'));
   assert.ok(migration.includes('on public.media_library_items(user_id, source_asset_id)'));
   const indexes = read('supabase/migrations/20261114080528_media_library_foreign_key_indexes.sql');
