@@ -62,7 +62,7 @@ test('approved upload uses canonical Asset DNA ingestion and indexes the same As
   const block = page.slice(start, end);
   assert.match(block, /await ingestVyralAsset\(createSupabaseVyralAssetIngestionPort\(supabase\)/);
   assert.match(block, /vyralId: destination\.id, userId: authData\.user\.id, file: sourceFile, assetName/);
-  assert.match(block, /await registerVyralAssetInMediaLibrary\(/);
+  assert.match(block, /await awaitForCurrentRequest\(registerVyralAssetInMediaLibrary\(/);
   assert.match(block, /assetId: ingested\.assetId/);
   assert.match(block, /sourceKind: 'vyral_asset'/);
   assert.match(block, /await awaitForCurrentRequest\(supabase\.functions\.invoke\('vyra-openai-chat',[\s\S]*?assetUploadCompletion/);
