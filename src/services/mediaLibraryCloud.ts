@@ -38,6 +38,25 @@ const getDb = () => {
   return supabase;
 };
 
+/** Run a bounded number of async tasks to avoid request spikes on large Libraries. */
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(values.length, Math.max(1, Math.floor(concurrency) || 1));
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= values.length) return;
+      results[index] = await mapper(values[index]);
+    }
+  }));
+  return results;
+}
+
 async function getOwnerId(): Promise<string> {
   const db = getDb();
   const { data, error } = await db.auth.getUser();
@@ -119,7 +138,7 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
   if (folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
   if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
   const rawItems = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
-  const items = await Promise.all(rawItems.map(async (item) => {
+  const items = await mapWithConcurrency(rawItems, 8, async (item) => {
     const storage = db.storage.from(item.bucket_id);
     const thumbnailPath = typeof item.metadata?.thumbnail_path === 'string' ? item.metadata.thumbnail_path : null;
     const [{ data: original }, thumbnail] = await Promise.all([
@@ -127,7 +146,7 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
       thumbnailPath ? storage.createSignedUrl(thumbnailPath, 60 * 60) : Promise.resolve({ data: null, error: null }),
     ]);
     return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
-  }));
+  });
   return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
 }
 
