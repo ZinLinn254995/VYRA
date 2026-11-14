@@ -76,7 +76,7 @@ export async function processMediaLibraryStorageCleanup(limit = 4): Promise<numb
       && job.storage_paths.every((path) => {
         if (typeof path !== 'string' || !path) return false;
         const segments = path.split('/');
-        return !path.includes('\\\\')
+        return !path.includes('\\')
           && !segments.some((segment) => !segment || segment === '.' || segment === '..')
           && (path.startsWith(userId + '/media-library/') || path.startsWith(userId + '/media-library-thumbnails/'));
       });
