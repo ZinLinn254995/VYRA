@@ -333,3 +333,20 @@ test('Deleting multiple selected folders processes descendants before parents', 
   assert.ok(selection.includes('const folderDepth ='), 'Folder hierarchy depth must be calculated from parent references.');
   assert.ok(selection.includes('.sort((a, b) => folderDepth(b) - folderDepth(a))'), 'Selected folders must be ordered deepest-first so a selected parent can be deleted after its selected children.');
 });
+
+
+test('Media Library invalidates and unlocks stale pagination when the folder or query changes', () => {
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const refreshStart = page.indexOf('const refresh = useCallback');
+  const refreshEnd = page.indexOf('  }, [activeFolderId, filter, serverQuery]);', refreshStart);
+  const refresh = page.slice(refreshStart, refreshEnd);
+  assert.ok(refresh.includes('++loadMoreRequestRef.current'), 'A context refresh must invalidate an in-flight next-page response.');
+  assert.ok(refresh.includes('loadingMoreLockRef.current = false'), 'A context refresh must release the synchronous pagination lock.');
+  assert.ok(refresh.includes('setLoadingMoreItems(false)'), 'A context refresh must clear the stale loading indicator.');
+  const loadStart = page.indexOf('const loadMoreItems =');
+  const loadEnd = page.indexOf('const startRename =', loadStart);
+  const loadMore = page.slice(loadStart, loadEnd);
+  assert.ok(loadMore.includes('if (!hasMoreItems || loadingMoreLockRef.current || loading) return'), 'Rapid repeated clicks must not start duplicate page requests before React rerenders.');
+  assert.ok(loadMore.includes('pageRequestId !== loadMoreRequestRef.current'), 'A stale page response must never append into a newer folder or search context.');
+  assert.ok(loadMore.includes('if (pageRequestId === loadMoreRequestRef.current)'), 'A stale request must not unlock a newer request or hide its spinner.');
+});
