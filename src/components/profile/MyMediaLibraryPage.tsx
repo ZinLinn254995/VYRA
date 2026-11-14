@@ -249,8 +249,8 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       if (!mounted || thumbnailBackfillStartedRef.current) return;
       thumbnailBackfillStartedRef.current = true;
       try {
-        // Repair a small batch only after the user opens the Library, never while
-        // another profile subpage is active or during every folder navigation.
+        // Backfill only once per page visit: repair a small batch only after the
+        // user opens the Library, never while another profile subpage is active.
         const generated = await backfillMediaLibraryThumbnails(4);
         if (mounted && generated > 0) await refresh(true);
       } catch {
