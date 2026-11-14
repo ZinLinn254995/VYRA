@@ -57,20 +57,12 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
   const rawItems = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
   const items = await Promise.all(rawItems.map(async (item) => {
     const storage = db.storage.from(item.bucket_id);
+    const thumbnailPath = typeof item.metadata?.thumbnail_path === 'string' ? item.metadata.thumbnail_path : null;
     const [{ data: original }, thumbnail] = await Promise.all([
       storage.createSignedUrl(item.storage_path, 60 * 60),
-      item.mime_type.startsWith('image/')
-        ? storage.createSignedUrl(item.storage_path, 60 * 60, {
-            transform: { width: 256, height: 256, resize: 'cover', quality: 68 },
-          })
-        : Promise.resolve({ data: null, error: null }),
+      thumbnailPath ? storage.createSignedUrl(thumbnailPath, 60 * 60) : Promise.resolve({ data: null, error: null }),
     ]);
-    return {
-      ...item,
-      signed_url: original?.signedUrl ?? null,
-      // Never fall back to the original full-resolution image for a tile preview.
-      thumbnail_url: thumbnail.data?.signedUrl ?? null,
-    };
+    return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail?.signedUrl ?? null };
   }));
   return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
 }
@@ -162,6 +154,64 @@ export async function deleteMediaLibraryItems(itemIds: string[]): Promise<void> 
   if (rowError) throw new Error('The files were removed from the Library index, but the index could not be updated. Refresh the library.');
 }
 
+async function createMediaThumbnail(file: File): Promise<Blob | null> {
+  const canvas = document.createElement('canvas');
+  const maxSide = 256;
+  const drawFrame = (source: CanvasImageSource, width: number, height: number) => {
+    if (!width || !height) return null;
+    const scale = Math.min(1, maxSide / Math.max(width, height));
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.68));
+  };
+
+  try {
+    if (file.type.startsWith('image/')) {
+      if (typeof createImageBitmap !== 'function') return null;
+      const bitmap = await createImageBitmap(file);
+      try { return await drawFrame(bitmap, bitmap.width, bitmap.height); }
+      finally { bitmap.close(); }
+    }
+    if (file.type.startsWith('video/')) {
+      const objectUrl = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      return await new Promise<Blob | null>((resolve) => {
+        let settled = false;
+        const finish = (blob: Blob | null) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          video.removeAttribute('src');
+          video.load();
+          URL.revokeObjectURL(objectUrl);
+          resolve(blob);
+        };
+        const timeout = window.setTimeout(() => finish(null), 8000);
+        video.addEventListener('loadedmetadata', () => {
+          if (!Number.isFinite(video.duration) || video.videoWidth === 0 || video.videoHeight === 0) return finish(null);
+          video.currentTime = Math.min(0.25, video.duration / 2);
+        }, { once: true });
+        video.addEventListener('seeked', async () => {
+          try { finish(await drawFrame(video, video.videoWidth, video.videoHeight)); }
+          catch { finish(null); }
+        }, { once: true });
+        video.addEventListener('error', () => finish(null), { once: true });
+        video.src = objectUrl;
+        video.load();
+      });
+    }
+  } catch {
+    // Thumbnail generation is best-effort; the original upload remains usable.
+  }
+  return null;
+}
+
 export async function uploadMediaLibraryFiles(files: File[], folderId: string | null): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
@@ -181,13 +231,23 @@ export async function uploadMediaLibraryFiles(files: File[], folderId: string | 
       contentType: mimeType, upsert: false, cacheControl: '3600',
     });
     if (uploadError) throw new Error('Could not upload ' + file.name + ': ' + uploadError.message);
+    let thumbnailPath: string | null = null;
+    const thumbnailBlob = await createMediaThumbnail(file);
+    if (thumbnailBlob) {
+      const candidatePath = userId + '/media-library-thumbnails/' + id + '.webp';
+      const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
+        contentType: 'image/webp', upsert: false, cacheControl: '86400',
+      });
+      if (!thumbnailError) thumbnailPath = candidatePath;
+    }
     const { error: insertError } = await db.from('media_library_items').insert({
       id, user_id: userId, folder_id: folderId, source_kind: 'upload', source_asset_id: null,
       bucket_id: 'vyral-assets', storage_path: storagePath, file_name: fileName,
-      mime_type: mimeType, size_bytes: file.size, metadata: { upload_source: 'media_library' },
+      mime_type: mimeType, size_bytes: file.size,
+      metadata: { upload_source: 'media_library', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
     });
     if (insertError) {
-      await db.storage.from('vyral-assets').remove([storagePath]);
+      await db.storage.from('vyral-assets').remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])]);
       throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
     }
     uploaded += 1;
