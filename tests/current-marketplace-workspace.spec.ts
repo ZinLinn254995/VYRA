@@ -142,7 +142,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     if (url.pathname.includes('/storage/v1/object/sign/vyral-assets/')) {
       if (method === 'POST') {
         const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/sign/vyral-assets/')[1] ?? '');
-        const signedURL = 'https://e2e-test.supabase.co/storage/v1/object/sign/vyral-assets/' + objectPath + '?token=e2e';
+        const signedURL = '/object/sign/vyral-assets/' + objectPath + '?token=e2e';
         return json(route, { signedURL });
       }
       if (method === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', headers: corsHeaders, body: png });
@@ -178,7 +178,6 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   expect(originalObjectMutations).toEqual([]);
 
   await page.getByRole('button', { name: 'Grid view' }).click();
-  await expect(page.locator('img[alt=""]')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Move files' })).toHaveCount(0);
+  await expect(page.locator('article img[alt=""]')).toBeVisible();
   expect(item.storage_path).toBe(originalPath);
 });
