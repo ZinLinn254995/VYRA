@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, LockKeyhole, Search, Trash2 } from 'lucide-react';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import { VyralDetailsContent } from './VyralDetailsContent';
-import { supabase } from '../../context/AuthContext';
+import { supabase, useAuth } from '../../context/AuthContext';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type VyralFolder = { id: string; name: string; parentId: string | null; createdAt: string };
@@ -14,7 +14,7 @@ type VyralRecord = {
   dna_status: string; license_policy: Record<string, unknown>; created_at: string; updated_at: string;
   assetCount: number; folderCount: number; metadata?: Record<string, unknown>;
 };
-type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
+type Props = { isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 const STORAGE_KEY = 'vyra:my-vyrals:v1';
 const MIGRATION_KEY = 'vyra:my-vyrals:cloud-migrated:v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,20 +35,35 @@ const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.sc
 
 const fieldClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
 
-export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLabel, onSendAssetsToChat }) => {
+export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true, onBack, backLabel, onSendAssetsToChat }) => {
+  const { user } = useAuth();
+  const ownerId = user?.id ?? null;
+  const lastSyncAtRef = useRef(0);
+  const initialLoadStartedRef = useRef(false);
+  const currentOwnerRef = useRef(ownerId);
   const [vyrals, setVyrals] = useState<VyralRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useLayoutEffect(() => {
+    if (currentOwnerRef.current === ownerId) return;
+    currentOwnerRef.current = ownerId;
+    lastSyncAtRef.current = 0;
+    initialLoadStartedRef.current = false;
+    setVyrals([]);
+    setActiveId(null);
+    setLoading(Boolean(ownerId));
+    setError('');
+  }, [ownerId]);
 
-  const loadVyrals = useCallback(async () => {
-    if (!supabase || !isAuthenticated) { setVyrals([]); setLoading(false); return; }
-    setLoading(true);
+  const loadVyrals = useCallback(async (quiet = false) => {
+    if (!supabase || !isAuthenticated || !ownerId) { setVyrals([]); setLoading(false); return; }
+    if (!quiet) setLoading(true);
     setError('');
     const { data: auth, error: authError } = await supabase.auth.getUser();
-    if (authError || !auth.user) { setError('Your session could not be verified. Please sign in again.'); setLoading(false); return; }
+    if (authError || !auth.user || auth.user.id !== ownerId) { setError('Your session could not be verified. Please sign in again.'); setLoading(false); return; }
 
     let { data, error: queryError } = await supabase.from('vyrals').select('*').order('updated_at', { ascending: false });
     if (queryError) { setError(queryError.message); setLoading(false); return; }
@@ -112,10 +127,19 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
       ...item, assetCount: assetCounts.get(item.id) ?? 0, folderCount: folderCounts.get(item.id) ?? 0,
       license_policy: (item.license_policy ?? {}) as Record<string, unknown>,
     })) as VyralRecord[]);
+    lastSyncAtRef.current = Date.now();
     setLoading(false);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, ownerId]);
 
-  useEffect(() => { void loadVyrals(); }, [loadVyrals]);
+  useEffect(() => {
+    if (!isActive) return;
+    if (!initialLoadStartedRef.current) {
+      initialLoadStartedRef.current = true;
+      void loadVyrals(false);
+    } else if (Date.now() - lastSyncAtRef.current >= 30_000) {
+      void loadVyrals(true);
+    }
+  }, [isActive, loadVyrals]);
 
   const active = vyrals.find((item) => item.id === activeId) ?? null;
   const visibleVyrals = useMemo(() => vyrals
