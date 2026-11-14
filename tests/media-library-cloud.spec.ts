@@ -129,7 +129,7 @@ test('My Media Library UI includes required organization, filtering, views and m
   for (const value of ["'image'","'video'","'audio'","'document'","'other'"]) assert.ok(page.includes(value));
   for (const snippet of [
     "setView('grid')", "setView('list')", 'multiple className="hidden"',
-    'toggleAll', 'selectedIds', 'moveMediaLibraryItems', 'role="toolbar"', 'aria-label="Selected item actions"', 'Rename selected item', 'Move selected files to folder', 'Move selected folder to folder', 'moveSelectedFolder', 'blockedFolderIds', 'folderPath(folder.id)',
+    'toggleAll', 'aria-pressed={allVisibleSelected}', 'Deselect all visible items', 'Select all visible items', 'selectedIds', 'moveMediaLibraryItems', 'role="toolbar"', 'aria-label="Selected item actions"', 'Rename selected item', 'Move selected files to folder', 'Move selected folder to folder', 'moveSelectedFolder', 'blockedFolderIds', 'folderPath(folder.id)',
     'folderTree.filter(({ folder }) => folder.id !== activeFolderId)', 'Delete selected items',
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
