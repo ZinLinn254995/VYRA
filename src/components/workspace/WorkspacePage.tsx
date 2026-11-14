@@ -78,6 +78,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardStorageKeyRef = useRef(storageKey);
+  const suggestionRequestIdRef = useRef(0);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
@@ -169,16 +170,26 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     }
   };
   const suggestStoryboardDetails = async () => {
+    const requestId = ++suggestionRequestIdRef.current;
+    const requestStorageKey = storyboardStorageKeyRef.current;
     setSuggestionError('');
     setIsSuggesting(true);
     try {
       const suggestion = await requestStoryboardSuggestion(title, topic);
+      // A response started under a previous account or superseded by a newer
+      // request must never populate the current owner's form or suggestion cache.
+      if (requestId !== suggestionRequestIdRef.current || requestStorageKey !== storyboardStorageKeyRef.current) return;
       if (suggestion) {
         setCachedStoryboardSuggestion({ key: workspaceStoryboardSuggestionKey(title, topic, detailOrigins), suggestion });
         applyStoryboardSuggestionToForm(suggestion);
       }
-    } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
-    finally { setIsSuggesting(false); }
+    } catch (error) {
+      if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) {
+        setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.');
+      }
+    } finally {
+      if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) setIsSuggesting(false);
+    }
   };
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
@@ -488,6 +499,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       // Workspace stays mounted across navigation and auth changes. Clear every
       // owner-bound editor surface before painting the next account's workspace.
       storyboardStorageKeyRef.current = storageKey;
+      suggestionRequestIdRef.current += 1;
       lastStoryboardSyncAtRef.current = 0;
       setActiveStoryboard(null);
       setActiveStoryboardConfirmed(false);
