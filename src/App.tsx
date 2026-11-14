@@ -187,7 +187,7 @@ function MarketplaceApp() {
         )}
         <div hidden={profileOpen || activeSection !== 'ai-chat'} aria-hidden={profileOpen || activeSection !== 'ai-chat'} style={profileOpen || activeSection !== 'ai-chat' ? { display: "none" } : undefined} className="min-w-0">
           <ErrorBoundary>
-            <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
+            <AIChatPage isActive={activeSection === 'ai-chat' && !profileOpen} isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
           </ErrorBoundary>
         </div>
         <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
