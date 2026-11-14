@@ -283,6 +283,11 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await fileRow.dblclick();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download original file' })).toBeVisible();
+  const downloadPopupPromise = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Download original file' }).click();
+  const downloadPopup = await downloadPopupPromise;
+  await expect.poll(() => new URL(downloadPopup.url()).searchParams.get('download')).toBe('legacy-sample.png');
+  await downloadPopup.close();
   await page.getByRole('button', { name: 'Close preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
