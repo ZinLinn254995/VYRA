@@ -142,7 +142,7 @@ test('My Media Library UI includes required organization, filtering, views and m
     'loadMoreItems',
     'offset: items.length, limit: 100',
     'thumbnailBackfillStartedRef.current',
-    'setServerQuery(\\'\\')',
+    "setServerQuery('')",
     'Backfill only once per page visit',
 
 
