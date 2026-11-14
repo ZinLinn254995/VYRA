@@ -212,7 +212,7 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
   const profile = read('src/components/profile/ProfilePage.tsx');
   const chat = read('src/components/ai/AIChatPage.tsx');
   assert.ok(profile.includes("import { MyMediaLibraryPage }"));
-  assert.ok(profile.includes(`<MyMediaLibraryPage isActive={activePage === 'my-media-library'} />`));
+  assert.ok(profile.includes(`<MyMediaLibraryPage isActive={isActive && activePage === 'my-media-library'} />`));
   assert.ok(chat.includes('registerVyralAssetInMediaLibrary'));
   assert.ok(chat.includes('thumbnailSource: sourceFile'), 'AI Chat should reuse the selected File to create its Library thumbnail without re-downloading the original.');
   assert.ok(chat.includes('assetId: ingested.assetId'));
@@ -394,7 +394,7 @@ test('My Media Library restores cached views and reconciles mutations without fu
   assert.ok(page.includes('libraryCacheRef.current.get(cacheKey)'), 'A previously visited folder view must be available immediately.');
   assert.ok(page.includes('setLoading(false)'), 'Cached folder views must not keep the blocking loader visible.');
   assert.ok(page.includes('Date.now() - cached.cachedAt >= 30_000'), 'Stale cached views should refresh quietly after the freshness window.');
-  assert.ok(page.includes("window.addEventListener('vyra:page-activated', handlePageActivated)"), 'Returning to the Library should trigger a freshness check.');
+  assert.ok(page.includes('if (Date.now() - cached.cachedAt < 30_000) return;'), 'Returning to a fresh folder must skip the network request entirely.');
   assert.ok(page.includes('if (!isActive) return;'), 'The Library must not initialize or backfill while another profile page is active.');
   assert.ok(page.includes('libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() })'), 'An upload should patch the matching cached folder instead of reloading it.');
   assert.ok(page.includes('await task(); if (refreshAfter) await refresh(true)'), 'Mutation handlers must be able to opt out of a full folder refresh.');
@@ -404,7 +404,7 @@ test('My Media Library restores cached views and reconciles mutations without fu
   assert.ok(incrementalLoad.includes(".eq('user_id', ownerId)"), 'Incremental file lookup must remain owner-scoped.');
   assert.ok(incrementalLoad.includes("itemQuery.eq('id', itemIds[0])"), 'A single upload should query exactly one item ID.');
   assert.ok(incrementalLoad.includes('thumbnailSignedUrlCache.get(cacheKey)'), 'Incremental preview loading should reuse unexpired signed thumbnail URLs.');
-  assert.ok(page.includes('vyra:page-activated'), 'Page-level navigation must be able to request a quiet refresh.');
+  assert.ok(page.includes('if (!isActive || document.visibilityState !== \'visible\') return;'), 'Focus and online refreshes must run only while the Library is visible.');
 });
 
 
