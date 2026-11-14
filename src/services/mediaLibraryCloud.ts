@@ -261,7 +261,7 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
       const { data: updatedRow, error: updateError } = await db.from('media_library_items')
-        .update({ metadata, updated_at: new Date().toISOString() })
+        .update({ metadata })
         .eq('id', row.id).eq('user_id', userId)
         .is('metadata->thumbnail_path', null)
         .select('id')
