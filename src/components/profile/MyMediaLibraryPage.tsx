@@ -136,7 +136,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       pointerTypeRef.current = event.pointerType;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       clearHoldTimer();
-      holdTimerRef.current = window.setTimeout(() => { toggleSelected(entry.id); suppressClickRef.current = entry.id; holdTimerRef.current = null; }, 480);
+      holdTimerRef.current = window.setTimeout(() => { setSelectedIds([entry.id]); suppressClickRef.current = entry.id; holdTimerRef.current = null; }, 480);
     },
     onPointerUp: clearHoldTimer,
     onPointerLeave: clearHoldTimer,
@@ -146,7 +146,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   });
   const activateEntry = (entry: Entry) => {
     if (suppressClickRef.current === entry.id) { suppressClickRef.current = null; return; }
-    if (selectedIds.length > 0) { toggleSelected(entry.id); return; }
+    if (selectedIds.length > 0) { if (!selectedIds.includes(entry.id)) setSelectedIds([entry.id]); return; }
     if (pointerTypeRef.current === 'touch') {
       if (entry.folder) navigateToFolder(entry.id);
       else if (entry.item) setPreviewItem(entry.item);
@@ -260,7 +260,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           <div className="grid grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-y border-[var(--vyra-border-subtle)] px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
             <button type="button" onClick={toggleAll} className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]" aria-label="Select all"><Check size={13}/></button><span>Name</span><span>Type</span><span className="text-right">Size</span><span className="text-right">Date modified</span>
           </div>
-          {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); if (event.key === ' ') { event.preventDefault(); toggleSelected(entry.id); } }} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-b border-[var(--vyra-border-subtle)] px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
+          {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); if (event.key === ' ') { event.preventDefault(); setSelectedIds([entry.id]); } }} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-b border-[var(--vyra-border-subtle)] px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
             <span className={`grid size-8 place-items-center ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</span>
             <span className="min-w-0 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{entry.name}</span>
             <span className="truncate text-[11px] text-[var(--vyra-text-muted)]">{entry.folder ? 'Folder' : entry.item!.mime_type.split('/').pop()?.toUpperCase() || 'FILE'}</span>
