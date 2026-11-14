@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
-  loadMediaLibrary, moveMediaLibraryItems, renameMediaLibraryFolder,
+  loadMediaLibrary, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
   renameMediaLibraryItem, uploadMediaLibraryFiles,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
@@ -157,6 +157,18 @@ export const MyMediaLibraryPage: React.FC = () => {
     return result;
   }, [folders]);
 
+  const folderPath = (folderId: string): string => {
+    const parts: string[] = [];
+    const seen = new Set<string>();
+    let cursor = folderById.get(folderId);
+    while (cursor && !seen.has(cursor.id)) {
+      parts.unshift(cursor.name);
+      seen.add(cursor.id);
+      cursor = cursor.parent_id ? folderById.get(cursor.parent_id) : undefined;
+    }
+    return parts.join(' / ');
+  };
+
   const entries = useMemo<Entry[]>(() => {
     const normalized = query.trim().toLocaleLowerCase();
     const currentFolders = folders.filter((folder) => folder.parent_id === activeFolderId)
@@ -241,6 +253,19 @@ export const MyMediaLibraryPage: React.FC = () => {
   };
   const selectedFiles = selectedIds.filter((id) => items.some((item) => item.id === id));
   const selectedFolders = selectedIds.filter((id) => folders.some((folder) => folder.id === id));
+  const blockedFolderIds = useMemo(() => {
+    const blocked = new Set<string>();
+    const addDescendants = (parentId: string) => {
+      folders.filter((folder) => folder.parent_id === parentId).forEach((folder) => {
+        if (blocked.has(folder.id)) return;
+        blocked.add(folder.id);
+        addDescendants(folder.id);
+      });
+    };
+    selectedFolders.forEach((id) => { blocked.add(id); addDescendants(id); });
+    return blocked;
+  }, [folders, selectedFolders.join('|')]);
+
   const allVisibleSelected = entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
   const toggleAll = () => setSelectedIds((previous) => allVisibleSelected ? previous.filter((id) => !entries.some((entry) => entry.id === id)) : [...new Set([...previous, ...entries.map((entry) => entry.id)])]);
 
@@ -267,6 +292,19 @@ export const MyMediaLibraryPage: React.FC = () => {
     if (!selectedFiles.length) { event.target.value = ''; return; }
     const count = selectedFiles.length;
     await withBusy(async () => { await moveMediaLibraryItems(selectedFiles, destination); setSelectedIds([]); }, count + (count === 1 ? ' file moved.' : ' files moved.'));
+    event.target.value = '';
+  };
+  const moveSelectedFolder = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const destination = event.target.value === '__root__' ? null : event.target.value;
+    const folderId = selectedFolders[0];
+    if (!folderId || selectedFolders.length !== 1 || (destination && blockedFolderIds.has(destination))) {
+      event.target.value = '';
+      return;
+    }
+    await withBusy(async () => {
+      await moveMediaLibraryFolder(folderId, destination);
+      setSelectedIds([]);
+    }, 'Folder moved.');
     event.target.value = '';
   };
   const deleteSelected = async () => {
@@ -335,6 +373,15 @@ export const MyMediaLibraryPage: React.FC = () => {
             <option value="" disabled>Choose folder</option>
             <option value="__root__">My Media</option>
             {folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+          </select>
+        </label>
+        <label className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-border)] px-2.5 text-xs text-[var(--vyra-text-secondary)] has-[:disabled]:opacity-40">
+          <ArrowRightLeft size={14}/>
+          <span>Move folder</span>
+          <select aria-label="Move selected folder to folder" value="" onChange={(event) => void moveSelectedFolder(event)} disabled={busy || selectedFolders.length !== 1 || selectedFiles.length > 0} className="max-w-40 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
+            <option value="" disabled>Choose destination</option>
+            <option value="__root__">My Media</option>
+            {folderTree.filter(({ folder }) => !blockedFolderIds.has(folder.id)).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{'　'.repeat(depth)}{folderPath(folder.id)}</option>)}
           </select>
         </label>
         <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-danger)]/30 px-2.5 text-xs font-medium text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5 disabled:opacity-40" aria-label="Delete selected items"><Trash2 size={14}/> Delete</button>
