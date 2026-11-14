@@ -194,6 +194,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const workspaceScrollRef = useRef<HTMLElement>(null);
+  const preservedWorkspaceScrollTopRef = useRef(0);
   const storyboardBarRef = useRef<HTMLElement>(null);
   const workspaceHeaderProgress = useRef(0);
   const workspaceBarTriggerScroll = useRef(0);
@@ -217,6 +218,19 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setCreateOpen(false);
       setStoryboardToDelete(null);
     }
+  }, [isActive]);
+
+  useLayoutEffect(() => {
+    const scroller = workspaceScrollRef.current;
+    if (!scroller) return;
+    if (!isActive) {
+      preservedWorkspaceScrollTopRef.current = scroller.scrollTop;
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollTop = preservedWorkspaceScrollTopRef.current;
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [isActive]);
 
   // Measure the sticky handoff point and fixed header dimensions once. Reading
@@ -1286,7 +1300,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }
 
   return (
-    <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+    <main ref={workspaceScrollRef} onScroll={(event) => { preservedWorkspaceScrollTopRef.current = event.currentTarget.scrollTop; }} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
