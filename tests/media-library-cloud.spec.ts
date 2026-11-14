@@ -26,6 +26,11 @@ test('Media Library database is cloud-backed and owner-isolated', () => {
 
 test('Media Library service supports private cloud upload, preview, folders, moves and safe deletion', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
+  const backfillStart = service.indexOf('export async function backfillMediaLibraryThumbnails');
+  const backfillEnd = service.indexOf('export async function uploadMediaLibraryFiles', backfillStart);
+  const backfill = service.slice(backfillStart, backfillEnd);
+  assert.ok(backfill.includes('.update({ metadata })'), 'thumbnail metadata should update without changing the file modified date');
+  assert.ok(!backfill.includes('updated_at: new Date().toISOString()'), 'thumbnail backfill must preserve the original modified date');
   for (const snippet of [
     'MAX_FILE_BYTES = 100 * 1024 * 1024',
     "storage.from('vyral-assets').upload",
@@ -42,7 +47,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     '.limit(batchSize)',
     ".storage.from(row.bucket_id).download(row.storage_path)",
     "'/media-library-thumbnails/' + row.id",
-    '.update({ metadata, updated_at:',
+    '.update({ metadata })',
     ".select('id')",
     '.maybeSingle()',
     'if (updateError || !updatedRow)',
