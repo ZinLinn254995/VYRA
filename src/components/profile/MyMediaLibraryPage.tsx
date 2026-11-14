@@ -10,6 +10,7 @@ import {
   renameMediaLibraryItem, uploadMediaLibraryFiles,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
+import { useAuth } from '../../context/AuthContext';
 
 type FilterKind = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
 type ViewMode = 'list' | 'grid';
@@ -612,7 +613,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
         const patch = (current: MediaLibraryItem[]) => current.map((item) => item.id === target.id ? { ...item, file_name: nextName, updated_at: updatedAt } : item);
         patchCachedItems(patch);
         for (const [key, cached] of libraryCacheRef.current) {
-          if (key !== JSON.stringify([activeFolderId, serverQuery, filter])) {
+          if (key !== JSON.stringify([ownerId, activeFolderId, serverQuery, filter])) {
             libraryCacheRef.current.set(key, { ...cached, items: patch(cached.items), cachedAt: Date.now() });
           }
         }
