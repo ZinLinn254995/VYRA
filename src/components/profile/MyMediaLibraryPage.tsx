@@ -144,9 +144,9 @@ export const MyMediaLibraryPage: React.FC = () => {
     onContextMenu: (event: React.MouseEvent<HTMLElement>) => { event.preventDefault(); setSelectedIds((previous) => previous.includes(entry.id) ? previous : [...previous, entry.id]); },
     onDragStart: (event: React.DragEvent<HTMLElement>) => event.preventDefault(),
   });
-  const activateEntry = (entry: Entry, event: React.MouseEvent<HTMLElement>) => {
+  const activateEntry = (entry: Entry, event?: React.MouseEvent<HTMLElement>) => {
     if (suppressClickRef.current === entry.id) { suppressClickRef.current = null; return; }
-    const additiveSelection = event.ctrlKey || event.metaKey || event.shiftKey;
+    const additiveSelection = Boolean(event?.ctrlKey || event?.metaKey || event?.shiftKey);
     if (additiveSelection || (pointerTypeRef.current === 'touch' && selectedIds.length > 0)) {
       toggleSelected(entry.id);
       return;
@@ -270,7 +270,7 @@ export const MyMediaLibraryPage: React.FC = () => {
             <button type="button" onClick={toggleAll} className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]" aria-label="Select all"><Check size={13}/></button><span>Name</span><span>Type</span><span className="text-right">Size</span><span className="text-right">Date modified</span>
           </div>
           {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); if (event.key === ' ') { event.preventDefault(); setSelectedIds([entry.id]); } }} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 rounded-lg border border-transparent px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10' : 'border-b-[var(--vyra-border-subtle)]'}`}>
-            <span className={`grid size-8 place-items-center ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</span>
+            <button type="button" onClick={(event) => { event.stopPropagation(); toggleSelected(entry.id); }} aria-label={selectedIds.includes(entry.id) ? `Deselect ${entry.name}` : `Select ${entry.name}`} aria-pressed={selectedIds.includes(entry.id)} className={`grid size-8 place-items-center rounded-md transition-colors ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)] text-slate-950' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{selectedIds.includes(entry.id) ? <Check size={15}/> : entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</button>
             <span className="min-w-0 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{entry.name}</span>
             <span className="truncate text-[11px] text-[var(--vyra-text-muted)]">{entry.folder ? 'Folder' : entry.item!.mime_type.split('/').pop()?.toUpperCase() || 'FILE'}</span>
             <span className="text-right text-[11px] tabular-nums text-[var(--vyra-text-muted)]">{entry.item ? formatBytes(entry.item.size_bytes) : '—'}</span>
@@ -278,10 +278,10 @@ export const MyMediaLibraryPage: React.FC = () => {
           </div>)}
         </div>
       </div> : <div className="flex flex-wrap content-start gap-2">
-        {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
+        {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
           <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={iconPixels}/> : iconFor(entry.item!.mime_type,iconPixels)}</span>
           <span title={entry.name} className="line-clamp-2 h-8 w-full shrink-0 overflow-hidden break-words text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.name}</span>
-          {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={11}/></span>}
+          <button type="button" onClick={(event) => { event.stopPropagation(); toggleSelected(entry.id); }} aria-label={selectedIds.includes(entry.id) ? `Deselect ${entry.name}` : `Select ${entry.name}`} aria-pressed={selectedIds.includes(entry.id)} className={`absolute right-1 top-1 grid size-6 place-items-center rounded-full border transition-colors ${selectedIds.includes(entry.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-slate-950' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/90 text-[var(--vyra-text-muted)]'}`}>{selectedIds.includes(entry.id) ? <Check size={13}/> : <span className="size-2 rounded-full border border-current"/>}</button>
         </article>)}
       </div>}
 
