@@ -159,6 +159,9 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     if (cacheOwnerRef.current === ownerId) return;
     // Never render a previous account's private rows or signed thumbnail URLs.
     cacheOwnerRef.current = ownerId;
+    // Thumbnail repair is owner-scoped work; a newly signed-in account must
+    // receive its own bounded backfill opportunity after the previous owner exits.
+    thumbnailBackfillStartedRef.current = false;
     libraryCacheRef.current.clear();
     ++libraryRequestRef.current;
     ++loadMoreRequestRef.current;
