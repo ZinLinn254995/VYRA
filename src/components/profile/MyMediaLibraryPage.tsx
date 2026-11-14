@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown, ArrowLeft, ArrowUp, AudioLines, Check, ChevronRight, Download, File,
   FileText, Folder, FolderOpen, FolderPlus, Grid2X2, Image as ImageIcon, List,
-  Loader2, Minus, MoreHorizontal, Plus, RefreshCw, Search, Trash2, Upload, Video, X,
+  Loader2, Minus, Plus, RefreshCw, Search, Trash2, Upload, Video, X,
 } from 'lucide-react';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
@@ -52,7 +52,6 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<Entry | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
-  const [detailsEntry, setDetailsEntry] = useState<Entry | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickRef = useRef<string | null>(null);
@@ -126,7 +125,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const withBusy = async (task: () => Promise<void>, success?: string) => {
     setBusy(true); setError(null); setNotice(null);
     try { await task(); await refresh(); if (success) setNotice(success); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
+    catch (cause) { await refresh(); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
   };
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
@@ -168,7 +167,6 @@ export const MyMediaLibraryPage: React.FC = () => {
     else if (entry.item?.signed_url) setPreviewItem(entry.item);
     else if (entry.item) setError('A secure preview link could not be created. Refresh and try again.');
   };
-  const selectedEntries = entries.filter((entry) => selectedIds.includes(entry.id));
   const selectedFiles = selectedIds.filter((id) => items.some((item) => item.id === id));
   const selectedFolders = selectedIds.filter((id) => folders.some((folder) => folder.id === id));
   const allVisibleSelected = entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
