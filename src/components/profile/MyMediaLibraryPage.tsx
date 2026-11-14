@@ -150,6 +150,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
   const thumbnailBackfillStartedRef = useRef(false);
   const libraryRequestRef = useRef(0);
+  const libraryCacheRef = useRef(new Map<string, { folders: MediaLibraryFolder[]; items: MediaLibraryItem[]; hasMore: boolean; cachedAt: number }>());
   const loadMoreRequestRef = useRef(0);
   const loadingMoreLockRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,12 +161,24 @@ export const MyMediaLibraryPage: React.FC = () => {
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
   const refresh = useCallback(async (silent = false) => {
+    const cacheKey = JSON.stringify([activeFolderId, serverQuery, filter]);
+    const cached = libraryCacheRef.current.get(cacheKey);
     const requestId = ++libraryRequestRef.current;
     // Invalidate any in-flight next-page request when the library context changes.
     ++loadMoreRequestRef.current;
     loadingMoreLockRef.current = false;
     setLoadingMoreItems(false);
-    if (!silent) setLoading(true);
+    if (!silent) {
+      if (cached) {
+        // Show the last known folder immediately; refresh it quietly in the background.
+        setFolders(cached.folders);
+        setItems(cached.items);
+        setHasMoreItems(cached.hasMore);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    }
     setError(null);
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100 });
@@ -173,14 +186,17 @@ export const MyMediaLibraryPage: React.FC = () => {
       setFolders(result.folders);
       setItems(result.items);
       setHasMoreItems(result.hasMore);
+      libraryCacheRef.current.set(cacheKey, { ...result, cachedAt: Date.now() });
       setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
       if (requestId === libraryRequestRef.current) {
         // Never leave the previous folder/search results visible after a failed
         // refresh: stale rows could otherwise be mistaken for the current folder.
-        setItems([]);
-        setHasMoreItems(false);
-        setSelectedIds([]);
+        if (!cached) {
+          setItems([]);
+          setHasMoreItems(false);
+          setSelectedIds([]);
+        }
         setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
       }
     } finally {
@@ -272,8 +288,8 @@ export const MyMediaLibraryPage: React.FC = () => {
 
   const withBusy = async (task: () => Promise<void>, success?: string) => {
     setBusy(true); setError(null); setNotice(null);
-    try { await task(); await refresh(); if (success) setNotice(success); }
-    catch (cause) { await refresh(); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
+    try { await task(); await refresh(true); if (success) setNotice(success); }
+    catch (cause) { await refresh(true); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
   };
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); setServerQuery(''); };
