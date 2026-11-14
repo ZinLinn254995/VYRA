@@ -69,6 +69,8 @@ jobs:
         run: npm run test:vyral-generated-asset-provenance
       - name: Vyral Asset ingestion lifecycle tests
         run: npm run test:vyral-asset-ingestion
+      - name: Cloud Media Library security and UI contract tests
+        run: npm run test:media-library-cloud
       - name: Vyral Asset upload action validation tests
         run: npm run test:vyral-asset-upload-action
       - name: Vyral Asset rename action validation tests
