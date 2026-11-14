@@ -213,7 +213,10 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
   return null;
 }
 
-export async function uploadMediaLibraryFiles(files: File[], folderId: string | null): Promise<number> {
+export async function uploadMediaLibraryFiles(
+  files: File[], folderId: string | null,
+  onProgress?: (completed: number, total: number, currentFileName: string) => void,
+): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
   let uploaded = 0;
@@ -254,6 +257,7 @@ export async function uploadMediaLibraryFiles(files: File[], folderId: string | 
       throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
     }
     uploaded += 1;
+    onProgress?.(uploaded, files.length, file.name);
   }
   return uploaded;
 }
