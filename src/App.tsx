@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AIChatPage } from './components/ai/AIChatPage';
@@ -21,6 +21,9 @@ function MarketplaceApp() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
+  const navigationKey = profileOpen && user ? 'profile' : activeSection;
+  const previousNavigationKeyRef = useRef<string>('marketplace');
+  const sectionScrollPositionsRef = useRef(new Map<string, number>());
   // Keep previously visited top-level pages mounted so their local UI state and loaded data survive navigation.
   const [visitedSections, setVisitedSections] = useState<Set<MainSection>>(() => new Set(['marketplace']));
   const [hasVisitedProfile, setHasVisitedProfile] = useState(false);
@@ -134,10 +137,15 @@ function MarketplaceApp() {
   }, []);
 
   useLayoutEffect(() => {
-    // Navigation changes visibility, not the document's scroll position.
-    // Each visited page keeps its own scroll and component state.
+    // Save the outgoing page's window position and restore the incoming page's
+    // last position. Mounted pages keep their own internal scroll containers.
+    const previousKey = previousNavigationKeyRef.current;
+    sectionScrollPositionsRef.current.set(previousKey, window.scrollY);
+    const nextScrollTop = sectionScrollPositionsRef.current.get(navigationKey) ?? 0;
+    window.scrollTo({ top: nextScrollTop, left: 0, behavior: 'instant' });
+    previousNavigationKeyRef.current = navigationKey;
     resetMainHeaderVisibility();
-  }, [activeSection, profileOpen]);
+  }, [navigationKey]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
