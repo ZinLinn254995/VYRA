@@ -313,3 +313,23 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(page.includes('const retryFiles = failedUploads.map(({ file }) => file)'), 'Retry must contain failed files only.');
   assert.ok(page.includes('uploadAbortControllerRef.current.abort()'), 'Stop should signal the active batch rather than interrupt a storage request.');
 });
+
+
+test('Media Library clears stale file rows after a failed context refresh', () => {
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const refreshStart = page.indexOf('const refresh = useCallback');
+  const refreshEnd = page.indexOf('  }, [activeFolderId, filter, serverQuery]);', refreshStart);
+  const refresh = page.slice(refreshStart, refreshEnd);
+  assert.ok(refresh.includes('setItems([])'), 'A failed refresh must not leave the previous folder or search results visible.');
+  assert.ok(refresh.includes('setHasMoreItems(false)'), 'A failed refresh must not offer pagination for stale results.');
+  assert.ok(refresh.includes('setSelectedIds([])'), 'Selections from stale rows must be cleared after a failed refresh.');
+});
+
+test('Deleting multiple selected folders processes descendants before parents', () => {
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const selectionStart = page.indexOf('const selectedFiles =');
+  const selectionEnd = page.indexOf('const blockedFolderIds', selectionStart);
+  const selection = page.slice(selectionStart, selectionEnd);
+  assert.ok(selection.includes('const folderDepth ='), 'Folder hierarchy depth must be calculated from parent references.');
+  assert.ok(selection.includes('.sort((a, b) => folderDepth(b) - folderDepth(a))'), 'Selected folders must be ordered deepest-first so a selected parent can be deleted after its selected children.');
+});
