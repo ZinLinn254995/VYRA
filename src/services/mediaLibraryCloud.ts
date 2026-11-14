@@ -554,6 +554,9 @@ export async function registerVyralAssetInMediaLibrary(input: {
   if (input.userId !== ownerId) {
     throw new Error('Cannot index an Asset for a different signed-in user.');
   }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.assetId)) {
+    throw new Error('A valid Vyral Asset ID is required.');
+  }
   const storageSegments = input.storagePath.split('/');
   if (!input.storagePath.startsWith(ownerId + '/')
     || input.storagePath.includes('\\')
