@@ -76,6 +76,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
+  const lastStoryboardSyncAtRef = useRef(0);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
@@ -523,10 +524,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   useEffect(() => {
     let cancelled = false;
     let syncInFlight = false;
-    let lastSuccessfulSyncAt = 0;
     let isPageActive = isActive;
     const client = supabase;
-    if (!isAuthenticated || !client || loadedStorageKey !== storageKey) return;
+    if (!isAuthenticated || !client || loadedStorageKey !== storageKey || !isActive) return;
     const syncStoryboards = async (quiet = false) => {
       if (syncInFlight || cancelled) return;
       syncInFlight = true;
@@ -562,7 +562,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
           if (uploadError) syncFailed = true;
         }
         if (cancelled) return;
-        lastSuccessfulSyncAt = Date.now();
+        lastStoryboardSyncAtRef.current = Date.now();
         setStoryboards(mergedStoryboards);
         setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
       } catch {
@@ -574,12 +574,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     const handlePageActivated = (event: Event) => {
       const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
       isPageActive = page === 'workspace';
-      if (isPageActive && Date.now() - lastSuccessfulSyncAt >= 30_000) {
+      if (isPageActive && Date.now() - lastStoryboardSyncAtRef.current >= 30_000) {
         void syncStoryboards(true);
       }
     };
     const handleFocus = () => {
-      if (isPageActive && document.visibilityState === 'visible' && Date.now() - lastSuccessfulSyncAt >= 30_000) {
+      if (isPageActive && document.visibilityState === 'visible' && Date.now() - lastStoryboardSyncAtRef.current >= 30_000) {
         void syncStoryboards(true);
       }
     };
@@ -587,7 +587,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
-    void syncStoryboards(false);
+    void syncStoryboards(lastStoryboardSyncAtRef.current > 0);
     return () => {
       cancelled = true;
       window.removeEventListener('vyra:page-activated', handlePageActivated);
