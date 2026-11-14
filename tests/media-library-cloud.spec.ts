@@ -406,3 +406,12 @@ test('My Media Library restores cached views and reconciles mutations without fu
   assert.ok(incrementalLoad.includes('thumbnailSignedUrlCache.get(cacheKey)'), 'Incremental preview loading should reuse unexpired signed thumbnail URLs.');
   assert.ok(page.includes('vyra:page-activated'), 'Page-level navigation must be able to request a quiet refresh.');
 });
+
+
+test('Workspace reuses local Storyboards and syncs quietly after navigation', () => {
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  assert.ok(workspace.includes('const lastStoryboardSyncAtRef = useRef(0)'), 'The last successful sync time must survive active-page effect restarts.');
+  assert.ok(workspace.includes('Date.now() - lastStoryboardSyncAtRef.current >= 30_000'), 'Workspace should sync only when its cached copy is stale.');
+  assert.ok(workspace.includes('if (!isAuthenticated || !client || loadedStorageKey !== storageKey || !isActive) return;'), 'Hidden Workspace must not start background cloud sync.');
+  assert.ok(workspace.includes('void syncStoryboards(lastStoryboardSyncAtRef.current > 0)'), 'Returning to Workspace should use a quiet sync after the first successful load.');
+});
