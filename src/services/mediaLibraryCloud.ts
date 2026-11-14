@@ -139,13 +139,18 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
   if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
   const rawItems = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
   const items = await mapWithConcurrency(rawItems, 8, async (item) => {
-    const storage = db.storage.from(item.bucket_id);
     const thumbnailPath = typeof item.metadata?.thumbnail_path === 'string' ? item.metadata.thumbnail_path : null;
-    const [{ data: original }, thumbnail] = await Promise.all([
-      storage.createSignedUrl(item.storage_path, 60 * 60),
-      thumbnailPath ? storage.createSignedUrl(thumbnailPath, 60 * 60) : Promise.resolve({ data: null, error: null }),
-    ]);
-    return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
+    try {
+      const storage = db.storage.from(item.bucket_id);
+      const [{ data: original }, thumbnail] = await Promise.all([
+        storage.createSignedUrl(item.storage_path, 60 * 60),
+        thumbnailPath ? storage.createSignedUrl(thumbnailPath, 60 * 60) : Promise.resolve({ data: null, error: null }),
+      ]);
+      return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
+    } catch {
+      // A temporary signed-URL failure for one file must not hide the rest of the Library.
+      return { ...item, signed_url: null, thumbnail_url: null };
+    }
   });
   return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
 }
