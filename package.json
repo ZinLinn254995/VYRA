@@ -78,6 +78,7 @@
     "test:vyral-asset-relationship-action": "node --import tsx --test tests/vyral-asset-relationship-action.spec.ts",
     "test:vyral-asset-archive-action": "node --import tsx --test tests/vyral-asset-archive-action.spec.ts",
     "test:vyral-asset-restore-action": "node --import tsx --test tests/vyral-asset-restore-action.spec.ts",
+    "test:media-library-cloud": "node --import tsx --test tests/media-library-cloud.spec.ts",
     "test:ai-chat-history": "node --import tsx --test tests/ai-chat-history.spec.ts"
   },
   "dependencies": {
