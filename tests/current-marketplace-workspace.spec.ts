@@ -332,6 +332,8 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Name updated.')).toBeVisible();
   expect(uploadedRecord?.file_name).toBe('project-notes.txt');
+  // Rename intentionally clears selection; select the file again before moving it.
+  await uploadedRow.click();
   const moveDestination = page.getByRole('combobox', { name: 'Move selected files to folder' });
   await moveDestination.selectOption('e2e-folder-archive');
   await expect(page.getByText('1 file moved.')).toBeVisible();
