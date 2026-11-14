@@ -212,7 +212,7 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
   const profile = read('src/components/profile/ProfilePage.tsx');
   const chat = read('src/components/ai/AIChatPage.tsx');
   assert.ok(profile.includes("import { MyMediaLibraryPage }"));
-  assert.ok(profile.includes('<MyMediaLibraryPage />'));
+  assert.match(profile, /<MyMediaLibraryPage(?:\\s+isActive=\\{activePage === 'my-media-library'\\})?\\s*\\/>/);
   assert.ok(chat.includes('registerVyralAssetInMediaLibrary'));
   assert.ok(chat.includes('thumbnailSource: sourceFile'), 'AI Chat should reuse the selected File to create its Library thumbnail without re-downloading the original.');
   assert.ok(chat.includes('assetId: ingested.assetId'));
