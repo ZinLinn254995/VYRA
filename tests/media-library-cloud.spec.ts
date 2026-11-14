@@ -98,7 +98,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(service.includes('thumbnailPath ? [thumbnailPath] : []'), 'Deleting standalone uploads should also remove their thumbnail objects.');
   assert.ok(service.includes('Thumbnail generation is best-effort'), 'Thumbnail failures must not invalidate original uploads.');
   assert.ok(service.includes('Vyral-backed canonical binaries are never queued.'), 'Removing a Library shortcut must never delete that canonical object.');
-  assert.ok(read('supabase/migrations/20261114180000_media_library_storage_cleanup_queue.sql').includes('and item.source_asset_id is null'), 'The atomic cleanup RPC must exclude canonical Vyral assets.');
+  assert.ok(read('supabase/migrations/20261114155727_media_library_storage_cleanup_queue.sql').includes('and item.source_asset_id is null'), 'The atomic cleanup RPC must exclude canonical Vyral assets.');
 });
 
 test('My Media Library UI includes required organization, filtering, views and multi-select', () => {
@@ -199,7 +199,7 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(cleanup.includes(".storage.from(job.bucket_id).remove(job.storage_paths)"), 'The worker must remove only the queued object paths.');
   assert.ok(service.includes('void processMediaLibraryStorageCleanup(4).catch(() => undefined)'), 'Library visits must retry pending cleanup without blocking the page.');
 
-  const cleanupMigration = read('supabase/migrations/20261114180000_media_library_storage_cleanup_queue.sql');
+  const cleanupMigration = read('supabase/migrations/20261114155727_media_library_storage_cleanup_queue.sql');
   assert.ok(cleanupMigration.includes('create table if not exists public.media_library_storage_cleanup_jobs'));
   assert.ok(cleanupMigration.includes('enable row level security'));
   assert.ok(cleanupMigration.includes('media_library_storage_cleanup_select_own'));
