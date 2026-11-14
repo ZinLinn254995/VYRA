@@ -206,7 +206,9 @@ export const MyMediaLibraryPage: React.FC = () => {
 
   useEffect(() => {
     const handleLibraryChanged = () => { void refresh(true); };
-    const handlePageActivated = () => {
+    const handlePageActivated = (event: Event) => {
+      const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
+      if (page !== 'profile:my-media-library') return;
       const key = JSON.stringify([activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
