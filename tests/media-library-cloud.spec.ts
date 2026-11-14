@@ -233,6 +233,7 @@ test('Signed original and thumbnail URLs reject unsafe or cross-owner object pat
   const service = read('src/services/mediaLibraryCloud.ts');
   assert.ok(service.includes('function isSafeOwnerStoragePath(path: unknown, ownerId: string, allowedRoots: string[] = [])'), 'Storage URL creation must share one normalized owner-path validator.');
   assert.ok(service.includes("!isSafeOwnerStoragePath(data.storage_path, userId)"), 'Original preview URLs must reject traversal and cross-owner paths.');
+  assert.ok(service.includes("item.bucket_id === 'vyral-assets'"), 'Thumbnail URLs must use the canonical private Asset bucket.');
   assert.ok(service.includes("isSafeOwnerStoragePath(storedThumbnailPath, ownerId, ['media-library-thumbnails'])"), 'Thumbnail URLs must be restricted to the owner’s dedicated thumbnail namespace.');
   assert.ok(service.includes("segments.some((segment) => !segment || segment === '.' || segment === '..')"), 'Storage paths must reject empty and traversal segments.');
   assert.ok(service.includes('path.includes('), 'Storage paths must explicitly reject backslash-based traversal.');
