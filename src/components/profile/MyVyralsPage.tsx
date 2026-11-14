@@ -41,6 +41,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
   const lastSyncAtRef = useRef(0);
   const initialLoadStartedRef = useRef(false);
   const currentOwnerRef = useRef(ownerId);
+  const loadRequestRef = useRef(0);
   const [vyrals, setVyrals] = useState<VyralRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -50,6 +51,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
   useLayoutEffect(() => {
     if (currentOwnerRef.current === ownerId) return;
     currentOwnerRef.current = ownerId;
+    ++loadRequestRef.current;
     lastSyncAtRef.current = 0;
     initialLoadStartedRef.current = false;
     setVyrals([]);
@@ -60,12 +62,15 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
 
   const loadVyrals = useCallback(async (quiet = false) => {
     if (!supabase || !isAuthenticated || !ownerId) { setVyrals([]); setLoading(false); return; }
+    const requestId = ++loadRequestRef.current;
     if (!quiet) setLoading(true);
     setError('');
     const { data: auth, error: authError } = await supabase.auth.getUser();
+    if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
     if (authError || !auth.user || auth.user.id !== ownerId) { setError('Your session could not be verified. Please sign in again.'); setLoading(false); return; }
 
-    let { data, error: queryError } = await supabase.from('vyrals').select('*').order('updated_at', { ascending: false });
+    let { data, error: queryError } = await supabase.from('vyrals').select('*').eq('user_id', ownerId).order('updated_at', { ascending: false });
+    if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
     if (queryError) { setError(queryError.message); setLoading(false); return; }
 
     // One-time migration from the earlier device-local Vyral list. Keep the old
@@ -110,7 +115,8 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
         if (dnaError) migrationSucceeded = false;
       }
       if (migrationSucceeded) localStorage.setItem(MIGRATION_KEY, 'done');
-      const refreshed = await supabase.from('vyrals').select('*').order('updated_at', { ascending: false });
+      const refreshed = await supabase.from('vyrals').select('*').eq('user_id', ownerId).order('updated_at', { ascending: false });
+      if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
       if (!refreshed.error) data = refreshed.data;
     }
 
@@ -119,6 +125,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
       supabase.from('vyral_assets').select('vyral_id').in('vyral_id', ids).neq('processing_status', 'archived'),
       supabase.from('vyral_folders').select('vyral_id').in('vyral_id', ids),
     ]) : [{ data: [], error: null }, { data: [], error: null }];
+    if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
     const assetCounts = new Map<string, number>();
     const folderCounts = new Map<string, number>();
     for (const row of assetRows.data ?? []) assetCounts.set(row.vyral_id, (assetCounts.get(row.vyral_id) ?? 0) + 1);
