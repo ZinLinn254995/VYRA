@@ -96,7 +96,8 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; fileName: string } | null>(null);\n  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; fileName: string } | null>(null);
+  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
