@@ -150,6 +150,8 @@ export const MyMediaLibraryPage: React.FC = () => {
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
   const thumbnailBackfillStartedRef = useRef(false);
   const libraryRequestRef = useRef(0);
+  const loadMoreRequestRef = useRef(0);
+  const loadingMoreLockRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
@@ -159,6 +161,10 @@ export const MyMediaLibraryPage: React.FC = () => {
 
   const refresh = useCallback(async (silent = false) => {
     const requestId = ++libraryRequestRef.current;
+    // Invalidate any in-flight next-page request when the library context changes.
+    ++loadMoreRequestRef.current;
+    loadingMoreLockRef.current = false;
+    setLoadingMoreItems(false);
     if (!silent) setLoading(true);
     setError(null);
     try {
@@ -435,21 +441,29 @@ export const MyMediaLibraryPage: React.FC = () => {
     : [...new Set([...previous, ...displayedEntries.map((entry) => entry.id)])]);
 
   const loadMoreItems = async () => {
-    if (!hasMoreItems || loadingMoreItems || loading) return;
+    if (!hasMoreItems || loadingMoreLockRef.current || loading) return;
+    loadingMoreLockRef.current = true;
     const requestId = libraryRequestRef.current;
+    const pageRequestId = ++loadMoreRequestRef.current;
     setLoadingMoreItems(true);
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100 });
-      if (requestId !== libraryRequestRef.current) return;
+      if (requestId !== libraryRequestRef.current || pageRequestId !== loadMoreRequestRef.current) return;
       setItems((previous) => {
         const known = new Set(previous.map((item) => item.id));
         return [...previous, ...result.items.filter((item) => !known.has(item.id))];
       });
       setHasMoreItems(result.hasMore);
     } catch (cause) {
-      if (requestId === libraryRequestRef.current) setError(cause instanceof Error ? cause.message : 'Could not load more files.');
+      if (requestId === libraryRequestRef.current && pageRequestId === loadMoreRequestRef.current) {
+        setError(cause instanceof Error ? cause.message : 'Could not load more files.');
+      }
     } finally {
-      if (requestId === libraryRequestRef.current) setLoadingMoreItems(false);
+      // An older request must not unlock or hide the spinner for a newer page request.
+      if (pageRequestId === loadMoreRequestRef.current) {
+        loadingMoreLockRef.current = false;
+        setLoadingMoreItems(false);
+      }
     }
   };
 
