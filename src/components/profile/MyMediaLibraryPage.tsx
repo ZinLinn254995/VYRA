@@ -277,9 +277,9 @@ export const MyMediaLibraryPage: React.FC = () => {
           </div>)}
         </div>
       </div> : <div className="flex flex-wrap content-start gap-0">
-        {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex w-fit max-w-full cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-3 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
+        {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
           <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={iconPixels}/> : iconFor(entry.item!.mime_type,iconPixels)}</span>
-          <span className="w-fit max-w-40 break-words text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.name}</span>
+          <span title={entry.name} className="line-clamp-2 h-8 w-full shrink-0 overflow-hidden break-words text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.name}</span>
           {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={11}/></span>}
         </article>)}
       </div>}
