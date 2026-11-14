@@ -118,3 +118,40 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
   assert.ok(chat.includes('storagePath: ingested.storagePath'));
   assert.ok(chat.includes('**My Media Library:** Added automatically.'));
 });
+
+
+test('Media Library failure handling keeps retries scoped and protects canonical files', () => {
+  const service = read('src/services/mediaLibraryCloud.ts');
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+
+  const uploadStart = service.indexOf('export async function uploadMediaLibraryFiles');
+  const uploadEnd = service.indexOf('export async function registerVyralAssetInMediaLibrary', uploadStart);
+  const upload = service.slice(uploadStart, uploadEnd);
+  assert.ok(upload.indexOf('if (signal?.aborted) break;') < upload.indexOf('await db.storage.from(\'vyral-assets\').upload(storagePath'));
+  assert.ok(upload.includes('if (!onFileError) throw failure;'), 'Legacy callers should retain fail-fast upload behavior.');
+  assert.ok(upload.includes('onFileError(file, failure);'), 'The Library should be able to collect one file failure and continue.');
+  assert.ok(upload.includes('if (insertError)'));
+  assert.ok(upload.includes('remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])])'), 'A failed database insert must clean up its uploaded objects.');
+
+  const deleteStart = service.indexOf('export async function deleteMediaLibraryItems');
+  const deleteEnd = service.indexOf('async function createMediaThumbnail', deleteStart);
+  const deletion = service.slice(deleteStart, deleteEnd);
+  assert.ok(deletion.includes('const standaloneRows = rows.filter((row) => !row.source_asset_id)'), 'Only standalone Library uploads may remove their original storage objects.');
+  assert.ok(deletion.includes('if (storageError) throw new Error('), 'A storage deletion failure must be reported.');
+  assert.ok(deletion.indexOf('if (storageError) throw new Error(') < deletion.indexOf(".from('media_library_items').delete()"), 'Do not remove the Library row when its storage cleanup failed.');
+  assert.ok(deletion.includes('thumbnail_path'), 'Standalone deletion must clean up the associated thumbnail too.');
+
+  const folderDeleteStart = service.indexOf('export async function deleteMediaLibraryFolder');
+  const folderDeleteEnd = service.indexOf('export async function moveMediaLibraryFolder', folderDeleteStart);
+  const folderDelete = service.slice(folderDeleteStart, folderDeleteEnd);
+  assert.ok(folderDelete.includes('if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('), 'Non-empty folders must never be deleted.');
+
+  const uploadUiStart = page.indexOf('const runUploadBatch =');
+  const uploadUiEnd = page.indexOf('const createFolder =', uploadUiStart);
+  const uploadUi = page.slice(uploadUiStart, uploadUiEnd);
+  assert.ok(uploadUi.includes('setFailedUploads(failures)'), 'Failed files must remain available to retry.');
+  assert.ok(uploadUi.includes('controller.signal.aborted'), 'The UI must report a user-requested stop.');
+  assert.ok(uploadUi.includes('finally {\n      uploadAbortControllerRef.current = null;'), 'Upload cancellation state must be cleaned up after the batch.');
+  assert.ok(page.includes('const retryFiles = failedUploads.map(({ file }) => file)'), 'Retry must contain failed files only.');
+  assert.ok(page.includes('uploadAbortControllerRef.current.abort()'), 'Stop should signal the active batch rather than interrupt a storage request.');
+});
