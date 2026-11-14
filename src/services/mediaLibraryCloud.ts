@@ -506,5 +506,29 @@ export async function registerVyralAssetInMediaLibrary(input: {
     size_bytes: input.sizeBytes,
     metadata: { origin: 'vyral_asset_inventory', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
   }, { onConflict: 'user_id,source_asset_id' });
-  if (error) throw new Error('Could not add this Asset to My Media Library: ' + error.message);
+  if (error) {
+    if (thumbnailPath) {
+      // The canonical Asset is owned by the Vyral pipeline, but this newly
+      // uploaded Library thumbnail belongs to the failed index operation.
+      // Persist its cleanup before attempting removal so retries survive a
+      // transient Storage failure without ever touching the canonical object.
+      const { error: queueError } = await db.from('media_library_storage_cleanup_jobs').insert({
+        user_id: input.userId,
+        bucket_id: 'vyral-assets',
+        storage_paths: [thumbnailPath],
+        attempts: 0,
+        next_attempt_at: new Date().toISOString(),
+        last_error: 'Vyral Asset Library index upsert failed: ' + error.message.slice(0, 700),
+      });
+      if (!queueError) {
+        try { await processMediaLibraryStorageCleanup(1); } catch { /* queued retry remains durable */ }
+      } else {
+        const { error: cleanupError } = await db.storage.from('vyral-assets').remove([thumbnailPath]);
+        if (cleanupError) {
+          throw new Error('Could not add this Asset to My Media Library (' + error.message + ') and thumbnail cleanup could not be queued or completed (' + cleanupError.message + ').');
+        }
+      }
+    }
+    throw new Error('Could not add this Asset to My Media Library: ' + error.message);
+  }
 }
