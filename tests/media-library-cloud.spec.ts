@@ -88,7 +88,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     'deleteMediaLibraryItems',
     'registerVyralAssetInMediaLibrary',
     "onConflict: 'user_id,source_asset_id'",
-    'const standaloneRows = rows.filter((row) => !row.source_asset_id)',
+    "db.rpc('delete_media_library_items_and_queue_storage_cleanup'",
   ]) assert.ok(service.includes(snippet), 'Missing Media Library contract: ' + snippet);
   assert.ok(service.includes('onProgress?.(uploaded, files.length, file.name);\n    try {'), 'Upload progress should identify each file before its transfer begins.');
   assert.ok(service.includes(String.raw`replace(/\s+/g, ' ')`), 'Folder names should collapse repeated whitespace.');
