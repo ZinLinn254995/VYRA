@@ -22,6 +22,7 @@ import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImproveme
 import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
+import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction };
 type ChatSession = {
@@ -1924,6 +1925,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             signal: requestController.signal,
             metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: clientDraftId },
           });
+          let mediaLibraryMessage = '';
+          try {
+            await awaitForCurrentRequest(registerVyralAssetInMediaLibrary({
+              assetId: ingested.assetId, userId: authData.user.id, fileName: sourceFile.name,
+              mimeType: ingested.mimeType, sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath,
+              sourceKind: 'vyral_asset',
+            }));
+            mediaLibraryMessage = '\n**My Media Library:** Added automatically.';
+          } catch {
+            mediaLibraryMessage = '\n**My Media Library:** Sync is pending; the Asset is safely stored in its Vyral.';
+          }
           assertRequestCurrent();
           const { data: completion, error: completionError } = await awaitForCurrentRequest(supabase.functions.invoke('vyra-openai-chat', {
             body: {
@@ -1951,7 +1963,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             '\n**DNA:** ' + ingested.dnaKind +
             '\n**Fingerprint:** SHA-256 recorded' +
             '\n**Status:** Ready' +
-            '\n' + masterDnaMessage;
+            '\n' + masterDnaMessage + mediaLibraryMessage;
         } catch (uploadError) {
           await reportUploadFailure();
           throw uploadError;
