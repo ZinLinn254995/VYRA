@@ -31,7 +31,6 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   const [view, setView] = useState<ViewMode>('grid');
   const [zoomLevel, setZoomLevel] = useState(2);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const heldItemRef = useRef<string | null>(null);
   const suppressClickRef = useRef<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -157,7 +156,6 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   };
   const beginLongPress = (id: string) => {
     clearHoldTimer();
-    heldItemRef.current = id;
     holdTimerRef.current = window.setTimeout(() => {
       toggleSelected(id);
       suppressClickRef.current = id;
@@ -166,7 +164,6 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   };
   const finishLongPress = () => {
     clearHoldTimer();
-    heldItemRef.current = null;
   };
   const handleEntryClick = (id: string, action: () => void) => {
     if (suppressClickRef.current === id) {
@@ -343,7 +340,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
 
       {previewItem && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={'Preview '+previewItem.file_name} onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewItem(null); }}>
         <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-          <div className="flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-4"><span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{previewItem.file_name}</span><button type="button" onClick={() => previewItem.signed_url && window.open(previewItem.signed_url, '_blank', 'noopener,noreferrer')} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Open original file"><Download size={16}/></button><button type="button" onClick={() => setPreviewItem(null)} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close preview"><X size={17}/></button></div>
+          <div className="flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-4"><span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{previewItem.file_name}</span><button type="button" onClick={() => void renameItem(previewItem)} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Rename file"><Pencil size={15}/></button><button type="button" onClick={() => previewItem.signed_url && window.open(previewItem.signed_url, '_blank', 'noopener,noreferrer')} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Open original file"><Download size={16}/></button><button type="button" onClick={() => setPreviewItem(null)} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close preview"><X size={17}/></button></div>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/5 p-4">
             {kindOf(previewItem.mime_type) === 'image' ? <img src={previewItem.signed_url ?? ''} alt={previewItem.file_name} className="max-h-[72vh] max-w-full object-contain"/>
               : kindOf(previewItem.mime_type) === 'video' ? <video src={previewItem.signed_url ?? ''} controls playsInline className="max-h-[72vh] max-w-full"/>
