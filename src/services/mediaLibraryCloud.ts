@@ -550,6 +550,16 @@ export async function registerVyralAssetInMediaLibrary(input: {
   thumbnailSource?: File;
 }): Promise<void> {
   const db = getDb();
+  const ownerId = await getOwnerId();
+  if (input.userId !== ownerId) {
+    throw new Error('Cannot index an Asset for a different signed-in user.');
+  }
+  const storageSegments = input.storagePath.split('/');
+  if (!input.storagePath.startsWith(ownerId + '/')
+    || input.storagePath.includes('\\\\')
+    || storageSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    throw new Error('The Asset has an invalid private storage location.');
+  }
   let thumbnailPath: string | null = null;
   if (input.thumbnailSource) {
     const thumbnailBlob = await createMediaThumbnail(input.thumbnailSource).catch(() => null);
