@@ -27,6 +27,8 @@ jobs:
         run: npm run lint
       - name: OpenAI Chat streaming contract tests
         run: npm run test:ai-chat-stream
+      - name: AI Chat history and provider configuration contract tests
+        run: npm run test:ai-chat-history
       - name: Global AI Chat safe action tests
         run: npm run test:global-chat-actions
       - name: Global AI Chat action planner policy tests
@@ -57,12 +59,18 @@ jobs:
         run: npm run test:media-model-selection
       - name: Media generation approval contract tests
         run: npm run test:media-generation-contract
+      - name: Provider performance telemetry contract tests
+        run: npm run test:provider-performance
+      - name: Media generation job lifecycle telemetry contract tests
+        run: npm run test:media-job-telemetry
       - name: Media credit pricing exact-decimal tests
         run: npm run test:media-credit-pricing
       - name: Vyral generated Asset provenance contract tests
         run: npm run test:vyral-generated-asset-provenance
       - name: Vyral Asset ingestion lifecycle tests
         run: npm run test:vyral-asset-ingestion
+      - name: Cloud Media Library security and UI contract tests
+        run: npm run test:media-library-cloud
       - name: Vyral Asset upload action validation tests
         run: npm run test:vyral-asset-upload-action
       - name: Vyral Asset rename action validation tests
@@ -150,7 +158,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check Supabase Edge Functions
-        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/fingerprint-vyral-raster-version/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts supabase/functions/vyra-openai-chat/index.ts supabase/functions/compare-origin-01-reconstruction/index.ts supabase/functions/verify-origin-01-dna-v3/index.ts supabase/functions/manage-runway-provider/index.ts supabase/functions/quote-runway-media/index.ts supabase/functions/approve-runway-media-quote/index.ts supabase/functions/approve-runway-media-credit/index.ts supabase/functions/create-runway-media-job/index.ts supabase/functions/manage-media-credit-pricing/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/build-vyral-master-dna/index.ts supabase/functions/verify-vyral-asset/index.ts supabase/functions/verify-vyral-dna-v3/index.ts supabase/functions/fingerprint-vyral-raster-version/index.ts supabase/functions/resolve-vyral-resource/index.ts supabase/functions/resolve-public-vyral-resource/index.ts supabase/functions/extract-vyral-asset-dna-v3/index.ts supabase/functions/evaluate-vyral-quality/index.ts supabase/functions/assess-vyral-asset-dna/index.ts supabase/functions/manage-vyral-asset-dna-proposal/index.ts supabase/functions/record-vyral-vision-review/index.ts supabase/functions/promote-vyral-vision-field/index.ts supabase/functions/vyra-openai-chat/index.ts supabase/functions/compare-origin-01-reconstruction/index.ts supabase/functions/verify-origin-01-dna-v3/index.ts supabase/functions/manage-openai-api-key/index.ts supabase/functions/manage-runway-provider/index.ts supabase/functions/quote-runway-media/index.ts supabase/functions/approve-runway-media-quote/index.ts supabase/functions/approve-runway-media-credit/index.ts supabase/functions/create-runway-media-job/index.ts supabase/functions/manage-media-credit-pricing/index.ts
       - name: SEO discovery and canonical contract tests
         run: npm run test:seo
       - name: Production build

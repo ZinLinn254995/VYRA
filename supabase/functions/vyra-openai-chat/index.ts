@@ -3759,8 +3759,42 @@ Deno.serve(async (request: Request) => {
   const { data: context, error: authError } = await createSupabaseContext(request, { auth: 'user' });
   if (authError || !context) return json({ error: 'Sign in to use VYRA AI Chat.' }, authError?.status ?? 401);
 
+  const maxRequestBodyBytes = 1_048_576;
+  const declaredBodyBytes = Number(request.headers.get('content-length') ?? 0);
+  if (Number.isFinite(declaredBodyBytes) && declaredBodyBytes > maxRequestBodyBytes) {
+    return json({ error: 'Request body is too large.' }, 413);
+  }
   let body: Record<string, unknown>;
-  try { body = await request.json(); } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
+  try {
+    if (!request.body) return json({ error: 'Request body is required.' }, 400);
+    const reader = request.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let receivedBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > maxRequestBodyBytes) {
+        try { await reader.cancel(); } catch { /* Preserve the size-limit response if the stream is already closed. */ }
+        return json({ error: 'Request body is too large.' }, 413);
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(receivedBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return json({ error: 'Request body must be a JSON object.' }, 400);
+    }
+    body = parsed as Record<string, unknown>;
+  } catch {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
+    return json({ error: 'Request body must be valid JSON.' }, 400);
+  }
 
   const completionUserId = typeof context.userClaims?.id === 'string' ? context.userClaims.id : '';
   if (body.assetUploadCompletion !== undefined) {
@@ -3776,6 +3810,44 @@ Deno.serve(async (request: Request) => {
   const { data: secret, error: secretError } = await context.supabaseAdmin.rpc('get_vyra_openai_secret');
   if (secretError) return json({ error: 'VYRA could not read the secure AI provider configuration.', code: 'OPENAI_CONFIG_UNAVAILABLE' }, 503);
   const apiKey = typeof secret === 'string' ? secret : '';
+  if (body.healthCheck === true) {
+    if (!apiKey) return json({
+      status: 'preview_mode',
+      provider: 'openai',
+      modelName: 'gpt-4.1-mini',
+      message: 'OpenAI API key has not been configured by a platform administrator yet.',
+    });
+    try {
+      const verification = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + apiKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!verification.ok) return json({
+        status: 'error',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: verification.status === 401 || verification.status === 403
+          ? 'The saved OpenAI API key is no longer accepted. Ask a platform administrator to replace it.'
+          : verification.status === 429
+            ? 'OpenAI is temporarily rate-limiting connection checks. Chat requests can still be attempted.'
+            : 'OpenAI could not verify the saved platform key right now.',
+      });
+      return json({
+        status: 'connected',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: 'Connected to OpenAI with the platform-managed API key.',
+      });
+    } catch {
+      return json({
+        status: 'error',
+        provider: 'openai',
+        modelName: 'gpt-4.1-mini',
+        message: 'Could not reach OpenAI to verify the platform connection.',
+      });
+    }
+  }
   if (!apiKey) return json({
     error: 'OpenAI is not configured yet. VYRA AI Chat is ready, but the platform API key will be added during final end-to-end verification.',
     code: 'OPENAI_NOT_CONFIGURED',
@@ -3789,7 +3861,19 @@ Deno.serve(async (request: Request) => {
     }, 501);
   }
 
-  const incoming = Array.isArray(body.messages) ? body.messages : [];
+  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 40) {
+    return json({ error: 'Chat history must contain between 1 and 40 messages.' }, 400);
+  }
+  const incoming = body.messages;
+  if (incoming.some((item) => !isPlainRecord(item) ||
+      (item.role !== 'user' && item.role !== 'assistant') ||
+      typeof item.content !== 'string')) {
+    return json({ error: 'Each chat message must contain a valid user or assistant role and text content.' }, 400);
+  }
+  if (incoming.some((item) => (item as Record<string, unknown>).content &&
+      ((item as Record<string, unknown>).content as string).length > 12000)) {
+    return json({ error: 'Each chat message must contain no more than 12,000 characters.' }, 413);
+  }
   const userId = typeof context.userClaims?.id === 'string' ? context.userClaims.id : '';
   if (!userId) return json({ error: 'Authenticated user identity is unavailable.' }, 401);
   const conversationId = typeof body.conversationId === 'string' &&
@@ -3966,7 +4050,7 @@ Deno.serve(async (request: Request) => {
           max_completion_tokens: 700,
           stream: false,
         }),
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(45000)]),
       });
       const planner = await plannerResponse.json().catch(() => ({})) as {
         error?: { message?: string };
@@ -4042,7 +4126,7 @@ Deno.serve(async (request: Request) => {
         stream: true,
         stream_options: { include_usage: true },
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(60000)]),
     });
     if (upstream.ok) {
       if (!upstream.body) return json({ error: 'OpenAI returned an empty stream. Please retry.' }, 502);
@@ -4060,7 +4144,11 @@ Deno.serve(async (request: Request) => {
     }
     if (upstream.status === 429) return json({ error: 'OpenAI rate limit or quota reached. Please try again later.', code: 'OPENAI_RATE_LIMITED' }, 429);
     return json({ error: 'OpenAI could not complete this chat request. Please check the provider configuration and try again.', code: 'OPENAI_REQUEST_FAILED' }, 502);
-  } catch {
+  } catch (error) {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return json({ error: 'OpenAI took too long to respond. Please retry.', code: 'OPENAI_TIMEOUT' }, 504);
+    }
     return json({ error: 'Could not reach the OpenAI service. Please check the connection and retry.', code: 'OPENAI_CONNECTION_FAILED' }, 502);
   }
 });

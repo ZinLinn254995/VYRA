@@ -11,6 +11,8 @@ export type VyralAssetIngestionInput = {
   folderId?: string | null;
   metadata?: Record<string, unknown>;
   maxBytes?: number;
+  /** Cancels pending ingestion at safe checkpoints; committed DNA is preserved for recovery. */
+  signal?: AbortSignal;
 };
 export type VyralVideoTechnicalMetadata = { schemaVersion: 1; sourceSha256: string; durationSeconds: number; extraction: 'browser-video-metadata' };
 export type VyralAssetIngestionResult = {
@@ -49,7 +51,7 @@ export type VyralAssetIngestionPort = {
   uploadOriginal(path: string, file: File, mimeType: string): Promise<void>;
   createVersion(record: VyralAssetVersionInsert): Promise<string>;
   createFingerprint(input: { assetId: string; versionId: string; userId: string; sha256: string }): Promise<void>;
-  extractRasterDna(assetId: string, versionId: string): Promise<{ status: string; error?: string }>;
+  extractRasterDna(assetId: string, versionId: string, signal?: AbortSignal): Promise<{ status: string; error?: string }>;
   insertDna(record: VyralAssetDnaInsert): Promise<void>;
   hasDnaRecord(assetId: string, userId: string): Promise<boolean>;
   markReady(assetId: string, userId: string): Promise<void>;
@@ -74,6 +76,20 @@ export class VyralAssetIngestionError extends Error {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RASTER_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+function awaitWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort);
+    const onAbort = () => { cleanup(); reject(new DOMException('Asset metadata extraction was cancelled.', 'AbortError')); };
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
 const sha256Hex = async (buffer: ArrayBuffer) => {
   if (!globalThis.crypto?.subtle) throw new Error('Web Crypto SHA-256 is unavailable.');
   const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
@@ -119,38 +135,68 @@ export function buildAudioWaveformPeaks(channels: readonly ArrayLike<number>[], 
 export async function extractAudioTechnicalMetadata(
   file: File,
   sourceSha256: string,
+  signal?: AbortSignal,
 ): Promise<{ schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' } | null> {
+  const assertActive = () => { if (signal?.aborted) throw new DOMException('Asset metadata extraction was cancelled.', 'AbortError'); };
+  assertActive();
   if (!file.type.toLowerCase().startsWith('audio/') || typeof Audio === 'undefined' || typeof URL === 'undefined') return null;
   const objectUrl = URL.createObjectURL(file);
   let audioContext: AudioContext | null = null;
   try {
     const durationSeconds = await new Promise<number>((resolve, reject) => {
       const audio = new Audio();
-      const timeout = globalThis.setTimeout(() => reject(new Error('Audio metadata timeout.')), 15000);
-      const cleanup = () => { globalThis.clearTimeout(timeout); audio.removeAttribute('src'); audio.load(); };
+      let settled = false;
+      let timeout: ReturnType<typeof globalThis.setTimeout>;
+      let onAbort: () => void;
+      const cleanup = () => {
+        globalThis.clearTimeout(timeout);
+        signal?.removeEventListener('abort', onAbort);
+        audio.onloadedmetadata = null;
+        audio.onerror = null;
+        audio.removeAttribute('src');
+        audio.load();
+      };
+      const finish = (error?: Error, value?: number) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error); else resolve(value as number);
+      };
+      onAbort = () => finish(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
+      timeout = globalThis.setTimeout(() => finish(new Error('Audio metadata timeout.')), 15000);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) return onAbort();
       audio.preload = 'metadata';
       audio.onloadedmetadata = () => {
         const duration = audio.duration;
-        cleanup();
-        if (Number.isFinite(duration) && duration > 0 && duration <= 3600) resolve(duration);
-        else reject(new Error('Unsupported or invalid audio duration.'));
+        if (Number.isFinite(duration) && duration > 0 && duration <= 3600) finish(undefined, duration);
+        else finish(new Error('Unsupported or invalid audio duration.'));
       };
-      audio.onerror = () => { cleanup(); reject(new Error('The browser could not read audio metadata.')); };
+      audio.onerror = () => finish(new Error('The browser could not read audio metadata.'));
       audio.src = objectUrl;
     });
+    assertActive();
     let waveformPeaks: number[] = [];
     const AudioContextConstructor = globalThis.AudioContext;
     if (AudioContextConstructor && file.size <= 10 * 1024 * 1024 && durationSeconds <= 300) {
       try {
         audioContext = new AudioContextConstructor();
-        const decoded = await audioContext.decodeAudioData(await file.arrayBuffer());
+        const audioBytes = await file.arrayBuffer();
+        assertActive();
+        const decodePromise = audioContext.decodeAudioData(audioBytes);
+        const decoded = await awaitWithAbort(decodePromise, signal);
+        assertActive();
         waveformPeaks = buildAudioWaveformPeaks(
           Array.from({ length: decoded.numberOfChannels }, (_, channel) => decoded.getChannelData(channel)), 96,
         );
-      } catch { /* Keep valid duration and omit unsupported waveform data. */ }
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        /* Keep valid duration and omit unsupported waveform data. */
+      }
     }
     return { schemaVersion: 1, sourceSha256, durationSeconds, waveformPeaks, extraction: 'browser-audio-decode' };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return null;
   } finally {
     URL.revokeObjectURL(objectUrl);
@@ -165,32 +211,51 @@ export async function extractAudioTechnicalMetadata(
 export async function extractVideoTechnicalMetadata(
   file: File,
   sourceSha256: string,
+  signal?: AbortSignal,
 ): Promise<VyralVideoTechnicalMetadata | null> {
+  const assertActive = () => { if (signal?.aborted) throw new DOMException('Asset metadata extraction was cancelled.', 'AbortError'); };
+  assertActive();
   if (!file.type.toLowerCase().startsWith('video/') || typeof document === 'undefined' || typeof URL === 'undefined') return null;
   const objectUrl = URL.createObjectURL(file);
   try {
     const durationSeconds = await new Promise<number>((resolve, reject) => {
       const video = document.createElement('video');
-      const timeout = globalThis.setTimeout(() => { cleanup(); reject(new Error('Video metadata timeout.')); }, 15000);
+      let settled = false;
+      let timeout: ReturnType<typeof globalThis.setTimeout>;
+      let onAbort: () => void;
       const cleanup = () => {
         globalThis.clearTimeout(timeout);
+        signal?.removeEventListener('abort', onAbort);
+        video.onloadedmetadata = null;
+        video.onerror = null;
         video.pause();
         video.removeAttribute('src');
         video.load();
       };
+      const finish = (error?: Error, value?: number) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error); else resolve(value as number);
+      };
+      onAbort = () => finish(new DOMException('Asset metadata extraction was cancelled.', 'AbortError'));
+      timeout = globalThis.setTimeout(() => finish(new Error('Video metadata timeout.')), 15000);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) return onAbort();
       video.preload = 'metadata';
       video.muted = true;
       video.onloadedmetadata = () => {
         const duration = video.duration;
-        cleanup();
-        if (Number.isFinite(duration) && duration >= 0.2 && duration <= 3600) resolve(duration);
-        else reject(new Error('Unsupported or invalid Video duration.'));
+        if (Number.isFinite(duration) && duration >= 0.2 && duration <= 3600) finish(undefined, duration);
+        else finish(new Error('Unsupported or invalid Video duration.'));
       };
-      video.onerror = () => { cleanup(); reject(new Error('The browser could not read Video metadata.')); };
+      video.onerror = () => finish(new Error('The browser could not read Video metadata.'));
       video.src = objectUrl;
     });
+    assertActive();
     return { schemaVersion: 1, sourceSha256, durationSeconds, extraction: 'browser-video-metadata' };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return null;
   } finally {
     URL.revokeObjectURL(objectUrl);
@@ -210,6 +275,10 @@ export async function ingestVyralAsset(
     throw new Error('The source file is empty or exceeds the configured upload limit.');
   }
 
+  const assertNotAborted = () => {
+    if (input.signal?.aborted) throw new DOMException('Asset ingestion was cancelled.', 'AbortError');
+  };
+  assertNotAborted();
   const file = input.file;
   const assetName = typeof input.assetName === 'string' ? input.assetName.trim() : file.name;
   if (!assetName || assetName.length > 180 || /[\\/\u0000-\u001f\u007f]/.test(assetName)) {
@@ -221,10 +290,14 @@ export async function ingestVyralAsset(
   const extension = file.name.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
   const storagePath = input.userId + '/' + input.vyralId + '/' + assetId + '/v1/' + assetId + '.' + extension;
   const bytes = await file.arrayBuffer();
+  assertNotAborted();
   const sha256 = await sha256Hex(bytes);
+  assertNotAborted();
   const rasterDna = assetType === 'image' && RASTER_MIMES.has(mimeType.toLowerCase());
-  const audioTechnicalMetadata = assetType === 'audio' ? await extractAudioTechnicalMetadata(file, sha256) : null;
-  const videoTechnicalMetadata = assetType === 'video' ? await extractVideoTechnicalMetadata(file, sha256) : null;
+  const audioTechnicalMetadata = assetType === 'audio' ? await extractAudioTechnicalMetadata(file, sha256, input.signal) : null;
+  assertNotAborted();
+  const videoTechnicalMetadata = assetType === 'video' ? await extractVideoTechnicalMetadata(file, sha256, input.signal) : null;
+  assertNotAborted();
   let versionId: string | null = null;
   let storageUploaded = false;
   let dnaCommitted = false;
@@ -243,19 +316,26 @@ export async function ingestVyralAsset(
         ...(videoTechnicalMetadata ? { video_technical_metadata: videoTechnicalMetadata } : {}),
       },
     });
+    assertNotAborted();
+    // Supabase Storage JS upload() has no per-upload AbortSignal option. Do not race object deletion
+    // against an in-flight upload: wait for its result, then observe cancellation and clean up safely.
     // A lost upload response can still mean the object was stored; always attempt cleanup on failure.
     storageUploaded = true;
     await port.uploadOriginal(storagePath, file, mimeType);
+    assertNotAborted();
     versionId = await port.createVersion({
       asset_id: assetId, vyral_id: input.vyralId, user_id: input.userId, version_number: 1,
       storage_path: storagePath, mime_type: mimeType, size_bytes: file.size, sha256,
       source_kind: 'original', metadata: { original_filename: file.name, ...(audioTechnicalMetadata ? { audio_technical_metadata: audioTechnicalMetadata } : {}), ...(videoTechnicalMetadata ? { video_technical_metadata: videoTechnicalMetadata } : {}) },
     });
+    assertNotAborted();
     if (!UUID.test(versionId)) throw new Error('The original Asset Version record did not return a valid ID.');
     await port.createFingerprint({ assetId, versionId, userId: input.userId, sha256 });
+    assertNotAborted();
 
     if (rasterDna) {
-      const extraction = await port.extractRasterDna(assetId, versionId);
+      const extraction = await port.extractRasterDna(assetId, versionId, input.signal);
+      assertNotAborted();
       if (extraction.status !== 'extracted') {
         const alreadyCommitted = await port.hasDnaRecord(assetId, input.userId);
         if (alreadyCommitted) {
@@ -290,10 +370,13 @@ export async function ingestVyralAsset(
           recovery_level: 'identity-only', encoded_source_bytes_recoverable: false,
         },
       });
+      assertNotAborted();
       dnaCommitted = true;
     }
 
+    assertNotAborted();
     await port.markReady(assetId, input.userId);
+    assertNotAborted();
     return {
       assetId, versionId, storagePath, sha256, assetType, mimeType,
       sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1',
@@ -340,6 +423,7 @@ export async function ingestGeneratedVyralAsset(
     folderId: input.folderId,
     file: input.file,
     metadata,
+    signal: input.signal,
   });
 }
 
@@ -369,8 +453,10 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
       });
       if (error) throw error;
     },
-    async extractRasterDna(assetId, versionId) {
-      const { data, error } = await db.functions.invoke('extract-vyral-asset-dna-v3', { body: { assetId, versionId } });
+    async extractRasterDna(assetId, versionId, signal) {
+      const { data, error } = await db.functions.invoke('extract-vyral-asset-dna-v3', {
+        body: { assetId, versionId }, signal,
+      });
       if (!error && data?.status === 'extracted') return { status: 'extracted' };
       let detail = data?.error ?? error?.message ?? 'Server-side DNA extraction did not complete.';
       const response = (error as { context?: Response } | null)?.context;

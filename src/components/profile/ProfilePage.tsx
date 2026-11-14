@@ -8,6 +8,7 @@ import {
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
+import { MyMediaLibraryPage } from './MyMediaLibraryPage';
 import { ApiKeySettings } from './ApiKeySettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
@@ -107,7 +108,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null, onSendAssetsToChat,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
+  const [visitedSubpages, setVisitedSubpages] = useState<Set<PageKey>>(() => new Set(initialPage ? [initialPage] : []));
   const [pageSearch, setPageSearch] = useState('');
+  React.useEffect(() => {
+    setVisitedSubpages((current) => current.has(activePage) ? current : new Set([...current, activePage]));
+  }, [activePage]);
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
   React.useEffect(() => { setPageSearch(''); }, [activePage]);
   React.useLayoutEffect(() => {
@@ -129,6 +134,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   return (
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
+      {(activePage === 'my-vyrals' || visitedSubpages.has('my-vyrals')) && (
+        <div hidden={activePage !== 'my-vyrals'} className="min-w-0">
+          <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
+        </div>
+      )}
+      {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
+        <div hidden={activePage !== 'my-media-library'} className="profile-subpage-scroll profile-subpage-viewport">
+          <section className="profile-subpage-card">
+            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage /></div>
+          </section>
+        </div>
+      )}
       {activePage === 'home' ? (
         <>
           <section className="mb-7">
@@ -177,9 +194,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
           </div>
         </>
-      ) : activePage === 'my-vyrals' ? (
-        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
-      ) : (
+      ) : activePage === 'my-vyrals' || activePage === 'my-media-library' ? null : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}

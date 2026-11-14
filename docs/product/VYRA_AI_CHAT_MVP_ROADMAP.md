@@ -1050,3 +1050,15 @@ The product direction is broader than the first Chat MVP: **AI should be able to
 - Applied the additive migration to Development project `wbqheogfoahnjvgkwhxe` only. A transactional test under the authenticated role verified first-call creation, same-ID retry idempotency, exactly one Vyral + one root DNA row, and rollback left zero test rows.
 - CI run [#43416038166](https://github.com/ZinLinn254995/VYRA/actions/runs/43416038166) passed after the retry-guard hardening.
 - This consolidates the existing confirmed-create path; it does not yet move the entire Vyral create proposal/approval flow into the shared AI Capability Executor. That remains a follow-up integration task. No production database/function, deployment, merge, Master Editor UI/UX, or AI Chat visual UI/CSS was changed.
+
+### Branch audit correction — Vyral creation and Asset upload executor integration
+
+A source audit of the current `feature/my-storyboard` branch found that the earlier Phase 3/5 notes above are historical snapshots and must not be read as the current implementation state:
+
+- The authenticated `vyra-openai-chat` Edge Function maps `vyral.propose_create` to `propose_vyral_create` and `asset.propose_upload` to `propose_vyral_asset_upload` through the shared `PROPOSAL_CAPABILITY_TOOLS` registry.
+- Both proposal adapters are registered with the shared AI Capability Executor. Vyral creation proposals validate bounded name/description inputs and require the authenticated server runtime, current chat session, and tool-call identity.
+- The confirmed `vyral.create` write is also registered in the shared executor. It validates the pending action and owner/session context, then calls the idempotent `create_vyral_identity_with_dna` database RPC. This keeps Vyral identity + initial Root DNA creation atomic.
+- Asset upload proposal is deliberately separated from binary transfer: the model tool creates an approval-bound proposal only. After approval, the browser transfers the exact attached File through `ingestVyralAsset`, which uses the shared canonical Asset/Version/Fingerprint/DNA ingestion lifecycle, then registers the ready Asset in Cloud My Media Library. The text model does not receive the raw file bytes.
+- These code paths are present in the current branch source. This audit is source inspection only; it does not claim a new browser E2E run or live OpenAI model execution. The OpenAI key remains intentionally unset.
+
+**Updated next action:** Keep the existing AI Chat UI unchanged. Add focused integration/contract verification for the proposal → same-chat approval → atomic Vyral create journey and the attached-file approval → canonical ingestion → Cloud Library index journey. Then continue Phase 4 with the provider submission/reconciliation adapter, while preserving the fail-closed credit-pricing gate. Do not invent or activate a VYRA credit conversion policy; customer billing remains blocked until the owner approves its commercial terms.

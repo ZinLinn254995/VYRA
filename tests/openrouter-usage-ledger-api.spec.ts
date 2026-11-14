@@ -182,92 +182,52 @@ test('ledger-enabled mode blocks untracked image generation instead of bypassing
   }, fetcher);
 });
 
-test('ledger-enabled Asset metadata suggestions record Google provider usage before returning', async () => {
-  const calls: Array<{ url: URL; method: string; body: Record<string, unknown> }> = [];
-  const fetcher: typeof fetch = async (input, init) => {
-    const url = new URL(String(input));
-    const method = init?.method || 'GET';
-    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
-    const headers = new Headers(init?.headers);
-    calls.push({ url, method, body });
-    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
-    if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
-      return Response.json([{ id: JOB_ID }], { status: 201 });
-    }
-    if (url.pathname === '/rest/v1/provider_attempts' && method === 'POST') {
-      return Response.json([{ id: ATTEMPT_ID }], { status: 201 });
-    }
-    if (url.pathname === '/functions/v1/vyra-gemini-proxy') {
-      assert.equal(headers.get('Authorization'), 'Bearer verified-development-session');
-      return Response.json({
-        text: '{"name":{"value":"Red Circle"},"category":{"value":"Illustration"}}',
-        modelName: 'gemini-3.8-flash',
-        provider: 'gemini',
-        usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
-        generationId: 'gemini-generation-001',
-      });
-    }
-    if (url.pathname === '/rest/v1/provider_attempts' && method === 'PATCH') return new Response(null, { status: 204 });
-    if (url.pathname === '/rest/v1/generation_jobs' && method === 'PATCH') return new Response(null, { status: 204 });
-    throw new Error('Unexpected test endpoint: ' + method + ' ' + url.pathname);
-  };
-
-  await withApi(async (baseUrl, clientFetch) => {
-    const response = await clientFetch(baseUrl + '/ai/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer verified-development-session',
-        'Idempotency-Key': 'asset-details-request-001',
-      },
-      body: JSON.stringify({
-        task: 'suggest_details',
-        detailsScope: 'asset',
-        messages: [{ role: 'user', content: 'Suggest metadata for an image Asset.' }],
-      }),
-    });
-    assert.equal(response.status, 200);
-    const payload = await response.json() as { text: string; provider: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } };
-    assert.match(payload.text, /Red Circle/);
-    assert.equal(payload.provider, 'gemini');
-    assert.deepEqual(payload.usage, { promptTokens: 30, completionTokens: 12, totalTokens: 42 });
-  }, fetcher);
-
-  const job = calls.find((call) => call.url.pathname === '/rest/v1/generation_jobs' && call.method === 'POST');
-  assert.ok(job);
-  assert.equal(job.body.user_id, USER_ID);
-  assert.equal(job.body.idempotency_key, 'asset-details-request-001');
-  assert.equal(job.body.capability, 'text');
-  const attempt = calls.find((call) => call.url.pathname === '/rest/v1/provider_attempts' && call.method === 'POST');
-  assert.ok(attempt);
-  assert.equal(attempt.body.provider, 'google');
-  const attemptUpdate = calls.find((call) => call.url.pathname === '/rest/v1/provider_attempts' && call.method === 'PATCH');
-  assert.ok(attemptUpdate);
-  assert.deepEqual(attemptUpdate.body.usage, { promptTokens: 30, completionTokens: 12, totalTokens: 42 });
-  const jobUpdate = calls.find((call) => call.url.pathname === '/rest/v1/generation_jobs' && call.method === 'PATCH');
-  assert.ok(jobUpdate);
-  assert.equal(jobUpdate.body.status, 'succeeded');
-});
-
-test('Gemini metadata suggestions reject unsupported scopes before provider or ledger calls', async () => {
+test('metadata suggestion task stays disabled until it is connected to the OpenAI provider', async () => {
   let providerCalls = 0;
   let ledgerCalls = 0;
-  const fetcher: typeof fetch = async (input, init) => {
+  const fetcher: typeof fetch = async (input) => {
     const url = new URL(String(input));
     if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
     if (url.pathname.startsWith('/rest/v1/')) ledgerCalls += 1;
-    if (url.hostname === 'generativelanguage.googleapis.com') providerCalls += 1;
+    if (url.pathname.includes('gemini') || url.hostname.includes('google')) providerCalls += 1;
     return Response.json({});
   };
 
   await withApi(async (baseUrl, clientFetch) => {
     const response = await clientFetch(baseUrl + '/ai/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer verified-development-session',
-        'Idempotency-Key': 'asset-details-invalid-scope-001',
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer verified-development-session' },
+      body: JSON.stringify({
+        task: 'suggest_details',
+        detailsScope: 'asset',
+        messages: [{ role: 'user', content: 'Suggest metadata for an image Asset.' }],
+      }),
+    });
+    assert.equal(response.status, 501);
+    const payload = await response.json() as { code: string; provider: string };
+    assert.equal(payload.code, 'AI_TASK_NOT_ENABLED');
+    assert.equal(payload.provider, 'openai');
+  }, fetcher);
+
+  assert.equal(providerCalls, 0);
+  assert.equal(ledgerCalls, 0);
+});
+
+test('metadata suggestions reject unsupported scopes before reporting the task as disabled', async () => {
+  let providerCalls = 0;
+  let ledgerCalls = 0;
+  const fetcher: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
+    if (url.pathname.startsWith('/rest/v1/')) ledgerCalls += 1;
+    if (url.pathname.includes('gemini') || url.hostname.includes('google')) providerCalls += 1;
+    return Response.json({});
+  };
+
+  await withApi(async (baseUrl, clientFetch) => {
+    const response = await clientFetch(baseUrl + '/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer verified-development-session' },
       body: JSON.stringify({
         task: 'suggest_details',
         detailsScope: 'admin_override',
@@ -282,48 +242,11 @@ test('Gemini metadata suggestions reject unsupported scopes before provider or l
   assert.equal(ledgerCalls, 0);
 });
 
-test('Gemini metadata suggestions fail closed when the usage ledger cannot start', async () => {
-  let providerCalls = 0;
-  const calls: Array<{ path: string; method: string }> = [];
-  const fetcher: typeof fetch = async (input, init) => {
-    const url = new URL(String(input));
-    const method = init?.method || 'GET';
-    calls.push({ path: url.pathname, method });
-    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
-    if (url.pathname === '/rest/v1/generation_jobs' && method === 'POST') {
-      return Response.json({ message: 'ledger unavailable' }, { status: 503 });
-    }
-    if (url.hostname === 'generativelanguage.googleapis.com') providerCalls += 1;
-    return Response.json({});
-  };
-
-  await withApi(async (baseUrl, clientFetch) => {
-    const response = await clientFetch(baseUrl + '/ai/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer verified-development-session',
-        'Idempotency-Key': 'asset-details-ledger-failure-001',
-      },
-      body: JSON.stringify({
-        task: 'suggest_details',
-        detailsScope: 'asset',
-        messages: [{ role: 'user', content: 'Suggest metadata for this Asset.' }],
-      }),
-    });
-    assert.equal(response.status, 503);
-    assert.equal(providerCalls, 0);
-    assert.equal((await response.json() as { error: string }).error, 'Usage tracking could not start safely. No metadata request was sent.');
-  }, fetcher);
-
-  assert.ok(calls.some((call) => call.path === '/rest/v1/generation_jobs' && call.method === 'POST'));
-  assert.equal(calls.some((call) => call.path === '/rest/v1/provider_attempts' && call.method === 'POST'), false);
-});
-
-test('ledger-enabled mode blocks authenticated Gemini generation until its usage recorder exists', async () => {
+test('AI Chat does not invoke any provider for image, document or audio inspection until OpenAI multimodal is enabled', async () => {
   let providerCalls = 0;
   const fetcher: typeof fetch = async (input) => {
-    if (String(input).includes('/auth/v1/user')) return Response.json({ id: USER_ID });
+    const url = new URL(String(input));
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER_ID });
     providerCalls += 1;
     return Response.json({});
   };
@@ -331,13 +254,15 @@ test('ledger-enabled mode blocks authenticated Gemini generation until its usage
   await withApi(async (baseUrl, clientFetch) => {
     const response = await clientFetch(baseUrl + '/ai/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid-test-session-token' },
-      body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a script.' }] }),
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer verified-development-session' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Describe this image.' }],
+        visionImages: [{ mimeType: 'image/jpeg', data: 'aGVsbG8=' }],
+      }),
     });
-    assert.equal(response.status, 503);
-    const payload = await response.json() as { code: string; capability: string };
-    assert.equal(payload.code, 'USAGE_LEDGER_CAPABILITY_UNSUPPORTED');
-    assert.equal(payload.capability, 'gemini-text');
-    assert.equal(providerCalls, 0);
+    assert.equal(response.status, 501);
+    assert.equal((await response.json() as { code: string }).code, 'OPENAI_MULTIMODAL_NOT_ENABLED');
   }, fetcher);
+
+  assert.equal(providerCalls, 0);
 });

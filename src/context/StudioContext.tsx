@@ -33,7 +33,6 @@ import {
 import { BRAND_CONFIG } from '../config/brand';
 import { aiService } from '../services/aiService';
 import { mergeCloudProjects } from '../services/cloudProjectRestore';
-import { confirmSpendBeforeGeneration } from '../services/spendConfirmation';
 import { processAgentRequest, executeAgentTool, AgentContext } from '../services/agentTools';
 import { ToolExecutionRecord } from '../types';
 
@@ -296,15 +295,28 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [chatError, setChatError] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<AIServiceStatus>({
     status: 'preview_mode',
-    providerName: 'Google Gemini AI (Server-Proxy Ready)',
-    modelName: 'gemini-3.8-flash',
-    message: 'Checking server-side Gemini connection.',
+    providerName: 'OpenAI (VYRA Platform)',
+    modelName: 'gpt-4.1-mini',
+    message: 'Checking the platform-managed OpenAI connection.',
   });
 
-  // Check AI service endpoint status on mount
+  // Verify the platform-managed OpenAI connection whenever the signed-in session changes.
   useEffect(() => {
-    aiService.checkStatus().then(setAiStatus);
-  }, []);
+    let active = true;
+    if (!authSession?.access_token) {
+      setAiStatus({
+        status: 'preview_mode',
+        providerName: 'OpenAI (VYRA Platform)',
+        modelName: 'gpt-4.1-mini',
+        message: 'Sign in to VYRA to check the platform-managed OpenAI connection.',
+      });
+      return () => { active = false; };
+    }
+    void aiService.checkStatus(authSession.access_token).then((status) => {
+      if (active) setAiStatus(status);
+    });
+    return () => { active = false; };
+  }, [authSession?.access_token]);
 
   // Sync conversations to localStorage
   useEffect(() => {
@@ -743,69 +755,32 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Any connected provider may incur charges, not only script/storyboard prompts.
       // Local application commands and honest Preview Mode remain available without a spend gate.
       if (agentResult.toolExecutions.length === 0) {
-        let apiKey = '';
-        let model = 'Configured AI provider';
-        let providerConnected = false;
-        try {
-          apiKey = sessionStorage.getItem('vyra_openrouter_key_session')?.trim() || '';
-          const selections = JSON.parse(sessionStorage.getItem('vyra_openrouter_models_v1') || '{}') as { text?: unknown };
-          if (typeof selections.text === 'string' && selections.text.trim()) model = selections.text.trim();
-          providerConnected = Boolean(apiKey && model !== 'Configured AI provider');
-        } catch {
-          // Storage may be unavailable; check the server-configured provider below.
+        const idempotencyKey = 'chat-' + (requestId || userMsg.id);
+        const response = await aiService.generateResponse({
+          messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+          conversationId: targetConvId || undefined,
+          ...(serverVerified && authSession?.access_token ? { accessToken: authSession.access_token } : {}),
+          idempotencyKey,
+        });
+        if (response.status === 'error') {
+          throw new Error(response.errorMessage || response.content || 'The AI request failed.');
         }
-
-        if (!providerConnected) {
-          const providerStatus = await aiService.checkStatus();
-          providerConnected = providerStatus.status === 'connected';
-          if (providerStatus.modelName) model = providerStatus.modelName;
-        }
-
-        let approvedForSpend = true;
-        if (providerConnected) {
-          approvedForSpend = await confirmSpendBeforeGeneration({
-            operation: 'AI Ideas Chat response generation',
-            capability: 'text',
-            model,
-            apiKey,
-            // Do not invent prompt token counts from characters.
-            parameters: { completionTokenBudget: 2048 },
-          });
-        }
-
-        if (!approvedForSpend) {
-          finalContent = 'Generation cancelled. No AI generation request was sent. You can continue using local project tools or Preview Mode.';
-          isPreviewNotice = true;
-        } else {
-          const idempotencyKey = 'chat-' + (requestId || userMsg.id);
-          const response = await aiService.generateResponse({
-            messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
-            conversationId: targetConvId || undefined,
-            ...(serverVerified && authSession?.access_token ? { accessToken: authSession.access_token } : {}),
-            idempotencyKey,
-          });
-          if (response.status === 'error') {
-            throw new Error(response.errorMessage || response.content || 'The AI request failed.');
-          }
-          finalContent = response.content;
-          finalSuggestedActions = response.suggestedActions || [];
-          isPreviewNotice = response.isPreviewNotice || false;
-          if (response.status === 'success') {
-            providerMetadata = {
-              ...(response.providerName ? { providerName: response.providerName } : {}),
-              ...(response.modelName ? { modelName: response.modelName } : {}),
-              ...(response.generationId ? { generationId: response.generationId } : {}),
-              ...(response.usage ? { usage: response.usage } : {}),
-            };
-          }
-          if (response.status === 'success' && response.providerName) {
+        finalContent = response.content;
+        finalSuggestedActions = response.suggestedActions || [];
+        isPreviewNotice = response.isPreviewNotice || false;
+        if (response.status === 'success') {
+          providerMetadata = {
+            ...(response.providerName ? { providerName: response.providerName } : {}),
+            ...(response.modelName ? { modelName: response.modelName } : {}),
+            ...(response.generationId ? { generationId: response.generationId } : {}),
+            ...(response.usage ? { usage: response.usage } : {}),
+          };
+          if (response.providerName) {
             setAiStatus({
               status: 'connected',
               providerName: response.providerName,
               modelName: response.modelName || 'Selected model',
-              backendEndpoint: response.providerName === 'OpenRouter'
-                ? '/api/providers/openrouter/chat'
-                : '/api/ai/chat',
+              backendEndpoint: '/api/ai/chat',
               message: 'Connected to ' + response.providerName + ' using ' + (response.modelName || 'the configured model') + '.',
             });
           }

@@ -4,6 +4,7 @@ import {
   MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
@@ -21,8 +22,9 @@ import { buildVyralDnaImprovementPlanV1 } from '../../services/vyralDnaImproveme
 import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
+import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error'; providerLabel?: string; action?: GlobalChatAction };
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction };
 type ChatSession = {
   id: string;
   title: string;
@@ -344,6 +346,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
@@ -359,6 +362,23 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
   const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
   const historyOwnerRef = useRef<string | null>(null);
+  const historyWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const activeRequestControllerRef = useRef<AbortController | null>(null);
+
+  const cancelActiveRequest = () => {
+    const controller = activeRequestControllerRef.current;
+    if (!controller) return;
+    activeRequestControllerRef.current = null;
+    controller.abort();
+    setIsSending(false);
+  };
+
+  useEffect(() => () => {
+    activeRequestControllerRef.current?.abort();
+    activeRequestControllerRef.current = null;
+  }, []);
+  const chatScrollRef = useRef<HTMLElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -407,6 +427,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     let active = true;
     const supabaseClient = supabase;
     if (!isAuthenticated || !supabaseClient) {
+      cancelActiveRequest();
       historyOwnerRef.current = null;
       setHistoryOwnerId(null);
       setSessions([]);
@@ -420,8 +441,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
     setHistoryReady(false);
     setHistoryError(null);
+    const previousOwnerId = historyOwnerRef.current;
+    // Stop work under the previous identity before any asynchronous auth/history checks.
+    if (previousOwnerId) cancelActiveRequest();
+    // Invalidate queued writes immediately while the current auth identity is revalidated.
+    historyOwnerRef.current = null;
     const loadHistory = async () => {
       const { data: userResult, error: userError } = await supabaseClient.auth.getUser();
+      if (!active) return;
       if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
       const ownerId = userResult.user.id;
       const { data, error } = await supabaseClient
@@ -431,12 +458,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         .order('updated_at', { ascending: false })
         .limit(100);
       if (error) throw new Error('Saved chat history is temporarily unavailable.');
-      if (historyOwnerRef.current && historyOwnerRef.current !== ownerId) {
+      if (previousOwnerId && previousOwnerId !== ownerId) {
         setMessages([]);
         setActiveSessionId(null);
         setIsLocked(false);
       }
-      historyOwnerRef.current = ownerId;
       const loaded = (data ?? []).map((row) => {
         const rawMessages = Array.isArray(row.messages) ? row.messages : [];
         const safeMessages = rawMessages.flatMap((item: unknown) => {
@@ -449,7 +475,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             id: message.id,
             role: message.role,
             content: message.content,
-            ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' ? { status: message.status } : {}),
+            ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' || message.status === 'cancelled' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
             ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete', 'storyboard-delete-draft', 'storyboard-delete-complete', 'vyral-create-draft', 'vyral-create-complete', 'vyral-asset-upload-draft', 'vyral-asset-upload-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatAction } : {}),
           } as ChatMessage];
@@ -465,6 +491,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         } as ChatSession;
       }).filter((session) => session.messages.length > 0);
       if (!active) return;
+      historyOwnerRef.current = ownerId;
       setHistoryOwnerId(ownerId);
       setSessions(loaded);
     };
@@ -478,6 +505,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       .finally(() => { if (active) setHistoryReady(true); });
     return () => { active = false; };
   }, [isAuthenticated, historyAuthRevision]);
+
+  useLayoutEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container || !shouldAutoScrollRef.current) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: isSending ? 'auto' : 'smooth' });
+  }, [messages, isSending]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -496,31 +529,42 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     return firstUserMessage.length > 42 ? firstUserMessage.slice(0, 42) + '…' : firstUserMessage || 'New chat';
   }, [messages]);
 
-  const persistSession = useCallback(async (session: ChatSession) => {
-    if (!supabase || !historyOwnerId) return false;
-    const storedMessages = session.messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      content: message.content,
-      ...(message.status ? { status: message.status } : {}),
-      ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
-      ...(message.action ? { action: message.action } : {}),
-    }));
-    const { error } = await supabase.from('vyra_ai_chat_conversations').upsert({
-      id: session.id,
-      user_id: historyOwnerId,
-      title: (session.title || 'New chat').slice(0, 160),
-      messages: storedMessages,
-      archived: Boolean(session.archived),
-      locked: Boolean(session.locked),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-    if (error) {
-      setHistoryError('Chat history could not be saved. Please keep this page open and retry.');
-      return false;
-    }
-    setHistoryError(null);
-    return true;
+  const persistSession = useCallback((session: ChatSession) => {
+    const client = supabase;
+    const ownerId = historyOwnerId;
+    if (!client || !ownerId) return Promise.resolve(false);
+
+    // Serialize writes so a slower, older transcript cannot overwrite a newer one.
+    const write = historyWriteQueueRef.current.then(async () => {
+      // A queued write must never run after sign-out or an account switch.
+      if (historyOwnerRef.current !== ownerId) return false;
+      const storedMessages = session.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        ...(message.status ? { status: message.status } : {}),
+        ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
+        ...(message.action ? { action: message.action } : {}),
+      }));
+      const { error } = await client.from('vyra_ai_chat_conversations').upsert({
+        id: session.id,
+        user_id: ownerId,
+        title: (session.title || 'New chat').slice(0, 160),
+        messages: storedMessages,
+        archived: Boolean(session.archived),
+        locked: Boolean(session.locked),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (historyOwnerRef.current !== ownerId) return false;
+      if (error) {
+        setHistoryError('Chat history could not be saved. Please keep this page open and retry.');
+        return false;
+      }
+      setHistoryError(null);
+      return true;
+    });
+    historyWriteQueueRef.current = write.then(() => undefined, () => undefined);
+    return write;
   }, [historyOwnerId]);
 
   useEffect(() => {
@@ -541,8 +585,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     return () => window.clearTimeout(timeout);
   }, [historyReady, historyOwnerId, activeSessionId, messages, currentTitle, isLocked, persistSession]);
 
-  const saveCurrentSession = async (archived = false) => {
-    if (!hasMessages) return;
+  const saveCurrentSession = async (archived = false): Promise<boolean> => {
+    if (!hasMessages) return true;
     const session: ChatSession = {
       id: activeSessionId ?? crypto.randomUUID(),
       title: currentTitle,
@@ -551,12 +595,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       archived,
       locked: isLocked,
     };
+    const saved = await persistSession(session);
+    if (!saved) return false;
     setSessions((previous) => [session, ...previous.filter((item) => item.id !== session.id)]);
-    await persistSession(session);
+    return true;
   };
 
   const startNewChat = async () => {
-    await saveCurrentSession();
+    const ownerAtStart = historyOwnerRef.current;
+    cancelActiveRequest();
+    const saved = await saveCurrentSession();
+    if (!saved || historyOwnerRef.current !== ownerAtStart) return;
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
@@ -573,6 +622,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const openSession = (session: ChatSession) => {
+    // A stale history row must not be opened after the authenticated owner changes.
+    const ownerId = historyOwnerId;
+    if (!ownerId || historyOwnerRef.current !== ownerId ||
+        !sessions.some((item) => item.id === session.id)) return;
+    cancelActiveRequest();
     setMessages(session.messages);
     setActiveSessionId(session.id);
     setIsLocked(Boolean(session.locked));
@@ -588,8 +642,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setHistoryOpen(false);
   };
 
-  const sendMessage = async (value = draft) => {
+  const sendMessage = async (value = draft, retryUserMessageId?: string) => {
     const text = value.trim();
+    const retryUserIndex = retryUserMessageId ? messages.findIndex((message) => message.id === retryUserMessageId && message.role === 'user') : -1;
+    if (retryUserMessageId && retryUserIndex < 0) return;
     if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
     const requestsVyralQuality = requestsVyralQualityEvaluationV1(text);
     const requestsVyralQualityHistory = requestsVyralQualityHistoryV1(text);
@@ -614,6 +670,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       onLoginRequired();
       return;
     }
+    // Bind this entire turn to the owner whose history is currently validated.
+    const requestOwnerId = historyOwnerRef.current;
+    if (!requestOwnerId || requestOwnerId !== historyOwnerId) return;
     let visionImages = [...selectedVyralImages];
     const mediaFiles: {
       mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac';
@@ -628,12 +687,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
     const assetContextText = selectedAssets.length ? '\n\nSelected VYRA Assets (explicit user-selected context):\n' + selectedAssets.map((asset, index) => `${index + 1}. ${asset.name} [${asset.assetType}; ${asset.mimeType}] — Vyral: ${asset.vyralName}; Asset ID: ${asset.id}; Visibility: ${asset.visibility}; Description: ${asset.description || 'Not provided'}`).join('\n') + '\nUse only these selected Assets as the requested VYRA library context. This selection does not grant public access; private Assets are owner-authorized context only.' : '';
-    const userMessage: ChatMessage = {
-      id: makeId(),
-      role: 'user',
-      content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
-    };
-    const nextMessages = [...messages, userMessage];
+    const userMessage: ChatMessage = retryUserIndex >= 0
+      ? messages[retryUserIndex]
+      : {
+          id: makeId(),
+          role: 'user',
+          content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
+        };
+    shouldAutoScrollRef.current = true;
+    // Retry the original user turn in place; discard the failed assistant turn and anything after it.
+    const nextMessages = retryUserIndex >= 0
+      ? messages.slice(0, retryUserIndex + 1)
+      : [...messages, userMessage];
     setMessages(nextMessages);
     setDraft('');
     setSelectedFile(null);
@@ -647,6 +712,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     if (!activeSessionId) setActiveSessionId(chatSessionId);
 
     setIsSending(true);
+    const requestController = new AbortController();
+    activeRequestControllerRef.current = requestController;
+    const assertRequestCurrent = () => {
+      if (activeRequestControllerRef.current !== requestController ||
+          historyOwnerRef.current !== requestOwnerId ||
+          requestController.signal.aborted) {
+        throw new DOMException('This chat request is no longer active.', 'AbortError');
+      }
+    };
+    const awaitForCurrentRequest = async <T,>(operation: PromiseLike<T>): Promise<T> => {
+      assertRequestCurrent();
+      const result = await operation;
+      assertRequestCurrent();
+      return result;
+    };
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
@@ -660,10 +740,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
       if (supabase && text) {
-        const { data: authData } = await supabase.auth.getUser();
+        const { data: authData } = await awaitForCurrentRequest(supabase.auth.getUser());
+        assertRequestCurrent();
+        if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this request.', 'AbortError');
         if (authData.user) {
-          const { data: ownedVyrals } = await supabase.from('vyrals')
-            .select('id,name,description').eq('user_id', authData.user.id).limit(100);
+          const { data: ownedVyrals } = await awaitForCurrentRequest(supabase.from('vyrals')
+            .select('id,name,description').eq('user_id', authData.user.id).limit(100));
           if (ownedVyrals) {
             const ownedRecords = ownedVyrals.map((item) => ({
               id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
@@ -711,6 +793,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           locked: isLocked,
         };
         const saved = await persistSession(sessionToSave);
+        assertRequestCurrent();
         if (!saved) throw new Error('I could not confirm that this conversation was saved. Please stay here and try again.');
         setMessages(sessionToSave.messages);
         setActiveSessionId(sessionId);
@@ -733,24 +816,27 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             return;
           }
           if (!supabase) throw new Error('Storyboard deletion is unavailable in this environment.');
-          const { data: authData, error: authError } = await supabase.auth.getUser();
+          const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before deleting this Storyboard.');
-          const { data: currentCloud, error: loadError } = await supabase.from('vyral_storyboards')
+          const { data: currentCloud, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
             .select('id,updated_at')
             .eq('id', draft.storyboardId)
             .eq('user_id', authData.user.id)
-            .maybeSingle();
+            .maybeSingle());
+          assertRequestCurrent();
           if (loadError) throw new Error('I could not verify this Storyboard before deletion. Nothing was deleted.');
           if (currentCloud && String(currentCloud.updated_at) !== draft.expectedUpdatedAt) {
             throw new Error('This Storyboard changed after the delete preview was prepared. Nothing was deleted. Ask me to prepare the delete again.');
           }
           if (currentCloud) {
-            const { data: deletedRows, error: deleteError } = await supabase.from('vyral_storyboards')
+            const { data: deletedRows, error: deleteError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
               .delete()
               .eq('id', draft.storyboardId)
               .eq('user_id', authData.user.id)
               .eq('updated_at', draft.expectedUpdatedAt)
-              .select('id');
+              .select('id'));
             if (deleteError) throw new Error('I could not delete this Storyboard from the cloud. Please retry confirmation. ' + deleteError.message);
             if (!deletedRows?.length) throw new Error('This Storyboard changed or was removed before deletion completed. Nothing else was changed.');
           }
@@ -789,13 +875,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             return;
           }
           if (!supabase) throw new Error('Storyboard updates are unavailable in this environment.');
-          const { data: authData, error: authError } = await supabase.auth.getUser();
+          const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before updating this Storyboard.');
-          const { data: currentCloud, error: loadError } = await supabase.from('vyral_storyboards')
+          const { data: currentCloud, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
             .select('id,title,topic,created_at,updated_at')
             .eq('id', draft.storyboardId)
             .eq('user_id', authData.user.id)
-            .maybeSingle();
+            .maybeSingle());
+          assertRequestCurrent();
           if (loadError) throw new Error('I could not verify this Storyboard before updating it. Please retry confirmation.');
           if (!currentCloud) throw new Error('This Storyboard is no longer available in your account. No changes were made.');
           if (String(currentCloud.updated_at) !== draft.expectedUpdatedAt) throw new Error('This Storyboard changed after the draft was prepared. Ask me to prepare the update again so no newer changes are overwritten.');
@@ -803,10 +892,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           const patch = draft.field === 'title'
             ? { title: draft.nextValue, updated_at: now }
             : { topic: draft.nextValue, updated_at: now };
-          const { error: updateError } = await supabase.from('vyral_storyboards')
+          const { error: updateError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
             .update(patch)
             .eq('id', draft.storyboardId)
-            .eq('user_id', authData.user.id);
+            .eq('user_id', authData.user.id));
           if (updateError) throw new Error('I could not save this Storyboard update. Please retry confirmation. ' + updateError.message);
           let cacheWarning = '';
           try {
@@ -853,7 +942,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             return;
           }
           if (!supabase) throw new Error('Storyboard creation is unavailable in this environment.');
-          const { data: authData, error: authError } = await supabase.auth.getUser();
+          const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before creating a Storyboard.');
           const now = new Date().toISOString();
           const storyboard = {
@@ -865,11 +956,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             created_at: now,
             updated_at: now,
           };
-          const { data: existingCloud, error: existingError } = await supabase.from('vyral_storyboards')
+          const { data: existingCloud, error: existingError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
             .select('id,created_at,updated_at')
             .eq('id', draft.id)
             .eq('user_id', authData.user.id)
-            .maybeSingle();
+            .maybeSingle());
+          assertRequestCurrent();
           if (existingError) throw new Error('I could not verify whether this Storyboard was already saved. Please retry confirmation.');
           let savedCreatedAt = now;
           let savedUpdatedAt = now;
@@ -877,7 +969,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             savedCreatedAt = String(existingCloud.created_at || now);
             savedUpdatedAt = String(existingCloud.updated_at || now);
           } else {
-            const { error: createError } = await supabase.from('vyral_storyboards').insert(storyboard);
+            const { error: createError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards').insert(storyboard));
             if (createError) throw new Error('I could not save this Storyboard. Nothing was reported as created. ' + createError.message);
           }
           let cacheWarning = '';
@@ -918,7 +1010,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           return;
         }
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
         if (authError || !authData.user) throw new Error('Sign in again to manage your Workspace Storyboards.');
         const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
         let localStoryboards: GlobalChatStoryboardRecord[] = [];
@@ -934,10 +1026,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         } catch {
           // Use the account-scoped cloud rows if local cache is malformed.
         }
-        const { data, error: loadError } = await supabase.from('vyral_storyboards')
+        const { data, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
           .select('id,title,topic,details,created_at,updated_at')
           .eq('user_id', authData.user.id)
-          .order('updated_at', { ascending: false });
+          .order('updated_at', { ascending: false }));
         if (loadError) throw new Error('Could not load your Workspace Storyboards: ' + loadError.message);
         const remoteStoryboards: GlobalChatStoryboardRecord[] = (data ?? []).map((row) => ({
           id: String(row.id), title: String(row.title), topic: String(row.topic ?? ''),
@@ -979,7 +1071,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           return;
         }
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
         if (authError || !authData.user) throw new Error('Sign in again to update your Workspace Storyboards.');
         const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
         let localStoryboards: GlobalChatStoryboardRecord[] = [];
@@ -995,10 +1087,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         } catch {
           // Continue with the account-scoped cloud copy if the device cache is malformed.
         }
-        const { data, error: loadError } = await supabase.from('vyral_storyboards')
+        const { data, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
           .select('id,title,topic,details,created_at,updated_at')
           .eq('user_id', authData.user.id)
-          .order('updated_at', { ascending: false });
+          .order('updated_at', { ascending: false }));
         if (loadError) throw new Error('Could not load your Workspace Storyboards: ' + loadError.message);
         const remoteStoryboards: GlobalChatStoryboardRecord[] = (data ?? []).map((row) => ({
           id: String(row.id), title: String(row.title), topic: String(row.topic ?? ''),
@@ -1058,7 +1150,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       const requestedStoryboardTitle = extractStoryboardDetailTitle(text);
       if (requestedStoryboardTitle && !selectedFile && selectedAssets.length === 0) {
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
         if (authError || !authData.user) throw new Error('Sign in again to access your Workspace Storyboards.');
 
         const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
@@ -1076,10 +1168,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           // Ignore malformed device cache and continue with the account-scoped cloud query.
         }
 
-        const { data, error: loadError } = await supabase.from('vyral_storyboards')
+        const { data, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
           .select('id,title,topic,details,created_at,updated_at')
           .eq('user_id', authData.user.id)
-          .order('updated_at', { ascending: false });
+          .order('updated_at', { ascending: false }));
         if (loadError) throw new Error('Could not load your Workspace Storyboards: ' + loadError.message);
 
         const remoteStoryboards: GlobalChatStoryboardRecord[] = (data ?? []).map((row) => ({
@@ -1107,7 +1199,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
       if (isStoryboardListRequest(text) && !selectedFile && selectedAssets.length === 0) {
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
         if (authError || !authData.user) throw new Error('Sign in again to access your Workspace Storyboards.');
 
         const storageKey = 'vyra_storyboards_v1:' + authData.user.id;
@@ -1125,10 +1217,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           // A malformed local cache must not prevent reading the account's cloud Storyboards.
         }
 
-        const { data, error: loadError } = await supabase.from('vyral_storyboards')
+        const { data, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
           .select('id,title,topic,details,created_at,updated_at')
           .eq('user_id', authData.user.id)
-          .order('updated_at', { ascending: false });
+          .order('updated_at', { ascending: false }));
         if (loadError) throw new Error('Could not load your Workspace Storyboards: ' + loadError.message);
 
         const remoteStoryboards: GlobalChatStoryboardRecord[] = (data ?? []).map((row) => ({
@@ -1150,10 +1242,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('Select one Asset before reviewing its Vision evidence.');
         if (!supabase) throw new Error('Vision evidence review is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: observations, error: observationsError } = await supabase
+        const { data: observations, error: observationsError } = await awaitForCurrentRequest(supabase
           .from('vyral_vision_observations')
           .select('id,asset_version_id,task_kind,model_provider,model_id,observation,source_sha256,verification_status,created_at')
-          .eq('asset_id', selectedAsset.id).order('created_at', { ascending: false }).limit(10);
+          .eq('asset_id', selectedAsset.id).order('created_at', { ascending: false }).limit(10));
         if (observationsError) throw new Error('Could not load Vision observations: ' + observationsError.message);
         const lines = ['Recent Vision observations for ' + selectedAsset.name + ':'];
         if (!observations?.length) lines.push('No Vision observations have been recorded for this Asset.');
@@ -1179,17 +1271,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (!supabase) throw new Error('Creator evidence review is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
         const observationId = creatorObservationAction[2];
-        const { data: observation, error: observationError } = await supabase
+        const { data: observation, error: observationError } = await awaitForCurrentRequest(supabase
           .from('vyral_vision_observations').select('id,asset_id').eq('id', observationId)
-          .eq('asset_id', selectedAsset.id).maybeSingle();
+          .eq('asset_id', selectedAsset.id).maybeSingle());
         if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
         const decision = creatorObservationAction[1].toLowerCase() === 'confirm' ? 'creator_confirmed' : 'disputed';
-        const { data: result, error: reviewError } = await supabase.functions.invoke('record-vyral-vision-review', {
+        const { data: result, error: reviewError } = await awaitForCurrentRequest(supabase.functions.invoke('record-vyral-vision-review', {
           body: { observationId, decision },
-        });
+        }));
         if (reviewError) {
           let message = 'Creator review could not be recorded.';
           try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
@@ -1206,9 +1299,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const observationId = promoteObservationField[1];
         const observationFieldPath = promoteObservationField[2];
         const fieldPath = promoteObservationField[3] || ('knowledge.' + observationFieldPath);
-        const { data: observation, error: observationError } = await supabase
+        const { data: observation, error: observationError } = await awaitForCurrentRequest(supabase
           .from('vyral_vision_observations').select('id,asset_id,observation')
-          .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle();
+          .eq('id', observationId).eq('asset_id', selectedAsset.id).maybeSingle());
         if (observationError || !observation) throw new Error('That observation does not belong to the selected Asset.');
         let acceptedValue: unknown = observation.observation;
         for (const part of observationFieldPath.split('.')) {
@@ -1216,12 +1309,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               !Object.prototype.hasOwnProperty.call(acceptedValue, part)) throw new Error('The requested field does not exist in this Vision observation.');
           acceptedValue = (acceptedValue as Record<string, unknown>)[part];
         }
-        const { data: result, error: promoteError } = await supabase.functions.invoke('promote-vyral-vision-field', {
+        const { data: result, error: promoteError } = await awaitForCurrentRequest(supabase.functions.invoke('promote-vyral-vision-field', {
           body: { observationId, fieldPath, observationFieldPath, acceptedValue },
-        });
+        }));
         if (promoteError) {
           let message = 'Creator field confirmation could not be saved.';
           try { const payload = await (promoteError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         setMessages((previous) => [...previous, { id: makeId(), role: 'assistant',
@@ -1236,13 +1330,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To apply a DNA change set, select exactly one Asset.');
         if (!supabase) throw new Error('Secure DNA revision creation is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const {data: approved,error: approvedError} = await supabase.from('vyral_asset_dna_improvement_proposals')
+        const {data: approved,error: approvedError} = await awaitForCurrentRequest(supabase.from('vyral_asset_dna_improvement_proposals')
           .select('id,status,change_set_status,change_set_validation_report').eq('asset_id',selectedAsset.id)
           .in('status',['approved','applied']).eq('change_set_status','validated').not('change_set_validation_report','is',null)
-          .order('created_at',{ascending:false}).limit(1).maybeSingle();
+          .order('created_at',{ascending:false}).limit(1).maybeSingle());
         if (approvedError) throw new Error('Could not load the validated DNA change set: '+approvedError.message);
         if (!approved) throw new Error('No fully validated DNA change set exists for this Asset. Validate its approved change set first.');
-        const {data: applied,error: applyError} = await supabase.functions.invoke('manage-vyral-asset-dna-proposal',{body:{action:'apply_change_set',proposalId:approved.id}});
+        const {data: applied,error: applyError} = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal',{body:{action:'apply_change_set',proposalId:approved.id}}));
         if (applyError) {
           let message='VYRA could not create the new DNA revision.';
           try { const payload=await (applyError as {context?:Response}).context?.clone().json() as {error?:string}|undefined; if(payload?.error) message=payload.error; } catch { /* safe fallback */ }
@@ -1266,19 +1360,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To validate a DNA change set, select the Asset whose approved change set you want VYRA to check.');
         if (!supabase) throw new Error('Secure DNA change-set validation is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: approved, error: approvedError } = await supabase
+        const { data: approved, error: approvedError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at,change_set_sha256')
           .eq('asset_id', selectedAsset.id).eq('status','approved').not('change_set','is',null)
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .order('created_at', { ascending: false }).limit(1).maybeSingle());
         if (approvedError) throw new Error('Could not load the prepared DNA change set: ' + approvedError.message);
         if (!approved) throw new Error('No prepared DNA change set exists for this Asset. Approve its proposal and prepare the change set first.');
-        const { data: validated, error: validationError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+        const { data: validated, error: validationError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
           body: { action: 'validate_change_set', proposalId: approved.id },
-        });
+        }));
         if (validationError) {
           let message = 'VYRA could not validate the DNA change set.';
           try { const payload = await (validationError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         const report = validated?.report;
@@ -1305,19 +1400,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To prepare the DNA change set, select the same Asset whose improvement proposal you approved.');
         if (!supabase) throw new Error('Secure DNA change-set preparation is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: approved, error: approvedError } = await supabase
+        const { data: approved, error: approvedError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at')
           .eq('asset_id', selectedAsset.id).eq('status','approved')
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .order('created_at', { ascending: false }).limit(1).maybeSingle());
         if (approvedError) throw new Error('Could not load the approved DNA proposal: ' + approvedError.message);
         if (!approved) throw new Error('No approved DNA improvement proposal exists for this Asset yet. Approve the proposal first.');
-        const { data: prepared, error: prepareError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+        const { data: prepared, error: prepareError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
           body: { action: 'prepare_change_set', proposalId: approved.id },
-        });
+        }));
         if (prepareError) {
           let message = 'VYRA could not prepare the DNA change set.';
           try { const payload = await (prepareError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         const changeSet = prepared?.changeSet;
@@ -1338,19 +1434,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         if (selectedAssets.length !== 1) throw new Error('To approve or reject a DNA improvement plan, select the same Asset and send “Approve” or “Reject”.');
         if (!supabase) throw new Error('Secure DNA proposal review is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data: pending, error: pendingError } = await supabase
+        const { data: pending, error: pendingError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_dna_improvement_proposals')
           .select('id,status,created_at')
           .eq('asset_id', selectedAsset.id).eq('status','proposed')
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .order('created_at', { ascending: false }).limit(1).maybeSingle());
         if (pendingError) throw new Error('Could not load the pending DNA improvement proposal: ' + pendingError.message);
         if (!pending) throw new Error('There is no pending DNA improvement proposal for this Asset. Run a fresh DNA assessment first.');
-        const { data: review, error: reviewError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+        const { data: review, error: reviewError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
           body: { action: proposalAction, proposalId: pending.id },
-        });
+        }));
         if (reviewError) {
           let message = 'VYRA could not save this proposal review.';
           try { const payload = await (reviewError as { context?: Response }).context?.clone().json() as { error?: string } | undefined; if (payload?.error) message = payload.error; } catch { /* safe fallback */ }
+          assertRequestCurrent();
           throw new Error(message);
         }
         const result = review?.proposal;
@@ -1366,13 +1463,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }
         if (!supabase) throw new Error('Secure Asset DNA assessment is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
-        const { data, error } = await supabase.functions.invoke('assess-vyral-asset-dna', {
+        const { data, error } = await awaitForCurrentRequest(supabase.functions.invoke('assess-vyral-asset-dna', {
           body: { assetId: selectedAsset.id },
-        });
+        }));
         if (error) {
           let message = 'VYRA could not assess this Asset DNA.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            assertRequestCurrent();
             if (payload?.error) message = payload.error;
           } catch {
             // Keep the safe generic message when the function response is unavailable.
@@ -1411,9 +1509,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         let proposalStatus = 'not saved';
         let proposalId = '';
         if (data.assessmentId) {
-          const { data: proposalData, error: proposalError } = await supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
+          const { data: proposalData, error: proposalError } = await awaitForCurrentRequest(supabase.functions.invoke('manage-vyral-asset-dna-proposal', {
             body: { action: 'create', assessmentId: data.assessmentId },
-          });
+          }));
           if (!proposalError && proposalData?.proposal?.id) {
             proposalId = String(proposalData.proposal.id);
             proposalStatus = String(proposalData.proposal.status ?? 'proposed');
@@ -1476,13 +1574,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           throw new Error('To inspect reconstruction attempts, select an Asset from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure reconstruction evidence is unavailable in this environment.');
-        const { data, error } = await supabase
+        const { data, error } = await awaitForCurrentRequest(supabase
           .from('vyral_reconstruction_tests')
           .select('id,asset_id,model_provider,model_id,model_version,prompt_sha256,session_reference,tool_access,blindness_status,attempt_evidence,protocol_version,comparison_mode,test_status,exact_match,similarity_score,created_at')
           .eq('vyral_id', qualityVyralIds[0])
           .eq('protocol_version', 'ORIGIN-01-v3')
           .order('created_at', { ascending: false })
-          .limit(30);
+          .limit(30));
         if (error) throw new Error('Could not load saved reconstruction evidence: ' + error.message);
         const attempts = (data ?? []) as Array<{
           id: string; asset_id: string; model_provider: string; model_id: string; model_version: string | null;
@@ -1547,13 +1645,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           throw new Error('To view quality history, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure Vyral quality history is unavailable in this environment.');
-        const { data, error } = await supabase.functions.invoke('get-vyral-quality-history', {
+        const { data, error } = await awaitForCurrentRequest(supabase.functions.invoke('get-vyral-quality-history', {
           body: { vyralId: qualityVyralIds[0] },
-        });
+        }));
         if (error) {
           let message = 'VYRA could not load this Vyral’s quality history.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            assertRequestCurrent();
             if (payload?.error) message = payload.error;
           } catch {
             // Keep the safe generic message when the function response is unavailable.
@@ -1599,13 +1698,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           throw new Error('To evaluate quality, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure Vyral quality evaluation is unavailable in this environment.');
-        const { data, error } = await supabase.functions.invoke('evaluate-vyral-quality', {
+        const { data, error } = await awaitForCurrentRequest(supabase.functions.invoke('evaluate-vyral-quality', {
           body: { vyralId: qualityVyralIds[0] },
-        });
+        }));
         if (error) {
           let message = 'VYRA could not complete the quality evaluation.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
+            assertRequestCurrent();
             if (payload?.error) message = payload.error;
           } catch {
             // Keep the safe generic message when the function response is unavailable.
@@ -1646,22 +1746,22 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       if (selectedAssets.length) {
         if (!supabase) throw new Error('Secure Asset access is unavailable in this environment.');
         const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
-        const { data: assetRows, error: assetError } = await supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id));
+        const { data: assetRows, error: assetError } = await awaitForCurrentRequest(supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id)));
         if (assetError) throw new Error('Could not verify selected Asset access: ' + assetError.message);
         if ((assetRows ?? []).length !== selectedAssets.length) throw new Error('One or more selected Assets are no longer accessible. Please select them again.');
         if ((assetRows ?? []).some((asset) => !selectedAssets.some((selected) => selected.id === asset.id && selected.vyralId === asset.vyral_id))) throw new Error('A selected Asset no longer belongs to its declared Vyral.');
-        const { data: parentVyrals, error: vyralError } = await supabase.from('vyrals').select('id,license_policy').in('id', uniqueVyrals);
+        const { data: parentVyrals, error: vyralError } = await awaitForCurrentRequest(supabase.from('vyrals').select('id,license_policy').in('id', uniqueVyrals));
         if (vyralError) throw new Error('Could not verify Vyral permissions: ' + vyralError.message);
         if ((parentVyrals ?? []).length !== uniqueVyrals.length) throw new Error('One or more selected Vyrals are no longer accessible.');
         if ((parentVyrals ?? []).some((item) => (item.license_policy as Record<string, unknown> | null)?.allow_ai_analysis === false)) throw new Error('AI analysis is not permitted by one of the selected Vyrals.');
 
         // Resolve immutable latest versions instead of trusting the Asset row's legacy storage_path.
         const selectedIds = (assetRows ?? []).map((asset) => asset.id);
-        const { data: versionRows, error: versionError } = await supabase
+        const { data: versionRows, error: versionError } = await awaitForCurrentRequest(supabase
           .from('vyral_asset_versions')
           .select('id,asset_id,vyral_id,storage_path,mime_type,size_bytes,version_number')
           .in('asset_id', selectedIds)
-          .order('version_number', { ascending: false });
+          .order('version_number', { ascending: false }));
         if (versionError) throw new Error('Could not resolve current selected Asset versions: ' + versionError.message);
         const latestVersionByAsset = new Map<string, { vyral_id: string; storage_path: string; mime_type: string | null; size_bytes: number; version_number: number }>();
         for (const version of versionRows ?? []) {
@@ -1693,19 +1793,24 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           if (!needsSource) continue;
           const sourceLimit = isPdf || isAudio ? 2 * 1024 * 1024 : 20 * 1024 * 1024;
           if (Number(version.size_bytes) > sourceLimit) throw new Error(`Selected Asset exceeds the ${isPdf || isAudio ? '2 MB document/audio' : '20 MB media'} inspection limit: ${asset.name}`);
-          const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60);
+          const { data: signed, error: signedError } = await awaitForCurrentRequest(supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60));
           if (signedError || !signed?.signedUrl) throw new Error('Could not securely open the current version of selected Asset: ' + asset.name);
-          const response = await fetch(signed.signedUrl);
+          const response = await fetch(signed.signedUrl, { signal: requestController.signal });
+          assertRequestCurrent();
           if (!response.ok) throw new Error('Could not load the current version of selected Asset: ' + asset.name);
           const blob = await response.blob();
+          assertRequestCurrent();
           if (blob.size > sourceLimit) throw new Error('Selected Asset exceeds its safe inspection limit: ' + asset.name);
           if (mimeType.startsWith('image/')) {
             if (visionImages.length < 4) {
               const preview = await createSelectedAssetVisionPreview(blob);
+              assertRequestCurrent();
               visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
             }
           } else if (isTextLike) {
-            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(await blob.arrayBuffer());
+            const decodedBytes = await blob.arrayBuffer();
+            assertRequestCurrent();
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(decodedBytes);
             const bounded = decoded.slice(0, 24000);
             const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
             const currentMessage = nextMessages[nextMessages.length - 1];
@@ -1716,9 +1821,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             if (!['application/pdf', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(mediaMime)) {
               throw new Error('This audio format is not supported for direct AI inspection: ' + asset.name);
             }
+            const encodedMedia = await readBlobAsBase64(blob);
+            assertRequestCurrent();
             mediaFiles.push({
               mimeType: mediaMime as typeof mediaFiles[number]['mimeType'],
-              data: await readBlobAsBase64(blob),
+              data: encodedMedia,
               assetId: asset.id,
               assetName: asset.name,
             });
@@ -1727,13 +1834,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           } else if (isVideo) {
             const remaining = Math.max(0, 4 - visionImages.length);
             const frames = await extractSelectedVideoFrames(blob, asset.id, asset.name, remaining);
+            assertRequestCurrent();
             visionImages.push(...frames);
             const currentMessage = nextMessages[nextMessages.length - 1];
             currentMessage.content += `\n\nVideo frames attached for visual inspection: ${asset.name}; ${frames.length} sampled frames from the current version (${version.version_number}). Audio track transcription is not included.`;
           }
+          assertRequestCurrent();
         }
       }
+      if (requestController.signal.aborted) throw new DOMException('Generation stopped.', 'AbortError');
       const accessToken = await getCurrentAccessToken();
+      assertRequestCurrent();
       const canStreamText = visionImages.length === 0 && mediaFiles.length === 0;
       if (canStreamText) {
         streamingAssistantId = makeId();
@@ -1750,9 +1861,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
+        signal: requestController.signal,
         idempotencyKey: 'chat-' + makeId(),
         ...(canStreamText ? {
           onTextDelta: (chunk: string) => {
+            if (activeRequestControllerRef.current !== requestController ||
+                historyOwnerRef.current !== requestOwnerId ||
+                requestController.signal.aborted) return;
             const messageId = streamingAssistantId;
             if (!messageId) return;
             streamedText += chunk;
@@ -1764,6 +1879,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
         ...(mediaFiles.length ? { mediaFiles } : {}),
       });
+      assertRequestCurrent();
       let assetUploadCompletionText = '';
       const operatorAction = result.operatorAction;
       if (operatorAction?.type === 'asset-upload-approved') {
@@ -1777,10 +1893,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const sizeBytes = typeof operatorAction.sizeBytes === 'number' ? operatorAction.sizeBytes : -1;
         const sourceFile = pendingVyralUploadFilesRef.current.get(clientDraftId);
         const reportUploadFailure = async () => {
+          // Never acknowledge an old account's upload action using a newly signed-in session.
+          if (historyOwnerRef.current !== requestOwnerId ||
+              activeRequestControllerRef.current !== requestController) return;
           if (supabase && actionId) {
-            await supabase.functions.invoke('vyra-openai-chat', {
+            await awaitForCurrentRequest(supabase.functions.invoke('vyra-openai-chat', {
               body: { conversationId: chatSessionId, assetUploadCompletion: { actionId, failed: true } },
-            });
+            }));
           }
         };
         if (!supabase || !actionId || !/^[0-9a-f-]{36}$/i.test(clientDraftId) ||
@@ -1791,34 +1910,52 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           throw new Error('The approved upload no longer matches the exact file attached in this chat. Nothing was transferred. Please attach the file again and prepare a fresh preview.');
         }
         try {
-          const { data: authData, error: authError } = await supabase.auth.getUser();
+          const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
+          assertRequestCurrent();
+          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before transferring this Asset.');
-          const { data: destination, error: destinationError } = await supabase.from('vyrals')
-            .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle();
+          const { data: destination, error: destinationError } = await awaitForCurrentRequest(supabase.from('vyrals')
+            .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle());
+          assertRequestCurrent();
           if (destinationError || !destination || destination.name !== vyralName) {
             throw new Error('The destination Vyral could not be re-verified for your account. No file was transferred.');
           }
           const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
             vyralId: destination.id, userId: authData.user.id, file: sourceFile, assetName,
+            signal: requestController.signal,
             metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: clientDraftId },
           });
-          const { data: completion, error: completionError } = await supabase.functions.invoke('vyra-openai-chat', {
+          let mediaLibraryMessage = '';
+          try {
+            await awaitForCurrentRequest(registerVyralAssetInMediaLibrary({
+              assetId: ingested.assetId, userId: authData.user.id, fileName: sourceFile.name,
+              mimeType: ingested.mimeType, sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath,
+              sourceKind: 'vyral_asset', thumbnailSource: sourceFile,
+            }));
+            mediaLibraryMessage = '\n**My Media Library:** Added automatically.';
+          } catch {
+            mediaLibraryMessage = '\n**My Media Library:** Sync is pending; the Asset is safely stored in its Vyral.';
+          }
+          assertRequestCurrent();
+          const { data: completion, error: completionError } = await awaitForCurrentRequest(supabase.functions.invoke('vyra-openai-chat', {
             body: {
               conversationId: chatSessionId,
               assetUploadCompletion: { actionId, clientDraftId, assetId: ingested.assetId, versionId: ingested.versionId },
             },
-          });
+          }));
+          assertRequestCurrent();
           if (completionError || completion?.status !== 'completed') {
             throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Vyral before retrying.');
           }
           pendingVyralUploadFilesRef.current.delete(clientDraftId);
           let masterDnaMessage = 'Master DNA will update from the new Asset inventory.';
           try {
-            const { data: masterResult, error: masterError } = await supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } });
+            const { data: masterResult, error: masterError } = await awaitForCurrentRequest(supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } }));
             masterDnaMessage = !masterError && masterResult?.status === 'ready'
               ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
               : 'The Asset is ready. Master DNA is queued for its next synchronization.';
           } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Vyral workspace refreshes.'; }
+          assertRequestCurrent();
           assetUploadCompletionText = '\n\n**Asset saved to Vyral:** ' + destination.name +
             '\n**Asset name:** ' + assetName +
             '\n**Original file:** ' + sourceFile.name +
@@ -1826,20 +1963,23 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             '\n**DNA:** ' + ingested.dnaKind +
             '\n**Fingerprint:** SHA-256 recorded' +
             '\n**Status:** Ready' +
-            '\n' + masterDnaMessage;
+            '\n' + masterDnaMessage + mediaLibraryMessage;
         } catch (uploadError) {
           await reportUploadFailure();
           throw uploadError;
         }
       }
 
+      // A provider response or post-response Asset transfer may finish after sign-out.
+      // Never publish that old request's completion into the next account's chat.
+      if (activeRequestControllerRef.current !== requestController) return;
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
-        content: (result.status === 'error' && streamedText
-          ? streamedText + '\n\n' + result.content
-          : result.content) + assetUploadCompletionText,
-        status: result.status,
+        content: result.cancelled
+          ? (streamedText ? streamedText + '\n\nGeneration stopped.' : 'Generation stopped before a response was received.')
+          : (result.status === 'error' && streamedText ? streamedText + '\n\n' + result.content : result.content) + assetUploadCompletionText,
+        status: result.cancelled ? 'cancelled' : result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
       if (streamingAssistantId) {
@@ -1849,8 +1989,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         setMessages((previous) => [...previous, completedMessage]);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
-      if (streamingAssistantId) {
+      if (activeRequestControllerRef.current !== requestController ||
+          historyOwnerRef.current !== requestOwnerId) return;
+      const wasCancelled = requestController.signal.aborted || (error instanceof Error && error.name === 'AbortError');
+      const message = wasCancelled ? 'Generation stopped.' : error instanceof Error ? error.message : 'VYRA AI could not complete this request. Please try again.';
+      if (wasCancelled) {
+        const cancelledMessage: ChatMessage = { id: streamingAssistantId ?? makeId(), role: 'assistant', content: streamedText ? streamedText + '\n\nGeneration stopped.' : message, status: 'cancelled' };
+        if (streamingAssistantId) setMessages((previous) => previous.map((item) => item.id === streamingAssistantId ? cancelledMessage : item));
+        else setMessages((previous) => [...previous, cancelledMessage]);
+      } else if (streamingAssistantId) {
         const messageId = streamingAssistantId;
         setMessages((previous) => previous.map((item) => item.id === messageId
           ? { ...item, content: item.content ? item.content + '\n\n' + message : message, status: 'error' }
@@ -1881,8 +2028,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         }]);
       }
     } finally {
-      setIsSending(false);
+      if (activeRequestControllerRef.current === requestController) {
+        activeRequestControllerRef.current = null;
+        setIsSending(false);
+      }
     }
+  };
+
+  const stopGeneration = () => {
+    activeRequestControllerRef.current?.abort();
   };
 
   const handleFileSelection = async (file: File | null) => {
@@ -1910,6 +2064,41 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
     setSelectedFileStatus('File metadata only · full content parsing is not available for this file type yet');
   };
 
+  const renameSession = async (session: ChatSession) => {
+    const ownerId = historyOwnerId;
+    if (!supabase || !ownerId || historyOwnerRef.current !== ownerId) return;
+    const proposed = window.prompt('Rename conversation', session.title);
+    if (proposed === null) return;
+    const title = proposed.trim().slice(0, 160);
+    if (!title || title === session.title) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ title, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', ownerId);
+    if (historyOwnerRef.current !== ownerId) return;
+    if (error) { setHistoryError('This conversation could not be renamed. Please try again.'); return; }
+    setSessions((previous) => previous.map((item) => item.id === session.id ? { ...item, title } : item));
+    setHistoryError(null);
+  };
+
+  const removeSession = async (session: ChatSession) => {
+    const ownerId = historyOwnerId;
+    if (!supabase || !ownerId || historyOwnerRef.current !== ownerId || !window.confirm('Delete this conversation permanently?')) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').delete().eq('id', session.id).eq('user_id', ownerId);
+    if (historyOwnerRef.current !== ownerId) return;
+    if (error) { setHistoryError('This conversation could not be deleted. Please try again.'); return; }
+    setSessions((previous) => previous.filter((item) => item.id !== session.id));
+    if (activeSessionId === session.id) { setMessages([]); setActiveSessionId(null); setIsLocked(false); }
+    setHistoryError(null);
+  };
+
+  const restoreSession = async (session: ChatSession) => {
+    const ownerId = historyOwnerId;
+    if (!supabase || !ownerId || historyOwnerRef.current !== ownerId) return;
+    const { error } = await supabase.from('vyra_ai_chat_conversations').update({ archived: false, updated_at: new Date().toISOString() }).eq('id', session.id).eq('user_id', ownerId);
+    if (historyOwnerRef.current !== ownerId) return;
+    if (error) { setHistoryError('This conversation could not be restored. Please try again.'); return; }
+    setSessions((previous) => previous.map((item) => item.id === session.id ? { ...item, archived: false } : item));
+    setHistoryError(null);
+  };
+
   const shareCurrentChat = async () => {
     const transcript = messages.map((message) => `${message.role === 'user' ? 'You' : 'VYRA AI'}: ${message.content}`).join('\n\n');
     try {
@@ -1925,7 +2114,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const archiveCurrentChat = async () => {
-    await saveCurrentSession(true);
+    const ownerAtStart = historyOwnerRef.current;
+    const saved = await saveCurrentSession(true);
+    if (!saved || historyOwnerRef.current !== ownerAtStart) return;
     setMessages([]);
     setDraft('');
     setActiveSessionId(null);
@@ -1941,16 +2132,23 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   };
 
   const deleteCurrentChat = async () => {
-    if (activeSessionId && supabase && historyOwnerId) {
+    const ownerAtStart = historyOwnerRef.current;
+    const sessionId = activeSessionId;
+    const ownerId = historyOwnerId;
+    // Do not run a destructive action while auth state and its validated owner ref disagree.
+    if (ownerId !== ownerAtStart) return;
+    if (sessionId && supabase && ownerId) {
       const { error } = await supabase.from('vyra_ai_chat_conversations')
-        .delete().eq('id', activeSessionId).eq('user_id', historyOwnerId);
+        .delete().eq('id', sessionId).eq('user_id', ownerId);
+      if (historyOwnerRef.current !== ownerAtStart) return;
       if (error) {
         setHistoryError('This conversation could not be deleted. Please try again.');
         return;
       }
     }
-    if (activeSessionId) {
-      setSessions((previous) => previous.filter((session) => session.id !== activeSessionId));
+    if (historyOwnerRef.current !== ownerAtStart) return;
+    if (sessionId) {
+      setSessions((previous) => previous.filter((session) => session.id !== sessionId));
     }
     setMessages([]);
     setDraft('');
@@ -2026,7 +2224,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         </div>
       </header>
 
-      <section className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth [scrollbar-gutter:stable]">
+      <section ref={chatScrollRef} onScroll={(event) => { const element = event.currentTarget; shouldAutoScrollRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120; }} className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
         {!hasMessages ? (
           <div className="flex min-h-full flex-col items-center justify-center px-4 pb-32 pt-20 text-center">
             <div className="mb-5 grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)] shadow-lg shadow-cyan-950/10">
@@ -2041,14 +2239,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
           <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-1 pb-36 pt-20">
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`min-w-0 max-w-[88%] break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
-                  <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</p>
+                <div className={`min-w-0 break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'max-w-[88%]' : 'w-full max-w-full sm:max-w-[94%]'} ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
+                  <AIChatMessageContent content={message.content} />
                   {message.role === 'assistant' && message.providerLabel && <p className="mt-2 text-[10px] text-[var(--vyra-text-muted)]">{message.providerLabel}</p>}
                   {message.role === 'assistant' && message.status === 'preview' && <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">Preview response · no live model was confirmed</p>}
                   {message.role === 'assistant' && message.status === 'error' && (() => {
                     const previousUserMessage = messages.slice(0, messages.indexOf(message)).reverse().find((item) => item.role === 'user');
                     const canRetry = previousUserMessage && !/Attached file:|Selected VYRA Assets/.test(previousUserMessage.content);
-                    return canRetry ? <button type="button" onClick={() => { void sendMessage(previousUserMessage.content); }} disabled={isSending} className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)] disabled:opacity-40">Retry</button> : null;
+                    return canRetry ? <button type="button" onClick={() => { void sendMessage(previousUserMessage.content, previousUserMessage.id); }} disabled={isSending} className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)] disabled:opacity-40">Retry</button> : null;
                   })()}
                   {message.role === 'assistant' && <button type="button" onClick={() => handleCopy(message.content)} className="mt-2 inline-flex items-center gap-1 text-[10px] text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]"><Copy size={12} /> Copy</button>}
                 </div>
@@ -2081,14 +2279,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.vyral,application/vnd.vyra.vyral+zip,application/zip"
             onChange={(event) => { void handleFileSelection(event.target.files?.[0] ?? null); }}
           />
-          <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-end gap-1">
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-end gap-1">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLocked}
               aria-label="Upload file"
               title="Upload file"
-              className={`col-start-1 grid size-9 place-items-center rounded-full text-[var(--vyra-text-muted)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] active:bg-transparent disabled:opacity-40 focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 [-webkit-tap-highlight-color:transparent] ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
+              className={`col-start-1 grid size-11 min-h-11 min-w-11 place-items-center rounded-full text-[var(--vyra-text-muted)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] active:bg-transparent disabled:opacity-40 focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 [-webkit-tap-highlight-color:transparent] ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
             >
               <Plus size={21} />
             </button>
@@ -2102,16 +2300,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
               placeholder={isLocked ? 'Chat locked' : isSending ? 'VYRA AI is thinking…' : 'Message VYRA AI…'}
               aria-label="Message VYRA AI"
               style={{ outline: "none", boxShadow: "none", WebkitTapHighlightColor: "transparent", WebkitAppearance: "none" }}
-              className={`col-start-2 row-start-1 w-full max-h-36 min-h-10 min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-appearance:none] [-webkit-tap-highlight-color:transparent]`}
+              className={`col-start-2 row-start-1 w-full max-h-36 min-h-11 min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm leading-6 text-[var(--vyra-text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--vyra-text-muted)] focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-appearance:none] [-webkit-tap-highlight-color:transparent]`}
             />
             <Button
-              type="submit"
+              type={isSending ? "button" : "submit"}
+              onClick={isSending ? stopGeneration : undefined}
               size="sm"
-              className={`col-start-3 !size-9 !min-h-9 !min-w-9 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
-              disabled={(!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || isSending || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext)}
-              aria-label="Send message"
+              className={`col-start-3 !size-11 !min-h-11 !min-w-11 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
+              disabled={isSending ? false : ((!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || Boolean(selectedFile?.name.toLowerCase().endsWith('.vyral') && !selectedVyralContext))}
+              aria-label={isSending ? "Stop generation" : "Send message"}
+              title={isSending ? "Stop generation" : "Send message"}
             >
-              {isSending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <ArrowUp size={17} />}
+              {isSending ? <span className="size-3.5 rounded-[3px] bg-current" /> : <ArrowUp size={17} />}
             </Button>
           </div>
         </form>
@@ -2125,17 +2325,25 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
                 <h2 id="chat-history-title" className="text-sm font-bold text-[var(--vyra-text-primary)]">Recent chats</h2>
                 <p className="mt-0.5 text-[10px] text-[var(--vyra-text-muted)]">{historyError ?? (historyReady ? 'Your conversations' : 'Loading chat history…')}</p>
               </div>
-              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={17} /></button>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setShowArchivedChats((value) => !value)} className="rounded-lg px-2 py-1.5 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]">{showArchivedChats ? 'Recent' : 'Archived'}</button>
+                <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={17} /></button>
+              </div>
             </div>
             <div className="max-h-[55vh] overflow-y-auto p-2">
               {!historyReady ? (
                 <div className="px-5 py-12 text-center text-xs text-[var(--vyra-text-muted)]">Loading chat history…</div>
-              ) : sessions.filter((session) => !session.archived).length ? sessions.filter((session) => !session.archived).map((session) => (
-                <button key={session.id} type="button" onClick={() => openSession(session)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-[var(--vyra-bg-hover)]">
-                  <MessageSquare size={16} className="shrink-0 text-[var(--vyra-text-muted)]" />
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{session.title}</span>
-                  <span className="shrink-0 text-[10px] text-[var(--vyra-text-muted)]">{session.updatedAt}</span>
-                </button>
+              ) : sessions.filter((session) => session.archived === showArchivedChats).length ? sessions.filter((session) => session.archived === showArchivedChats).map((session) => (
+                <div key={session.id} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-[var(--vyra-bg-hover)]">
+                  <button type="button" onClick={() => openSession(session)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 text-left">
+                    <MessageSquare size={16} className="shrink-0 text-[var(--vyra-text-muted)]" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{session.title}</span>
+                    <span className="shrink-0 text-[10px] text-[var(--vyra-text-muted)]">{session.updatedAt}</span>
+                  </button>
+                  {session.archived && <button type="button" onClick={() => void restoreSession(session)} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-surface)]">Restore</button>}
+                  <button type="button" onClick={() => void renameSession(session)} aria-label={'Rename '+session.title} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-surface)]">Rename</button>
+                  <button type="button" onClick={() => void removeSession(session)} aria-label={'Delete '+session.title} className="rounded-md px-2 py-1 text-[10px] text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-surface)]">Delete</button>
+                </div>
               )) : (
                 <div className="px-5 py-12 text-center">
                   <Clock3 size={23} className="mx-auto text-[var(--vyra-text-muted)]" />

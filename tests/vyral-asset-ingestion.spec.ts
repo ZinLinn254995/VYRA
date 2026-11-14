@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   classifyVyralAssetFile,
+  extractAudioTechnicalMetadata,
   extractVideoTechnicalMetadata,
   buildAudioWaveformPeaks,
   ingestVyralAsset,
@@ -17,12 +18,13 @@ const versionId = '4b8f0c22-1d43-4e54-8f65-7c8d9e0f1a23';
 function makePort(options: { rasterStatus?: string; dnaExists?: boolean; failAt?: string } = {}) {
   const calls: string[] = [];
   const assetRecords: Array<{ name: string; original_filename: string }> = [];
+  let rasterSignal: AbortSignal | undefined;
   const port: VyralAssetIngestionPort = {
     async createAsset(record) { calls.push('createAsset'); assetRecords.push({ name: record.name, original_filename: record.original_filename }); if (options.failAt === 'createAsset') throw new Error('insert failed'); },
     async uploadOriginal() { calls.push('uploadOriginal'); if (options.failAt === 'uploadOriginal') throw new Error('storage failed'); },
     async createVersion() { calls.push('createVersion'); if (options.failAt === 'createVersion') throw new Error('version failed'); return versionId; },
     async createFingerprint() { calls.push('createFingerprint'); if (options.failAt === 'createFingerprint') throw new Error('fingerprint failed'); },
-    async extractRasterDna() { calls.push('extractRasterDna'); return { status: options.rasterStatus ?? 'extracted', error: 'extract failed' }; },
+    async extractRasterDna(_assetId, _versionId, signal) { rasterSignal = signal; calls.push('extractRasterDna'); return { status: options.rasterStatus ?? 'extracted', error: 'extract failed' }; },
     async insertDna() { calls.push('insertDna'); if (options.failAt === 'insertDna') throw new Error('DNA insert failed'); },
     async hasDnaRecord() { calls.push('hasDnaRecord'); return options.dnaExists ?? false; },
     async markReady() { calls.push('markReady'); if (options.failAt === 'markReady') throw new Error('ready update failed'); },
@@ -31,7 +33,7 @@ function makePort(options: { rasterStatus?: string; dnaExists?: boolean; failAt?
     async deleteVersions() { calls.push('deleteVersions'); },
     async deleteAsset() { calls.push('deleteAsset'); },
   };
-  return { port, calls, assetRecords };
+  return { port, calls, assetRecords, get rasterSignal() { return rasterSignal; } };
 }
 
 const makeFile = (name: string, type: string, content = 'source bytes') =>
@@ -57,6 +59,15 @@ test('ingests raster files only after server DNA v3 succeeds and then marks read
   assert.equal(calls.indexOf('extractRasterDna') < calls.indexOf('markReady'), true);
   assert.equal(calls.includes('insertDna'), false);
   assert.match(result.storagePath, new RegExp('^' + userId + '/' + vyralId + '/'));
+});
+
+test('forwards the active cancellation signal into server-side raster DNA extraction', async () => {
+  const fixture = makePort();
+  const controller = new AbortController();
+  await ingestVyralAsset(fixture.port, {
+    vyralId, userId, file: makeFile('image.png', 'image/png'), signal: controller.signal,
+  });
+  assert.equal(fixture.rasterSignal, controller.signal);
 });
 
 test('uses the AI-approved display name while preserving the original source filename', async () => {
@@ -113,6 +124,93 @@ test('cleans partial uploads when the storage step fails', async () => {
   assert.equal(calls.includes('deleteAsset'), true);
 });
 
+test('cancels after storage upload and cleans the incomplete Asset safely', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  const uploadOriginal = port.uploadOriginal.bind(port);
+  port.uploadOriginal = async (...args) => {
+    await uploadOriginal(...args);
+    controller.abort();
+  };
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  }), (error: unknown) => error instanceof VyralAssetIngestionError && !error.preservedForRecovery);
+  assert.equal(calls.includes('createVersion'), false);
+  assert.equal(calls.includes('removeStorage'), true);
+  assert.equal(calls.includes('deleteAsset'), true);
+});
+
+test('waits for an in-flight Storage upload before cleanup after cancellation', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  let releaseUpload!: () => void;
+  let signalUploadStarted!: () => void;
+  const uploadStarted = new Promise<void>((resolve) => { signalUploadStarted = resolve; });
+  const uploadGate = new Promise<void>((resolve) => { releaseUpload = resolve; });
+  port.uploadOriginal = async () => {
+    calls.push('uploadStarted');
+    signalUploadStarted();
+    await uploadGate;
+    calls.push('uploadFinished');
+  };
+
+  const ingestion = ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  });
+  await uploadStarted;
+  controller.abort();
+  await Promise.resolve();
+  assert.equal(calls.includes('removeStorage'), false, 'must not delete while upload is still in flight');
+
+  releaseUpload();
+  await assert.rejects(
+    ingestion,
+    (error: unknown) => error instanceof VyralAssetIngestionError && !error.preservedForRecovery,
+  );
+  assert.ok(calls.indexOf('uploadFinished') < calls.indexOf('removeStorage'));
+  assert.equal(calls.includes('createVersion'), false);
+  assert.equal(calls.includes('deleteAsset'), true);
+});
+
+test('preserves DNA evidence when cancellation arrives after a DNA write', async () => {
+  const { port, calls } = makePort({ dnaExists: true });
+  const controller = new AbortController();
+  const insertDna = port.insertDna.bind(port);
+  port.insertDna = async (...args) => {
+    await insertDna(...args);
+    controller.abort();
+  };
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  }), (error: unknown) => error instanceof VyralAssetIngestionError && error.preservedForRecovery);
+  assert.equal(calls.includes('markReady'), false);
+  assert.equal(calls.includes('removeStorage'), false);
+  assert.equal(calls.includes('deleteAsset'), false);
+});
+
+test('does not start Asset ingestion when cancellation was already requested', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+  assert.deepEqual(calls, []);
+});
+
+test('audio and video metadata extractors propagate cancellation instead of silently treating it as unsupported media', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    extractAudioTechnicalMetadata(makeFile('voice.wav', 'audio/wav'), 'a'.repeat(64), controller.signal),
+    (error: unknown) => error instanceof Error && error.name === 'AbortError',
+  );
+  await assert.rejects(
+    extractVideoTechnicalMetadata(makeFile('clip.mp4', 'video/mp4'), 'a'.repeat(64), controller.signal),
+    (error: unknown) => error instanceof Error && error.name === 'AbortError',
+  );
+});
+
 test('rejects invalid ownership IDs and oversized files before creating records', async () => {
   const { port, calls } = makePort();
   await assert.rejects(ingestVyralAsset(port, {
@@ -139,6 +237,23 @@ test('generated media uses the same canonical Asset and DNA ingestion path with 
   assert.equal(calls[0], 'createAsset');
   assert.equal(calls.includes('extractRasterDna'), true);
   assert.equal(calls.at(-1), 'markReady');
+});
+
+test('generated media forwards its cancellation signal into the shared ingestion lifecycle', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(ingestGeneratedVyralAsset(port, {
+    vyralId, userId, file: makeFile('generated.wav', 'audio/wav'),
+    signal: controller.signal,
+    provenance: {
+      generationJobId: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45',
+      task: 'audio', provider: 'runway', model: 'gen-4-audio',
+      requestFingerprint: 'b'.repeat(64), promptSha256: 'c'.repeat(64),
+      quoteId: '6d012e44-3f65-4076-9b87-0e1f2a3b4c56', actualCostUsd: 0.25,
+    },
+  }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+  assert.deepEqual(calls, []);
 });
 
 test('builds bounded real audio waveform peaks from decoded PCM channels', () => {
