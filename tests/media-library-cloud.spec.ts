@@ -219,7 +219,7 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
 test('Vyral Asset indexing verifies the signed-in owner and canonical storage path before uploading a thumbnail', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
   const start = service.indexOf('export async function registerVyralAssetInMediaLibrary');
-  const end = service.indexOf('\\nexport async function ', start + 1);
+  const end = service.indexOf('\nexport async function ', start + 1);
   const register = service.slice(start, end === -1 ? undefined : end);
   assert.ok(register.indexOf('const ownerId = await getOwnerId()') < register.indexOf('if (input.thumbnailSource)'), 'The signed-in owner must be verified before any thumbnail upload.');
   assert.ok(register.includes("if (input.userId !== ownerId)"), 'A caller must not index another user’s Asset.');
