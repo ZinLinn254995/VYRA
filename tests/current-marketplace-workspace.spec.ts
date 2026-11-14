@@ -343,7 +343,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   // Verify the actual desktop double-click gesture, not just the keyboard fallback.
   await fileRow.press('Space');
   await expect(fileRow).toHaveAttribute('aria-pressed', 'false');
-  await fileRow.dblclick();
+  await fileRow.dblclick({ delay: 250 });
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').locator('#media-library-preview-title')).toHaveText('legacy-sample.png');
   await page.getByRole('button', { name: 'Close preview' }).click();
