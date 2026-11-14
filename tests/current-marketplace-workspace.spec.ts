@@ -574,7 +574,11 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
     });
   });
   await page.addInitScript((storedSession) => {
-    window.localStorage.setItem('sb-e2e-test-auth-token', JSON.stringify(storedSession));
+    // Seed only the first browser session. Re-running this init script on every
+    // navigation/reload would silently replace a later account switch with owner A.
+    if (!window.localStorage.getItem('sb-e2e-test-auth-token')) {
+      window.localStorage.setItem('sb-e2e-test-auth-token', JSON.stringify(storedSession));
+    }
   }, sessionA);
 
   await page.setViewportSize({ width: 1280, height: 900 });
