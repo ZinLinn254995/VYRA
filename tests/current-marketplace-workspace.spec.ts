@@ -123,6 +123,8 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   const uploadedThumbnailPaths: string[] = [];
   const uploadedOriginalPaths: string[] = [];
   const deletedMediaItemIds: string[] = [];
+  const queuedCleanupJobs: Array<{ id: string; user_id: string; bucket_id: string; storage_paths: string[]; attempts: number; next_attempt_at: string; created_at: string }> = [];
+  const removedStoragePaths: string[] = [];
   const originalObjectMutations: string[] = [];
   const observedRequests: string[] = [];
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGO8o2HDQApgIkn1qIZRDUNKAwAGbAFgcb+cnwAAAABJRU5ErkJggg==', 'base64');
@@ -180,11 +182,38 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     if (url.pathname.endsWith('/rest/v1/rpc/delete_media_library_items_and_queue_storage_cleanup') && method === 'POST') {
       const payload = request.postDataJSON() as { p_item_ids: string[] };
       deletedMediaItemIds.push(...payload.p_item_ids);
+      const selected = items.filter((candidate) => payload.p_item_ids.includes(candidate.id));
+      const storagePaths = selected.filter((candidate) => candidate.source_kind === 'upload')
+        .flatMap((candidate) => [candidate.storage_path, candidate.metadata?.thumbnail_path])
+        .filter((value): value is string => typeof value === 'string' && value.length > 0);
+      if (storagePaths.length) {
+        queuedCleanupJobs.push({
+          id: 'e2e-cleanup-' + queuedCleanupJobs.length,
+          user_id: userId,
+          bucket_id: 'vyral-assets',
+          storage_paths: storagePaths,
+          attempts: 0,
+          next_attempt_at: now,
+          created_at: now,
+        });
+      }
       const before = items.length;
       for (let index = items.length - 1; index >= 0; index -= 1) {
         if (payload.p_item_ids.includes(items[index].id)) items.splice(index, 1);
       }
       return json(route, before - items.length);
+    }
+    if (url.pathname.endsWith('/rest/v1/media_library_storage_cleanup_jobs')) {
+      if (method === 'GET') return json(route, queuedCleanupJobs);
+      if (method === 'HEAD') {
+        return route.fulfill({ status: 200, headers: { ...corsHeaders, 'content-range': '*/' + queuedCleanupJobs.length } });
+      }
+      if (method === 'DELETE') {
+        const targetId = url.searchParams.get('id')?.replace('eq.', '');
+        const index = queuedCleanupJobs.findIndex((job) => job.id === targetId);
+        if (index >= 0) queuedCleanupJobs.splice(index, 1);
+        return json(route, []);
+      }
     }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'PATCH') {
       const patch = request.postDataJSON() as Partial<(typeof items)[number]>;
@@ -213,6 +242,11 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     if (url.pathname.includes('/storage/v1/object/authenticated/vyral-assets/') && method === 'GET') {
       const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/authenticated/vyral-assets/')[1] ?? '');
       return route.fulfill({ status: 200, contentType: objectPath === unsupportedOriginalPath ? 'image/jpeg' : 'image/png', headers: corsHeaders, body: objectPath === unsupportedOriginalPath ? invalidImage : png });
+    }
+    if (url.pathname.replace(/\/$/, '').endsWith('/storage/v1/object/vyral-assets') && method === 'DELETE') {
+      const payload = request.postDataJSON() as { prefixes?: string[] };
+      removedStoragePaths.push(...(payload.prefixes ?? []));
+      return json(route, {});
     }
     if (url.pathname.includes('/storage/v1/object/vyral-assets/')) {
       const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/vyral-assets/')[1] ?? '');
@@ -372,6 +406,8 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Delete selected items' }).click();
   await expect.poll(() => deletedMediaItemIds.includes(uploadedRecord!.id)).toBe(true);
+  await expect.poll(() => removedStoragePaths.includes(uploadedRecord!.storage_path)).toBe(true);
+  expect(queuedCleanupJobs).toHaveLength(0);
   await expect(page.getByTestId('media-library-entry-' + uploadedRecord!.id)).toHaveCount(0);
 
   // Return to the root before selecting the renamed empty folder for deletion.
