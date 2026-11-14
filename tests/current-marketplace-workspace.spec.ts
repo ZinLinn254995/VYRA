@@ -456,6 +456,21 @@ test('retained pages preserve state without leaking inactive page UI', async ({ 
 });
 
 
+test('AI Chat dismisses transient history overlays when leaving the retained page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  await openSection(page, 'AI Chat');
+
+  await page.getByRole('button', { name: 'Open chat menu' }).click();
+  await page.getByRole('button', { name: 'Recent chats' }).click();
+  await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeVisible();
+
+  await openSection(page, 'Workspace');
+  await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeHidden();
+  await openSection(page, 'AI Chat');
+  await expect(page.getByRole('dialog', { name: 'Recent chats' })).toHaveCount(0);
+});
+
 test('Workspace internal scroll position survives navigation to another retained page', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
