@@ -163,6 +163,11 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
       if (index >= 0) folders.splice(index, 1);
       return json(route, []);
     }
+    if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'POST') {
+      const payload = request.postDataJSON() as (typeof items)[number];
+      items.push(payload);
+      return json(route, [payload]);
+    }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'GET') {
       const requestedId = url.searchParams.get('id')?.replace('eq.', '');
       const selectedItems = requestedId ? items.filter((candidate) => candidate.id === requestedId) : items;
