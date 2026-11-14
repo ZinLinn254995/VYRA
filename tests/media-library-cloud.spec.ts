@@ -99,6 +99,7 @@ test('My Media Library UI includes required organization, filtering, views and m
   assert.ok(!page.includes('Open folder'), 'Folder entries should display only their icon and name.');
   assert.ok(page.includes('formatBytes(entry.item.size_bytes)'), 'List view should retain file size metadata.');
   assert.ok(page.includes('Date modified'), 'List view should retain modification date metadata.');
+  assert.ok(!page.includes("'Folder created.'"), 'Folder creation should not show a success toast.');
 });
 
 test('Profile routes My Media Library and AI Chat Vyral uploads are indexed automatically', () => {
