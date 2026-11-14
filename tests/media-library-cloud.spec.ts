@@ -178,7 +178,7 @@ test('My Media Library UI includes required organization, filtering, views and m
     "event.key === 'Enter'", "event.key === ' '", 'toggleSelected(entry.id)',
     "pointerTypeRef.current !== 'touch' && event?.detail === 2",
     'Standard file-manager behavior: one click selects, double click opens.',
-    'void openEntry(entry)',
+    'onDoubleClick={() => openEntry(entry)}',
   ]) assert.ok(page.includes(snippet), 'Missing Media Library UI feature: ' + snippet);
   assert.ok(!page.includes('<aside'), 'Folder tree sidebar should not replace standard file-manager navigation.');
   assert.ok(!page.includes('Open folder'), 'Folder entries should display only their icon and name.');
