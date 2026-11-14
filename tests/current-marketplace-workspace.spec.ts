@@ -141,6 +141,28 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     if (url.pathname.endsWith('/auth/v1/signup') && method === 'POST') return json(route, { user, session });
     if (url.pathname.endsWith('/auth/v1/user') && method === 'GET') return json(route, user);
     if (url.pathname.endsWith('/rest/v1/media_library_folders') && method === 'GET') return json(route, folders);
+    if (url.pathname.endsWith('/rest/v1/media_library_folders') && method === 'POST') {
+      const payload = request.postDataJSON() as { user_id: string; parent_id: string | null; name: string };
+      const created = { id: 'e2e-folder-created', ...payload, created_at: now, updated_at: now };
+      folders.push(created);
+      return json(route, created);
+    }
+    if (url.pathname.endsWith('/rest/v1/media_library_folders') && method === 'PATCH') {
+      const payload = request.postDataJSON() as Partial<(typeof folders)[number]>;
+      const targetId = url.searchParams.get('id')?.replace('eq.', '');
+      const target = folders.find((candidate) => candidate.id === targetId);
+      if (target) Object.assign(target, payload);
+      const response = target ? { ...target } : null;
+      return request.headers()['accept']?.includes('vnd.pgrst.object+json')
+        ? json(route, response)
+        : json(route, response ? [response] : []);
+    }
+    if (url.pathname.endsWith('/rest/v1/media_library_folders') && method === 'DELETE') {
+      const targetId = url.searchParams.get('id')?.replace('eq.', '');
+      const index = folders.findIndex((candidate) => candidate.id === targetId);
+      if (index >= 0) folders.splice(index, 1);
+      return json(route, []);
+    }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'GET') {
       const requestedId = url.searchParams.get('id')?.replace('eq.', '');
       const selectedItems = requestedId ? items.filter((candidate) => candidate.id === requestedId) : items;
@@ -149,10 +171,10 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
         : json(route, selectedItems);
     }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'PATCH') {
-      const patch = request.postDataJSON() as { metadata?: Record<string, unknown> };
+      const patch = request.postDataJSON() as Partial<(typeof items)[number]>;
       const targetId = url.searchParams.get('id')?.replace('eq.', '');
       const target = items.find((candidate) => candidate.id === targetId);
-      if (patch.metadata && target) target.metadata = patch.metadata;
+      if (target) Object.assign(target, patch);
       const response = { id: targetId };
       return request.headers()['accept']?.includes('vnd.pgrst.object+json')
         ? json(route, response)
@@ -255,4 +277,30 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Close preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // Folder CRUD and hierarchy operations use the same signed-in Library UI.
+  await page.getByRole('button', { name: 'New folder' }).click();
+  await page.getByPlaceholder('New folder name').fill('  Project   Assets  ');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const createdFolder = page.getByTestId('media-library-entry-e2e-folder-created');
+  await expect(createdFolder).toBeVisible();
+  await expect(createdFolder).toContainText('Project Assets');
+
+  await createdFolder.click();
+  await page.getByRole('button', { name: 'Rename selected item' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('textbox', { name: 'New name' }).fill('Project Archive');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toContainText('Project Archive');
+
+  await page.getByTestId('media-library-entry-e2e-folder-created').click();
+  await page.getByLabel('Move selected folder to folder').selectOption('e2e-folder-archive');
+  await expect(page.getByText('Folder moved.')).toBeVisible();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toContainText('Project Archive');
+
+  await page.getByTestId('media-library-entry-e2e-folder-created').click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Delete selected items' }).click();
+  await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toHaveCount(0);
 });
