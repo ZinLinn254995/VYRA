@@ -632,8 +632,10 @@ export const MyMediaLibraryPage: React.FC = () => {
           }
         }
       }
-      for (const id of deletedFolderIds) await deleteMediaLibraryFolder(id);
-      if (deletedFolderIds.length) patchCachedFolders((current) => current.filter((folder) => !deletedFolderIds.includes(folder.id)));
+      for (const id of deletedFolderIds) {
+        await deleteMediaLibraryFolder(id);
+        patchCachedFolders((current) => current.filter((folder) => folder.id !== id));
+      }
       setSelectedIds([]);
       if (cleanupPending) setNotice('Selected items deleted. Private storage cleanup is queued and will retry automatically when you next open My Media Library.');
       else setNotice('Selected items deleted.');
