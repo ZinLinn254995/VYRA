@@ -123,6 +123,7 @@ test('My Media Library UI includes required organization, filtering, views and m
   assert.ok(!page.includes('Open folder'), 'Folder entries should display only their icon and name.');
   assert.ok(page.includes('downloadUrl.searchParams.set(\'download\', previewItem.file_name)'), 'Original files must use Storage download disposition with the original filename.');
   assert.ok(page.includes('aria-label="Download original file"'), 'The preview action must be exposed as a download, not an inline open.');
+  assert.ok(page.includes('cleanup is queued and will retry automatically when you next open My Media Library'), 'The user must be told when storage cleanup is deferred until the next Library visit.');
   assert.ok(page.includes('formatBytes(entry.item.size_bytes)'), 'List view should retain file size metadata.');
   assert.ok(page.includes('Date modified'), 'List view should retain modification date metadata.');
   assert.ok(!page.includes("'Folder created.'"), 'Folder creation should not show a success toast.');
