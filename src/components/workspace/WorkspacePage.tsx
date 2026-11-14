@@ -23,7 +23,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
+type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -74,7 +74,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
@@ -524,6 +524,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     let cancelled = false;
     let syncInFlight = false;
     let lastSuccessfulSyncAt = 0;
+    let isPageActive = isActive;
     const client = supabase;
     if (!isAuthenticated || !client || loadedStorageKey !== storageKey) return;
     const syncStoryboards = async (quiet = false) => {
@@ -572,12 +573,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     };
     const handlePageActivated = (event: Event) => {
       const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
-      if (page === 'workspace' && Date.now() - lastSuccessfulSyncAt >= 30_000) {
+      isPageActive = page === 'workspace';
+      if (isPageActive && Date.now() - lastSuccessfulSyncAt >= 30_000) {
         void syncStoryboards(true);
       }
     };
     const handleFocus = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastSuccessfulSyncAt >= 30_000) {
+      if (isPageActive && document.visibilityState === 'visible' && Date.now() - lastSuccessfulSyncAt >= 30_000) {
         void syncStoryboards(true);
       }
     };
@@ -593,7 +595,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       window.removeEventListener('online', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [storageKey, isAuthenticated, loadedStorageKey]);
+  }, [storageKey, isAuthenticated, isActive, loadedStorageKey]);
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
