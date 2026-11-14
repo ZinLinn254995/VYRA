@@ -236,10 +236,23 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   const fileRow = page.getByTestId('media-library-entry-' + itemId);
   await fileRow.click();
   await expect(page.getByText('1 selected')).toBeVisible();
+  await expect(fileRow).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await fileRow.dblclick();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download original file' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close preview' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // Keyboard users can select with Space and open with Enter.
+  await fileRow.focus();
+  await fileRow.press('Space');
+  await expect(fileRow).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('1 selected')).toBeVisible();
+  await fileRow.press('Space');
+  await expect(fileRow).toHaveAttribute('aria-pressed', 'false');
+  await fileRow.press('Enter');
+  await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Close preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
