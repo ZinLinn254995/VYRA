@@ -28,6 +28,10 @@ export type MediaLibraryItem = {
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const SAFE_NAME = (value: string) => value.replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').split('').filter((char) => { const code = char.charCodeAt(0); return code >= 32 && code !== 127; }).join('').trim().slice(0, 180);
+const SAFE_STORAGE_EXTENSION = (fileName: string) => {
+  const extension = fileName.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1];
+  return extension ? '.' + extension.toLowerCase() : '';
+};
 const getDb = () => {
   if (!supabase) throw new Error('Cloud storage is not configured in this environment.');
   return supabase;
@@ -138,8 +142,12 @@ export async function uploadMediaLibraryFiles(files: File[], folderId: string | 
     if (!file.size) throw new Error(file.name + ' is empty.');
     if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
     const id = crypto.randomUUID();
-    const fileName = SAFE_NAME(file.name) || 'upload-' + id;
-    const storagePath = userId + '/media-library/' + id + '/' + fileName;
+    // Keep the user's original filename in the Library record, but never use it
+    // as a Storage object key: Unicode and punctuation can be rejected by the
+    // storage backend. UUID + a conservative extension gives every upload a safe,
+    // collision-resistant object path on every platform.
+    const fileName = file.name.replace(/[\\u0000-\\u001F\\u007F]/g, '').trim() || 'upload-' + id;
+    const storagePath = userId + '/media-library/' + id + SAFE_STORAGE_EXTENSION(fileName);
     const mimeType = file.type || 'application/octet-stream';
     const { error: uploadError } = await db.storage.from('vyral-assets').upload(storagePath, file, {
       contentType: mimeType, upsert: false, cacheControl: '3600',
