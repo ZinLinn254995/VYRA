@@ -223,6 +223,7 @@ test('Vyral Asset indexing verifies the signed-in owner and canonical storage pa
   const register = service.slice(start, end === -1 ? undefined : end);
   assert.ok(register.indexOf('const ownerId = await getOwnerId()') < register.indexOf('if (input.thumbnailSource)'), 'The signed-in owner must be verified before any thumbnail upload.');
   assert.ok(register.includes("if (input.userId !== ownerId)"), 'A caller must not index another user’s Asset.');
+  assert.ok(register.includes('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.assetId)'), 'Thumbnail object names must use a canonical UUID Asset ID.');
   assert.ok(register.includes("!input.storagePath.startsWith(ownerId + '/')"), 'Canonical storage paths must be scoped to the signed-in owner.');
   assert.ok(register.includes("segment === '..'"), 'Canonical storage paths must reject traversal segments.');
 });
