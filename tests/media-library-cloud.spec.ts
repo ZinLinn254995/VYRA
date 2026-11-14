@@ -46,7 +46,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     ".select('id')",
     '.maybeSingle()',
     'if (updateError || !updatedRow)',
-    'if this update actually claimed the row',
+    'actually claimed the row',
     'Originals are only downloaded; they are never moved, overwritten or deleted.',
     'media-library-thumbnails/',
     "contentType: thumbnailType",
