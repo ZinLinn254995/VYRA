@@ -229,12 +229,14 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
   const db = getDb();
   const userId = await getOwnerId();
   const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
+  // Keep the PostgREST filter value free of fractional-second dots.
+  const retryCutoff = new Date().toISOString().replace(/\\.\\d{3}Z$/, 'Z');
   const { data, error } = await db.from('media_library_items')
     .select('id,bucket_id,storage_path,file_name,mime_type,metadata')
     .eq('user_id', userId)
     .is('metadata->thumbnail_path', null)
     .is('metadata->thumbnail_backfill_attempted_at', null)
-    .or('metadata->thumbnail_backfill_retry_after_at.is.null,metadata->thumbnail_backfill_retry_after_at.lt.' + new Date().toISOString())
+    .or('metadata->thumbnail_backfill_retry_after_at.is.null,metadata->thumbnail_backfill_retry_after_at.lt.' + retryCutoff)
     .or('mime_type.like.image/%,mime_type.like.video/%')
     .order('created_at', { ascending: true })
     .limit(batchSize);
