@@ -454,3 +454,26 @@ test('retained pages preserve state without leaking inactive page UI', async ({ 
   await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Hello! What would you like to create today?' })).toBeHidden();
 });
+
+
+test('Workspace internal scroll position survives navigation to another retained page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await openSection(page, 'Workspace');
+
+  const workspaceScroller = page.locator('main').filter({ has: page.getByRole('heading', { name: 'My Storyboards' }) });
+  await expect(workspaceScroller).toBeVisible();
+  const before = await workspaceScroller.evaluate((element) => {
+    const node = element as HTMLElement;
+    node.scrollTop = Math.min(180, Math.max(0, node.scrollHeight - node.clientHeight));
+    return { top: node.scrollTop, height: node.scrollHeight, client: node.clientHeight };
+  });
+  expect(before.height).toBeGreaterThan(before.client);
+  expect(before.top).toBeGreaterThan(0);
+
+  await openSection(page, 'AI Chat');
+  await expect(page.getByRole('heading', { name: 'Hello! What would you like to create today?' })).toBeVisible();
+  await openSection(page, 'Workspace');
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
+  await expect.poll(() => workspaceScroller.evaluate((element) => (element as HTMLElement).scrollTop)).toBe(before.top);
+});
