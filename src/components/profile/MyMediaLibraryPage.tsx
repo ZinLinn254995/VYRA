@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowDown, ArrowLeft, ArrowUp, AudioLines, Check, ChevronRight, Download, File,
+  ArrowLeft, AudioLines, Check, ChevronRight, Download, File,
   FileText, Folder, FolderOpen, FolderPlus, Grid2X2, Image as ImageIcon, List,
-  Loader2, Minus, Plus, RefreshCw, Search, Trash2, Upload, Video, X,
+  Loader2, RefreshCw, Search, Trash2, Upload, Video, X,
 } from 'lucide-react';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
@@ -13,7 +13,6 @@ import {
 
 type FilterKind = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
 type ViewMode = 'list' | 'grid';
-type SortKey = 'name' | 'modified' | 'size' | 'type';
 type Entry = { id: string; name: string; folder: MediaLibraryFolder | null; item: MediaLibraryItem | null };
 
 const kindOf = (mime: string): FilterKind => {
@@ -37,11 +36,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('list');
   const [filter, setFilter] = useState<FilterKind>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortAscending, setSortAscending] = useState(true);
   const [query, setQuery] = useState('');
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [iconSize, setIconSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -112,12 +107,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     const compare = (a: Entry, b: Entry) => {
       if (a.folder && !b.folder) return -1;
       if (!a.folder && b.folder) return 1;
-      let result = 0;
-      if (sortKey === 'name') result = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-      else if (sortKey === 'modified') result = new Date(a.folder?.updated_at ?? a.item!.updated_at).getTime() - new Date(b.folder?.updated_at ?? b.item!.updated_at).getTime();
-      else if (sortKey === 'size') result = (a.item?.size_bytes ?? -1) - (b.item?.size_bytes ?? -1);
-      else result = (a.folder ? 'folder' : kindOf(a.item!.mime_type)).localeCompare(b.folder ? 'folder' : kindOf(b.item!.mime_type));
-      return sortAscending ? result : -result;
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     };
     return [...currentFolders, ...currentItems].sort(compare);
   }, [folders, items, activeFolderId, filter, query, sortKey, sortAscending]);
@@ -214,9 +204,8 @@ export const MyMediaLibraryPage: React.FC = () => {
     if (kind === 'document') return <FileText size={size}/>;
     return <File size={size}/>;
   };
-  const iconPixels = iconSize === 'small' ? 18 : iconSize === 'large' ? 28 : 22;
-  const iconBox = [36, 44, 52][zoomLevel];
-  const chooseSort = (value: SortKey) => { if (sortKey === value) setSortAscending((previous) => !previous); else { setSortKey(value); setSortAscending(true); } };
+  const iconPixels = 22;
+  const iconBox = 44;
 
   return (
     <div className="min-w-0 space-y-4">
@@ -256,15 +245,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           <span className="mr-1 text-xs text-[var(--vyra-text-muted)]">{entries.length} items</span>
           {(['all','image','video','audio','document','other'] as FilterKind[]).map((value) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium capitalize transition ${filter === value ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{value === 'all' ? 'All' : value === 'image' ? 'Images' : value === 'video' ? 'Videos' : value === 'audio' ? 'Audio' : value === 'document' ? 'Documents' : 'Other'}</button>)}
         </div>
-        <div className="flex items-center gap-1">
-          <label className="sr-only" htmlFor="media-sort">Sort files</label>
-          <select id="media-sort" value={sortKey} onChange={(event) => chooseSort(event.target.value as SortKey)} className="min-h-9 max-w-32 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-secondary)]">
-            <option value="name">Name</option><option value="modified">Date modified</option><option value="type">File type</option><option value="size">File size</option>
-          </select>
-          <button type="button" onClick={() => setSortAscending((value) => !value)} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)]" aria-label={sortAscending ? 'Ascending' : 'Descending'}>{sortAscending ? <ArrowUp size={14}/> : <ArrowDown size={14}/>}</button>
-          {view === 'grid' && <><div className="ml-1 flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setZoomLevel((value) => Math.max(0, value - 1))} disabled={zoomLevel === 0} className="grid size-8 place-items-center text-[var(--vyra-text-secondary)] disabled:opacity-30" aria-label="Zoom out"><Minus size={14}/></button><button type="button" onClick={() => setZoomLevel((value) => Math.min(2, value + 1))} disabled={zoomLevel === 2} className="grid size-8 place-items-center text-[var(--vyra-text-secondary)] disabled:opacity-30" aria-label="Zoom in"><Plus size={14}/></button></div><select aria-label="Icon size" value={iconSize} onChange={(event) => setIconSize(event.target.value as typeof iconSize)} className="min-h-9 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-secondary)]"><option value="small">Small icons</option><option value="medium">Medium icons</option><option value="large">Large icons</option></select></>}
-          <div className="ml-1 flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button><button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button></div>
-        </div>
+        <div className="ml-auto flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button><button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button></div>
       </div>
 
       {selectedIds.length > 0 && <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2 shadow-sm">
@@ -285,7 +266,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       : view === 'list' ? <div className="overflow-x-auto">
         <div className="min-w-[560px]">
           <div className="grid grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-y border-[var(--vyra-border-subtle)] px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
-            <button type="button" onClick={toggleAll} className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]" aria-label="Select all"><Check size={13}/></button><button type="button" onClick={() => chooseSort('name')} className="text-left">Name</button><button type="button" onClick={() => chooseSort('type')} className="text-left">Type</button><button type="button" onClick={() => chooseSort('size')} className="text-right">Size</button><button type="button" onClick={() => chooseSort('modified')} className="text-right">Date modified</button>
+            <button type="button" onClick={toggleAll} className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]" aria-label="Select all"><Check size={13}/></button><span>Name</span><span>Type</span><span className="text-right">Size</span><span className="text-right">Date modified</span>
           </div>
           {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); if (event.key === ' ') { event.preventDefault(); toggleSelected(entry.id); } }} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-b border-[var(--vyra-border-subtle)] px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
             <span className={`grid size-8 place-items-center ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</span>
