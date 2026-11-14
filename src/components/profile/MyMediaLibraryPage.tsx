@@ -139,7 +139,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     await withBusy(async () => {
       await createMediaLibraryFolder(folderName, activeFolderId);
       setFolderName(''); setCreatingFolder(false);
-    }, 'Folder created.');
+    });
   };
 
   const toggleSelected = (id: string) => setSelectedIds((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]);
