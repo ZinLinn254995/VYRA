@@ -59,7 +59,7 @@ async function mapWithConcurrency<T, R>(
 
 /** Accept only normalized object paths rooted in the signed-in owner's namespace. */
 function isSafeOwnerStoragePath(path: unknown, ownerId: string, allowedRoots: string[] = []): path is string {
-  if (typeof path !== 'string' || !path || path.includes('\\\\')) return false;
+  if (typeof path !== 'string' || !path || path.includes('\\')) return false;
   const segments = path.split('/');
   if (segments.length < 2 || segments[0] !== ownerId
     || segments.some((segment) => !segment || segment === '.' || segment === '..')) return false;
