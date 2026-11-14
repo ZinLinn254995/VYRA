@@ -434,6 +434,7 @@ test('Media Library cache is isolated and cleared when the authenticated owner c
   assert.ok(page.includes('setPreviewItem(null)'), 'A private preview from the previous owner must close on account switch.');
   assert.ok(page.includes("setActiveFolderId(null)"), 'A folder ID from the previous owner must not be reused for the next account.');
   assert.ok(page.includes('uploadAbortControllerRef.current?.abort()'), 'An upload started under the previous owner must stop between files.');
+  assert.ok(page.includes('thumbnailBackfillStartedRef.current = false'), 'A new account must receive its own thumbnail backfill opportunity after an account switch.');
   assert.ok(page.includes('Never render a previous account\'s private rows or signed thumbnail URLs.'), 'Private cached content must never flash for a different account.');
 });
 
