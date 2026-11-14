@@ -107,14 +107,14 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   const item = {
     id: itemId, user_id: userId, folder_id: null, source_kind: 'upload', source_asset_id: null,
     bucket_id: 'vyral-assets', storage_path: userId + '/media-library/original.png',
-    file_name: 'legacy-sample.png', mime_type: 'image/png', size_bytes: 68,
+    file_name: 'legacy-sample.png', mime_type: 'image/png', size_bytes: 82,
     metadata: {}, created_at: now, updated_at: now,
   };
   const originalPath = item.storage_path;
   const uploadedThumbnailPaths: string[] = [];
   const originalObjectMutations: string[] = [];
   const observedRequests: string[] = [];
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/WioAAAAASUVORK5CYII=', 'base64');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGO8o2HDQApgIkn1qIZRDUNKAwAGbAFgcb+cnwAAAABJRU5ErkJggg==', 'base64');
   const corsHeaders = {
     'access-control-allow-origin': '*',
     'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info, prefer, x-upsert',
