@@ -293,7 +293,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     <div className="min-w-0 space-y-4">
       <style>{`.vyra-media-breadcrumb-scroll::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }`}</style>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--vyra-border-subtle)] pb-3">
-        <div ref={breadcrumbScrollRef} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="vyra-media-breadcrumb-scroll flex min-w-0 items-center gap-1 overflow-x-auto text-sm">
+        <div ref={breadcrumbScrollRef} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="vyra-media-breadcrumb-scroll flex min-w-0 items-center gap-1 overflow-x-auto text-sm" aria-label="Folder path">
           <button type="button" onClick={() => navigateToFolder(null)} className="shrink-0 rounded-md px-2 py-1.5 font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">My Media</button>
           {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}><ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/><button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className="max-w-36 shrink-0 truncate rounded-md px-1.5 py-1.5 text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{folder.name}</button></React.Fragment>)}
         </div>
