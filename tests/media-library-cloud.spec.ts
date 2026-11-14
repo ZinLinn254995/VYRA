@@ -72,6 +72,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     "onConflict: 'user_id,source_asset_id'",
     'const standaloneRows = rows.filter((row) => !row.source_asset_id)',
   ]) assert.ok(service.includes(snippet), 'Missing Media Library contract: ' + snippet);
+  assert.ok(service.includes('onProgress?.(uploaded, files.length, file.name);\n    try {'), 'Upload progress should identify each file before its transfer begins.');
   assert.ok(service.includes('if (insertError)'));
   assert.ok(service.includes('thumbnailPath ? [thumbnailPath] : []'), 'Deleting standalone uploads should also remove their thumbnail objects.');
   assert.ok(service.includes('Thumbnail generation is best-effort'), 'Thumbnail failures must not invalidate original uploads.');
