@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(20);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -60,7 +60,11 @@ select throws_ok(
 select is((select count(*)::integer from public.media_library_folders where id='27000000-0000-4000-8000-000000000012'),1,'Rejected parent deletion preserves its child folder');
 
 select is(public.delete_media_library_items_and_queue_storage_cleanup(array['27000000-0000-4000-8000-000000000002'::uuid]),0,'Owner A cannot delete owner B file through cleanup RPC');
-select is((select count(*)::integer from public.media_library_items where id='27000000-0000-4000-8000-000000000002'),0,'Owner B file remains invisible to owner A after attempted deletion');
+reset role;
+select is((select count(*)::integer from public.media_library_items where id='27000000-0000-4000-8000-000000000002'),1,'Owner B file still exists after owner A attempted deletion');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','27000000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"27000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 
 select is(public.delete_media_library_items_and_queue_storage_cleanup(array['27000000-0000-4000-8000-000000000031'::uuid]),1,'Owner A can atomically delete their own Library file');
 select is((select count(*)::integer from public.media_library_items where id='27000000-0000-4000-8000-000000000031'),0,'Deleted Library index row is removed');
@@ -73,6 +77,17 @@ select is(
   ]::text[],
   'Cleanup job contains the original and thumbnail paths'
 );
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','27000000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"27000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select is((select count(*)::integer from public.media_library_storage_cleanup_jobs),0,'Owner B cannot read owner A cleanup jobs');
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','27000000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"27000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 
 delete from public.media_library_folders where id='27000000-0000-4000-8000-000000000012';
 delete from public.media_library_folders where id='27000000-0000-4000-8000-000000000011';
