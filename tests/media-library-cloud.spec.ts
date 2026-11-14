@@ -303,6 +303,7 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   const deletion = service.slice(deleteStart, deleteEnd);
   assert.ok(deletion.includes("db.rpc('delete_media_library_items_and_queue_storage_cleanup'"), 'Index deletion and cleanup enqueueing must be atomic.');
   assert.ok(deletion.includes('await processMediaLibraryStorageCleanup(8)'), 'Deletion should attempt queued cleanup immediately.');
+  assert.ok(deletion.includes('try {\n    await processMediaLibraryStorageCleanup(8);\n  } catch {'), 'A transient cleanup worker failure must not turn a committed index deletion into a reported delete failure.');
   assert.ok(deletion.includes('cleanupPending'), 'The UI must be able to report when secure cleanup remains queued.');
 
   const cleanupStart = service.indexOf('export async function processMediaLibraryStorageCleanup');
