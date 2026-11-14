@@ -275,11 +275,9 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
       const sourceFile = new File([original], row.file_name, { type: row.mime_type || original.type || 'application/octet-stream' });
       const thumbnailBlob = await createMediaThumbnail(sourceFile);
       if (!thumbnailBlob) {
-        // Avoid retrying a permanently unsupported/corrupt legacy file on every visit.
-        await db.from('media_library_items')
-          .update({ metadata: { ...(row.metadata ?? {}), thumbnail_backfill_attempted_at: new Date().toISOString() } })
-          .eq('id', row.id).eq('user_id', userId)
-          .is('metadata->thumbnail_path', null);
+        // A decode timeout or temporary browser limitation may be recoverable;
+        // use the same bounded backoff instead of permanently skipping the file.
+        await scheduleRetry(row);
         continue;
       }
 
