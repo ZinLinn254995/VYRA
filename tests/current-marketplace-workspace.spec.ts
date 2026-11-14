@@ -283,11 +283,23 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await fileRow.dblclick();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download original file' })).toBeVisible();
-  const downloadPopupPromise = page.waitForEvent('popup');
+  await page.evaluate(() => {
+    const anchorPrototype = HTMLAnchorElement.prototype;
+    const originalClick = anchorPrototype.click;
+    Object.defineProperty(window, '__mediaLibraryOriginalAnchorClick', { value: originalClick, configurable: true });
+    Object.defineProperty(window, '__mediaLibraryDownloadHref', { value: null, writable: true, configurable: true });
+    anchorPrototype.click = function () {
+      (window as unknown as { __mediaLibraryDownloadHref: string }).__mediaLibraryDownloadHref = this.href;
+    };
+  });
   await page.getByRole('button', { name: 'Download original file' }).click();
-  const downloadPopup = await downloadPopupPromise;
-  await expect.poll(() => new URL(downloadPopup.url()).searchParams.get('download')).toBe('legacy-sample.png');
-  await downloadPopup.close();
+  const downloadHref = await page.evaluate(() => (window as unknown as { __mediaLibraryDownloadHref: string | null }).__mediaLibraryDownloadHref);
+  expect(downloadHref).toBeTruthy();
+  expect(new URL(downloadHref!).searchParams.get('download')).toBe('legacy-sample.png');
+  await page.evaluate(() => {
+    const state = window as unknown as { __mediaLibraryOriginalAnchorClick: () => void };
+    HTMLAnchorElement.prototype.click = state.__mediaLibraryOriginalAnchorClick;
+  });
   await page.getByRole('button', { name: 'Close preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
