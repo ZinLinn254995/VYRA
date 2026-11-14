@@ -376,6 +376,9 @@ export const MyMediaLibraryPage: React.FC = () => {
 
   const activateEntry = (entry: Entry, event?: React.MouseEvent<HTMLElement>) => {
     if (suppressClickRef.current === entry.id) { suppressClickRef.current = null; return; }
+    // Let the dedicated double-click handler open desktop entries; the second
+    // click must not undo the selection made by the first click.
+    if (pointerTypeRef.current !== 'touch' && event?.detail === 2) return;
     const additiveSelection = Boolean(event?.ctrlKey || event?.metaKey || event?.shiftKey);
     if (additiveSelection || selectedIds.length > 0) {
       toggleSelected(entry.id);
@@ -384,8 +387,9 @@ export const MyMediaLibraryPage: React.FC = () => {
     if (pointerTypeRef.current === 'touch') {
       if (entry.folder) navigateToFolder(entry.id);
       else if (entry.item) void openEntry(entry);
-    } else if (event?.detail === 2) {
-      openEntry(entry);
+    } else {
+      // Standard file-manager behavior: one click selects, double click opens.
+      toggleSelected(entry.id);
     }
   };
   const openEntry = async (entry: Entry) => {
