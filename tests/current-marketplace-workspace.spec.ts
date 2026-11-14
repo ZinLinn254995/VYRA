@@ -351,6 +351,8 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await expect.poll(() => deletedMediaItemIds.includes(uploadedRecord!.id)).toBe(true);
   await expect(page.getByTestId('media-library-entry-' + uploadedRecord!.id)).toHaveCount(0);
 
+  // Return to the root before selecting the renamed empty folder for deletion.
+  await page.getByRole('button', { name: 'My Media', exact: true }).click();
   // Empty-folder deletion is confirmed through the normal selection toolbar.
   await page.getByTestId('media-library-entry-e2e-folder-created').click();
   page.once('dialog', dialog => dialog.accept());
