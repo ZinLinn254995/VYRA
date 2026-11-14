@@ -144,6 +144,7 @@ function MarketplaceApp() {
     const nextScrollTop = sectionScrollPositionsRef.current.get(navigationKey) ?? 0;
     window.scrollTo({ top: nextScrollTop, left: 0, behavior: 'instant' });
     previousNavigationKeyRef.current = navigationKey;
+    window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: navigationKey } }));
     resetMainHeaderVisibility();
   }, [navigationKey]);
   useEffect(() => {
