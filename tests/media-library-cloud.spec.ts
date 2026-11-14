@@ -377,3 +377,11 @@ test('Media Library invalidates and unlocks stale pagination when the folder or 
   assert.ok(loadMore.includes('pageRequestId !== loadMoreRequestRef.current'), 'A stale page response must never append into a newer folder or search context.');
   assert.ok(loadMore.includes('if (pageRequestId === loadMoreRequestRef.current)'), 'A stale request must not unlock a newer request or hide its spinner.');
 });
+
+
+test('Media Library exposes selection state to assistive technology in both views', () => {
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const entryRenderers = page.split('data-testid={\x60media-library-entry-\x24{entry.id}\x60}');
+  assert.equal(entryRenderers.length - 1, 2, 'Both list and grid entries must remain independently testable.');
+  assert.equal((page.match(/aria-pressed={selectedIds.includes\(entry.id\)}/g) ?? []).length, 2, 'Both file-manager views must expose whether each entry is selected.');
+});
