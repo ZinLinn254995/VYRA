@@ -73,6 +73,8 @@ jobs:
         run: npm run test:media-library-cloud
       - name: Vyral Asset upload action validation tests
         run: npm run test:vyral-asset-upload-action
+      - name: AI Chat Vyral and Asset handoff contract tests
+        run: npm run test:ai-chat-asset-handoff
       - name: Vyral Asset rename action validation tests
         run: npm run test:vyral-asset-rename-action
       - name: Vyral Asset metadata action validation tests
