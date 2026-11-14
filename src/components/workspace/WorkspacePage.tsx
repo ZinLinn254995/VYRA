@@ -522,45 +522,77 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   useEffect(() => {
     let cancelled = false;
+    let syncInFlight = false;
+    let lastSuccessfulSyncAt = 0;
     const client = supabase;
     if (!isAuthenticated || !client || loadedStorageKey !== storageKey) return;
-    const syncStoryboards = async () => {
-      setCloudSyncMessage('Syncing your Storyboards…');
-      const { data: authData, error: authError } = await client.auth.getUser();
-      if (cancelled) return;
-      if (authError || !authData.user) {
-        setCloudSyncMessage('Sign in again to sync your Storyboards.');
-        return;
-      }
-      const { data, error: loadError } = await client.from('vyral_storyboards')
-        .select('id,title,topic,details,created_at,updated_at')
-        .eq('user_id', authData.user.id).order('updated_at', { ascending: false });
-      if (cancelled) return;
-      if (loadError) {
-        setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
-        return;
-      }
-      const remote = (data ?? []).map((row) => ({
-        id: row.id as string, title: row.title as string, topic: row.topic as string,
-        details: (row.details ?? {}) as Storyboard['details'],
-        createdAt: row.created_at as string, updatedAt: row.updated_at as string,
-      }));
-      const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
-      let syncFailed = false;
-      if (pending.length) {
-        const { error: uploadError } = await client.from('vyral_storyboards').upsert(pending.map((item) => ({
-          id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
-          details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
-        })), { onConflict: 'id' });
+    const syncStoryboards = async (quiet = false) => {
+      if (syncInFlight || cancelled) return;
+      syncInFlight = true;
+      if (!quiet) setCloudSyncMessage('Syncing your Storyboards…');
+      try {
+        const { data: authData, error: authError } = await client.auth.getUser();
         if (cancelled) return;
-        if (uploadError) syncFailed = true;
+        if (authError || !authData.user) {
+          setCloudSyncMessage('Sign in again to sync your Storyboards.');
+          return;
+        }
+        const { data, error: loadError } = await client.from('vyral_storyboards')
+          .select('id,title,topic,details,created_at,updated_at')
+          .eq('user_id', authData.user.id).order('updated_at', { ascending: false });
+        if (cancelled) return;
+        if (loadError) {
+          setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
+          return;
+        }
+        const remote = (data ?? []).map((row) => ({
+          id: row.id as string, title: row.title as string, topic: row.topic as string,
+          details: (row.details ?? {}) as Storyboard['details'],
+          createdAt: row.created_at as string, updatedAt: row.updated_at as string,
+        }));
+        const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
+        let syncFailed = false;
+        if (pending.length) {
+          const { error: uploadError } = await client.from('vyral_storyboards').upsert(pending.map((item) => ({
+            id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
+            details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
+          })), { onConflict: 'id' });
+          if (cancelled) return;
+          if (uploadError) syncFailed = true;
+        }
+        if (cancelled) return;
+        lastSuccessfulSyncAt = Date.now();
+        setStoryboards(mergedStoryboards);
+        setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
+      } catch {
+        if (!cancelled) setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
+      } finally {
+        syncInFlight = false;
       }
-      if (cancelled) return;
-      setStoryboards(mergedStoryboards);
-      setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
     };
-    void syncStoryboards();
-    return () => { cancelled = true; };
+    const handlePageActivated = (event: Event) => {
+      const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
+      if (page === 'workspace' && Date.now() - lastSuccessfulSyncAt >= 30_000) {
+        void syncStoryboards(true);
+      }
+    };
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastSuccessfulSyncAt >= 30_000) {
+        void syncStoryboards(true);
+      }
+    };
+    window.addEventListener('vyra:page-activated', handlePageActivated);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    void syncStoryboards(false);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('vyra:page-activated', handlePageActivated);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, [storageKey, isAuthenticated, loadedStorageKey]);
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
