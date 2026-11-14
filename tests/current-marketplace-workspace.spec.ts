@@ -308,7 +308,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await expect(page.getByText('Name', { exact: true })).toBeVisible();
 
   // Desktop file-manager semantics: a single click selects without opening;
-  // a double click opens the authorized preview and exposes its download action.
+  // keyboard Enter and a real mouse double-click both open the authorized preview.
   const fileRow = page.getByTestId('media-library-entry-' + itemId);
   await fileRow.click();
   await expect(page.getByText('1 selected')).toBeVisible();
@@ -337,6 +337,15 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     const state = window as unknown as { __mediaLibraryOriginalAnchorClick: () => void };
     HTMLAnchorElement.prototype.click = state.__mediaLibraryOriginalAnchorClick;
   });
+  await page.getByRole('button', { name: 'Close preview' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // Verify the actual desktop double-click gesture, not just the keyboard fallback.
+  await fileRow.press('Space');
+  await expect(fileRow).toHaveAttribute('aria-pressed', 'false');
+  await fileRow.dblclick();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').locator('#media-library-preview-title')).toHaveText('legacy-sample.png');
   await page.getByRole('button', { name: 'Close preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
