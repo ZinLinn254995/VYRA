@@ -317,6 +317,8 @@ export async function ingestVyralAsset(
       },
     });
     assertNotAborted();
+    // Supabase Storage JS upload() has no per-upload AbortSignal option. Do not race object deletion
+    // against an in-flight upload: wait for its result, then observe cancellation and clean up safely.
     // A lost upload response can still mean the object was stored; always attempt cleanup on failure.
     storageUploaded = true;
     await port.uploadOriginal(storagePath, file, mimeType);
