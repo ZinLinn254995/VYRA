@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, AudioLines, Check, ChevronRight, Download, File,
   FileText, Folder, FolderOpen, FolderPlus, Grid2X2, Image as ImageIcon, List,
@@ -86,6 +86,8 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
 };
 
 export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
+  const { user } = useAuth();
+  const ownerId = user?.id ?? null;
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
   const [hasMoreItems, setHasMoreItems] = useState(false);
@@ -151,6 +153,19 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
   const thumbnailBackfillStartedRef = useRef(false);
   const libraryRequestRef = useRef(0);
   const libraryCacheRef = useRef(new Map<string, { folders: MediaLibraryFolder[]; items: MediaLibraryItem[]; hasMore: boolean; cachedAt: number }>());
+  const cacheOwnerRef = useRef<string | null>(ownerId);
+  useLayoutEffect(() => {
+    if (cacheOwnerRef.current === ownerId) return;
+    // Never render a previous account's private rows or signed thumbnail URLs.
+    cacheOwnerRef.current = ownerId;
+    libraryCacheRef.current.clear();
+    setFolders([]);
+    setItems([]);
+    setHasMoreItems(false);
+    setSelectedIds([]);
+    setLoading(Boolean(ownerId));
+    setError(null);
+  }, [ownerId]);
   const loadMoreRequestRef = useRef(0);
   const loadingMoreLockRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +176,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
   const refresh = useCallback(async (silent = false) => {
-    const cacheKey = JSON.stringify([activeFolderId, serverQuery, filter]);
+    const cacheKey = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
     const cached = libraryCacheRef.current.get(cacheKey);
     const requestId = ++libraryRequestRef.current;
     // Invalidate any in-flight next-page request when the library context changes.
@@ -180,6 +195,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       }
     }
     setError(null);
+    if (!ownerId) { setFolders([]); setItems([]); setHasMoreItems(false); setLoading(false); return; }
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100 });
       if (requestId !== libraryRequestRef.current) return;
@@ -202,13 +218,13 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
     }
-  }, [activeFolderId, filter, serverQuery]);
+  }, [activeFolderId, filter, ownerId, serverQuery]);
 
   useEffect(() => {
     const isActiveRef = { current: isActive };
     const refreshIfStale = () => {
       if (!isActiveRef.current || document.visibilityState !== 'visible') return;
-      const key = JSON.stringify([activeFolderId, serverQuery, filter]);
+      const key = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
     };
@@ -323,7 +339,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
 
   const patchCachedItems = (updater: (current: MediaLibraryItem[]) => MediaLibraryItem[]) => {
     setItems((current) => updater(current));
-    const key = JSON.stringify([activeFolderId, serverQuery, filter]);
+    const key = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
     const cached = libraryCacheRef.current.get(key);
     if (cached) libraryCacheRef.current.set(key, { ...cached, items: updater(cached.items), cachedAt: Date.now() });
   };
@@ -372,8 +388,8 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
               // even if the user navigated elsewhere while the upload completed.
               for (const [cacheKey, cached] of libraryCacheRef.current) {
                 try {
-                  const [folderId, searchText, cachedFilter] = JSON.parse(cacheKey) as [string | null, string, string];
-                  if (folderId !== item.folder_id) continue;
+                  const [cacheOwnerId, folderId, searchText, cachedFilter] = JSON.parse(cacheKey) as [string | null, string | null, string, string];
+                  if (cacheOwnerId !== ownerId || folderId !== item.folder_id) continue;
                   if (cachedFilter !== 'all' && kindOf(item.mime_type) !== cachedFilter) continue;
                   if (searchText && !item.file_name.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())) continue;
                   libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() });
@@ -617,7 +633,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       // A destination folder cache may not contain these records yet. Drop only
       // that cached view so its next visit fetches fresh data, not every folder.
       for (const key of libraryCacheRef.current.keys()) {
-        try { if (JSON.parse(key)[0] === destination && destination !== activeFolderId) libraryCacheRef.current.delete(key); } catch { /* ignore malformed cache keys */ }
+        try { if (JSON.parse(key)[1] === destination && destination !== activeFolderId) libraryCacheRef.current.delete(key); } catch { /* ignore malformed cache keys */ }
       }
       setSelectedIds([]);
     }, count + (count === 1 ? ' file moved.' : ' files moved.'), false);
