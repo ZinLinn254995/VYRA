@@ -444,7 +444,23 @@ export async function uploadMediaLibraryFiles(
         metadata: { upload_source: 'media_library', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
       });
       if (insertError) {
-        await db.storage.from('vyral-assets').remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])]);
+        const orphanPaths = [storagePath, ...(thumbnailPath ? [thumbnailPath] : [])];
+        // Persist cleanup before attempting removal so a transient Storage failure
+        // cannot leave an unindexed object with no recovery path.
+        const { error: queueError } = await db.from('media_library_storage_cleanup_jobs').insert({
+          user_id: userId,
+          bucket_id: 'vyral-assets',
+          storage_paths: orphanPaths,
+          attempts: 0,
+          next_attempt_at: new Date().toISOString(),
+          last_error: 'Upload metadata insert failed: ' + insertError.message.slice(0, 700),
+        });
+        if (!queueError) {
+          try { await processMediaLibraryStorageCleanup(1); } catch { /* queued retry remains durable */ }
+        } else {
+          // Fall back to immediate removal if the queue itself is unavailable.
+          await db.storage.from('vyral-assets').remove(orphanPaths);
+        }
         throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
       }
       uploaded += 1;
