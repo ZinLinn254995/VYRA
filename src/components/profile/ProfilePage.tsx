@@ -137,7 +137,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
       {(activePage === 'my-vyrals' || visitedSubpages.has('my-vyrals')) && (
         <div hidden={activePage !== 'my-vyrals'} style={{ display: activePage !== 'my-vyrals' ? "none" : undefined }} className="min-w-0">
-          <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
+          <MyVyralsPage isAuthenticated={Boolean(userEmail)} isActive={activePage === 'my-vyrals'} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
         </div>
       )}
       {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
