@@ -146,7 +146,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
     }
     const { error: deleteError } = await supabase.from('vyrals').delete().eq('id', item.id);
     if (deleteError) setError(deleteError.message);
-    else { if (activeId === item.id) setActiveId(null); await loadVyrals(); }
+    else { if (activeId === item.id) setActiveId(null); setVyrals((current) => current.filter((vyral) => vyral.id !== item.id)); }
     setBusy(false);
   };
 
