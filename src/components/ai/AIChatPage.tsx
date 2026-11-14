@@ -35,6 +35,7 @@ type ChatSession = {
 };
 
 type AIChatPageProps = {
+  isActive: boolean;
   isAuthenticated: boolean;
   onLoginRequired: () => void;
   initialSelectedAssets?: VyralChatAssetContext[];
@@ -341,7 +342,7 @@ const inspectVyralAttachment = async (file: File) => {
   return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -386,6 +387,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
   const pendingVyralUploadFilesRef = useRef(new Map<string, File>());
 
   useEffect(() => { setSelectedAssets(initialSelectedAssets); }, [initialSelectedAssets]);
+
+  // Keep conversation data mounted across navigation, but dismiss transient chat overlays.
+  useEffect(() => {
+    if (!isActive) {
+      setHistoryOpen(false);
+      setActionsOpen(false);
+    }
+  }, [isActive]);
 
   useEffect(() => {
     let active = true;
