@@ -478,3 +478,14 @@ test('Workspace ignores stale AI suggestion responses after account changes or n
   assert.ok(workspace.includes('suggestionRequestIdRef.current += 1'), 'Changing accounts must invalidate outstanding suggestion requests.');
   assert.ok(workspace.includes('if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) setIsSuggesting(false)'), 'A stale request must not clear the loading state of a newer request.');
 });
+
+test('AI Chat clears previous-owner conversation and attachment state immediately on auth identity change', () => {
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  assert.ok(chat.includes('onAuthStateChange((_event, session) =>'), 'Auth listener must inspect the next authenticated identity.');
+  assert.ok(chat.includes('const nextOwnerId = session?.user?.id ?? null'), 'Identity changes must include sign-out.');
+  assert.ok(chat.includes('if (currentOwnerId && currentOwnerId !== nextOwnerId)'), 'Only a validated owner change should trigger private-state clearing.');
+  for (const state of ['setMessages([])', 'setSessions([])', 'setActiveSessionId(null)', 'setSelectedFile(null)', 'setSelectedVyralContext(null)', 'setSelectedVyralImages([])']) {
+    assert.ok(chat.includes(state), 'Auth identity change must clear ' + state + '.');
+  }
+  assert.ok(chat.includes('cancelActiveRequest()'), 'An in-flight chat request must be aborted when its owner changes.');
+});
