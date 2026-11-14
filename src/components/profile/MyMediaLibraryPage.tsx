@@ -36,9 +36,10 @@ const splitFileName = (name: string) => {
 };
 const compactGridFileName = (name: string) => {
   const { base, extension } = splitFileName(name);
-  if (base.length <= 18) return name;
-  const prefixLength = Math.min(10, Math.max(6, 18 - extension.length));
-  return base.slice(0, prefixLength) + '…' + base.slice(-2) + extension;
+  if (base.length <= 18) return null;
+  // Keep the beginning on line one; put the ellipsis, final two
+  // filename characters, and extension together on line two.
+  return { firstLine: base.slice(0, 14), secondLine: '…' + base.slice(-2) + extension };
 };
 
 export const MyMediaLibraryPage: React.FC = () => {
@@ -312,7 +313,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       </div> : <div className="flex flex-wrap content-start gap-2">
         {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
           <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={iconPixels}/> : iconFor(entry.item!.mime_type,iconPixels)}</span>
-          <span title={entry.name} className="line-clamp-2 h-8 w-full min-w-0 shrink-0 overflow-hidden break-words text-center text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.folder ? entry.name : compactGridFileName(entry.name)}</span>
+          <span title={entry.name} className="flex h-8 w-full min-w-0 shrink-0 flex-col items-center justify-center overflow-hidden text-center text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.folder ? entry.name : (() => { const parts = compactGridFileName(entry.name); return parts ? <><span className="block w-full truncate">{parts.firstLine}</span><span className="block w-full truncate">{parts.secondLine}</span></> : <span className="line-clamp-2 w-full break-words">{entry.name}</span>; })()}</span>
           {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={12}/></span>}
         </article>)}
       </div>}
