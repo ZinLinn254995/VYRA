@@ -140,6 +140,38 @@ test('cancels after storage upload and cleans the incomplete Asset safely', asyn
   assert.equal(calls.includes('deleteAsset'), true);
 });
 
+test('waits for an in-flight Storage upload before cleanup after cancellation', async () => {
+  const { port, calls } = makePort();
+  const controller = new AbortController();
+  let releaseUpload!: () => void;
+  let signalUploadStarted!: () => void;
+  const uploadStarted = new Promise<void>((resolve) => { signalUploadStarted = resolve; });
+  const uploadGate = new Promise<void>((resolve) => { releaseUpload = resolve; });
+  port.uploadOriginal = async () => {
+    calls.push('uploadStarted');
+    signalUploadStarted();
+    await uploadGate;
+    calls.push('uploadFinished');
+  };
+
+  const ingestion = ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'), signal: controller.signal,
+  });
+  await uploadStarted;
+  controller.abort();
+  await Promise.resolve();
+  assert.equal(calls.includes('removeStorage'), false, 'must not delete while upload is still in flight');
+
+  releaseUpload();
+  await assert.rejects(
+    ingestion,
+    (error: unknown) => error instanceof VyralAssetIngestionError && !error.preservedForRecovery,
+  );
+  assert.ok(calls.indexOf('uploadFinished') < calls.indexOf('removeStorage'));
+  assert.equal(calls.includes('createVersion'), false);
+  assert.equal(calls.includes('deleteAsset'), true);
+});
+
 test('preserves DNA evidence when cancellation arrives after a DNA write', async () => {
   const { port, calls } = makePort({ dnaExists: true });
   const controller = new AbortController();
