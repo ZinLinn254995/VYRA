@@ -169,7 +169,14 @@ export const MyMediaLibraryPage: React.FC = () => {
       setHasMoreItems(result.hasMore);
       setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
-      if (requestId === libraryRequestRef.current) setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
+      if (requestId === libraryRequestRef.current) {
+        // Never leave the previous folder/search results visible after a failed
+        // refresh: stale rows could otherwise be mistaken for the current folder.
+        setItems([]);
+        setHasMoreItems(false);
+        setSelectedIds([]);
+        setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
+      }
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
     }
@@ -391,7 +398,22 @@ export const MyMediaLibraryPage: React.FC = () => {
     }
   };
   const selectedFiles = selectedIds.filter((id) => items.some((item) => item.id === id));
-  const selectedFolders = selectedIds.filter((id) => folders.some((folder) => folder.id === id));
+  const folderDepth = (folderId: string) => {
+    let depth = 0;
+    let cursor = folderById.get(folderId);
+    const seen = new Set<string>();
+    while (cursor && !seen.has(cursor.id)) {
+      seen.add(cursor.id);
+      depth += 1;
+      cursor = cursor.parent_id ? folderById.get(cursor.parent_id) : undefined;
+    }
+    return depth;
+  };
+  // Delete selected descendants before their parents so multi-select folder
+  // deletion works regardless of the order in which the user selected them.
+  const selectedFolders = selectedIds
+    .filter((id) => folders.some((folder) => folder.id === id))
+    .sort((a, b) => folderDepth(b) - folderDepth(a));
   const blockedFolderIds = useMemo(() => {
     const blocked = new Set<string>();
     const addDescendants = (parentId: string): void => {
