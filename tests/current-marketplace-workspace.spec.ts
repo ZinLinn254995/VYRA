@@ -206,4 +206,20 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByRole('button', { name: 'Grid view' }).click();
   await expect(page.locator('article img[alt=""]')).toBeVisible();
   expect(item.storage_path).toBe(originalPath);
+
+  // Exercise the actual signed-in Library surface at narrow phone, tablet and
+  // desktop widths, not only the public application shell.
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document, 'Media Library document overflow at ' + width + 'px: ' + JSON.stringify(dimensions)).toBeLessThanOrEqual(dimensions.viewport + 1);
+    expect(dimensions.body, 'Media Library body overflow at ' + width + 'px: ' + JSON.stringify(dimensions)).toBeLessThanOrEqual(dimensions.viewport + 1);
+    await expect(page.getByRole('button', { name: 'Grid view' })).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
 });
