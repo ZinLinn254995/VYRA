@@ -492,3 +492,126 @@ test('Workspace internal scroll position survives navigation to another retained
   await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
   await expect.poll(() => workspaceScroller.evaluate((element) => (element as HTMLElement).scrollTop)).toBe(before.top);
 });
+
+
+test('AI Chat history survives refresh, restores follow-up context, and stays owner-scoped', async ({ page }) => {
+  const ownerA = 'a1000000-0000-4000-8000-000000000001';
+  const ownerB = 'a1000000-0000-4000-8000-000000000002';
+  const now = new Date().toISOString();
+  const jwtPart = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const makeSession = (id: string) => {
+    const accessToken = jwtPart({ alg: 'HS256', typ: 'JWT' }) + '.' + jwtPart({
+      sub: id, role: 'authenticated', aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600,
+    }) + '.e2e-signature';
+    const user = {
+      id, aud: 'authenticated', role: 'authenticated', email: null, phone: '',
+      app_metadata: { provider: 'anonymous', providers: ['anonymous'] },
+      user_metadata: { is_anonymous: true, display_name: 'Chat History Test', session_kind: 'vyral_test_guest' },
+      identities: [], created_at: now, is_anonymous: true,
+    };
+    return {
+      access_token: accessToken, token_type: 'bearer', expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e-chat-refresh-' + id, user,
+    };
+  };
+  const sessionA = makeSession(ownerA);
+  const sessionB = makeSession(ownerB);
+  const conversations: Array<Record<string, unknown>> = [];
+  const observedChatRequests: Array<Record<string, unknown>> = [];
+  const corsHeaders = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info, prefer',
+    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  };
+  const json = (route: import('@playwright/test').Route, value: unknown, status = 200) =>
+    route.fulfill({ status, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify(value) });
+  const requestOwner = (request: import('@playwright/test').Request) => {
+    const token = /^Bearer ([^\\s]+)$/i.exec(request.headers()['authorization'] ?? '')?.[1];
+    if (!token) return null;
+    try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub as string; }
+    catch { return null; }
+  };
+
+  await page.route('https://e2e-test.supabase.co/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders });
+    const requestUserId = requestOwner(request);
+    if (url.pathname.endsWith('/auth/v1/user') && method === 'GET') {
+      const userId = requestUserId;
+      if (!userId) return json(route, { message: 'Unauthorized' }, 401);
+      return json(route, userId === ownerA ? sessionA.user : sessionB.user);
+    }
+    if (url.pathname.endsWith('/rest/v1/vyra_ai_chat_conversations') && method === 'GET') {
+      const requestedOwner = url.searchParams.get('user_id')?.replace('eq.', '');
+      if (requestedOwner !== requestUserId) return json(route, { message: 'Owner filter required' }, 400);
+      return json(route, conversations.filter((item) => item.user_id === requestUserId));
+    }
+    if (url.pathname.endsWith('/rest/v1/vyra_ai_chat_conversations') && method === 'POST') {
+      const payload = request.postDataJSON() as Record<string, unknown>;
+      if (!requestUserId || payload.user_id !== requestUserId) return json(route, { message: 'Owner mismatch' }, 403);
+      const existing = conversations.findIndex((item) => item.id === payload.id && item.user_id === requestUserId);
+      if (existing >= 0) conversations[existing] = { ...payload };
+      else conversations.push({ ...payload });
+      return json(route, [], 201);
+    }
+    if (url.pathname.endsWith('/rest/v1/vyrals') && method === 'GET') return json(route, []);
+    return json(route, []);
+  });
+  await page.route('**/api/auth/session', (route) => json(route, { authenticated: true }));
+  await page.route('**/api/ai/chat', async (route) => {
+    observedChatRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+    return json(route, { error: 'OpenAI is not configured yet.' }, 503);
+  });
+  await page.addInitScript((storedSession) => {
+    window.localStorage.setItem('sb-e2e-test-auth-token', JSON.stringify(storedSession));
+  }, sessionA);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  await openSection(page, 'AI Chat');
+  await expect(page.getByRole('textbox', { name: 'Message VYRA AI' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Message VYRA AI' }).fill('Open Workspace');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
+  await expect.poll(() => conversations.length).toBe(1);
+  expect(conversations[0].user_id).toBe(ownerA);
+  expect(conversations[0].messages).toEqual(expect.arrayContaining([
+    expect.objectContaining({ role: 'user', content: 'Open Workspace' }),
+    expect.objectContaining({ role: 'assistant', content: expect.stringContaining('Opening Workspace') }),
+  ]));
+
+  // Refresh the app, reopen the saved conversation, and verify its prior turns remain available.
+  await page.reload();
+  await openSection(page, 'AI Chat');
+  await page.getByRole('button', { name: 'Open chat menu' }).click();
+  await page.getByRole('button', { name: 'Recent chats' }).click();
+  await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Workspace' }).click();
+  await expect(page.getByText('Open Workspace', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Opening Workspace/)).toBeVisible();
+
+  // The next request must include the restored transcript, not just the newest prompt.
+  await page.getByRole('textbox', { name: 'Message VYRA AI' }).fill('What did I just ask you to open?');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect.poll(() => observedChatRequests.length).toBe(1);
+  const sentMessages = observedChatRequests[0].messages as Array<{ role: string; content: string }>;
+  expect(sentMessages.map((message) => message.content)).toEqual(expect.arrayContaining([
+    'Open Workspace',
+    expect.stringContaining('Opening Workspace'),
+    'What did I just ask you to open?',
+  ]));
+
+  // A different signed-in owner must not receive the first owner's conversation.
+  await page.evaluate((storedSession) => {
+    window.localStorage.setItem('sb-e2e-test-auth-token', JSON.stringify(storedSession));
+  }, sessionB);
+  await page.reload();
+  await openSection(page, 'AI Chat');
+  await page.getByRole('button', { name: 'Open chat menu' }).click();
+  await page.getByRole('button', { name: 'Recent chats' }).click();
+  await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeVisible();
+  await expect(page.getByText('No recent chats yet')).toBeVisible();
+  expect(conversations.filter((item) => item.user_id === ownerB)).toHaveLength(0);
+});
