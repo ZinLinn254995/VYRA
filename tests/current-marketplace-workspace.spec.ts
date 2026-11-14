@@ -184,7 +184,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
       deletedMediaItemIds.push(...payload.p_item_ids);
       const selected = items.filter((candidate) => payload.p_item_ids.includes(candidate.id));
       const storagePaths = selected.filter((candidate) => candidate.source_kind === 'upload')
-        .flatMap((candidate) => [candidate.storage_path, candidate.metadata?.thumbnail_path])
+        .flatMap((candidate) => [candidate.storage_path, (candidate.metadata as Record<string, unknown>)?.thumbnail_path])
         .filter((value): value is string => typeof value === 'string' && value.length > 0);
       if (storagePaths.length) {
         queuedCleanupJobs.push({
