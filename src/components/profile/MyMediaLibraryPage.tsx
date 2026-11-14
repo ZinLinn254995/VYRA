@@ -29,6 +29,11 @@ const formatBytes = (bytes: number) => {
   return (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1) + ' ' + units[index];
 };
 const formatDate = (value: string) => new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+const splitFileName = (name: string) => {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return { base: name, extension: '' };
+  return { base: name.slice(0, dot), extension: name.slice(dot) };
+};
 
 export const MyMediaLibraryPage: React.FC = () => {
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
@@ -292,7 +297,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           </div>
           {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); if (event.key === ' ') { event.preventDefault(); setSelectedIds([entry.id]); } }} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 rounded-lg border border-transparent px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10' : 'border-b-[var(--vyra-border-subtle)]'}`}>
             <span className={`grid size-8 place-items-center ${selectedIds.includes(entry.id) ? 'text-[var(--vyra-accent-primary)]' : entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{selectedIds.includes(entry.id) ? <Check size={17}/> : entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</span>
-            <span className="min-w-0 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{entry.name}</span>
+            <span className="flex min-w-0 items-center overflow-hidden text-xs font-medium text-[var(--vyra-text-primary)]" title={entry.name}>{entry.folder ? <span className="truncate">{entry.name}</span> : <><span className="min-w-0 truncate">{splitFileName(entry.name).base}</span><span className="shrink-0">{splitFileName(entry.name).extension}</span></>}</span>
             <span className="truncate text-[11px] text-[var(--vyra-text-muted)]">{entry.folder ? 'Folder' : entry.item!.mime_type.split('/').pop()?.toUpperCase() || 'FILE'}</span>
             <span className="text-right text-[11px] tabular-nums text-[var(--vyra-text-muted)]">{entry.item ? formatBytes(entry.item.size_bytes) : '—'}</span>
             <span className="text-right text-[11px] text-[var(--vyra-text-muted)]">{formatDate(entry.folder?.updated_at ?? entry.item!.updated_at)}</span>
@@ -301,7 +306,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       </div> : <div className="flex flex-wrap content-start gap-2">
         {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
           <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={iconPixels}/> : iconFor(entry.item!.mime_type,iconPixels)}</span>
-          <span title={entry.name} className="line-clamp-2 h-8 w-full shrink-0 overflow-hidden break-words text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.name}</span>
+          <span title={entry.name} className="flex h-8 w-full min-w-0 shrink-0 items-center justify-center overflow-hidden whitespace-nowrap text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.folder ? <span className="truncate">{entry.name}</span> : <><span className="min-w-0 truncate">{splitFileName(entry.name).base}</span><span className="shrink-0">{splitFileName(entry.name).extension}</span></>}</span>
           {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={12}/></span>}
         </article>)}
       </div>}
