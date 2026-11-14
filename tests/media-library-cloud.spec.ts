@@ -183,12 +183,28 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   const deleteStart = service.indexOf('export async function deleteMediaLibraryItems');
   const deleteEnd = service.indexOf('async function createMediaThumbnail', deleteStart);
   const deletion = service.slice(deleteStart, deleteEnd);
-  assert.ok(deletion.includes('const standaloneRows = rows.filter((row) => !row.source_asset_id)'), 'Only standalone Library uploads may remove their original storage objects.');
-  assert.ok(deletion.includes('if (storageError) throw new Error('), 'A storage deletion failure must be reported.');
-  assert.ok(deletion.indexOf(".from('media_library_items').delete()") < deletion.indexOf("db.storage.from('vyral-assets').remove(storagePaths)"), 'Delete the Library index before removing binaries so a database failure never leaves a visible broken file.');
-  assert.ok(deletion.includes('Could not remove the selected files from the Library:'), 'Database deletion failures must be surfaced without deleting originals.');
-  assert.ok(deletion.includes('Removed from My Media Library, but secure storage cleanup could not finish:'), 'A private storage cleanup failure must be distinguished from a failed Library deletion.');
-  assert.ok(deletion.includes('thumbnail_path'), 'Standalone deletion must clean up the associated thumbnail too.');
+  assert.ok(deletion.includes("db.rpc('delete_media_library_items_and_queue_storage_cleanup'"), 'Index deletion and cleanup enqueueing must be atomic.');
+  assert.ok(deletion.includes('await processMediaLibraryStorageCleanup(8)'), 'Deletion should attempt queued cleanup immediately.');
+  assert.ok(deletion.includes('cleanupPending'), 'The UI must be able to report when secure cleanup remains queued.');
+
+  const cleanupStart = service.indexOf('export async function processMediaLibraryStorageCleanup');
+  const cleanupEnd = service.indexOf('export async function loadMediaLibrary', cleanupStart);
+  const cleanup = service.slice(cleanupStart, cleanupEnd);
+  assert.ok(cleanup.includes(".from('media_library_storage_cleanup_jobs')"), 'Storage cleanup must use the durable owner-scoped queue.');
+  assert.ok(cleanup.includes('.eq(\'user_id\', userId)'), 'Cleanup jobs must remain isolated to the signed-in owner.');
+  assert.ok(cleanup.includes('next_attempt_at'), 'Failed cleanup jobs must be scheduled for retry.');
+  assert.ok(cleanup.includes('Math.min(5 * (2 ** Math.min(attempts - 1, 8)), 1440)'), 'Storage cleanup retries must use capped exponential backoff.');
+  assert.ok(cleanup.includes(".storage.from(job.bucket_id).remove(job.storage_paths)"), 'The worker must remove only the queued object paths.');
+  assert.ok(service.includes('void processMediaLibraryStorageCleanup(4).catch(() => undefined)'), 'Library visits must retry pending cleanup without blocking the page.');
+
+  const cleanupMigration = read('supabase/migrations/20261114180000_media_library_storage_cleanup_queue.sql');
+  assert.ok(cleanupMigration.includes('create table if not exists public.media_library_storage_cleanup_jobs'));
+  assert.ok(cleanupMigration.includes('enable row level security'));
+  assert.ok(cleanupMigration.includes('media_library_storage_cleanup_select_own'));
+  assert.ok(cleanupMigration.includes('delete_media_library_items_and_queue_storage_cleanup'));
+  assert.ok(cleanupMigration.includes('and item.source_asset_id is null'), 'Vyral canonical objects must never enter the cleanup queue.');
+  assert.ok(cleanupMigration.includes('array_remove(array[item.storage_path, nullif(item.metadata->>\'thumbnail_path\', \'\')], null)'), 'Both standalone originals and thumbnails must be queued together.');
+  assert.ok(cleanupMigration.includes('security invoker'), 'The delete RPC must respect caller RLS policies.');
 
   assert.ok(folderDelete.includes('if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('), 'Non-empty folders must never be deleted.');
 
