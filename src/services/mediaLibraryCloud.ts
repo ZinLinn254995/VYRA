@@ -296,6 +296,9 @@ export async function uploadMediaLibraryFiles(
     // Cancellation is intentionally checked between files only: an active Storage
     // transfer is allowed to finish so it cannot leave a partially written object.
     if (signal?.aborted) break;
+    // Report the file before its transfer starts so the UI never labels the
+    // previously completed file as the one currently uploading.
+    onProgress?.(uploaded, files.length, file.name);
     try {
       if (!file.size) throw new Error(file.name + ' is empty.');
       if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
