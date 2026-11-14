@@ -210,6 +210,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const storyboardPreviewSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
 
+  // Retained pages stay mounted to preserve their data, but transient dialogs
+  // must not remain open (or keep the document scroll-locked) after navigation.
+  useEffect(() => {
+    if (!isActive) setCreateOpen(false);
+  }, [isActive]);
+
   // Measure the sticky handoff point and fixed header dimensions once. Reading
   // layout geometry/computed styles on every touchmove forces synchronous
   // layout while the spacer and sticky bar are both changing.
