@@ -146,13 +146,20 @@ export async function deleteMediaLibraryItems(itemIds: string[]): Promise<void> 
   // Vyral-backed entries share their canonical binary with Asset DNA, Versions and Fingerprints.
   // Removing a Library shortcut must never delete that canonical object or corrupt its Vyral.
   const standaloneRows = rows.filter((row) => !row.source_asset_id);
+  // Remove the Library records first. If the database rejects the deletion or
+  // the request fails, the original binaries remain intact and the user does
+  // not end up with visible entries that point to missing files.
+  const { error: rowError } = await db.from('media_library_items').delete().eq('user_id', userId).in('id', rows.map((row) => row.id));
+  if (rowError) throw new Error('Could not remove the selected files from the Library: ' + rowError.message);
+
+  // Storage cleanup is deliberately best-effort after the index deletion. A
+  // cleanup failure can leave a private orphan for later maintenance, but it
+  // cannot destroy a file while its Library record still exists.
   if (standaloneRows.length) {
     const storagePaths = standaloneRows.flatMap((row) => [row.storage_path, ...(typeof row.metadata?.thumbnail_path === 'string' ? [row.metadata.thumbnail_path] : [])]);
     const { error: storageError } = await db.storage.from('vyral-assets').remove(storagePaths);
-    if (storageError) throw new Error('Files could not be removed from secure storage: ' + storageError.message);
+    if (storageError) throw new Error('Removed from My Media Library, but secure storage cleanup could not finish: ' + storageError.message);
   }
-  const { error: rowError } = await db.from('media_library_items').delete().eq('user_id', userId).in('id', rows.map((row) => row.id));
-  if (rowError) throw new Error('The files were removed from the Library index, but the index could not be updated. Refresh the library.');
 }
 
 async function createMediaThumbnail(file: File): Promise<Blob | null> {
