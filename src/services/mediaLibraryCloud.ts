@@ -217,11 +217,15 @@ export async function uploadMediaLibraryFiles(
   files: File[], folderId: string | null,
   onProgress?: (completed: number, total: number, currentFileName: string) => void,
   onFileError?: (file: File, error: Error) => void,
+  signal?: AbortSignal,
 ): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
   let uploaded = 0;
   for (const file of files) {
+    // Cancellation is intentionally checked between files only: an active Storage
+    // transfer is allowed to finish so it cannot leave a partially written object.
+    if (signal?.aborted) break;
     try {
       if (!file.size) throw new Error(file.name + ' is empty.');
       if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
