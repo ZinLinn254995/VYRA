@@ -137,12 +137,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   return (
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
       {(activePage === 'my-vyrals' || visitedSubpages.has('my-vyrals')) && (
-        <div hidden={activePage !== 'my-vyrals'} style={{ display: activePage !== 'my-vyrals' ? "none" : undefined }} className="min-w-0">
+        <div hidden={activePage !== 'my-vyrals'} aria-hidden={activePage !== 'my-vyrals'} style={{ display: activePage !== 'my-vyrals' ? "none" : undefined }} className="min-w-0">
           <MyVyralsPage isAuthenticated={Boolean(userEmail)} isActive={isActive && activePage === 'my-vyrals'} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
         </div>
       )}
       {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
-        <div hidden={activePage !== 'my-media-library'} style={{ display: activePage !== 'my-media-library' ? "none" : undefined }} className="profile-subpage-scroll profile-subpage-viewport">
+        <div hidden={activePage !== 'my-media-library'} aria-hidden={activePage !== 'my-media-library'} style={{ display: activePage !== 'my-media-library' ? "none" : undefined }} className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card">
             <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage isActive={isActive && activePage === 'my-media-library'} /></div>
           </section>
