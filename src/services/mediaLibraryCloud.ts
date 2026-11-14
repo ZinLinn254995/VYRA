@@ -556,7 +556,7 @@ export async function registerVyralAssetInMediaLibrary(input: {
   }
   const storageSegments = input.storagePath.split('/');
   if (!input.storagePath.startsWith(ownerId + '/')
-    || input.storagePath.includes('\\\\')
+    || input.storagePath.includes('\\')
     || storageSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
     throw new Error('The Asset has an invalid private storage location.');
   }
