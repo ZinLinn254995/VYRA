@@ -544,7 +544,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     event.preventDefault();
     if (!renameTarget || !renameValue.trim()) return;
     const target = renameTarget;
-    const nextName = renameValue.trim().replace(/\\s+/g, ' ').slice(0, 180);
+    const nextName = renameValue.trim().replace(/\s+/g, ' ').slice(0, 180);
     await withBusy(async () => {
       if (target.folder) {
         await renameMediaLibraryFolder(target.id, nextName);
