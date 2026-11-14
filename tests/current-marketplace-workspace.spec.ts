@@ -296,7 +296,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByTestId('media-library-entry-e2e-folder-created').click();
   await page.getByLabel('Move selected folder to folder').selectOption('e2e-folder-archive');
   await expect(page.getByText('Folder moved.')).toBeVisible();
-  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await page.getByTestId('media-library-entry-e2e-folder-archive').dblclick();
   await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toContainText('Project Archive');
 
   await page.getByTestId('media-library-entry-e2e-folder-created').click();
