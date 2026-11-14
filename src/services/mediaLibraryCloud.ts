@@ -82,7 +82,7 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
 export async function renameMediaLibraryFolder(folderId: string, name: string): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
-  const cleanName = name.trim().replace(/\\s+/g, ' ').slice(0, 80);
+  const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   const { error } = await db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId);
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message);
