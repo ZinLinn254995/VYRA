@@ -128,6 +128,8 @@ test('My Media Library UI includes required organization, filtering, views and m
     'folder.parent_id === activeFolderId', 'item.folder_id === activeFolderId',
     'New folder name', 'onContextMenu', 'event.preventDefault()',
     'onPointerDown', 'onPointerCancel', 'aria-label="Folder path"', '[-webkit-touch-callout:none]', 'select-none',
+    'const handleEntryKeyDown = (entry: Entry, event: React.KeyboardEvent<HTMLElement>)',
+    "event.key === 'Enter'", "event.key === ' '", 'toggleSelected(entry.id)',
   ]) assert.ok(page.includes(snippet), 'Missing Media Library UI feature: ' + snippet);
   assert.ok(!page.includes('<aside'), 'Folder tree sidebar should not replace standard file-manager navigation.');
   assert.ok(!page.includes('Open folder'), 'Folder entries should display only their icon and name.');
