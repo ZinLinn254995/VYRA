@@ -255,16 +255,17 @@ export const MyMediaLibraryPage: React.FC = () => {
   const selectedFolders = selectedIds.filter((id) => folders.some((folder) => folder.id === id));
   const blockedFolderIds = useMemo(() => {
     const blocked = new Set<string>();
-    const addDescendants = (parentId: string) => {
+    const addDescendants = (parentId: string): void => {
       folders.filter((folder) => folder.parent_id === parentId).forEach((folder) => {
         if (blocked.has(folder.id)) return;
         blocked.add(folder.id);
         addDescendants(folder.id);
       });
     };
-    selectedFolders.forEach((id) => { blocked.add(id); addDescendants(id); });
+    selectedIds.filter((id) => folders.some((folder) => folder.id === id))
+      .forEach((id) => { blocked.add(id); addDescendants(id); });
     return blocked;
-  }, [folders, selectedFolders.join('|')]);
+  }, [folders, selectedIds]);
 
   const allVisibleSelected = entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
   const toggleAll = () => setSelectedIds((previous) => allVisibleSelected ? previous.filter((id) => !entries.some((entry) => entry.id === id)) : [...new Set([...previous, ...entries.map((entry) => entry.id)])]);
