@@ -172,7 +172,9 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   const deletion = service.slice(deleteStart, deleteEnd);
   assert.ok(deletion.includes('const standaloneRows = rows.filter((row) => !row.source_asset_id)'), 'Only standalone Library uploads may remove their original storage objects.');
   assert.ok(deletion.includes('if (storageError) throw new Error('), 'A storage deletion failure must be reported.');
-  assert.ok(deletion.indexOf('if (storageError) throw new Error(') < deletion.indexOf(".from('media_library_items').delete()"), 'Do not remove the Library row when its storage cleanup failed.');
+  assert.ok(deletion.indexOf(".from('media_library_items').delete()") < deletion.indexOf("db.storage.from('vyral-assets').remove(storagePaths)"), 'Delete the Library index before removing binaries so a database failure never leaves a visible broken file.');
+  assert.ok(deletion.includes('Could not remove the selected files from the Library:'), 'Database deletion failures must be surfaced without deleting originals.');
+  assert.ok(deletion.includes('Removed from My Media Library, but secure storage cleanup could not finish:'), 'A private storage cleanup failure must be distinguished from a failed Library deletion.');
   assert.ok(deletion.includes('thumbnail_path'), 'Standalone deletion must clean up the associated thumbnail too.');
 
   assert.ok(folderDelete.includes('if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('), 'Non-empty folders must never be deleted.');
