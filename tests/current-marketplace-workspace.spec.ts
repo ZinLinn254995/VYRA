@@ -224,4 +224,16 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   }
   await page.getByRole('button', { name: 'List view' }).click();
   await expect(page.getByText('Name', { exact: true })).toBeVisible();
+
+  // Desktop file-manager semantics: a single click selects without opening;
+  // a double click opens the authorized preview and exposes its download action.
+  const fileRow = page.getByRole('button', { name: /legacy-sample\.png/ });
+  await fileRow.click();
+  await expect(page.getByText('1 selected')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await fileRow.dblclick();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download original file' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close preview' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
