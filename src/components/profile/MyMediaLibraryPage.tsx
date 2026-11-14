@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AudioLines, Check, Download, File, FileText, Folder, FolderPlus,
-  Grid2X2, Image as ImageIcon, List, Loader2, Pencil, Plus,
-  RefreshCw, Trash2, Upload, Video, X,
+  AudioLines, ArrowLeft, Check, ChevronRight, Download, File, FileText, Folder, FolderOpen,
+  FolderPlus, Grid2X2, Image as ImageIcon, List, Loader2, Pencil, Plus, RefreshCw,
+  Trash2, Upload, Video, X,
 } from 'lucide-react';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
@@ -20,7 +20,6 @@ const kindOf = (mime: string): FilterKind => {
   if (mime.startsWith('video/')) return 'video';
   if (mime.startsWith('audio/')) return 'audio';
   if (mime === 'application/pdf' || mime.includes('word') || mime.includes('officedocument') || mime.startsWith('text/')) return 'document';
-  if (mime === 'application/octet-stream') return 'other';
   return 'other';
 };
 const formatBytes = (bytes: number) => bytes < 1024 ? bytes + ' B' : bytes < 1024 * 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes < 1024 * 1024 * 1024 ? (bytes / 1024 / 1024).toFixed(1) + ' MB' : (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
@@ -60,7 +59,32 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
-  const folderItems = useMemo(() => activeFolderId === null ? items : items.filter((item) => item.folder_id === activeFolderId), [items, activeFolderId]);
+  const breadcrumbs = useMemo(() => {
+    const chain: MediaLibraryFolder[] = [];
+    const seen = new Set<string>();
+    let cursor = activeFolderId ? folderById.get(activeFolderId) : undefined;
+    while (cursor && !seen.has(cursor.id)) {
+      chain.unshift(cursor);
+      seen.add(cursor.id);
+      cursor = cursor.parent_id ? folderById.get(cursor.parent_id) : undefined;
+    }
+    return chain;
+  }, [activeFolderId, folderById]);
+
+  // File-manager behavior: only show the current directory's immediate children.
+  // Folders and files share the same content area; opening a folder navigates into it.
+  const visibleFolders = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return folders
+      .filter((folder) => folder.parent_id === activeFolderId)
+      .filter((folder) => !query || folder.name.toLocaleLowerCase().includes(query))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [folders, activeFolderId, searchQuery]);
+
+  const folderItems = useMemo(
+    () => activeFolderId === null ? items.filter((item) => item.folder_id === null) : items.filter((item) => item.folder_id === activeFolderId),
+    [items, activeFolderId],
+  );
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     return folderItems.filter((item) => {
@@ -89,6 +113,13 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     try { await task(); if (success) setNotice(success); await refresh(); }
     catch (cause) { await refresh(); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
+  };
+
+  const navigateToFolder = (folderId: string | null) => {
+    setActiveFolderId(folderId);
+    setSelectedIds([]);
+    setCreatingFolder(false);
+    setFolderName('');
   };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,6 +193,13 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     else setError('A secure preview link could not be created. Refresh and try again.');
   };
 
+  const folderActions = (folder: MediaLibraryFolder) => (
+    <span className="flex shrink-0 items-center">
+      <button type="button" onClick={(event) => { event.stopPropagation(); void renameFolder(folder); }} title="Rename folder" aria-label={'Rename folder ' + folder.name} className="grid size-8 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={13}/></button>
+      <button type="button" onClick={(event) => { event.stopPropagation(); void removeFolder(folder); }} title="Delete empty folder" aria-label={'Delete folder ' + folder.name} className="grid size-8 place-items-center rounded text-[var(--vyra-text-muted)] hover:text-[var(--vyra-danger)]"><Trash2 size={13}/></button>
+    </span>
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -170,7 +208,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
           <p className="mt-1 text-xs text-[var(--vyra-text-muted)]">{items.length} files · {folders.length} folders</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => setCreatingFolder((value) => !value)} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]"><FolderPlus size={15}/> New folder</button>
+          <button type="button" onClick={() => { setCreatingFolder((value) => !value); setFolderName(''); }} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]"><FolderPlus size={15}/> New folder</button>
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950 hover:opacity-90"><Upload size={15}/> Upload</button>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => void handleUpload(event)} />
         </div>
@@ -178,7 +216,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
 
       {creatingFolder && <form onSubmit={(event) => void createFolder(event)} className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-3">
         <Folder size={17} className="text-[var(--vyra-accent-primary)]"/>
-        <input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={80} placeholder="Folder name" className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
+        <input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={80} placeholder={activeFolderId ? 'New folder inside ' + (folderById.get(activeFolderId)?.name ?? 'this folder') : 'Folder name'} className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
         <button type="submit" disabled={busy || !folderName.trim()} className="min-h-10 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950 disabled:opacity-50">Create</button>
         <button type="button" onClick={() => { setCreatingFolder(false); setFolderName(''); }} className="grid size-10 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Cancel folder creation"><X size={16}/></button>
       </form>}
@@ -186,90 +224,92 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
       {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5 text-xs text-[var(--vyra-danger)]"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={14}/></button></div>}
       {notice && <div role="status" className="rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-3 py-2.5 text-xs text-[var(--vyra-text-secondary)]">{notice}</div>}
 
-      <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
-          <button type="button" onClick={() => { setActiveFolderId(null); setSelectedIds([]); }} className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-semibold ${activeFolderId === null ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}><Folder size={15}/> All files</button>
-          <div className="mt-1 space-y-0.5">
-            {folderTree.map(({ folder, depth }) => <div key={folder.id} className="group flex items-center gap-1">
-              <button type="button" onClick={() => { setActiveFolderId(folder.id); setSelectedIds([]); }} className={`flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg pr-1 text-left text-xs ${activeFolderId === folder.id ? 'bg-[var(--vyra-bg-hover)] font-semibold text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`} style={{ paddingLeft: 12 + depth * 12 }}><Folder size={14} className="shrink-0"/><span className="truncate">{folder.name}</span></button>
-              <div className="flex shrink-0 items-center">
-                <button type="button" onClick={() => void renameFolder(folder)} title="Rename folder" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={12}/></button>
-                <button type="button" onClick={() => void removeFolder(folder)} title="Delete empty folder" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:text-[var(--vyra-danger)]"><Trash2 size={12}/></button>
-              </div>
-            </div>)}
-          </div>
-        </aside>
-
-        <section className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-semibold text-[var(--vyra-text-primary)]"><Folder size={16} className="text-[var(--vyra-accent-primary)]"/>{activeFolderId ? folderById.get(activeFolderId)?.name ?? 'Folder' : 'All files'}</div>
-              <p className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{filteredItems.length} shown · {folderItems.length} in this folder</p>
+      <section className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav aria-label="Folder path" className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
+            {activeFolderId !== null && <button type="button" onClick={() => navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)} aria-label="Go to parent folder" className="mr-1 grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><ArrowLeft size={15}/></button>}
+            <button type="button" onClick={() => navigateToFolder(null)} className={`rounded-md px-2 py-1.5 font-semibold ${activeFolderId === null ? 'text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>My Media Library</button>
+            {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}>
+              <ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/>
+              <button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className={`max-w-40 truncate rounded-md px-2 py-1.5 ${index === breadcrumbs.length - 1 ? 'font-semibold text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>{folder.name}</button>
+            </React.Fragment>)}
+          </nav>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
+              <button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button>
+              <button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
-                <button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button>
-                <button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button>
-              </div>
-              <button type="button" onClick={() => void refresh()} disabled={loading || busy} aria-label="Refresh library" className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><RefreshCw size={14}/></button>
-            </div>
+            <button type="button" onClick={() => void refresh()} disabled={loading || busy} aria-label="Refresh library" className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><RefreshCw size={14}/></button>
           </div>
+        </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] text-[var(--vyra-text-muted)]">{visibleFolders.length} folders · {filteredItems.length} files</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {([
               ['all','All'],['image','Images'],['video','Videos'],['audio','Audio'],['document','Documents'],['other','Other'],
             ] as [FilterKind,string][]).map(([value,label]) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-8 rounded-full border px-3 text-[11px] font-medium transition ${filter === value ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/10 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>{label}</button>)}
           </div>
+        </div>
 
-          {selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2">
-            <button type="button" onClick={toggleAllVisible} className="inline-flex min-h-8 items-center gap-1.5 px-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><Check size={14}/>{selectedIds.length} selected</button>
-            <select aria-label="Move selected files to folder" defaultValue="" onChange={(event) => void moveSelected(event)} className="min-h-8 max-w-48 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]">
-              <option value="" disabled>Move to folder…</option><option value="__root__">Root</option>
-              {folderTree.map(({folder,depth}) => <option key={folder.id} value={folder.id}>{'— '.repeat(depth)}{folder.name}</option>)}
-            </select>
-            <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5"><Trash2 size={13}/> Delete</button>
-            <button type="button" onClick={() => setSelectedIds([])} className="ml-auto grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Clear selection"><X size={14}/></button>
-          </div>}
+        {selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2">
+          <button type="button" onClick={toggleAllVisible} className="inline-flex min-h-8 items-center gap-1.5 px-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><Check size={14}/>{selectedIds.length} selected</button>
+          <select aria-label="Move selected files to folder" defaultValue="" onChange={(event) => void moveSelected(event)} className="min-h-8 max-w-48 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]">
+            <option value="" disabled>Move to folder…</option><option value="__root__">My Media Library</option>
+            {folderTree.map(({folder,depth}) => <option key={folder.id} value={folder.id}>{'— '.repeat(depth)}{folder.name}</option>)}
+          </select>
+          <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5"><Trash2 size={13}/> Delete</button>
+          <button type="button" onClick={() => setSelectedIds([])} className="ml-auto grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Clear selection"><X size={14}/></button>
+        </div>}
 
-          {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-[var(--vyra-text-muted)]"><Loader2 size={17} className="animate-spin"/> Loading Media Library…</div>
-          : filteredItems.length ? view === 'grid' ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {filteredItems.map((item) => <article key={item.id} className={`group min-w-0 overflow-hidden rounded-xl border bg-[var(--vyra-bg-surface)] ${selectedIds.includes(item.id) ? 'border-[var(--vyra-accent-primary)] ring-1 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)]'}`}>
-              <div className="relative">
-                <button type="button" onClick={() => openItem(item)} className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">
-                  {kindOf(item.mime_type) === 'image' && item.signed_url ? <img src={item.signed_url} alt={item.file_name} loading="lazy" className="h-full w-full object-cover"/> : <span className="grid size-12 place-items-center rounded-xl bg-[var(--vyra-bg-surface)]">{iconFor(item.mime_type,25)}</span>}
-                </button>
-                <button type="button" onClick={() => toggleSelected(item.id)} aria-label={selectedIds.includes(item.id) ? 'Deselect '+item.file_name : 'Select '+item.file_name} aria-pressed={selectedIds.includes(item.id)} className={`absolute left-2 top-2 grid size-7 place-items-center rounded-md border shadow-sm ${selectedIds.includes(item.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-slate-950' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-transparent opacity-80 group-hover:text-[var(--vyra-text-muted)]'}`}><Check size={14}/></button>
-              </div>
-              <div className="min-w-0 p-3">
-                <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]" title={item.file_name}>{item.file_name}</p>
-                <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">{formatBytes(Number(item.size_bytes))} · {dateLabel(item.created_at)}</p>
-                <div className="mt-2 flex items-center justify-between gap-1">
-                  <span className="truncate text-[10px] capitalize text-[var(--vyra-text-muted)]">{item.source_kind === 'vyral_asset' ? 'AI Chat / Vyral' : item.source_kind === 'generated' ? 'AI generated' : 'Upload'}</span>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <button type="button" onClick={() => void renameItem(item)} title="Rename" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={12}/></button>
-                    <button type="button" onClick={() => item.signed_url && window.open(item.signed_url, '_blank', 'noopener,noreferrer')} title="Download / open" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Download size={12}/></button>
-                  </div>
+        {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-[var(--vyra-text-muted)]"><Loader2 size={17} className="animate-spin"/> Loading Media Library…</div>
+        : (visibleFolders.length > 0 || filteredItems.length > 0) ? view === 'grid' ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {visibleFolders.map((folder) => <article key={folder.id} className="group flex min-w-0 items-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 hover:border-[var(--vyra-accent-primary)]/60">
+            <button type="button" onClick={() => navigateToFolder(folder.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className="grid size-11 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={23}/></span><span className="min-w-0"><span className="block truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span><span className="mt-1 block text-[10px] text-[var(--vyra-text-muted)]">Open folder</span></span></button>
+            {folderActions(folder)}
+          </article>)}
+          {filteredItems.map((item) => <article key={item.id} className={`group min-w-0 overflow-hidden rounded-xl border bg-[var(--vyra-bg-surface)] ${selectedIds.includes(item.id) ? 'border-[var(--vyra-accent-primary)] ring-1 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)]'}`}>
+            <div className="relative">
+              <button type="button" onClick={() => openItem(item)} className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">
+                {kindOf(item.mime_type) === 'image' && item.signed_url ? <img src={item.signed_url} alt={item.file_name} loading="lazy" className="h-full w-full object-cover"/> : <span className="grid size-12 place-items-center rounded-xl bg-[var(--vyra-bg-surface)]">{iconFor(item.mime_type,25)}</span>}
+              </button>
+              <button type="button" onClick={() => toggleSelected(item.id)} aria-label={selectedIds.includes(item.id) ? 'Deselect '+item.file_name : 'Select '+item.file_name} aria-pressed={selectedIds.includes(item.id)} className={`absolute left-2 top-2 grid size-7 place-items-center rounded-md border shadow-sm ${selectedIds.includes(item.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-slate-950' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-transparent opacity-80 group-hover:text-[var(--vyra-text-muted)]'}`}><Check size={14}/></button>
+            </div>
+            <div className="min-w-0 p-3">
+              <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]" title={item.file_name}>{item.file_name}</p>
+              <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">{formatBytes(Number(item.size_bytes))} · {dateLabel(item.created_at)}</p>
+              <div className="mt-2 flex items-center justify-between gap-1">
+                <span className="truncate text-[10px] capitalize text-[var(--vyra-text-muted)]">{item.source_kind === 'vyral_asset' ? 'AI Chat / Vyral' : item.source_kind === 'generated' ? 'AI generated' : 'Upload'}</span>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button type="button" onClick={() => void renameItem(item)} title="Rename" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={12}/></button>
+                  <button type="button" onClick={() => item.signed_url && window.open(item.signed_url, '_blank', 'noopener,noreferrer')} title="Download / open" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Download size={12}/></button>
                 </div>
               </div>
-            </article>)}
-          </div> : <div className="overflow-x-auto rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-            <div className="min-w-[560px]">
+            </div>
+          </article>)}
+        </div> : <div className="overflow-x-auto rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+          <div className="min-w-[560px]">
             <div className="flex min-h-9 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]"><button type="button" onClick={toggleAllVisible} aria-label="Select all visible files" className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]"><Check size={13}/></button><span className="min-w-0 flex-1">Name</span><span className="w-20">Type</span><span className="w-20 text-right">Size</span><span className="w-24 text-right">Date</span><span className="w-16 text-right">Actions</span></div>
+            {visibleFolders.map((folder) => <div key={folder.id} className="flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0">
+              <span className="grid size-7 shrink-0 place-items-center text-[var(--vyra-accent-primary)]"><Folder size={16}/></span>
+              <button type="button" onClick={() => navigateToFolder(folder.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left"><span className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span><ChevronRight size={13} className="text-[var(--vyra-text-muted)]"/></button>
+              <span className="w-20 text-[10px] text-[var(--vyra-text-muted)]">Folder</span><span className="w-20 text-right text-[10px] text-[var(--vyra-text-muted)]">—</span><span className="w-24 text-right text-[10px] text-[var(--vyra-text-muted)]">—</span>
+              {folderActions(folder)}
+            </div>)}
             {filteredItems.map((item) => <div key={item.id} className={`flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0 ${selectedIds.includes(item.id) ? 'bg-[var(--vyra-accent-primary)]/5' : ''}`}>
               <button type="button" onClick={() => toggleSelected(item.id)} aria-label={'Select '+item.file_name} className={`grid size-7 shrink-0 place-items-center rounded border ${selectedIds.includes(item.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-slate-950' : 'border-[var(--vyra-border)] text-transparent'}`}><Check size={13}/></button>
               <button type="button" onClick={() => openItem(item)} className="flex min-w-0 flex-1 items-center gap-2 text-left"><span className="text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,16)}</span><span className="truncate text-xs font-medium text-[var(--vyra-text-primary)]">{item.file_name}</span></button>
               <span className="w-20 truncate text-[10px] capitalize text-[var(--vyra-text-muted)]">{kindOf(item.mime_type)}</span><span className="w-20 text-right text-[10px] tabular-nums text-[var(--vyra-text-muted)]">{formatBytes(Number(item.size_bytes))}</span><span className="w-24 text-right text-[10px] text-[var(--vyra-text-muted)]">{dateLabel(item.created_at)}</span>
               <span className="flex w-16 justify-end"><button type="button" onClick={() => void renameItem(item)} title="Rename" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={12}/></button><button type="button" onClick={() => item.signed_url && window.open(item.signed_url, '_blank', 'noopener,noreferrer')} title="Download" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Download size={12}/></button></span>
             </div>)}
-            </div>
-          </div> : <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-10 text-center">
-            <div className="grid size-12 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={23}/></div>
-            <h3 className="mt-3 text-sm font-semibold text-[var(--vyra-text-primary)]">{searchQuery || filter !== 'all' ? 'No matching files' : activeFolderId ? 'This folder is empty' : 'Your Media Library is empty'}</h3>
-            <p className="mt-1 max-w-sm text-xs leading-5 text-[var(--vyra-text-secondary)]">{searchQuery || filter !== 'all' ? 'Try a different search or file filter.' : 'Upload images, videos, audio and documents. AI Chat and Vyral Assets will also appear here.'}</p>
-            {!searchQuery && filter === 'all' && <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950"><Plus size={14}/> Upload your first file</button>}
-          </div>}
-        </section>
-      </div>
+          </div>
+        </div> : <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-10 text-center">
+          <div className="grid size-12 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><FolderOpen size={23}/></div>
+          <h3 className="mt-3 text-sm font-semibold text-[var(--vyra-text-primary)]">{searchQuery || filter !== 'all' ? 'No matching items' : activeFolderId ? 'This folder is empty' : 'Your Media Library is empty'}</h3>
+          <p className="mt-1 max-w-sm text-xs leading-5 text-[var(--vyra-text-secondary)]">{searchQuery || filter !== 'all' ? 'Try a different search or file filter.' : 'Upload files here or create a folder. Open folders to organize your media.'}</p>
+          {!searchQuery && filter === 'all' && <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950"><Plus size={14}/> Upload files</button>}
+        </div>}
+      </section>
 
       {previewItem && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={'Preview '+previewItem.file_name} onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewItem(null); }}>
         <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
