@@ -121,6 +121,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   const unsupportedOriginalPath = unsupportedItem.storage_path;
   const invalidImage = Buffer.from('not-a-decodable-image');
   const uploadedThumbnailPaths: string[] = [];
+  const uploadedOriginalPaths: string[] = [];
   const originalObjectMutations: string[] = [];
   const observedRequests: string[] = [];
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGO8o2HDQApgIkn1qIZRDUNKAwAGbAFgcb+cnwAAAABJRU5ErkJggg==', 'base64');
@@ -204,7 +205,8 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
       const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/vyral-assets/')[1] ?? '');
       if (method === 'GET') return route.fulfill({ status: 200, contentType: objectPath === unsupportedOriginalPath ? 'image/jpeg' : 'image/png', headers: corsHeaders, body: objectPath === unsupportedOriginalPath ? invalidImage : png });
       if (method === 'POST') {
-        uploadedThumbnailPaths.push(objectPath);
+        if (objectPath.includes('/media-library-thumbnails/')) uploadedThumbnailPaths.push(objectPath);
+        else if (objectPath.includes('/media-library/')) uploadedOriginalPaths.push(objectPath);
         return json(route, { Key: objectPath });
       }
       if (method === 'DELETE' || method === 'PUT') {
