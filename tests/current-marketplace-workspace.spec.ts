@@ -343,7 +343,21 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   // Verify the actual desktop double-click gesture, not just the keyboard fallback.
   await fileRow.press('Space');
   await expect(fileRow).toHaveAttribute('aria-pressed', 'false');
+  await page.evaluate(() => {
+    const state = window as unknown as { __mediaLibraryGestureEvents: string[] };
+    state.__mediaLibraryGestureEvents = [];
+    document.addEventListener('pointerdown', (event) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-testid^="media-library-entry-"]') : null;
+      if (target) state.__mediaLibraryGestureEvents.push('pointerdown:' + (event as PointerEvent).pointerType + ':' + target.getAttribute('data-testid'));
+    }, true);
+    document.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-testid^="media-library-entry-"]') : null;
+      if (target) state.__mediaLibraryGestureEvents.push('click:' + event.detail + ':' + target.getAttribute('data-testid'));
+    }, true);
+  });
   await fileRow.dblclick({ delay: 250 });
+  console.log('MEDIA_LIBRARY_DOUBLE_CLICK_EVENTS', JSON.stringify(await page.evaluate(() => (window as unknown as { __mediaLibraryGestureEvents: string[] }).__mediaLibraryGestureEvents)));
+  console.log('MEDIA_LIBRARY_DOUBLE_CLICK_BREADCRUMB', JSON.stringify(await page.getByRole('button', { name: 'My Media', exact: true }).allTextContents()));
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').locator('#media-library-preview-title')).toHaveText('legacy-sample.png');
   await page.getByRole('button', { name: 'Close preview' }).click();
