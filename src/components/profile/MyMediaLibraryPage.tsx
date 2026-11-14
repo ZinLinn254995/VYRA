@@ -97,7 +97,8 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; fileName: string } | null>(null);
-  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);\n  const [stopRequested, setStopRequested] = useState(false);
+  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);
+  const [stopRequested, setStopRequested] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -106,7 +107,8 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<Entry | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);\n  const uploadAbortControllerRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
   const holdTimerRef = useRef<number | null>(null);
   const suppressClickRef = useRef<string | null>(null);
@@ -197,7 +199,10 @@ export const MyMediaLibraryPage: React.FC = () => {
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
   const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
-    const failures: Array<{ file: File; message: string }> = [];\n    const controller = new AbortController();\n    uploadAbortControllerRef.current = controller;\n    setStopRequested(false);
+    const failures: Array<{ file: File; message: string }> = [];
+    const controller = new AbortController();
+    uploadAbortControllerRef.current = controller;
+    setStopRequested(false);
     setUploadingCount(files.length);
     setUploadProgress({ completed: 0, total: files.length, fileName: files[0]?.name ?? '' });
     try {
@@ -209,15 +214,34 @@ export const MyMediaLibraryPage: React.FC = () => {
             setUploadProgress({ completed, total, fileName });
             setUploadingCount(total - completed);
           },
-          (file, cause) => failures.push({ file, message: cause.message }),\n          controller.signal,\n        );
+          (file, cause) => failures.push({ file, message: cause.message }),
+          controller.signal,
+        );
         setFailedUploads(failures);
         if (count > 0) setSelectedIds([]);
-        const stopped = controller.signal.aborted;\n        setNotice(\n          stopped\n            ? 'Upload stopped after the current file. ' + count + (count === 1 ? ' file uploaded' : ' files uploaded') + '.'\n            : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',\n        );
+        const stopped = controller.signal.aborted;
+        setNotice(
+          stopped
+            ? 'Upload stopped after the current file. ' + count + (count === 1 ? ' file uploaded' : ' files uploaded') + '.'
+            : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',
+        );
       });
       if (failures.length) {
         setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
       }
-    } finally {\n      uploadAbortControllerRef.current = null;\n      setStopRequested(false);\n      setUploadingCount(0);\n      setUploadProgress(null);\n    }\n  };\n  const requestUploadStop = () => {\n    if (!uploadAbortControllerRef.current || stopRequested) return;\n    setStopRequested(true);\n    uploadAbortControllerRef.current.abort();\n  };\n  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    } finally {
+      uploadAbortControllerRef.current = null;
+      setStopRequested(false);
+      setUploadingCount(0);
+      setUploadProgress(null);
+    }
+  };
+  const requestUploadStop = () => {
+    if (!uploadAbortControllerRef.current || stopRequested) return;
+    setStopRequested(true);
+    uploadAbortControllerRef.current.abort();
+  };
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!files.length) return;
