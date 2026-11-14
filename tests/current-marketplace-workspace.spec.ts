@@ -561,6 +561,11 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   await page.route('**/api/auth/session', (route) => json(route, { authenticated: true }));
   await page.route('**/api/ai/chat', async (route) => {
     const payload = route.request().postDataJSON() as Record<string, unknown>;
+    // The page checks provider availability before enabling the real chat composer.
+    // Keep the status ping JSON-shaped; only generation requests use SSE.
+    if (payload.ping === true) {
+      return json(route, { status: 'connected', modelName: 'gpt-4.1-mini' });
+    }
     if (Array.isArray(payload.messages)) observedChatRequests.push(payload);
     return route.fulfill({
       status: 200,
