@@ -163,7 +163,8 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(upload.includes('if (!onFileError) throw failure;'), 'Legacy callers should retain fail-fast upload behavior.');
   assert.ok(upload.includes('onFileError(file, failure);'), 'The Library should be able to collect one file failure and continue.');
   assert.ok(upload.includes('if (insertError)'));
-  assert.ok(upload.includes('remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])])'), 'A failed database insert must clean up its uploaded objects.');
+  assert.ok(upload.includes("db.from('media_library_storage_cleanup_jobs').insert"), 'A failed database insert must durably queue cleanup for its uploaded objects.');
+  assert.ok(upload.includes('remove(orphanPaths)'), 'If queue persistence is unavailable, failed database inserts must attempt immediate orphan cleanup.');
 
   const folderRenameStart = service.indexOf('export async function renameMediaLibraryFolder');
   const folderRenameEnd = service.indexOf('export async function deleteMediaLibraryFolder', folderRenameStart);
