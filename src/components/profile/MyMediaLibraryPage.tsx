@@ -166,6 +166,9 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     uploadAbortControllerRef.current = null;
     setPreviewItem(null);
     setRenameTarget(null);
+    setActiveFolderId(null);
+    setServerQuery('');
+    setQuery('');
     setRenameValue('');
     setFailedUploads([]);
     setUploadingCount(0);
