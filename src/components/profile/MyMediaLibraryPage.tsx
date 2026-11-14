@@ -87,7 +87,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   const withBusy = async (task: () => Promise<void>, success?: string) => {
     setBusy(true); setError(null); setNotice(null);
     try { await task(); if (success) setNotice(success); await refresh(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
+    catch (cause) { await refresh(); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
   };
 
@@ -192,7 +192,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
           <div className="mt-1 space-y-0.5">
             {folderTree.map(({ folder, depth }) => <div key={folder.id} className="group flex items-center gap-1">
               <button type="button" onClick={() => { setActiveFolderId(folder.id); setSelectedIds([]); }} className={`flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg pr-1 text-left text-xs ${activeFolderId === folder.id ? 'bg-[var(--vyra-bg-hover)] font-semibold text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`} style={{ paddingLeft: 12 + depth * 12 }}><Folder size={14} className="shrink-0"/><span className="truncate">{folder.name}</span></button>
-              <div className="hidden shrink-0 items-center group-hover:flex">
+              <div className="flex shrink-0 items-center">
                 <button type="button" onClick={() => void renameFolder(folder)} title="Rename folder" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={12}/></button>
                 <button type="button" onClick={() => void removeFolder(folder)} title="Delete empty folder" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:text-[var(--vyra-danger)]"><Trash2 size={12}/></button>
               </div>
@@ -252,7 +252,8 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
                 </div>
               </div>
             </article>)}
-          </div> : <div className="overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+          </div> : <div className="overflow-x-auto rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+            <div className="min-w-[560px]">
             <div className="flex min-h-9 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]"><button type="button" onClick={toggleAllVisible} aria-label="Select all visible files" className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]"><Check size={13}/></button><span className="min-w-0 flex-1">Name</span><span className="w-20">Type</span><span className="w-20 text-right">Size</span><span className="w-24 text-right">Date</span><span className="w-16 text-right">Actions</span></div>
             {filteredItems.map((item) => <div key={item.id} className={`flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0 ${selectedIds.includes(item.id) ? 'bg-[var(--vyra-accent-primary)]/5' : ''}`}>
               <button type="button" onClick={() => toggleSelected(item.id)} aria-label={'Select '+item.file_name} className={`grid size-7 shrink-0 place-items-center rounded border ${selectedIds.includes(item.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-slate-950' : 'border-[var(--vyra-border)] text-transparent'}`}><Check size={13}/></button>
@@ -260,6 +261,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
               <span className="w-20 truncate text-[10px] capitalize text-[var(--vyra-text-muted)]">{kindOf(item.mime_type)}</span><span className="w-20 text-right text-[10px] tabular-nums text-[var(--vyra-text-muted)]">{formatBytes(Number(item.size_bytes))}</span><span className="w-24 text-right text-[10px] text-[var(--vyra-text-muted)]">{dateLabel(item.created_at)}</span>
               <span className="flex w-16 justify-end"><button type="button" onClick={() => void renameItem(item)} title="Rename" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Pencil size={12}/></button><button type="button" onClick={() => item.signed_url && window.open(item.signed_url, '_blank', 'noopener,noreferrer')} title="Download" className="grid size-7 place-items-center rounded text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><Download size={12}/></button></span>
             </div>)}
+            </div>
           </div> : <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-10 text-center">
             <div className="grid size-12 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={23}/></div>
             <h3 className="mt-3 text-sm font-semibold text-[var(--vyra-text-primary)]">{searchQuery || filter !== 'all' ? 'No matching files' : activeFolderId ? 'This folder is empty' : 'Your Media Library is empty'}</h3>
