@@ -330,3 +330,11 @@ test('OpenAI browser stream surfaces provider errors emitted after streaming beg
   assert.match(service, /if \(finished \|\| streamError\) \{[\s\S]*?await reader\.cancel\(\)/);
   assert.match(service, /if \(!finished && !streamError && buffer\.trim\(\)\) consumeLine\(buffer\)/);
 });
+
+
+test('OpenAI chat route parses standard bearer tokens consistently for health checks and chat requests', () => {
+  const source = read('src/server/ai.ts');
+  const route = source.slice(source.indexOf("router.post('/ai/chat'"));
+  assert.match(route, /const bearer = \/\^Bearer \(\[\^\\s\]\+\)\$\/i\.exec\(req\.header\('authorization'\) \?\? ''\);/);
+  assert.doesNotMatch(route, /\[\^\\\\s\]/);
+});
