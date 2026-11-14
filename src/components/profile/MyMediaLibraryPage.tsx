@@ -49,7 +49,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
       const result = await loadMediaLibrary();
       setFolders(result.folders);
       setItems(result.items);
-      setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id)));
+      setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
     } finally {
