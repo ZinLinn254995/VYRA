@@ -340,7 +340,9 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   expect(uploadedRecord?.folder_id).toBe('e2e-folder-archive');
   // Moving into a different folder removes the file from the root listing.
   // Open the destination folder before asserting/deleting the moved file.
-  await page.getByTestId('media-library-entry-e2e-folder-archive').dblclick();
+  const archiveFolderRow = page.getByTestId('media-library-entry-e2e-folder-archive');
+  await archiveFolderRow.focus();
+  await archiveFolderRow.press('Enter');
   const movedFileRow = page.getByTestId('media-library-entry-' + uploadedRecord!.id);
   await expect(movedFileRow).toBeVisible();
   await movedFileRow.click();
