@@ -334,8 +334,8 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await expect(page.getByText('1 file moved.')).toBeVisible();
   expect(uploadedRecord?.folder_id).toBe('e2e-folder-archive');
   await page.getByTestId('media-library-entry-' + uploadedRecord!.id).click();
-  await page.getByRole('button', { name: 'Delete selected items' }).click();
   page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Delete selected items' }).click();
   await expect.poll(() => deletedMediaItemIds.includes(uploadedRecord!.id)).toBe(true);
   await expect(page.getByTestId('media-library-entry-' + uploadedRecord!.id)).toHaveCount(0);
 
