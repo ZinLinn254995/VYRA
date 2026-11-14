@@ -148,6 +148,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     };
   }, [previewItem, renameTarget]);
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
+  const thumbnailBackfillStartedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
@@ -179,9 +180,10 @@ export const MyMediaLibraryPage: React.FC = () => {
     let mounted = true;
     const initializeLibrary = async () => {
       await refresh();
-      if (!mounted) return;
+      if (!mounted || thumbnailBackfillStartedRef.current) return;
+      thumbnailBackfillStartedRef.current = true;
       try {
-        // Backfill only four legacy image/video files per visit; never block first paint.
+        // Backfill only once per page visit, even when folder/search filters change.
         const generated = await backfillMediaLibraryThumbnails(4);
         if (mounted && generated > 0) await refresh(true);
       } catch {
@@ -242,7 +244,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       .map((folder) => ({ id: folder.id, name: folder.name, folder, item: null }));
     const currentItems = items.filter((item) => item.folder_id === activeFolderId)
       .filter((item) => filter === 'all' || kindOf(item.mime_type) === filter)
-      .filter((item) => !normalized || item.file_name.toLocaleLowerCase().includes(normalized) || item.mime_type.toLocaleLowerCase().includes(normalized))
+      .filter((item) => !normalized || item.file_name.toLocaleLowerCase().includes(normalized))
       .map((item) => ({ id: item.id, name: item.file_name, folder: null, item }));
     const compare = (a: Entry, b: Entry) => {
       if (a.folder && !b.folder) return -1;
@@ -258,7 +260,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     catch (cause) { await refresh(); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
   };
-  const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
+  const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); setServerQuery(''); };
   const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
     const failures: Array<{ file: File; message: string }> = [];
