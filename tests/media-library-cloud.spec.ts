@@ -428,6 +428,8 @@ test('Workspace clears owner-bound editor state and resets sync freshness when t
   assert.ok(workspace.includes("setTitle('')") && workspace.includes("setTopic('')"), 'Unsubmitted Storyboard form data must be cleared for the next account.');
   assert.ok(workspace.includes('setSelectedSceneIds([])') && workspace.includes('setActiveSceneId(null)'), 'Scene selections must not leak across account boundaries.');
   assert.ok(workspace.includes("setSceneVideoPreviewUrl('')"), 'A previous account’s signed video preview must be discarded.');
+  assert.ok(workspace.includes('setIsDeletingStoryboard(false)'), 'A previous account’s pending delete state must not lock the next account’s Workspace.');
+  assert.ok(workspace.includes('setSceneVideoPreviewSourceOut(null)'), 'Video trim state must not carry into another account’s editor.');
   assert.ok(workspace.includes('useLayoutEffect(() => {\n    const storageOwnerChanged'), 'Owner-bound state must be cleared before the next account is painted.');
 });
 
