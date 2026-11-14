@@ -415,3 +415,10 @@ test('Workspace reuses local Storyboards and syncs quietly after navigation', ()
   assert.ok(workspace.includes('if (!isAuthenticated || !client || loadedStorageKey !== storageKey || !isActive) return;'), 'Hidden Workspace must not start background cloud sync.');
   assert.ok(workspace.includes('void syncStoryboards(lastStoryboardSyncAtRef.current > 0)'), 'Returning to Workspace should use a quiet sync after the first successful load.');
 });
+
+
+test('My Vyrals deletes one local list entry without refetching the entire collection', () => {
+  const page = read('src/components/profile/MyVyralsPage.tsx');
+  assert.ok(page.includes("setVyrals((current) => current.filter((vyral) => vyral.id !== item.id))"), 'A confirmed delete should remove only the affected Vyral from the visible list.');
+  assert.ok(!page.includes('else { if (activeId === item.id) setActiveId(null); await loadVyrals(); }'), 'Deleting one Vyral must not trigger a full collection reload.');
+});
