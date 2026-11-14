@@ -97,7 +97,8 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(service.includes('if (insertError)'));
   assert.ok(service.includes('thumbnailPath ? [thumbnailPath] : []'), 'Deleting standalone uploads should also remove their thumbnail objects.');
   assert.ok(service.includes('Thumbnail generation is best-effort'), 'Thumbnail failures must not invalidate original uploads.');
-  assert.ok(service.includes('Removing a Library shortcut must never delete that canonical object'));
+  assert.ok(service.includes('Vyral-backed canonical binaries are never queued.'), 'Removing a Library shortcut must never delete that canonical object.');
+  assert.ok(read('supabase/migrations/20261114180000_media_library_storage_cleanup_queue.sql').includes('and item.source_asset_id is null'), 'The atomic cleanup RPC must exclude canonical Vyral assets.');
 });
 
 test('My Media Library UI includes required organization, filtering, views and multi-select', () => {
