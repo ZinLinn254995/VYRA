@@ -213,7 +213,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   // Retained pages stay mounted to preserve their data, but transient dialogs
   // must not remain open (or keep the document scroll-locked) after navigation.
   useEffect(() => {
-    if (!isActive) setCreateOpen(false);
+    if (!isActive) {
+      setCreateOpen(false);
+      setStoryboardToDelete(null);
+    }
   }, [isActive]);
 
   // Measure the sticky handoff point and fixed header dimensions once. Reading
