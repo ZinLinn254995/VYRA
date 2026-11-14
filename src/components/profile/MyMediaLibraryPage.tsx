@@ -375,6 +375,17 @@ export const MyMediaLibraryPage: React.FC = () => {
     }, 'Folder moved.');
     event.target.value = '';
   };
+  const downloadPreviewOriginal = () => {
+    if (!previewItem?.signed_url) return;
+    const downloadUrl = new URL(previewItem.signed_url);
+    downloadUrl.searchParams.set('download', previewItem.file_name);
+    const anchor = document.createElement('a');
+    anchor.href = downloadUrl.toString();
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.click();
+  };
+
   const deleteSelected = async () => {
     if (!selectedIds.length || !window.confirm('Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
     await withBusy(async () => {
@@ -515,7 +526,7 @@ export const MyMediaLibraryPage: React.FC = () => {
 
       {previewItem && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={'Preview '+previewItem.file_name} onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewItem(null); }}>
         <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-          <div className="flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-4"><span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{previewItem.file_name}</span><button type="button" onClick={() => previewItem.signed_url && window.open(previewItem.signed_url, '_blank', 'noopener,noreferrer')} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Open original file"><Download size={16}/></button><button type="button" onClick={() => setPreviewItem(null)} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close preview"><X size={17}/></button></div>
+          <div className="flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-4"><span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{previewItem.file_name}</span><button type="button" onClick={downloadPreviewOriginal} disabled={!previewItem.signed_url} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40" aria-label="Download original file"><Download size={16}/></button><button type="button" onClick={() => setPreviewItem(null)} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close preview"><X size={17}/></button></div>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/5 p-4">
             {kindOf(previewItem.mime_type) === 'image' ? <img src={previewItem.signed_url ?? ''} alt={previewItem.file_name} className="max-h-[72vh] max-w-full object-contain"/> : kindOf(previewItem.mime_type) === 'video' ? <video src={previewItem.signed_url ?? ''} controls playsInline className="max-h-[72vh] max-w-full"/> : kindOf(previewItem.mime_type) === 'audio' ? <audio src={previewItem.signed_url ?? ''} controls className="w-full max-w-xl"/> : previewItem.mime_type === 'application/pdf' ? <iframe src={previewItem.signed_url ?? ''} title={'PDF preview: ' + previewItem.file_name} className="h-[72vh] w-full rounded-lg bg-white"/> : <div className="py-12 text-center text-[var(--vyra-text-secondary)]"><div className="mb-3 flex justify-center">{iconFor(previewItem.mime_type,34)}</div><p className="text-sm">{previewItem.file_name}</p><p className="mt-1 text-xs">Preview is not available for this file type.</p></div>}
           </div>
