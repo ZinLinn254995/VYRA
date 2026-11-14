@@ -110,7 +110,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     };
     return [...currentFolders, ...currentItems].sort(compare);
-  }, [folders, items, activeFolderId, filter, query, sortKey, sortAscending]);
+  }, [folders, items, activeFolderId, filter, query]);
 
   const withBusy = async (task: () => Promise<void>, success?: string) => {
     setBusy(true); setError(null); setNotice(null);
