@@ -137,6 +137,7 @@ test('My Media Library UI includes required organization, filtering, views and m
     "dialog.querySelectorAll<HTMLElement>(",
     "last.focus()",
     "first.focus()",
+    'autoFocus onClick={() => setPreviewItem(null)}',
     "event.key === 'Enter'", "event.key === ' '", 'toggleSelected(entry.id)',
   ]) assert.ok(page.includes(snippet), 'Missing Media Library UI feature: ' + snippet);
   assert.ok(!page.includes('<aside'), 'Folder tree sidebar should not replace standard file-manager navigation.');
