@@ -122,6 +122,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   const invalidImage = Buffer.from('not-a-decodable-image');
   const uploadedThumbnailPaths: string[] = [];
   const uploadedOriginalPaths: string[] = [];
+  const deletedMediaItemIds: string[] = [];
   const originalObjectMutations: string[] = [];
   const observedRequests: string[] = [];
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGO8o2HDQApgIkn1qIZRDUNKAwAGbAFgcb+cnwAAAABJRU5ErkJggg==', 'base64');
@@ -175,6 +176,15 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
       return request.headers()['accept']?.includes('vnd.pgrst.object+json')
         ? json(route, selectedItems[0] ?? null)
         : json(route, selectedItems);
+    }
+    if (url.pathname.endsWith('/rest/v1/rpc/delete_media_library_items_and_queue_storage_cleanup') && method === 'POST') {
+      const payload = request.postDataJSON() as { p_item_ids: string[] };
+      deletedMediaItemIds.push(...payload.p_item_ids);
+      const before = items.length;
+      for (let index = items.length - 1; index >= 0; index -= 1) {
+        if (payload.p_item_ids.includes(items[index].id)) items.splice(index, 1);
+      }
+      return json(route, before - items.length);
     }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'PATCH') {
       const patch = request.postDataJSON() as Partial<(typeof items)[number]>;
@@ -299,6 +309,35 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByRole('textbox', { name: 'New name' }).fill('Project Archive');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toContainText('Project Archive');
+
+  // Exercise a real browser file selection and the file rename/move/delete actions.
+  await page.locator('input[type="file"][multiple]').setInputFiles({
+    name: 'uploaded-notes.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('VYRA Media Library browser upload test'),
+  });
+  await expect(page.getByText('1 file uploaded.')).toBeVisible();
+  await expect.poll(() => uploadedOriginalPaths.length).toBe(1);
+  const uploadedRecord = items.find((candidate) => candidate.file_name === 'uploaded-notes.txt');
+  expect(uploadedRecord).toBeTruthy();
+  expect(uploadedRecord?.storage_path).toContain(userId + '/media-library/');
+  const uploadedRow = page.getByTestId('media-library-entry-' + uploadedRecord!.id);
+  await expect(uploadedRow).toBeVisible();
+  await uploadedRow.click();
+  await page.getByRole('button', { name: 'Rename selected item' }).click();
+  await page.getByRole('textbox', { name: 'New name' }).fill('project-notes.txt');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Name updated.')).toBeVisible();
+  expect(uploadedRecord?.file_name).toBe('project-notes.txt');
+  const moveDestination = page.getByRole('combobox', { name: 'Move selected files to folder' });
+  await moveDestination.selectOption('e2e-folder-archive');
+  await expect(page.getByText('1 file moved.')).toBeVisible();
+  expect(uploadedRecord?.folder_id).toBe('e2e-folder-archive');
+  await page.getByTestId('media-library-entry-' + uploadedRecord!.id).click();
+  await page.getByRole('button', { name: 'Delete selected items' }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await expect.poll(() => deletedMediaItemIds.includes(uploadedRecord!.id)).toBe(true);
+  await expect(page.getByTestId('media-library-entry-' + uploadedRecord!.id)).toHaveCount(0);
 
   // Empty-folder deletion is confirmed through the normal selection toolbar.
   await page.getByTestId('media-library-entry-e2e-folder-created').click();
