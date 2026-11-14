@@ -253,7 +253,9 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
 
       const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
       const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
-      const thumbnailPath = userId + '/media-library-thumbnails/' + row.id + '.' + thumbnailExtension;
+      // Each worker gets its own object key: a losing concurrent metadata update
+      // must never remove the thumbnail object claimed by another worker.
+      const thumbnailPath = userId + '/media-library-thumbnails/' + row.id + '-' + crypto.randomUUID() + '.' + thumbnailExtension;
       const { error: uploadError } = await db.storage.from('vyral-assets').upload(thumbnailPath, thumbnailBlob, {
         contentType: thumbnailType, upsert: true, cacheControl: '86400',
       });
