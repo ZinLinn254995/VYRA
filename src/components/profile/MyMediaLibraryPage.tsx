@@ -40,6 +40,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -128,7 +129,12 @@ export const MyMediaLibraryPage: React.FC = () => {
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []); event.target.value = '';
     if (!files.length) return;
-    await withBusy(async () => { const count = await uploadMediaLibraryFiles(files, activeFolderId); setSelectedIds([]); setNotice(count + (count === 1 ? ' file uploaded.' : ' files uploaded.')); });
+    setUploadingCount(files.length);
+    try {
+      await withBusy(async () => { const count = await uploadMediaLibraryFiles(files, activeFolderId); setSelectedIds([]); setNotice(count + (count === 1 ? ' file uploaded.' : ' files uploaded.')); });
+    } finally {
+      setUploadingCount(0);
+    }
   };
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault(); if (!folderName.trim()) return;
@@ -239,7 +245,7 @@ export const MyMediaLibraryPage: React.FC = () => {
         <div className="flex shrink-0 items-center gap-1">
           <button type="button" onClick={() => setShowSearch((value) => !value)} className={`grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] ${showSearch ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : ''}`} aria-label={showSearch ? "Hide search" : "Show search"} title="Search"><Search size={16}/></button>
           <button type="button" onClick={() => { setCreatingFolder((value) => !value); setFolderName(''); }} disabled={busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label="New folder" title="New folder"><FolderPlus size={16}/></button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label="Upload files" title="Upload files"><Upload size={16}/></button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label={uploadingCount ? 'Uploading files' : 'Upload files'} title={uploadingCount ? 'Uploading files…' : 'Upload files'}>{uploadingCount ? <Loader2 size={16} className="animate-spin"/> : <Upload size={16}/>}</button>
           {activeFolderId && <button type="button" onClick={() => navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Go to parent folder"><ArrowLeft size={16}/></button>}
           <button type="button" onClick={() => void refresh()} disabled={loading || busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label="Refresh"><RefreshCw size={15}/></button>
         </div>
@@ -261,6 +267,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       </form>}
 
       {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5 text-xs text-[var(--vyra-danger)]"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={14}/></button></div>}
+      {uploadingCount > 0 && <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2.5 text-xs text-[var(--vyra-text-primary)]"><Loader2 size={15} className="shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><span>Uploading {uploadingCount} {uploadingCount === 1 ? 'file' : 'files'}… Please keep this page open.</span></div>}
       {notice && <div role="status" className="flex items-center justify-between gap-3 text-xs text-[var(--vyra-text-secondary)]"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13}/></button></div>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
