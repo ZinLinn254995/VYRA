@@ -596,7 +596,7 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   await page.getByRole('button', { name: 'Open chat menu' }).click();
   await page.getByRole('button', { name: 'Recent chats' }).click();
   await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeVisible();
-  await page.getByRole('button', { name: 'Hello VYRA' }).click();
+  await page.getByRole('button', { name: /^Hello VYRA\s/ }).click();
   await expect(page.getByText('Hello VYRA', { exact: true })).toBeVisible();
   await expect(page.getByText('Hello! I am VYRA.')).toBeVisible();
 
