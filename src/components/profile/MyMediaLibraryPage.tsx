@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   backfillMediaLibraryThumbnails, createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
-  loadMediaLibrary, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
+  getMediaLibraryItemSignedUrl, loadMediaLibrary, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
   renameMediaLibraryItem, uploadMediaLibraryFiles,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
@@ -356,21 +356,25 @@ export const MyMediaLibraryPage: React.FC = () => {
     }
     if (pointerTypeRef.current === 'touch') {
       if (entry.folder) navigateToFolder(entry.id);
-      else if (entry.item) {
-        modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setPreviewItem(entry.item);
-      }
+      else if (entry.item) void openEntry(entry);
     } else if (event?.detail === 2) {
       openEntry(entry);
     }
   };
-  const openEntry = (entry: Entry) => {
-    if (entry.folder) navigateToFolder(entry.id);
-    else if (entry.item?.signed_url) {
-      modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      setPreviewItem(entry.item);
+  const openEntry = async (entry: Entry) => {
+    if (entry.folder) {
+      navigateToFolder(entry.id);
+      return;
     }
-    else if (entry.item) setError('A secure preview link could not be created. Refresh and try again.');
+    if (!entry.item) return;
+    setError(null);
+    try {
+      const signedUrl = entry.item.signed_url ?? await getMediaLibraryItemSignedUrl(entry.item.id);
+      modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPreviewItem({ ...entry.item, signed_url: signedUrl });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not open this file.');
+    }
   };
   const selectedFiles = selectedIds.filter((id) => items.some((item) => item.id === id));
   const selectedFolders = selectedIds.filter((id) => folders.some((folder) => folder.id === id));
