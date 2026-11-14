@@ -46,7 +46,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     ".order('created_at', { ascending: true })",
     '.limit(batchSize)',
     ".storage.from(row.bucket_id).download(row.storage_path)",
-    "'/media-library-thumbnails/' + row.id",
+    "'/media-library-thumbnails/' + row.id + '-' + crypto.randomUUID()",
     '.update({ metadata })',
     ".select('id')",
     '.maybeSingle()',
