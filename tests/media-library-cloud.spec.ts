@@ -35,6 +35,8 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     'backfillMediaLibraryThumbnails',
     'const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8))',
     ".is('metadata->thumbnail_path', null)",
+    ".is('metadata->thumbnail_backfill_attempted_at', null)",
+    'thumbnail_backfill_attempted_at',
     ".or('mime_type.like.image/%,mime_type.like.video/%')",
     ".order('created_at', { ascending: true })",
     '.limit(batchSize)',
