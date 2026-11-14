@@ -194,7 +194,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     finally { setBusy(false); }
   };
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
-  const runUploadBatch = async (files: File[], isRetry = false) => {
+  const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
     const failures: Array<{ file: File; message: string }> = [];
     setUploadingCount(files.length);
@@ -216,10 +216,10 @@ export const MyMediaLibraryPage: React.FC = () => {
           count + (count === 1 ? ' file uploaded' : ' files uploaded') +
           (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',
         );
-        if (failures.length) {
-          setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
-        }
       });
+      if (failures.length) {
+        setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
+      }
     } finally {
       setUploadingCount(0);
       setUploadProgress(null);
@@ -237,7 +237,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     if (!retryFiles.length) return;
     setFailedUploads([]);
     setError(null);
-    await runUploadBatch(retryFiles, true);
+    await runUploadBatch(retryFiles);
   };
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault(); if (!folderName.trim()) return;
