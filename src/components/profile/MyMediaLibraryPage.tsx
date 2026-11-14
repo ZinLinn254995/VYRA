@@ -362,16 +362,28 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
             // do not reload the complete folder after each successful upload.
             void loadMediaLibraryItemsByIds([itemId]).then((updatedItems) => {
               const item = updatedItems[0];
-              if (!item || item.folder_id !== activeFolderId) return;
-              if (filter !== 'all' && kindOf(item.mime_type) !== filter) return;
-              if (serverQuery && !item.file_name.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase())) return;
+              if (!item) return;
               const mergeItem = (current: MediaLibraryItem[]) => [
                 ...current.filter((entry) => entry.id !== item.id), item,
               ].sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { numeric: true, sensitivity: 'base' })).slice(0, 100);
-              setItems((current) => mergeItem(current));
-              const cacheKey = JSON.stringify([activeFolderId, serverQuery, filter]);
-              const cached = libraryCacheRef.current.get(cacheKey);
-              if (cached) libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() });
+              // Patch every already-visited folder view that matches this file,
+              // even if the user navigated elsewhere while the upload completed.
+              for (const [cacheKey, cached] of libraryCacheRef.current) {
+                try {
+                  const [folderId, searchText, cachedFilter] = JSON.parse(cacheKey) as [string | null, string, string];
+                  if (folderId !== item.folder_id) continue;
+                  if (cachedFilter !== 'all' && kindOf(item.mime_type) !== cachedFilter) continue;
+                  if (searchText && !item.file_name.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())) continue;
+                  libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() });
+                } catch {
+                  // Ignore an invalidated cache entry; the normal refresh will rebuild it.
+                }
+              }
+              if (item.folder_id === activeFolderId
+                && (filter === 'all' || kindOf(item.mime_type) === filter)
+                && (!serverQuery || item.file_name.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase()))) {
+                setItems((current) => mergeItem(current));
+              }
             }).catch(() => {
               // The upload remains saved; a later background refresh can reconcile its preview row.
             });
