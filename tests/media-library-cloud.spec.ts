@@ -37,7 +37,6 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     "thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png'",
     "typeof item.metadata?.thumbnail_path === 'string'",
     "thumbnailSource?: File",
-    "thumbnailSource: sourceFile",
     'thumbnail_url',
     'createMediaLibraryFolder',
     'renameMediaLibraryFolder',
@@ -82,6 +81,7 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
   assert.ok(profile.includes("import { MyMediaLibraryPage }"));
   assert.ok(profile.includes('<MyMediaLibraryPage />'));
   assert.ok(chat.includes('registerVyralAssetInMediaLibrary'));
+  assert.ok(chat.includes('thumbnailSource: sourceFile'), 'AI Chat should reuse the selected File to create its Library thumbnail without re-downloading the original.');
   assert.ok(chat.includes('assetId: ingested.assetId'));
   assert.ok(chat.includes('storagePath: ingested.storagePath'));
   assert.ok(chat.includes('**My Media Library:** Added automatically.'));
