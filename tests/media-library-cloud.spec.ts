@@ -161,6 +161,14 @@ test('My Media Library UI includes required organization, filtering, views and m
   ]) assert.ok(page.includes(snippet), 'Missing Media Library UI feature: ' + snippet);
   assert.ok(!page.includes('<aside'), 'Folder tree sidebar should not replace standard file-manager navigation.');
   assert.ok(!page.includes('Open folder'), 'Folder entries should display only their icon and name.');
+  const openStart = page.indexOf('const openEntry = async (entry: Entry)');
+  const openEnd = page.indexOf('const selectedFiles =', openStart);
+  const openFlow = page.slice(openStart, openEnd);
+  assert.ok(openFlow.includes('await getMediaLibraryItemSignedUrl(entry.item.id)'), 'Original file URLs must be fetched only when a file is opened.');
+  assert.ok(openFlow.includes('setPreviewItem({ ...entry.item, signed_url: signedUrl })'), 'The preview must receive its freshly authorized URL.');
+  assert.ok(openFlow.includes('setError(cause instanceof Error ? cause.message'), 'Secure URL failures must be visible to the user.');
+  assert.ok(page.includes('else if (entry.item) void openEntry(entry)'), 'Touch preview must use the same on-demand secure URL flow.');
+  assert.ok(page.includes('getMediaLibraryItemSignedUrl, loadMediaLibrary'), 'The UI must use the owner-scoped URL service.');
   assert.ok(page.includes('downloadUrl.searchParams.set(\'download\', previewItem.file_name)'), 'Original files must use Storage download disposition with the original filename.');
   assert.ok(page.includes('aria-label="Download original file"'), 'The preview action must be exposed as a download, not an inline open.');
   assert.ok(page.includes('cleanup is queued and will retry automatically when you next open My Media Library'), 'The user must be told when storage cleanup is deferred until the next Library visit.');
