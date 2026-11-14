@@ -212,7 +212,12 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
     };
-    const handleLibraryChanged = () => { if (isActiveRef.current) void refresh(true); };
+    const handleLibraryChanged = () => {
+      for (const [key, cached] of libraryCacheRef.current) {
+        libraryCacheRef.current.set(key, { ...cached, cachedAt: 0 });
+      }
+      if (isActiveRef.current) void refresh(true);
+    };
     const handlePageActivated = (event: Event) => {
       const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
       isActiveRef.current = page === 'profile:my-media-library';
