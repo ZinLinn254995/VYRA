@@ -126,18 +126,66 @@ export async function processMediaLibraryStorageCleanup(limit = 4): Promise<numb
   return completed;
 }
 
-export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[]; items: MediaLibraryItem[] }> {
+export type MediaLibraryFilter = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
+export type MediaLibraryPageOptions = {
+  folderId?: string | null;
+  offset?: number;
+  limit?: number;
+  search?: string;
+  filter?: MediaLibraryFilter;
+};
+
+export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): Promise<{
+  folders: MediaLibraryFolder[];
+  items: MediaLibraryItem[];
+  hasMore: boolean;
+}> {
   const db = getDb();
   const ownerId = await getOwnerId();
-  // Cleanup is best-effort and owner-scoped; it must never prevent the Library from opening.
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 100)));
   void processMediaLibraryStorageCleanup(4).catch(() => undefined);
+
+  let itemQuery = db.from('media_library_items')
+    .select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId);
+  if (options.folderId === null) itemQuery = itemQuery.is('folder_id', null);
+  else if (options.folderId) itemQuery = itemQuery.eq('folder_id', options.folderId);
+
+  const search = options.search?.trim();
+  if (search) {
+    const term = search.replace(/[(),]/g, ' ').replace(/[%_\\]/g, (value) => '\\\\' + value).trim();
+    if (term) itemQuery = itemQuery.ilike('file_name', '%' + term + '%');
+  }
+
+  switch (options.filter ?? 'all') {
+    case 'image': itemQuery = itemQuery.like('mime_type', 'image/%'); break;
+    case 'video': itemQuery = itemQuery.like('mime_type', 'video/%'); break;
+    case 'audio': itemQuery = itemQuery.like('mime_type', 'audio/%'); break;
+    case 'document':
+      itemQuery = itemQuery.or('mime_type.eq.application/pdf,mime_type.ilike.%word%,mime_type.ilike.%officedocument%,mime_type.like.text/%');
+      break;
+    case 'other':
+      itemQuery = itemQuery
+        .not('mime_type', 'like', 'image/%')
+        .not('mime_type', 'like', 'video/%')
+        .not('mime_type', 'like', 'audio/%')
+        .not('mime_type', 'eq', 'application/pdf')
+        .not('mime_type', 'ilike', '%word%')
+        .not('mime_type', 'ilike', '%officedocument%')
+        .not('mime_type', 'like', 'text/%');
+      break;
+  }
+
   const [folderResult, itemResult] = await Promise.all([
     db.from('media_library_folders').select('id,user_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId).order('name'),
-    db.from('media_library_items').select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at').eq('user_id', ownerId).order('created_at', { ascending: false }),
+    itemQuery.order('file_name', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limit),
   ]);
   if (folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
   if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
-  const rawItems = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
+  const rawPage = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
+  const hasMore = rawPage.length > limit;
+  const rawItems = rawPage.slice(0, limit);
   const items = await mapWithConcurrency(rawItems, 8, async (item) => {
     const thumbnailPath = typeof item.metadata?.thumbnail_path === 'string' ? item.metadata.thumbnail_path : null;
     try {
@@ -145,15 +193,12 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
       const thumbnail = thumbnailPath
         ? await storage.createSignedUrl(thumbnailPath, 60 * 60)
         : { data: null, error: null };
-      // Original files are signed only when a user opens or downloads them.
-      // This keeps large Libraries from issuing one extra Storage request per item on load.
       return { ...item, signed_url: null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
     } catch {
-      // A temporary signed-URL failure for one file must not hide the rest of the Library.
       return { ...item, signed_url: null, thumbnail_url: null };
     }
   });
-  return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
+  return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items, hasMore };
 }
 
 /** Create a short-lived original-file URL only when the owner opens or downloads an item. */
