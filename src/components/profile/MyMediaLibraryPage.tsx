@@ -160,6 +160,17 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     // Never render a previous account's private rows or signed thumbnail URLs.
     cacheOwnerRef.current = ownerId;
     libraryCacheRef.current.clear();
+    ++libraryRequestRef.current;
+    ++loadMoreRequestRef.current;
+    uploadAbortControllerRef.current?.abort();
+    uploadAbortControllerRef.current = null;
+    setPreviewItem(null);
+    setRenameTarget(null);
+    setRenameValue('');
+    setFailedUploads([]);
+    setUploadingCount(0);
+    setUploadProgress(null);
+    setBusy(false);
     setFolders([]);
     setItems([]);
     setHasMoreItems(false);
@@ -381,7 +392,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
             // do not reload the complete folder after each successful upload.
             void loadMediaLibraryItemsByIds([itemId]).then((updatedItems) => {
               const item = updatedItems[0];
-              if (!item) return;
+              if (!item || cacheOwnerRef.current !== ownerId) return;
               const mergeItem = (current: MediaLibraryItem[]) => [
                 ...current.filter((entry) => entry.id !== item.id), item,
               ].sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { numeric: true, sensitivity: 'base' })).slice(0, 100);
