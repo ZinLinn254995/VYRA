@@ -196,14 +196,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </>
       ) : activePage === 'my-vyrals' || activePage === 'my-media-library' ? null : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
-          {activePage !== 'my-media-library' && <ProfileSubpageHeader
+          <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
             backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
             icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
             search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
-          />}
+          />
           <div className="profile-subpage-content p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
             {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
