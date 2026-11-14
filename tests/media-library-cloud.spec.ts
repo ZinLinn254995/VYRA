@@ -18,7 +18,7 @@ test('Media Library database is cloud-backed and owner-isolated', () => {
   assert.ok(safeMoves.includes('with recursive descendants(id)'));
   assert.ok(safeMoves.includes('union'));
   assert.ok(safeMoves.includes('A folder cannot be moved into one of its descendants'));
-  const safeDelete = read('supabase/migrations/20261114170000_media_library_prevent_nonempty_folder_delete.sql');
+  const safeDelete = read('supabase/migrations/20261114151320_media_library_prevent_nonempty_folder_delete.sql');
   assert.ok(safeDelete.includes('prevent_nonempty_media_library_folder_delete'));
   assert.ok(safeDelete.includes('before delete on public.media_library_folders'));
   assert.ok(safeDelete.includes('parent_id = old.id'), 'The database must reject deletion while child folders remain.');
