@@ -21,7 +21,7 @@ create table if not exists public.media_library_items (
   folder_id uuid references public.media_library_folders(id) on delete set null,
   source_kind text not null default 'upload'
     check (source_kind in ('upload','vyral_asset','generated')),
-  source_asset_id uuid references public.vyral_assets(id) on delete set null,
+  source_asset_id uuid references public.vyral_assets(id) on delete cascade,
   bucket_id text not null default 'vyral-assets' check (bucket_id = 'vyral-assets'),
   storage_path text not null,
   file_name text not null check (length(btrim(file_name)) between 1 and 255),
