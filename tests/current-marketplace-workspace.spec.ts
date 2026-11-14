@@ -62,6 +62,22 @@ test('Workspace opens the Vyral and media libraries and storyboard creation entr
   await expect(page.getByText('Sign in to access your account, credits and Workspace.')).toBeVisible();
 });
 
+test('Workspace opens My Media Library with standard file-manager controls', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  await openSection(page, 'Workspace');
+
+  await page.getByRole('button', { name: /My Media Library/ }).click();
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'My Media', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New folder' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upload files' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'List view' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Grid view' })).toBeVisible();
+  await expect(page.getByLabel('Folder path')).toBeVisible();
+});
+
 test('AI Chat opens with its composer without starting a paid request', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
