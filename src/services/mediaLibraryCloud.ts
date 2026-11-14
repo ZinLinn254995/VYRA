@@ -45,9 +45,51 @@ async function getOwnerId(): Promise<string> {
   return data.user.id;
 }
 
+type MediaLibraryStorageCleanupJob = {
+  id: string;
+  bucket_id: string;
+  storage_paths: string[];
+  attempts: number;
+};
+
+/** Retries owner-scoped Storage cleanup jobs without blocking normal Library access. */
+export async function processMediaLibraryStorageCleanup(limit = 4): Promise<number> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const batchSize = Math.max(1, Math.min(8, Math.floor(limit)));
+  const { data, error } = await db.from('media_library_storage_cleanup_jobs')
+    .select('id,bucket_id,storage_paths,attempts')
+    .eq('user_id', userId)
+    .lte('next_attempt_at', new Date().toISOString())
+    .order('created_at', { ascending: true })
+    .limit(batchSize);
+  if (error) return 0;
+
+  let completed = 0;
+  for (const job of (data ?? []) as MediaLibraryStorageCleanupJob[]) {
+    const { error: removeError } = await db.storage.from(job.bucket_id).remove(job.storage_paths);
+    if (removeError) {
+      const attempts = job.attempts + 1;
+      const delayMinutes = Math.min(5 * (2 ** Math.min(attempts - 1, 8)), 1440);
+      await db.from('media_library_storage_cleanup_jobs').update({
+        attempts,
+        next_attempt_at: new Date(Date.now() + delayMinutes * 60_000).toISOString(),
+        last_error: removeError.message.slice(0, 1000),
+      }).eq('id', job.id).eq('user_id', userId);
+      continue;
+    }
+    const { error: queueError } = await db.from('media_library_storage_cleanup_jobs')
+      .delete().eq('id', job.id).eq('user_id', userId);
+    if (!queueError) completed += 1;
+  }
+  return completed;
+}
+
 export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[]; items: MediaLibraryItem[] }> {
   const db = getDb();
   const ownerId = await getOwnerId();
+  // Cleanup is best-effort and owner-scoped; it must never prevent the Library from opening.
+  void processMediaLibraryStorageCleanup(4).catch(() => undefined);
   const [folderResult, itemResult] = await Promise.all([
     db.from('media_library_folders').select('id,user_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId).order('name'),
     db.from('media_library_items').select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at').eq('user_id', ownerId).order('created_at', { ascending: false }),
@@ -134,32 +176,23 @@ export async function renameMediaLibraryItem(itemId: string, fileName: string): 
   if (error) throw new Error('Could not rename file: ' + error.message);
 }
 
-export async function deleteMediaLibraryItems(itemIds: string[]): Promise<void> {
-  if (!itemIds.length) return;
+export async function deleteMediaLibraryItems(itemIds: string[]): Promise<{ deletedCount: number; cleanupPending: boolean }> {
+  if (!itemIds.length) return { deletedCount: 0, cleanupPending: false };
   const db = getDb();
-  const userId = await getOwnerId();
-  const { data, error } = await db.from('media_library_items')
-    .select('id,bucket_id,storage_path,source_asset_id,metadata').eq('user_id', userId).in('id', itemIds);
-  if (error) throw new Error('Could not prepare file deletion: ' + error.message);
-  const rows = (data ?? []) as Array<{ id: string; bucket_id: string; storage_path: string; source_asset_id: string | null; metadata: Record<string, unknown> | null }>;
-  if (!rows.length) return;
-  // Vyral-backed entries share their canonical binary with Asset DNA, Versions and Fingerprints.
-  // Removing a Library shortcut must never delete that canonical object or corrupt its Vyral.
-  const standaloneRows = rows.filter((row) => !row.source_asset_id);
-  // Remove the Library records first. If the database rejects the deletion or
-  // the request fails, the original binaries remain intact and the user does
-  // not end up with visible entries that point to missing files.
-  const { error: rowError } = await db.from('media_library_items').delete().eq('user_id', userId).in('id', rows.map((row) => row.id));
-  if (rowError) throw new Error('Could not remove the selected files from the Library: ' + rowError.message);
+  await getOwnerId();
+  // The RPC atomically queues standalone originals/thumbnails and deletes the
+  // Library index rows. Vyral-backed canonical binaries are never queued.
+  const { data, error } = await db.rpc('delete_media_library_items_and_queue_storage_cleanup', {
+    p_item_ids: itemIds,
+  });
+  if (error) throw new Error('Could not safely delete the selected files: ' + error.message);
 
-  // Storage cleanup is deliberately best-effort after the index deletion. A
-  // cleanup failure can leave a private orphan for later maintenance, but it
-  // cannot destroy a file while its Library record still exists.
-  if (standaloneRows.length) {
-    const storagePaths = standaloneRows.flatMap((row) => [row.storage_path, ...(typeof row.metadata?.thumbnail_path === 'string' ? [row.metadata.thumbnail_path] : [])]);
-    const { error: storageError } = await db.storage.from('vyral-assets').remove(storagePaths);
-    if (storageError) throw new Error('Removed from My Media Library, but secure storage cleanup could not finish: ' + storageError.message);
-  }
+  // Try immediately for a responsive experience; failed removals remain durable
+  // and receive bounded exponential retry delays on later Library visits.
+  await processMediaLibraryStorageCleanup(8);
+  const { count, error: queueError } = await db.from('media_library_storage_cleanup_jobs')
+    .select('id', { count: 'exact', head: true });
+  return { deletedCount: typeof data === 'number' ? data : 0, cleanupPending: Boolean(queueError) || (count ?? 0) > 0 };
 }
 
 async function createMediaThumbnail(file: File): Promise<Blob | null> {
