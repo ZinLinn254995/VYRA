@@ -192,6 +192,8 @@ test('My Media Library UI includes required organization, filtering, views and m
   assert.ok(service.includes("itemQuery.like('mime_type', 'image/%')"), 'File-type filters must be applied before pagination.');
   assert.ok(page.includes("offset: items.length, limit: 100"), 'Load more must request the next server page.');
   assert.ok(page.includes("thumbnailBackfillStartedRef.current"), 'Thumbnail repair must not rerun on every folder or filter change.');
+  assert.ok(page.includes("requestId !== libraryRequestRef.current"), 'Stale folder, filter or search responses must not overwrite newer results.');
+
   assert.ok(page.includes("setServerQuery('')"), 'Folder navigation must clear the server-side search immediately.');
 
   assert.ok(page.includes('downloadUrl.searchParams.set(\'download\', previewItem.file_name)'), 'Original files must use Storage download disposition with the original filename.');
