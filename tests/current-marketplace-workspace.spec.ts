@@ -561,7 +561,8 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   });
   await page.route('**/api/auth/session', (route) => json(route, { authenticated: true }));
   await page.route('**/api/ai/chat', async (route) => {
-    observedChatRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    if (Array.isArray(payload.messages)) observedChatRequests.push(payload);
     return json(route, { error: 'OpenAI is not configured yet.' }, 503);
   });
   await page.addInitScript((storedSession) => {
