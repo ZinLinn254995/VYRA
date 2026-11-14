@@ -418,6 +418,20 @@ test('Workspace reuses local Storyboards and syncs quietly after navigation', ()
 });
 
 
+test('Workspace clears owner-bound editor state and resets sync freshness when the account changes', () => {
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  assert.ok(workspace.includes('const storyboardStorageKeyRef = useRef(storageKey)'), 'Workspace must track which account owns its mounted editor state.');
+  assert.ok(workspace.includes('const storageOwnerChanged = storyboardStorageKeyRef.current !== storageKey'), 'An account change must be detected independently of ordinary page navigation.');
+  assert.ok(workspace.includes('lastStoryboardSyncAtRef.current = 0'), 'A newly signed-in account must not inherit the previous account’s fresh-sync timestamp.');
+  assert.ok(workspace.includes('setActiveStoryboard(null)'), 'The previous account’s open Storyboard must be closed before the next account is shown.');
+  assert.ok(workspace.includes('setEditDraft(null)'), 'The previous account’s edit draft must not survive an account switch.');
+  assert.ok(workspace.includes("setTitle('')") && workspace.includes("setTopic('')"), 'Unsubmitted Storyboard form data must be cleared for the next account.');
+  assert.ok(workspace.includes('setSelectedSceneIds([])') && workspace.includes('setActiveSceneId(null)'), 'Scene selections must not leak across account boundaries.');
+  assert.ok(workspace.includes("setSceneVideoPreviewUrl('')"), 'A previous account’s signed video preview must be discarded.');
+  assert.ok(workspace.includes('useLayoutEffect(() => {\n    const storageOwnerChanged'), 'Owner-bound state must be cleared before the next account is painted.');
+});
+
+
 test('My Vyrals deletes one local list entry without refetching the entire collection', () => {
   const page = read('src/components/profile/MyVyralsPage.tsx');
   assert.ok(page.includes("setVyrals((current) => current.filter((vyral) => vyral.id !== item.id))"), 'A confirmed delete should remove only the affected Vyral from the visible list.');
