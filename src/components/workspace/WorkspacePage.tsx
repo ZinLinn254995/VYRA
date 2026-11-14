@@ -495,6 +495,18 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setEditingStoryboardId(null);
       setEditDraft(null);
       setCreateOpen(false);
+      setTitle('');
+      setTopic('');
+      setCategory('');
+      setStyle('');
+      setMood('');
+      setTags('');
+      setDetailOrigins({});
+      setCachedStoryboardSuggestion(null);
+      setSuggestionError('');
+      setIsSuggesting(false);
+      setStoryboardDetailsExpanded(false);
+      setStoryboardEditorView('scenes');
       setSelectedSceneIds([]);
       setActiveSceneId(null);
       setSelectedTimelineItem(null);
