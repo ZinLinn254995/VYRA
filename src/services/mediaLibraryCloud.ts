@@ -95,6 +95,20 @@ export async function deleteMediaLibraryFolder(folderId: string): Promise<void> 
   if (error) throw new Error('Could not delete folder: ' + error.message);
 }
 
+export async function moveMediaLibraryFolder(folderId: string, parentId: string | null): Promise<void> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const { error } = await db.from('media_library_folders')
+    .update({ parent_id: parentId, updated_at: new Date().toISOString() })
+    .eq('id', folderId).eq('user_id', userId);
+  if (error) {
+    if (error.message.toLowerCase().includes('descendant') || error.message.toLowerCase().includes('cycle')) {
+      throw new Error('A folder cannot be moved into itself or one of its subfolders.');
+    }
+    throw new Error('Could not move folder: ' + error.message);
+  }
+}
+
 export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null): Promise<void> {
   if (!itemIds.length) return;
   const db = getDb();
