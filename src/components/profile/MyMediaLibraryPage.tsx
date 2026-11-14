@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AudioLines, Check, ChevronRight, Download, File, FileText, Folder, FolderPlus,
-  Grid2X2, Image as ImageIcon, List, Loader2, MoreHorizontal, Pencil, Plus,
+  AudioLines, Check, Download, File, FileText, Folder, FolderPlus,
+  Grid2X2, Image as ImageIcon, List, Loader2, Pencil, Plus,
   RefreshCw, Trash2, Upload, Video, X,
 } from 'lucide-react';
 import {
@@ -141,7 +141,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   };
 
   const moveSelected = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const destination = event.target.value || null;
+    const destination = event.target.value === '__root__' ? null : event.target.value;
     if (!selectedIds.length) return;
     const count = selectedIds.length;
     await withBusy(async () => { await moveMediaLibraryItems(selectedIds, destination); setSelectedIds([]); }, count + (count === 1 ? ' file moved.' : ' files moved.'));
@@ -224,7 +224,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
           {selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2">
             <button type="button" onClick={toggleAllVisible} className="inline-flex min-h-8 items-center gap-1.5 px-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><Check size={14}/>{selectedIds.length} selected</button>
             <select aria-label="Move selected files to folder" defaultValue="" onChange={(event) => void moveSelected(event)} className="min-h-8 max-w-48 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]">
-              <option value="" disabled>Move to folder…</option><option value="">Root</option>
+              <option value="" disabled>Move to folder…</option><option value="__root__">Root</option>
               {folderTree.map(({folder,depth}) => <option key={folder.id} value={folder.id}>{'— '.repeat(depth)}{folder.name}</option>)}
             </select>
             <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5"><Trash2 size={13}/> Delete</button>
