@@ -5,7 +5,7 @@ import {
   Loader2, RefreshCw, Search, Trash2, Upload, Video, X, Pencil, ArrowRightLeft,
 } from 'lucide-react';
 import {
-  createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
+  backfillMediaLibraryThumbnails, createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
   loadMediaLibrary, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
   renameMediaLibraryItem, uploadMediaLibraryFiles,
   type MediaLibraryFolder, type MediaLibraryItem,
@@ -114,8 +114,8 @@ export const MyMediaLibraryPage: React.FC = () => {
   const suppressClickRef = useRef<string | null>(null);
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const result = await loadMediaLibrary();
@@ -125,10 +125,25 @@ export const MyMediaLibraryPage: React.FC = () => {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    let mounted = true;
+    const initializeLibrary = async () => {
+      await refresh();
+      if (!mounted) return;
+      try {
+        // Backfill only four legacy image/video files per visit; never block first paint.
+        const generated = await backfillMediaLibraryThumbnails(4);
+        if (mounted && generated > 0) await refresh(true);
+      } catch {
+        // The Library remains usable even if background thumbnail repair is unavailable.
+      }
+    };
+    void initializeLibrary();
+    return () => { mounted = false; };
+  }, [refresh]);
   useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
