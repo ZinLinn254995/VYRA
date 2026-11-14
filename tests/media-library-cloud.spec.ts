@@ -6,7 +6,7 @@ import test from 'node:test';
 const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
 
 test('Media Library database is cloud-backed and owner-isolated', () => {
-  const migration = read('supabase/migrations/20261114100000_media_library_cloud.sql');
+  const migration = read('supabase/migrations/20261114080203_media_library_cloud.sql');
   for (const table of ['media_library_folders', 'media_library_items']) {
     assert.ok(migration.includes('create table if not exists public.' + table));
     assert.ok(migration.includes('alter table public.' + table + ' enable row level security'));
