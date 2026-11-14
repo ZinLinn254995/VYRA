@@ -539,9 +539,8 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders });
     const requestUserId = requestOwner(request);
     if (url.pathname.endsWith('/auth/v1/user') && method === 'GET') {
-      const userId = requestUserId;
-      if (!userId) return json(route, { message: 'Unauthorized' }, 401);
-      return json(route, userId === ownerA ? sessionA.user : sessionB.user);
+      if (!requestUserId) return json(route, { message: 'Unauthorized' }, 401);
+      return json(route, requestUserId === ownerA ? sessionA.user : sessionB.user);
     }
     if (url.pathname.endsWith('/rest/v1/vyra_ai_chat_conversations') && method === 'GET') {
       const requestedOwner = url.searchParams.get('user_id')?.replace('eq.', '');
@@ -563,7 +562,11 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   await page.route('**/api/ai/chat', async (route) => {
     const payload = route.request().postDataJSON() as Record<string, unknown>;
     if (Array.isArray(payload.messages)) observedChatRequests.push(payload);
-    return json(route, { error: 'OpenAI is not configured yet.' }, 503);
+    return route.fulfill({
+      status: 200,
+      headers: { ...corsHeaders, 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache' },
+      body: 'data: {"choices":[{"delta":{"content":"Hello! I am VYRA."}}]}\\n\\ndata: [DONE]\\n\\n',
+    });
   });
   await page.addInitScript((storedSession) => {
     window.localStorage.setItem('sb-e2e-test-auth-token', JSON.stringify(storedSession));
@@ -572,36 +575,35 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
   await openSection(page, 'AI Chat');
-  await expect(page.getByRole('textbox', { name: 'Message VYRA AI' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Message VYRA AI' }).fill('Open Workspace');
+  const composer = page.getByRole('textbox', { name: 'Message VYRA AI' });
+  await expect(composer).toBeVisible();
+  await composer.fill('Hello VYRA');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
-  await expect.poll(() => conversations.length).toBe(1);
-  expect(conversations[0].user_id).toBe(ownerA);
-  expect(conversations[0].messages).toEqual(expect.arrayContaining([
-    expect.objectContaining({ role: 'user', content: 'Open Workspace' }),
-    expect.objectContaining({ role: 'assistant', content: expect.stringContaining('Opening Workspace') }),
-  ]));
+  await expect(page.getByText('Hello! I am VYRA.')).toBeVisible();
+  await expect.poll(() => conversations.some((item) =>
+    item.user_id === ownerA && Array.isArray(item.messages) &&
+    (item.messages as Array<{ role?: string; content?: string }>).some((message) => message.role === 'assistant' && message.content === 'Hello! I am VYRA.')
+  )).toBe(true);
 
-  // Refresh the app, reopen the saved conversation, and verify its prior turns remain available.
+  // Refresh the app, reopen the saved conversation, and verify prior turns remain available.
   await page.reload();
   await openSection(page, 'AI Chat');
   await page.getByRole('button', { name: 'Open chat menu' }).click();
   await page.getByRole('button', { name: 'Recent chats' }).click();
   await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open Workspace' }).click();
-  await expect(page.getByText('Open Workspace', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Opening Workspace/)).toBeVisible();
+  await page.getByRole('button', { name: 'Hello VYRA' }).click();
+  await expect(page.getByText('Hello VYRA', { exact: true })).toBeVisible();
+  await expect(page.getByText('Hello! I am VYRA.')).toBeVisible();
 
-  // The next request must include the restored transcript, not just the newest prompt.
-  await page.getByRole('textbox', { name: 'Message VYRA AI' }).fill('What did I just ask you to open?');
+  // The follow-up request must include the restored transcript, not just the newest prompt.
+  await composer.fill('What should we create today?');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect.poll(() => observedChatRequests.length).toBe(1);
-  const sentMessages = observedChatRequests[0].messages as Array<{ role: string; content: string }>;
+  await expect.poll(() => observedChatRequests.length).toBe(2);
+  const sentMessages = observedChatRequests[1].messages as Array<{ role: string; content: string }>;
   expect(sentMessages.map((message) => message.content)).toEqual(expect.arrayContaining([
-    'Open Workspace',
-    expect.stringContaining('Opening Workspace'),
-    'What did I just ask you to open?',
+    'Hello VYRA',
+    'Hello! I am VYRA.',
+    'What should we create today?',
   ]));
 
   // A different signed-in owner must not receive the first owner's conversation.
