@@ -97,7 +97,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; fileName: string } | null>(null);
-  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);
+  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);\n  const [stopRequested, setStopRequested] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<Entry | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);\n  const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
   const holdTimerRef = useRef<number | null>(null);
   const suppressClickRef = useRef<string | null>(null);
@@ -197,7 +197,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
   const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
-    const failures: Array<{ file: File; message: string }> = [];
+    const failures: Array<{ file: File; message: string }> = [];\n    const controller = new AbortController();\n    uploadAbortControllerRef.current = controller;\n    setStopRequested(false);
     setUploadingCount(files.length);
     setUploadProgress({ completed: 0, total: files.length, fileName: files[0]?.name ?? '' });
     try {
@@ -209,24 +209,15 @@ export const MyMediaLibraryPage: React.FC = () => {
             setUploadProgress({ completed, total, fileName });
             setUploadingCount(total - completed);
           },
-          (file, cause) => failures.push({ file, message: cause.message }),
-        );
+          (file, cause) => failures.push({ file, message: cause.message }),\n          controller.signal,\n        );
         setFailedUploads(failures);
         if (count > 0) setSelectedIds([]);
-        setNotice(
-          count + (count === 1 ? ' file uploaded' : ' files uploaded') +
-          (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',
-        );
+        const stopped = controller.signal.aborted;\n        setNotice(\n          stopped\n            ? 'Upload stopped after the current file. ' + count + (count === 1 ? ' file uploaded' : ' files uploaded') + '.'\n            : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',\n        );
       });
       if (failures.length) {
         setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
       }
-    } finally {
-      setUploadingCount(0);
-      setUploadProgress(null);
-    }
-  };
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    } finally {\n      uploadAbortControllerRef.current = null;\n      setStopRequested(false);\n      setUploadingCount(0);\n      setUploadProgress(null);\n    }\n  };\n  const requestUploadStop = () => {\n    if (!uploadAbortControllerRef.current || stopRequested) return;\n    setStopRequested(true);\n    uploadAbortControllerRef.current.abort();\n  };\n  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!files.length) return;
@@ -398,7 +389,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       </form>}
 
       {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5 text-xs text-[var(--vyra-danger)]"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={14}/></button></div>}
-      {uploadProgress && <div role="status" aria-live="polite" className="space-y-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2.5 text-xs text-[var(--vyra-text-primary)]"><div className="flex items-center gap-2"><Loader2 size={15} className="shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><span>Uploaded {uploadProgress.completed} of {uploadProgress.total} files · {uploadingCount} remaining</span></div><div className="h-1.5 overflow-hidden rounded-full bg-[var(--vyra-border)]"><div className="h-full rounded-full bg-[var(--vyra-accent-primary)] transition-[width]" style={{ width: (uploadProgress.completed / Math.max(1, uploadProgress.total) * 100) + '%' }}/></div><p className="truncate text-[var(--vyra-text-muted)]">{uploadProgress.completed === uploadProgress.total ? 'Finishing upload…' : 'Current file: ' + uploadProgress.fileName}</p></div>}
+      {uploadProgress && <div role="status" aria-live="polite" className="space-y-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2.5 text-xs text-[var(--vyra-text-primary)]"><div className="flex items-center gap-2"><Loader2 size={15} className="shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><span>Uploaded {uploadProgress.completed} of {uploadProgress.total} files · {uploadingCount} remaining</span><button type="button" onClick={requestUploadStop} disabled={stopRequested} className="ml-auto shrink-0 rounded-md border border-[var(--vyra-border)] px-2.5 py-1 text-[11px] font-medium disabled:opacity-60">{stopRequested ? 'Stopping…' : 'Stop after current file'}</button></div><div className="h-1.5 overflow-hidden rounded-full bg-[var(--vyra-border)]"><div className="h-full rounded-full bg-[var(--vyra-accent-primary)] transition-[width]" style={{ width: (uploadProgress.completed / Math.max(1, uploadProgress.total) * 100) + '%' }}/></div><p className="truncate text-[var(--vyra-text-muted)]">{stopRequested ? 'Will stop after this file finishes.' : uploadProgress.completed === uploadProgress.total ? 'Finishing upload…' : 'Current file: ' + uploadProgress.fileName}</p></div>}
       {failedUploads.length > 0 && <div className="space-y-2 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-medium text-[var(--vyra-danger)]">{failedUploads.length} file{failedUploads.length === 1 ? '' : 's'} could not be uploaded</p>
