@@ -481,6 +481,7 @@ export async function uploadMediaLibraryFiles(
   const db = getDb();
   const userId = await getOwnerId();
   let uploaded = 0;
+  let processed = 0;
   for (const file of files) {
     // Cancellation is intentionally checked between files only: an active Storage
     // transfer is allowed to finish so it cannot leave a partially written object.
@@ -544,13 +545,17 @@ export async function uploadMediaLibraryFiles(
         throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
       }
       uploaded += 1;
-      onProgress?.(uploaded, files.length, file.name);
     } catch (cause) {
       const failure = cause instanceof Error ? cause : new Error('Could not upload ' + file.name + '.');
       // Keep the original fail-fast contract for existing callers. The Library UI
       // opts into per-file reporting so later files can still finish.
       if (!onFileError) throw failure;
       onFileError(file, failure);
+    } finally {
+      // Progress tracks completed attempts, not only successful uploads. A failed
+      // file must not leave the batch looking permanently stuck.
+      processed += 1;
+      onProgress?.(processed, files.length, file.name);
     }
   }
   return uploaded;
