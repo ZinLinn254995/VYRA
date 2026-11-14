@@ -139,15 +139,16 @@ export async function deleteMediaLibraryItems(itemIds: string[]): Promise<void> 
   const db = getDb();
   const userId = await getOwnerId();
   const { data, error } = await db.from('media_library_items')
-    .select('id,bucket_id,storage_path,source_asset_id').eq('user_id', userId).in('id', itemIds);
+    .select('id,bucket_id,storage_path,source_asset_id,metadata').eq('user_id', userId).in('id', itemIds);
   if (error) throw new Error('Could not prepare file deletion: ' + error.message);
-  const rows = (data ?? []) as Array<{ id: string; bucket_id: string; storage_path: string; source_asset_id: string | null }>;
+  const rows = (data ?? []) as Array<{ id: string; bucket_id: string; storage_path: string; source_asset_id: string | null; metadata: Record<string, unknown> | null }>;
   if (!rows.length) return;
   // Vyral-backed entries share their canonical binary with Asset DNA, Versions and Fingerprints.
   // Removing a Library shortcut must never delete that canonical object or corrupt its Vyral.
   const standaloneRows = rows.filter((row) => !row.source_asset_id);
   if (standaloneRows.length) {
-    const { error: storageError } = await db.storage.from('vyral-assets').remove(standaloneRows.map((row) => row.storage_path));
+    const storagePaths = standaloneRows.flatMap((row) => [row.storage_path, ...(typeof row.metadata?.thumbnail_path === 'string' ? [row.metadata.thumbnail_path] : [])]);
+    const { error: storageError } = await db.storage.from('vyral-assets').remove(storagePaths);
     if (storageError) throw new Error('Files could not be removed from secure storage: ' + storageError.message);
   }
   const { error: rowError } = await db.from('media_library_items').delete().eq('user_id', userId).in('id', rows.map((row) => row.id));
