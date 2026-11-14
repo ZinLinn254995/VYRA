@@ -1,18 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AudioLines, ArrowLeft, Check, ChevronRight, Download, File, FileText, Folder, FolderOpen,
-  FolderPlus, Grid2X2, Image as ImageIcon, List, Loader2, Minus, Plus, RefreshCw,
-  Trash2, Upload, Video, X,
+  ArrowDown, ArrowLeft, ArrowUp, AudioLines, Check, ChevronRight, Download, File,
+  FileText, Folder, FolderOpen, FolderPlus, Grid2X2, Image as ImageIcon, List,
+  Loader2, Minus, MoreHorizontal, Plus, RefreshCw, Search, Trash2, Upload, Video, X,
 } from 'lucide-react';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
-  loadMediaLibrary, moveMediaLibraryItems, uploadMediaLibraryFiles,
+  loadMediaLibrary, moveMediaLibraryItems, renameMediaLibraryFolder,
+  renameMediaLibraryItem, uploadMediaLibraryFiles,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
 
-type Props = { searchQuery?: string };
 type FilterKind = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
-type ViewMode = 'grid' | 'list';
+type ViewMode = 'list' | 'grid';
+type SortKey = 'name' | 'modified' | 'size' | 'type';
+type Entry = { id: string; name: string; folder: MediaLibraryFolder | null; item: MediaLibraryItem | null };
 
 const kindOf = (mime: string): FilterKind => {
   if (mime.startsWith('image/')) return 'image';
@@ -21,17 +23,25 @@ const kindOf = (mime: string): FilterKind => {
   if (mime === 'application/pdf' || mime.includes('word') || mime.includes('officedocument') || mime.startsWith('text/')) return 'document';
   return 'other';
 };
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1) + ' ' + units[index];
+};
+const formatDate = (value: string) => new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
-export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
+export const MyMediaLibraryPage: React.FC = () => {
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>('list');
   const [filter, setFilter] = useState<FilterKind>('all');
-  const [view, setView] = useState<ViewMode>('grid');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortAscending, setSortAscending] = useState(true);
+  const [query, setQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [iconSize, setIconSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suppressClickRef = useRef<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -39,8 +49,14 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderName, setFolderName] = useState('');
+  const [renameTarget, setRenameTarget] = useState<Entry | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
+  const [detailsEntry, setDetailsEntry] = useState<Entry | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClickRef = useRef<string | null>(null);
+  const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -56,8 +72,8 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
       setLoading(false);
     }
   }, []);
-
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
   const breadcrumbs = useMemo(() => {
@@ -72,140 +88,125 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     return chain;
   }, [activeFolderId, folderById]);
 
-  // File-manager behavior: only show the current directory's immediate children.
-  // Folders and files share the same content area; opening a folder navigates into it.
-  const visibleFolders = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
-    return folders
-      .filter((folder) => folder.parent_id === activeFolderId)
-      .filter((folder) => !query || folder.name.toLocaleLowerCase().includes(query))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [folders, activeFolderId, searchQuery]);
-
-  const folderItems = useMemo(
-    () => activeFolderId === null ? items.filter((item) => item.folder_id === null) : items.filter((item) => item.folder_id === activeFolderId),
-    [items, activeFolderId],
-  );
-  const filteredItems = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
-    return folderItems.filter((item) => {
-      const kindMatches = filter === 'all' || kindOf(item.mime_type) === filter;
-      const searchMatches = !query || item.file_name.toLocaleLowerCase().includes(query) || item.mime_type.toLocaleLowerCase().includes(query);
-      return kindMatches && searchMatches;
-    });
-  }, [folderItems, filter, searchQuery]);
-
   const folderTree = useMemo(() => {
-    const output: Array<{ folder: MediaLibraryFolder; depth: number }> = [];
+    const result: Array<{ folder: MediaLibraryFolder; depth: number }> = [];
     const visit = (parentId: string | null, depth: number, ancestors: Set<string>) => {
-      for (const folder of folders.filter((item) => item.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name))) {
-        if (ancestors.has(folder.id)) continue;
-        output.push({ folder, depth });
-        const next = new Set(ancestors); next.add(folder.id);
-        visit(folder.id, depth + 1, next);
-      }
+      folders.filter((folder) => folder.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name)).forEach((folder) => {
+        if (ancestors.has(folder.id)) return;
+        result.push({ folder, depth });
+        const next = new Set(ancestors); next.add(folder.id); visit(folder.id, depth + 1, next);
+      });
     };
     visit(null, 0, new Set());
-    return output;
+    return result;
   }, [folders]);
+
+  const entries = useMemo<Entry[]>(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    const currentFolders = folders.filter((folder) => folder.parent_id === activeFolderId)
+      .filter((folder) => !normalized || folder.name.toLocaleLowerCase().includes(normalized))
+      .map((folder) => ({ id: folder.id, name: folder.name, folder, item: null }));
+    const currentItems = items.filter((item) => item.folder_id === activeFolderId)
+      .filter((item) => filter === 'all' || kindOf(item.mime_type) === filter)
+      .filter((item) => !normalized || item.file_name.toLocaleLowerCase().includes(normalized) || item.mime_type.toLocaleLowerCase().includes(normalized))
+      .map((item) => ({ id: item.id, name: item.file_name, folder: null, item }));
+    const compare = (a: Entry, b: Entry) => {
+      if (a.folder && !b.folder) return -1;
+      if (!a.folder && b.folder) return 1;
+      let result = 0;
+      if (sortKey === 'name') result = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      else if (sortKey === 'modified') result = new Date(a.folder?.updated_at ?? a.item!.updated_at).getTime() - new Date(b.folder?.updated_at ?? b.item!.updated_at).getTime();
+      else if (sortKey === 'size') result = (a.item?.size_bytes ?? -1) - (b.item?.size_bytes ?? -1);
+      else result = (a.folder ? 'folder' : kindOf(a.item!.mime_type)).localeCompare(b.folder ? 'folder' : kindOf(b.item!.mime_type));
+      return sortAscending ? result : -result;
+    };
+    return [...currentFolders, ...currentItems].sort(compare);
+  }, [folders, items, activeFolderId, filter, query, sortKey, sortAscending]);
 
   const withBusy = async (task: () => Promise<void>, success?: string) => {
     setBusy(true); setError(null); setNotice(null);
-    try { await task(); if (success) setNotice(success); await refresh(); }
-    catch (cause) { await refresh(); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
+    try { await task(); await refresh(); if (success) setNotice(success); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
   };
-
-  const navigateToFolder = (folderId: string | null) => {
-    setActiveFolderId(folderId);
-    setSelectedIds([]);
-    setCreatingFolder(false);
-    setFolderName('');
-  };
-
+  const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = '';
+    const files = Array.from(event.target.files ?? []); event.target.value = '';
     if (!files.length) return;
-    await withBusy(async () => {
-      const count = await uploadMediaLibraryFiles(files, activeFolderId);
-      setSelectedIds([]);
-      setNotice(count + (count === 1 ? ' file uploaded.' : ' files uploaded.'));
-    });
+    await withBusy(async () => { const count = await uploadMediaLibraryFiles(files, activeFolderId); setSelectedIds([]); setNotice(count + (count === 1 ? ' file uploaded.' : ' files uploaded.')); });
   };
-
   const createFolder = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!folderName.trim()) return;
-    await withBusy(async () => {
-      await createMediaLibraryFolder(folderName, activeFolderId);
-      setFolderName(''); setCreatingFolder(false);
-    });
+    event.preventDefault(); if (!folderName.trim()) return;
+    await withBusy(async () => { await createMediaLibraryFolder(folderName, activeFolderId); setFolderName(''); setCreatingFolder(false); }, 'Folder created.');
   };
 
-  const toggleSelected = (id: string) => setSelectedIds((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]);
-  const visibleEntryIds = [...visibleFolders.map((folder) => folder.id), ...filteredItems.map((item) => item.id)];
-  const allVisibleSelected = visibleEntryIds.length > 0 && visibleEntryIds.every((id) => selectedIds.includes(id));
-  const toggleAllVisible = () => setSelectedIds((previous) => allVisibleSelected
-    ? previous.filter((id) => !visibleEntryIds.includes(id))
-    : [...new Set([...previous, ...visibleEntryIds])]);
-
-  const clearHoldTimer = () => {
-    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
-    holdTimerRef.current = null;
-  };
-  const beginLongPress = (id: string) => {
-    clearHoldTimer();
-    holdTimerRef.current = window.setTimeout(() => {
-      toggleSelected(id);
-      suppressClickRef.current = id;
-      holdTimerRef.current = null;
-    }, 450);
-  };
-  const finishLongPress = () => {
-    clearHoldTimer();
-  };
-  const handleEntryClick = (id: string, action: () => void) => {
-    if (suppressClickRef.current === id) {
-      suppressClickRef.current = null;
-      return;
-    }
-    if (selectedIds.length > 0) toggleSelected(id);
-    else action();
-  };
-  const holdProps = (id: string) => ({
+  const toggleSelected = (id: string) => setSelectedIds((previous) => previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id]);
+  const clearHoldTimer = () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); holdTimerRef.current = null; };
+  const holdProps = (entry: Entry) => ({
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      pointerTypeRef.current = event.pointerType;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      beginLongPress(id);
+      clearHoldTimer();
+      holdTimerRef.current = window.setTimeout(() => { toggleSelected(entry.id); suppressClickRef.current = entry.id; holdTimerRef.current = null; }, 480);
     },
-    onPointerUp: finishLongPress,
-    onPointerLeave: finishLongPress,
-    onPointerCancel: finishLongPress,
-    onContextMenu: (event: React.MouseEvent<HTMLElement>) => event.preventDefault(),
+    onPointerUp: clearHoldTimer,
+    onPointerLeave: clearHoldTimer,
+    onPointerCancel: clearHoldTimer,
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => { event.preventDefault(); setSelectedIds((previous) => previous.includes(entry.id) ? previous : [...previous, entry.id]); },
     onDragStart: (event: React.DragEvent<HTMLElement>) => event.preventDefault(),
   });
-
-  const deleteSelected = async () => {
-    if (!selectedIds.length || !window.confirm('Remove ' + selectedIds.length + ' selected item(s) from My Media Library? Uploaded files will be deleted; Vyral Assets remain in their Vyral.')) return;
-    const selectedFileIds = selectedIds.filter((id) => items.some((item) => item.id === id));
-    const count = selectedFileIds.length;
-    if (!count) { setError('Folder deletion is available from the folder actions.'); return; }
-    await withBusy(async () => { await deleteMediaLibraryItems(selectedFileIds); setSelectedIds((current) => current.filter((id) => !selectedFileIds.includes(id))); }, 'Removed ' + count + (count === 1 ? ' file from My Media Library.' : ' files from My Media Library.'));
+  const activateEntry = (entry: Entry) => {
+    if (suppressClickRef.current === entry.id) { suppressClickRef.current = null; return; }
+    if (selectedIds.length > 0) { toggleSelected(entry.id); return; }
+    if (pointerTypeRef.current === 'touch') {
+      if (entry.folder) navigateToFolder(entry.id);
+      else if (entry.item) setPreviewItem(entry.item);
+    } else setSelectedIds([entry.id]);
   };
+  const openEntry = (entry: Entry) => {
+    if (entry.folder) navigateToFolder(entry.id);
+    else if (entry.item?.signed_url) setPreviewItem(entry.item);
+    else if (entry.item) setError('A secure preview link could not be created. Refresh and try again.');
+  };
+  const selectedEntries = entries.filter((entry) => selectedIds.includes(entry.id));
+  const selectedFiles = selectedIds.filter((id) => items.some((item) => item.id === id));
+  const selectedFolders = selectedIds.filter((id) => folders.some((folder) => folder.id === id));
+  const allVisibleSelected = entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
+  const toggleAll = () => setSelectedIds((previous) => allVisibleSelected ? previous.filter((id) => !entries.some((entry) => entry.id === id)) : [...new Set([...previous, ...entries.map((entry) => entry.id)])]);
 
+  const startRename = () => {
+    if (selectedIds.length !== 1) return;
+    const id = selectedIds[0];
+    const folder = folders.find((entry) => entry.id === id) ?? null;
+    const item = items.find((entry) => entry.id === id) ?? null;
+    if (!folder && !item) return;
+    const entry: Entry = { id, name: folder?.name ?? item!.file_name, folder, item };
+    setRenameTarget(entry); setRenameValue(entry.name);
+  };
+  const commitRename = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!renameTarget || !renameValue.trim()) return;
+    await withBusy(async () => {
+      if (renameTarget.folder) await renameMediaLibraryFolder(renameTarget.id, renameValue);
+      else await renameMediaLibraryItem(renameTarget.id, renameValue);
+      setRenameTarget(null); setSelectedIds([]);
+    }, 'Name updated.');
+  };
   const moveSelected = async (event: React.ChangeEvent<HTMLSelectElement>) => {
     const destination = event.target.value === '__root__' ? null : event.target.value;
-    const selectedFileIds = selectedIds.filter((id) => items.some((item) => item.id === id));
-    if (!selectedFileIds.length) { event.target.value = ''; return; }
-    const count = selectedFileIds.length;
-    await withBusy(async () => { await moveMediaLibraryItems(selectedFileIds, destination); setSelectedIds((current) => current.filter((id) => !selectedFileIds.includes(id))); }, count + (count === 1 ? ' file moved.' : ' files moved.'));
+    if (!selectedFiles.length) { event.target.value = ''; return; }
+    const count = selectedFiles.length;
+    await withBusy(async () => { await moveMediaLibraryItems(selectedFiles, destination); setSelectedIds([]); }, count + (count === 1 ? ' file moved.' : ' files moved.'));
     event.target.value = '';
   };
-
-  const mediaIconPixels = iconSize === 'small' ? 18 : iconSize === 'large' ? 28 : 22;
-  const folderIconPixels = mediaIconPixels;
-  // Zoom scales the complete grid tile and its icon backing, not the glyph itself.
-  const gridIconBoxSize = [36, 44, 52][zoomLevel];
+  const deleteSelected = async () => {
+    if (!selectedIds.length || !window.confirm('Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
+    await withBusy(async () => {
+      if (selectedFiles.length) await deleteMediaLibraryItems(selectedFiles);
+      for (const id of selectedFolders) await deleteMediaLibraryFolder(id);
+      setSelectedIds([]);
+    }, 'Selected items deleted.');
+  };
 
   const iconFor = (mime: string, size = 20) => {
     const kind = kindOf(mime);
@@ -215,115 +216,108 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     if (kind === 'document') return <FileText size={size}/>;
     return <File size={size}/>;
   };
-
-  const openItem = (item: MediaLibraryItem) => {
-    if (item.signed_url) setPreviewItem(item);
-    else setError('A secure preview link could not be created. Refresh and try again.');
-  };
+  const iconPixels = iconSize === 'small' ? 18 : iconSize === 'large' ? 28 : 22;
+  const iconBox = [36, 44, 52][zoomLevel];
+  const chooseSort = (value: SortKey) => { if (sortKey === value) setSortAscending((previous) => !previous); else { setSortKey(value); setSortAscending(true); } };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-[var(--vyra-text-secondary)]">Keep your uploads and VYRA-created media together, organized in private folders.</p>
-          <p className="mt-1 text-xs text-[var(--vyra-text-muted)]">{items.length} files · {folders.length} folders</p>
+    <div className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--vyra-border-subtle)] pb-3">
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto text-sm">
+          <button type="button" onClick={() => navigateToFolder(null)} className="shrink-0 rounded-md px-2 py-1.5 font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">My Media</button>
+          {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}><ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/><button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className="max-w-36 shrink-0 truncate rounded-md px-1.5 py-1.5 text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{folder.name}</button></React.Fragment>)}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => { setCreatingFolder((value) => !value); setFolderName(''); }} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]"><FolderPlus size={15}/> New folder</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950 hover:opacity-90"><Upload size={15}/> Upload</button>
-          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => void handleUpload(event)} />
+        <div className="flex shrink-0 items-center gap-1">
+          {activeFolderId && <button type="button" onClick={() => navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Go to parent folder"><ArrowLeft size={16}/></button>}
+          <button type="button" onClick={() => void refresh()} disabled={loading || busy} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50" aria-label="Refresh"><RefreshCw size={15}/></button>
         </div>
       </div>
 
-      {creatingFolder && <form onSubmit={(event) => void createFolder(event)} className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[170px] flex-1 sm:max-w-xs">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]"/>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this folder" aria-label="Search current folder" className="min-h-10 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
+        </label>
+        <button type="button" onClick={() => { setCreatingFolder((value) => !value); setFolderName(''); }} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 text-xs font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]"><FolderPlus size={15}/> New folder</button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950 hover:opacity-90"><Upload size={15}/> Upload</button>
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => void handleUpload(event)}/>
+      </div>
+
+      {creatingFolder && <form onSubmit={(event) => void createFolder(event)} className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-3">
         <Folder size={17} className="text-[var(--vyra-accent-primary)]"/>
-        <input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={80} placeholder={activeFolderId ? 'New folder inside ' + (folderById.get(activeFolderId)?.name ?? 'this folder') : 'Folder name'} className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
+        <input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={80} placeholder="New folder name" className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
         <button type="submit" disabled={busy || !folderName.trim()} className="min-h-10 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950 disabled:opacity-50">Create</button>
-        <button type="button" onClick={() => { setCreatingFolder(false); setFolderName(''); }} className="grid size-10 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Cancel folder creation"><X size={16}/></button>
+        <button type="button" onClick={() => setCreatingFolder(false)} className="grid size-10 place-items-center rounded-lg text-[var(--vyra-text-muted)]" aria-label="Cancel"><X size={16}/></button>
       </form>}
 
       {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5 text-xs text-[var(--vyra-danger)]"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={14}/></button></div>}
-      {notice && <div role="status" className="rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-3 py-2.5 text-xs text-[var(--vyra-text-secondary)]">{notice}</div>}
+      {notice && <div role="status" className="flex items-center justify-between gap-3 text-xs text-[var(--vyra-text-secondary)]"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13}/></button></div>}
 
-      <section className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <nav aria-label="Folder path" className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
-            {activeFolderId !== null && <button type="button" onClick={() => navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)} aria-label="Go to parent folder" className="mr-1 grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><ArrowLeft size={15}/></button>}
-            <button type="button" onClick={() => navigateToFolder(null)} className={`rounded-md px-2 py-1.5 font-semibold ${activeFolderId === null ? 'text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>My Media Library</button>
-            {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}>
-              <ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/>
-              <button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className={`max-w-40 truncate rounded-md px-2 py-1.5 ${index === breadcrumbs.length - 1 ? 'font-semibold text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>{folder.name}</button>
-            </React.Fragment>)}
-          </nav>
-          <div className="flex shrink-0 items-center gap-2">
-            {view === 'grid' && <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
-              <button type="button" onClick={() => setZoomLevel((level) => Math.max(0, level - 1))} disabled={zoomLevel === 0} aria-label="Zoom out" className="grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] disabled:opacity-30"><Minus size={15}/></button>
-              <button type="button" onClick={() => setZoomLevel((level) => Math.min(2, level + 1))} disabled={zoomLevel === 2} aria-label="Zoom in" className="grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] disabled:opacity-30"><Plus size={15}/></button>
-            </div>}
-            {view === 'grid' && <div role="group" aria-label="Icon size" className="flex items-center gap-0.5 rounded-lg border border-[var(--vyra-border)] p-1">
-              {(['small', 'medium', 'large'] as const).map((size) => <button key={size} type="button" onClick={() => setIconSize(size)} aria-pressed={iconSize === size} className={`rounded-md px-2 py-1.5 text-[10px] font-medium capitalize transition ${iconSize === size ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{size}</button>)}
-            </div>}
-            <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
-              <button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button>
-              <button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button>
-            </div>
-            <button type="button" onClick={() => void refresh()} disabled={loading || busy} aria-label="Refresh library" className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><RefreshCw size={14}/></button>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs text-[var(--vyra-text-muted)]">{entries.length} items</span>
+          {(['all','image','video','audio','document','other'] as FilterKind[]).map((value) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium capitalize transition ${filter === value ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{value === 'all' ? 'All' : value === 'image' ? 'Images' : value === 'video' ? 'Videos' : value === 'audio' ? 'Audio' : value === 'document' ? 'Documents' : 'Other'}</button>)}
         </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] text-[var(--vyra-text-muted)]">{visibleFolders.length} folders · {filteredItems.length} files</p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {([
-              ['all','All'],['image','Images'],['video','Videos'],['audio','Audio'],['document','Documents'],['other','Other'],
-            ] as [FilterKind,string][]).map(([value,label]) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-8 rounded-full border px-3 text-[11px] font-medium transition ${filter === value ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/10 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>{label}</button>)}
-          </div>
-        </div>
-
-        {selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-2">
-          <button type="button" onClick={toggleAllVisible} className="inline-flex min-h-8 items-center gap-1.5 px-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><Check size={14}/>{selectedIds.length} selected</button>
-          <select aria-label="Move selected files to folder" defaultValue="" onChange={(event) => void moveSelected(event)} className="min-h-8 max-w-48 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]">
-            <option value="" disabled>Move to folder…</option><option value="__root__">My Media Library</option>
-            {folderTree.map(({folder,depth}) => <option key={folder.id} value={folder.id}>{'— '.repeat(depth)}{folder.name}</option>)}
+        <div className="flex items-center gap-1">
+          <label className="sr-only" htmlFor="media-sort">Sort files</label>
+          <select id="media-sort" value={sortKey} onChange={(event) => chooseSort(event.target.value as SortKey)} className="min-h-9 max-w-32 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-secondary)]">
+            <option value="name">Name</option><option value="modified">Date modified</option><option value="type">File type</option><option value="size">File size</option>
           </select>
-          <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5"><Trash2 size={13}/> Delete</button>
-          <button type="button" onClick={() => setSelectedIds([])} className="ml-auto grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Clear selection"><X size={14}/></button>
-        </div>}
+          <button type="button" onClick={() => setSortAscending((value) => !value)} className="grid size-9 place-items-center rounded-lg border border-[var(--vyra-border)] text-[var(--vyra-text-secondary)]" aria-label={sortAscending ? 'Ascending' : 'Descending'}>{sortAscending ? <ArrowUp size={14}/> : <ArrowDown size={14}/>}</button>
+          {view === 'grid' && <><div className="ml-1 flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setZoomLevel((value) => Math.max(0, value - 1))} disabled={zoomLevel === 0} className="grid size-8 place-items-center text-[var(--vyra-text-secondary)] disabled:opacity-30" aria-label="Zoom out"><Minus size={14}/></button><button type="button" onClick={() => setZoomLevel((value) => Math.min(2, value + 1))} disabled={zoomLevel === 2} className="grid size-8 place-items-center text-[var(--vyra-text-secondary)] disabled:opacity-30" aria-label="Zoom in"><Plus size={14}/></button></div><select aria-label="Icon size" value={iconSize} onChange={(event) => setIconSize(event.target.value as typeof iconSize)} className="min-h-9 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-secondary)]"><option value="small">Small icons</option><option value="medium">Medium icons</option><option value="large">Large icons</option></select></>}
+          <div className="ml-1 flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button><button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button></div>
+        </div>
+      </div>
 
-        {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-[var(--vyra-text-muted)]"><Loader2 size={17} className="animate-spin"/> Loading Media Library…</div>
-        : (visibleFolders.length > 0 || filteredItems.length > 0) ? view === 'grid' ? <div className="flex flex-wrap content-start gap-0">
-          {visibleFolders.map((folder) => <article key={folder.id} {...holdProps(folder.id)} onClick={() => handleEntryClick(folder.id, () => navigateToFolder(folder.id))} className={`relative flex w-fit max-w-full cursor-pointer select-none flex-col items-center justify-center gap-0 p-2 text-center [-webkit-touch-callout:none] ${selectedIds.includes(folder.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}><span style={{ width: gridIconBoxSize, height: gridIconBoxSize }} className="grid shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={folderIconPixels}/></span><span className="w-fit max-w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span>{selectedIds.includes(folder.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}</article>)}
-          {filteredItems.map((item) => <article key={item.id} {...holdProps(item.id)} onClick={() => handleEntryClick(item.id, () => openItem(item))} className={`relative flex w-fit max-w-full cursor-pointer select-none flex-col items-center justify-center gap-0 p-2 text-center [-webkit-touch-callout:none] ${selectedIds.includes(item.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}>
-            <span style={{ width: gridIconBoxSize, height: gridIconBoxSize }} className="grid shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,mediaIconPixels)}</span>
-            <span className="w-fit max-w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]" title={item.file_name}>{item.file_name}</span>
-            {selectedIds.includes(item.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}
-          </article>)}
-        </div> : <div className="overflow-x-auto rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-          <div className="min-w-0">
-            <div className="flex min-h-9 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]"><button type="button" onClick={toggleAllVisible} aria-label="Select all visible items" className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]"><Check size={13}/></button><span className="min-w-0 flex-1">Name</span></div>
-            {visibleFolders.map((folder) => <div key={folder.id} {...holdProps(folder.id)} onClick={() => handleEntryClick(folder.id, () => navigateToFolder(folder.id))} className={`flex min-h-12 cursor-pointer select-none items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0 [-webkit-touch-callout:none] ${selectedIds.includes(folder.id) ? 'bg-[var(--vyra-accent-primary)]/5' : ''}`}>
-              <span className="grid size-7 shrink-0 place-items-center text-[var(--vyra-accent-primary)]"><Folder size={16}/></span><span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span>{selectedIds.includes(folder.id) && <Check size={14} className="text-[var(--vyra-accent-primary)]"/>}
-            </div>)}
-            {filteredItems.map((item) => <div key={item.id} {...holdProps(item.id)} onClick={() => handleEntryClick(item.id, () => openItem(item))} className={`flex min-h-12 cursor-pointer select-none items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0 [-webkit-touch-callout:none] ${selectedIds.includes(item.id) ? 'bg-[var(--vyra-accent-primary)]/5' : ''}`}>
-              <span className="grid size-7 shrink-0 place-items-center text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,16)}</span><span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{item.file_name}</span>{selectedIds.includes(item.id) && <Check size={14} className="text-[var(--vyra-accent-primary)]"/>}
-            </div>)}
+      {selectedIds.length > 0 && <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2 shadow-sm">
+        <button type="button" onClick={toggleAll} className="inline-flex min-h-8 items-center gap-1.5 px-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><Check size={14}/>{selectedIds.length} selected</button>
+        {selectedIds.length === 1 && <button type="button" onClick={startRename} className="min-h-8 rounded-md px-2 text-xs text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">Rename</button>}
+        {selectedFiles.length > 0 && <select aria-label="Move selected files" defaultValue="" onChange={(event) => void moveSelected(event)} className="min-h-8 max-w-44 rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 text-xs text-[var(--vyra-text-primary)]"><option value="" disabled>Move to…</option><option value="__root__">My Media</option>{folderTree.filter(({folder}) => !selectedFolders.includes(folder.id)).map(({folder,depth}) => <option key={folder.id} value={folder.id}>{'— '.repeat(depth)}{folder.name}</option>)}</select>}
+        <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5"><Trash2 size={13}/> Delete</button>
+        <button type="button" onClick={() => setSelectedIds([])} className="ml-auto grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Clear selection"><X size={14}/></button>
+      </div>}
+
+      {loading ? <div className="flex min-h-56 items-center justify-center gap-2 text-sm text-[var(--vyra-text-muted)]"><Loader2 size={17} className="animate-spin"/> Loading files…</div>
+      : entries.length === 0 ? <div className="flex min-h-64 flex-col items-center justify-center px-5 py-12 text-center">
+        <div className="grid size-14 place-items-center rounded-2xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]"><FolderOpen size={27}/></div>
+        <h3 className="mt-4 text-sm font-semibold text-[var(--vyra-text-primary)]">{query || filter !== 'all' ? 'No matching files' : activeFolderId ? 'This folder is empty' : 'This folder is empty'}</h3>
+        <p className="mt-1 max-w-sm text-xs leading-5 text-[var(--vyra-text-secondary)]">{query || filter !== 'all' ? 'Try another search or file type.' : 'Create a folder or upload files to start organizing your media.'}</p>
+        {!query && filter === 'all' && <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950"><Upload size={14}/> Upload files</button>}
+      </div>
+      : view === 'list' ? <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
+          <div className="grid grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-y border-[var(--vyra-border-subtle)] px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
+            <button type="button" onClick={toggleAll} className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]" aria-label="Select all"><Check size={13}/></button><button type="button" onClick={() => chooseSort('name')} className="text-left">Name</button><button type="button" onClick={() => chooseSort('type')} className="text-left">Type</button><button type="button" onClick={() => chooseSort('size')} className="text-right">Size</button><button type="button" onClick={() => chooseSort('modified')} className="text-right">Date modified</button>
           </div>
-        </div> : <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] px-5 py-10 text-center">
-          <div className="grid size-12 place-items-center rounded-xl bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><FolderOpen size={23}/></div>
-          <h3 className="mt-3 text-sm font-semibold text-[var(--vyra-text-primary)]">{searchQuery || filter !== 'all' ? 'No matching items' : activeFolderId ? 'This folder is empty' : 'Your Media Library is empty'}</h3>
-          <p className="mt-1 max-w-sm text-xs leading-5 text-[var(--vyra-text-secondary)]">{searchQuery || filter !== 'all' ? 'Try a different search or file filter.' : 'Upload files here or create a folder. Open folders to organize your media.'}</p>
-          {!searchQuery && filter === 'all' && <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950"><Plus size={14}/> Upload files</button>}
-        </div>}
-      </section>
+          {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); if (event.key === ' ') { event.preventDefault(); toggleSelected(entry.id); } }} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-b border-[var(--vyra-border-subtle)] px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
+            <span className={`grid size-8 place-items-center ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</span>
+            <span className="min-w-0 truncate text-xs font-medium text-[var(--vyra-text-primary)]">{entry.name}</span>
+            <span className="truncate text-[11px] text-[var(--vyra-text-muted)]">{entry.folder ? 'Folder' : entry.item!.mime_type.split('/').pop()?.toUpperCase() || 'FILE'}</span>
+            <span className="text-right text-[11px] tabular-nums text-[var(--vyra-text-muted)]">{entry.item ? formatBytes(entry.item.size_bytes) : '—'}</span>
+            <span className="text-right text-[11px] text-[var(--vyra-text-muted)]">{formatDate(entry.folder?.updated_at ?? entry.item!.updated_at)}</span>
+          </div>)}
+        </div>
+      </div> : <div className="flex flex-wrap content-start gap-0">
+        {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={() => activateEntry(entry)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex w-fit max-w-full cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-3 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
+          <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={iconPixels}/> : iconFor(entry.item!.mime_type,iconPixels)}</span>
+          <span className="w-fit max-w-40 break-words text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.name}</span>
+          {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={11}/></span>}
+        </article>)}
+      </div>}
+
+      {renameTarget && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Rename item">
+        <form onSubmit={(event) => void commitRename(event)} className="w-full max-w-sm rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-4 shadow-xl">
+          <h3 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Rename {renameTarget.folder ? 'folder' : 'file'}</h3>
+          <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} className="mt-3 min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-accent-primary)]"/>
+          <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setRenameTarget(null)} className="min-h-9 rounded-lg px-3 text-xs text-[var(--vyra-text-secondary)]">Cancel</button><button type="submit" disabled={busy || !renameValue.trim()} className="min-h-9 rounded-lg bg-[var(--vyra-accent-primary)] px-3 text-xs font-semibold text-slate-950 disabled:opacity-50">Save</button></div>
+        </form>
+      </div>}
 
       {previewItem && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={'Preview '+previewItem.file_name} onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewItem(null); }}>
         <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
           <div className="flex min-h-12 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-4"><span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{previewItem.file_name}</span><button type="button" onClick={() => previewItem.signed_url && window.open(previewItem.signed_url, '_blank', 'noopener,noreferrer')} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Open original file"><Download size={16}/></button><button type="button" onClick={() => setPreviewItem(null)} className="grid size-9 place-items-center rounded-lg text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]" aria-label="Close preview"><X size={17}/></button></div>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/5 p-4">
-            {kindOf(previewItem.mime_type) === 'image' ? <img src={previewItem.signed_url ?? ''} alt={previewItem.file_name} className="max-h-[72vh] max-w-full object-contain"/>
-              : kindOf(previewItem.mime_type) === 'video' ? <video src={previewItem.signed_url ?? ''} controls playsInline className="max-h-[72vh] max-w-full"/>
-              : kindOf(previewItem.mime_type) === 'audio' ? <audio src={previewItem.signed_url ?? ''} controls className="w-full max-w-xl"/>
-              : <div className="py-12 text-center text-[var(--vyra-text-secondary)]"><div className="mb-3 flex justify-center">{iconFor(previewItem.mime_type,34)}</div><p className="text-sm">{previewItem.file_name}</p><p className="mt-1 text-xs">Preview is not available for this file type.</p></div>}
+            {kindOf(previewItem.mime_type) === 'image' ? <img src={previewItem.signed_url ?? ''} alt={previewItem.file_name} className="max-h-[72vh] max-w-full object-contain"/> : kindOf(previewItem.mime_type) === 'video' ? <video src={previewItem.signed_url ?? ''} controls playsInline className="max-h-[72vh] max-w-full"/> : kindOf(previewItem.mime_type) === 'audio' ? <audio src={previewItem.signed_url ?? ''} controls className="w-full max-w-xl"/> : <div className="py-12 text-center text-[var(--vyra-text-secondary)]"><div className="mb-3 flex justify-center">{iconFor(previewItem.mime_type,34)}</div><p className="text-sm">{previewItem.file_name}</p><p className="mt-1 text-xs">Preview is not available for this file type.</p></div>}
           </div>
         </div>
       </div>}
