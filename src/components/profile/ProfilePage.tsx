@@ -143,7 +143,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
         <div hidden={activePage !== 'my-media-library'} style={{ display: activePage !== 'my-media-library' ? "none" : undefined }} className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card">
-            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage /></div>
+            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage isActive={activePage === 'my-media-library'} /></div>
           </section>
         </div>
       )}
