@@ -149,6 +149,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   }, [previewItem, renameTarget]);
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
   const thumbnailBackfillStartedRef = useRef(false);
+  const libraryRequestRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
@@ -157,18 +158,20 @@ export const MyMediaLibraryPage: React.FC = () => {
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
   const refresh = useCallback(async (silent = false) => {
+    const requestId = ++libraryRequestRef.current;
     if (!silent) setLoading(true);
     setError(null);
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100 });
+      if (requestId !== libraryRequestRef.current) return;
       setFolders(result.folders);
       setItems(result.items);
       setHasMoreItems(result.hasMore);
       setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
+      if (requestId === libraryRequestRef.current) setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
     } finally {
-      if (!silent) setLoading(false);
+      if (requestId === libraryRequestRef.current && !silent) setLoading(false);
     }
   }, [activeFolderId, filter, serverQuery]);
 
@@ -411,18 +414,20 @@ export const MyMediaLibraryPage: React.FC = () => {
 
   const loadMoreItems = async () => {
     if (!hasMoreItems || loadingMoreItems || loading) return;
+    const requestId = libraryRequestRef.current;
     setLoadingMoreItems(true);
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100 });
+      if (requestId !== libraryRequestRef.current) return;
       setItems((previous) => {
         const known = new Set(previous.map((item) => item.id));
         return [...previous, ...result.items.filter((item) => !known.has(item.id))];
       });
       setHasMoreItems(result.hasMore);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not load more files.');
+      if (requestId === libraryRequestRef.current) setError(cause instanceof Error ? cause.message : 'Could not load more files.');
     } finally {
-      setLoadingMoreItems(false);
+      if (requestId === libraryRequestRef.current) setLoadingMoreItems(false);
     }
   };
 
