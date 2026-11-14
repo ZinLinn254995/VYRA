@@ -88,6 +88,7 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
 export const MyMediaLibraryPage: React.FC = () => {
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
+  const [visibleEntryLimit, setVisibleEntryLimit] = useState(100);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('list');
   const [filter, setFilter] = useState<FilterKind>('all');
@@ -392,8 +393,15 @@ export const MyMediaLibraryPage: React.FC = () => {
     return blocked;
   }, [folders, selectedIds]);
 
-  const allVisibleSelected = entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
-  const toggleAll = () => setSelectedIds((previous) => allVisibleSelected ? previous.filter((id) => !entries.some((entry) => entry.id === id)) : [...new Set([...previous, ...entries.map((entry) => entry.id)])]);
+  // Keep the DOM responsive for large folders while preserving the full loaded
+  // collection for search, folder operations and metadata actions.
+  const displayedEntries = entries.slice(0, visibleEntryLimit);
+  useEffect(() => { setVisibleEntryLimit(100); }, [activeFolderId, filter, query]);
+
+  const allVisibleSelected = displayedEntries.length > 0 && displayedEntries.every((entry) => selectedIds.includes(entry.id));
+  const toggleAll = () => setSelectedIds((previous) => allVisibleSelected
+    ? previous.filter((id) => !displayedEntries.some((entry) => entry.id === id))
+    : [...new Set([...previous, ...displayedEntries.map((entry) => entry.id)])]);
 
   const startRename = () => {
     if (selectedIds.length !== 1) return;
@@ -543,7 +551,7 @@ export const MyMediaLibraryPage: React.FC = () => {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs text-[var(--vyra-text-muted)]">{entries.length} items</span>
+          <span className="mr-1 text-xs text-[var(--vyra-text-muted)]">{displayedEntries.length === entries.length ? entries.length + ' items' : 'Showing ' + displayedEntries.length + ' of ' + entries.length}</span>
           {(['all','image','video','audio','document','other'] as FilterKind[]).map((value) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium capitalize transition ${filter === value ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{value === 'all' ? 'All' : value === 'image' ? 'Images' : value === 'video' ? 'Videos' : value === 'audio' ? 'Audio' : value === 'document' ? 'Documents' : 'Other'}</button>)}
         </div>
         <div className="ml-auto flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button><button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button></div>
@@ -561,7 +569,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           <div className="grid grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 border-y border-[var(--vyra-border-subtle)] px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
             <button type="button" onClick={toggleAll} className="grid size-7 place-items-center rounded hover:bg-[var(--vyra-bg-hover)]" aria-label="Select all"><Check size={13}/></button><span>Name</span><span>Type</span><span className="text-right">Size</span><span className="text-right">Date modified</span>
           </div>
-          {entries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => handleEntryKeyDown(entry, event)} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 rounded-lg border border-transparent px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10' : 'border-b-[var(--vyra-border-subtle)]'}`}>
+          {displayedEntries.map((entry) => <div key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => handleEntryKeyDown(entry, event)} role="button" tabIndex={0} className={`grid min-h-12 grid-cols-[36px_minmax(180px,1fr)_110px_100px_120px] items-center gap-2 rounded-lg border border-transparent px-2 text-left outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] ${selectedIds.includes(entry.id) ? 'border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10' : 'border-b-[var(--vyra-border-subtle)]'}`}>
             <span className={`grid size-8 place-items-center ${selectedIds.includes(entry.id) ? 'text-[var(--vyra-accent-primary)]' : entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{selectedIds.includes(entry.id) ? <Check size={17}/> : entry.folder ? <Folder size={18}/> : iconFor(entry.item!.mime_type,17)}</span>
             <span className="flex min-w-0 items-center overflow-hidden text-xs font-medium text-[var(--vyra-text-primary)]" title={entry.name}>{entry.folder ? <span className="truncate">{entry.name}</span> : <><span className="min-w-0 truncate">{splitFileName(entry.name).base}</span><span className="shrink-0">{splitFileName(entry.name).extension}</span></>}</span>
             <span className="truncate text-[11px] text-[var(--vyra-text-muted)]">{entry.folder ? 'Folder' : entry.item!.mime_type.split('/').pop()?.toUpperCase() || 'FILE'}</span>
@@ -570,7 +578,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           </div>)}
         </div>
       </div> : <div className="flex flex-wrap content-start gap-2">
-        {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => handleEntryKeyDown(entry, event)} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
+        {displayedEntries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => handleEntryKeyDown(entry, event)} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
           <span style={{ width: iconBox, height: iconBox }} className={`relative grid shrink-0 place-items-center overflow-hidden rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>
             {entry.folder ? <Folder size={iconPixels}/> : entry.item!.thumbnail_url
               ? <><img src={entry.item!.thumbnail_url} alt="" loading="lazy" decoding="async" className="h-full w-full rounded-md object-cover"/>{kindOf(entry.item!.mime_type) === 'video' && <span className="absolute inset-0 grid place-items-center bg-black/15 text-white"><Video size={16}/></span>}</>
@@ -579,6 +587,11 @@ export const MyMediaLibraryPage: React.FC = () => {
           <span title={entry.name} className="flex h-8 w-full min-w-0 shrink-0 items-center justify-center overflow-hidden text-center text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.folder ? <span className="line-clamp-2 w-full break-words">{entry.name}</span> : <GridFileName name={entry.name}/>}</span>
           {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={12}/></span>}
         </article>)}
+      </div>}
+      {displayedEntries.length < entries.length && !loading && <div className="flex justify-center py-3">
+        <button type="button" onClick={() => setVisibleEntryLimit((current) => Math.min(current + 100, entries.length))} className="min-h-9 rounded-lg border border-[var(--vyra-border)] px-4 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">
+          Load 100 more
+        </button>
       </div>}
 
       {renameTarget && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="media-library-rename-title">
