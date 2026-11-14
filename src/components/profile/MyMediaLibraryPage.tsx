@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, AudioLines, Check, ChevronRight, Download, File,
   FileText, Folder, FolderOpen, FolderPlus, Grid2X2, Image as ImageIcon, List,
-  Loader2, RefreshCw, Search, Trash2, Upload, Video, X,
+  Loader2, RefreshCw, Search, Trash2, Upload, Video, X, Pencil, ArrowRightLeft,
 } from 'lucide-react';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
@@ -324,6 +324,22 @@ export const MyMediaLibraryPage: React.FC = () => {
       {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5 text-xs text-[var(--vyra-danger)]"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={14}/></button></div>}
       {uploadingCount > 0 && <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2.5 text-xs text-[var(--vyra-text-primary)]"><Loader2 size={15} className="shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><span>Uploading {uploadingCount} {uploadingCount === 1 ? 'file' : 'files'}… Please keep this page open.</span></div>}
       {notice && <div role="status" className="flex items-center justify-between gap-3 text-xs text-[var(--vyra-text-secondary)]"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13}/></button></div>}
+
+      {selectedIds.length > 0 && <div role="toolbar" aria-label="Selected item actions" className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2">
+        <span className="mr-auto text-xs font-semibold text-[var(--vyra-text-primary)]" aria-live="polite">{selectedIds.length} selected</span>
+        <button type="button" onClick={startRename} disabled={busy || selectedIds.length !== 1} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-border)] px-2.5 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40" aria-label="Rename selected item"><Pencil size={14}/> Rename</button>
+        <label className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-border)] px-2.5 text-xs text-[var(--vyra-text-secondary)] has-[:disabled]:opacity-40">
+          <ArrowRightLeft size={14}/>
+          <span>Move files</span>
+          <select aria-label="Move selected files to folder" value="" onChange={(event) => void moveSelected(event)} disabled={busy || selectedFiles.length === 0 || selectedFolders.length > 0} className="max-w-32 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
+            <option value="" disabled>Choose folder</option>
+            <option value="__root__">My Media</option>
+            {folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+          </select>
+        </label>
+        <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-danger)]/30 px-2.5 text-xs font-medium text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5 disabled:opacity-40" aria-label="Delete selected items"><Trash2 size={14}/> Delete</button>
+        <button type="button" onClick={() => setSelectedIds([])} disabled={busy} className="grid size-9 place-items-center rounded-md text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40" aria-label="Clear selection" title="Clear selection"><X size={15}/></button>
+      </div>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
