@@ -236,9 +236,8 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
   }, [activeFolderId, filter, ownerId, serverQuery]);
 
   useEffect(() => {
-    const isActiveRef = { current: isActive };
     const refreshIfStale = () => {
-      if (!isActiveRef.current || document.visibilityState !== 'visible') return;
+      if (!isActive || document.visibilityState !== 'visible') return;
       const key = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
@@ -247,26 +246,19 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       for (const [key, cached] of libraryCacheRef.current) {
         libraryCacheRef.current.set(key, { ...cached, cachedAt: 0 });
       }
-      if (isActiveRef.current) void refresh(true);
-    };
-    const handlePageActivated = (event: Event) => {
-      const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
-      isActiveRef.current = page === 'profile:my-media-library';
-      if (isActiveRef.current) refreshIfStale();
+      if (isActive) void refresh(true);
     };
     window.addEventListener('vyra:media-library-changed', handleLibraryChanged);
-    window.addEventListener('vyra:page-activated', handlePageActivated);
     window.addEventListener('focus', refreshIfStale);
     window.addEventListener('online', refreshIfStale);
     document.addEventListener('visibilitychange', refreshIfStale);
     return () => {
       window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
-      window.removeEventListener('vyra:page-activated', handlePageActivated);
       window.removeEventListener('focus', refreshIfStale);
       window.removeEventListener('online', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
     };
-  }, [activeFolderId, filter, isActive, refresh, serverQuery]);
+  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query), 250);
@@ -276,7 +268,18 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     if (!isActive) return;
     let mounted = true;
     const initializeLibrary = async () => {
-      await refresh();
+      const cacheKey = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
+      const cached = libraryCacheRef.current.get(cacheKey);
+      if (cached) {
+        setFolders(cached.folders);
+        setItems(cached.items);
+        setHasMoreItems(cached.hasMore);
+        setLoading(false);
+        if (Date.now() - cached.cachedAt < 30_000) return;
+        await refresh(true);
+      } else {
+        await refresh();
+      }
       if (!mounted || thumbnailBackfillStartedRef.current) return;
       thumbnailBackfillStartedRef.current = true;
       try {
@@ -290,7 +293,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     };
     void initializeLibrary();
     return () => { mounted = false; };
-  }, [isActive, refresh]);
+  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery]);
   useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
