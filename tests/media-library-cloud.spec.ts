@@ -386,3 +386,23 @@ test('Media Library exposes selection state to assistive technology in both view
   assert.equal(entryRenderers.length - 1, 2, 'Both list and grid entries must remain independently testable.');
   assert.equal((page.match(/aria-pressed={selectedIds.includes\(entry.id\)}/g) ?? []).length, 2, 'Both file-manager views must expose whether each entry is selected.');
 });
+
+
+test('My Media Library restores cached views and reconciles mutations without full reloads', () => {
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const service = read('src/services/mediaLibraryCloud.ts');
+  assert.ok(page.includes('libraryCacheRef.current.get(cacheKey)'), 'A previously visited folder view must be available immediately.');
+  assert.ok(page.includes('setLoading(false)'), 'Cached folder views must not keep the blocking loader visible.');
+  assert.ok(page.includes('Date.now() - cached.cachedAt >= 30_000'), 'Stale cached views should refresh quietly after the freshness window.');
+  assert.ok(page.includes("window.addEventListener('vyra:page-activated', handlePageActivated)"), 'Returning to the Library should trigger a freshness check.');
+  assert.ok(page.includes('if (!isActive) return;'), 'The Library must not initialize or backfill while another profile page is active.');
+  assert.ok(page.includes('libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() })'), 'An upload should patch the matching cached folder instead of reloading it.');
+  assert.ok(page.includes('await task(); if (refreshAfter) await refresh(true)'), 'Mutation handlers must be able to opt out of a full folder refresh.');
+  assert.ok(page.includes('}, undefined, false);'), 'Incremental mutations should explicitly avoid the redundant reload path.');
+  assert.ok(service.includes('export async function loadMediaLibraryItemsByIds(itemIds: string[])'), 'Uploads should fetch only their new rows.');
+  const incrementalLoad = service.slice(service.indexOf('export async function loadMediaLibraryItemsByIds'), service.indexOf('export async function getMediaLibraryItemSignedUrl'));
+  assert.ok(incrementalLoad.includes(".eq('user_id', ownerId)"), 'Incremental file lookup must remain owner-scoped.');
+  assert.ok(incrementalLoad.includes("itemQuery.eq('id', itemIds[0])"), 'A single upload should query exactly one item ID.');
+  assert.ok(incrementalLoad.includes('thumbnailSignedUrlCache.get(cacheKey)'), 'Incremental preview loading should reuse unexpired signed thumbnail URLs.');
+  assert.ok(page.includes('vyra:page-activated'), 'Page-level navigation must be able to request a quiet refresh.');
+});
