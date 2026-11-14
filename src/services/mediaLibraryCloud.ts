@@ -312,7 +312,12 @@ export async function deleteMediaLibraryItems(itemIds: string[]): Promise<{ dele
 
   // Try immediately for a responsive experience; failed removals remain durable
   // and receive bounded exponential retry delays on later Library visits.
-  await processMediaLibraryStorageCleanup(8);
+  try {
+    await processMediaLibraryStorageCleanup(8);
+  } catch {
+    // The index deletion and cleanup queue are already committed; keep the
+    // successful delete result and report the durable cleanup as pending.
+  }
   const { count, error: queueError } = await db.from('media_library_storage_cleanup_jobs')
     .select('id', { count: 'exact', head: true });
   return { deletedCount: typeof data === 'number' ? data : 0, cleanupPending: Boolean(queueError) || (count ?? 0) > 0 };
