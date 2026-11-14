@@ -504,10 +504,10 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
       sub: id, role: 'authenticated', aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600,
     }) + '.e2e-signature';
     const user = {
-      id, aud: 'authenticated', role: 'authenticated', email: null, phone: '',
-      app_metadata: { provider: 'anonymous', providers: ['anonymous'] },
-      user_metadata: { is_anonymous: true, display_name: 'Chat History Test', session_kind: 'vyral_test_guest' },
-      identities: [], created_at: now, is_anonymous: true,
+      id, aud: 'authenticated', role: 'authenticated', email: id + '@example.test', phone: '',
+      app_metadata: { provider: 'email', providers: ['email'] },
+      user_metadata: { is_anonymous: false, display_name: 'Chat History Test' },
+      identities: [], created_at: now, is_anonymous: false,
     };
     return {
       access_token: accessToken, token_type: 'bearer', expires_in: 3600,
