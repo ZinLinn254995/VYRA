@@ -52,7 +52,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   const signer = service.slice(signStart, signEnd);
   assert.ok(signer.includes(".eq('id', itemId)") && signer.includes(".eq('user_id', userId)"), 'On-demand signing must be scoped to the authenticated owner and item.');
   assert.ok(signer.includes("data.bucket_id !== 'vyral-assets'"), 'On-demand signing must reject unexpected buckets.');
-  assert.ok(signer.includes("data.storage_path.startsWith(userId + '/')"), 'On-demand signing must reject paths outside the authenticated owner prefix.');
+  assert.ok(signer.includes('!isSafeOwnerStoragePath(data.storage_path, userId)'), 'On-demand signing must reject traversal and paths outside the authenticated owner namespace.');
   assert.ok(signer.includes('createSignedUrl(data.storage_path, 60 * 60)'), 'The original URL should be created only after an authorized preview/download request.');
   const backfillStart = service.indexOf('export async function backfillMediaLibraryThumbnails');
   const backfillEnd = service.indexOf('export async function uploadMediaLibraryFiles', backfillStart);
