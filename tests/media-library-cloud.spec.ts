@@ -39,6 +39,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(upload.includes("db.from('media_library_storage_cleanup_jobs').insert"), 'Failed metadata inserts must persist cleanup for uploaded orphan objects.');
   assert.ok(upload.includes('orphanPaths'), 'Both original and thumbnail objects must be included in orphan cleanup.');
   assert.ok(upload.includes('queued retry remains durable'), 'A transient immediate cleanup failure must not discard the durable retry.');
+  assert.ok(upload.includes('orphan cleanup could not be queued or completed'), 'If queue persistence and immediate removal both fail, the user must see the orphan cleanup failure.');
   assert.ok(service.includes('async function mapWithConcurrency<T, R>'), 'Large Libraries must not create an unbounded signed-URL request burst.');
   assert.ok(service.includes('mapWithConcurrency(rawItems, 8'), 'Signed URL generation must be limited to eight files at a time.');
   assert.ok(service.includes('A temporary signed-URL failure for one file must not hide the rest of the Library.'), 'One signed URL failure must not block unrelated files from loading.');
