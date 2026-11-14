@@ -587,7 +587,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
-    void syncStoryboards(lastStoryboardSyncAtRef.current > 0);
+    if (lastStoryboardSyncAtRef.current === 0) void syncStoryboards(false);
+    else if (Date.now() - lastStoryboardSyncAtRef.current >= 30_000) void syncStoryboards(true);
     return () => {
       cancelled = true;
       window.removeEventListener('vyra:page-activated', handlePageActivated);
