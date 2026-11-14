@@ -448,4 +448,6 @@ test('Profile Vyral and Media Library pages revalidate only when visible', () =>
   assert.ok(vyrals.includes('if (!isActive) return;'), 'Hidden My Vyrals must not fetch or show a loading state.');
   assert.ok(vyrals.includes('Date.now() - lastSyncAtRef.current >= 30_000'), 'A stale Vyral list should revalidate after return without blocking the UI.');
   assert.ok(vyrals.includes('if (!quiet) setLoading(true)'), 'A background Vyral refresh must preserve visible cached content.');
+  assert.ok(vyrals.includes(".eq('user_id', ownerId)"), 'Vyral reads must remain scoped to the authenticated owner.');
+  assert.ok(vyrals.includes('requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId'), 'Late responses from a previous account must not overwrite the current Vyral list.');
 });
