@@ -223,10 +223,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   useLayoutEffect(() => {
     const scroller = workspaceScrollRef.current;
     if (!scroller) return;
-    if (!isActive) {
-      preservedWorkspaceScrollTopRef.current = scroller.scrollTop;
-      return;
-    }
+    // The parent hides this retained page before layout effects run, which
+    // can reset the browser's scrollTop to zero. The onScroll handler already
+    // captured the last visible position; never overwrite it while hidden.
+    if (!isActive) return;
     const frame = window.requestAnimationFrame(() => {
       scroller.scrollTop = preservedWorkspaceScrollTopRef.current;
     });
