@@ -85,6 +85,28 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
   );
 };
 
+const VideoThumbnail: React.FC<{ src: string | null; name: string }> = ({ src, name }) => {
+  if (!src) return <Video size={22}/>;
+  return (
+    <video
+      src={src}
+      aria-label={name + ' video thumbnail'}
+      muted
+      playsInline
+      preload="metadata"
+      onLoadedMetadata={(event) => {
+        const video = event.currentTarget;
+        if (Number.isFinite(video.duration) && video.duration > 0) {
+          video.currentTime = Math.min(0.1, video.duration / 2);
+        }
+      }}
+      onSeeked={(event) => event.currentTarget.pause()}
+      onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
+      className="h-full w-full rounded-md object-cover"
+    />
+  );
+};
+
 export const MyMediaLibraryPage: React.FC = () => {
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
@@ -419,7 +441,15 @@ export const MyMediaLibraryPage: React.FC = () => {
         </div>
       </div> : <div className="flex flex-wrap content-start gap-2">
         {entries.map((entry) => <article key={entry.id} {...holdProps(entry)} onClick={(event) => activateEntry(entry, event)} onDoubleClick={() => openEntry(entry)} onKeyDown={(event) => { if (event.key === 'Enter') openEntry(entry); }} role="button" tabIndex={0} className={`relative flex h-28 w-28 shrink-0 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-lg p-2 text-center outline-none transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:bg-[var(--vyra-bg-hover)] [-webkit-touch-callout:none] ${selectedIds.includes(entry.id) ? 'bg-[var(--vyra-accent-primary)]/10' : ''}`}>
-          <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>{entry.folder ? <Folder size={iconPixels}/> : iconFor(entry.item!.mime_type,iconPixels)}</span>
+          <span style={{ width: iconBox, height: iconBox }} className={`grid shrink-0 place-items-center overflow-hidden rounded-lg ${entry.folder ? 'text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}>
+            {entry.folder ? <Folder size={iconPixels}/> : kindOf(entry.item!.mime_type) === 'image'
+              ? entry.item!.thumbnail_url
+                ? <img src={entry.item!.thumbnail_url} alt="" loading="lazy" decoding="async" className="h-full w-full rounded-md object-cover"/>
+                : <ImageIcon size={iconPixels}/>
+              : kindOf(entry.item!.mime_type) === 'video'
+                ? <VideoThumbnail src={entry.item!.signed_url} name={entry.name}/>
+                : iconFor(entry.item!.mime_type,iconPixels)}
+          </span>
           <span title={entry.name} className="flex h-8 w-full min-w-0 shrink-0 items-center justify-center overflow-hidden text-center text-xs font-medium leading-4 text-[var(--vyra-text-primary)]">{entry.folder ? <span className="line-clamp-2 w-full break-words">{entry.name}</span> : <GridFileName name={entry.name}/>}</span>
           {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={12}/></span>}
         </article>)}
