@@ -57,6 +57,15 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+/** Accept only normalized object paths rooted in the signed-in owner's namespace. */
+function isSafeOwnerStoragePath(path: unknown, ownerId: string, allowedRoots: string[] = []): path is string {
+  if (typeof path !== 'string' || !path || path.includes('\\\\')) return false;
+  const segments = path.split('/');
+  if (segments.length < 2 || segments[0] !== ownerId
+    || segments.some((segment) => !segment || segment === '.' || segment === '..')) return false;
+  return allowedRoots.length === 0 || allowedRoots.some((root) => path.startsWith(ownerId + '/' + root + '/'));
+}
+
 async function getOwnerId(): Promise<string> {
   const db = getDb();
   const { data, error } = await db.auth.getUser();
@@ -187,7 +196,7 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   const hasMore = rawPage.length > limit;
   const rawItems = rawPage.slice(0, limit);
   const items = await mapWithConcurrency(rawItems, 8, async (item) => {
-    const thumbnailPath = typeof item.metadata?.thumbnail_path === 'string' ? item.metadata.thumbnail_path : null;
+    const storedThumbnailPath = item.metadata?.thumbnail_path;\n    const thumbnailPath = isSafeOwnerStoragePath(storedThumbnailPath, ownerId, ['media-library-thumbnails']) ? storedThumbnailPath : null;
     try {
       const storage = db.storage.from(item.bucket_id);
       const thumbnail = thumbnailPath
@@ -211,7 +220,7 @@ export async function getMediaLibraryItemSignedUrl(itemId: string): Promise<stri
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data) throw new Error('This file is unavailable or you no longer have access to it.');
-  if (data.bucket_id !== 'vyral-assets' || typeof data.storage_path !== 'string' || !data.storage_path.startsWith(userId + '/')) {
+  if (data.bucket_id !== 'vyral-assets' || !isSafeOwnerStoragePath(data.storage_path, userId)) {
     throw new Error('This file has an invalid private storage location.');
   }
   const { data: signed, error: signError } = await db.storage.from(data.bucket_id).createSignedUrl(data.storage_path, 60 * 60);
