@@ -226,6 +226,7 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
     .select('id,bucket_id,storage_path,file_name,mime_type,metadata')
     .eq('user_id', userId)
     .is('metadata->thumbnail_path', null)
+    .is('metadata->thumbnail_backfill_attempted_at', null)
     .or('mime_type.like.image/%,mime_type.like.video/%')
     .order('created_at', { ascending: true })
     .limit(batchSize);
@@ -241,7 +242,14 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
       if (downloadError || !original) continue;
       const sourceFile = new File([original], row.file_name, { type: row.mime_type || original.type || 'application/octet-stream' });
       const thumbnailBlob = await createMediaThumbnail(sourceFile);
-      if (!thumbnailBlob) continue;
+      if (!thumbnailBlob) {
+        // Avoid retrying a permanently unsupported/corrupt legacy file on every visit.
+        await db.from('media_library_items')
+          .update({ metadata: { ...(row.metadata ?? {}), thumbnail_backfill_attempted_at: new Date().toISOString() } })
+          .eq('id', row.id).eq('user_id', userId)
+          .is('metadata->thumbnail_path', null);
+        continue;
+      }
 
       const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
       const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
