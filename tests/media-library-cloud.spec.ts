@@ -124,6 +124,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
 
 test('My Media Library UI includes required organization, filtering, views and multi-select', () => {
   const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const service = read('src/services/mediaLibraryCloud.ts');
   for (const value of ["'image'","'video'","'audio'","'document'","'other'"]) assert.ok(page.includes(value));
   for (const snippet of [
     "setView('grid')", "setView('list')", 'multiple className="hidden"',
