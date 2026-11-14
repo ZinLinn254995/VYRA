@@ -171,7 +171,7 @@ function MarketplaceApp() {
       <div aria-hidden="true" className="vyra-global-header-spacer w-full shrink-0" style={{ height: 'calc(var(--vyra-global-header-height, 64px) - var(--vyra-header-spacer-collapse, 0px))', transition: 'height 180ms ease-out' }} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
         {user && (
-          <div aria-hidden={!profileOpen} className={`min-w-0 ${!profileOpen ? "!hidden" : ""}`}>
+          <div hidden={!profileOpen} aria-hidden={!profileOpen} style={!profileOpen ? { display: "none" } : undefined} className="min-w-0">
             <ErrorBoundary>
               <ProfilePage
                 userEmail={profileLabel ?? ''} creditBalance={creditBalance} creditLoading={creditLoading}
@@ -185,12 +185,12 @@ function MarketplaceApp() {
             </ErrorBoundary>
           </div>
         )}
-        <div aria-hidden={profileOpen || activeSection !== 'ai-chat'} className={`min-w-0 ${profileOpen || activeSection !== 'ai-chat' ? "!hidden" : ""}`}>
+        <div hidden={profileOpen || activeSection !== 'ai-chat'} aria-hidden={profileOpen || activeSection !== 'ai-chat'} style={profileOpen || activeSection !== 'ai-chat' ? { display: "none" } : undefined} className="min-w-0">
           <ErrorBoundary>
             <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
           </ErrorBoundary>
         </div>
-        <div aria-hidden={profileOpen || activeSection !== 'workspace'} className={`min-h-0 flex-1 flex flex-col overflow-hidden ${profileOpen || activeSection !== 'workspace' ? "!hidden" : ""}`}>
+        <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
           <ErrorBoundary>
             <WorkspacePage
               storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
@@ -200,7 +200,7 @@ function MarketplaceApp() {
             />
           </ErrorBoundary>
         </div>
-        <div aria-hidden={profileOpen || activeSection !== 'marketplace'} className={`min-w-0 ${profileOpen || activeSection !== 'marketplace' ? "!hidden" : ""}`}>
+        <div hidden={profileOpen || activeSection !== 'marketplace'} aria-hidden={profileOpen || activeSection !== 'marketplace'} style={profileOpen || activeSection !== 'marketplace' ? { display: "none" } : undefined} className="min-w-0">
           <ErrorBoundary>
             <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
           </ErrorBoundary>
