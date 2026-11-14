@@ -26,6 +26,7 @@ type ProfilePageProps = {
   onSignOut: () => void;
   onLoginRequired: () => void;
   initialPage?: 'my-vyrals' | 'my-media-library' | null;
+  isActive?: boolean;
   onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void;
 };
 
@@ -112,12 +113,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [pageSearch, setPageSearch] = useState('');
   React.useEffect(() => {
     setVisitedSubpages((current) => current.has(activePage) ? current : new Set([...current, activePage]));
-  }, [activePage]);
+  }, [activePage, isActive]);
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
   React.useEffect(() => { setPageSearch(''); }, [activePage]);
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: 'profile:' + activePage } }));
+    window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: isActive ? 'profile:' + activePage : 'profile:inactive' } }));
   }, [activePage]);
   React.useLayoutEffect(() => {
     // Every Profile subpage starts with the global header fully visible.
@@ -137,13 +138,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
       {(activePage === 'my-vyrals' || visitedSubpages.has('my-vyrals')) && (
         <div hidden={activePage !== 'my-vyrals'} style={{ display: activePage !== 'my-vyrals' ? "none" : undefined }} className="min-w-0">
-          <MyVyralsPage isAuthenticated={Boolean(userEmail)} isActive={activePage === 'my-vyrals'} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
+          <MyVyralsPage isAuthenticated={Boolean(userEmail)} isActive={isActive && activePage === 'my-vyrals'} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
         </div>
       )}
       {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
         <div hidden={activePage !== 'my-media-library'} style={{ display: activePage !== 'my-media-library' ? "none" : undefined }} className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card">
-            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage isActive={activePage === 'my-media-library'} /></div>
+            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage isActive={isActive && activePage === 'my-media-library'} /></div>
           </section>
         </div>
       )}
