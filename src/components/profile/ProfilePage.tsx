@@ -108,7 +108,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null, onSendAssetsToChat,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
+  const [visitedSubpages, setVisitedSubpages] = useState<Set<PageKey>>(() => new Set(initialPage ? [initialPage] : []));
   const [pageSearch, setPageSearch] = useState('');
+  React.useEffect(() => {
+    setVisitedSubpages((current) => current.has(activePage) ? current : new Set([...current, activePage]));
+  }, [activePage]);
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
   React.useEffect(() => { setPageSearch(''); }, [activePage]);
   React.useLayoutEffect(() => {
@@ -130,6 +134,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   return (
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
+      {(activePage === 'my-vyrals' || visitedSubpages.has('my-vyrals')) && (
+        <div hidden={activePage !== 'my-vyrals'} className="min-w-0">
+          <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
+        </div>
+      )}
+      {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
+        <div hidden={activePage !== 'my-media-library'} className="profile-subpage-scroll profile-subpage-viewport">
+          <section className="profile-subpage-card">
+            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage /></div>
+          </section>
+        </div>
+      )}
       {activePage === 'home' ? (
         <>
           <section className="mb-7">
@@ -178,9 +194,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
           </div>
         </>
-      ) : activePage === 'my-vyrals' ? (
-        <MyVyralsPage isAuthenticated={Boolean(userEmail)} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
-      ) : (
+      ) : activePage === 'my-vyrals' || activePage === 'my-media-library' ? null : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           {activePage !== 'my-media-library' && <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
@@ -191,9 +205,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />}
           <div className="profile-subpage-content p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
-            {activePage === 'my-media-library' ? (
-              <MyMediaLibraryPage />
-            ) : activePage === 'settings' ? (
+            {activePage === 'settings' ? (
               <div className="divide-y divide-[var(--vyra-border-subtle)]">
                 {settingsItems.map(({ key, label, detail, icon: Icon }) => (
                   <button key={key} type="button" onClick={() => setActivePage(key)} className="group flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--vyra-bg-hover)] first:pt-0 last:pb-0">
