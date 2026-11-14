@@ -197,7 +197,9 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   console.log('MEDIA_LIBRARY_E2E_REQUESTS', JSON.stringify(observedRequests));
   await expect.poll(() => uploadedThumbnailPaths.length).toBe(1);
   await expect.poll(() => typeof item.metadata.thumbnail_path === 'string').toBe(true);
-  await expect.poll(() => typeof unsupportedItem.metadata.thumbnail_backfill_attempted_at === 'string').toBe(true);
+  await expect.poll(() => unsupportedItem.metadata.thumbnail_backfill_attempts === 1).toBe(true);
+  await expect.poll(() => typeof unsupportedItem.metadata.thumbnail_backfill_retry_after_at === 'string').toBe(true);
+  expect(unsupportedItem.metadata.thumbnail_backfill_attempted_at).toBeUndefined();
   expect(uploadedThumbnailPaths[0]).toContain(userId + '/media-library-thumbnails/' + itemId + '-');
   expect(originalObjectMutations).toEqual([]);
   expect(unsupportedItem.metadata.thumbnail_path).toBeUndefined();
