@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   backfillMediaLibraryThumbnails, createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
-  getMediaLibraryItemSignedUrl, loadMediaLibrary, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
+  getMediaLibraryItemSignedUrl, loadMediaLibrary, loadMediaLibraryItemsByIds, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
   renameMediaLibraryItem, uploadMediaLibraryFiles,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
@@ -205,6 +205,12 @@ export const MyMediaLibraryPage: React.FC = () => {
   }, [activeFolderId, filter, serverQuery]);
 
   useEffect(() => {
+    const handleLibraryChanged = () => { void refresh(true); };
+    window.addEventListener('vyra:media-library-changed', handleLibraryChanged);
+    return () => window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
+  }, [refresh]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query), 250);
     return () => window.clearTimeout(timer);
   }, [query]);
@@ -286,10 +292,10 @@ export const MyMediaLibraryPage: React.FC = () => {
     return [...currentFolders, ...currentItems].sort(compare);
   }, [folders, items, activeFolderId, filter, query]);
 
-  const withBusy = async (task: () => Promise<void>, success?: string) => {
+  const withBusy = async (task: () => Promise<void>, success?: string, refreshAfter = true) => {
     setBusy(true); setError(null); setNotice(null);
-    try { await task(); await refresh(true); if (success) setNotice(success); }
-    catch (cause) { await refresh(true); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
+    try { await task(); if (refreshAfter) await refresh(true); if (success) setNotice(success); }
+    catch (cause) { if (refreshAfter) await refresh(true); setError(cause instanceof Error ? cause.message : 'The Media Library action failed.'); }
     finally { setBusy(false); }
   };
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); setServerQuery(''); };
@@ -312,6 +318,25 @@ export const MyMediaLibraryPage: React.FC = () => {
           },
           (file, cause) => failures.push({ file, message: cause.message }),
           controller.signal,
+          (itemId) => {
+            // Fetch just the inserted row and patch the visible folder/cache;
+            // do not reload the complete folder after each successful upload.
+            void loadMediaLibraryItemsByIds([itemId]).then((updatedItems) => {
+              const item = updatedItems[0];
+              if (!item || item.folder_id !== activeFolderId) return;
+              if (filter !== 'all' && kindOf(item.mime_type) !== filter) return;
+              if (serverQuery && !item.file_name.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase())) return;
+              const mergeItem = (current: MediaLibraryItem[]) => [
+                ...current.filter((entry) => entry.id !== item.id), item,
+              ].sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { numeric: true, sensitivity: 'base' })).slice(0, 100);
+              setItems((current) => mergeItem(current));
+              const cacheKey = JSON.stringify([activeFolderId, serverQuery, filter]);
+              const cached = libraryCacheRef.current.get(cacheKey);
+              if (cached) libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() });
+            }).catch(() => {
+              // The upload remains saved; a later background refresh can reconcile its preview row.
+            });
+          },
         );
         setFailedUploads(failures);
         if (count > 0) setSelectedIds([]);
@@ -321,7 +346,7 @@ export const MyMediaLibraryPage: React.FC = () => {
             ? 'Upload stopped after the current file. ' + count + (count === 1 ? ' file uploaded' : ' files uploaded') + '.'
             : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',
         );
-      });
+      }, undefined, false);
       if (failures.length) {
         setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
       }
