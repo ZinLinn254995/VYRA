@@ -179,7 +179,7 @@ function MarketplaceApp() {
                 onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
                 backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
                 onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
-                onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage}
+                onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
                 onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
               />
             </ErrorBoundary>
