@@ -29,6 +29,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   const [filter, setFilter] = useState<FilterKind>('all');
   const [view, setView] = useState<ViewMode>('grid');
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [iconSize, setIconSize] = useState<'small' | 'medium' | 'large'>('medium');
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickRef = useRef<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -201,6 +202,9 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
     event.target.value = '';
   };
 
+  const mediaIconPixels = iconSize === 'small' ? 18 : iconSize === 'large' ? 28 : 22;
+  const folderIconPixels = mediaIconPixels;
+
   const iconFor = (mime: string, size = 20) => {
     const kind = kindOf(mime);
     if (kind === 'image') return <ImageIcon size={size}/>;
@@ -252,7 +256,10 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
           <div className="flex shrink-0 items-center gap-2">
             {view === 'grid' && <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
               <button type="button" onClick={() => setZoomLevel((level) => Math.max(0, level - 1))} disabled={zoomLevel === 0} aria-label="Zoom out" className="grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] disabled:opacity-30"><Minus size={15}/></button>
-              <button type="button" onClick={() => setZoomLevel((level) => Math.min(4, level + 1))} disabled={zoomLevel === 4} aria-label="Zoom in" className="grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] disabled:opacity-30"><Plus size={15}/></button>
+              <button type="button" onClick={() => setZoomLevel((level) => Math.min(2, level + 1))} disabled={zoomLevel === 2} aria-label="Zoom in" className="grid size-8 place-items-center rounded-md text-[var(--vyra-text-muted)] disabled:opacity-30"><Plus size={15}/></button>
+            </div>}
+            {view === 'grid' && <div role="group" aria-label="Icon size" className="flex items-center gap-0.5 rounded-lg border border-[var(--vyra-border)] p-1">
+              {(['small', 'medium', 'large'] as const).map((size) => <button key={size} type="button" onClick={() => setIconSize(size)} aria-pressed={iconSize === size} className={`rounded-md px-2 py-1.5 text-[10px] font-medium capitalize transition ${iconSize === size ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{size}</button>)}
             </div>}
             <div className="flex items-center gap-1 rounded-lg border border-[var(--vyra-border)] p-1">
               <button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button>
@@ -283,9 +290,9 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
 
         {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-[var(--vyra-text-muted)]"><Loader2 size={17} className="animate-spin"/> Loading Media Library…</div>
         : (visibleFolders.length > 0 || filteredItems.length > 0) ? view === 'grid' ? <div className="grid content-start gap-0.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(' + [120, 150, 180][zoomLevel] + 'px, 100%), 1fr))' }}>
-          {visibleFolders.map((folder) => <article key={folder.id} {...holdProps(folder.id)} onClick={() => handleEntryClick(folder.id, () => navigateToFolder(folder.id))} className={`relative flex min-h-20 min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(folder.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={22}/></span><span className="w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span>{selectedIds.includes(folder.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}</article>)}
+          {visibleFolders.map((folder) => <article key={folder.id} {...holdProps(folder.id)} onClick={() => handleEntryClick(folder.id, () => navigateToFolder(folder.id))} className={`relative flex min-h-20 min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(folder.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={folderIconPixels}/></span><span className="w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span>{selectedIds.includes(folder.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}</article>)}
           {filteredItems.map((item) => <article key={item.id} {...holdProps(item.id)} onClick={() => handleEntryClick(item.id, () => openItem(item))} className={`relative flex min-h-20 min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(item.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}>
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,22)}</span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,mediaIconPixels)}</span>
             <span className="w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]" title={item.file_name}>{item.file_name}</span>
             {selectedIds.includes(item.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}
           </article>)}
