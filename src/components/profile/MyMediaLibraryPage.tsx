@@ -205,19 +205,30 @@ export const MyMediaLibraryPage: React.FC = () => {
   }, [activeFolderId, filter, serverQuery]);
 
   useEffect(() => {
-    const handleLibraryChanged = () => { void refresh(true); };
-    const handlePageActivated = (event: Event) => {
-      const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
-      if (page !== 'profile:my-media-library') return;
+    const isActiveRef = { current: true };
+    const refreshIfStale = () => {
+      if (!isActiveRef.current || document.visibilityState !== 'visible') return;
       const key = JSON.stringify([activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
     };
+    const handleLibraryChanged = () => { if (isActiveRef.current) void refresh(true); };
+    const handlePageActivated = (event: Event) => {
+      const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
+      isActiveRef.current = page === 'profile:my-media-library';
+      if (isActiveRef.current) refreshIfStale();
+    };
     window.addEventListener('vyra:media-library-changed', handleLibraryChanged);
     window.addEventListener('vyra:page-activated', handlePageActivated);
+    window.addEventListener('focus', refreshIfStale);
+    window.addEventListener('online', refreshIfStale);
+    document.addEventListener('visibilitychange', refreshIfStale);
     return () => {
       window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
       window.removeEventListener('vyra:page-activated', handlePageActivated);
+      window.removeEventListener('focus', refreshIfStale);
+      window.removeEventListener('online', refreshIfStale);
+      document.removeEventListener('visibilitychange', refreshIfStale);
     };
   }, [activeFolderId, filter, refresh, serverQuery]);
 
