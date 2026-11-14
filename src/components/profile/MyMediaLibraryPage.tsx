@@ -242,13 +242,15 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     return () => window.clearTimeout(timer);
   }, [query]);
   useEffect(() => {
+    if (!isActive) return;
     let mounted = true;
     const initializeLibrary = async () => {
       await refresh();
       if (!mounted || thumbnailBackfillStartedRef.current) return;
       thumbnailBackfillStartedRef.current = true;
       try {
-        // Backfill only once per page visit, even when folder/search filters change.
+        // Repair a small batch only after the user opens the Library, never while
+        // another profile subpage is active or during every folder navigation.
         const generated = await backfillMediaLibraryThumbnails(4);
         if (mounted && generated > 0) await refresh(true);
       } catch {
@@ -257,7 +259,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     };
     void initializeLibrary();
     return () => { mounted = false; };
-  }, [refresh]);
+  }, [isActive, refresh]);
   useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
