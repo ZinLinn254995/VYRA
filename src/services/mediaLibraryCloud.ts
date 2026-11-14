@@ -62,7 +62,7 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
       storage.createSignedUrl(item.storage_path, 60 * 60),
       thumbnailPath ? storage.createSignedUrl(thumbnailPath, 60 * 60) : Promise.resolve({ data: null, error: null }),
     ]);
-    return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail?.signedUrl ?? null };
+    return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
   }));
   return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
 }
