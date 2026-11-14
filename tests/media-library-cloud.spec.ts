@@ -177,6 +177,14 @@ test('My Media Library UI includes required organization, filtering, views and m
   assert.ok(openFlow.includes('setError(cause instanceof Error ? cause.message'), 'Secure URL failures must be visible to the user.');
   assert.ok(page.includes('else if (entry.item) void openEntry(entry)'), 'Touch preview must use the same on-demand secure URL flow.');
   assert.ok(page.includes('getMediaLibraryItemSignedUrl, loadMediaLibrary'), 'The UI must use the owner-scoped URL service.');
+  assert.ok(service.includes(".range(offset, offset + limit)"), 'Media Library items must be fetched in bounded server-side pages.');
+  assert.ok(service.includes("folderId?: string | null"), 'Page requests must support folder-scoped loading.');
+  assert.ok(service.includes("const hasMore = rawPage.length > limit"), 'The service must expose whether another page exists.');
+  assert.ok(service.includes("itemQuery.like('mime_type', 'image/%')"), 'File-type filters must be applied before pagination.');
+  assert.ok(page.includes("offset: items.length, limit: 100"), 'Load more must request the next server page.');
+  assert.ok(page.includes("thumbnailBackfillStartedRef.current"), 'Thumbnail repair must not rerun on every folder or filter change.');
+  assert.ok(page.includes("setServerQuery('')"), 'Folder navigation must clear the server-side search immediately.');
+
   assert.ok(page.includes('downloadUrl.searchParams.set(\'download\', previewItem.file_name)'), 'Original files must use Storage download disposition with the original filename.');
   assert.ok(page.includes('aria-label="Download original file"'), 'The preview action must be exposed as a download, not an inline open.');
   assert.ok(page.includes('cleanup is queued and will retry automatically when you next open My Media Library'), 'The user must be told when storage cleanup is deferred until the next Library visit.');
