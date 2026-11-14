@@ -430,5 +430,7 @@ test('Media Library cache is isolated and cleared when the authenticated owner c
   assert.ok(page.includes('JSON.stringify([ownerId, activeFolderId, serverQuery, filter])'), 'Every cached view must include its owner and full folder/search/filter context.');
   assert.ok(page.includes('if (cacheOwnerRef.current === ownerId) return;'), 'The current owner should not lose their own warm cache.');
   assert.ok(page.includes('libraryCacheRef.current.clear()'), 'A sign-out or account switch must clear private rows and signed URLs from memory.');
+  assert.ok(page.includes('setPreviewItem(null)'), 'A private preview from the previous owner must close on account switch.');
+  assert.ok(page.includes('uploadAbortControllerRef.current?.abort()'), 'An upload started under the previous owner must stop between files.');
   assert.ok(page.includes('Never render a previous account\'s private rows or signed thumbnail URLs.'), 'Private cached content must never flash for a different account.');
 });
