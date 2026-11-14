@@ -38,6 +38,14 @@ const getDb = () => {
   return supabase;
 };
 
+// Short-lived owner-scoped metadata caches avoid repeating identical reads while
+// preserving the private Storage authorization boundary. Signed thumbnails are
+// reused only until shortly before their one-hour expiry.
+const MEDIA_FOLDER_CACHE_TTL_MS = 30_000;
+const mediaLibraryFolderCache = new Map<string, { folders: MediaLibraryFolder[]; expiresAt: number }>();
+const thumbnailSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+let lastStorageCleanupStartedAt = 0;
+
 /** Run a bounded number of async tasks to avoid request spikes on large Libraries. */
 async function mapWithConcurrency<T, R>(
   values: T[],
@@ -153,7 +161,10 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   const ownerId = await getOwnerId();
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 100)));
-  void processMediaLibraryStorageCleanup(4).catch(() => undefined);
+  if (Date.now() - lastStorageCleanupStartedAt >= 15 * 60_000) {
+    lastStorageCleanupStartedAt = Date.now();
+    void processMediaLibraryStorageCleanup(4).catch(() => undefined);
+  }
 
   let itemQuery = db.from('media_library_items')
     .select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
@@ -186,12 +197,16 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
       break;
   }
 
+  const cachedFolders = mediaLibraryFolderCache.get(ownerId);
+  const useCachedFolders = Boolean(cachedFolders && cachedFolders.expiresAt > Date.now());
   const [folderResult, itemResult] = await Promise.all([
-    db.from('media_library_folders').select('id,user_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId).order('name'),
+    useCachedFolders ? Promise.resolve(null) : db.from('media_library_folders').select('id,user_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId).order('name'),
     itemQuery.order('file_name', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limit),
   ]);
-  if (folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
+  if (folderResult && folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
   if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
+  const folders = useCachedFolders ? cachedFolders!.folders : (folderResult?.data ?? []) as MediaLibraryFolder[];
+  if (!useCachedFolders) mediaLibraryFolderCache.set(ownerId, { folders, expiresAt: Date.now() + MEDIA_FOLDER_CACHE_TTL_MS });
   const rawPage = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
   const hasMore = rawPage.length > limit;
   const rawItems = rawPage.slice(0, limit);
@@ -203,15 +218,21 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
       : null;
     try {
       const storage = db.storage.from(item.bucket_id);
-      const thumbnail = thumbnailPath
-        ? await storage.createSignedUrl(thumbnailPath, 60 * 60)
-        : { data: null, error: null };
-      return { ...item, signed_url: null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
+      if (!thumbnailPath) return { ...item, signed_url: null, thumbnail_url: null };
+      const cacheKey = item.bucket_id + ':' + thumbnailPath;
+      const cachedThumbnail = thumbnailSignedUrlCache.get(cacheKey);
+      if (cachedThumbnail && cachedThumbnail.expiresAt > Date.now() + 60_000) {
+        return { ...item, signed_url: null, thumbnail_url: cachedThumbnail.url };
+      }
+      const thumbnail = await storage.createSignedUrl(thumbnailPath, 60 * 60);
+      const signedUrl = thumbnail.data?.signedUrl ?? null;
+      if (signedUrl) thumbnailSignedUrlCache.set(cacheKey, { url: signedUrl, expiresAt: Date.now() + 55 * 60_000 });
+      return { ...item, signed_url: null, thumbnail_url: signedUrl };
     } catch {
       return { ...item, signed_url: null, thumbnail_url: null };
     }
   });
-  return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items, hasMore };
+  return { folders, items, hasMore };
 }
 
 /** Create a short-lived original-file URL only when the owner opens or downloads an item. */
@@ -241,6 +262,7 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
     .insert({ user_id: userId, parent_id: parentId, name: cleanName })
     .select('id,user_id,parent_id,name,created_at,updated_at').single();
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create folder: ' + error.message);
+  mediaLibraryFolderCache.delete(userId);
   return data as MediaLibraryFolder;
 }
 
@@ -251,6 +273,7 @@ export async function renameMediaLibraryFolder(folderId: string, name: string): 
   if (!cleanName) throw new Error('Enter a folder name.');
   const { error } = await db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId);
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message);
+  mediaLibraryFolderCache.delete(userId);
 }
 
 export async function deleteMediaLibraryFolder(folderId: string): Promise<void> {
@@ -264,6 +287,7 @@ export async function deleteMediaLibraryFolder(folderId: string): Promise<void> 
   if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
   const { error } = await db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId);
   if (error) throw new Error('Could not delete folder: ' + error.message);
+  mediaLibraryFolderCache.delete(userId);
 }
 
 export async function moveMediaLibraryFolder(folderId: string, parentId: string | null): Promise<void> {
@@ -278,6 +302,7 @@ export async function moveMediaLibraryFolder(folderId: string, parentId: string 
     }
     throw new Error('Could not move folder: ' + error.message);
   }
+  mediaLibraryFolderCache.delete(userId);
 }
 
 export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null): Promise<void> {
