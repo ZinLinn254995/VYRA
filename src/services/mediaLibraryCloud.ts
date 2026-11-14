@@ -24,6 +24,7 @@ export type MediaLibraryItem = {
   created_at: string;
   updated_at: string;
   signed_url: string | null;
+  thumbnail_url: string | null;
 };
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -55,8 +56,21 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
   if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
   const rawItems = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
   const items = await Promise.all(rawItems.map(async (item) => {
-    const { data } = await db.storage.from(item.bucket_id).createSignedUrl(item.storage_path, 60 * 60);
-    return { ...item, signed_url: data?.signedUrl ?? null };
+    const storage = db.storage.from(item.bucket_id);
+    const [{ data: original }, thumbnail] = await Promise.all([
+      storage.createSignedUrl(item.storage_path, 60 * 60),
+      item.mime_type.startsWith('image/')
+        ? storage.createSignedUrl(item.storage_path, 60 * 60, {
+            transform: { width: 256, height: 256, resize: 'cover', quality: 68 },
+          })
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+    return {
+      ...item,
+      signed_url: original?.signedUrl ?? null,
+      // Never fall back to the original full-resolution image for a tile preview.
+      thumbnail_url: thumbnail.data?.signedUrl ?? null,
+    };
   }));
   return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
 }
