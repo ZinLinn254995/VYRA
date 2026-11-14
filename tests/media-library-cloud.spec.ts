@@ -436,3 +436,16 @@ test('Media Library cache is isolated and cleared when the authenticated owner c
   assert.ok(page.includes('uploadAbortControllerRef.current?.abort()'), 'An upload started under the previous owner must stop between files.');
   assert.ok(page.includes('Never render a previous account\'s private rows or signed thumbnail URLs.'), 'Private cached content must never flash for a different account.');
 });
+
+
+test('Profile Vyral and Media Library pages revalidate only when visible', () => {
+  const profile = read('src/components/profile/ProfilePage.tsx');
+  const vyrals = read('src/components/profile/MyVyralsPage.tsx');
+  assert.ok(profile.includes("isActive={isActive && activePage === 'my-vyrals'}"), 'My Vyrals must know when its parent Profile page is visible.');
+  assert.ok(profile.includes("isActive={isActive && activePage === 'my-media-library'}"), 'My Media Library must know when its parent Profile page is visible.');
+  assert.ok(profile.includes("page: isActive ? 'profile:' + activePage : 'profile:inactive'"), 'Profile activation must be re-announced when returning from another top-level page.');
+  assert.ok(profile.includes('}, [activePage, isActive]);'), 'Profile activation event must respond to both subpage and top-level visibility changes.');
+  assert.ok(vyrals.includes('if (!isActive) return;'), 'Hidden My Vyrals must not fetch or show a loading state.');
+  assert.ok(vyrals.includes('Date.now() - lastSyncAtRef.current >= 30_000'), 'A stale Vyral list should revalidate after return without blocking the UI.');
+  assert.ok(vyrals.includes('if (!quiet) setLoading(true)'), 'A background Vyral refresh must preserve visible cached content.');
+});
