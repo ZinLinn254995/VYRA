@@ -113,13 +113,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [pageSearch, setPageSearch] = useState('');
   React.useEffect(() => {
     setVisitedSubpages((current) => current.has(activePage) ? current : new Set([...current, activePage]));
-  }, [activePage, isActive]);
+  }, [activePage]);
   React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
   React.useEffect(() => { setPageSearch(''); }, [activePage]);
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: isActive ? 'profile:' + activePage : 'profile:inactive' } }));
-  }, [activePage]);
+  }, [activePage, isActive]);
   React.useLayoutEffect(() => {
     // Every Profile subpage starts with the global header fully visible.
     // A page that supports header hiding must not leak that state into the next page.
