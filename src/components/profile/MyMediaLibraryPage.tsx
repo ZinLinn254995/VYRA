@@ -85,7 +85,7 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
   );
 };
 
-export const MyMediaLibraryPage: React.FC = () => {
+export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
   const [hasMoreItems, setHasMoreItems] = useState(false);
@@ -205,7 +205,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   }, [activeFolderId, filter, serverQuery]);
 
   useEffect(() => {
-    const isActiveRef = { current: true };
+    const isActiveRef = { current: isActive };
     const refreshIfStale = () => {
       if (!isActiveRef.current || document.visibilityState !== 'visible') return;
       const key = JSON.stringify([activeFolderId, serverQuery, filter]);
@@ -230,7 +230,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       window.removeEventListener('online', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
     };
-  }, [activeFolderId, filter, refresh, serverQuery]);
+  }, [activeFolderId, filter, isActive, refresh, serverQuery]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query), 250);
