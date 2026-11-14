@@ -173,8 +173,8 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
 test('Failed Vyral Asset indexing queues cleanup for its thumbnail without touching the canonical Asset', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
   const start = service.indexOf('export async function registerVyralAssetInMediaLibrary');
-  const end = service.indexOf('\n}', start);
-  const register = service.slice(start, end);
+  const end = service.indexOf('\nexport async function ', start + 1);
+  const register = service.slice(start, end === -1 ? undefined : end);
   assert.ok(register.includes("db.from('media_library_storage_cleanup_jobs').insert"), 'A thumbnail uploaded before a failed Library upsert must be durably queued for cleanup.');
   assert.ok(register.includes('storage_paths: [thumbnailPath]'), 'Cleanup must target only the generated thumbnail.');
   assert.ok(register.includes("db.storage.from('vyral-assets').remove([thumbnailPath])"), 'If queue persistence fails, remove only the generated thumbnail.');
