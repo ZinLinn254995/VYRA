@@ -27,7 +27,7 @@ export type MediaLibraryItem = {
 };
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
-const SAFE_NAME = (value: string) => value.replace(/[\\/\\\\]/g, '-').replace(/[\\u0000-\\u001f]/g, '').trim().slice(0, 180);
+const SAFE_NAME = (value: string) => value.replaceAll('/', '-').replaceAll('\\\\', '-').replace(/[\\u0000-\\u001f]/g, '').trim().slice(0, 180);
 const getDb = () => {
   if (!supabase) throw new Error('Cloud storage is not configured in this environment.');
   return supabase;
