@@ -1930,7 +1930,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
             await awaitForCurrentRequest(registerVyralAssetInMediaLibrary({
               assetId: ingested.assetId, userId: authData.user.id, fileName: sourceFile.name,
               mimeType: ingested.mimeType, sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath,
-              sourceKind: 'vyral_asset',
+              sourceKind: 'vyral_asset', thumbnailSource: sourceFile,
             }));
             mediaLibraryMessage = '\n**My Media Library:** Added automatically.';
           } catch {
