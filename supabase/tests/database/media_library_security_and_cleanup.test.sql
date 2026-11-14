@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(20);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -58,6 +58,10 @@ select throws_ok(
   '23503', 'Media Library folder is not empty; move or remove its contents first', 'Database prevents deletion of a folder containing a child folder or file'
 );
 select is((select count(*)::integer from public.media_library_folders where id='27000000-0000-4000-8000-000000000012'),1,'Rejected parent deletion preserves its child folder');
+select throws_ok(
+  $ update public.media_library_folders set parent_id='27000000-0000-4000-8000-000000000012' where id='27000000-0000-4000-8000-000000000011' $,
+  'P0001', 'A folder cannot be moved into one of its descendants', 'Database prevents moving a folder into its descendant'
+);
 
 select is(public.delete_media_library_items_and_queue_storage_cleanup(array['27000000-0000-4000-8000-000000000002'::uuid]),0,'Owner A cannot delete owner B file through cleanup RPC');
 reset role;
