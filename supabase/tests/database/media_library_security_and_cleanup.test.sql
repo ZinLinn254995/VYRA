@@ -59,7 +59,7 @@ select throws_ok(
 );
 select is((select count(*)::integer from public.media_library_folders where id='27000000-0000-4000-8000-000000000012'),1,'Rejected parent deletion preserves its child folder');
 select throws_ok(
-  $ update public.media_library_folders set parent_id='27000000-0000-4000-8000-000000000012' where id='27000000-0000-4000-8000-000000000011' $,
+  $sql$ update public.media_library_folders set parent_id='27000000-0000-4000-8000-000000000012' where id='27000000-0000-4000-8000-000000000011' $sql$,
   'P0001', 'A folder cannot be moved into one of its descendants', 'Database prevents moving a folder into its descendant'
 );
 
