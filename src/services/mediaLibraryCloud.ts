@@ -260,11 +260,16 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
       if (uploadError) continue;
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
-      const { error: updateError } = await db.from('media_library_items')
+      const { data: updatedRow, error: updateError } = await db.from('media_library_items')
         .update({ metadata, updated_at: new Date().toISOString() })
         .eq('id', row.id).eq('user_id', userId)
-        .is('metadata->thumbnail_path', null);
-      if (updateError) {
+        .is('metadata->thumbnail_path', null)
+        .select('id')
+        .maybeSingle();
+      // The row may have been deleted or another process may have attached a
+      // thumbnail after the initial query. Remove our object unless this update
+      // actually claimed the row, so a race cannot leave an orphaned thumbnail.
+      if (updateError || !updatedRow) {
         await db.storage.from('vyral-assets').remove([thumbnailPath]);
         continue;
       }
