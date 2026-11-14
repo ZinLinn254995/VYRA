@@ -2,9 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AudioLines, Check, ChevronRight, Download, File, FileText, Folder, FolderPlus,
   Grid2X2, Image as ImageIcon, List, Loader2, MoreHorizontal, Pencil, Plus,
-  RefreshCw, Search, Trash2, Upload, Video, X,
+  RefreshCw, Trash2, Upload, Video, X,
 } from 'lucide-react';
-import { supabase } from '../../context/AuthContext';
 import {
   createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
   loadMediaLibrary, moveMediaLibraryItems, renameMediaLibraryFolder,
@@ -61,7 +60,7 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
-  const folderItems = useMemo(() => items.filter((item) => item.folder_id === activeFolderId), [items, activeFolderId]);
+  const folderItems = useMemo(() => activeFolderId === null ? items : items.filter((item) => item.folder_id === activeFolderId), [items, activeFolderId]);
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     return folderItems.filter((item) => {
