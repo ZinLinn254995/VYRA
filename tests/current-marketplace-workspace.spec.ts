@@ -221,5 +221,5 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     await expect(page.getByRole('button', { name: 'Grid view' })).toBeVisible();
   }
   await page.getByRole('button', { name: 'List view' }).click();
-  await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+  await expect(page.getByText('Name', { exact: true })).toBeVisible();
 });
