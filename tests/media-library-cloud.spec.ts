@@ -228,6 +228,15 @@ test('Vyral Asset indexing verifies the signed-in owner and canonical storage pa
   assert.ok(register.includes("segment === '..'"), 'Canonical storage paths must reject traversal segments.');
 });
 
+test('Signed original and thumbnail URLs reject unsafe or cross-owner object paths', () => {
+  const service = read('src/services/mediaLibraryCloud.ts');
+  assert.ok(service.includes('function isSafeOwnerStoragePath(path: unknown, ownerId: string, allowedRoots: string[] = [])'), 'Storage URL creation must share one normalized owner-path validator.');
+  assert.ok(service.includes("!isSafeOwnerStoragePath(data.storage_path, userId)"), 'Original preview URLs must reject traversal and cross-owner paths.');
+  assert.ok(service.includes("isSafeOwnerStoragePath(storedThumbnailPath, ownerId, ['media-library-thumbnails'])"), 'Thumbnail URLs must be restricted to the owner’s dedicated thumbnail namespace.');
+  assert.ok(service.includes("segments.some((segment) => !segment || segment === '.' || segment === '..')"), 'Storage paths must reject empty and traversal segments.');
+  assert.ok(service.includes("path.includes('\\\\\\\\')"), 'Storage paths must reject backslash-based traversal.');
+});
+
 test('Failed Vyral Asset indexing queues cleanup for its thumbnail without touching the canonical Asset', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
   const start = service.indexOf('export async function registerVyralAssetInMediaLibrary');
