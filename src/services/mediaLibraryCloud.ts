@@ -196,7 +196,8 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   const hasMore = rawPage.length > limit;
   const rawItems = rawPage.slice(0, limit);
   const items = await mapWithConcurrency(rawItems, 8, async (item) => {
-    const storedThumbnailPath = item.metadata?.thumbnail_path;\n    const thumbnailPath = isSafeOwnerStoragePath(storedThumbnailPath, ownerId, ['media-library-thumbnails']) ? storedThumbnailPath : null;
+    const storedThumbnailPath = item.metadata?.thumbnail_path;
+    const thumbnailPath = isSafeOwnerStoragePath(storedThumbnailPath, ownerId, ['media-library-thumbnails']) ? storedThumbnailPath : null;
     try {
       const storage = db.storage.from(item.bucket_id);
       const thumbnail = thumbnailPath
