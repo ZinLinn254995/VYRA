@@ -113,6 +113,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   const originalPath = item.storage_path;
   const uploadedThumbnailPaths: string[] = [];
   const originalObjectMutations: string[] = [];
+  const observedRequests: string[] = [];
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/WioAAAAASUVORK5CYII=', 'base64');
   const corsHeaders = {
     'access-control-allow-origin': '*',
@@ -126,6 +127,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     const request = route.request();
     const url = new URL(request.url());
     const method = request.method();
+    observedRequests.push(method + ' ' + url.pathname + url.search);
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders });
     if (url.pathname.endsWith('/auth/v1/signup') && method === 'POST') return json(route, { user, session });
     if (url.pathname.endsWith('/auth/v1/user') && method === 'GET') return json(route, user);
@@ -175,6 +177,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByRole('button', { name: /My Media Library/ }).click();
 
   await expect(page.getByText('legacy-sample.png')).toBeVisible();
+  console.log('MEDIA_LIBRARY_E2E_REQUESTS', JSON.stringify(observedRequests));
   await expect.poll(() => uploadedThumbnailPaths.length).toBe(1);
   await expect.poll(() => typeof item.metadata.thumbnail_path === 'string').toBe(true);
   expect(uploadedThumbnailPaths[0]).toContain(userId + '/media-library-thumbnails/' + itemId + '-');
