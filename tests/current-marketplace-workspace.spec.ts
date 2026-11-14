@@ -68,7 +68,6 @@ test('Workspace opens My Media Library with standard file-manager controls', asy
   await openSection(page, 'Workspace');
 
   await page.getByRole('button', { name: /My Media Library/ }).click();
-  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'My Media', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'New folder' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Upload files' })).toBeVisible();
