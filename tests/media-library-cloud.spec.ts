@@ -14,6 +14,10 @@ test('Media Library database is cloud-backed and owner-isolated', () => {
   }
   assert.ok(migration.includes('enforce_media_library_item_owner_refs'));
   assert.ok(migration.includes('enforce_media_library_folder_parent_owner'));
+  const safeMoves = read('supabase/migrations/20261114081200_media_library_safe_folder_moves.sql');
+  assert.ok(safeMoves.includes('with recursive descendants(id)'));
+  assert.ok(safeMoves.includes('union'));
+  assert.ok(safeMoves.includes('A folder cannot be moved into one of its descendants'));
   assert.ok(migration.includes('source_asset_id uuid references public.vyral_assets(id) on delete cascade'));
   assert.ok(migration.includes('on public.media_library_items(user_id, source_asset_id)'));
   const indexes = read('supabase/migrations/20261114080528_media_library_foreign_key_indexes.sql');
@@ -31,6 +35,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     'renameMediaLibraryFolder',
     'deleteMediaLibraryFolder',
     'moveMediaLibraryItems',
+    'moveMediaLibraryFolder',
     'deleteMediaLibraryItems',
     'registerVyralAssetInMediaLibrary',
     "onConflict: 'user_id,source_asset_id'",
@@ -45,7 +50,7 @@ test('My Media Library UI includes required organization, filtering, views and m
   for (const value of ["'image'","'video'","'audio'","'document'","'other'"]) assert.ok(page.includes(value));
   for (const snippet of [
     "setView('grid')", "setView('list')", 'multiple className="hidden"',
-    'toggleAll', 'selectedIds', 'moveMediaLibraryItems', 'role="toolbar"', 'aria-label="Selected item actions"', 'Rename selected item', 'Move selected files to folder', 'Delete selected items',
+    'toggleAll', 'selectedIds', 'moveMediaLibraryItems', 'role="toolbar"', 'aria-label="Selected item actions"', 'Rename selected item', 'Move selected files to folder', 'Move selected folder to folder', 'moveSelectedFolder', 'blockedFolderIds', 'folderPath(folder.id)', 'Delete selected items',
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
     '<video', '<audio',
