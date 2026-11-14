@@ -204,6 +204,10 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
 
   const mediaIconPixels = iconSize === 'small' ? 18 : iconSize === 'large' ? 28 : 22;
   const folderIconPixels = mediaIconPixels;
+  // Zoom scales the complete grid tile and its icon backing, not the glyph itself.
+  const gridTileWidth = [120, 150, 180][zoomLevel];
+  const gridTileHeight = [80, 100, 120][zoomLevel];
+  const gridIconBoxSize = [36, 44, 52][zoomLevel];
 
   const iconFor = (mime: string, size = 20) => {
     const kind = kindOf(mime);
@@ -289,10 +293,10 @@ export const MyMediaLibraryPage: React.FC<Props> = ({ searchQuery = '' }) => {
         </div>}
 
         {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-[var(--vyra-text-muted)]"><Loader2 size={17} className="animate-spin"/> Loading Media Library…</div>
-        : (visibleFolders.length > 0 || filteredItems.length > 0) ? view === 'grid' ? <div className="grid content-start gap-0.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(' + [120, 150, 180][zoomLevel] + 'px, 100%), 1fr))' }}>
-          {visibleFolders.map((folder) => <article key={folder.id} {...holdProps(folder.id)} onClick={() => handleEntryClick(folder.id, () => navigateToFolder(folder.id))} className={`relative flex min-h-20 min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(folder.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={folderIconPixels}/></span><span className="w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span>{selectedIds.includes(folder.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}</article>)}
-          {filteredItems.map((item) => <article key={item.id} {...holdProps(item.id)} onClick={() => handleEntryClick(item.id, () => openItem(item))} className={`relative flex min-h-20 min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(item.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}>
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,mediaIconPixels)}</span>
+        : (visibleFolders.length > 0 || filteredItems.length > 0) ? view === 'grid' ? <div className="grid content-start gap-0.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(' + gridTileWidth + 'px, 100%), 1fr))' }}>
+          {visibleFolders.map((folder) => <article key={folder.id} {...holdProps(folder.id)} onClick={() => handleEntryClick(folder.id, () => navigateToFolder(folder.id))} style={{ minHeight: gridTileHeight }} className={`relative flex min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(folder.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}><span style={{ width: gridIconBoxSize, height: gridIconBoxSize }} className="grid shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Folder size={folderIconPixels}/></span><span className="w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{folder.name}</span>{selectedIds.includes(folder.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}</article>)}
+          {filteredItems.map((item) => <article key={item.id} {...holdProps(item.id)} onClick={() => handleEntryClick(item.id, () => openItem(item))} style={{ minHeight: gridTileHeight }} className={`relative flex min-w-0 cursor-pointer select-none flex-col items-center justify-center gap-1 p-1 text-center [-webkit-touch-callout:none] ${selectedIds.includes(item.id) ? 'rounded-lg bg-[var(--vyra-accent-primary)]/10' : 'hover:bg-[var(--vyra-bg-hover)]'}`}>
+            <span style={{ width: gridIconBoxSize, height: gridIconBoxSize }} className="grid shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)]">{iconFor(item.mime_type,mediaIconPixels)}</span>
             <span className="w-full truncate text-xs font-semibold text-[var(--vyra-text-primary)]" title={item.file_name}>{item.file_name}</span>
             {selectedIds.includes(item.id) && <Check size={14} className="absolute right-2 top-2 text-[var(--vyra-accent-primary)]"/>}
           </article>)}
