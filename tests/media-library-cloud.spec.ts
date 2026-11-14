@@ -197,6 +197,11 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(cleanup.includes('next_attempt_at'), 'Failed cleanup jobs must be scheduled for retry.');
   assert.ok(cleanup.includes('Math.min(5 * (2 ** Math.min(attempts - 1, 8)), 1440)'), 'Storage cleanup retries must use capped exponential backoff.');
   assert.ok(cleanup.includes(".storage.from(job.bucket_id).remove(job.storage_paths)"), 'The worker must remove only the queued object paths.');
+  assert.ok(cleanup.includes("job.bucket_id === 'vyral-assets'"), 'Cleanup must be restricted to the private VYRA asset bucket.');
+  assert.ok(cleanup.includes("path.startsWith(userId + '/media-library/')"), 'Cleanup must reject canonical Vyral asset paths.');
+  assert.ok(cleanup.includes("path.startsWith(userId + '/media-library-thumbnails/')"), 'Cleanup must allow only owner-scoped thumbnail paths.');
+  assert.ok(cleanup.includes("segment === '..'"), 'Cleanup must reject path traversal segments.');
+  assert.ok(cleanup.includes('Blocked cleanup job with an unsafe bucket or object path.'), 'Unsafe queue rows must never reach Storage removal.');
   assert.ok(service.includes('void processMediaLibraryStorageCleanup(4).catch(() => undefined)'), 'Library visits must retry pending cleanup without blocking the page.');
 
   const cleanupMigration = read('supabase/migrations/20261114155727_media_library_storage_cleanup_queue.sql');
