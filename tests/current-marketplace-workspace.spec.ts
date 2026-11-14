@@ -428,3 +428,29 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toHaveCount(0);
 });
 
+
+
+test('retained pages preserve state without leaking inactive page UI', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+
+  await openSection(page, 'Workspace');
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Marketplace', exact: true })).toBeHidden();
+
+  await openSection(page, 'AI Chat');
+  await expect(page.getByRole('heading', { name: 'Hello! What would you like to create today?' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message VYRA AI' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Marketplace', exact: true })).toBeHidden();
+
+  await openSection(page, 'Workspace');
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hello! What would you like to create today?' })).toBeHidden();
+  await expect(page.getByRole('textbox', { name: 'Message VYRA AI' })).toBeHidden();
+
+  await openSection(page, 'Marketplace');
+  await expect(page.getByRole('heading', { name: 'Marketplace', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Hello! What would you like to create today?' })).toBeHidden();
+});
