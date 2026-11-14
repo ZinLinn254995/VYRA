@@ -413,7 +413,8 @@ test('Workspace reuses local Storyboards and syncs quietly after navigation', ()
   assert.ok(workspace.includes('const lastStoryboardSyncAtRef = useRef(0)'), 'The last successful sync time must survive active-page effect restarts.');
   assert.ok(workspace.includes('Date.now() - lastStoryboardSyncAtRef.current >= 30_000'), 'Workspace should sync only when its cached copy is stale.');
   assert.ok(workspace.includes('if (!isAuthenticated || !client || loadedStorageKey !== storageKey || !isActive) return;'), 'Hidden Workspace must not start background cloud sync.');
-  assert.ok(workspace.includes('void syncStoryboards(lastStoryboardSyncAtRef.current > 0)'), 'Returning to Workspace should use a quiet sync after the first successful load.');
+  assert.ok(workspace.includes('if (lastStoryboardSyncAtRef.current === 0) void syncStoryboards(false)'), 'The first Workspace visit should perform its initial sync.');
+  assert.ok(workspace.includes('else if (Date.now() - lastStoryboardSyncAtRef.current >= 30_000) void syncStoryboards(true)'), 'A return within the freshness window must not refetch; stale data should sync quietly.');
 });
 
 
