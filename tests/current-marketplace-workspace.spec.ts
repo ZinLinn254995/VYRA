@@ -526,7 +526,7 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   const json = (route: import('@playwright/test').Route, value: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify(value) });
   const requestOwner = (request: import('@playwright/test').Request) => {
-    const token = /^Bearer ([\s\S]+)$/i.exec(request.headers()['authorization'] ?? '')?.[1];
+    const token = request.headers()['authorization']?.split(' ')[1];
     if (!token) return null;
     try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub as string; }
     catch { return null; }
