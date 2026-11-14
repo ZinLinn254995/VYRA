@@ -34,7 +34,7 @@ create table if not exists public.media_library_items (
 );
 
 create unique index if not exists media_library_items_source_asset_unique
-  on public.media_library_items(user_id, source_asset_id) where source_asset_id is not null;
+  on public.media_library_items(user_id, source_asset_id);
 create index if not exists media_library_items_owner_folder_created_idx
   on public.media_library_items(user_id, folder_id, created_at desc);
 create index if not exists media_library_items_owner_type_idx
