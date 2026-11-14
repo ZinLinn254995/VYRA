@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const quoteSource = readFileSync(new URL('../supabase/functions/quote-runway-media/index.ts', import.meta.url), 'utf8');
-const migration = readFileSync(new URL('../supabase/migrations/20261113070000_media_provider_preflight_telemetry.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20261113070100_media_provider_preflight_telemetry.sql', import.meta.url), 'utf8');
 
 test('Runway quote preflight records measured provider latency and every outcome', () => {
   assert.match(quoteSource, /const preflightStartedAt = performance\.now\(\)/);
