@@ -39,7 +39,7 @@ const compactGridFileName = (name: string) => {
   if (base.length <= 18) return null;
   // Keep the beginning on line one; put the ellipsis, final two
   // filename characters, and extension together on line two.
-  return { firstLine: base.slice(0, 14), secondLine: '…' + base.slice(-2) + extension };
+  return { firstLine: base.slice(0, 14), secondLine: base.slice(14, 20) + '...' + base.slice(-2) + extension };
 };
 
 export const MyMediaLibraryPage: React.FC = () => {
