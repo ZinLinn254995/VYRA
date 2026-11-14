@@ -96,7 +96,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; fileName: string } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; fileName: string } | null>(null);\n  const [failedUploads, setFailedUploads] = useState<Array<{ file: File; message: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -194,24 +194,50 @@ export const MyMediaLibraryPage: React.FC = () => {
     finally { setBusy(false); }
   };
   const navigateToFolder = (id: string | null) => { setActiveFolderId(id); setSelectedIds([]); setCreatingFolder(false); setFolderName(''); setQuery(''); };
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []); event.target.value = '';
-    if (!files.length) return;
+  const runUploadBatch = async (files: File[], isRetry = false) => {
+    if (!files.length || busy) return;
+    const failures: Array<{ file: File; message: string }> = [];
     setUploadingCount(files.length);
     setUploadProgress({ completed: 0, total: files.length, fileName: files[0]?.name ?? '' });
     try {
       await withBusy(async () => {
-        const count = await uploadMediaLibraryFiles(files, activeFolderId, (completed, total, fileName) => {
-          setUploadProgress({ completed, total, fileName });
-          setUploadingCount(total - completed);
-        });
-        setSelectedIds([]);
-        setNotice(count + (count === 1 ? ' file uploaded.' : ' files uploaded.'));
+        const count = await uploadMediaLibraryFiles(
+          files,
+          activeFolderId,
+          (completed, total, fileName) => {
+            setUploadProgress({ completed, total, fileName });
+            setUploadingCount(total - completed);
+          },
+          (file, cause) => failures.push({ file, message: cause.message }),
+        );
+        setFailedUploads(failures);
+        if (count > 0) setSelectedIds([]);
+        setNotice(
+          count + (count === 1 ? ' file uploaded' : ' files uploaded') +
+          (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',
+        );
+        if (failures.length) {
+          setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
+        }
       });
     } finally {
       setUploadingCount(0);
       setUploadProgress(null);
     }
+  };
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!files.length) return;
+    setFailedUploads([]);
+    await runUploadBatch(files);
+  };
+  const retryFailedUploads = async () => {
+    const retryFiles = failedUploads.map(({ file }) => file);
+    if (!retryFiles.length) return;
+    setFailedUploads([]);
+    setError(null);
+    await runUploadBatch(retryFiles, true);
   };
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault(); if (!folderName.trim()) return;
@@ -372,6 +398,15 @@ export const MyMediaLibraryPage: React.FC = () => {
 
       {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5 text-xs text-[var(--vyra-danger)]"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={14}/></button></div>}
       {uploadProgress && <div role="status" aria-live="polite" className="space-y-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2.5 text-xs text-[var(--vyra-text-primary)]"><div className="flex items-center gap-2"><Loader2 size={15} className="shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><span>Uploaded {uploadProgress.completed} of {uploadProgress.total} files · {uploadingCount} remaining</span></div><div className="h-1.5 overflow-hidden rounded-full bg-[var(--vyra-border)]"><div className="h-full rounded-full bg-[var(--vyra-accent-primary)] transition-[width]" style={{ width: (uploadProgress.completed / Math.max(1, uploadProgress.total) * 100) + '%' }}/></div><p className="truncate text-[var(--vyra-text-muted)]">{uploadProgress.completed === uploadProgress.total ? 'Finishing upload…' : 'Current file: ' + uploadProgress.fileName}</p></div>}
+      {failedUploads.length > 0 && <div className="space-y-2 rounded-lg border border-[var(--vyra-danger)]/30 bg-[var(--vyra-danger)]/5 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium text-[var(--vyra-danger)]">{failedUploads.length} file{failedUploads.length === 1 ? '' : 's'} could not be uploaded</p>
+          <button type="button" onClick={() => void retryFailedUploads()} disabled={busy || uploadingCount > 0} className="min-h-8 rounded-md border border-[var(--vyra-danger)]/30 px-3 text-xs font-semibold text-[var(--vyra-danger)] disabled:opacity-50">Retry failed files</button>
+        </div>
+        <ul className="space-y-1 text-[11px] text-[var(--vyra-text-secondary)]">
+          {failedUploads.map(({ file, message }, index) => <li key={file.name + ':' + file.size + ':' + index} className="break-words">{file.name} — {message}</li>)}
+        </ul>
+      </div>}
       {notice && <div role="status" className="flex items-center justify-between gap-3 text-xs text-[var(--vyra-text-secondary)]"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13}/></button></div>}
 
       {selectedIds.length > 0 && <div role="toolbar" aria-label="Selected item actions" className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2">
