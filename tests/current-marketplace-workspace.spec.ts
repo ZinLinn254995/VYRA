@@ -154,6 +154,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     }
     if (url.pathname.includes('/storage/v1/object/vyral-assets/')) {
       const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/vyral-assets/')[1] ?? '');
+      if (method === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', headers: corsHeaders, body: png });
       if (method === 'POST') {
         uploadedThumbnailPaths.push(objectPath);
         return json(route, { Key: objectPath });
