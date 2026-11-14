@@ -33,6 +33,8 @@ test('Media Library database is cloud-backed and owner-isolated', () => {
 
 test('Media Library service supports private cloud upload, preview, folders, moves and safe deletion', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
+  assert.ok(service.includes('async function mapWithConcurrency<T, R>'), 'Large Libraries must not create an unbounded signed-URL request burst.');
+  assert.ok(service.includes('mapWithConcurrency(rawItems, 8'), 'Signed URL generation must be limited to eight files at a time.');
   const backfillStart = service.indexOf('export async function backfillMediaLibraryThumbnails');
   const backfillEnd = service.indexOf('export async function uploadMediaLibraryFiles', backfillStart);
   const backfill = service.slice(backfillStart, backfillEnd);
