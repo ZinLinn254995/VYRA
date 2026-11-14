@@ -142,17 +142,36 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
     const thumbnailPath = typeof item.metadata?.thumbnail_path === 'string' ? item.metadata.thumbnail_path : null;
     try {
       const storage = db.storage.from(item.bucket_id);
-      const [{ data: original }, thumbnail] = await Promise.all([
-        storage.createSignedUrl(item.storage_path, 60 * 60),
-        thumbnailPath ? storage.createSignedUrl(thumbnailPath, 60 * 60) : Promise.resolve({ data: null, error: null }),
-      ]);
-      return { ...item, signed_url: original?.signedUrl ?? null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
+      const thumbnail = thumbnailPath
+        ? await storage.createSignedUrl(thumbnailPath, 60 * 60)
+        : { data: null, error: null };
+      // Original files are signed only when a user opens or downloads them.
+      // This keeps large Libraries from issuing one extra Storage request per item on load.
+      return { ...item, signed_url: null, thumbnail_url: thumbnail.data?.signedUrl ?? null };
     } catch {
       // A temporary signed-URL failure for one file must not hide the rest of the Library.
       return { ...item, signed_url: null, thumbnail_url: null };
     }
   });
   return { folders: (folderResult.data ?? []) as MediaLibraryFolder[], items };
+}
+
+/** Create a short-lived original-file URL only when the owner opens or downloads an item. */
+export async function getMediaLibraryItemSignedUrl(itemId: string): Promise<string> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const { data, error } = await db.from('media_library_items')
+    .select('bucket_id,storage_path')
+    .eq('id', itemId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) throw new Error('This file is unavailable or you no longer have access to it.');
+  if (data.bucket_id !== 'vyral-assets' || typeof data.storage_path !== 'string' || !data.storage_path.startsWith(userId + '/')) {
+    throw new Error('This file has an invalid private storage location.');
+  }
+  const { data: signed, error: signError } = await db.storage.from(data.bucket_id).createSignedUrl(data.storage_path, 60 * 60);
+  if (signError || !signed?.signedUrl) throw new Error('Could not create a secure preview link. Refresh and try again.');
+  return signed.signedUrl;
 }
 
 export async function createMediaLibraryFolder(name: string, parentId: string | null = null): Promise<MediaLibraryFolder> {
