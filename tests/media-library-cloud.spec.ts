@@ -16,6 +16,8 @@ test('Media Library database is cloud-backed and owner-isolated', () => {
   assert.ok(migration.includes('enforce_media_library_folder_parent_owner'));
   assert.ok(migration.includes('source_asset_id uuid references public.vyral_assets(id) on delete cascade'));
   assert.ok(migration.includes('on public.media_library_items(user_id, source_asset_id)'));
+  const indexes = read('supabase/migrations/20261114080528_media_library_foreign_key_indexes.sql');
+  for (const index of ['media_library_folders_parent_fk_idx','media_library_items_folder_fk_idx','media_library_items_source_asset_fk_idx']) assert.ok(indexes.includes(index));
 });
 
 test('Media Library service supports private cloud upload, preview, folders, moves and safe deletion', () => {
