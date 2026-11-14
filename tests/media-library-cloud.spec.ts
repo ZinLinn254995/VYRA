@@ -133,6 +133,33 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(upload.includes('if (insertError)'));
   assert.ok(upload.includes('remove([storagePath, ...(thumbnailPath ? [thumbnailPath] : [])])'), 'A failed database insert must clean up its uploaded objects.');
 
+  const folderRenameStart = service.indexOf('export async function renameMediaLibraryFolder');
+  const folderRenameEnd = service.indexOf('export async function deleteMediaLibraryFolder', folderRenameStart);
+  const folderRename = service.slice(folderRenameStart, folderRenameEnd);
+  assert.ok(folderRename.includes("if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message)"), 'Folder rename conflicts and backend failures must be surfaced.');
+
+  const folderMoveStart = service.indexOf('export async function moveMediaLibraryFolder');
+  const folderMoveEnd = service.indexOf('export async function moveMediaLibraryItems', folderMoveStart);
+  const folderMove = service.slice(folderMoveStart, folderMoveEnd);
+  assert.ok(folderMove.includes('A folder cannot be moved into itself or one of its subfolders.'), 'Folder cycle violations must be reported clearly.');
+  assert.ok(folderMove.includes("throw new Error('Could not move folder: ' + error.message)"), 'Unexpected folder move failures must be surfaced.');
+
+  const fileMoveStart = service.indexOf('export async function moveMediaLibraryItems');
+  const fileMoveEnd = service.indexOf('export async function renameMediaLibraryItem', fileMoveStart);
+  const fileMove = service.slice(fileMoveStart, fileMoveEnd);
+  assert.ok(fileMove.includes("throw new Error('Could not move selected files: ' + error.message)"), 'File move failures must be surfaced.');
+
+  const fileRenameStart = service.indexOf('export async function renameMediaLibraryItem');
+  const fileRenameEnd = service.indexOf('export async function deleteMediaLibraryItems', fileRenameStart);
+  const fileRename = service.slice(fileRenameStart, fileRenameEnd);
+  assert.ok(fileRename.includes("throw new Error('Could not rename file: ' + error.message)"), 'File rename failures must be surfaced.');
+
+  const folderDeleteStart = service.indexOf('export async function deleteMediaLibraryFolder');
+  const folderDeleteEnd = service.indexOf('export async function moveMediaLibraryFolder', folderDeleteStart);
+  const folderDelete = service.slice(folderDeleteStart, folderDeleteEnd);
+  assert.ok(folderDelete.includes('if (childError || itemError) throw new Error('), 'Folder deletion must stop if its emptiness check fails.');
+  assert.ok(folderDelete.includes("throw new Error('Could not delete folder: ' + error.message)"), 'Folder delete failures must be surfaced.');
+
   const deleteStart = service.indexOf('export async function deleteMediaLibraryItems');
   const deleteEnd = service.indexOf('async function createMediaThumbnail', deleteStart);
   const deletion = service.slice(deleteStart, deleteEnd);
