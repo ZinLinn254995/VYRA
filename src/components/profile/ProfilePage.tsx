@@ -117,6 +117,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   React.useEffect(() => { setPageSearch(''); }, [activePage]);
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: 'profile:' + activePage } }));
   }, [activePage]);
   React.useLayoutEffect(() => {
     // Every Profile subpage starts with the global header fully visible.
