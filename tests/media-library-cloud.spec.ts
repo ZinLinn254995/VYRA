@@ -31,6 +31,11 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     "storage.from('vyral-assets').upload",
     "userId + '/media-library/'",
     'createSignedUrl',
+    'createMediaThumbnail',
+    'media-library-thumbnails/',
+    "contentType: 'image/webp'",
+    "typeof item.metadata?.thumbnail_path === 'string'",
+    'thumbnail_url',
     'createMediaLibraryFolder',
     'renameMediaLibraryFolder',
     'deleteMediaLibraryFolder',
@@ -42,6 +47,8 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     'const standaloneRows = rows.filter((row) => !row.source_asset_id)',
   ]) assert.ok(service.includes(snippet), 'Missing Media Library contract: ' + snippet);
   assert.ok(service.includes('if (insertError)'));
+  assert.ok(service.includes('thumbnailPath ? [thumbnailPath] : []'), 'Deleting standalone uploads should also remove their thumbnail objects.');
+  assert.ok(service.includes('Thumbnail generation is best-effort'), 'Thumbnail failures must not invalidate original uploads.');
   assert.ok(service.includes('Removing a Library shortcut must never delete that canonical object'));
 });
 
@@ -53,7 +60,7 @@ test('My Media Library UI includes required organization, filtering, views and m
     'toggleAll', 'selectedIds', 'moveMediaLibraryItems', 'role="toolbar"', 'aria-label="Selected item actions"', 'Rename selected item', 'Move selected files to folder', 'Move selected folder to folder', 'moveSelectedFolder', 'blockedFolderIds', 'folderPath(folder.id)', 'Delete selected items',
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
-    '<video', '<audio',
+    '<video', '<audio', 'entry.item!.thumbnail_url', 'loading="lazy"',
     'const breadcrumbs = useMemo(', 'aria-label="Folder path"',
     'navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)',
     'folder.parent_id === activeFolderId', 'item.folder_id === activeFolderId',
