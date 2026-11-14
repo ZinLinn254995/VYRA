@@ -469,3 +469,12 @@ test('Profile Vyral and Media Library pages revalidate only when visible', () =>
   assert.ok(vyrals.includes(".eq('user_id', ownerId)"), 'Vyral reads must remain scoped to the authenticated owner.');
   assert.ok(vyrals.includes('requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId'), 'Late responses from a previous account must not overwrite the current Vyral list.');
 });
+
+test('Workspace ignores stale AI suggestion responses after account changes or newer requests', () => {
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  assert.ok(workspace.includes('const suggestionRequestIdRef = useRef(0)'), 'Suggestion requests need a monotonic identity.');
+  assert.ok(workspace.includes('const requestId = ++suggestionRequestIdRef.current'), 'Each suggestion request must supersede the previous request.');
+  assert.ok(workspace.includes('requestStorageKey !== storyboardStorageKeyRef.current'), 'A response from a previous account must not update the active workspace.');
+  assert.ok(workspace.includes('suggestionRequestIdRef.current += 1'), 'Changing accounts must invalidate outstanding suggestion requests.');
+  assert.ok(workspace.includes('if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) setIsSuggesting(false)'), 'A stale request must not clear the loading state of a newer request.');
+});
