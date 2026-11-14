@@ -272,7 +272,7 @@ export const MyMediaLibraryPage: React.FC = () => {
   };
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault(); if (!folderName.trim()) return;
-    await withBusy(async () => { await createMediaLibraryFolder(folderName, activeFolderId); setFolderName(''); setCreatingFolder(false); }, 'Folder created.');
+    await withBusy(async () => { await createMediaLibraryFolder(folderName, activeFolderId); setFolderName(''); setCreatingFolder(false); });
   };
 
   const toggleSelected = (id: string) => setSelectedIds((previous) => previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id]);
