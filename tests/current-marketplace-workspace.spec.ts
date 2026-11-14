@@ -110,7 +110,16 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     file_name: 'legacy-sample.png', mime_type: 'image/png', size_bytes: 82,
     metadata: {}, created_at: now, updated_at: now,
   };
+  const unsupportedItem = {
+    id: 'e2e-unsupported-image', user_id: userId, folder_id: null, source_kind: 'upload', source_asset_id: null,
+    bucket_id: 'vyral-assets', storage_path: userId + '/media-library/unsupported.jpg',
+    file_name: 'unsupported-image.jpg', mime_type: 'image/jpeg', size_bytes: 12,
+    metadata: {}, created_at: now, updated_at: now,
+  };
+  const items = [item, unsupportedItem];
   const originalPath = item.storage_path;
+  const unsupportedOriginalPath = unsupportedItem.storage_path;
+  const invalidImage = Buffer.from('not-a-decodable-image');
   const uploadedThumbnailPaths: string[] = [];
   const originalObjectMutations: string[] = [];
   const observedRequests: string[] = [];
@@ -132,11 +141,13 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     if (url.pathname.endsWith('/auth/v1/signup') && method === 'POST') return json(route, { user, session });
     if (url.pathname.endsWith('/auth/v1/user') && method === 'GET') return json(route, user);
     if (url.pathname.endsWith('/rest/v1/media_library_folders') && method === 'GET') return json(route, folders);
-    if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'GET') return json(route, [item]);
+    if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'GET') return json(route, items);
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'PATCH') {
       const patch = request.postDataJSON() as { metadata?: Record<string, unknown> };
-      if (patch.metadata) item.metadata = patch.metadata;
-      const response = { id: itemId };
+      const targetId = url.searchParams.get('id')?.replace('eq.', '');
+      const target = items.find((candidate) => candidate.id === targetId);
+      if (patch.metadata && target) target.metadata = patch.metadata;
+      const response = { id: targetId };
       return request.headers()['accept']?.includes('vnd.pgrst.object+json')
         ? json(route, response)
         : json(route, [response]);
@@ -147,14 +158,18 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
         const signedURL = '/object/sign/vyral-assets/' + objectPath + '?token=e2e';
         return json(route, { signedURL });
       }
-      if (method === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', headers: corsHeaders, body: png });
+      if (method === 'GET') {
+        const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/sign/vyral-assets/')[1] ?? '');
+        return route.fulfill({ status: 200, contentType: objectPath === unsupportedOriginalPath ? 'image/jpeg' : 'image/png', headers: corsHeaders, body: objectPath === unsupportedOriginalPath ? invalidImage : png });
+      }
     }
     if (url.pathname.includes('/storage/v1/object/authenticated/vyral-assets/') && method === 'GET') {
-      return route.fulfill({ status: 200, contentType: 'image/png', headers: corsHeaders, body: png });
+      const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/authenticated/vyral-assets/')[1] ?? '');
+      return route.fulfill({ status: 200, contentType: objectPath === unsupportedOriginalPath ? 'image/jpeg' : 'image/png', headers: corsHeaders, body: objectPath === unsupportedOriginalPath ? invalidImage : png });
     }
     if (url.pathname.includes('/storage/v1/object/vyral-assets/')) {
       const objectPath = decodeURIComponent(url.pathname.split('/storage/v1/object/vyral-assets/')[1] ?? '');
-      if (method === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', headers: corsHeaders, body: png });
+      if (method === 'GET') return route.fulfill({ status: 200, contentType: objectPath === unsupportedOriginalPath ? 'image/jpeg' : 'image/png', headers: corsHeaders, body: objectPath === unsupportedOriginalPath ? invalidImage : png });
       if (method === 'POST') {
         uploadedThumbnailPaths.push(objectPath);
         return json(route, { Key: objectPath });
@@ -178,11 +193,15 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByRole('button', { name: /My Media Library/ }).click();
 
   await expect(page.getByText('legacy-sample.png')).toBeVisible();
+  await expect(page.getByText('unsupported-image.jpg')).toBeVisible();
   console.log('MEDIA_LIBRARY_E2E_REQUESTS', JSON.stringify(observedRequests));
   await expect.poll(() => uploadedThumbnailPaths.length).toBe(1);
   await expect.poll(() => typeof item.metadata.thumbnail_path === 'string').toBe(true);
+  await expect.poll(() => typeof unsupportedItem.metadata.thumbnail_backfill_attempted_at === 'string').toBe(true);
   expect(uploadedThumbnailPaths[0]).toContain(userId + '/media-library-thumbnails/' + itemId + '-');
   expect(originalObjectMutations).toEqual([]);
+  expect(unsupportedItem.metadata.thumbnail_path).toBeUndefined();
+  expect(unsupportedItem.storage_path).toBe(unsupportedOriginalPath);
 
   await page.getByRole('button', { name: 'Grid view' }).click();
   await expect(page.locator('article img[alt=""]')).toBeVisible();
