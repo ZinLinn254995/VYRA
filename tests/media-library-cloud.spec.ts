@@ -38,6 +38,9 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   const backfill = service.slice(backfillStart, backfillEnd);
   assert.ok(backfill.includes('.update({ metadata })'), 'thumbnail metadata should update without changing the file modified date');
   assert.ok(!backfill.includes('updated_at: new Date().toISOString()'), 'thumbnail backfill must preserve the original modified date');
+  const thumbnailFailure = backfill.slice(backfill.indexOf('if (!thumbnailBlob)'), backfill.indexOf('const thumbnailType'));
+  assert.ok(thumbnailFailure.includes('await scheduleRetry(row)'), 'Thumbnail decode failures must use bounded retry rather than being permanently skipped after one attempt.');
+  assert.ok(!thumbnailFailure.includes('thumbnail_backfill_attempted_at: new Date().toISOString()'), 'A single decode timeout must not permanently suppress thumbnail retries.');
   for (const snippet of [
     'MAX_FILE_BYTES = 100 * 1024 * 1024',
     "storage.from('vyral-assets').upload",
