@@ -417,7 +417,28 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
 
   useEffect(() => {
     if (!supabase) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextOwnerId = session?.user?.id ?? null;
+      const currentOwnerId = historyOwnerRef.current;
+      if (currentOwnerId && currentOwnerId !== nextOwnerId) {
+        // Clear private conversation and attachment state synchronously on
+        // identity change; do not wait for the next account's history query.
+        cancelActiveRequest();
+        historyOwnerRef.current = null;
+        setHistoryOwnerId(null);
+        setSessions([]);
+        setMessages([]);
+        setActiveSessionId(null);
+        setIsLocked(false);
+        setSelectedFile(null);
+        setSelectedFileStatus(null);
+        setSelectedVyralContext(null);
+        setSelectedVyralId(null);
+        setActiveVyralId(null);
+        setSelectedVyralImages([]);
+        setDraft('');
+        setHistoryError(null);
+      }
       setHistoryAuthRevision((revision) => revision + 1);
     });
     return () => subscription.unsubscribe();
