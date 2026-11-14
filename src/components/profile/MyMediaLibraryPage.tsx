@@ -138,8 +138,13 @@ export const MyMediaLibraryPage: React.FC = () => {
       }
     };
     document.addEventListener('keydown', handleModalKeyDown);
-    return () => document.removeEventListener('keydown', handleModalKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleModalKeyDown);
+      modalReturnFocusRef.current?.focus();
+      modalReturnFocusRef.current = null;
+    };
   }, [previewItem, renameTarget]);
+  const modalReturnFocusRef = useRef<HTMLElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const breadcrumbScrollRef = useRef<HTMLDivElement>(null);
@@ -351,14 +356,20 @@ export const MyMediaLibraryPage: React.FC = () => {
     }
     if (pointerTypeRef.current === 'touch') {
       if (entry.folder) navigateToFolder(entry.id);
-      else if (entry.item) setPreviewItem(entry.item);
+      else if (entry.item) {
+        modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setPreviewItem(entry.item);
+      }
     } else if (event?.detail === 2) {
       openEntry(entry);
     }
   };
   const openEntry = (entry: Entry) => {
     if (entry.folder) navigateToFolder(entry.id);
-    else if (entry.item?.signed_url) setPreviewItem(entry.item);
+    else if (entry.item?.signed_url) {
+      modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPreviewItem(entry.item);
+    }
     else if (entry.item) setError('A secure preview link could not be created. Refresh and try again.');
   };
   const selectedFiles = selectedIds.filter((id) => items.some((item) => item.id === id));
@@ -387,6 +398,7 @@ export const MyMediaLibraryPage: React.FC = () => {
     const item = items.find((entry) => entry.id === id) ?? null;
     if (!folder && !item) return;
     const entry: Entry = { id, name: folder?.name ?? item!.file_name, folder, item };
+    modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setRenameTarget(entry); setRenameValue(entry.name);
   };
   const commitRename = async (event: React.FormEvent) => {
