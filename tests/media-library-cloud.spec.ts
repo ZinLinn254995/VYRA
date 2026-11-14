@@ -133,15 +133,23 @@ test('My Media Library UI includes required organization, filtering, views and m
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
     '<video', '<audio', 'previewItem.mime_type === \'application/pdf\'', 'PDF preview:', 'entry.item!.thumbnail_url', 'loading="lazy"', 'Stop after current file', 'requestUploadStop', 'Stopping…',
     'backfillMediaLibraryThumbnails(4)', 'refresh(true)',
-    'only four legacy image/video files per visit',
+
     'const breadcrumbs = useMemo(', 'aria-label="Folder path"',
-    'const [visibleEntryLimit, setVisibleEntryLimit] = useState(100)',
-    'const displayedEntries = entries.slice(0, visibleEntryLimit)',
-    'setVisibleEntryLimit(100)',
-    'displayedEntries.map((entry) =>',
-    'Showing \' + displayedEntries.length + \' of \' + entries.length',
+    'const [hasMoreItems, setHasMoreItems] = useState(false)',
+    'const displayedEntries = entries',
     'Load 100 more',
-    'Math.min(current + 100, entries.length)',
+    'loadMoreItems',
+    'offset: items.length, limit: 100',
+    'thumbnailBackfillStartedRef.current',
+    'setServerQuery(\\'\\')',
+    'Backfill only once per page visit',
+
+
+
+    'displayedEntries.map((entry) =>',
+
+    'Load 100 more',
+
 
     'navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)',
     'folder.parent_id === activeFolderId', 'item.folder_id === activeFolderId',
