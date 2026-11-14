@@ -213,6 +213,61 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
   return null;
 }
 
+/**
+ * Backfills a small number of legacy image/video rows that predate thumbnails.
+ * Originals are only downloaded; they are never moved, overwritten or deleted.
+ * The thumbnail is stored first, then its path is added to the row metadata.
+ */
+export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
+  const { data, error } = await db.from('media_library_items')
+    .select('id,bucket_id,storage_path,file_name,mime_type,metadata')
+    .eq('user_id', userId)
+    .is('metadata->thumbnail_path', null)
+    .or('mime_type.like.image/%,mime_type.like.video/%')
+    .order('created_at', { ascending: true })
+    .limit(batchSize);
+  if (error) throw new Error('Could not find older media thumbnails to generate: ' + error.message);
+
+  let generated = 0;
+  for (const row of (data ?? []) as Array<{
+    id: string; bucket_id: 'vyral-assets'; storage_path: string; file_name: string;
+    mime_type: string; metadata: Record<string, unknown> | null;
+  }>) {
+    try {
+      const { data: original, error: downloadError } = await db.storage.from(row.bucket_id).download(row.storage_path);
+      if (downloadError || !original) continue;
+      const sourceFile = new File([original], row.file_name, { type: row.mime_type || original.type || 'application/octet-stream' });
+      const thumbnailBlob = await createMediaThumbnail(sourceFile);
+      if (!thumbnailBlob) continue;
+
+      const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+      const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+      const thumbnailPath = userId + '/media-library-thumbnails/' + row.id + '.' + thumbnailExtension;
+      const { error: uploadError } = await db.storage.from('vyral-assets').upload(thumbnailPath, thumbnailBlob, {
+        contentType: thumbnailType, upsert: true, cacheControl: '86400',
+      });
+      if (uploadError) continue;
+
+      const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
+      const { error: updateError } = await db.from('media_library_items')
+        .update({ metadata, updated_at: new Date().toISOString() })
+        .eq('id', row.id).eq('user_id', userId)
+        .is('metadata->thumbnail_path', null);
+      if (updateError) {
+        await db.storage.from('vyral-assets').remove([thumbnailPath]);
+        continue;
+      }
+      generated += 1;
+    } catch {
+      // One unsupported or unavailable legacy file must not stop the batch.
+    }
+  }
+  return generated;
+}
+
 export async function uploadMediaLibraryFiles(
   files: File[], folderId: string | null,
   onProgress?: (completed: number, total: number, currentFileName: string) => void,
