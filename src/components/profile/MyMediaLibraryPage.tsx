@@ -594,6 +594,7 @@ export const MyMediaLibraryPage: React.FC = () => {
       </div>}
       {notice && <div role="status" className="flex items-center justify-between gap-3 text-xs text-[var(--vyra-text-secondary)]"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13}/></button></div>}
 
+      <div className="min-h-[104px] sm:min-h-[56px]">
       {selectedIds.length > 0 && <div role="toolbar" aria-label="Selected item actions" className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--vyra-accent-primary)]/25 bg-[var(--vyra-accent-primary)]/5 px-3 py-2">
         <span className="mr-auto text-xs font-semibold text-[var(--vyra-text-primary)]" aria-live="polite">{selectedIds.length} selected</span>
         <button type="button" onClick={startRename} disabled={busy || selectedIds.length !== 1} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-border)] px-2.5 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40" aria-label="Rename selected item"><Pencil size={14}/> Rename</button>
@@ -618,6 +619,7 @@ export const MyMediaLibraryPage: React.FC = () => {
         <button type="button" onClick={() => void deleteSelected()} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-danger)]/30 px-2.5 text-xs font-medium text-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)]/5 disabled:opacity-40" aria-label="Delete selected items"><Trash2 size={14}/> Delete</button>
         <button type="button" onClick={() => setSelectedIds([])} disabled={busy} className="grid size-9 place-items-center rounded-md text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40" aria-label="Clear selection" title="Clear selection"><X size={15}/></button>
       </div>}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
