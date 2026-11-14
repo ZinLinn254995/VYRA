@@ -449,7 +449,7 @@ export const MyMediaLibraryPage: React.FC = () => {
           <select aria-label="Move selected files to folder" value="" onChange={(event) => void moveSelected(event)} disabled={busy || selectedFiles.length === 0 || selectedFolders.length > 0} className="max-w-32 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
             <option value="" disabled>Choose folder</option>
             <option value="__root__">My Media</option>
-            {folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+            {folderTree.filter(({ folder }) => folder.id !== activeFolderId).map(({ folder }) => <option key={folder.id} value={folder.id}>{folderPath(folder.id)}</option>)}
           </select>
         </label>
         <label className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--vyra-border)] px-2.5 text-xs text-[var(--vyra-text-secondary)] has-[:disabled]:opacity-40">
