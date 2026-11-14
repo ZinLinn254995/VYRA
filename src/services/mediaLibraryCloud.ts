@@ -235,6 +235,38 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   return { folders, items, hasMore };
 }
 
+/** Load only the newly changed Library rows; used for incremental UI updates after uploads. */
+export async function loadMediaLibraryItemsByIds(itemIds: string[]): Promise<MediaLibraryItem[]> {
+  if (!itemIds.length) return [];
+  const db = getDb();
+  const ownerId = await getOwnerId();
+  const { data, error } = await db.from('media_library_items')
+    .select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId)
+    .in('id', itemIds);
+  if (error) throw new Error('Could not load the updated Media Library files: ' + error.message);
+  return mapWithConcurrency((data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[], 8, async (item) => {
+    const storedPath = item.metadata?.thumbnail_path;
+    const thumbnailPath = item.bucket_id === 'vyral-assets'
+      && isSafeOwnerStoragePath(storedPath, ownerId, ['media-library-thumbnails'])
+      ? storedPath : null;
+    if (!thumbnailPath) return { ...item, signed_url: null, thumbnail_url: null };
+    const cacheKey = item.bucket_id + ':' + thumbnailPath;
+    const cached = thumbnailSignedUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return { ...item, signed_url: null, thumbnail_url: cached.url };
+    }
+    try {
+      const { data: signed, error: signError } = await db.storage.from(item.bucket_id).createSignedUrl(thumbnailPath, 60 * 60);
+      const url = signError ? null : signed?.signedUrl ?? null;
+      if (url) thumbnailSignedUrlCache.set(cacheKey, { url, expiresAt: Date.now() + 55 * 60_000 });
+      return { ...item, signed_url: null, thumbnail_url: url };
+    } catch {
+      return { ...item, signed_url: null, thumbnail_url: null };
+    }
+  });
+}
+
 /** Create a short-lived original-file URL only when the owner opens or downloads an item. */
 export async function getMediaLibraryItemSignedUrl(itemId: string): Promise<string> {
   const db = getDb();
@@ -507,6 +539,7 @@ export async function uploadMediaLibraryFiles(
   onProgress?: (completed: number, total: number, currentFileName: string) => void,
   onFileError?: (file: File, error: Error) => void,
   signal?: AbortSignal,
+  onFileUploaded?: (itemId: string) => void,
 ): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
@@ -575,6 +608,7 @@ export async function uploadMediaLibraryFiles(
         throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
       }
       uploaded += 1;
+      onFileUploaded?.(id);
     } catch (cause) {
       const failure = cause instanceof Error ? cause : new Error('Could not upload ' + file.name + '.');
       // Keep the original fail-fast contract for existing callers. The Library UI
@@ -656,4 +690,5 @@ export async function registerVyralAssetInMediaLibrary(input: {
     }
     throw new Error('Could not add this Asset to My Media Library: ' + error.message);
   }
+  window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
 }
