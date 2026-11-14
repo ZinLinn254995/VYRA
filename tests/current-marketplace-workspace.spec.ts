@@ -427,3 +427,14 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
   await page.getByRole('button', { name: 'Delete selected items' }).click();
   await expect(page.getByTestId('media-library-entry-e2e-folder-created')).toHaveCount(0);
 });
+
+
+test('Workspace keeps storyboard sync freshness across page navigation', async ({ page }) => {
+  const source = await page.request.get('/src/components/workspace/WorkspacePage.tsx');
+  expect(source.ok()).toBeTruthy();
+  const code = await source.text();
+  expect(code).toContain('lastStoryboardSyncAtRef');
+  expect(code).toContain('Date.now() - lastStoryboardSyncAtRef.current >= 30_000');
+  expect(code).toContain('if (!isAuthenticated || !client || loadedStorageKey !== storageKey || !isActive) return;');
+  expect(code).toContain('void syncStoryboards(lastStoryboardSyncAtRef.current > 0)');
+});
