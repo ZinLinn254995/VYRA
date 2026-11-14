@@ -49,7 +49,13 @@ test('My Media Library UI includes required organization, filtering, views and m
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
     '<video', '<audio',
+    'const breadcrumbs = useMemo(', 'aria-label="Folder path"',
+    'navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)',
+    'folder.parent_id === activeFolderId', 'item.folder_id === activeFolderId',
+    '{visibleFolders.map((folder)', '{filteredItems.map((item)',
+    'Open folder', 'New folder inside ',
   ]) assert.ok(page.includes(snippet), 'Missing Media Library UI feature: ' + snippet);
+  assert.ok(!page.includes('<aside'), 'Folder tree sidebar should not replace standard file-manager navigation.');
 });
 
 test('Profile routes My Media Library and AI Chat Vyral uploads are indexed automatically', () => {
