@@ -492,6 +492,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setActiveStoryboard(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardToDelete(null);
+      setIsDeletingStoryboard(false);
       setEditingStoryboardId(null);
       setEditDraft(null);
       setCreateOpen(false);
@@ -513,6 +514,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setSceneVideoPreviewUrl('');
       setSceneVideoPreviewLoading(false);
       setSceneVideoPreviewError('');
+      setSceneVideoPreviewSourceIn(0);
+      setSceneVideoPreviewSourceOut(null);
       setCloudSyncMessage('');
       setStoryboardAiMessage('');
     }
