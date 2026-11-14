@@ -70,7 +70,7 @@ export async function loadMediaLibrary(): Promise<{ folders: MediaLibraryFolder[
 export async function createMediaLibraryFolder(name: string, parentId: string | null = null): Promise<MediaLibraryFolder> {
   const db = getDb();
   const userId = await getOwnerId();
-  const cleanName = name.trim().replace(/\\s+/g, ' ').slice(0, 80);
+  const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   const { data, error } = await db.from('media_library_folders')
     .insert({ user_id: userId, parent_id: parentId, name: cleanName })
@@ -307,7 +307,7 @@ export async function uploadMediaLibraryFiles(
       // as a Storage object key: Unicode and punctuation can be rejected by the
       // storage backend. UUID + a conservative extension gives every upload a safe,
       // collision-resistant object path on every platform.
-      const fileName = file.name.replace(/[\\u0000-\\u001F\\u007F]/g, '').trim() || 'upload-' + id;
+      const fileName = file.name.replace(/[\u0000-\u001F\u007F]/g, '').trim() || 'upload-' + id;
       const storagePath = userId + '/media-library/' + id + SAFE_STORAGE_EXTENSION(fileName);
       const mimeType = file.type || 'application/octet-stream';
       const { error: uploadError } = await db.storage.from('vyral-assets').upload(storagePath, file, {
