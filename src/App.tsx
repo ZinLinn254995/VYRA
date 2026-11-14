@@ -168,7 +168,7 @@ function MarketplaceApp() {
             <WorkspacePage
               storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
               isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')}
-              onOpenLibraryPage={(page) => { setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Vyrals' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
+              onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Vyrals' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
             />
           ) : (
