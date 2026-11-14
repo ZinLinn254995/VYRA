@@ -141,7 +141,13 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     if (url.pathname.endsWith('/auth/v1/signup') && method === 'POST') return json(route, { user, session });
     if (url.pathname.endsWith('/auth/v1/user') && method === 'GET') return json(route, user);
     if (url.pathname.endsWith('/rest/v1/media_library_folders') && method === 'GET') return json(route, folders);
-    if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'GET') return json(route, items);
+    if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'GET') {
+      const requestedId = url.searchParams.get('id')?.replace('eq.', '');
+      const selectedItems = requestedId ? items.filter((candidate) => candidate.id === requestedId) : items;
+      return request.headers()['accept']?.includes('vnd.pgrst.object+json')
+        ? json(route, selectedItems[0] ?? null)
+        : json(route, selectedItems);
+    }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'PATCH') {
       const patch = request.postDataJSON() as { metadata?: Record<string, unknown> };
       const targetId = url.searchParams.get('id')?.replace('eq.', '');
