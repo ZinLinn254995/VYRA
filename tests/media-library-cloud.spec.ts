@@ -263,6 +263,7 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(upload.indexOf('if (signal?.aborted) break;') < upload.indexOf('await db.storage.from(\'vyral-assets\').upload(storagePath'));
   assert.ok(upload.includes('if (!onFileError) throw failure;'), 'Legacy callers should retain fail-fast upload behavior.');
   assert.ok(upload.includes('onFileError(file, failure);'), 'The Library should be able to collect one file failure and continue.');
+  assert.ok(upload.includes('let processed = 0;') && upload.includes('processed += 1;') && upload.includes('onProgress?.(processed, files.length, file.name);'), 'Progress must count failed and successful file attempts so it cannot stall on failures.');
   assert.ok(upload.includes('if (insertError)'));
   assert.ok(upload.includes("db.from('media_library_storage_cleanup_jobs').insert"), 'A failed database insert must durably queue cleanup for its uploaded objects.');
   assert.ok(upload.includes('remove(orphanPaths)'), 'If queue persistence is unavailable, failed database inserts must attempt immediate orphan cleanup.');
