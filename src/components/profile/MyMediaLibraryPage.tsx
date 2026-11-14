@@ -389,10 +389,16 @@ export const MyMediaLibraryPage: React.FC = () => {
   const deleteSelected = async () => {
     if (!selectedIds.length || !window.confirm('Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
     await withBusy(async () => {
-      if (selectedFiles.length) await deleteMediaLibraryItems(selectedFiles);
+      let cleanupPending = false;
+      if (selectedFiles.length) {
+        const result = await deleteMediaLibraryItems(selectedFiles);
+        cleanupPending = result.cleanupPending;
+      }
       for (const id of selectedFolders) await deleteMediaLibraryFolder(id);
       setSelectedIds([]);
-    }, 'Selected items deleted.');
+      if (cleanupPending) setNotice('Selected items deleted. Private storage cleanup is queued and will retry automatically.');
+      else setNotice('Selected items deleted.');
+    });
   };
 
   const iconFor = (mime: string, size = 20) => {
