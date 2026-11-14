@@ -188,13 +188,16 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     }
     if (url.pathname.endsWith('/rest/v1/media_library_items') && method === 'PATCH') {
       const patch = request.postDataJSON() as Partial<(typeof items)[number]>;
-      const targetId = url.searchParams.get('id')?.replace('eq.', '');
-      const target = items.find((candidate) => candidate.id === targetId);
-      if (target) Object.assign(target, patch);
-      const response = { id: targetId };
+      const rawIds = url.searchParams.get('id') ?? '';
+      const targetIds = rawIds.startsWith('in.(')
+        ? rawIds.slice(4, -1).split(',')
+        : [rawIds.replace('eq.', '')];
+      const targets = items.filter((candidate) => targetIds.includes(candidate.id));
+      for (const target of targets) Object.assign(target, patch);
+      const response = targets.map(({ id }) => ({ id }));
       return request.headers()['accept']?.includes('vnd.pgrst.object+json')
-        ? json(route, response)
-        : json(route, [response]);
+        ? json(route, response[0] ?? null)
+        : json(route, response);
     }
     if (url.pathname.includes('/storage/v1/object/sign/vyral-assets/')) {
       if (method === 'POST') {
