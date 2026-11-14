@@ -442,6 +442,7 @@ test('Profile Vyral and Media Library pages revalidate only when visible', () =>
   const profile = read('src/components/profile/ProfilePage.tsx');
   const vyrals = read('src/components/profile/MyVyralsPage.tsx');
   assert.ok(profile.includes("isActive={isActive && activePage === 'my-vyrals'}"), 'My Vyrals must know when its parent Profile page is visible.');
+  assert.ok(profile.includes('initialPage = null, isActive = true'), 'Profile must default to active for existing standalone callers while honoring the App shell visibility prop.');
   assert.ok(profile.includes("isActive={isActive && activePage === 'my-media-library'}"), 'My Media Library must know when its parent Profile page is visible.');
   assert.ok(profile.includes("page: isActive ? 'profile:' + activePage : 'profile:inactive'"), 'Profile activation must be re-announced when returning from another top-level page.');
   assert.ok(profile.includes('}, [activePage, isActive]);'), 'Profile activation event must respond to both subpage and top-level visibility changes.');
