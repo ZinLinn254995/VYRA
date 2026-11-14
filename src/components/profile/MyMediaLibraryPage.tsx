@@ -206,9 +206,18 @@ export const MyMediaLibraryPage: React.FC = () => {
 
   useEffect(() => {
     const handleLibraryChanged = () => { void refresh(true); };
+    const handlePageActivated = () => {
+      const key = JSON.stringify([activeFolderId, serverQuery, filter]);
+      const cached = libraryCacheRef.current.get(key);
+      if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
+    };
     window.addEventListener('vyra:media-library-changed', handleLibraryChanged);
-    return () => window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
-  }, [refresh]);
+    window.addEventListener('vyra:page-activated', handlePageActivated);
+    return () => {
+      window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
+      window.removeEventListener('vyra:page-activated', handlePageActivated);
+    };
+  }, [activeFolderId, filter, refresh, serverQuery]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query), 250);
