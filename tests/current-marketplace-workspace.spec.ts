@@ -164,6 +164,9 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     return json(route, {});
   });
   await page.route('**/api/auth/session', (route) => json(route, { authenticated: true }));
+  await page.addInitScript((storedSession) => {
+    window.localStorage.setItem('sb-e2e-test-auth-token', JSON.stringify(storedSession));
+  }, session);
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
