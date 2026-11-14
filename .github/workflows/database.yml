@@ -1,5 +1,9 @@
 name: VYRA Database Tests
 
+concurrency:
+  group: vyra-database-tests
+  cancel-in-progress: false
+
 on:
   pull_request:
     branches: [main]
