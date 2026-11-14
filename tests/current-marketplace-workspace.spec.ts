@@ -565,7 +565,7 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
     return route.fulfill({
       status: 200,
       headers: { ...corsHeaders, 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache' },
-      body: 'data: {"choices":[{"delta":{"content":"Hello! I am VYRA."}}]}\\n\\ndata: [DONE]\\n\\n',
+      body: 'data: {"choices":[{"delta":{"content":"Hello! I am VYRA."}}]}\n\ndata: [DONE]\n\n',
     });
   });
   await page.addInitScript((storedSession) => {
