@@ -233,7 +233,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
 
   // Desktop file-manager semantics: a single click selects without opening;
   // a double click opens the authorized preview and exposes its download action.
-  const fileRow = page.getByRole('button', { name: /legacy-sample\.png/ });
+  const fileRow = page.getByTestId('media-library-entry-' + itemId);
   await fileRow.click();
   await expect(page.getByText('1 selected')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
