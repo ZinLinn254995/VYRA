@@ -459,7 +459,10 @@ export async function uploadMediaLibraryFiles(
           try { await processMediaLibraryStorageCleanup(1); } catch { /* queued retry remains durable */ }
         } else {
           // Fall back to immediate removal if the queue itself is unavailable.
-          await db.storage.from('vyral-assets').remove(orphanPaths);
+          const { error: cleanupError } = await db.storage.from('vyral-assets').remove(orphanPaths);
+          if (cleanupError) {
+            throw new Error('The file record could not be saved (' + insertError.message + ') and orphan cleanup could not be queued or completed (' + cleanupError.message + ').');
+          }
         }
         throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
       }
