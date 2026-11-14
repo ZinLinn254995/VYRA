@@ -308,6 +308,9 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
 
   // Keyboard users can select with Space and open with Enter.
   await fileRow.focus();
+  // Clear the pointer selection first, then verify Space toggles it on and off.
+  await fileRow.press('Space');
+  await expect(fileRow).toHaveAttribute('aria-pressed', 'false');
   await fileRow.press('Space');
   await expect(fileRow).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('1 selected')).toBeVisible();
