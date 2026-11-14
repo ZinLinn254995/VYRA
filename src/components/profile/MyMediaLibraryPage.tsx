@@ -137,7 +137,16 @@ export const MyMediaLibraryPage: React.FC = () => {
       pointerTypeRef.current = event.pointerType;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       clearHoldTimer();
-      holdTimerRef.current = window.setTimeout(() => { setSelectedIds((previous) => previous.includes(entry.id) ? previous : [...previous, entry.id]); suppressClickRef.current = entry.id; holdTimerRef.current = null; }, 480);
+      // A new pointer gesture means any prior long-press click suppression is stale.
+      suppressClickRef.current = null;
+      // Once selection mode is active, taps/clicks must toggle immediately;
+      // do not start another long-press timer that could swallow the unselect click.
+      if (selectedIds.length > 0) return;
+      holdTimerRef.current = window.setTimeout(() => {
+        setSelectedIds((previous) => previous.includes(entry.id) ? previous : [...previous, entry.id]);
+        suppressClickRef.current = entry.id;
+        holdTimerRef.current = null;
+      }, 480);
     },
     onPointerUp: clearHoldTimer,
     onPointerLeave: clearHoldTimer,
