@@ -235,9 +235,11 @@ export async function uploadMediaLibraryFiles(files: File[], folderId: string | 
     let thumbnailPath: string | null = null;
     const thumbnailBlob = await createMediaThumbnail(file);
     if (thumbnailBlob) {
-      const candidatePath = userId + '/media-library-thumbnails/' + id + '.webp';
+      const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+      const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+      const candidatePath = userId + '/media-library-thumbnails/' + id + '.' + thumbnailExtension;
       const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
-        contentType: 'image/webp', upsert: false, cacheControl: '86400',
+        contentType: thumbnailType, upsert: false, cacheControl: '86400',
       });
       if (!thumbnailError) thumbnailPath = candidatePath;
     }
@@ -260,13 +262,29 @@ export async function uploadMediaLibraryFiles(files: File[], folderId: string | 
 export async function registerVyralAssetInMediaLibrary(input: {
   assetId: string; userId: string; fileName: string; mimeType: string; sizeBytes: number; storagePath: string;
   sourceKind?: 'vyral_asset' | 'generated';
+  /** Pass the already-selected source File so thumbnails are created without downloading the canonical object again. */
+  thumbnailSource?: File;
 }): Promise<void> {
   const db = getDb();
+  let thumbnailPath: string | null = null;
+  if (input.thumbnailSource) {
+    const thumbnailBlob = await createMediaThumbnail(input.thumbnailSource).catch(() => null);
+    if (thumbnailBlob) {
+      const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+      const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+      const candidatePath = input.userId + '/media-library-thumbnails/' + input.assetId + '.' + thumbnailExtension;
+      const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
+        contentType: thumbnailType, upsert: true, cacheControl: '86400',
+      });
+      if (!thumbnailError) thumbnailPath = candidatePath;
+    }
+  }
   const { error } = await db.from('media_library_items').upsert({
     user_id: input.userId, folder_id: null, source_kind: input.sourceKind ?? 'vyral_asset',
     source_asset_id: input.assetId, bucket_id: 'vyral-assets', storage_path: input.storagePath,
     file_name: SAFE_NAME(input.fileName) || 'Untitled asset', mime_type: input.mimeType,
-    size_bytes: input.sizeBytes, metadata: { origin: 'vyral_asset_inventory' },
+    size_bytes: input.sizeBytes,
+    metadata: { origin: 'vyral_asset_inventory', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
   }, { onConflict: 'user_id,source_asset_id' });
   if (error) throw new Error('Could not add this Asset to My Media Library: ' + error.message);
 }
