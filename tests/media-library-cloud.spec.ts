@@ -168,9 +168,6 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   assert.ok(deletion.indexOf('if (storageError) throw new Error(') < deletion.indexOf(".from('media_library_items').delete()"), 'Do not remove the Library row when its storage cleanup failed.');
   assert.ok(deletion.includes('thumbnail_path'), 'Standalone deletion must clean up the associated thumbnail too.');
 
-  const folderDeleteStart = service.indexOf('export async function deleteMediaLibraryFolder');
-  const folderDeleteEnd = service.indexOf('export async function moveMediaLibraryFolder', folderDeleteStart);
-  const folderDelete = service.slice(folderDeleteStart, folderDeleteEnd);
   assert.ok(folderDelete.includes('if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('), 'Non-empty folders must never be deleted.');
 
   const uploadUiStart = page.indexOf('const runUploadBatch =');
