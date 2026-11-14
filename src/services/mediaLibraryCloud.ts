@@ -240,10 +240,11 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[]): Promise<Med
   if (!itemIds.length) return [];
   const db = getDb();
   const ownerId = await getOwnerId();
-  const { data, error } = await db.from('media_library_items')
+  let itemQuery = db.from('media_library_items')
     .select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
-    .eq('user_id', ownerId)
-    .in('id', itemIds);
+    .eq('user_id', ownerId);
+  itemQuery = itemIds.length === 1 ? itemQuery.eq('id', itemIds[0]) : itemQuery.in('id', itemIds);
+  const { data, error } = await itemQuery;
   if (error) throw new Error('Could not load the updated Media Library files: ' + error.message);
   return mapWithConcurrency((data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[], 8, async (item) => {
     const storedPath = item.metadata?.thumbnail_path;
