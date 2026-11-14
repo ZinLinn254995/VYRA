@@ -676,7 +676,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
         cleanupPending = result.cleanupPending;
         patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
         for (const [key, cached] of libraryCacheRef.current) {
-          if (key !== JSON.stringify([activeFolderId, serverQuery, filter])) {
+          if (key !== JSON.stringify([ownerId, activeFolderId, serverQuery, filter])) {
             libraryCacheRef.current.set(key, { ...cached, items: cached.items.filter((item) => !deletedFileIds.includes(item.id)), cachedAt: Date.now() });
           }
         }
