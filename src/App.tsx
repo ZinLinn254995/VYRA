@@ -194,7 +194,7 @@ function MarketplaceApp() {
           <ErrorBoundary>
             <WorkspacePage
               storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
-              isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')}
+              isAuthenticated={hasPermanentAccount} isActive={activeSection === 'workspace' && !profileOpen} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Vyrals' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
             />
