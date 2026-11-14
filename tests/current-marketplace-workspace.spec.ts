@@ -619,7 +619,10 @@ test('AI Chat history survives refresh, restores follow-up context, and stays ow
   await openSection(page, 'AI Chat');
   await page.getByRole('button', { name: 'Open chat menu' }).click();
   await page.getByRole('button', { name: 'Recent chats' }).click();
-  await expect(page.getByRole('dialog', { name: 'Recent chats' })).toBeVisible();
-  await expect(page.getByText('No recent chats yet')).toBeVisible();
+  const ownerBHistoryDialog = page.getByRole('dialog', { name: 'Recent chats' });
+  await expect(ownerBHistoryDialog).toBeVisible();
+  // Wait for the owner-scoped query to finish before asserting the empty state.
+  await expect(ownerBHistoryDialog.getByText('Your conversations')).toBeVisible();
+  await expect(ownerBHistoryDialog.getByText('No recent chats yet')).toBeVisible();
   expect(conversations.filter((item) => item.user_id === ownerB)).toHaveLength(0);
 });
