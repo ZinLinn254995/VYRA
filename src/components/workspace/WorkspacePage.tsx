@@ -77,6 +77,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
   const lastStoryboardSyncAtRef = useRef(0);
+  const storyboardStorageKeyRef = useRef(storageKey);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
@@ -481,7 +482,28 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     onAiContextChange(context);
   }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const storageOwnerChanged = storyboardStorageKeyRef.current !== storageKey;
+    if (storageOwnerChanged) {
+      // Workspace stays mounted across navigation and auth changes. Clear every
+      // owner-bound editor surface before painting the next account's workspace.
+      storyboardStorageKeyRef.current = storageKey;
+      lastStoryboardSyncAtRef.current = 0;
+      setActiveStoryboard(null);
+      setActiveStoryboardConfirmed(false);
+      setStoryboardToDelete(null);
+      setEditingStoryboardId(null);
+      setEditDraft(null);
+      setCreateOpen(false);
+      setSelectedSceneIds([]);
+      setActiveSceneId(null);
+      setSelectedTimelineItem(null);
+      setSceneVideoPreviewUrl('');
+      setSceneVideoPreviewLoading(false);
+      setSceneVideoPreviewError('');
+      setCloudSyncMessage('');
+      setStoryboardAiMessage('');
+    }
     setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
     setLoadedStorageKey(storageKey);
   }, [storageKey, seedDemoStoryboards]);
