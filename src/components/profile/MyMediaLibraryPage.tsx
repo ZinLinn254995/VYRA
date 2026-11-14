@@ -292,6 +292,18 @@ export const MyMediaLibraryPage: React.FC = () => {
     return [...currentFolders, ...currentItems].sort(compare);
   }, [folders, items, activeFolderId, filter, query]);
 
+  const patchCachedItems = (updater: (current: MediaLibraryItem[]) => MediaLibraryItem[]) => {
+    setItems((current) => updater(current));
+    const key = JSON.stringify([activeFolderId, serverQuery, filter]);
+    const cached = libraryCacheRef.current.get(key);
+    if (cached) libraryCacheRef.current.set(key, { ...cached, items: updater(cached.items), cachedAt: Date.now() });
+  };
+  const patchCachedFolders = (updater: (current: MediaLibraryFolder[]) => MediaLibraryFolder[]) => {
+    setFolders((current) => updater(current));
+    for (const [key, cached] of libraryCacheRef.current) {
+      libraryCacheRef.current.set(key, { ...cached, folders: updater(cached.folders), cachedAt: Date.now() });
+    }
+  };
   const withBusy = async (task: () => Promise<void>, success?: string, refreshAfter = true) => {
     setBusy(true); setError(null); setNotice(null);
     try { await task(); if (refreshAfter) await refresh(true); if (success) setNotice(success); }
@@ -378,7 +390,11 @@ export const MyMediaLibraryPage: React.FC = () => {
   };
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault(); if (!folderName.trim()) return;
-    await withBusy(async () => { await createMediaLibraryFolder(folderName, activeFolderId); setFolderName(''); setCreatingFolder(false); });
+    await withBusy(async () => {
+      const created = await createMediaLibraryFolder(folderName, activeFolderId);
+      patchCachedFolders((current) => [...current.filter((folder) => folder.id !== created.id), created].sort((a, b) => a.name.localeCompare(b.name)));
+      setFolderName(''); setCreatingFolder(false);
+    }, undefined, false);
   };
 
   const toggleSelected = (id: string) => setSelectedIds((previous) => previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id]);
@@ -527,17 +543,43 @@ export const MyMediaLibraryPage: React.FC = () => {
   const commitRename = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!renameTarget || !renameValue.trim()) return;
+    const target = renameTarget;
+    const nextName = renameValue.trim().replace(/\\s+/g, ' ').slice(0, 180);
     await withBusy(async () => {
-      if (renameTarget.folder) await renameMediaLibraryFolder(renameTarget.id, renameValue);
-      else await renameMediaLibraryItem(renameTarget.id, renameValue);
+      if (target.folder) {
+        await renameMediaLibraryFolder(target.id, nextName);
+        patchCachedFolders((current) => current.map((folder) => folder.id === target.id ? { ...folder, name: nextName, updated_at: new Date().toISOString() } : folder));
+      } else {
+        await renameMediaLibraryItem(target.id, nextName);
+        const updatedAt = new Date().toISOString();
+        const patch = (current: MediaLibraryItem[]) => current.map((item) => item.id === target.id ? { ...item, file_name: nextName, updated_at: updatedAt } : item);
+        patchCachedItems(patch);
+        for (const [key, cached] of libraryCacheRef.current) {
+          if (key !== JSON.stringify([activeFolderId, serverQuery, filter])) {
+            libraryCacheRef.current.set(key, { ...cached, items: patch(cached.items), cachedAt: Date.now() });
+          }
+        }
+      }
       setRenameTarget(null); setSelectedIds([]);
-    }, 'Name updated.');
+    }, 'Name updated.', false);
   };
   const moveSelected = async (event: React.ChangeEvent<HTMLSelectElement>) => {
     const destination = event.target.value === '__root__' ? null : event.target.value;
     if (!selectedFiles.length) { event.target.value = ''; return; }
     const count = selectedFiles.length;
-    await withBusy(async () => { await moveMediaLibraryItems(selectedFiles, destination); setSelectedIds([]); }, count + (count === 1 ? ' file moved.' : ' files moved.'));
+    const movingIds = [...selectedFiles];
+    await withBusy(async () => {
+      await moveMediaLibraryItems(movingIds, destination);
+      patchCachedItems((current) => destination === activeFolderId
+        ? current.map((item) => movingIds.includes(item.id) ? { ...item, folder_id: destination } : item)
+        : current.filter((item) => !movingIds.includes(item.id)));
+      // A destination folder cache may not contain these records yet. Drop only
+      // that cached view so its next visit fetches fresh data, not every folder.
+      for (const key of libraryCacheRef.current.keys()) {
+        try { if (JSON.parse(key)[0] === destination && destination !== activeFolderId) libraryCacheRef.current.delete(key); } catch { /* ignore malformed cache keys */ }
+      }
+      setSelectedIds([]);
+    }, count + (count === 1 ? ' file moved.' : ' files moved.'), false);
     event.target.value = '';
   };
   const moveSelectedFolder = async (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -549,8 +591,9 @@ export const MyMediaLibraryPage: React.FC = () => {
     }
     await withBusy(async () => {
       await moveMediaLibraryFolder(folderId, destination);
+      patchCachedFolders((current) => current.map((folder) => folder.id === folderId ? { ...folder, parent_id: destination, updated_at: new Date().toISOString() } : folder));
       setSelectedIds([]);
-    }, 'Folder moved.');
+    }, 'Folder moved.', false);
     event.target.value = '';
   };
   const downloadPreviewOriginal = () => {
@@ -568,15 +611,24 @@ export const MyMediaLibraryPage: React.FC = () => {
     if (!selectedIds.length || !window.confirm('Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
     await withBusy(async () => {
       let cleanupPending = false;
-      if (selectedFiles.length) {
-        const result = await deleteMediaLibraryItems(selectedFiles);
+      const deletedFileIds = [...selectedFiles];
+      const deletedFolderIds = [...selectedFolders];
+      if (deletedFileIds.length) {
+        const result = await deleteMediaLibraryItems(deletedFileIds);
         cleanupPending = result.cleanupPending;
+        patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
+        for (const [key, cached] of libraryCacheRef.current) {
+          if (key !== JSON.stringify([activeFolderId, serverQuery, filter])) {
+            libraryCacheRef.current.set(key, { ...cached, items: cached.items.filter((item) => !deletedFileIds.includes(item.id)), cachedAt: Date.now() });
+          }
+        }
       }
-      for (const id of selectedFolders) await deleteMediaLibraryFolder(id);
+      for (const id of deletedFolderIds) await deleteMediaLibraryFolder(id);
+      if (deletedFolderIds.length) patchCachedFolders((current) => current.filter((folder) => !deletedFolderIds.includes(folder.id)));
       setSelectedIds([]);
       if (cleanupPending) setNotice('Selected items deleted. Private storage cleanup is queued and will retry automatically when you next open My Media Library.');
       else setNotice('Selected items deleted.');
-    });
+    }, undefined, false);
   };
 
   const iconFor = (mime: string, size = 20) => {
