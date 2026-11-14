@@ -170,6 +170,19 @@ test('Profile routes My Media Library and AI Chat Vyral uploads are indexed auto
   assert.ok(chat.includes('**My Media Library:** Added automatically.'));
 });
 
+test('Failed Vyral Asset indexing queues cleanup for its thumbnail without touching the canonical Asset', () => {
+  const service = read('src/services/mediaLibraryCloud.ts');
+  const start = service.indexOf('export async function registerVyralAssetInMediaLibrary');
+  const end = service.indexOf('\n}', start);
+  const register = service.slice(start, end);
+  assert.ok(register.includes("db.from('media_library_storage_cleanup_jobs').insert"), 'A thumbnail uploaded before a failed Library upsert must be durably queued for cleanup.');
+  assert.ok(register.includes('storage_paths: [thumbnailPath]'), 'Cleanup must target only the generated thumbnail.');
+  assert.ok(register.includes("db.storage.from('vyral-assets').remove([thumbnailPath])"), 'If queue persistence fails, remove only the generated thumbnail.');
+  assert.ok(register.includes('processMediaLibraryStorageCleanup(1)'), 'A successfully queued thumbnail cleanup should be attempted immediately.');
+  assert.ok(register.includes('throw new Error(\'Could not add this Asset to My Media Library: \' + error.message)'), 'The original indexing failure must still be surfaced.');
+  assert.ok(!register.includes('remove([input.storagePath])'), 'The canonical Vyral Asset must never be removed by Library-index cleanup.');
+});
+
 
 test('Media Library failure handling keeps retries scoped and protects canonical files', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
