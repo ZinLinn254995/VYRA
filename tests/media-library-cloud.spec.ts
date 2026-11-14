@@ -62,7 +62,7 @@ test('My Media Library UI includes required organization, filtering, views and m
     'toggleAll', 'selectedIds', 'moveMediaLibraryItems', 'role="toolbar"', 'aria-label="Selected item actions"', 'Rename selected item', 'Move selected files to folder', 'Move selected folder to folder', 'moveSelectedFolder', 'blockedFolderIds', 'folderPath(folder.id)', 'Delete selected items',
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
-    '<video', '<audio', 'entry.item!.thumbnail_url', 'loading="lazy"',
+    '<video', '<audio', 'previewItem.mime_type === \'application/pdf\'', 'PDF preview:', 'entry.item!.thumbnail_url', 'loading="lazy"',
     'const breadcrumbs = useMemo(', 'aria-label="Folder path"',
     'navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)',
     'folder.parent_id === activeFolderId', 'item.folder_id === activeFolderId',
