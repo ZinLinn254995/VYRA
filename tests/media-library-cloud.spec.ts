@@ -35,6 +35,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   const service = read('src/services/mediaLibraryCloud.ts');
   assert.ok(service.includes('async function mapWithConcurrency<T, R>'), 'Large Libraries must not create an unbounded signed-URL request burst.');
   assert.ok(service.includes('mapWithConcurrency(rawItems, 8'), 'Signed URL generation must be limited to eight files at a time.');
+  assert.ok(service.includes('A temporary signed-URL failure for one file must not hide the rest of the Library.'), 'One signed URL failure must not block unrelated files from loading.');
   const backfillStart = service.indexOf('export async function backfillMediaLibraryThumbnails');
   const backfillEnd = service.indexOf('export async function uploadMediaLibraryFiles', backfillStart);
   const backfill = service.slice(backfillStart, backfillEnd);
