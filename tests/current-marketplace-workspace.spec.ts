@@ -99,7 +99,7 @@ test('Signed-in Media Library backfills a legacy image thumbnail without touchin
     identities: [], created_at: now, is_anonymous: true,
   };
   const session = { access_token: accessToken, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e-refresh-token', user };
-  const folders = [
+  const folders: Array<{ id: string; user_id: string; parent_id: string | null; name: string; created_at: string; updated_at: string }> = [
     { id: folderRoot, user_id: userId, parent_id: null, name: 'Characters', created_at: now, updated_at: now },
     { id: folderChild, user_id: userId, parent_id: folderRoot, name: 'Heroes', created_at: now, updated_at: now },
     { id: 'e2e-folder-archive', user_id: userId, parent_id: null, name: 'Archive', created_at: now, updated_at: now },
