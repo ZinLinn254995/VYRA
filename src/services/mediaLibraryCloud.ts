@@ -234,19 +234,42 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
     .eq('user_id', userId)
     .is('metadata->thumbnail_path', null)
     .is('metadata->thumbnail_backfill_attempted_at', null)
+    .or('metadata->thumbnail_backfill_retry_after_at.is.null,metadata->thumbnail_backfill_retry_after_at.lt.' + new Date().toISOString())
     .or('mime_type.like.image/%,mime_type.like.video/%')
     .order('created_at', { ascending: true })
     .limit(batchSize);
   if (error) throw new Error('Could not find older media thumbnails to generate: ' + error.message);
 
   let generated = 0;
+  const scheduleRetry = async (row: { id: string; metadata: Record<string, unknown> | null }) => {
+    const attempts = Number(row.metadata?.thumbnail_backfill_attempts ?? 0) + 1;
+    const retryMetadata: Record<string, unknown> = {
+      ...(row.metadata ?? {}),
+      thumbnail_backfill_attempts: attempts,
+    };
+    if (attempts >= 8) {
+      retryMetadata.thumbnail_backfill_attempted_at = new Date().toISOString();
+      delete retryMetadata.thumbnail_backfill_retry_after_at;
+    } else {
+      // Exponential backoff (5 minutes to 24 hours) prevents old transient
+      // failures from occupying every small batch on every Library visit.
+      const delayMinutes = Math.min(5 * (2 ** (attempts - 1)), 24 * 60);
+      retryMetadata.thumbnail_backfill_retry_after_at = new Date(Date.now() + delayMinutes * 60_000).toISOString();
+    }
+    await db.from('media_library_items')
+      .update({ metadata: retryMetadata })
+      .eq('id', row.id).eq('user_id', userId)
+      .is('metadata->thumbnail_path', null)
+      .is('metadata->thumbnail_backfill_attempted_at', null);
+  };
+
   for (const row of (data ?? []) as Array<{
     id: string; bucket_id: 'vyral-assets'; storage_path: string; file_name: string;
     mime_type: string; metadata: Record<string, unknown> | null;
   }>) {
     try {
       const { data: original, error: downloadError } = await db.storage.from(row.bucket_id).download(row.storage_path);
-      if (downloadError || !original) continue;
+      if (downloadError || !original) { await scheduleRetry(row); continue; }
       const sourceFile = new File([original], row.file_name, { type: row.mime_type || original.type || 'application/octet-stream' });
       const thumbnailBlob = await createMediaThumbnail(sourceFile);
       if (!thumbnailBlob) {
@@ -266,7 +289,7 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
       const { error: uploadError } = await db.storage.from('vyral-assets').upload(thumbnailPath, thumbnailBlob, {
         contentType: thumbnailType, upsert: true, cacheControl: '86400',
       });
-      if (uploadError) continue;
+      if (uploadError) { await scheduleRetry(row); continue; }
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
       const { data: updatedRow, error: updateError } = await db.from('media_library_items')
@@ -280,11 +303,14 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
       // actually claimed the row, so a race cannot leave an orphaned thumbnail.
       if (updateError || !updatedRow) {
         await db.storage.from('vyral-assets').remove([thumbnailPath]);
+        await scheduleRetry(row);
         continue;
       }
       generated += 1;
     } catch {
-      // One unsupported or unavailable legacy file must not stop the batch.
+      // Retry transient download, upload or metadata failures without starving
+      // later rows; the retry counter is bounded to eight attempts.
+      await scheduleRetry(row);
     }
   }
   return generated;
