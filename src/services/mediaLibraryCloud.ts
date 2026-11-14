@@ -67,6 +67,28 @@ export async function processMediaLibraryStorageCleanup(limit = 4): Promise<numb
 
   let completed = 0;
   for (const job of (data ?? []) as MediaLibraryStorageCleanupJob[]) {
+    // Never let a malformed or tampered queue row target canonical Vyral assets
+    // or another user's objects. Standalone originals and thumbnails have
+    // dedicated, owner-prefixed paths only.
+    const validCleanupPaths = job.bucket_id === 'vyral-assets'
+      && Array.isArray(job.storage_paths)
+      && job.storage_paths.length > 0
+      && job.storage_paths.every((path) => {
+        if (typeof path !== 'string' || !path) return false;
+        const segments = path.split('/');
+        return !path.includes('\\\\')
+          && !segments.some((segment) => !segment || segment === '.' || segment === '..')
+          && (path.startsWith(userId + '/media-library/') || path.startsWith(userId + '/media-library-thumbnails/'));
+      });
+    if (!validCleanupPaths) {
+      const attempts = job.attempts + 1;
+      await db.from('media_library_storage_cleanup_jobs').update({
+        attempts,
+        next_attempt_at: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+        last_error: 'Blocked cleanup job with an unsafe bucket or object path.',
+      }).eq('id', job.id).eq('user_id', userId);
+      continue;
+    }
     const { error: removeError } = await db.storage.from(job.bucket_id).remove(job.storage_paths);
     if (removeError) {
       const attempts = job.attempts + 1;
