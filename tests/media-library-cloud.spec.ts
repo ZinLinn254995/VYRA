@@ -422,3 +422,13 @@ test('My Vyrals deletes one local list entry without refetching the entire colle
   assert.ok(page.includes("setVyrals((current) => current.filter((vyral) => vyral.id !== item.id))"), 'A confirmed delete should remove only the affected Vyral from the visible list.');
   assert.ok(!page.includes('else { if (activeId === item.id) setActiveId(null); await loadVyrals(); }'), 'Deleting one Vyral must not trigger a full collection reload.');
 });
+
+
+test('Media Library cache is isolated and cleared when the authenticated owner changes', () => {
+  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  assert.ok(page.includes("const { user } = useAuth()"), 'The cache scope must use the authenticated Supabase user ID.');
+  assert.ok(page.includes('JSON.stringify([ownerId, activeFolderId, serverQuery, filter])'), 'Every cached view must include its owner and full folder/search/filter context.');
+  assert.ok(page.includes('if (cacheOwnerRef.current === ownerId) return;'), 'The current owner should not lose their own warm cache.');
+  assert.ok(page.includes('libraryCacheRef.current.clear()'), 'A sign-out or account switch must clear private rows and signed URLs from memory.');
+  assert.ok(page.includes('Never render a previous account\'s private rows or signed thumbnail URLs.'), 'Private cached content must never flash for a different account.');
+});
