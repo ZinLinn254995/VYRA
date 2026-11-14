@@ -88,7 +88,9 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
 export const MyMediaLibraryPage: React.FC = () => {
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
-  const [visibleEntryLimit, setVisibleEntryLimit] = useState(100);
+  const [hasMoreItems, setHasMoreItems] = useState(false);
+  const [loadingMoreItems, setLoadingMoreItems] = useState(false);
+  const [serverQuery, setServerQuery] = useState('');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('list');
   const [filter, setFilter] = useState<FilterKind>('all');
@@ -157,16 +159,22 @@ export const MyMediaLibraryPage: React.FC = () => {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const result = await loadMediaLibrary();
+      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100 });
       setFolders(result.folders);
       setItems(result.items);
+      setHasMoreItems(result.hasMore);
       setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [activeFolderId, filter, serverQuery]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setServerQuery(query), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
   useEffect(() => {
     let mounted = true;
     const initializeLibrary = async () => {
@@ -393,15 +401,28 @@ export const MyMediaLibraryPage: React.FC = () => {
     return blocked;
   }, [folders, selectedIds]);
 
-  // Keep the DOM responsive for large folders while preserving the full loaded
-  // collection for search, folder operations and metadata actions.
-  const displayedEntries = entries.slice(0, visibleEntryLimit);
-  useEffect(() => { setVisibleEntryLimit(100); }, [activeFolderId, filter, query]);
-
+  const displayedEntries = entries;
   const allVisibleSelected = displayedEntries.length > 0 && displayedEntries.every((entry) => selectedIds.includes(entry.id));
   const toggleAll = () => setSelectedIds((previous) => allVisibleSelected
     ? previous.filter((id) => !displayedEntries.some((entry) => entry.id === id))
     : [...new Set([...previous, ...displayedEntries.map((entry) => entry.id)])]);
+
+  const loadMoreItems = async () => {
+    if (!hasMoreItems || loadingMoreItems || loading) return;
+    setLoadingMoreItems(true);
+    try {
+      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100 });
+      setItems((previous) => {
+        const known = new Set(previous.map((item) => item.id));
+        return [...previous, ...result.items.filter((item) => !known.has(item.id))];
+      });
+      setHasMoreItems(result.hasMore);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load more files.');
+    } finally {
+      setLoadingMoreItems(false);
+    }
+  };
 
   const startRename = () => {
     if (selectedIds.length !== 1) return;
@@ -551,7 +572,7 @@ export const MyMediaLibraryPage: React.FC = () => {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs text-[var(--vyra-text-muted)]">{displayedEntries.length === entries.length ? entries.length + ' items' : 'Showing ' + displayedEntries.length + ' of ' + entries.length}</span>
+          <span className="mr-1 text-xs text-[var(--vyra-text-muted)]">{hasMoreItems ? 'Showing ' + items.length + '+ files' : items.length + ' files'}</span>
           {(['all','image','video','audio','document','other'] as FilterKind[]).map((value) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium capitalize transition ${filter === value ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]'}`}>{value === 'all' ? 'All' : value === 'image' ? 'Images' : value === 'video' ? 'Videos' : value === 'audio' ? 'Audio' : value === 'document' ? 'Documents' : 'Other'}</button>)}
         </div>
         <div className="ml-auto flex items-center rounded-lg border border-[var(--vyra-border)] p-0.5"><button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid size-8 place-items-center rounded-md ${view === 'list' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><List size={15}/></button><button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid size-8 place-items-center rounded-md ${view === 'grid' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-accent-primary)]' : 'text-[var(--vyra-text-muted)]'}`}><Grid2X2 size={15}/></button></div>
@@ -588,9 +609,10 @@ export const MyMediaLibraryPage: React.FC = () => {
           {selectedIds.includes(entry.id) && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-[var(--vyra-accent-primary)] text-slate-950"><Check size={12}/></span>}
         </article>)}
       </div>}
-      {displayedEntries.length < entries.length && !loading && <div className="flex justify-center py-3">
-        <button type="button" onClick={() => setVisibleEntryLimit((current) => Math.min(current + 100, entries.length))} className="min-h-9 rounded-lg border border-[var(--vyra-border)] px-4 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">
-          Load 100 more
+      {hasMoreItems && !loading && <div className="flex justify-center py-3">
+        <button type="button" onClick={() => void loadMoreItems()} disabled={loadingMoreItems || busy} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-4 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50">
+          {loadingMoreItems && <Loader2 size={13} className="animate-spin"/>}
+          {loadingMoreItems ? 'Loading…' : 'Load 100 more'}
         </button>
       </div>}
 
