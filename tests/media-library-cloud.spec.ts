@@ -53,9 +53,15 @@ test('My Media Library UI includes required organization, filtering, views and m
     'navigateToFolder(breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].id : null)',
     'folder.parent_id === activeFolderId', 'item.folder_id === activeFolderId',
     '{visibleFolders.map((folder)', '{filteredItems.map((item)',
-    'Open folder', 'New folder inside ',
+    'New folder inside ', 'beginLongPress', 'onContextMenu', 'event.preventDefault()',
+    'onPointerDown', 'onPointerCancel', 'Zoom in', 'Zoom out',
+    'gridTemplateColumns', '[-webkit-touch-callout:none]', 'select-none',
   ]) assert.ok(page.includes(snippet), 'Missing Media Library UI feature: ' + snippet);
   assert.ok(!page.includes('<aside'), 'Folder tree sidebar should not replace standard file-manager navigation.');
+  assert.ok(!page.includes('Open folder'), 'Folder entries should display only their icon and name.');
+  assert.ok(!page.includes('formatBytes('), 'File entries should not display file size metadata.');
+  assert.ok(!page.includes('dateLabel('), 'File entries should not display date metadata.');
+  assert.ok(!page.includes('>Type<') && !page.includes('>Size<') && !page.includes('>Date<'), 'List view should show only icon and name for each entry.');
 });
 
 test('Profile routes My Media Library and AI Chat Vyral uploads are indexed automatically', () => {
