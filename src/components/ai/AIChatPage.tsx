@@ -43,6 +43,8 @@ type AIChatPageProps = {
   onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
   workspaceContext?: WorkspaceAiContext | null;
   onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
+  storyboardId?: string;
+  embedded?: boolean;
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -344,7 +346,7 @@ const inspectVyralAttachment = async (file: File) => {
   return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext, onSceneStateProposal }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext, onSceneStateProposal, storyboardId, embedded = false }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -422,7 +424,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setActiveVyralId(String(data.id));
       });
     return () => { active = false; };
-  }, [historyOwnerId]);
+  }, [historyOwnerId, storyboardId]);
 
 
 
@@ -483,12 +485,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (!active) return;
       if (userError || !userResult.user) throw new Error('Sign in again to load your saved conversations.');
       const ownerId = userResult.user.id;
-      const { data, error } = await supabaseClient
+      let historyQuery = supabaseClient
         .from('vyra_ai_chat_conversations')
         .select('id,title,messages,archived,locked,updated_at')
-        .eq('user_id', ownerId)
-        .order('updated_at', { ascending: false })
-        .limit(100);
+        .eq('user_id', ownerId);
+      if (storyboardId) historyQuery = historyQuery.eq('id', storyboardId);
+      else historyQuery = historyQuery.order('updated_at', { ascending: false }).limit(100);
+      const { data, error } = await historyQuery;
       if (error) throw new Error('Saved chat history is temporarily unavailable.');
       if (previousOwnerId && previousOwnerId !== ownerId) {
         setMessages([]);
@@ -526,6 +529,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       historyOwnerRef.current = ownerId;
       setHistoryOwnerId(ownerId);
       setSessions(loaded);
+      if (storyboardId) {
+        const storyboardSession = loaded.find((session) => session.id === storyboardId);
+        setMessages(storyboardSession?.messages ?? []);
+        setActiveSessionId(storyboardSession?.id ?? null);
+        setIsLocked(Boolean(storyboardSession?.locked));
+      }
     };
 
     void loadHistory()
@@ -536,7 +545,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       })
       .finally(() => { if (active) setHistoryReady(true); });
     return () => { active = false; };
-  }, [isAuthenticated, historyAuthRevision]);
+  }, [isAuthenticated, historyAuthRevision, storyboardId]);
 
   useLayoutEffect(() => {
     const container = chatScrollRef.current;
@@ -579,7 +588,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         ...(message.action ? { action: message.action } : {}),
       }));
       const { error } = await client.from('vyra_ai_chat_conversations').upsert({
-        id: session.id,
+        id: storyboardId ?? session.id,
         user_id: ownerId,
         title: (session.title || 'New chat').slice(0, 160),
         messages: storedMessages,
@@ -620,7 +629,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const saveCurrentSession = async (archived = false): Promise<boolean> => {
     if (!hasMessages) return true;
     const session: ChatSession = {
-      id: activeSessionId ?? crypto.randomUUID(),
+      id: activeSessionId ?? storyboardId ?? crypto.randomUUID(),
       title: currentTitle,
       updatedAt: 'Just now',
       messages,
@@ -740,7 +749,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setSelectedVyralImages([]);
     setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    const chatSessionId = activeSessionId ?? crypto.randomUUID();
+    const chatSessionId = activeSessionId ?? storyboardId ?? crypto.randomUUID();
     if (!activeSessionId) setActiveSessionId(chatSessionId);
 
     setIsSending(true);
@@ -2277,8 +2286,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   };
 
   return (
-    <main className="fixed inset-x-0 top-[calc(var(--vyra-visual-viewport-top,0px)+109px)] bottom-[var(--vyra-visual-viewport-bottom-gap,0px)] mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+64px)] sm:px-6">
-      <header className="fixed right-3 top-[calc(var(--vyra-visual-viewport-top,0px)+112px)] z-[60] flex items-start justify-end sm:right-6 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+76px)]">
+    <main className={embedded ? "relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden" : "fixed inset-x-0 top-[calc(var(--vyra-visual-viewport-top,0px)+109px)] bottom-[var(--vyra-visual-viewport-bottom-gap,0px)] mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] overflow-hidden px-3 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+64px)] sm:px-6"}>
+      <header className={embedded ? "absolute right-2 top-2 z-[60] flex items-start justify-end" : "fixed right-3 top-[calc(var(--vyra-visual-viewport-top,0px)+112px)] z-[60] flex items-start justify-end sm:right-6 sm:top-[calc(var(--vyra-visual-viewport-top,0px)+76px)]"}>
         <div
           className="relative overflow-hidden border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-primary)]"
           style={{
