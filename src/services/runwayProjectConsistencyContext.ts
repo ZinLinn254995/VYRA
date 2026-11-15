@@ -165,6 +165,9 @@ export async function buildRunwayProjectConsistencyContext(
 
 export type RunwaySceneContinuityInput = {
   page?: string;
+  editorView?: string;
+  selectedTimelineItem?: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null;
+  selectedSceneIds?: string[];
   continuityRuntime?: { sceneIds?: string[]; scenes?: Array<{ id: string; title: string }>; ledger?: unknown } | null;
   activeSceneId?: string | null;
   activeSceneTitle?: string | null;
@@ -190,18 +193,42 @@ export function buildRunwaySceneContinuityPrompt(
   promptText: string,
   input?: RunwaySceneContinuityInput | null,
 ): { promptText: string; mode: 'not_applicable' | 'approved' | 'incomplete' } {
-  if (!input || input.page !== 'scene-editor' || !input.activeSceneId) {
+  const sceneEditor = input?.page === 'scene-editor' && Boolean(input.activeSceneId);
+  const masterEditor = input?.page === 'storyboard-editor' && input.editorView === 'master' && Boolean(input.selectedTimelineItem);
+  if (!input || (!sceneEditor && !masterEditor)) {
     return { promptText, mode: 'not_applicable' };
   }
-  const title = safeText(input.activeSceneTitle, 180);
+  const selectedSceneId = masterEditor
+    ? (input.selectedTimelineItem?.kind === 'scene' ? input.selectedTimelineItem.id : input.selectedSceneIds?.length === 1 ? input.selectedSceneIds[0] : null)
+    : input.activeSceneId;
+  const selectedScene = input.continuityRuntime?.scenes?.find((scene) => scene.id === selectedSceneId);
+  const title = safeText(selectedScene?.title || input.activeSceneTitle, 180);
   const description = safeText(input.activeSceneDescription, 1200);
-  const continuity = input.sceneContinuity;
-  const timeline = buildApprovedSceneTimeline(input.continuityRuntime, input.activeSceneId);
+  const runtimeScenes = (input.continuityRuntime?.sceneIds ?? []).map((id) => ({ id }));
+  const runtimeLedger = input.continuityRuntime?.ledger
+    ? hydrateSceneContinuityLedger(input.continuityRuntime.ledger, runtimeScenes)
+    : null;
+  const derivedContinuity = masterEditor && selectedSceneId && runtimeLedger
+    ? getSceneContinuityContext(runtimeLedger, runtimeScenes, selectedSceneId)
+    : null;
+  const continuity = masterEditor && derivedContinuity ? {
+    previousSceneId: derivedContinuity.previousSceneId,
+    previousSceneApproved: derivedContinuity.previousSceneApproved,
+    entrySnapshotStale: derivedContinuity.entrySnapshotStale,
+    previousExitState: derivedContinuity.previousExitState,
+    currentEntryState: derivedContinuity.currentEntryState,
+    intendedChanges: derivedContinuity.intendedChanges,
+    contextComplete: derivedContinuity.contextComplete,
+    validationStatus: runtimeLedger?.scenes[selectedSceneId!]?.validationStatus ?? 'not_evaluated',
+  } : input.sceneContinuity;
+  const targetSceneId = selectedSceneId || input.activeSceneId || null;
+  const timeline = targetSceneId ? buildApprovedSceneTimeline(input.continuityRuntime, targetSceneId) : [];
   const complete = Boolean(continuity?.contextComplete && continuity.previousSceneApproved
     && !continuity.entrySnapshotStale && isRecord(continuity.currentEntryState));
   const lines = [
-    'ACTIVE PROJECT SCENE CONTEXT',
-    'Scene ID: ' + safeText(input.activeSceneId, 128),
+    masterEditor ? 'MASTER EDITOR SELECTION CONTEXT' : 'ACTIVE PROJECT SCENE CONTEXT',
+    masterEditor ? 'Selected timeline item: ' + safeText(input.selectedTimelineItem?.kind, 40) + ' / ' + safeText(input.selectedTimelineItem?.label || input.selectedTimelineItem?.id, 180) : '',
+    targetSceneId ? 'Scene ID: ' + safeText(targetSceneId, 128) : 'No single Scene is selected; do not assume a Scene-specific state.',
     title ? 'Scene title: ' + title : '',
     description ? 'Creator-authored Scene description (context, not canon by itself): ' + description : '',
   ];
@@ -214,7 +241,7 @@ export function buildRunwaySceneContinuityPrompt(
   } else if (input.continuityRuntime?.sceneIds?.length) {
     lines.push('PROJECT TIMELINE STATUS: No complete creator-approved predecessor chain was available. Do not infer missing history.');
   }
-  if (!complete || !continuity?.currentEntryState) {
+  if (!targetSceneId || !complete || !continuity?.currentEntryState) {
     lines.push(
       'CONTINUITY STATUS: INCOMPLETE OR STALE.',
       'Do not claim continuity is verified. Do not invent or assume character identity, wardrobe, props, location, relationships, injuries, timeline, or state. Ask for the missing creator-approved starting state when it materially affects the requested media; otherwise clearly label assumptions as unverified.',
