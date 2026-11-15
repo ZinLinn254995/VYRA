@@ -66,6 +66,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 
 export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createUniverseRequest = 0, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
+  const createDefaultStoryboardRef = useRef<() => void>(() => {});
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardStorageKeyRef = useRef(storageKey);
   const suggestionRequestIdRef = useRef(0);
@@ -777,7 +778,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setCloudSyncMessage('');
   };
   useEffect(() => {
-    if (createUniverseRequest > 0 && isActive) createDefaultStoryboard();
+    if (createUniverseRequest > 0 && isActive) createDefaultStoryboardRef.current();
   }, [createUniverseRequest, isActive]);
 
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
@@ -901,6 +902,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setStoryboardAiMessage('');
     }).catch(() => setStoryboardAiMessage('AI suggestions are unavailable. You can edit the default details anytime.'));
   };
+  createDefaultStoryboardRef.current = createDefaultStoryboard;
 
   const cancelStoryboardDraft = () => {
     setActiveStoryboard(null);
