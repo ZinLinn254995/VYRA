@@ -87,6 +87,18 @@ test('bounded retrieval reports truncation and keeps the strongest match first',
   assert.equal(relationshipBound.truncatedRelationships, true);
 });
 
+test('broad retrieval prioritizes declared Main Assets without treating inventory size as quality', () => {
+  const result = retrieveUniverseConsistencyContext({
+    query: 'Show me the entire Universe',
+    assets,
+    relationships: [],
+    maxAssets: 2,
+  });
+  assert.deepEqual(result.selectedAssetIds, ['milo', 'villain']);
+  assert.ok(result.reasons.milo.includes('main_asset_priority'));
+  assert.equal(result.truncatedAssets, true);
+});
+
 test('Universe-root relationships are retained when their connected Asset is selected', () => {
   const result = retrieveUniverseConsistencyContext({
     query: 'Milo',
