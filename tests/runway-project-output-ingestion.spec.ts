@@ -36,7 +36,9 @@ test('completion verifies owner, Project destination, Asset Version, DNA and Fin
   assert.ok(completion.includes('vyral_fingerprints'));
   assert.ok(completion.includes("p_status: 'ingested'"));
   assert.ok(completion.includes('.runway-staging/'));
+  assert.ok(completion.includes('output.staging_storage_path'));
   assert.ok(completion.includes('storage.from(BUCKET).remove'));
+  assert.ok(migration.includes('staging_storage_path text'));
 });
 
 test('output ingestion claim serializes active transfers and active ingestion retries', () => {
