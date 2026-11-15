@@ -63,7 +63,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardStorageKeyRef = useRef(storageKey);
