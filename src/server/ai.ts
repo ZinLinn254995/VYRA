@@ -236,12 +236,42 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       provider: 'openai',
     });
   }
-  if (body.visionImages !== undefined || body.mediaFiles !== undefined) {
+  if (body.mediaFiles !== undefined) {
     return res.status(501).json({
-      error: 'OpenAI text chat is available. Image, document and audio inspection will be enabled after the OpenAI multimodal path is connected.',
-      code: 'OPENAI_MULTIMODAL_NOT_ENABLED',
+      error: 'PDF and audio understanding are not enabled yet. Image and sampled video-frame inspection are supported.',
+      code: 'DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED',
       provider: 'openai',
     });
+  }
+  const rawVisionImages = body.visionImages;
+  const visionImages: Array<{ mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }> = [];
+  if (rawVisionImages !== undefined) {
+    if (!Array.isArray(rawVisionImages) || rawVisionImages.length > 4) {
+      return res.status(400).json({ error: 'A maximum of four visual previews can be inspected per request.', code: 'INVALID_VISION_IMAGES' });
+    }
+    let totalEncodedBytes = 0;
+    for (const item of rawVisionImages) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)
+        || !['image/jpeg', 'image/png', 'image/webp'].includes(String(item.mimeType))
+        || typeof item.data !== 'string'
+        || item.data.length < 16
+        || item.data.length > 820_000
+        || !/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)
+        || (item.assetId !== undefined && (typeof item.assetId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.assetId)))
+        || (item.assetName !== undefined && (typeof item.assetName !== 'string' || item.assetName.length > 180))) {
+        return res.status(400).json({ error: 'A visual preview has invalid MIME, encoding, size, or Asset metadata.', code: 'INVALID_VISION_IMAGES' });
+      }
+      totalEncodedBytes += item.data.length;
+      if (totalEncodedBytes > 3_300_000) {
+        return res.status(413).json({ error: 'Visual previews exceed the combined inspection size limit.', code: 'VISION_IMAGES_TOO_LARGE' });
+      }
+      visionImages.push({
+        mimeType: item.mimeType as 'image/jpeg' | 'image/png' | 'image/webp',
+        data: item.data,
+        ...(typeof item.assetId === 'string' ? { assetId: item.assetId } : {}),
+        ...(typeof item.assetName === 'string' ? { assetName: item.assetName.slice(0, 180).trim() } : {}),
+      });
+    }
   }
 
   const incoming = Array.isArray(body.messages) ? body.messages : [];
@@ -271,6 +301,7 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
       ...(activeVyralId ? { activeVyralId } : {}),
       ...(uploadAttachment ? { uploadAttachment } : {}),
       ...(workspaceContext ? { workspaceContext } : {}),
+      ...(visionImages.length ? { visionImages } : {}),
       ...(wantsStream ? { stream: true } : {}),
     });
     if (wantsStream && response.ok && response.body && (response.headers.get('content-type') ?? '').includes('text/event-stream')) {
