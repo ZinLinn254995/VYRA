@@ -185,8 +185,10 @@ test('AI Chat keeps conflicting creator-confirmed facts unresolved instead of si
   assert.match(edge, /creatorFieldResolutionByAsset/);
   assert.match(edge, /multiple values for the same field and temporal scope is explicitly unresolved/);
   assert.match(evidence, /unresolved_conflict/);
-  assert.match(evidence, /multiple_creator_confirmed_values_for_same_field_and_time/);\n  assert.match(evidence, /toISOString\\(\\)/);\n  assert.match(evidence, /withoutTemporalMetadata/);
-  assert.match(evidence, /effective_at[\\s\\S]*valid_from[\\s\\S]*timestamp/);
+  assert.match(evidence, /multiple_creator_confirmed_values_for_same_field_and_time/);
+  assert.match(evidence, /toISOString\(\)/);
+  assert.match(evidence, /withoutTemporalMetadata/);
+  assert.match(evidence, /effective_at[\s\S]*valid_from[\s\S]*timestamp/);
 });
 
 test('AI Chat indexes a bounded but broad Universe inventory before selecting a small task context', () => {
