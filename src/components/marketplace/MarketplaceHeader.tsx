@@ -131,7 +131,7 @@ export const AppHeader: React.FC<HeaderProps> = ({
 
       <div className="mx-auto max-w-[var(--vyra-content-width)] px-3 sm:hidden">
         <div className="flex h-14 items-center justify-between gap-2">
-          <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
+          <button type="button" onClick={onWorkspaceRequest} aria-label="VYRA Workspace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
             <BrandMark className="size-8 rounded-[10px]" />
             <span className="text-base font-extrabold tracking-[0.13em] text-[var(--vyra-text-primary)]">VYRA</span>
           </button>
