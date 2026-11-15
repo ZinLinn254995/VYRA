@@ -53,9 +53,24 @@ const STOP_WORDS = new Set([
 ]);
 
 const BROAD_QUERY = /\b(all|everything|entire|whole|every asset|full inventory|universe overview)\b|အားလုံး|တစ်ခုလုံး|အကုန်လုံး|ဖိုင်အားလုံး|asset အားလုံး/i;
-const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase();
-const tokens = (value: string) => (normalize(value).match(/[\p{L}\p{N}\p{M}]+/gu) ?? [])
-  .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
+const normalize = (value: string) => value.normalize('NFKC').toLowerCase();
+type WordSegment = { segment: string; isWordLike?: boolean };
+type SegmenterLike = { segment(value: string): Iterable<WordSegment> };
+const SegmenterConstructor = (Intl as unknown as {
+  Segmenter?: new (locale: string, options: { granularity: 'word' }) => SegmenterLike;
+}).Segmenter;
+const burmeseWordSegmenter = SegmenterConstructor
+  ? new SegmenterConstructor('my', { granularity: 'word' })
+  : null;
+const tokens = (value: string) => {
+  const normalized = normalize(value);
+  const raw = burmeseWordSegmenter
+    ? Array.from(burmeseWordSegmenter.segment(normalized))
+        .filter((item) => item.isWordLike !== false)
+        .map((item) => item.segment)
+    : (normalized.match(/[\\p{L}\\p{N}\\p{M}]+/gu) ?? []);
+  return raw.filter((token) => token.length > 0 && !STOP_WORDS.has(token));
+};
 
 const overlapScore = (queryTerms: string[], candidate: string, multiplier: number) => {
   if (!queryTerms.length) return 0;
