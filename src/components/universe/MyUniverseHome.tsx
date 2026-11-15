@@ -43,6 +43,7 @@ export function MyUniverseHome({ onCreateUniverse, onOpenUniverse }: MyUniverseH
   const [universes, setUniverses] = useState<UniverseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +89,7 @@ export function MyUniverseHome({ onCreateUniverse, onOpenUniverse }: MyUniverseH
     };
     void loadUniverses();
     return () => { cancelled = true; };
-  }, [user?.id, user?.is_anonymous]);
+  }, [user?.id, user?.is_anonymous, reloadKey]);
 
   return (
     <main className="min-h-0 flex-1 overflow-y-auto bg-[var(--vyra-bg-canvas)]">
@@ -103,7 +104,7 @@ export function MyUniverseHome({ onCreateUniverse, onOpenUniverse }: MyUniverseH
         ) : error ? (
           <div className="flex min-h-56 flex-col items-center justify-center gap-3 text-center">
             <p role="alert" className="text-sm text-[var(--vyra-text-secondary)]">{error}</p>
-            <Button size="sm" variant="secondary" startIcon={<RefreshCw size={14} />} onClick={() => window.dispatchEvent(new CustomEvent('vyra:reload-universes'))}>Try again</Button>
+            <Button size="sm" variant="secondary" startIcon={<RefreshCw size={14} />} onClick={() => setReloadKey((current) => current + 1)}>Try again</Button>
           </div>
         ) : universes.length ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
