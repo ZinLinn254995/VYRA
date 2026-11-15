@@ -77,7 +77,7 @@ const temporalInterval = (value: unknown): TemporalInterval | null => {
     for (const container of containers) {
       for (const key of keys) {
         const candidate = container[key];
-        if (typeof candidate !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T/i.test(candidate.trim())) continue;
+        if (typeof candidate !== 'string' || !/^\d{4}-\d{2}-\d{2}T/i.test(candidate.trim())) continue;
         const parsed = Date.parse(candidate.trim());
         if (Number.isFinite(parsed)) return parsed;
       }
