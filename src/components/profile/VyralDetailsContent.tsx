@@ -3423,7 +3423,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             const checkLabel = check?.status === 'checking'
               ? 'Checking current access…'
               : check?.status === 'current'
-                ? 'Collection DNA available · ' + check.assetCount + ' Assets'
+                ? 'Creative Universe data available · ' + check.assetCount + ' Assets'
                 : check?.status === 'newer_revision'
                   ? 'New revision available · ' + check.revision
                   : check?.status === 'error'
@@ -3433,7 +3433,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1"><p className={'truncate text-xs font-medium ' + primary}>{label}</p><p className={'mt-1 text-[10px] ' + muted}>Imported revision {reference.source_revision} · {reference.source_visibility === 'public' ? 'Public source' : reference.source_visibility === 'unlisted' ? 'Unlisted source' : 'Private source'}</p><p className={'mt-1 text-[10px] ' + (check?.status === 'error' ? 'text-rose-500' : muted)}>{checkLabel}</p></div>
                 <div className="flex items-center gap-2">
-                  {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check collection DNA'}</button>}
+                  {reference.resolver_uri && <button type="button" onClick={() => void checkCollectionReference(reference)} disabled={packageBusy || check?.status === 'checking'} className={button}>{check?.status === 'checking' ? 'Checking…' : 'Check for updates'}</button>}
                   <button type="button" onClick={() => void deleteCollectionReference(reference)} disabled={packageBusy} className={button}>Remove</button>
                 </div>
               </div>
@@ -3442,7 +3442,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 {importedAssets.map((assetReference) => <div key={assetReference.assetId + ':' + assetReference.assetVersionId} className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0"><p className={'text-[11px] ' + primary}>{assetReference.mediaType}</p><p className={'text-[9px] ' + muted}>{assetReference.assetId.slice(0, 8)} · version {assetReference.assetVersionId.slice(0, 8)}</p></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => void exportReferencedAssetDna(reference, assetReference)} disabled={packageBusy || busy} className={button}>Export for AI</button>
+                    <button type="button" onClick={() => void exportReferencedAssetDna(reference, assetReference)} disabled={packageBusy || busy} className={button}></button>
                     <button type="button" onClick={() => void copyReferencedAsset(reference, assetReference)} disabled={packageBusy || busy} className={button}>Copy Asset here</button>
                   </div>
                 </div>)}
@@ -3470,12 +3470,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               <p className={'px-2 py-1.5 text-[10px] ' + subtle}>Choose what to include</p>
               {([
                 { label: 'Assets only', components: { assets: true, fullDna: false, compactDna: false } },
-                { label: 'Rebuild data only', components: { assets: false, fullDna: true, compactDna: false } },
-                { label: 'Collection reference only', components: { assets: false, fullDna: false, compactDna: true } },
-                { label: 'Assets + rebuild data', components: { assets: true, fullDna: true, compactDna: false } },
-                { label: 'Assets + collection reference', components: { assets: true, fullDna: false, compactDna: true } },
-                { label: 'Rebuild + collection reference', components: { assets: false, fullDna: true, compactDna: true } },
-                { label: 'Everything', components: { assets: true, fullDna: true, compactDna: true } },
+                { label: 'Vyral package', components: { assets: true, fullDna: true, compactDna: true } },
               ] satisfies Array<{ label: string; components: VyralExportComponents }>).map(({ label, components }) => (
                 <button
                   key={label}
@@ -3490,28 +3485,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                   {label}
                 </button>
               ))}
-              <button
-                type="button"
-                disabled={busy || packageBusy}
-                onClick={(event) => {
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                  void exportVyralPackage({ assets: false, fullDna: true, compactDna: false }, undefined, false, true);
-                }}
-                className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
-              >
-                Semantic-only DNA export · no media or pixel payloads
-              </button>
+
             </div>
-            <div className="border-t border-[var(--vyra-border-subtle)] pt-2">
-              <button type="button" disabled={packageBusy || loading || !assets.length} onClick={(event) => {
-                event.currentTarget.closest('details')?.removeAttribute('open');
-                void exportVyralPackage({ assets: false, fullDna: true, compactDna: true }, undefined, true);
-                }}
-                className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
-              >
-                Binary-free DNA export · excludes original file bytes, keeps decoded pixels
-              </button>
-            </div>
+
           </details>
         </div>
       </div>
@@ -3536,43 +3512,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         ))}
       </nav>
 
-      <section className={surface+' p-4'}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <LockKeyhole size={16} className="shrink-0 text-[var(--vyra-accent-primary)]"/>
-            <div className="min-w-0">
-              <h3 className={'text-sm font-semibold '+primary}>System Files</h3>
-              <p className={'mt-0.5 text-[10px] '+muted}>Protected package records · read-only · v{VYRAL_SYSTEM_FILES_VERSION}</p>
-            </div>
-          </div>
-          <button type="button" onClick={()=>setShowSystemFiles(value=>!value)} aria-expanded={showSystemFiles} className={button}>
-            {showSystemFiles?<EyeOff size={13}/>:<Eye size={13}/>} {showSystemFiles?'Hide':'Show'} System Files
-          </button>
-        </div>
-        {showSystemFiles && <div className="mt-3 space-y-1.5 border-t border-[var(--vyra-border-subtle)] pt-3">
-          {[
-            {path:'manifest.json',label:'Package manifest',count:1,state:'present'},
-            {path:'system/identity.json',label:'Vyral identity',count:1,state:'present'},
-            {path:'system/asset-index.json',label:'Asset index',count:assets.length,state:'present'},
-            {path:'system/asset-dna/index.json',label:'Asset DNA index',count:dnaRecords.filter(item=>item.asset_id).length,state:dnaRecords.some(item=>item.asset_id)?'present':'empty'},
-            {path:'system/master-dna.ref.json',label:'Master DNA reference',count:masterDnaRevision,state:masterDnaAvailable&&masterDnaStatus==='ready'?'present':'not_available'},
-            {path:'system/fingerprints/index.json',label:'Fingerprint index',count:fingerprints.length,state:fingerprints.length?'present':'empty'},
-            {path:'system/provenance/index.json',label:'Provenance and lineage',count:lineage.length,state:lineage.length?'present':'empty'},
-            {path:'system/relationships/index.json',label:'Relationship index',count:masterRelationships.length,state:masterRelationships.length?'present':'empty'},
-            {path:'system/classifications/index.json',label:'Asset classifications',count:assets.length,state:'present'},
-            {path:'system/creator-instructions/index.json',label:'Creator instructions',count:0,state:'not_available'},
-            {path:'system/licensing.json',label:'Licensing policy',count:1,state:'present'},
-            {path:'system/integrity.json',label:'Package integrity',count:0,state:'generated_on_export'},
-            {path:'system/system-files.json',label:'Protected file index',count:13,state:'present'},
-          ].map(file=><div key={file.path} className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--vyra-bg-subtle)] px-2.5 py-2">
-            <FileText size={13} className="shrink-0 text-[var(--vyra-text-muted)]"/>
-            <div className="min-w-0 flex-1"><p className={'truncate text-[11px] font-medium '+primary}>{file.path}</p><p className={'text-[9px] '+muted}>{file.label}</p></div>
-            <span className={'shrink-0 text-[9px] '+muted}>{file.state==='present'?(file.count+' record'+(file.count===1?'':'s')):file.state==='empty'?'Empty':file.state==='generated_on_export'?'On export':'Not available'}</span>
-            <LockKeyhole size={11} className="shrink-0 text-[var(--vyra-accent-primary)]"/>
-          </div>)}
-          <p className={'pt-1 text-[10px] leading-4 '+muted}>System Files are protected package views of existing VYRA records. They cannot be individually deleted. Their contents are validated again when a package is imported.</p>
-        </div>}
-      </section>
+
 
       {tab === 'overview' && (
         <div className="space-y-4">
@@ -3580,7 +3520,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className={'text-sm font-semibold '+primary}>About this Vyral</h3>
-                <p className={'mt-1 text-xs '+subtle}>{vyral.description || 'A creative collection. Add Assets and VYRA will suggest useful details automatically.'}</p>
+                <p className={'mt-1 text-xs '+subtle}>{vyral.description || 'A Creative Universe you can grow with characters, places, stories, and Assets. VYRA keeps related knowledge connected.'}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(() => {
                     const fields = (vyral.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
