@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp, Archive, Clock3, Copy, History, Lock, MessageSquare,
-  MoreHorizontal, Plus, Share2, Trash2, Unlock, X,
+  MoreHorizontal, Plus, Share2, Trash2, Unlock, X, Sparkles,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { AIChatMessageContent } from './AIChatMessageContent';
@@ -24,6 +24,8 @@ import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extr
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
+import { generateRunwayProjectMedia } from '../../services/runwayProjectGeneration';
+import type { MediaQuality } from '../../services/mediaModelSelection';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction };
 type ChatSession = {
@@ -365,6 +367,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const [selectedVyralImages, setSelectedVyralImages] = useState<(VyralVisionImage & { assetId: string; assetName: string })[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
+  const [mediaComposerOpen, setMediaComposerOpen] = useState(false);
+  const [mediaTask, setMediaTask] = useState<'image' | 'video' | 'audio'>('image');
+  const [mediaQuality, setMediaQuality] = useState<MediaQuality>('standard');
+  const [mediaBudgetUsd, setMediaBudgetUsd] = useState('');
+  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+  const [mediaGenerationStatus, setMediaGenerationStatus] = useState<string | null>(null);
+  const mediaRequestControllerRef = useRef<AbortController | null>(null);
   const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
   const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
   const historyOwnerRef = useRef<string | null>(null);
@@ -2155,6 +2164,74 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     }
   };
 
+  const startProjectMediaGeneration = async () => {
+    const prompt = draft.trim();
+    if (!storyboardId || !storyboardUniverseId || !supabase) {
+      setMediaGenerationStatus('Open a Project before creating media.');
+      return;
+    }
+    if (!isAuthenticated) { onLoginRequired(); return; }
+    if (!prompt) { setMediaGenerationStatus('Describe the media you want to create first.'); textareaRef.current?.focus(); return; }
+    const budget = Number(mediaBudgetUsd);
+    if (!Number.isFinite(budget) || budget <= 0) {
+      setMediaGenerationStatus('Enter the maximum USD budget you are willing to approve.');
+      return;
+    }
+    if (isSending || isGeneratingMedia) return;
+    const controller = new AbortController();
+    mediaRequestControllerRef.current = controller;
+    setIsGeneratingMedia(true);
+    setMediaGenerationStatus('Checking Project destination and requesting a live provider quote…');
+    try {
+      const result = await generateRunwayProjectMedia(supabase, {
+        targetVyralId: storyboardUniverseId, task: mediaTask, quality: mediaQuality,
+        maxCostUsd: budget, input: { promptText: prompt }, signal: controller.signal,
+        onProgress: (progress) => {
+          if (progress.stage === 'quote') setMediaGenerationStatus('Quote received. Waiting for your approval…');
+          else if (progress.stage === 'reserved') setMediaGenerationStatus('Credits reserved. Preparing provider submission…');
+          else if (progress.stage === 'submitted') setMediaGenerationStatus('Provider accepted the job. Generating media…');
+          else if (progress.stage === 'polling') setMediaGenerationStatus('Generation status: ' + progress.status + '…');
+          else if (progress.stage === 'ingesting') setMediaGenerationStatus('Saving output ' + (progress.outputIndex + 1) + ' of ' + progress.outputCount + ' into Project Assets…');
+          else if (progress.stage === 'ready') setMediaGenerationStatus('DNA and Fingerprint verification completed. Project Assets are ready.');
+        },
+        requestApproval: async (quote) => {
+          const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(quote.estimatedCostUsd);
+          const credits = new Intl.NumberFormat().format(quote.estimatedCredits);
+          const approvedMax = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(budget);
+          const details = ['Approve this media generation?', '', 'Task: ' + quote.task,
+            'Quality: ' + quote.quality, 'Provider / model: ' + quote.provider + ' / ' + quote.model,
+            'Estimated cost: ' + money, 'Estimated VYRA credits: ' + credits,
+            'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\n');
+          return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
+        },
+      });
+      if (mediaRequestControllerRef.current !== controller) return;
+      if (result.status === 'approval_declined') {
+        setMediaGenerationStatus('Cancelled. No job was created and no credits were reserved.');
+      } else if (result.status === 'ready') {
+        const summary = result.assets.map((asset, index) => (index + 1) + '. ' + asset.assetId + ' · ' + asset.mimeType).join('\n');
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success',
+          content: 'Media generation completed. ' + result.assets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\n\n' + summary }]);
+        setDraft('');
+        setMediaGenerationStatus('Completed. Your new media is available in Project Assets.');
+      } else if (result.status === 'submitted_pending') {
+        setMediaGenerationStatus('Generation is still processing. Job ID: ' + result.jobId + '. Do not submit this job again.');
+      } else if (result.status === 'reconciliation_required') {
+        setMediaGenerationStatus('Provider outcome needs reconciliation. Job ID: ' + result.jobId + '. VYRA will not submit it again automatically.');
+      } else {
+        setMediaGenerationStatus('Generation ' + result.status + ': ' + ('error' in result ? result.error : 'Please check the generation job.'));
+      }
+    } catch (error) {
+      if (mediaRequestControllerRef.current !== controller) return;
+      setMediaGenerationStatus(error instanceof Error ? error.message : 'Media generation could not be completed.');
+    } finally {
+      if (mediaRequestControllerRef.current === controller) {
+        mediaRequestControllerRef.current = null;
+        setIsGeneratingMedia(false);
+      }
+    }
+  };
+
   const stopGeneration = () => {
     activeRequestControllerRef.current?.abort();
   };
@@ -2383,7 +2460,40 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
-        <form onSubmit={(event) => { event.preventDefault(); void sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
+        <form onSubmit={(event) =>
+          {storyboardId && (
+            <div className="mb-2 px-1">
+              <button type="button" onClick={() => { setMediaComposerOpen((open) => !open); setMediaGenerationStatus(null); }} disabled={isSending || isGeneratingMedia} className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50">
+                <Sparkles size={14} /> Create media <span className="text-[var(--vyra-text-muted)]">{mediaComposerOpen ? '−' : '+'}</span>
+              </button>
+              {mediaComposerOpen && (
+                <div className="mt-2 rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-base)] p-3">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <label className="flex min-w-0 flex-col gap-1 text-[10px] text-[var(--vyra-text-muted)]">Media type
+                      <select value={mediaTask} onChange={(event) => setMediaTask(event.target.value as 'image' | 'video' | 'audio')} disabled={isGeneratingMedia} className="h-9 min-w-0 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)]">
+                        <option value="image">Image</option><option value="video">Video</option><option value="audio">Audio</option>
+                      </select>
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1 text-[10px] text-[var(--vyra-text-muted)]">Quality
+                      <select value={mediaQuality} onChange={(event) => setMediaQuality(event.target.value as MediaQuality)} disabled={isGeneratingMedia} className="h-9 min-w-0 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)]">
+                        <option value="draft">Draft</option><option value="standard">Standard</option><option value="premium">Premium</option>
+                      </select>
+                    </label>
+                    <label className="col-span-2 flex min-w-0 flex-col gap-1 text-[10px] text-[var(--vyra-text-muted)] sm:col-span-2">Maximum budget (USD)
+                      <input type="number" min="0.0001" step="0.0001" inputMode="decimal" value={mediaBudgetUsd} onChange={(event) => setMediaBudgetUsd(event.target.value)} disabled={isGeneratingMedia} placeholder="Set your spending limit" className="h-9 w-full min-w-0 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-2 text-xs text-[var(--vyra-text-primary)] placeholder:text-[var(--vyra-text-muted)]" />
+                    </label>
+                  </div>
+                  <p className="mt-2 text-[10px] leading-4 text-[var(--vyra-text-muted)]">Use the prompt in the chat box below. VYRA shows the live quote and asks for approval before reserving credits.</p>
+                  {mediaGenerationStatus && <p role="status" className="mt-2 break-words text-[11px] text-[var(--vyra-text-secondary)]">{mediaGenerationStatus}</p>}
+                  <button type="button" onClick={() => { void startProjectMediaGeneration(); }} disabled={isGeneratingMedia || isSending || !draft.trim() || !mediaBudgetUsd.trim()} className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[var(--vyra-accent-primary)] px-4 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+                    {isGeneratingMedia ? <span className="size-3 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Sparkles size={14} />}
+                    {isGeneratingMedia ? 'Creating…' : 'Generate in this Project'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+ { event.preventDefault(); void sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
           {selectedAssets.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5 px-1" aria-label="Selected VYRA Assets">{selectedAssets.map((asset) => <span key={asset.id} className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] text-[var(--vyra-text-primary)]"><span className="max-w-36 truncate">{asset.name}</span><span className="text-[var(--vyra-text-muted)]">{asset.visibility}</span><button type="button" onClick={() => { const next = selectedAssets.filter((item) => item.id !== asset.id); setSelectedAssets(next); onSelectedAssetsChange?.(next); }} aria-label={'Remove '+asset.name} className="rounded-full p-0.5 hover:bg-[var(--vyra-bg-hover)]"><X size={11}/></button></span>)}<button type="button" onClick={() => { setSelectedAssets([]); onSelectedAssetsChange?.([]); }} className="px-1 text-[10px] text-[var(--vyra-text-muted)] underline">Clear</button></div>}
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
