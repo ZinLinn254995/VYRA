@@ -1,3 +1,5 @@
+> **Scope clarification (2026-11-15):** This document remains a historical delivery roadmap for the current AI Chat implementation slice, not the complete VYRA product strategy. Its earlier exclusions of marketplace, collaboration, and broader creative workflows do not override the approved All-in-One product direction. Keep useful security, approval, provider, and verification gates; align future Chat capabilities with [current Product Direction](../VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # VYRA AI Chat MVP — Delivery Roadmap
 
 **Status:** Accepted implementation direction  
