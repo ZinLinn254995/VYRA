@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateSceneStateTransition } from '../src/services/universeSceneContinuity.ts';
+import { buildSceneContinuityRepairInstructions, evaluateSceneStateTransition } from '../src/services/universeSceneContinuity.ts';
 
 test('keeps persistent character and prop details unchanged across Scenes', () => {
   const result = evaluateSceneStateTransition({
@@ -114,4 +114,20 @@ test('carries an approved state change through consecutive Scene transitions', (
   assert.equal(first.status, 'consistent');
   assert.equal(second.status, 'consistent');
   assert.equal(second.expectedState.prop && (second.expectedState.prop as Record<string, unknown>).keyOwner, 'Nora');
+});
+
+test('builds narrowly scoped repair guidance without changing canonical state', () => {
+  const evaluation = evaluateSceneStateTransition({
+    previousState: { character: { hair: 'short black', outfit: 'blue coat' } },
+    observedState: { character: { hair: 'long blonde', outfit: 'blue coat' } },
+    trackedPaths: ['character.hair', 'character.outfit'],
+  });
+  const instructions = buildSceneContinuityRepairInstructions(evaluation);
+  assert.equal(instructions.length, 1);
+  assert.equal(instructions[0].path, 'character.hair');
+  assert.match(instructions[0].instruction, /Repair only "character.hair"/);
+  assert.match(instructions[0].instruction, /Do not alter unrelated Scene details or rewrite canon/);
+  assert.deepEqual(evaluation.expectedState, {
+    character: { hair: 'short black', outfit: 'blue coat' },
+  });
 });
