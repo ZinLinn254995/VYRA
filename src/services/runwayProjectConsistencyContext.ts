@@ -87,6 +87,11 @@ export async function buildRunwayProjectConsistencyContext(
     .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
     .eq('review_status', 'creator_approved').limit(240);
   if (relationshipError) throw new Error('Creator-approved Project relationships could not be loaded: ' + relationshipError.message);
+  const relationshipSchemaUnavailable = relationshipError?.code === '42P01' || relationshipError?.code === 'PGRST205';
+  if (relationshipError && !relationshipSchemaUnavailable) {
+    throw new Error('Creator-approved Project relationships could not be loaded: ' + relationshipError.message);
+  }
+  // Older environments can continue using Asset DNA until the additive graph migration is applied.
   const relationships = (Array.isArray(relationshipRows) ? relationshipRows : []) as RelationshipRow[];
 
   const retrievalAssets: UniverseRetrievalAsset[] = assets.map((asset) => {
@@ -149,6 +154,7 @@ export async function buildRunwayProjectConsistencyContext(
     'PROJECT CONSISTENCY CONTEXT (retrieved from this Project only)',
     'Creator-confirmed knowledge is authoritative only for the exact recorded statements. Unconfirmed observations are reference evidence only.',
     'Use only creator-approved relationships as established connections. Do not invent missing facts or silently turn suggestions into canon. If a detail conflicts with the user prompt, follow the user prompt and flag the conflict.',
+    ...(relationshipSchemaUnavailable ? ['Semantic relationship graph is not yet installed in this environment; do not infer relationships.'] : []),
     ...lines,
     ...(relationshipLines.length ? ['CREATOR-APPROVED RELATIONSHIPS', ...relationshipLines] : []),
   ].join('\n');
