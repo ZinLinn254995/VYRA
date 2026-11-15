@@ -57,6 +57,8 @@ test('global AI Chat recognizes only explicit allowlisted navigation requests', 
   assert.equal(extractGlobalChatNavigationTarget('Go to Workspace'), 'workspace');
   assert.equal(extractGlobalChatNavigationTarget('Open Marketplace'), 'marketplace');
   assert.equal(extractGlobalChatNavigationTarget('Take me to My Universes'), 'my-vyrals');
+  assert.equal(extractVyralAssetUploadTarget('Add this file to Universe Dream Worlds'), 'Dream Worlds');
+
   assert.equal(extractGlobalChatNavigationTarget('Take me to My Vyrals'), 'my-vyrals');
   assert.equal(extractGlobalChatNavigationTarget('Open my Media Library'), 'my-media-library');
   assert.equal(extractGlobalChatNavigationTarget('Workspace ဖွင့်ပေး'), 'workspace');
@@ -172,6 +174,15 @@ test('Vyral creation is initiated through AI Chat with a named draft and explici
     isVyralCreateConfirmation,
     isVyralCreateIntent,
   } = await import('../src/services/globalChatActions.ts');
+  assert.equal(isVyralCreateIntent('Create a Universe'), true);
+  assert.deepEqual(extractVyralCreateRequest('Create a Universe named "Dream Worlds" about surreal environments'), {
+    name: 'Dream Worlds',
+    description: 'surreal environments',
+  });
+  assert.deepEqual(extractVyralCreateRequest("Let's start a Universe called Space Worlds for science-fiction locations"), {
+    name: 'Space Worlds',
+    description: 'science-fiction locations',
+  });
   assert.equal(isVyralCreateIntent('Create a Vyral'), true);
   assert.equal(isVyralCreateIntent("Let's start a Vyral called Space Worlds"), true);
   assert.deepEqual(extractVyralCreateRequest("Let's start a Vyral called Space Worlds for science-fiction locations"), {
