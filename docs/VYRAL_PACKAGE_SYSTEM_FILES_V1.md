@@ -1,3 +1,5 @@
+> **LEGACY PACKAGE VERSION (2026-11-15):** V1 package structures are retained for compatibility and integrity testing. The current target is a VYRA-native Creative Universe package containing the selected Universe knowledge, relationships/canon/state, asset references or included media, versions, provenance, ownership, and licensing. DNA-only external reconstruction is not the primary product requirement. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # Vyral Package System Files v1
 
 Status: Package contract, all export builders, read-only viewer, import validation, portable reconstruction validation, and automated CI acceptance are implemented on the Vyral 100% working branch. Runtime tests and production build passed in GitHub Actions on 2026-11-08.
