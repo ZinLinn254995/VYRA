@@ -1,4 +1,5 @@
 import { retrieveUniverseConsistencyContext, type UniverseRetrievalAsset } from './universeConsistencyRetrieval';
+import { getSceneContinuityContext, hydrateSceneContinuityLedger } from './universeSceneLedger';
 
 type ProjectContextDb = {
   from(table: string): any;
@@ -164,6 +165,7 @@ export async function buildRunwayProjectConsistencyContext(
 
 export type RunwaySceneContinuityInput = {
   page?: string;
+  continuityRuntime?: { sceneIds?: string[]; ledger?: unknown } | null;
   activeSceneId?: string | null;
   activeSceneTitle?: string | null;
   activeSceneDescription?: string | null;
@@ -194,6 +196,7 @@ export function buildRunwaySceneContinuityPrompt(
   const title = safeText(input.activeSceneTitle, 180);
   const description = safeText(input.activeSceneDescription, 1200);
   const continuity = input.sceneContinuity;
+  const timeline = buildApprovedSceneTimeline(input.continuityRuntime, input.activeSceneId);
   const complete = Boolean(continuity?.contextComplete && continuity.previousSceneApproved
     && !continuity.entrySnapshotStale && isRecord(continuity.currentEntryState));
   const lines = [
@@ -202,6 +205,15 @@ export function buildRunwaySceneContinuityPrompt(
     title ? 'Scene title: ' + title : '',
     description ? 'Creator-authored Scene description (context, not canon by itself): ' + description : '',
   ];
+  if (timeline.length) {
+    lines.push('APPROVED PROJECT SCENE TIMELINE (chronological prior Scene handoffs):');
+    for (const item of timeline) {
+      lines.push('- Scene ' + item.sequence + ' (' + safeText(item.sceneId, 128) + ') approved exit state: ' + item.state);
+    }
+    lines.push('Treat the timeline as ordered continuity history. Later approved states supersede earlier values only where they explicitly change the same state path; retain unchanged persistent facts.');
+  } else if (input.continuityRuntime?.sceneIds?.length) {
+    lines.push('PROJECT TIMELINE STATUS: No complete creator-approved predecessor chain was available. Do not infer missing history.');
+  }
   if (!complete || !continuity?.currentEntryState) {
     lines.push(
       'CONTINUITY STATUS: INCOMPLETE OR STALE.',
@@ -246,4 +258,36 @@ export function buildRunwaySceneContinuityPrompt(
     promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
     mode: 'approved',
   };
+}
+
+
+function buildApprovedSceneTimeline(
+  runtime: RunwaySceneContinuityInput['continuityRuntime'],
+  activeSceneId: string,
+): Array<{ sceneId: string; sequence: number; state: string }> {
+  const sceneIds = Array.isArray(runtime?.sceneIds)
+    ? runtime.sceneIds.filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 500)
+    : [];
+  const activeIndex = sceneIds.indexOf(activeSceneId);
+  if (activeIndex <= 0 || !runtime?.ledger) return [];
+  const scenes = sceneIds.map((id) => ({ id }));
+  const ledger = hydrateSceneContinuityLedger(runtime.ledger, scenes);
+  const timeline: Array<{ sceneId: string; sequence: number; state: string }> = [];
+  // A Scene's exit is included only when the next Scene confirms that the
+  // entire predecessor chain is still current and creator-approved.
+  for (let index = 0; index < activeIndex; index++) {
+    const nextSceneId = sceneIds[index + 1];
+    const handoff = getSceneContinuityContext(ledger, scenes, nextSceneId);
+    const record = ledger.scenes[sceneIds[index]];
+    if (!handoff?.previousSceneApproved || !isRecord(record?.exitState)) return [];
+    let state = '';
+    try {
+      state = JSON.stringify(record.exitState);
+    } catch {
+      return [];
+    }
+    if (!state || state.length > 6000) return [];
+    timeline.push({ sceneId: sceneIds[index], sequence: index + 1, state });
+  }
+  return timeline.slice(-12);
 }
