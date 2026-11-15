@@ -292,6 +292,53 @@ test('reordering Scenes invalidates an entry snapshot tied to the former predece
 });
 
 
+test('a reordered first Scene cannot reuse its stale former-predecessor entry as the new starting state', () => {
+  const originalOrder = [{ id: 'a' }, { id: 'b' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, originalOrder, {
+    sceneId: 'a',
+    entryState: { hero: { location: 'room' } },
+    intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } },
+    status: 'consistent',
+    violations: [],
+    updatedAt: '2026-11-15T06:00:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, originalOrder, 'a', '2026-11-15T06:01:00.000Z');
+  ledger = recordSceneContinuityEvaluation(ledger, originalOrder, {
+    sceneId: 'b',
+    entryState: { hero: { location: 'hall' } },
+    intendedChanges: [],
+    expectedExitState: { hero: { location: 'street' } },
+    status: 'consistent',
+    violations: [],
+    updatedAt: '2026-11-15T06:02:00.000Z',
+  });
+
+  const reordered = [{ id: 'b' }, { id: 'a' }];
+  const context = getSceneContinuityContext(ledger, reordered, 'b');
+  assert.equal(context?.previousSceneId, null);
+  assert.equal(context?.entrySnapshotStale, true);
+  assert.equal(context?.contextComplete, false);
+  assert.throws(() => evaluateAndRecordSceneContinuity({
+    ledger,
+    scenes: reordered,
+    sceneId: 'b',
+    observedExitState: { hero: { location: 'beach' } },
+    trackedPaths: [],
+  }), /explicit approved starting state/);
+
+  const explicitlyStarted = evaluateAndRecordSceneContinuity({
+    ledger,
+    scenes: reordered,
+    sceneId: 'b',
+    initialEntryState: { hero: { location: 'beach' } },
+    observedExitState: { hero: { location: 'beach' } },
+    trackedPaths: [],
+  });
+  assert.equal(explicitlyStarted.evaluation.status, 'consistent');
+  assert.deepEqual(explicitlyStarted.ledger.scenes.b.entryState, { hero: { location: 'beach' } });
+});
+
 test('editing an approved Scene invalidates its handoff but preserves the previous exit state as history', () => {
   const scenes = [{ id: 's1' }, { id: 's2' }];
   let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
