@@ -390,9 +390,12 @@ export async function deleteMediaLibraryFolder(folderId: string, universeId?: st
   if (childError || itemError) throw new Error('Could not check whether this folder is empty.');
   if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
   if (universeId) {
-    const { count: assetCount, error: assetError } = await db.from('vyral_assets').select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId).eq('folder_id', folderId);
-    if (assetError) throw new Error('Could not verify the canonical Universe folder contents.');
-    if ((assetCount ?? 0) > 0) throw new Error('Move or remove this folder’s Assets before deleting it.');
+    const [{ count: canonicalChildCount, error: canonicalChildError }, { count: assetCount, error: assetError }] = await Promise.all([
+      db.from('vyral_folders').select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId).eq('parent_id', folderId),
+      db.from('vyral_assets').select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId).eq('folder_id', folderId),
+    ]);
+    if (canonicalChildError || assetError) throw new Error('Could not verify the canonical Universe folder contents.');
+    if ((canonicalChildCount ?? 0) > 0 || (assetCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
     const { error } = await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     if (error) throw new Error('Could not delete Universe folder: ' + error.message);
   } else {
