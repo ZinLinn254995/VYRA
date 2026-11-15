@@ -58,6 +58,7 @@ test('rejects DNA that does not match the exact immutable source version and fin
       dna_record: {
         ...source.payload.dna_record,
         source: { ...source.payload.dna_record.source, asset_version_id: 'older-version' },
+        creator_confirmed_observations: source.payload.dna_record.creator_confirmed_observations.map((item) => ({ ...item, source_asset_version_id: 'older-version' })),
       },
     },
   }), /exact canonical Asset version/);
@@ -76,7 +77,7 @@ test('rejects creator observations detached from their source version', () => {
         }],
       },
     },
-  }), /exact source Asset version/);
+  }), /not pinned to its source/);
 });
 
 test('does not create semantic claims from missing or unverified descriptions', () => {
