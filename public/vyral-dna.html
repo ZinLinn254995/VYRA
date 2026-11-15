@@ -15,14 +15,14 @@
   <meta property="og:image" content="https://vyra-nine-theta.vercel.app/vyra-icon.svg">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="VYRA DNA & Consistency Engine">
-  <meta name="twitter:description" content="Understand how VYRA packages reusable assets with identity records, fingerprints and verifiable reconstruction data.">
+  <meta name="twitter:description" content="Understand how VYRA preserves Asset identity, Creative Universe knowledge, fingerprints and continuity.">
   <link rel="icon" type="image/svg+xml" href="/vyra-icon.svg">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
     "headline": "VYRA DNA & Consistency Engine",
-    "description": "A technical introduction to VYRA's portable VYRAL package format, asset DNA, fingerprints and reconstruction boundaries.",
+    "description": "A technical introduction to Asset DNA, Creative Universe knowledge, fingerprints, provenance and context retrieval.",
     "mainEntityOfPage": "https://vyra-nine-theta.vercel.app/vyral-dna.html",
     "publisher": {
       "@type": "Organization",
@@ -60,11 +60,11 @@
 
     <h2>One identity system, multiple evidence types</h2>
     <h3>Asset identity and visual evidence</h3>
-    <p>For supported PNG, JPEG and WebP uploads, VYRA uses a pinned server-side ImageMagick WASM decoder to produce a canonical row-major RGBA8 sample stream. The stream is stored in lossless tiles. Tile SHA-256 values and an aggregate decoded-sample SHA-256 digest are checked during reconstruction.</p>
+    <p>For supported PNG, JPEG and WebP uploads, VYRA uses a pinned server-side ImageMagick WASM decoder to produce a canonical row-major RGBA8 sample stream. The stream is stored in lossless tiles. Tile SHA-256 values and an aggregate decoded-sample SHA-256 digest support source integrity verification.</p>
     <p class="note"><strong>Important boundary:</strong> this path can recover the decoded pixel samples exactly under the recorded decoder contract and encode them into a new PNG. It does not recover the original PNG or JPEG file bytes, original compression choices, or every original metadata chunk.</p>
 
     <h3>Source integrity and provenance</h3>
-    <p>For supported non-raster files, File DNA v1 records the source file's SHA-256 identity and can carry lossless source-byte chunks in a DNA-only package. When every chunk and the aggregate digest pass verification, the original binary bytes can be reconstructed exactly.</p>
+    <p>For supported non-raster files, Asset integrity records preserve the source file's SHA-256 identity. VYRA can verify retained source bytes against that identity when assets are packaged, copied, or restored.</p>
 
     <h2>DNA, fingerprints, and provenance are different</h2>
     <ul>
