@@ -1,0 +1,27 @@
+name: Temporary Lockfile Refresh Artifact
+
+on:
+  push:
+    branches:
+      - feature/my-storyboard
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/my-storyboard
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Regenerate lockfile from package manifest
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vyra-refreshed-lockfile
+          path: package-lock.json
+          retention-days: 1
