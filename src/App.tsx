@@ -7,7 +7,7 @@ import type { VyralChatAssetContext } from './types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { MyUniverseHome } from './components/universe/MyUniverseHome';
+import { MyProjectsHome } from './components/project/MyProjectsHome';
 
 type WalletResponse = { availableBalance?: string };
 type MainSection = 'workspace';
@@ -202,7 +202,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
-        {!profileOpen && !universeEditorOpen && <MyUniverseHome onCreateUniverse={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} onOpenUniverse={(storyboardId) => { setOpenUniverseRequest({ storyboardId, requestId: ++universeOpenRequestId.current }); setUniverseEditorOpen(true); }} />}
+        {!profileOpen && !universeEditorOpen && <MyProjectsHome onCreateProject={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} onOpenProject={(storyboardId) => { setOpenUniverseRequest({ storyboardId, requestId: ++universeOpenRequestId.current }); setUniverseEditorOpen(true); }} />}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
