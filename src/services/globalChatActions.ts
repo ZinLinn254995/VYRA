@@ -40,7 +40,7 @@ export type GlobalChatStoryboardAction =
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|(?:universe|vyral)\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?(?:universe|vyral)\s+(?:named|called)\b|(?:universe|vyral)\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
@@ -252,19 +252,19 @@ export const isVyralCreateIntent = (input: string): boolean => {
         /(?:မဖန်တီး|မလုပ်ချင်|မစချင်)/.test(clause)) return false;
     return /\b(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b/i.test(clause) ||
       /\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b/i.test(clause) ||
-      /\b(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\b/i.test(clause) ||
-      /(?:^|\s)vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\s|$|[:：။!?])/i.test(clause);
+      /\b(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?(?:universe|vyral)\b/i.test(clause) ||
+      /(?:^|\s)(?:universe|vyral)\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\s|$|[:：။!?])/i.test(clause);
   });
 };
 
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|(?:universe|vyral)\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?(?:universe|vyral)\s+(?:named|called)\b|(?:universe|vyral)\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
-    /^(?:(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+)?(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
-    /^(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
-    /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s*[:：]\s*["“']?(.+?)["”']?(?:\s*[—-]\s*(.+))?$/i,
+    /^(?:(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+)?(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
+    /^(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?(?:universe|vyral)\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
+    /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\s*[:：]\s*["“']?(.+?)["”']?(?:\s*[—-]\s*(.+))?$/i,
     /^(?:universe|vyral)\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
   ];
   for (const pattern of patterns) {
@@ -316,7 +316,7 @@ export const isNaturalChatApproval = (input: string): boolean =>
   /^\s*(?:yes|yeah|yep|sure|certainly|okay|ok|go ahead|go for it|please do|do it|proceed|looks good|that's right|sounds good|perfect|အေး(?:\s*(?:လုပ်လိုက်|ဆက်လုပ်|ဆက်လုပ်လိုက်)(?:တော့|ပါ)?)?|ဟုတ်ပြီ|ဟုတ်တယ်|ရတယ်(?:\s*လုပ်လိုက်(?:တော့|ပါ)?)?|လုပ်ပါ|လုပ်လိုက်(?:တော့|ပါ)?|ဆက်လုပ်(?:ပါ)?|ဆက်လုပ်လိုက်(?:တော့|ပါ)?|ထည့်လိုက်(?:တော့|ပါ)?|သိမ်းလိုက်(?:တော့|ပါ)?|အတည်ပြု(?:မယ်|ပါ)?)\s*[.!?။]*\s*$/i.test(input);
 
 export const isVyralAssetUploadConfirmation = (input: string): boolean =>
-  /^\s*(?:confirm\s+(?:asset )?upload|confirm\s+add\s+to\s+vyral|vyral\s+asset\s+upload\s+confirm|Asset\s+ထည့်ရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
+  /^\s*(?:confirm\s+(?:asset )?upload|confirm\s+add\s+to\s+(?:universe|vyral)|(?:universe|vyral)\s+asset\s+upload\s+confirm|Asset\s+ထည့်ရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
 
 export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDraft): string =>
   '**Asset upload preview**\n\n' +
@@ -357,8 +357,8 @@ export const isVyralAssetAddIntent = (input: string): boolean => {
   if (/\b(?:do not|don't|never|avoid)\s+(?:add|put|save|store|keep|include|attach|upload|place|use)\b/i.test(input) ||
       /(?:မထည့်|မသိမ်း|မလုပ်ပါ)/.test(input)) return false;
   return /\b(?:add|put|save|store|attach|upload|place)\b/i.test(input) ||
-    /\buse\s+(?:this|that|it)(?:\s+(?:image|picture|file|asset))?\s+(?:in|inside|with)\s+(?:my|our|this|the)?\s*(?:current\s+)?vyral\b/i.test(input) ||
-    /\buse\s+(?:this|that|it)(?:\s+(?:image|picture|file|asset))?\s+as\s+part\s+of\s+(?:my|our|this|the)?\s*(?:current\s+)?vyral\b/i.test(input) ||
+    /\buse\s+(?:this|that|it)(?:\s+(?:image|picture|file|asset))?\s+(?:in|inside|with)\s+(?:my|our|this|the)?\s*(?:current\s+)?(?:universe|vyral)\b/i.test(input) ||
+    /\buse\s+(?:this|that|it)(?:\s+(?:image|picture|file|asset))?\s+as\s+part\s+of\s+(?:my|our|this|the)?\s*(?:current\s+)?(?:universe|vyral)\b/i.test(input) ||
     /\b(?:make|keep)\s+(?:this|that|it)\s+(?:part|one)\s+of\b/i.test(input) ||
     /\b(?:this|that|it)\s+(?:belongs|should go|needs to go)\s+(?:in|into|with)\b/i.test(input) ||
     /\b(?:i want|i'd like)\s+(?:(?:this|that|it)|(?:this|that)\s+(?:image|picture|file|asset))\s+(?:in|inside|with|(?:to be\s+)?part of)\b/i.test(input) ||
