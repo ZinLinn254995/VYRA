@@ -17,6 +17,8 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'A valid quote ID is required.' }, 400);
   if (typeof body.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,160}$/.test(body.idempotencyKey))
     return json({ error: 'A valid generation idempotency key is required.' }, 400);
+  if (typeof body.targetVyralId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.targetVyralId))
+    return json({ error: 'A valid Project Assets destination is required.' }, 400);
   const { data: quote, error: quoteError } = await context.supabaseAdmin.from('media_generation_quotes')
     .select('id,status,task,quality,provider,provider_model_id,approved_max_credit_units,credit_approval_confirmed_at,pricing_policy_id,expires_at')
     .eq('id', body.quoteId).eq('user_id', userId).maybeSingle();
@@ -25,9 +27,10 @@ Deno.serve(async (request: Request) => {
       !Number.isSafeInteger(Number(quote.approved_max_credit_units)) || Number(quote.approved_max_credit_units) <= 0)
     return json({ error: 'Explicit maximum-credit approval is required before creating a generation job.' }, 409);
   if (quote.status !== 'used' && Date.parse(quote.expires_at) <= Date.now()) return json({ error: 'Quote expired. Request a new estimate.' }, 410);
-  const { data: job, error: jobError } = await context.supabaseAdmin.rpc('create_media_generation_job_and_reserve', {
+  const { data: job, error: jobError } = await context.supabaseAdmin.rpc('create_runway_media_job_for_project_asset', {
     p_user_id: userId, p_quote_id: body.quoteId, p_idempotency_key: body.idempotencyKey,
     p_approved_max_credit_units: Number(quote.approved_max_credit_units),
+    p_target_vyral_id: body.targetVyralId,
   });
   if (jobError || !job || !isRecord(job)) {
     const message = jobError?.message ?? '';
@@ -55,6 +58,7 @@ Deno.serve(async (request: Request) => {
     });
   } catch { /* telemetry must never block a safely reserved job */ }
 
-  return json({ job: { id: job.id, status: job.status, quoteId: body.quoteId, reservedCreditUnits: quote.approved_max_credit_units },
-    message: 'Generation job created and approved maximum credits reserved atomically. No provider task has been submitted yet.' });
+  return json({ job: { id: job.id, status: job.status, quoteId: body.quoteId,
+      targetVyralId: job.target_vyral_id, reservedCreditUnits: quote.approved_max_credit_units },
+    message: 'Generation job and Project Assets destination are bound atomically. Approved maximum credits are reserved; no provider task has been submitted yet.' });
 });
