@@ -1,3 +1,5 @@
+> **HISTORICAL / REQUIRES REFACTOR (2026-11-15):** This architecture predates the approved Creative Universe model. Mandatory Main/Supporting asset roles, required purpose declarations, and required graph relationships are superseded. Preserve useful Asset DNA, fingerprint, provenance, versioning, and selective-context foundations; redesign Universe DNA around flexible creator knowledge, optional/evidence-backed relationships, canon, timeline, and state. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # Vyral Master DNA — Architecture and Product Contract
 
 Status: **Architecture decision with an initial validation core implemented.** The Master DNA v1 TypeScript builder/validator and fingerprint tests now exist on the working PR branch. Database persistence, automatic snapshot refresh on asset/relationship changes, compact export integration, and remote selective retrieval remain unimplemented.
