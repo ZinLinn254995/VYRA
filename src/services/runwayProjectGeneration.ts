@@ -1,4 +1,4 @@
-import { buildRunwayProjectConsistencyContext } from './runwayProjectConsistencyContext';
+import { buildRunwayProjectConsistencyContext, buildRunwaySceneContinuityPrompt, type RunwaySceneContinuityInput } from './runwayProjectConsistencyContext';
 import type { MediaQuality, MediaTask } from './mediaModelSelection';
 import { ingestRunwayProjectOutput } from './runwayProjectOutputIngestion';
 
@@ -35,6 +35,8 @@ export type RunwayProjectGenerationRequest = {
   /** Maximum USD amount the user is willing to approve for this one generation. */
   maxCostUsd: number;
   input: Record<string, unknown>;
+  /** Active Scene context from Workspace; only creator-approved state is authoritative. */
+  sceneContext?: RunwaySceneContinuityInput | null;
   /** Explicit user confirmation callback. Returning null or confirmed:false creates no job and reserves no credits. */
   requestApproval: (quote: Quote) => Promise<{ confirmed: true; maxCostUsd: number } | { confirmed: false }>;
   onProgress?: (progress: WorkflowProgress) => void;
@@ -97,10 +99,11 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
 
   assertActive(request.signal);
   const rawPrompt = typeof request.input.promptText === 'string' ? request.input.promptText : '';
+  const sceneContext = buildRunwaySceneContinuityPrompt(rawPrompt, request.sceneContext);
   const consistency = await buildRunwayProjectConsistencyContext(db, {
     userId,
     targetVyralId: request.targetVyralId,
-    promptText: rawPrompt,
+    promptText: sceneContext.promptText,
   });
   const generationInput = {
     ...request.input,
