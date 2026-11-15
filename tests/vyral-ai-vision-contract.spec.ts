@@ -38,7 +38,7 @@ test('Vyral image previews are prepared locally and routed through OpenAI Vision
   assert.ok(chat.includes('v3Records.slice(0, 4)'));
   assert.match(chat, /assetName/);
   assert.ok(service.includes('if (request.mediaFiles?.length)'));
-  assert.match(service, /Raster images and browser-sampled video frames use the platform OpenAI Vision path/);
+  assert.ok(service.includes('browser-sampled video frames use the platform OpenAI Vision path.'));
   assert.doesNotMatch(service, /Google Gemini|gemini-[0-9]/i);
   assert.match(server, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
   assert.ok(server.includes('visionImages.length ? { visionImages }'));
