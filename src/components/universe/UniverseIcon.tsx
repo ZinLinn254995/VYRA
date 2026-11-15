@@ -4,7 +4,10 @@ type UniverseIconProps = React.SVGProps<SVGSVGElement> & {
   size?: number;
 };
 
-/** A minimal orbit-and-core mark representing one connected creative Universe. */
+/**
+ * A modular abstract mark for a Universe: four independent creative parts
+ * gather around one shared core, while the open corners imply room to grow.
+ */
 export function UniverseIcon({ size = 24, ...props }: UniverseIconProps) {
   return (
     <svg
@@ -16,18 +19,38 @@ export function UniverseIcon({ size = 24, ...props }: UniverseIconProps) {
       aria-hidden="true"
       {...props}
     >
-      <ellipse
-        cx="12"
-        cy="12"
-        rx="9.1"
-        ry="4.65"
-        transform="rotate(-38 12 12)"
+      <path
+        d="M9 3.75H6.25A2.5 2.5 0 0 0 3.75 6.25V9"
         stroke="currentColor"
-        strokeWidth="1.55"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
-      <circle cx="12" cy="12" r="3.05" fill="currentColor" />
-      <circle cx="4.85" cy="7.1" r="1.55" fill="currentColor" />
-      <circle cx="19.1" cy="16.55" r="1.35" fill="currentColor" />
+      <path
+        d="M15 3.75H17.75A2.5 2.5 0 0 1 20.25 6.25V9"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M20.25 15V17.75A2.5 2.5 0 0 1 17.75 20.25H15"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 20.25H6.25A2.5 2.5 0 0 1 3.75 17.75V15"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 8.25L15.75 12L12 15.75L8.25 12L12 8.25Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }
