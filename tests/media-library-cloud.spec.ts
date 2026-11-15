@@ -134,7 +134,7 @@ test('My Media Library UI includes required organization, filtering, views and m
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
     '<video', '<audio', 'previewItem.mime_type === \'application/pdf\'', 'PDF preview:', 'entry.item!.thumbnail_url', 'loading="lazy"', 'Stop after current file', 'requestUploadStop', 'Stopping…',
-    'backfillMediaLibraryThumbnails(4)', 'refresh(true)',
+    'backfillMediaLibraryThumbnails(4, universeId)', 'refresh(true)',
 
     'const breadcrumbs = useMemo(', 'aria-label="Folder path"',
     'const [hasMoreItems, setHasMoreItems] = useState(false)',
