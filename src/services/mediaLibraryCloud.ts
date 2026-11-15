@@ -466,7 +466,7 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
   if (universeId) {
     await assertStoryboardUniverse(db, userId, universeId);
     const { data: rows, error: rowsError } = await applyUniverseScope(db.from('media_library_items')
-      .select('id,source_asset_id').eq('user_id', userId).in('id', itemIds), universeId);
+      .select('id,source_asset_id,metadata').eq('user_id', userId).in('id', itemIds), universeId);
     if (rowsError || !rows || rows.length !== itemIds.length || rows.some((row: { source_asset_id: string | null }) => !row.source_asset_id)) {
       throw new Error('Only verified Universe Assets can be deleted from this Storyboard Library.');
     }
@@ -477,10 +477,14 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
     const { data: versions, error: versionsError } = await db.from('vyral_asset_versions').select('storage_path')
       .in('asset_id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
     if (versionsError) throw new Error('Could not verify stored Asset versions before deletion.');
-    const paths = [...new Set([...(versions ?? []).map((v: { storage_path: string }) => v.storage_path), ...assets.map((a: { storage_path: string }) => a.storage_path)])];
-    if (paths.some((path: string) => !path.startsWith(userId + '/' + universeId + '/') || path.includes('\\') || path.split('/').some((part: string) => !part || part === '.' || part === '..'))) {
+    const canonicalPaths = [...new Set([...(versions ?? []).map((v: { storage_path: string }) => v.storage_path), ...assets.map((a: { storage_path: string }) => a.storage_path)])];
+    const thumbnailPaths = [...new Set(rows.map((row: { metadata?: Record<string, unknown> | null }) => row.metadata?.thumbnail_path)
+      .filter((path: unknown): path is string => typeof path === 'string'))];
+    if (canonicalPaths.some((path: string) => !path.startsWith(userId + '/' + universeId + '/') || path.includes('\\') || path.split('/').some((part: string) => !part || part === '.' || part === '..'))
+      || thumbnailPaths.some((path: string) => !isSafeOwnerStoragePath(path, userId, ['media-library-thumbnails']))) {
       throw new Error('A stored Asset path failed the private Universe safety check.');
     }
+    const paths = [...canonicalPaths, ...thumbnailPaths];
     if (paths.length) {
       const { error: storageError } = await db.storage.from('vyral-assets').remove(paths);
       if (storageError) throw new Error('Could not remove the selected Asset binaries: ' + storageError.message);
