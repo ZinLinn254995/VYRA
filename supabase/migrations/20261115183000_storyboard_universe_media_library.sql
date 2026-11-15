@@ -136,6 +136,8 @@ $$;
 drop policy if exists media_library_folders_select_own on public.media_library_folders;
 drop index if exists public.media_library_items_source_asset_unique;
 create unique index media_library_items_source_asset_unique
+  on public.media_library_items(user_id, source_asset_id);
+create unique index media_library_items_universe_source_asset_unique
   on public.media_library_items(user_id, universe_id, source_asset_id);
 
 drop trigger if exists media_library_folders_parent_owner on public.media_library_folders;
