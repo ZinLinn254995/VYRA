@@ -58,7 +58,7 @@ const withoutTemporalMetadata = (value: unknown): unknown => {
     'event_time', 'eventTime', 'as_of', 'asOf', 'valid_to', 'validTo',
     'effective_until', 'effectiveUntil', 'expires_at', 'expiresAt',
     'valid_until', 'validUntil', 'temporal', 'temporal_scope', 'temporalScope',
-    'validity',
+    'validity', 'time',
   ]);
   return Object.fromEntries(Object.entries(value)
     .filter(([key]) => !temporalKeys.has(key))
@@ -81,7 +81,7 @@ const temporalScope = (value: unknown): string => {
           const parsed = Date.parse(raw);
           // Canonicalize equivalent ISO instants (including timezone offsets),
           // while retaining date-only and domain-specific labels verbatim.
-          if (/^\\d{4}-\\d{2}-\\d{2}T/i.test(raw) && Number.isFinite(parsed)) {
+          if (/^\d{4}-\\d{2}-\\d{2}T/i.test(raw) && Number.isFinite(parsed)) {
             return new Date(parsed).toISOString();
           }
           return raw;
