@@ -279,3 +279,31 @@ test('editing an earlier Scene blocks later Scene approval until the handoff is 
   const invalidated = invalidateSceneContinuity(ledger, scenes, 's1');
   assert.throws(() => approveSceneContinuityState(invalidated, scenes, 's2'), /previous Scene must have an approved continuity handoff/);
 });
+
+
+test('an upstream edit invalidates the entire downstream approval chain, not only the immediate next Scene', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }, { id: 's3' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T04:00:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T04:01:00.000Z');
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's2', entryState: { hero: { location: 'hall' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'garden' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T04:02:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's2', '2026-11-15T04:03:00.000Z');
+  const afterUpstreamEdit = invalidateSceneContinuity(ledger, scenes, 's1', '2026-11-15T04:04:00.000Z');
+  const thirdSceneContext = getSceneContinuityContext(afterUpstreamEdit, scenes, 's3');
+  assert.equal(afterUpstreamEdit.scenes.s2.validationStatus, 'creator_approved');
+  assert.equal(thirdSceneContext?.previousSceneApproved, false);
+  assert.equal(thirdSceneContext?.previousExitState, null);
+  assert.equal(thirdSceneContext?.contextComplete, false);
+  assert.throws(() => evaluateAndRecordSceneContinuity({
+    ledger: afterUpstreamEdit, scenes, sceneId: 's3',
+    observedExitState: { hero: { location: 'street' } },
+    trackedPaths: ['hero.location'],
+  }), /approve the previous Scene handoff/);
+});
