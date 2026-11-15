@@ -2061,6 +2061,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             storyboardId: runtimeContext.storyboardId,
             sceneId: workspaceContext.activeSceneId,
             ledger: evaluated.runtime.ledger,
+            evaluatedAgainstLedger: runtimeContext.ledger,
             validationStatus: evaluated.runtime.evaluation.status,
             violations: evaluated.runtime.evaluation.violations.map(({ path, kind, reason }) => ({ path, kind, reason })),
             capturedAt: new Date().toISOString(),
