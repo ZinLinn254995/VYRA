@@ -13,7 +13,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
-import { getSceneContinuityContext, hydrateSceneContinuityLedger, type SceneContinuityLedger } from '../../services/universeSceneLedger';
+import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -95,6 +95,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [suggestionError, setSuggestionError] = useState('');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
   const [storyboardAiMessage, setStoryboardAiMessage] = useState('');
+  const [sceneContinuityMessage, setSceneContinuityMessage] = useState('');
   const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
   const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
     if (key === 'title') setTitle(value);
@@ -905,6 +906,29 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           updatedAt: now,
         };
       });
+      const sceneLedger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, activeStoryboard.details?.scenes || []);
+      const sceneContinuityRecord = sceneLedger.scenes[scene.id];
+      const sceneContinuityContext = getSceneContinuityContext(sceneLedger, activeStoryboard.details?.scenes || [], scene.id);
+      const proposedExitState = sceneContinuityRecord?.proposedExitState;
+      const canApproveSceneContinuity = sceneContinuityRecord?.validationStatus === 'consistent'
+        && Boolean(proposedExitState) && typeof proposedExitState === 'object' && !Array.isArray(proposedExitState);
+      const approveCurrentSceneContinuity = () => {
+        try {
+          const nextLedger = approveSceneContinuityState(
+            activeStoryboard.details?.continuityLedger,
+            activeStoryboard.details?.scenes || [],
+            scene.id,
+          );
+          setActiveStoryboard({
+            ...activeStoryboard,
+            details: { ...activeStoryboard.details, continuityLedger: nextLedger },
+            updatedAt: new Date().toISOString(),
+          });
+          setSceneContinuityMessage('Approved. The next Scene can now use this state as its continuity handoff.');
+        } catch (error) {
+          setSceneContinuityMessage(error instanceof Error ? error.message : 'This Scene cannot be approved yet.');
+        }
+      };
       const project: SceneProjectData = scene.project || { id: crypto.randomUUID(), schemaVersion: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), renderRevisionIds: [] };
       const timeline: SceneProjectTimeline = project.timeline || {
         duration: scene.duration, fps: 30, width: 1920, height: 1080, tracks: [],
@@ -1017,6 +1041,27 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     )}
                   </div>
+                </section>
+                <section className="space-y-2 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Story Continuity</h2>
+                    <span className="rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)]">
+                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
+                    </span>
+                  </div>
+                  <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">
+                    {sceneContinuityContext?.contextComplete
+                      ? sceneContinuityContext.previousSceneId
+                        ? 'The previous Scene has an approved state. This Scene inherits its continuity handoff.'
+                        : 'This is the first Scene. No previous Scene handoff is required.'
+                      : 'The previous Scene has not been approved yet. Its state will not be treated as canon for this Scene.'}
+                  </p>
+                  {canApproveSceneContinuity && sceneContinuityRecord?.validationStatus !== 'creator_approved' && (
+                    <button type="button" onClick={approveCurrentSceneContinuity} className="min-h-10 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
+                      Approve Scene State for Next Scene
+                    </button>
+                  )}
+                  {sceneContinuityMessage && <p role="status" className="text-xs text-[var(--vyra-text-secondary)]">{sceneContinuityMessage}</p>}
                 </section>
                 <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
                   <div>
