@@ -21,7 +21,7 @@ test('claim marks uncertain submission before any provider request and never aut
 test('submission results are owner-scoped, validated and idempotent', () => {
   assert.match(migration, /function public\.record_runway_media_submission\(/i);
   assert.match(migration, /p_outcome not in \('accepted','rejected','unknown'\)/i);
-  assert.match(migration, /provider_task_id is not distinct from p_provider_task_id/i);
+  assert.match(migration, /v_job.provider_task_id is not distinct from p_provider_task_id/i);
   assert.match(migration, /provider_submission_outcome = 'accepted'/i);
   assert.match(migration, /provider_submission_outcome = 'rejected'/i);
   assert.match(migration, /provider_submission_outcome = 'unknown'/i);
