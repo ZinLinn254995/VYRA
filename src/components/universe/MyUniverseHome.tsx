@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Plus, X,
 } from 'lucide-react';
+import { Button } from '../ui/Button';
 
 type UniverseSample = {
   id: string;
@@ -43,9 +44,7 @@ export function MyUniverseHome() {
       <div className="mx-auto w-full max-w-[1440px] px-5 pb-16 pt-9 sm:px-8 lg:px-12 lg:pt-12">
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <h1 className="text-3xl font-semibold tracking-tight text-[var(--vyra-text-primary)] sm:text-4xl">My Universe</h1>
-          <button onClick={() => setCreateOpen(true)} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--vyra-text-primary)] px-5 text-sm font-semibold text-[var(--vyra-bg-canvas)] transition hover:opacity-90">
-            <Plus size={17} strokeWidth={2.4} /> New
-          </button>
+          <Button size="md" className="shrink-0" startIcon={<Plus size={16} strokeWidth={2.4} />} onClick={() => setCreateOpen(true)}>New</Button>
         </div>
 
 
@@ -78,8 +77,8 @@ export function MyUniverseHome() {
             <label className="mb-2 block text-xs font-medium text-[var(--vyra-text-secondary)]">Universe name</label>
             <input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Give your Universe a name" className="h-11 w-full rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-border)]" />
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setCreateOpen(false)} className="h-10 rounded-xl px-4 text-sm text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]">Cancel</button>
-              <button type="submit" disabled={!newName.trim()} className="h-10 rounded-xl bg-[var(--vyra-text-primary)] px-4 text-sm font-semibold text-[var(--vyra-bg-canvas)] disabled:cursor-not-allowed disabled:opacity-40">Create preview</button>
+              <Button type="button" size="md" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button type="submit" size="md" disabled={!newName.trim()}>Create preview</Button>
             </div>
           </form>
         </div>
