@@ -178,7 +178,7 @@ function VyraApp() {
                 backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : 'Back to AI Chat'}
                 onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
                 onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
-                onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
+                onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('workspace'); }}
               />
             </ErrorBoundary>
           </div>
@@ -198,6 +198,8 @@ function VyraApp() {
               pendingSceneStateProposal={pendingSceneStateProposal}
               onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
               onSceneStateProposal={setPendingSceneStateProposal}
+              initialSelectedAssets={pendingChatAssets}
+              onSelectedAssetsChange={setPendingChatAssets}
             />
           </ErrorBoundary>
         </div>
