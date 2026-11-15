@@ -152,6 +152,31 @@ test('derives tracked paths for every nested persistent detail and treats arrays
   ]);
 });
 
+test('tracks root membership when the starting state is empty', () => {
+  assert.deepEqual(deriveTrackedSceneStatePaths({}), ['@keys:$root']);
+  const result = evaluateSceneStateTransition({
+    previousState: {},
+    observedState: { unapprovedFact: 'introduced without a story event' },
+    trackedPaths: deriveTrackedSceneStatePaths({}),
+  });
+  assert.equal(result.status, 'needs_review');
+  assert.ok(result.violations.some((violation) => violation.path === '$root'));
+});
+
+test('runtime detects new top-level facts when a Scene starts from an empty state', async () => {
+  const { evaluateAndRecordSceneContinuity } = await import('../src/services/universeSceneLedger.ts');
+  const result = evaluateAndRecordSceneContinuity({
+    ledger: undefined,
+    scenes: [{ id: 'first' }],
+    sceneId: 'first',
+    initialEntryState: {},
+    observedExitState: { unexpected: { prop: 'new object' } },
+    trackedPaths: [],
+  });
+  assert.equal(result.evaluation.status, 'needs_review');
+  assert.equal(result.evaluation.violations[0].path, '$root');
+});
+
 test('fails closed when automatic continuity path limits are exceeded', () => {
   assert.throws(() => deriveTrackedSceneStatePaths(
     { character: { hair: 'black', outfit: 'blue', scar: 'left cheek' } },
