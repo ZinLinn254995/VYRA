@@ -76,7 +76,8 @@
     "test:vyral-asset-relationship-action": "node --import tsx --test tests/vyral-asset-relationship-action.spec.ts",
     "test:vyral-asset-archive-action": "node --import tsx --test tests/vyral-asset-archive-action.spec.ts",
     "test:vyral-asset-restore-action": "node --import tsx --test tests/vyral-asset-restore-action.spec.ts",
-    "test:universe-consistency": "node --import tsx --test tests/universe-consistency-resolver.spec.ts"
+    "test:universe-consistency": "node --import tsx --test tests/universe-consistency-resolver.spec.ts",
+    "test:universe-knowledge": "node --import tsx --test tests/universe-knowledge-builder.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
