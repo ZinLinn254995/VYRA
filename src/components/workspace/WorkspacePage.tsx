@@ -13,7 +13,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
-import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, type SceneContinuityLedger } from '../../services/universeSceneLedger';
+import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, isSceneContinuityLedgerSnapshotCurrent, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -615,6 +615,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         lastAppliedSceneProposalRef.current === proposal.id) return;
     const scenes = activeStoryboard.details?.scenes || [];
     if (!scenes.some((scene) => scene.id === proposal.sceneId)) return;
+    const currentLedger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, scenes);
+    if (!isSceneContinuityLedgerSnapshotCurrent(currentLedger, proposal.evaluatedAgainstLedger, scenes)) {
+      lastAppliedSceneProposalRef.current = proposal.id;
+      setSceneContinuityMessage('This proposal was evaluated against an older continuity snapshot. It was not applied because the Storyboard changed while AI was working. Generate the Scene proposal again.');
+      onSceneStateProposalConsumed?.(proposal.id);
+      return;
+    }
     lastAppliedSceneProposalRef.current = proposal.id;
     setActiveStoryboard((current) => current?.id === proposal.storyboardId ? {
       ...current,
