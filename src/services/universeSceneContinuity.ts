@@ -66,6 +66,46 @@ const writePath = (root: SceneState, path: string, value: unknown): void => {
 };
 
 /**
+ * Derives a bounded set of continuity paths from every persisted state leaf.
+ * Arrays are compared as whole values so order and membership remain stable.
+ * Limits fail closed rather than silently omitting continuity details.
+ */
+export function deriveTrackedSceneStatePaths(
+  state: SceneState,
+  intendedChanges: SceneStateChange[] = [],
+  limits: { maxPaths?: number; maxDepth?: number } = {},
+): string[] {
+  const maxPaths = limits.maxPaths ?? 500;
+  const maxDepth = limits.maxDepth ?? 16;
+  if (!isRecord(state) || !Number.isInteger(maxPaths) || maxPaths < 1 || !Number.isInteger(maxDepth) || maxDepth < 1) {
+    throw new Error('Scene continuity path limits and root state must be valid.');
+  }
+  const paths = new Set<string>();
+  const visit = (value: unknown, prefix: string, depth: number): void => {
+    if (depth > maxDepth) throw new Error('Scene state exceeds the maximum continuity depth.');
+    if (isRecord(value) && Object.keys(value).length > 0) {
+      for (const key of Object.keys(value)) {
+        if (!key || key === '__proto__' || key === 'prototype' || key === 'constructor') {
+          throw new Error('Scene state contains an unsafe continuity key.');
+        }
+        visit(value[key], prefix ? prefix + '.' + key : key, depth + 1);
+      }
+      return;
+    }
+    if (!prefix) return;
+    paths.add(prefix);
+    if (paths.size > maxPaths) throw new Error('Scene state exceeds the maximum tracked continuity paths.');
+  };
+  visit(state, '', 0);
+  for (const change of intendedChanges) {
+    if (!change.path.trim()) throw new Error('Intended Scene changes need a valid path.');
+    paths.add(change.path);
+    if (paths.size > maxPaths) throw new Error('Scene state exceeds the maximum tracked continuity paths.');
+  }
+  return [...paths].sort();
+}
+
+/**
  * Evaluates a generated Scene exit state against the previous canonical state
  * plus explicitly approved changes. It never mutates inputs or auto-approves
  * unexpected changes; callers can use violations to trigger a repair/review.
