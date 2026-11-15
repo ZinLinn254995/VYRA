@@ -160,3 +160,89 @@ export async function buildRunwayProjectConsistencyContext(
   const promptText = (input.promptText + '\n\n' + context).slice(0, 14_000);
   return { promptText, assetCount: assets.length, selectedAssetCount: lines.length, mode: retrieval.mode };
 }
+
+
+export type RunwaySceneContinuityInput = {
+  page?: string;
+  activeSceneId?: string | null;
+  activeSceneTitle?: string | null;
+  activeSceneDescription?: string | null;
+  sceneContinuity?: {
+    previousSceneId: string | null;
+    previousSceneApproved: boolean;
+    entrySnapshotStale: boolean;
+    previousExitState: Record<string, unknown> | null;
+    currentEntryState: Record<string, unknown> | null;
+    intendedChanges: Array<{ path: string; value: unknown; reason: string }>;
+    contextComplete: boolean;
+    validationStatus: string;
+  } | null;
+};
+
+/**
+ * Carries the active Scene's creator-approved entry state into direct media
+ * generation. Incomplete or stale state is explicitly disclosed; it is never
+ * replaced with an AI guess or a prior unapproved proposal.
+ */
+export function buildRunwaySceneContinuityPrompt(
+  promptText: string,
+  input?: RunwaySceneContinuityInput | null,
+): { promptText: string; mode: 'not_applicable' | 'approved' | 'incomplete' } {
+  if (!input || input.page !== 'scene-editor' || !input.activeSceneId) {
+    return { promptText, mode: 'not_applicable' };
+  }
+  const title = safeText(input.activeSceneTitle, 180);
+  const description = safeText(input.activeSceneDescription, 1200);
+  const continuity = input.sceneContinuity;
+  const complete = Boolean(continuity?.contextComplete && continuity.previousSceneApproved
+    && !continuity.entrySnapshotStale && isRecord(continuity.currentEntryState));
+  const lines = [
+    'ACTIVE PROJECT SCENE CONTEXT',
+    'Scene ID: ' + safeText(input.activeSceneId, 128),
+    title ? 'Scene title: ' + title : '',
+    description ? 'Creator-authored Scene description (context, not canon by itself): ' + description : '',
+  ];
+  if (!complete || !continuity?.currentEntryState) {
+    lines.push(
+      'CONTINUITY STATUS: INCOMPLETE OR STALE.',
+      'Do not claim continuity is verified. Do not invent or assume character identity, wardrobe, props, location, relationships, injuries, timeline, or state. Ask for the missing creator-approved starting state when it materially affects the requested media; otherwise clearly label assumptions as unverified.',
+    );
+    return {
+      promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
+      mode: 'incomplete',
+    };
+  }
+  let stateJson = '';
+  try {
+    stateJson = JSON.stringify(continuity.currentEntryState);
+  } catch {
+    stateJson = '';
+  }
+  if (!stateJson || stateJson.length > 6000) {
+    lines.push('CONTINUITY STATUS: APPROVED ENTRY STATE COULD NOT BE SAFELY SERIALIZED. Do not claim verified continuity or invent a replacement.');
+    return {
+      promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
+      mode: 'incomplete',
+    };
+  }
+  lines.push(
+    'CREATOR-APPROVED SCENE ENTRY STATE (authoritative baseline): ' + stateJson,
+    'Preserve all relevant persistent identity, appearance, wardrobe, carried props, environment, relationships, injuries, damage, and story facts in this state. Change only details explicitly requested by the creator or supported by an approved intended change. Distinguish persistent canon from temporary pose, expression, camera, framing, and lighting.',
+  );
+  const changes = continuity.intendedChanges.slice(0, 12).flatMap((change) => {
+    const path = safeText(change.path, 200);
+    const reason = safeText(change.reason, 300);
+    if (!path || !reason) return [];
+    let value = '';
+    try { value = JSON.stringify(change.value).slice(0, 500); } catch { return []; }
+    return ['- Creator-authorized intended change: ' + path + ' = ' + value + ' (reason: ' + reason + ')'];
+  });
+  if (changes.length) lines.push('APPROVED SCENE CHANGES', ...changes);
+  lines.push(
+    'Do not silently alter or reset any other approved state. If the request conflicts with this baseline, surface the conflict and treat the change as requiring creator direction. A prompt following these constraints is not proof that the generated pixels are visually consistent; do not claim verification before asset inspection.',
+  );
+  return {
+    promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
+    mode: 'approved',
+  };
+}
