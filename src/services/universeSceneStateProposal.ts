@@ -104,6 +104,17 @@ export function parseSceneStateProposal(
     return { ok: false, reason: 'Exactly one complete structured Scene-state block is required.' };
   }
 
+  // The proposal must be the final response block. Evidence is grounded only
+  // in narrative text preceding it; trailing text cannot retroactively support facts.
+  if (response.slice(closeIndex + CLOSE.length).trim().length > 0) {
+    return { ok: false, reason: 'No text may follow the structured Scene-state block.' };
+  }
+
+  const narrative = response.slice(0, openIndex).trim();
+  if (!narrative) {
+    return { ok: false, reason: 'A generated Scene narrative is required before its state proposal.' };
+  }
+
   const rawBlock = response.slice(openIndex + OPEN.length, closeIndex).trim();
   if (!rawBlock || rawBlock.length > MAX_BLOCK_CHARS) {
     return { ok: false, reason: 'The structured Scene-state block is empty or too large.' };
@@ -119,7 +130,6 @@ export function parseSceneStateProposal(
     return { ok: false, reason: 'The structured Scene-state block has an unsupported schema or Scene ID.' };
   }
 
-  const narrative = response.slice(0, openIndex) + response.slice(closeIndex + CLOSE.length);
   const observedExitState: Record<string, unknown> = {};
   const facts: SceneStateFact[] = [];
   const intendedChanges: ParsedSceneStateProposal['intendedChanges'] = [];
