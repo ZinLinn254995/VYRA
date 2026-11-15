@@ -38,7 +38,7 @@ async function sha256(value: string | ArrayBuffer): Promise<string> {
 async function stableAssetId(jobId: string, outputIndex: number): Promise<string> {
   const hex = await sha256('vyra-runway-output:' + jobId + ':' + outputIndex);
   const chars = hex.slice(0, 32).split('');
-  chars[12] = '5';
+  chars[12] = '8';
   chars[16] = ((parseInt(chars[16], 16) & 0x3) | 0x8).toString(16);
   const value = chars.join('');
   return value.slice(0, 8) + '-' + value.slice(8, 12) + '-' + value.slice(12, 16) + '-' +
