@@ -40,7 +40,7 @@ export type GlobalChatStoryboardAction =
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
@@ -163,7 +163,7 @@ export type GlobalChatNavigationTarget = 'workspace' | 'marketplace' | 'my-vyral
 export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavigationTarget | null => {
   const value = input.trim().toLocaleLowerCase().replace(/[.!?။]+$/g, '').trim();
   const patterns: Array<[GlobalChatNavigationTarget, RegExp]> = [
-    ['my-vyrals', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+(?:my\s+)?(?:vyrals?|universes?)|(?:my\s+)?vyrals?\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
+    ['my-vyrals', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+(?:my\s+)?(?:vyrals?|universes?)|(?:my\s+)?(?:vyrals?|universes?)\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
     ['my-media-library', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+(?:my\s+)?media\s+library|(?:my\s+)?media\s+library\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး)|media\s+library)$/i],
     ['workspace', /^(?:(?:go(?:\s+to)?|open|take me to)\s+(?:the\s+)?workspace|workspace\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
     ['marketplace', /^(?:(?:go(?:\s+to)?|open|take me to)\s+(?:the\s+)?marketplace|marketplace\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
@@ -248,10 +248,10 @@ export type GlobalChatAction = GlobalChatStoryboardAction
 export const isVyralCreateIntent = (input: string): boolean => {
   const clauses = input.split(/[.!?။\n]+/).map((part) => part.trim()).filter(Boolean);
   return clauses.some((clause) => {
-    if (/\b(?:don't|do not|never|not)\b.{0,40}\b(?:create|make|build|start)\b.{0,40}\bvyral\b/i.test(clause) ||
+    if (/\b(?:don't|do not|never|not)\b.{0,40}\b(?:create|make|build|start)\b.{0,40}\b(?:vyral|universe)\b/i.test(clause) ||
         /(?:မဖန်တီး|မလုပ်ချင်|မစချင်)/.test(clause)) return false;
-    return /\b(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b/i.test(clause) ||
-      /\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b/i.test(clause) ||
+    return /\b(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\b/i.test(clause) ||
+      /\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\b/i.test(clause) ||
       /\b(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\b/i.test(clause) ||
       /(?:^|\s)vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\s|$|[:：။!?])/i.test(clause);
   });
@@ -259,13 +259,13 @@ export const isVyralCreateIntent = (input: string): boolean => {
 
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
-    /^(?:(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+)?(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
+    /^(?:(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+)?(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:vyrals?|universes?)\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
     /^(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
     /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s*[:：]\s*["“']?(.+?)["”']?(?:\s*[—-]\s*(.+))?$/i,
-    /^vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
+    /^(?:vyral|universe)\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
   ];
   for (const pattern of patterns) {
     const match = value.match(pattern);
