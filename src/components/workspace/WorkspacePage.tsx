@@ -602,7 +602,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         }
         const remote = (data ?? []).map((row) => ({
           id: row.id as string, title: row.title as string, topic: row.topic as string,
-          details: (() => { const details = (row.details ?? {}) as Storyboard['details']; return { ...details, continuityLedger: hydrateSceneContinuityLedger(details.continuityLedger, details.scenes || []) }; })(),
+          details: (() => { const details = (row.details ?? {}) as NonNullable<Storyboard['details']>; return { ...details, continuityLedger: hydrateSceneContinuityLedger(details.continuityLedger, details.scenes || []) }; })(),
           createdAt: row.created_at as string, updatedAt: row.updated_at as string,
         }));
         const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
