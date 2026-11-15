@@ -255,7 +255,7 @@ export function buildRunwaySceneContinuityPrompt(
     'Do not silently alter or reset any other approved state. If the request conflicts with this baseline, surface the conflict and treat the change as requiring creator direction. A prompt following these constraints is not proof that the generated pixels are visually consistent; do not claim verification before asset inspection.',
   );
   return {
-    promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
+    promptText: composeScenePrompt(promptText, lines),
     mode: 'approved',
   };
 }
