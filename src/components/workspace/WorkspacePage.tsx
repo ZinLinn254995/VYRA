@@ -13,7 +13,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
-import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, type SceneContinuityLedger } from '../../services/universeSceneLedger';
+import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -907,6 +907,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               ...patch,
               project: item.project ? { ...item.project, updatedAt: now } : item.project,
             } : item),
+            // Editing a Scene invalidates its old approval. Preserve the old
+            // exit state as history, but block it from the next Scene's handoff.
+            continuityLedger: invalidateSceneContinuity(
+              current.details?.continuityLedger,
+              current.details?.scenes || [],
+              scene.id,
+              now,
+            ),
           },
           updatedAt: now,
         };
