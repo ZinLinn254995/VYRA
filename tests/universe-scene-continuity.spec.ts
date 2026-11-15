@@ -84,3 +84,34 @@ test('rejects unsafe state paths before writing into the expected state', () => 
     trackedPaths: [],
   }), /safe, non-empty dot paths/);
 });
+
+test('matches approved parent-path events to tracked nested continuity details', () => {
+  const result = evaluateSceneStateTransition({
+    previousState: { character: { outfit: { jacket: 'blue', condition: 'clean' } } },
+    intendedChanges: [{
+      path: 'character.outfit',
+      value: { jacket: 'blue', condition: 'torn' },
+      reason: 'The jacket tears during the Scene.',
+    }],
+    observedState: { character: { outfit: { jacket: 'blue', condition: 'torn' } } },
+    trackedPaths: ['character.outfit.jacket', 'character.outfit.condition'],
+  });
+  assert.equal(result.status, 'consistent');
+});
+
+test('carries an approved state change through consecutive Scene transitions', () => {
+  const first = evaluateSceneStateTransition({
+    previousState: { prop: { keyOwner: 'Milo' } },
+    intendedChanges: [{ path: 'prop.keyOwner', value: 'Nora', reason: 'Milo gives Nora the key.' }],
+    observedState: { prop: { keyOwner: 'Nora' } },
+    trackedPaths: ['prop.keyOwner'],
+  });
+  const second = evaluateSceneStateTransition({
+    previousState: first.expectedState,
+    observedState: { prop: { keyOwner: 'Nora' } },
+    trackedPaths: ['prop.keyOwner'],
+  });
+  assert.equal(first.status, 'consistent');
+  assert.equal(second.status, 'consistent');
+  assert.equal(second.expectedState.prop && (second.expectedState.prop as Record<string, unknown>).keyOwner, 'Nora');
+});
