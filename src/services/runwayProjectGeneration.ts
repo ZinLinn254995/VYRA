@@ -44,7 +44,7 @@ export type RunwayProjectGenerationRequest = {
 
 type JobResponse = { job?: { id?: string; status?: string; providerTaskId?: string | null; outputCount?: number }; error?: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+class RunwayWorkflowRequestError extends Error {\n  readonly status: number | null;\n  constructor(message: string, status: number | null) { super(message); this.name = 'RunwayWorkflowRequestError'; this.status = status; }\n}\nconst sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal?.aborted) return reject(new DOMException('Generation workflow cancelled.', 'AbortError'));
   const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
   const abort = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); reject(new DOMException('Generation workflow cancelled.', 'AbortError')); };
@@ -59,7 +59,7 @@ function requireRecord(value: unknown, message: string): Record<string, any> {
 }
 async function invoke(db: Db, name: string, body: Record<string, unknown>, signal?: AbortSignal) {
   const { data, error } = await db.functions.invoke(name, { body, signal });
-  if (error) throw new Error(error.message || 'VYRA generation request failed.');
+  if (error) {\n    const status = typeof error.context?.status === 'number' ? error.context.status :\n      typeof error.status === 'number' ? error.status : null;\n    throw new RunwayWorkflowRequestError(error.message || 'VYRA generation request failed.', status);\n  }
   return data;
 }
 
@@ -194,4 +194,32 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
   }
   request.onProgress?.({ stage: 'ready', jobId, assets });
   return { status: 'ready' as const, quote, jobId, assets };
+}
+
+
+/** Resume private output ingestion for a job that already reached provider success.
+ * This path never submits or polls the provider; it only reconciles the saved outputs.
+ */
+export async function resumeRunwayProjectMediaIngestion(db: Db, jobId: string, signal?: AbortSignal) {
+  if (!UUID.test(jobId)) throw new Error('A valid generation job ID is required for recovery.');
+  const { data: auth, error: authError } = await db.auth.getUser();
+  if (authError || !auth.user?.id) throw new Error('Sign in before recovering Project media.');
+  const { data: job, error: jobError } = await db.from('generation_jobs')
+    .select('id,status,provider_output_count,target_vyral_id')
+    .eq('id', jobId).eq('user_id', auth.user.id).maybeSingle();
+  if (jobError || !job) throw jobError ?? new Error('The generation job was not found for this account.');
+  if (job.status !== 'succeeded' || !UUID.test(job.target_vyral_id) ||
+      !Number.isInteger(Number(job.provider_output_count)) ||
+      Number(job.provider_output_count) < 1 || Number(job.provider_output_count) > 16) {
+    throw new Error('Only a successfully completed Project generation job with saved outputs can be recovered.');
+  }
+  const assets = [];
+  for (let outputIndex = 0; outputIndex < Number(job.provider_output_count); outputIndex++) {
+    assertActive(signal);
+    const result = await ingestRunwayProjectOutput(db, {
+      userId: auth.user.id, jobId, outputIndex,
+    });
+    assets.push(result.ingestion);
+  }
+  return { status: 'ready' as const, jobId, assets };
 }
