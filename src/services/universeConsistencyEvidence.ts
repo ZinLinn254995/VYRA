@@ -52,18 +52,41 @@ const canonicalJson = (value: unknown): string => {
 
 const temporalScope = (value: unknown): string => {
   if (!isRecord(value)) return '';
+  const containers = [
+    value,
+    ...['temporal', 'temporal_scope', 'temporalScope', 'validity', 'time'].flatMap((key) =>
+      isRecord(value[key]) ? [value[key] as Record<string, unknown>] : []),
+  ];
   const readTemporalValue = (keys: string[]) => {
-    for (const key of keys) {
-      const candidate = value[key];
-      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim().normalize('NFC');
-      if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+    for (const container of containers) {
+      for (const key of keys) {
+        const candidate = container[key];
+        if (typeof candidate === 'string' && candidate.trim()) {
+          const raw = candidate.trim().normalize('NFC');
+          const parsed = Date.parse(raw);
+          // Canonicalize equivalent ISO instants (including timezone offsets),
+          // while retaining date-only and domain-specific labels verbatim.
+          if (/^\\d{4}-\\d{2}-\\d{2}T/i.test(raw) && Number.isFinite(parsed)) {
+            return new Date(parsed).toISOString();
+          }
+          return raw;
+        }
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+      }
     }
     return '';
   };
-  // Equivalent start-time aliases share one scope. Event IDs are provenance,
+  // Aliases represent the same temporal concepts. Event IDs are provenance,
   // not time: using them as a scope would hide conflicting facts at the same time.
-  const start = readTemporalValue(['effective_at', 'valid_from', 'at', 'timestamp']);
-  const end = readTemporalValue(['valid_to', 'effective_until', 'expires_at']);
+  const start = readTemporalValue([
+    'effective_at', 'effectiveAt', 'valid_from', 'validFrom', 'valid_at', 'validAt',
+    'at', 'timestamp', 'observed_at', 'observedAt', 'event_at', 'eventAt',
+    'event_time', 'eventTime', 'as_of', 'asOf',
+  ]);
+  const end = readTemporalValue([
+    'valid_to', 'validTo', 'effective_until', 'effectiveUntil', 'expires_at',
+    'expiresAt', 'valid_until', 'validUntil',
+  ]);
   if (!start && !end) return '';
   return 'start:' + start + '|end:' + end;
 };
