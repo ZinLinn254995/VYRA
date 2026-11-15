@@ -94,6 +94,7 @@ export interface SceneContinuityContext {
   previousSceneId: string | null;
   previousExitState: Record<string, unknown> | null;
   previousSceneApproved: boolean;
+  entrySnapshotStale: boolean;
   currentEntryState: Record<string, unknown> | null;
   intendedChanges: SceneContinuityRecord['intendedChanges'];
   contextComplete: boolean;
@@ -118,18 +119,18 @@ export function getSceneContinuityContext(
   // that snapshot and forces the newest approved handoff to be used.
   const entrySnapshotCurrent = current.entryFromSceneId === (current.previousSceneId ?? null)
     && (current.entryFromSceneUpdatedAt ?? null) === (previous?.updatedAt ?? null);
-  const currentEntryState = entrySnapshotCurrent && current.entryState
-    ? current.entryState
-    : previousExitState;
+  const entrySnapshotStale = current.entryState !== null && !entrySnapshotCurrent;
+  const currentEntryState = current.entryState ?? previousExitState;
   return {
     sceneId: current.sceneId,
     sequence: current.sequence,
     previousSceneId: current.previousSceneId,
     previousExitState,
     previousSceneApproved,
+    entrySnapshotStale,
     currentEntryState,
     intendedChanges: current.intendedChanges,
-    contextComplete: previousSceneApproved && currentEntryState !== null,
+    contextComplete: previousSceneApproved && currentEntryState !== null && !entrySnapshotStale,
   };
 }
 
