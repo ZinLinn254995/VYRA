@@ -417,7 +417,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const previews: ProjectMediaPreview[] = [];
           for (let index = 0; index < assets.length; index++) {
             const asset = assets[index];
-            const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600);
+            const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600));
             previews.push({ assetId: asset.assetId, name: 'Recovered Asset ' + (index + 1), mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
           }
           setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
@@ -2279,7 +2279,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     }
     if (isSending || isGeneratingMedia) return;
     const controller = new AbortController();
+    const requestOwnerId = historyOwnerRef.current;
     mediaRequestControllerRef.current = controller;
+    const assertMediaRequestCurrent = () => {
+      if (mediaRequestControllerRef.current !== controller ||
+          historyOwnerRef.current !== requestOwnerId ||
+          controller.signal.aborted) {
+        throw new DOMException('This media request is no longer active for the signed-in account.', 'AbortError');
+      }
+    };
+    const awaitForCurrentMediaRequest = async <T,>(operation: PromiseLike<T>): Promise<T> => {
+      assertMediaRequestCurrent();
+      const result = await operation;
+      assertMediaRequestCurrent();
+      return result;
+    };
     setIsGeneratingMedia(true);
     setMediaGenerationStatus('Checking Project destination and requesting a live provider quote…');
     try {
@@ -2317,7 +2331,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
         },
       });
-      if (mediaRequestControllerRef.current !== controller) return;
+      assertMediaRequestCurrent();
       if (result.status === 'approval_declined') {
         setMediaGenerationStatus('Cancelled. No job was created and no credits were reserved.');
       } else if (result.status === 'ready') {
@@ -2342,7 +2356,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMediaGenerationStatus('Generation ' + result.status + ': ' + ('error' in result ? result.error : 'Please check the generation job.'));
       }
     } catch (error) {
-      if (mediaRequestControllerRef.current !== controller) return;
+      if (mediaRequestControllerRef.current !== controller || historyOwnerRef.current !== requestOwnerId) return;
       setMediaGenerationStatus(error instanceof Error ? error.message : 'Media generation could not be completed.');
     } finally {
       if (mediaRequestControllerRef.current === controller) {
