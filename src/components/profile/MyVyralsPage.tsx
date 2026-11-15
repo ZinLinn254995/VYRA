@@ -120,7 +120,9 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
       if (!refreshed.error) data = refreshed.data;
     }
 
-    const ids = (data ?? []).map((item) => item.id);
+    // Storyboard-owned Universes live inside their Storyboard and are not mixed into the creator's personal Universe list.
+    const personalUniverses = (data ?? []).filter((item) => (item.metadata as Record<string, unknown> | null)?.universe_scope !== 'storyboard');
+    const ids = personalUniverses.map((item) => item.id);
     const [assetRows, folderRows] = ids.length ? await Promise.all([
       supabase.from('vyral_assets').select('vyral_id').in('vyral_id', ids).neq('processing_status', 'archived'),
       supabase.from('vyral_folders').select('vyral_id').in('vyral_id', ids),
@@ -130,7 +132,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
     const folderCounts = new Map<string, number>();
     for (const row of assetRows.data ?? []) assetCounts.set(row.vyral_id, (assetCounts.get(row.vyral_id) ?? 0) + 1);
     for (const row of folderRows.data ?? []) folderCounts.set(row.vyral_id, (folderCounts.get(row.vyral_id) ?? 0) + 1);
-    setVyrals((data ?? []).map((item) => ({
+    setVyrals(personalUniverses.map((item) => ({
       ...item, assetCount: assetCounts.get(item.id) ?? 0, folderCount: folderCounts.get(item.id) ?? 0,
       license_policy: (item.license_policy ?? {}) as Record<string, unknown>,
     })) as VyralRecord[]);
