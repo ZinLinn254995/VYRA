@@ -215,3 +215,8 @@ export const handleHeaderTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
   delete event.currentTarget.dataset.headerLastTouchY;
   settleHeaderMotion(event.currentTarget);
 };
+
+
+export const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
+  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
+};
