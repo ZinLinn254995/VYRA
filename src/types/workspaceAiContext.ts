@@ -3,6 +3,8 @@ export type WorkspaceSceneStateProposalHandoff = {
   storyboardId: string;
   sceneId: string;
   ledger: unknown;
+  /** Exact ledger snapshot used during evaluation; prevents stale AI handoffs overwriting newer edits. */
+  evaluatedAgainstLedger: unknown;
   validationStatus: 'consistent' | 'needs_review';
   violations: Array<{ path: string; kind: string; reason: string }>;
   capturedAt: string;
