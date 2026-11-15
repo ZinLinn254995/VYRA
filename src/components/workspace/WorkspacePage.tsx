@@ -208,6 +208,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     }
   }, [isActive]);
 
+  useEffect(() => {
+    setSceneContinuityMessage('');
+  }, [activeSceneId]);
+
   useLayoutEffect(() => {
     const scroller = workspaceScrollRef.current;
     if (!scroller) return;
@@ -912,6 +916,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       const sceneContinuityContext = getSceneContinuityContext(sceneLedger, activeStoryboard.details?.scenes || [], scene.id);
       const proposedExitState = sceneContinuityRecord?.proposedExitState;
       const canApproveSceneContinuity = sceneContinuityRecord?.validationStatus === 'consistent'
+        && Boolean(sceneContinuityContext?.contextComplete)
         && Boolean(proposedExitState) && typeof proposedExitState === 'object' && !Array.isArray(proposedExitState);
       const approveCurrentSceneContinuity = () => {
         try {
@@ -1047,7 +1052,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Story Continuity</h2>
                     <span className="rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)]">
-                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
+                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' && !sceneContinuityContext?.contextComplete ? 'Waiting for previous Scene' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
                     </span>
                   </div>
                   <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">
