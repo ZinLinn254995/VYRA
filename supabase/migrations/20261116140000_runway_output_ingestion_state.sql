@@ -132,7 +132,7 @@ begin
   if auth.role() <> 'service_role' then
     raise exception 'Service role required.' using errcode = '42501';
   end if;
-  if p_user_id is null or p_job_id is null or p_output_index is null
+  if p_user_id is null or p_job_id is null or p_output_index is null or p_status is null
      or p_status not in ('stored','ingesting','ingested','failed')
      or p_error_code is not null and char_length(p_error_code) > 80 then
     raise exception 'Invalid output transfer result.' using errcode = '22023';
