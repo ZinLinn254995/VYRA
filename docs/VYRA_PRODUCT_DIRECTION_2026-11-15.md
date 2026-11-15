@@ -41,11 +41,11 @@ VYRA is not limited to an AI video generator, a prompt box, a single editor, a f
 
 These are product capabilities, not claims that every system is already implemented or ready for customers.
 
-## 4. Vyral: Creative Universe
+## 4. Universe: Creative World
 
 A **Universe** is a reusable creative world: a creator-owned collection of creative knowledge and resources that can be used to produce consistent related work and can be shared with others under explicit permissions.
 
-A Vyral may contain or reference:
+A Universe may contain or reference:
 - characters, creatures, people-like fictional entities, and other reusable subjects;
 - worlds, locations, environments, props, objects, costumes, and visual elements;
 - stories, episodes, scenes, events, relationships, canon, rules, timelines, and evolving state;
