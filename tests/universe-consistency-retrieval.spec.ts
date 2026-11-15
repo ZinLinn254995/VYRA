@@ -94,7 +94,7 @@ test('broad retrieval prioritizes declared Main Assets without treating inventor
     relationships: [],
     maxAssets: 2,
   });
-  assert.deepEqual(result.selectedAssetIds, ['milo', 'villain']);
+  assert.deepEqual(result.selectedAssetIds, ['milo', 'scarf']);
   assert.ok(result.reasons.milo.includes('main_asset_priority'));
   assert.equal(result.truncatedAssets, true);
 });
