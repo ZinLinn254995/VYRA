@@ -89,4 +89,4 @@ The internal trigger helper functions are not application RPCs. Their execute pr
 
 The server includes an opt-in first increment for OpenRouter Text chat. With `VYRA_USAGE_LEDGER_ENABLED=true`, an authenticated request with an idempotency key creates a generation job and provider attempt before provider submission, then records provider-reported usage/cost when available. Only safe counts and allowlisted usage fields are stored; prompts and BYOK keys are not written to the ledger.
 
-This is usage recording only. It does not reserve or charge credits, and Gemini/Image/Audio/Video paths are not yet integrated. Keep the flag disabled until authenticated Development E2E testing is complete. Never enable it in Production based solely on passing database tests.
+This is usage recording only. It does not reserve or charge credits, and multimodal image/audio/video paths are not yet integrated. Keep the flag disabled until authenticated Development E2E testing is complete. Never enable it in Production based solely on passing database tests.
