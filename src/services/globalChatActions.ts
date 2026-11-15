@@ -40,7 +40,7 @@ export type GlobalChatStoryboardAction =
 
 export const extractStoryboardCreateRequest = (input: string): { title: string; topic: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|(?:universe|vyral)\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^create\s+(?:a\s+)?storyboards?\s+(?:titled|called)\s+["“']?(.+?)["”']?\s+(?:about|for|on|:|—)\s+(.+)$/i,
@@ -248,10 +248,10 @@ export type GlobalChatAction = GlobalChatStoryboardAction
 export const isVyralCreateIntent = (input: string): boolean => {
   const clauses = input.split(/[.!?။\n]+/).map((part) => part.trim()).filter(Boolean);
   return clauses.some((clause) => {
-    if (/\b(?:don't|do not|never|not)\b.{0,40}\b(?:create|make|build|start)\b.{0,40}\bvyral\b/i.test(clause) ||
+    if (/\b(?:don't|do not|never|not)\b.{0,40}\b(?:create|make|build|start)\b.{0,40}\b(?:universe|vyral)\b/i.test(clause) ||
         /(?:မဖန်တီး|မလုပ်ချင်|မစချင်)/.test(clause)) return false;
-    return /\b(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b/i.test(clause) ||
-      /\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b/i.test(clause) ||
+    return /\b(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b/i.test(clause) ||
+      /\b(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b/i.test(clause) ||
       /\b(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\b/i.test(clause) ||
       /(?:^|\s)vyral\s+(?:(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?(?:ချင်(?:တယ်|ပါတယ်)?)?)(?=\s|$|[:：။!?])/i.test(clause);
   });
@@ -259,13 +259,13 @@ export const isVyralCreateIntent = (input: string): boolean => {
 
 export const extractVyralCreateRequest = (input: string): { name: string; description: string } | null => {
   const rawValue = input.trim();
-  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|vyral\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
+  const actionStart = rawValue.search(/(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?(?:universes?|vyrals?)\b|(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\b|(?:universe|vyral)\s+(?:အသစ်\s*)?(?:တစ်ခု\s*)?(?:ဖန်တီး|လုပ်)/i);
   const value = actionStart >= 0 ? rawValue.slice(actionStart).trim() : rawValue;
   const patterns = [
     /^(?:(?:let's|let us|i want to|i'd like to|i would like to|i need to|can we|could we|we should)\s+)?(?:please\s+)?(?:create|make|build|start)\s+(?:(?:a|an|new)\s+)?vyrals?\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
     /^(?:i want|i'd like|i need)\s+(?:(?:a|an)\s+)?(?:new\s+)?vyral\s+(?:named|called)\s+["“']?(.+?)["”']?(?:\s+(?:about|for|with description|—|:|-)\s+(.+))?$/i,
     /^(?:please\s+)?(?:create|make|build)\s+(?:(?:a|an|new)\s+)?vyrals?\s*[:：]\s*["“']?(.+?)["”']?(?:\s*[—-]\s*(.+))?$/i,
-    /^vyral\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
+    /^(?:universe|vyral)\s+(?:အသစ်\s*)?(?:ဖန်တီး|လုပ်)(?:ပေး)?\s*[:：-]?\s*(.+?)(?:\s+(?:အကြောင်း|ဖော်ပြချက်)\s+(.+))?$/i,
   ];
   for (const pattern of patterns) {
     const match = value.match(pattern);
@@ -279,14 +279,14 @@ export const extractVyralCreateRequest = (input: string): { name: string; descri
 };
 
 export const formatVyralCreateDraft = (draft: GlobalChatVyralDraft): string =>
-  '**Vyral creation draft — please review**\n\n' +
+  '**Universe creation draft — please review**\n\n' +
   '**Name:** ' + draft.name + '\n' +
   '**Purpose / Description:** ' + (draft.description || 'Not specified yet') + '\n\n' +
-  'This will create a private Vyral with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\n\n' +
+  'This will create a private Universe with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\n\n' +
   'Nothing has been created yet. If this is what you want, simply tell me to go ahead.';
 
 export const isVyralCreateConfirmation = (input: string): boolean =>
-  /^\s*(?:confirm\s+vyral\s+create|vyral\s+ဖန်တီးရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
+  /^\s*(?:confirm\s+(?:universe|vyral)\s+create|(?:universe|vyral)\s+ဖန်တီးရန်\s+အတည်ပြု)\s*[.!?။]*\s*$/i.test(input);
 
 
 export type GlobalChatVyralAssetUploadDraft = {
@@ -300,9 +300,9 @@ export type GlobalChatVyralAssetUploadDraft = {
 
 export const extractVyralAssetUploadTarget = (input: string): string | null => {
   const patterns = [
-    /^\s*(?:add|save|upload|put)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+(?:my\s+)?vyral\s+["“']?(.+?)["”']?\s*[.!?]*\s*$/i,
-    /^\s*(?:add|save|upload)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+["“']?(.+?)["”']?\s+(?:vyral)\s*[.!?]*\s*$/i,
-    /^\s*(?:ဒီဖိုင်ကို|ဒီ Asset ကို|ပူးတွဲဖိုင်ကို)\s*(?:vyral\s*)?["“']?(.+?)["”']?\s*(?:ထဲ|ထဲကို)\s*(?:ထည့်|သိမ်း)(?:ပေး)?\s*$/i,
+    /^\s*(?:add|save|upload|put)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+(?:my\s+)?(?:universe|vyral)\s+["“']?(.+?)["”']?\s*[.!?]*\s*$/i,
+    /^\s*(?:add|save|upload)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+["“']?(.+?)["”']?\s+(?:universe|vyral)\s*[.!?]*\s*$/i,
+    /^\s*(?:ဒီဖိုင်ကို|ဒီ Asset ကို|ပူးတွဲဖိုင်ကို)\s*(?:(?:universe|vyral)\s*)?["“']?(.+?)["”']?\s*(?:ထဲ|ထဲကို)\s*(?:ထည့်|သိမ်း)(?:ပေး)?\s*$/i,
   ];
   for (const pattern of patterns) {
     const match = input.trim().match(pattern);
@@ -321,7 +321,7 @@ export const isVyralAssetUploadConfirmation = (input: string): boolean =>
 export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDraft): string =>
   '**Asset upload preview**\n\n' +
   '**File:** ' + draft.fileName + '\n' +
-  '**Destination Vyral:** ' + draft.vyralName + '\n' +
+  '**Destination Universe:** ' + draft.vyralName + '\n' +
   '**Size:** ' + (draft.fileSize / 1024 / 1024).toFixed(2) + ' MB\n' +
   '**MIME:** ' + (draft.mimeType || 'unknown') + '\n\n' +
   'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\n\n' +
@@ -367,5 +367,5 @@ export const isVyralAssetAddIntent = (input: string): boolean => {
 };
 
 export const isVyralAssetContextReference = (input: string): boolean =>
-  /\b(?:this|that|it|there|same one|current vyral|this vyral|that vyral)\b/i.test(input) ||
-  /(?:အဲဒီထဲ|အဲ့ဒီထဲ|အဲဒါထဲ|အဲ့ဒါထဲ|ဒီထဲ|အဲဒီ Vyral|အဲ့ဒီ Vyral)/i.test(input);
+  /\b(?:this|that|it|there|same one|current universe|this universe|that universe)\b/i.test(input) ||
+  /(?:အဲဒီထဲ|အဲ့ဒီထဲ|အဲဒါထဲ|အဲ့ဒါထဲ|ဒီထဲ|အဲဒီ Universe|အဲ့ဒီ Universe)/i.test(input);
