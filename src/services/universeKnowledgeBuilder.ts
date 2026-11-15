@@ -1,4 +1,5 @@
 import type { UniverseKnowledgeRecord } from './universeConsistencyResolver.ts';
+import { validateVyralSemanticDnaV1 } from './vyralSemanticDnaV1.ts';
 
 export interface AssetDnaKnowledgeSource {
   assetId: string;
@@ -29,11 +30,9 @@ export function buildUniverseKnowledgeFromAssetDna(
     throw new Error('Asset DNA source identity, revision, or SHA-256 is invalid.');
   }
   const wrapper = isRecord(source.payload) ? source.payload : {};
-  const dna = isRecord(wrapper.dna_record) ? wrapper.dna_record : wrapper;
-  if (dna.schema_id !== 'vyra.asset-semantic-dna' || dna.schema_version !== 1) {
-    throw new Error('A supported Asset Semantic DNA v1 record is required.');
-  }
-  const dnaSource = isRecord(dna.source) ? dna.source : {};
+  const rawDna = isRecord(wrapper.dna_record) ? wrapper.dna_record : wrapper;
+  const dna = validateVyralSemanticDnaV1(rawDna);
+  const dnaSource = dna.source as unknown as JsonRecord;
   if (dnaSource.asset_id !== source.assetId ||
       dnaSource.asset_version_id !== source.assetVersionId ||
       typeof dnaSource.sha256 !== 'string' ||
@@ -42,9 +41,9 @@ export function buildUniverseKnowledgeFromAssetDna(
   }
 
   const records: UniverseKnowledgeRecord[] = [];
-  const identity = isRecord(dna.identity) ? dna.identity : {};
-  const description = isRecord(dna.creator_description) ? dna.creator_description : {};
-  const technical = isRecord(dna.technical_metadata) ? dna.technical_metadata : {};
+  const identity = dna.identity as unknown as JsonRecord;
+  const description = dna.creator_description as unknown as JsonRecord;
+  const technical = dna.technical_metadata as unknown as JsonRecord;
   const base = {
     subjectId: source.assetId,
     scope: 'asset' as const,
@@ -71,8 +70,8 @@ export function buildUniverseKnowledgeFromAssetDna(
     });
   };
 
-  add('identity-name', 'identity.name', text(identity.name), 'deterministic', 'preferred');
-  add('identity-type', 'identity.asset_type', text(identity.asset_type), 'deterministic', 'preferred');
+  add('identity-name', 'identity.name', text(identity.name), 'creator_declared', 'preferred');
+  add('identity-type', 'identity.asset_type', text(identity.asset_type), 'creator_declared', 'preferred');
   if (description.evidence_status === 'creator_declared') {
     add('creator-description', 'creator.description', text(description.text), 'creator_declared', 'preferred');
   }
@@ -88,9 +87,7 @@ export function buildUniverseKnowledgeFromAssetDna(
     if (value !== null && value !== undefined) add(predicate, predicate, value, 'deterministic', 'flexible');
   }
 
-  const observations = Array.isArray(dna.creator_confirmed_observations)
-    ? dna.creator_confirmed_observations
-    : [];
+  const observations = dna.creator_confirmed_observations;
   for (const raw of observations) {
     if (!isRecord(raw) || !isRecord(raw.evidence)) continue;
     if (raw.source_asset_version_id !== source.assetVersionId ||
