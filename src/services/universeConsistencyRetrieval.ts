@@ -115,8 +115,10 @@ export function retrieveUniverseConsistencyContext(
     mode = 'broad';
     for (const asset of assets) {
       if (!scores.has(asset.assetId)) {
-        scores.set(asset.assetId, 1);
-        reasons[asset.assetId] = ['explicit_broad_universe_request'];
+        scores.set(asset.assetId, asset.role === 'main' ? 10 : 1);
+        reasons[asset.assetId] = asset.role === 'main'
+          ? ['explicit_broad_universe_request', 'main_asset_priority']
+          : ['explicit_broad_universe_request'];
       }
     }
   } else if (scores.size) {
