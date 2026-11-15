@@ -507,6 +507,7 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
 
   assert.ok(service.includes('async function assertStoryboardUniverse'), 'Every scoped operation must verify ownership and Storyboard scope.');
   assert.ok(service.includes('async function syncStoryboardUniverseLibrary'), 'AI-created folders and Assets must be reconciled into the Library view.');
+  assert.equal((service.match(/\.range\(offset, offset \+ 499\)/g) ?? []).length, 2, 'Folder and Asset reconciliation must page through the full Universe inventory rather than silently stopping at 1,000 rows.');
   assert.ok(service.includes('db.from(\'vyral_folders\')'), 'Universe folders must share canonical IDs with AI folder tools.');
   assert.ok(service.includes('ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db)'), 'Universe uploads must run the full Asset ingestion and DNA pipeline.');
   assert.ok(service.includes('vyralId: scope.universeId, userId, file, folderId'), 'Uploaded Assets must be attached to the current Universe and folder.');
