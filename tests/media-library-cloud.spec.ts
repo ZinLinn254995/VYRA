@@ -496,6 +496,7 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   const page = read('src/components/profile/MyMediaLibraryPage.tsx');
   const universeTab = read('src/components/workspace/StoryboardUniverseTab.tsx');
   const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  const chat = read('src/components/ai/AIChatPage.tsx');
 
   assert.ok(migration.includes('add column if not exists universe_id'), 'Media Library records need a Storyboard Universe scope.');
   assert.ok(migration.includes('vyral_folder_id uuid references public.vyral_folders(id) on delete cascade'), 'Universe Library folders must mirror the canonical AI-managed folder tree.');
@@ -522,4 +523,7 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   assert.ok(universeTab.includes('universeId={universe.id}'), 'The Library UI must be scoped to the resolved private Universe.');
   assert.ok(workspace.includes('renderLibrary={storyboardEditorView === \'universe\'}'), 'The Library should mount only when the Universe tab is visible.');
   assert.ok(workspace.includes('activeVyralId={storyboardUniverse.id}'), 'Storyboard AI Chat must operate against the same dedicated Universe.');
+  assert.ok(chat.includes("item.id === storyboardUniverseId"), 'Storyboard AI Chat must not switch to another personal or Storyboard Universe.');
+  assert.ok(chat.includes("universeId: storyboardId ? destination.id : undefined"), 'Assets uploaded from Storyboard AI Chat must be indexed in the same Universe.');
+  assert.ok(chat.includes("origin: storyboardId ? 'storyboard_ai_chat' : 'global_ai_chat'"), 'Storyboard AI uploads must retain their Storyboard provenance.');
 });
