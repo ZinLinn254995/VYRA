@@ -24,7 +24,7 @@ import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extr
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
-import { generateRunwayProjectMedia } from '../../services/runwayProjectGeneration';
+import { generateRunwayProjectMedia, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob } from '../../services/runwayProjectGeneration';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction };
@@ -373,12 +373,66 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const [mediaBudgetUsd, setMediaBudgetUsd] = useState('');
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [mediaGenerationStatus, setMediaGenerationStatus] = useState<string | null>(null);
+  const [projectRecoveryJobs, setProjectRecoveryJobs] = useState<RunwayProjectRecoveryJob[]>([]);
+  const [projectRecoveryLoading, setProjectRecoveryLoading] = useState(false);
+  const [recoveringProjectJobId, setRecoveringProjectJobId] = useState<string | null>(null);
+  const [projectRecoveryError, setProjectRecoveryError] = useState<string | null>(null);
   const mediaRequestControllerRef = useRef<AbortController | null>(null);
   const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
   const [historyAuthRevision, setHistoryAuthRevision] = useState(0);
   const historyOwnerRef = useRef<string | null>(null);
   const historyWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const activeRequestControllerRef = useRef<AbortController | null>(null);
+
+  const refreshProjectRecovery = useCallback(async () => {
+    if (!storyboardId || !storyboardUniverseId || !supabase || !isAuthenticated) {
+      setProjectRecoveryJobs([]);
+      setProjectRecoveryError(null);
+      return;
+    }
+    setProjectRecoveryLoading(true);
+    setProjectRecoveryError(null);
+    try {
+      const jobs = await listRunwayProjectMediaRecovery(supabase, storyboardUniverseId);
+      setProjectRecoveryJobs(jobs);
+    } catch (error) {
+      setProjectRecoveryError(error instanceof Error ? error.message : 'Project generation history could not be loaded.');
+    } finally {
+      setProjectRecoveryLoading(false);
+    }
+  }, [storyboardId, storyboardUniverseId, isAuthenticated]);
+
+  const recoverProjectGeneration = async (jobId: string) => {
+    if (!supabase || !storyboardUniverseId || recoveringProjectJobId) return;
+    const controller = new AbortController();
+    setRecoveringProjectJobId(jobId);
+    setProjectRecoveryError(null);
+    setMediaGenerationStatus('Checking the saved generation job. VYRA will not submit it again…');
+    try {
+      const result = await recoverRunwayProjectMediaJob(supabase, storyboardUniverseId, jobId, controller.signal);
+      if (result.status === 'ready') {
+        const assets = result.assets ?? [];
+        setMediaGenerationStatus(assets.length
+          ? 'Recovered ' + assets.length + ' Project Asset(s). DNA and Fingerprint checks are complete.'
+          : 'This generation job is already recovered.');
+      } else if (result.status === 'submitted_pending') {
+        setMediaGenerationStatus('The provider is still processing this job. Check again shortly.');
+      } else if (result.status === 'reconciliation_required') {
+        setMediaGenerationStatus('This job needs provider reconciliation. It was not resubmitted.');
+      } else {
+        setMediaGenerationStatus('Generation job status: ' + result.status + '.');
+      }
+      await refreshProjectRecovery();
+    } catch (error) {
+      setProjectRecoveryError(error instanceof Error ? error.message : 'The saved generation job could not be recovered.');
+    } finally {
+      setRecoveringProjectJobId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (isActive && storyboardId) void refreshProjectRecovery();
+  }, [isActive, storyboardId, storyboardUniverseId, refreshProjectRecovery]);
 
   const cancelActiveRequest = () => {
     const controller = activeRequestControllerRef.current;
@@ -2473,6 +2527,28 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               <button type="button" onClick={() => { setMediaComposerOpen((open) => !open); setMediaGenerationStatus(null); }} disabled={isSending || isGeneratingMedia} className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50">
                 <Sparkles size={14} /> Create media <span className="text-[var(--vyra-text-muted)]">{mediaComposerOpen ? '−' : '+'}</span>
               </button>
+              {projectRecoveryJobs.length > 0 && (
+                <div className="mt-2 rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-base)] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-[var(--vyra-text-primary)]">Unfinished generations</p>
+                    <button type="button" onClick={() => { void refreshProjectRecovery(); }} disabled={projectRecoveryLoading || Boolean(recoveringProjectJobId)} className="text-[10px] text-[var(--vyra-text-muted)] underline disabled:opacity-40">{projectRecoveryLoading ? 'Checking…' : 'Refresh'}</button>
+                  </div>
+                  <div className="space-y-2">
+                    {projectRecoveryJobs.map((job) => (
+                      <div key={job.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-2.5 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[11px] text-[var(--vyra-text-primary)]">{job.status === 'succeeded' ? 'Output ready · Asset saving ' + job.assetIngestionStatus : 'Generation ' + job.status}</p>
+                          <p className="truncate text-[9px] text-[var(--vyra-text-muted)]">Job {job.id}</p>
+                        </div>
+                        <button type="button" onClick={() => { void recoverProjectGeneration(job.id); }} disabled={Boolean(recoveringProjectJobId) || projectRecoveryLoading || job.status === 'unknown'} className="shrink-0 rounded-full border border-[var(--vyra-border)] px-3 py-1.5 text-[10px] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40">
+                          {recoveringProjectJobId === job.id ? 'Checking…' : job.status === 'unknown' ? 'Needs review' : 'Resume'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {projectRecoveryError && <p role="alert" className="mt-2 break-words text-[10px] text-[var(--vyra-text-muted)]">{projectRecoveryError}</p>}
               {mediaComposerOpen && (
                 <div className="mt-2 rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-base)] p-3">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
