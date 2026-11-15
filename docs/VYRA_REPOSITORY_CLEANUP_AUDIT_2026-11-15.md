@@ -86,6 +86,15 @@
 - No Production service, Production database, customer-owned data, ORIGIN-01 data, applied migration history, or Master Editor implementation was modified. No merge or deployment was performed.
 - Latest CI verification is still running; record final outcomes after all checks complete.
 
+### Cleanup batch 4 — 2026-11-15
+
+- Removed the unreferenced demo project seed module and its four bundled sample video images. Existing creator data and ORIGIN-01 were not affected.
+- Updated the public DNA technical page and SEO contract to describe internal Asset integrity and Creative Universe consistency, not external DNA-only reconstruction.
+- Simplified the database workflow to run only local Supabase startup, migration reset, and pgTAP; removed the retired OpenRouter E2E scaffolding.
+- Added a pgTAP regression test confirming legacy Gemini Vault accessors are absent and the old Gemini API secret is not retained.
+- Verification on current branch head `7199bfe0b954a512da779c542fa88623370aabba`: TypeScript/CI passed; browser UI tests passed; local Supabase migration reset and all 275 database tests passed.
+- Current PR #122 remains open and Draft. No merge, Production deployment, or Production database action was performed.
+
 ## 6. Must not delete or rewrite
 
 - Never delete customer-owned Assets, Vyrals, projects, media, or canonical versions as code cleanup.
