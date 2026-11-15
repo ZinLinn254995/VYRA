@@ -80,7 +80,10 @@ export function deriveTrackedSceneStatePaths(
   if (!isRecord(state) || !Number.isInteger(maxPaths) || maxPaths < 1 || !Number.isInteger(maxDepth) || maxDepth < 1) {
     throw new Error('Scene continuity path limits and root state must be valid.');
   }
-  const paths = new Set<string>();
+  // Always track root membership, including an initially empty state. Without
+  // this sentinel, a Scene could add arbitrary top-level facts while every
+  // previously tracked leaf comparison still appeared consistent.
+  const paths = new Set<string>(['@keys:$root']);
   const visit = (value: unknown, prefix: string, depth: number): void => {
     if (depth > maxDepth) throw new Error('Scene state exceeds the maximum continuity depth.');
     if (isRecord(value) && Object.keys(value).length > 0) {
