@@ -54,16 +54,16 @@ test('OpenAI Vision validates bounded Project image previews and attaches them t
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   const service = read('src/services/aiService.ts');
   assert.match(edge, /rawVisionImages/);
-  assert.match(edge, /rawVisionImages\\.length > 4/);
+  assert.ok(edge.includes('rawVisionImages.length > 4'));
   assert.match(edge, /820_000/);
   assert.match(edge, /3_300_000/);
   assert.ok(edge.includes('!/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)'));
   assert.match(edge, /type: 'image_url'/);
   assert.match(edge, /latestUserIndex/);
-  assert.match(edge, /url: 'data:' \\+ item\\.mimeType \\+ ';base64,' \\+ item\\.data/);
-  assert.match(service, /if \\(request\\.mediaFiles\\?\\.length\\)/);
+  assert.ok(edge.includes("url: 'data:' + item.mimeType + ';base64,' + item.data"));
+  assert.ok(service.includes('if (request.mediaFiles?.length)'));
   assert.doesNotMatch(service, /request\\.visionImages\\?\\.length \\|\\| request\\.mediaFiles/);
-  assert.match(service, /visionImages\\?\\.length \\? \\{ visionImages: request\\.visionImages \\}/);
+  assert.ok(service.includes('request.visionImages?.length ? { visionImages: request.visionImages }'));
 });
 
 test('OpenAI Vision keeps PDF and audio inspection explicitly disabled', () => {
