@@ -275,3 +275,20 @@ The quality evaluator now validates custom grade profiles before scoring: all si
 The existing VYRA AI Chat `.vyral` attachment inspection context now communicates the accepted creator contract to the receiving model: free-form mixed/unrelated Asset collections are valid; unclassified Assets are not errors; Compact DNA is a navigation map rather than original content or an access credential; retrieval claims require actually available bytes or an authorized resolver; and creator recommendations must remain optional suggestions rather than invented facts. This is a first handoff-context improvement, not complete Creator Assistant orchestration or selective remote retrieval.
 
 **Verification:** The changes and regression tests are committed on the existing branch. No matching GitHub Actions run was returned for the latest commit, so tests are not confirmed as passing. The Vercel check reports a build-rate-limit failure; it does not establish a code/test failure. No merge, Production deployment, or Production database mutation was performed.
+
+
+## 2026-11-15 — Universe is the canonical product concept (superseding decision)
+
+The user explicitly replaced the Vyral collection concept and terminology with **Universe**. This is the current accepted product direction and supersedes earlier sections that proposed a user-facing Vyral entity or a portable `.vyral` file.
+
+- A Universe remains a real file-manager-style creative environment made of folders, files, and Assets. It is not DNA-only and not a forced template.
+- Every Asset has its own Asset DNA. Universe Knowledge is automatically derived and maintained from Asset DNA, verified observations, creator declarations, provenance, and activity.
+- Universe DNA is the automatically derived, versioned aggregate/projection of relevant Universe Knowledge and Asset inventory; users do not manually author it as a substitute for Assets.
+- Relationships, canon, timeline, state, and creator rules are available when relevant but are not mandatory for every Universe or Asset. Unrelated Asset collections remain valid.
+- Consistency Intelligence must preserve applicable identity, world, spatial, temporal, causal, stylistic, object, motion, and audio continuity across both generation and editing. It must use task-scoped retrieval rather than loading the whole Universe every time.
+- The user-facing product vocabulary is Universe, Asset, Asset DNA, Universe Knowledge, Universe DNA, and Consistency Intelligence. Do not use Vyral or .vyral in new product UI/copy or new user-facing workflows.
+- Existing database/table/function names and historical records may retain legacy Vyral identifiers temporarily for compatibility. Do not perform destructive bulk renames; introduce a non-destructive Universe domain/UI boundary and preserve IDs, RLS, storage, ORIGIN-01 protection, and existing user data.
+
+The implementation contract is documented in `docs/UNIVERSE_CONSISTENCY_INTELLIGENCE_ARCHITECTURE.md`.
+
+**Important implementation distinction:** Existing code already has Asset DNA, Master DNA, fingerprints, semantic relationships, generation lineage, context applicability, and a storyboard-level consistency resolver. These are foundations, not proof of a complete Universe-wide Consistency Intelligence engine. Continue by auditing and building the missing Universe knowledge/context layer, then connect the same resolver to both generation and editing. Do not claim completion until automated contracts and end-to-end evidence support it.
