@@ -40,8 +40,8 @@ test('generated Project media is previewed in chat while only stable Asset refer
   assert.ok(chat.includes('<img src={asset.url}'));
   assert.ok(chat.includes('<video src={asset.url}'));
   assert.ok(chat.includes('<audio src={asset.url}'));
-  assert.ok(chat.includes("createSignedUrl(asset.storage_path, 300)"));
-  assert.ok(chat.includes("createSignedUrl(asset.storagePath, 300)"));
+  assert.ok(chat.includes("createSignedUrl(asset.storage_path, 3600)"));
+  assert.ok(chat.includes("createSignedUrl(asset.storagePath, 3600)"));
   assert.ok(chat.includes('mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType }))'));
   assert.ok(!chat.includes('mediaAssets: message.mediaAssets.map((asset) => ({ ...asset, url: asset.url }))'));
 });
