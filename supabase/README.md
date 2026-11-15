@@ -1,5 +1,7 @@
 # Supabase database development
 
+> **Runtime update (2026-11-15):** OpenRouter customer-BYOK endpoints and their provider-specific local E2E test have been retired. Financial ledger tables, RPCs, and provider-neutral recorder contracts remain. The active OpenAI/Runway runtime is not yet wired to usage recording or credit charging. Historical OpenRouter notes below are retained for migration context only.
+
 ## Migrations
 
 The initial migration creates `profiles` and `projects`. The usage-ledger migration adds server-owned `generation_jobs`, `provider_attempts`, `provider_cost_records`, and append-only `credit_ledger_entries`. The account-transfer migration adds immutable `credit_transfers` and a service-role-only atomic transfer RPC. The wallet snapshot migration adds an authenticated read-only RPC that calculates balances from the append-only ledger and returns a limited recent activity list.
@@ -50,7 +52,7 @@ supabase db reset
 supabase test db
 ```
 
-The database CI workflow also runs `npm run test:usage-ledger-local-e2e` against the local Supabase Auth and PostgREST services. It creates a temporary Auth user, verifies a real session through the VYRA API, mocks only the OpenRouter upstream response, checks the generation job/provider attempt, and removes the temporary test rows. The local service-role key is supplied only to the test process and must never be committed.
+The former OpenRouter-specific local usage-ledger E2E test has been removed with that provider route. Keep local database pgTAP coverage; add new authenticated E2E coverage when platform-managed OpenAI and Runway usage recording is implemented.
 
 The pgTAP suite in `supabase/tests/database` verifies customer isolation, balanced transfer accounting, idempotency, insufficient-balance rejection, server-only financial writes, and immutable financial records.
 
@@ -85,8 +87,8 @@ As of 2026-11-03, the repository migration filenames match the migration version
 The internal trigger helper functions are not application RPCs. Their execute privileges are revoked from application roles; PostgreSQL invokes them through their attached triggers.
 
 
-## OpenRouter Text usage recorder
+## Historical OpenRouter Text usage recorder (retired)
 
-The server includes an opt-in first increment for OpenRouter Text chat. With `VYRA_USAGE_LEDGER_ENABLED=true`, an authenticated request with an idempotency key creates a generation job and provider attempt before provider submission, then records provider-reported usage/cost when available. Only safe counts and allowlisted usage fields are stored; prompts and BYOK keys are not written to the ledger.
+The former OpenRouter Text BYOK route used an opt-in recorder. That route has been removed. The generic ledger foundation remains, but active OpenAI Chat and Runway media usage are not yet connected.
 
 This is usage recording only. It does not reserve or charge credits, and multimodal image/audio/video paths are not yet integrated. Keep the flag disabled until authenticated Development E2E testing is complete. Never enable it in Production based solely on passing database tests.
