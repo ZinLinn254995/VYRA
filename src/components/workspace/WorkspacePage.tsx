@@ -1,7 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPage } from '../ai/AIChatPage';
 import { StoryboardUniverseTab } from './StoryboardUniverseTab';
-import { UniverseIcon } from '../universe/UniverseIcon';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
@@ -1395,7 +1394,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                 <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
-                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'inline-flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}><UniverseIcon size={15} />Universe</button>
+                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Assets</button>
                 <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
               </div>
             </div>
