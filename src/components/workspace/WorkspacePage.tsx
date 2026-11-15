@@ -863,7 +863,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     const storyboard: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: 'New Project',
-      topic: 'A new Project is ready to take shape. Build its scenes, Assets, and story.',
+      topic: '',
       createdAt: now,
       updatedAt: now,
       details: { category: '', style: '', mood: '', tags: [], origins: {}, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
@@ -879,40 +879,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setStoryboards((current) => [storyboard, ...current.filter((item) => item.id !== storyboard.id)]);
     void persistStoryboard(storyboard);
 
-    void requestStoryboardSuggestion('', '', true).then((suggestion) => {
-      if (!suggestion) { setStoryboardAiMessage('Default details are ready.'); return; }
-      setActiveStoryboard((current) => {
-        if (!current || current.id !== storyboard.id) return current;
-        const origins = current.details?.origins || {};
-        const updated: Storyboard = {
-          ...current,
-          title: origins.title === 'creator_edited' ? current.title : (suggestion.title || current.title),
-          topic: origins.topic === 'creator_edited' ? current.topic : (suggestion.topic || current.topic),
-          updatedAt: new Date().toISOString(),
-          details: {
-            ...current.details,
-            category: origins.category === 'creator_edited' ? current.details?.category : suggestion.category,
-            style: origins.style === 'creator_edited' ? current.details?.style : suggestion.style,
-            mood: origins.mood === 'creator_edited' ? current.details?.mood : suggestion.mood,
-            tags: origins.tags === 'creator_edited' ? current.details?.tags : suggestion.tags,
-            origins: {
-              ...origins,
-              ...(suggestion.title && origins.title !== 'creator_edited' ? { title: 'ai_suggested' as const } : {}),
-              ...(suggestion.topic && origins.topic !== 'creator_edited' ? { topic: 'ai_suggested' as const } : {}),
-              ...(suggestion.category && origins.category !== 'creator_edited' ? { category: 'ai_suggested' as const } : {}),
-              ...(suggestion.style && origins.style !== 'creator_edited' ? { style: 'ai_suggested' as const } : {}),
-              ...(suggestion.mood && origins.mood !== 'creator_edited' ? { mood: 'ai_suggested' as const } : {}),
-              ...(suggestion.tags.length && origins.tags !== 'creator_edited' ? { tags: 'ai_suggested' as const } : {}),
-            },
-            ai_provenance: { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt },
-          },
-        };
-        setStoryboards((items) => items.map((item) => item.id === updated.id ? updated : item));
-        void persistStoryboard(updated);
-        return updated;
-      });
-      setStoryboardAiMessage('');
-    }).catch(() => setStoryboardAiMessage('AI suggestions are unavailable. You can edit the default details anytime.'));
+    setStoryboardAiMessage('');
   };
   createDefaultStoryboardRef.current = createDefaultStoryboard;
 
