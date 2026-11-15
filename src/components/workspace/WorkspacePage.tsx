@@ -33,7 +33,7 @@ const readStoryboards = (key: string): Storyboard[] => {
       Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
       typeof item.topic === 'string' && typeof item.createdAt === 'string' && typeof item.updatedAt === 'string'
     ).map((storyboard) => {
-      if (!storyboard.details) return storyboard;
+      if (!storyboard.details) return { ...storyboard, details: { scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) } };
       const scenes = (storyboard.details.scenes || []).map((scene) => {
         if (scene.project?.id) return scene;
         const now = new Date().toISOString();
@@ -766,7 +766,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: nextTitle || nextTopic.slice(0, 100) || 'Untitled Storyboard',
       topic: nextTopic, createdAt: now, updatedAt: now,
-      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins, ...(aiProvenance ? { ai_provenance: aiProvenance } : {}) },
+      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []), ...(aiProvenance ? { ai_provenance: aiProvenance } : {}) },
     };
     setStoryboards((current) => [next, ...current]);
     void persistStoryboard(next);
