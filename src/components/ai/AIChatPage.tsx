@@ -2285,7 +2285,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     try {
       const result = await generateRunwayProjectMedia(supabase, {
         targetVyralId: storyboardUniverseId, task: mediaTask, quality: mediaQuality,
-        maxCostUsd: budget, input: { promptText: prompt }, signal: controller.signal,
+        maxCostUsd: budget, input: { promptText: prompt },
+        sceneContext: workspaceContext ? {
+          page: workspaceContext.page,
+          activeSceneId: workspaceContext.activeSceneId,
+          activeSceneTitle: workspaceContext.activeSceneTitle,
+          activeSceneDescription: workspaceContext.activeSceneDescription,
+          sceneContinuity: workspaceContext.sceneContinuity,
+        } : null,
+        signal: controller.signal,
         onProgress: (progress) => {
           if (progress.stage === 'quote') setMediaGenerationStatus('Quote received. Waiting for your approval…');
           else if (progress.stage === 'reserved') setMediaGenerationStatus('Credits reserved. Preparing provider submission…');
