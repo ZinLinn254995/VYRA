@@ -202,8 +202,10 @@ export function buildRunwaySceneContinuityPrompt(
   if (!input || (!sceneEditor && !masterEditor)) {
     return { promptText, mode: 'not_applicable' };
   }
+  // Only an explicitly selected Scene timeline item authorizes Scene-specific canon.
+  // A transition/audio/text selection must not inherit a stale activeSceneId.
   const selectedSceneId = masterEditor
-    ? (input.selectedTimelineItem?.kind === 'scene' ? input.selectedTimelineItem.id : input.selectedSceneIds?.length === 1 ? input.selectedSceneIds[0] : null)
+    ? (input.selectedTimelineItem?.kind === 'scene' ? input.selectedTimelineItem.id : null)
     : input.activeSceneId;
   const selectedScene = input.continuityRuntime?.scenes?.find((scene) => scene.id === selectedSceneId);
   const title = safeText(selectedScene?.title || input.activeSceneTitle, 180);
@@ -224,8 +226,8 @@ export function buildRunwaySceneContinuityPrompt(
     intendedChanges: derivedContinuity.intendedChanges,
     contextComplete: derivedContinuity.contextComplete,
     validationStatus: runtimeLedger?.scenes[selectedSceneId!]?.validationStatus ?? 'not_evaluated',
-  } : input.sceneContinuity;
-  const targetSceneId = selectedSceneId || input.activeSceneId || null;
+  } : masterEditor ? null : input.sceneContinuity;
+  const targetSceneId = masterEditor ? selectedSceneId : input.activeSceneId || null;
   const timeline = targetSceneId ? buildApprovedSceneTimeline(input.continuityRuntime, targetSceneId) : [];
   const complete = Boolean(continuity?.contextComplete && continuity.previousSceneApproved
     && !continuity.entrySnapshotStale && isRecord(continuity.currentEntryState));
