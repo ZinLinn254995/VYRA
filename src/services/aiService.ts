@@ -141,11 +141,12 @@ class ModularAIService implements AIServiceProvider {
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
-    // VYRA no longer routes any request to Gemini. Until OpenAI multimodal
-    // support is enabled in the platform Edge Function, fail clearly instead
-    // of silently falling back to another provider.
-    if (request.visionImages?.length || request.mediaFiles?.length) {
-      const message = 'OpenAI text chat is available. Image, document and audio inspection will be enabled after the OpenAI multimodal path is connected.';
+    // VYRA no longer routes any request to Gemini. Raster images and
+    // browser-sampled video frames use the platform OpenAI Vision path.
+    // PDF/audio source inspection remains disabled until its dedicated
+    // multimodal adapter is connected; never silently fall back to text-only.
+    if (request.mediaFiles?.length) {
+      const message = 'Image and sampled video-frame inspection are available. PDF and audio inspection are not enabled yet.';
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
 
