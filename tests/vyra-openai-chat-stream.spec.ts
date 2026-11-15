@@ -47,7 +47,7 @@ test('Browser service parses OpenAI SSE deltas and never routes media requests t
   assert.match(source, /payload === '\[DONE\]'/);
   assert.match(source, /request\.onTextDelta\?\.\(chunk\)/);
   assert.match(source, /promptTokens:\s*event\.usage\.prompt_tokens/);
-  assert.match(source, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
+  assert.ok(source.includes('if (request.mediaFiles?.length)'));
 });
 
 test('OpenAI Vision validates bounded Project image previews and attaches them to the latest user turn', () => {
