@@ -286,3 +286,32 @@ export function evaluateAndRecordSceneContinuity(input: {
     },
   };
 }
+
+/**
+ * Any edit to a Scene's content or project invalidates its previous continuity
+ * approval. The prior exitState is retained as history, but cannot be handed
+ * to the next Scene until the edited Scene is re-evaluated and re-approved.
+ */
+export function invalidateSceneContinuity(
+  ledgerInput: unknown,
+  scenes: ReadonlyArray<{ id: string }>,
+  sceneId: string,
+  updatedAt = new Date().toISOString(),
+): SceneContinuityLedger {
+  const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
+  const current = ledger.scenes[sceneId];
+  if (!current) throw new Error('Cannot invalidate continuity for an unknown Scene.');
+  return {
+    ...ledger,
+    scenes: {
+      ...ledger.scenes,
+      [sceneId]: {
+        ...current,
+        validationStatus: 'not_evaluated',
+        updatedAt,
+        invalidatedAt: updatedAt,
+        invalidationReason: 'Scene content or project was edited after its last continuity evaluation.',
+      },
+    },
+  };
+}
