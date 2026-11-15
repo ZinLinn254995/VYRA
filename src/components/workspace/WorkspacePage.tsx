@@ -887,7 +887,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setStoryboardUniverse(null);
     setActiveStoryboardConfirmed(false);
     setStoryboardDetailsExpanded(true);
-    setStoryboardEditorView('scenes');
+    setStoryboardEditorView('chat');
     setStoryboardAiMessage('');
   };
 
@@ -904,7 +904,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setActiveStoryboard(confirmed);
     setActiveStoryboardConfirmed(true);
     setStoryboardDetailsExpanded(false);
-    setStoryboardEditorView('scenes');
+    setStoryboardEditorView('chat');
     setStoryboardAiMessage('');
   };
 
@@ -1302,7 +1302,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setStoryboardUniverse(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardDetailsExpanded(true);
-      setStoryboardEditorView('scenes');
+      setStoryboardEditorView('chat');
       setStoryboardAiMessage('');
       onEditorExit?.();
     };
