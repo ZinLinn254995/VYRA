@@ -1330,38 +1330,37 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-4 pt-0 sm:px-0 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
-              {storyboardEditorView !== 'chat' && (
+              <div className="profile-storyboard-view-tabs order-first flex shrink-0 items-center gap-1 bg-[var(--vyra-bg-surface)]" aria-label="Project navigation">
+                <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
+                <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Editor</button>
+                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Project Assets</button>
+              </div>
+              {storyboardEditorView === 'master' && (
                 <>
-              <div className="profile-storyboard-preview">
-                <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                  <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
-                </div>
-              </div>
-              <div className="grid h-12 grid-cols-3 items-center bg-[var(--vyra-bg-surface)] px-3">
-                <span className="justify-self-start font-mono text-[11px] tabular-nums text-[var(--vyra-text-secondary)]">
-                  00:00 <span className="px-1 text-[var(--vyra-text-muted)]">/</span> {(() => {
-                    const total = (activeStoryboard?.details?.scenes || []).reduce((sum, scene) => sum + Math.max(0, Number(scene.duration) || 0), 0);
-                    const minutes = Math.floor(total / 60).toString().padStart(2, '0');
-                    const seconds = Math.floor(total % 60).toString().padStart(2, '0');
-                    return minutes + ':' + seconds;
-                  })()}
-                </span>
-                <button type="button" disabled aria-label="Play preview (available when video media is connected)" title="Preview playback will be available when video media is connected" className="grid size-8 justify-self-center place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)] disabled:cursor-not-allowed disabled:opacity-60">
-                  <Play size={15} fill="currentColor" />
-                </button>
-                <button type="button" onClick={() => { const frame = storyboardPreviewFrameRef.current; if (frame?.requestFullscreen) void frame.requestFullscreen(); }} aria-label="Expand preview" title="Expand preview" className="grid size-8 justify-self-end place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
-                  <Maximize2 size={16} />
-                </button>
-              </div>
+                  <div className="profile-storyboard-preview">
+                    <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
+                      <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
+                    </div>
+                  </div>
+                  <div className="grid h-12 grid-cols-3 items-center bg-[var(--vyra-bg-surface)] px-3">
+                    <span className="justify-self-start font-mono text-[11px] tabular-nums text-[var(--vyra-text-secondary)]">
+                      00:00 <span className="px-1 text-[var(--vyra-text-muted)]">/</span> {(() => {
+                        const total = (activeStoryboard?.details?.scenes || []).reduce((sum, scene) => sum + Math.max(0, Number(scene.duration) || 0), 0);
+                        const minutes = Math.floor(total / 60).toString().padStart(2, '0');
+                        const seconds = Math.floor(total % 60).toString().padStart(2, '0');
+                        return minutes + ':' + seconds;
+                      })()}
+                    </span>
+                    <button type="button" disabled aria-label="Play preview (available when video media is connected)" title="Preview playback will be available when video media is connected" className="grid size-8 justify-self-center place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)] disabled:cursor-not-allowed disabled:opacity-60">
+                      <Play size={15} fill="currentColor" />
+                    </button>
+                    <button type="button" onClick={() => { const frame = storyboardPreviewFrameRef.current; if (frame?.requestFullscreen) void frame.requestFullscreen(); }} aria-label="Expand preview" title="Expand preview" className="grid size-8 justify-self-end place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+                      <Maximize2 size={16} />
+                    </button>
+                  </div>
                 </>
               )}
-              <div className="profile-storyboard-view-tabs flex items-center gap-1 bg-[var(--vyra-bg-surface)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
-                <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
-                <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
-                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Project Assets</button>
-                <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
-              </div>
             </div>
           )}
             {activeStoryboardConfirmed && (() => {
