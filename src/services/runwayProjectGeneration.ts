@@ -105,12 +105,6 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
   const generationInput = {
     ...request.input,
     ...(typeof request.input.promptText === 'string' ? { promptText: consistency.promptText } : {}),
-    projectConsistency: {
-      scope: 'project_assets',
-      assetCount: consistency.assetCount,
-      selectedAssetCount: consistency.selectedAssetCount,
-      retrievalMode: consistency.mode,
-    },
   };
   const quoteData = requireRecord(await invoke(db, 'quote-runway-media', {
     action: 'quote', task: request.task, quality: request.quality,
