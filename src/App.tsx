@@ -1,7 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
-import { AIChatPage } from './components/ai/AIChatPage';
 import { AppHeader } from './components/marketplace/MarketplaceHeader';
 import { ProfilePage } from './components/profile/ProfilePage';
 import type { VyralChatAssetContext } from './types/vyralChat';
@@ -10,7 +9,7 @@ import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 type WalletResponse = { availableBalance?: string };
-type MainSection = 'workspace' | 'ai-chat';
+type MainSection = 'workspace';
 
 function VyraApp() {
   const { user, session, signOut } = useAuth();
@@ -128,7 +127,7 @@ function VyraApp() {
         setActiveSection(target);
       } else if (target === 'my-vyrals' || target === 'my-media-library') {
         resetMainHeaderVisibility();
-        setProfileReturnSection('ai-chat');
+        setProfileReturnSection('workspace');
         setProfileInitialPage(target);
         setProfileOpen(true);
       }
@@ -175,7 +174,7 @@ function VyraApp() {
                 userEmail={profileLabel ?? ''} creditBalance={creditBalance} creditLoading={creditLoading}
                 themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode}
                 onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
-                backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : 'Back to AI Chat'}
+                backLabel="Back to Workspace"
                 onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
                 onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
                 onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('workspace'); }}
@@ -183,11 +182,6 @@ function VyraApp() {
             </ErrorBoundary>
           </div>
         )}
-        <div hidden={profileOpen || activeSection !== 'ai-chat'} aria-hidden={profileOpen || activeSection !== 'ai-chat'} style={profileOpen || activeSection !== 'ai-chat' ? { display: "none" } : undefined} className="min-w-0">
-          <ErrorBoundary>
-            <AIChatPage isActive={activeSection === 'ai-chat' && !profileOpen} isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} onSceneStateProposal={setPendingSceneStateProposal} />
-          </ErrorBoundary>
-        </div>
         <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
           <ErrorBoundary>
             <WorkspacePage
