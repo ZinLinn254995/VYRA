@@ -75,3 +75,12 @@ test('rejects contradictory intended changes for the same state path', () => {
     trackedPaths: ['character.location'],
   }), /Conflicting intended changes/);
 });
+
+test('rejects unsafe state paths before writing into the expected state', () => {
+  assert.throws(() => evaluateSceneStateTransition({
+    previousState: {},
+    intendedChanges: [{ path: '__proto__.polluted', value: true, reason: 'Invalid path.' }],
+    observedState: {},
+    trackedPaths: [],
+  }), /safe, non-empty dot paths/);
+});
