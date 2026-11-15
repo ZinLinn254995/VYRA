@@ -694,11 +694,13 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
     if (!selectedIds.length || !window.confirm(universeId ? 'Delete the selected Assets, their stored versions, DNA and fingerprints, and empty folders from this Storyboard Universe?' : 'Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
     await withBusy(async () => {
       let cleanupPending = false;
+      let masterDnaStatus: 'ready' | 'pending' | null = null;
       const deletedFileIds = [...selectedFiles];
       const deletedFolderIds = [...selectedFolders];
       if (deletedFileIds.length) {
         const result = await deleteMediaLibraryItems(deletedFileIds, universeId);
         cleanupPending = result.cleanupPending;
+        masterDnaStatus = result.masterDnaStatus ?? null;
         patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
         for (const [key, cached] of libraryCacheRef.current) {
           if (key !== JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])) {
@@ -711,8 +713,11 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
         patchCachedFolders((current) => current.filter((folder) => folder.id !== id));
       }
       setSelectedIds([]);
-      if (cleanupPending) setNotice('Selected items deleted. Private storage cleanup is queued and will retry automatically when you next open My Media Library.');
-      else setNotice('Selected items deleted.');
+      const dnaMessage = universeId && deletedFileIds.length
+        ? masterDnaStatus === 'ready' ? ' Universe Master DNA synchronized.' : ' Universe Master DNA synchronization is pending.'
+        : '';
+      if (cleanupPending) setNotice('Selected items deleted. Private storage cleanup is queued and will retry automatically when you next open My Media Library.' + dnaMessage);
+      else setNotice('Selected items deleted.' + dnaMessage);
     }, undefined, false);
   };
 
