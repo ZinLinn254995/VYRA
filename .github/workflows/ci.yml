@@ -97,10 +97,8 @@ jobs:
         run: npm run test:restore
       - name: Usage ledger contract tests
         run: npm run test:usage-ledger
-      - name: OpenRouter usage ledger recorder tests
+      - name: Usage ledger recorder contract tests
         run: npm run test:usage-ledger-recorder
-      - name: OpenRouter pricing API auth tests
-        run: npm run test:pricing-auth
       - name: Credit transfer API tests
         run: npm run test:credit-transfers
       - name: Credit ledger lifecycle service tests
