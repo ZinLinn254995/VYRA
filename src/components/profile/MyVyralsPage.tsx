@@ -158,7 +158,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
     <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
       <ProfileSubpageHeader
         onBack={() => { setActiveId(null); setQuery(''); }}
-        backLabel="Back to My Vyrals"
+        backLabel="Back to My Universes"
         icon={<VyralIdentityIcon size={22} />}
         title={active.name.toLowerCase().endsWith('.vyral') ? active.name : active.name + '.vyral'}
         description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
@@ -177,7 +177,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
           onBack={onBack}
           backLabel={backLabel}
           icon={<VyralIdentityIcon size={22} />}
-          title="My Vyrals"
+          title="My Universes"
           description="Your Vyral packages and their original Assets."
           search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
         />
