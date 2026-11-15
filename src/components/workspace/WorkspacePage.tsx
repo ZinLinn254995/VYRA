@@ -954,6 +954,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       const sceneContinuityRecord = sceneLedger.scenes[scene.id];
       const sceneContinuityContext = getSceneContinuityContext(sceneLedger, activeStoryboard.details?.scenes || [], scene.id);
       const proposedExitState = sceneContinuityRecord?.proposedExitState;
+      const sceneContinuityViolations = Array.isArray(sceneContinuityRecord?.violations)
+        ? sceneContinuityRecord.violations.filter((item): item is { path: string; reason: string; kind?: string } =>
+            Boolean(item) && typeof item === 'object' && typeof (item as Record<string, unknown>).path === 'string'
+            && typeof (item as Record<string, unknown>).reason === 'string')
+        : [];
       const canApproveSceneContinuity = sceneContinuityRecord?.validationStatus === 'consistent'
         && Boolean(sceneContinuityContext?.contextComplete)
         && Boolean(proposedExitState) && typeof proposedExitState === 'object' && !Array.isArray(proposedExitState);
@@ -1103,6 +1108,16 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                         ? 'The previous Scene has not been approved yet. Its state will not be treated as canon for this Scene.'
                         : 'This first Scene needs an explicit starting state before it can become the continuity source for later Scenes.'}
                   </p>
+                  {sceneContinuityViolations.length > 0 && (
+                    <ul className="space-y-1 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-3 text-xs text-[var(--vyra-text-secondary)]">
+                      {sceneContinuityViolations.slice(0, 12).map((violation, index) => (
+                        <li key={violation.path + '-' + index}>
+                          <span className="font-semibold text-[var(--vyra-text-primary)]">{violation.path}</span>
+                          <span>: {violation.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {canApproveSceneContinuity && sceneContinuityRecord?.validationStatus !== 'creator_approved' && (
                     <button type="button" onClick={approveCurrentSceneContinuity} className="min-h-10 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
                       Approve Scene State for Next Scene
