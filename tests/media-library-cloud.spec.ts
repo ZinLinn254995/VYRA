@@ -517,7 +517,7 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   assert.ok(service.includes('mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId))'), 'Folder caches must be isolated by Universe.');
 
   assert.ok(page.includes('universeId?: string; storyboardId?: string'), 'The existing Media Library page must accept an explicit Storyboard scope.');
-  assert.ok(page.includes('universeId && storyboardId ? { universeId, storyboardId } : undefined'), 'Uploads must pass the Storyboard identity to the scoped ingestion service.');
+  assert.ok(page.includes('universeId && storyboardId ? { universeId, storyboardId, onMasterDnaSync:'), 'Uploads must pass the Storyboard identity to the scoped ingestion service.');
   assert.ok(page.includes('JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])'), 'Cached files and folders must never leak between personal and Storyboard Libraries.');
   assert.ok(page.includes('await deleteMediaLibraryItems(deletedFileIds, universeId)'), 'Delete actions must target the active Universe only.');
 
