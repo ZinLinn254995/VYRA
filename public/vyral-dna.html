@@ -61,7 +61,7 @@
     <h2>One identity system, multiple evidence types</h2>
     <h3>Asset identity and visual evidence</h3>
     <p>For supported PNG, JPEG and WebP uploads, VYRA uses a pinned server-side ImageMagick WASM decoder to produce a canonical row-major RGBA8 sample stream. The stream is stored in lossless tiles. Tile SHA-256 values and an aggregate decoded-sample SHA-256 digest support source integrity verification.</p>
-    <p class="note"><strong>Important boundary:</strong> this path can recover the decoded pixel samples exactly under the recorded decoder contract and encode them into a new PNG. It does not recover the original PNG or JPEG file bytes, original compression choices, or every original metadata chunk.</p>
+    <p class="note"><strong>Important boundary:</strong> this path verifies decoded pixel samples under the recorded decoder contract. It is an integrity check, not a promise that generative models will reproduce the original file or pixels.</p>
 
     <h3>Source integrity and provenance</h3>
     <p>For supported non-raster files, Asset integrity records preserve the source file's SHA-256 identity. VYRA can verify retained source bytes against that identity when assets are packaged, copied, or restored.</p>
