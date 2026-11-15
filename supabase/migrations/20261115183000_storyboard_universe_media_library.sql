@@ -95,6 +95,7 @@ declare
   asset_owner uuid;
   asset_universe uuid;
   asset_folder uuid;
+  asset_universe_scope text;
   universe_owner uuid;
   universe_scope text;
 begin
@@ -117,10 +118,16 @@ begin
     end if;
   end if;
   if new.source_asset_id is not null then
-    select user_id, vyral_id, folder_id into asset_owner, asset_universe, asset_folder
-      from public.vyral_assets where id = new.source_asset_id;
+    select a.user_id, a.vyral_id, a.folder_id, u.metadata ->> 'universe_scope'
+      into asset_owner, asset_universe, asset_folder, asset_universe_scope
+      from public.vyral_assets a
+      join public.vyrals u on u.id = a.vyral_id and u.user_id = a.user_id
+      where a.id = new.source_asset_id;
     if asset_owner is distinct from new.user_id then
       raise exception 'Source Asset does not belong to this user';
+    end if;
+    if asset_universe_scope = 'storyboard' and asset_universe is distinct from new.universe_id then
+      raise exception 'Storyboard Assets cannot be moved into a different Library scope';
     end if;
     if new.universe_id is not null and asset_universe is distinct from new.universe_id then
       raise exception 'Source Asset does not belong to this Storyboard Universe';
