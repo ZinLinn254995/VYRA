@@ -1,14 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Bot, Clapperboard, Coins, UserRound } from 'lucide-react';
+import { Coins, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
   userEmail: string | null;
   creditBalance: string | null;
   creditLoading: boolean;
-  activeSection: 'workspace' | 'ai-chat' | 'profile';
   onWorkspaceRequest: () => void;
-  onAIChatRequest: () => void;
   onAuthRequest: (mode: 'login' | 'signup') => void;
   onProfileClick: () => void;
 };
@@ -18,8 +16,8 @@ const BrandMark = ({ className = '' }: { className?: string }) => (
 );
 
 export const AppHeader: React.FC<HeaderProps> = ({
-  userEmail, creditBalance, creditLoading, activeSection,
-  onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
+  userEmail, creditBalance, creditLoading,
+  onWorkspaceRequest, onAuthRequest, onProfileClick,
 }) => {
   const headerRef = useRef<HTMLElement>(null);
 
@@ -81,32 +79,13 @@ export const AppHeader: React.FC<HeaderProps> = ({
   const signedIn = Boolean(userEmail);
   const formattedBalance = creditBalance === null ? '—' : Number(creditBalance).toLocaleString();
 
-  const navClass = (section: HeaderProps['activeSection']) =>
-    `flex h-full items-center gap-1.5 border-b-2 px-2 text-xs transition sm:px-3 sm:text-sm ${activeSection === section
-      ? 'border-[var(--vyra-accent-primary)] font-semibold text-[var(--vyra-text-primary)]'
-      : 'border-transparent font-medium text-[var(--vyra-text-secondary)] hover:text-[var(--vyra-text-primary)]'}`;
-
-  const mobileNavClass = (section: HeaderProps['activeSection']) =>
-    `flex min-h-10 items-center gap-1.5 border-b-2 px-2 text-xs transition ${activeSection === section
-      ? 'border-[var(--vyra-accent-primary)] font-semibold text-[var(--vyra-text-primary)]'
-      : 'border-transparent font-medium text-[var(--vyra-text-secondary)]'}`;
-
   return (
     <header ref={headerRef} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onWorkspaceRequest} aria-label="VYRA Workspace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
-          <span className="text-lg font-extrabold tracking-[0.16em] text-[var(--vyra-text-primary)]">VYRA</span>
+          <span className="text-base font-semibold tracking-wide text-[var(--vyra-text-primary)]">Workspace</span>
         </button>
-
-        <nav aria-label="Main navigation" className="flex h-full items-center gap-0.5 sm:gap-1">
-          <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={navClass('workspace')}>
-            <Clapperboard size={15} /> Workspace
-          </button>
-          <button type="button" onClick={onAIChatRequest} aria-current={activeSection === 'ai-chat' ? 'page' : undefined} className={navClass('ai-chat')}>
-            <Bot size={15} /> AI Chat
-          </button>
-        </nav>
 
         <div className="relative flex shrink-0 items-center gap-2">
           {signedIn ? (
@@ -133,7 +112,7 @@ export const AppHeader: React.FC<HeaderProps> = ({
         <div className="flex h-14 items-center justify-between gap-2">
           <button type="button" onClick={onWorkspaceRequest} aria-label="VYRA Workspace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
             <BrandMark className="size-8 rounded-[10px]" />
-            <span className="text-base font-extrabold tracking-[0.13em] text-[var(--vyra-text-primary)]">VYRA</span>
+            <span className="text-sm font-semibold tracking-wide text-[var(--vyra-text-primary)]">Workspace</span>
           </button>
 
           <div className="relative flex shrink-0 items-center gap-2">
@@ -157,14 +136,6 @@ export const AppHeader: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        <nav aria-label="Main navigation" className="flex min-h-11 items-center gap-1 border-t border-[var(--vyra-border-subtle)]">
-          <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={mobileNavClass('workspace')}>
-            <Clapperboard size={14} /> Workspace
-          </button>
-          <button type="button" onClick={onAIChatRequest} aria-current={activeSection === 'ai-chat' ? 'page' : undefined} className={mobileNavClass('ai-chat')}>
-            <Bot size={14} /> AI Chat
-          </button>
-        </nav>
       </div>
     </header>
   );
