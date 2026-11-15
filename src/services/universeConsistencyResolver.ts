@@ -47,7 +47,7 @@ export interface UniverseConsistencyTask {
   operation: 'generate' | 'edit' | 'analyze';
   referencedAssetIds?: string[];
   tags?: string[];
-  at?: string;
+  at: string;
   maxAssets?: number;
   includeRelated?: boolean;
 }
@@ -161,6 +161,7 @@ export function resolveUniverseConsistencyContext(
       adjacency.set(edge.fromAssetId, [...(adjacency.get(edge.fromAssetId) ?? []), edge.toAssetId]);
       adjacency.set(edge.toAssetId, [...(adjacency.get(edge.toAssetId) ?? []), edge.fromAssetId]);
     }
+    for (const [id, neighbors] of adjacency) adjacency.set(id, unique(neighbors).sort());
     while (queue.length) {
       const current = queue.shift()!;
       for (const next of adjacency.get(current) ?? []) {
@@ -194,7 +195,9 @@ export function resolveUniverseConsistencyContext(
     .filter((record) =>
       !record.appliesToAssetIds?.length || record.appliesToAssetIds.some((id) => boundedIds.has(id)),
     )
-    .filter((record) => !record.subjectId || record.scope === 'universe' || boundedIds.has(record.subjectId))
+    .filter((record) => !record.subjectId || record.scope === 'universe' || boundedIds.has(record.subjectId) ||
+      (record.appliesToAssetIds ?? []).some((id) => boundedIds.has(id)) ||
+      (record.sourceAssetIds ?? []).some((id) => boundedIds.has(id)))
     .sort((a, b) => a.id.localeCompare(b.id));
   const boundedRelationships = relationships
     .filter((edge) => boundedIds.has(edge.fromAssetId) && boundedIds.has(edge.toAssetId))
