@@ -692,7 +692,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
           workspace: 'Workspace',
           marketplace: 'Marketplace',
-          'my-vyrals': 'My Vyrals',
+          'my-vyrals': 'My Universes',
           'my-media-library': 'My Media Library',
         };
         const assistantMessage: ChatMessage = {
@@ -1362,7 +1362,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isAuthenticated, onLogin
       }
       if (requestsAssetDnaAssessment) {
         if (selectedAssets.length !== 1) {
-          throw new Error('To assess Asset DNA, select exactly one Asset in My Vyrals or My Media Library, then ask VYRA AI Chat to check its DNA.');
+          throw new Error('To assess Asset DNA, select exactly one Asset in My Universes or My Media Library, then ask VYRA AI Chat to check its DNA.');
         }
         if (!supabase) throw new Error('Secure Asset DNA assessment is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
