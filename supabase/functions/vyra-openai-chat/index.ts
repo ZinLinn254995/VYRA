@@ -3975,8 +3975,6 @@ Deno.serve(async (request: Request) => {
       rows.push(record as Record<string, unknown>);
       dnaRowsByAsset.set(assetId, rows);
     }
-    const assetNames = new Map<string, string>();
-    for (const asset of assets) assetNames.set(String(asset.id), String(asset.name));
     const creatorFieldsByAsset = new Map<string, Record<string, unknown>[]>();
     for (const evidence of (creatorEvidenceTruncated ? [] : creatorEvidenceResult.data ?? [])) {
       const assetId = String(evidence.asset_id);
@@ -4195,6 +4193,8 @@ Deno.serve(async (request: Request) => {
               [item.creatorStatement, JSON.stringify(item.adoptedObservation ?? null)].filter(Boolean).join(' ')) : []),
             ...(Array.isArray(asset.creatorConfirmedFields) ? asset.creatorConfirmedFields.map((item) =>
               [item.fieldPath, JSON.stringify(item.acceptedValue ?? null), item.creatorNote].filter(Boolean).join(' ')) : []),
+            ...(Array.isArray(asset.creatorConfirmedFieldConflicts) ? asset.creatorConfirmedFieldConflicts.map((item) =>
+              String(item.fieldPath ?? '') + ' unresolved conflicting creator values') : []),
           ].slice(0, 24),
         };
       }),
