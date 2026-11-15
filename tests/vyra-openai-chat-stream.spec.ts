@@ -172,6 +172,7 @@ test('AI Chat marks incomplete DNA and creator-evidence histories instead of imp
   assert.match(source, /dnaContextTruncated = \(dnaResult\.count \?\? 0\) > \(dnaResult\.data\?\.length \?\? 0\)/);
   assert.match(source, /creatorEvidenceTruncated = \(creatorEvidenceResult\.count \?\? 0\) > \(creatorEvidenceResult\.data\?\.length \?\? 0\)/);
   assert.match(source, /creatorConfirmedFieldEvidenceComplete: !creatorEvidenceTruncated/);
+  assert.match(source, /\.in\('asset_id', assets\.map\(\(asset\) => asset\.id\)\)/);
   assert.match(source, /creatorKnowledgeHistoryComplete: !dnaContextTruncated/);
   assert.match(source, /If the creator-evidence or DNA-history retrieval is truncated, treat those histories as incomplete/);
 });
