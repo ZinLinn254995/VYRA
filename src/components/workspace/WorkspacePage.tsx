@@ -753,7 +753,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardUniverse(null); setStoryboardEditorView('scenes'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
-  // Resolve the requested Universe before the browser paints the editor host.
+  // Resolve the requested Project before the browser paints the editor host.
   // This prevents the retired Workspace landing page from flashing for one frame.
   useLayoutEffect(() => {
     if (!openUniverseRequest || loadedStorageKey !== storageKey || lastOpenedUniverseRequestRef.current === openUniverseRequest.requestId) return;
@@ -862,8 +862,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     const now = new Date().toISOString();
     const storyboard: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
-      title: 'New Universe',
-      topic: 'A new creative Universe is ready to take shape. Build its world, Assets, and stories.',
+      title: 'New Project',
+      topic: 'A new Project is ready to take shape. Build its scenes, Assets, and story.',
       createdAt: now,
       updatedAt: now,
       details: { category: '', style: '', mood: '', tags: [], origins: {}, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
@@ -978,7 +978,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   if (openUniverseRequest && !activeStoryboard && lastOpenedUniverseRequestRef.current !== openUniverseRequest.requestId) {
     return (
       <main className="flex min-h-0 flex-1 items-center justify-center bg-[var(--vyra-bg-canvas)]">
-        <div role="status" className="text-sm text-[var(--vyra-text-muted)]">Opening Universe…</div>
+        <div role="status" className="text-sm text-[var(--vyra-text-muted)]">Opening Project…</div>
       </main>
     );
   }
@@ -1132,7 +1132,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             <section className="profile-subpage-card storyboard-fullscreen-card">
               <ProfileSubpageHeader
                 onBack={() => setActiveSceneId(null)}
-                backLabel="Universe Editor"
+                backLabel="Project Editor"
                 icon={<Film size={22} />}
                 title={scene.title}
                 description={'Scene Editor · ' + scene.duration + ' seconds'}
@@ -1307,7 +1307,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             </section>
           </div>
         <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Storyboard’s Universe for AI Chat…</div>}
+          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
         </aside>
         <div className="hidden">
           <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={false} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
@@ -1346,10 +1346,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
           <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
-              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to My Universe">
-                <ArrowLeft size={16} /><span>My Universe</span>
+              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to My Projects">
+                <ArrowLeft size={16} /><span>My Projects</span>
               </button>
-              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Universe'}</span>
+              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Project'}</span>
             </div>
             <button type="button" onClick={() => setStoryboardDetailsExpanded((expanded) => !expanded)} aria-label={storyboardDetailsExpanded ? 'Minimize storyboard details' : 'Open storyboard details'} aria-expanded={storyboardDetailsExpanded} className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
               <ChevronDown className={'transition-transform ' + (storyboardDetailsExpanded ? 'rotate-180' : '')} size={18} />
@@ -1524,7 +1524,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     ) : storyboardEditorView === 'chat' ? (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex flex-1 items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Storyboard’s Universe for AI Chat…</div>}
+                        {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex flex-1 items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
                       </div>
                     ) : null}
                     <div className={storyboardEditorView === 'universe' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
@@ -1548,7 +1548,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={21} /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Universes</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative Universes and their Assets</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Projects</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative Projects and their Assets</span></span>
             <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
           </button>
           <button type="button" onClick={() => onOpenLibraryPage('my-media-library')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
