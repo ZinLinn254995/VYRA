@@ -210,6 +210,9 @@ test('AI Chat derives a task-specific continuity checklist before creative actio
   assert.match(edge, /Before any creation, editing, or generation task, derive a task-specific continuity checklist/);
   assert.match(edge, /Check stable identity and canon separately from mutable timeline\/state/);
   assert.match(edge, /Apply the checklist across appearance, style, voice, behavior, setting, props, relationships, and temporal state/);
+  assert.match(edge, /cross-scene continuity ledger/);
+  assert.match(edge, /Treat each Scene as a state transition, not an isolated prompt/);
+  assert.match(edge, /Track continuity across distant Scenes too/);
   assert.match(edge, /If a required fact is missing, conflicting, stale, or outside the retrieved evidence/);
 });
 
