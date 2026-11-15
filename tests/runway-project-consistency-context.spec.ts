@@ -38,16 +38,16 @@ test('Project context contains matching nested DNA evidence and excludes other P
   const calls: Array<{ table: string; filters: Array<[string, unknown]> }> = [];
   const datasets: Record<string, unknown[]> = {
     vyral_assets: [
-      { id: 'asset-red-fox', name: 'Red Fox', asset_type: 'image', mime_type: 'image/png', metadata: { description: 'Main character' } },
-      { id: 'asset-blue-boat', name: 'Blue Boat', asset_type: 'image', mime_type: 'image/png', metadata: {} },
+      { id: 'asset-red-fox', user_id: 'user-1', vyral_id: 'project-assets-1', name: 'Red Fox', asset_type: 'image', mime_type: 'image/png', metadata: { description: 'Main character' } },
+      { id: 'asset-blue-boat', user_id: 'user-1', vyral_id: 'project-assets-1', name: 'Blue Boat', asset_type: 'image', mime_type: 'image/png', metadata: {} },
     ],
     vyral_dna_records: [
-      { asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'observed', payload: { dna_record: { visual_description: 'Rust red fur, white chest, amber eyes' } } },
+      { user_id: 'user-1', vyral_id: 'project-assets-1', asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'observed', payload: { dna_record: { visual_description: 'Rust red fur, white chest, amber eyes' } } },
       { asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'creator_confirmed', payload: { knowledge: { appearance: 'Amber eyes are a defining trait' } } },
     ],
     vyral_asset_relationships: [
-      { id: 'edge-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'travels_on', rationale: 'Creator confirmed the fox uses this boat.', review_status: 'creator_approved' },
-      { id: 'edge-2', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.', review_status: 'proposed' },
+      { id: 'edge-1', user_id: 'user-1', vyral_id: 'project-assets-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'travels_on', rationale: 'Creator confirmed the fox uses this boat.', review_status: 'creator_approved' },
+      { id: 'edge-2', user_id: 'user-1', vyral_id: 'project-assets-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.', review_status: 'proposed' },
     ],
   };
   const db = {
