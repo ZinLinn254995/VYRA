@@ -152,8 +152,12 @@ export function getSceneContinuityContext(
   // An entry snapshot is valid only for the exact predecessor version it was
   // evaluated against. Reordering or re-approving an earlier Scene invalidates
   // that snapshot and forces the newest approved handoff to be used.
+  const entryStateMatchesHandoff = !previous
+    || (current.entryState !== null && previousExitState !== null
+      && stableStateValue(current.entryState) === stableStateValue(previousExitState));
   const entrySnapshotCurrent = current.entryFromSceneId === (current.previousSceneId ?? null)
-    && (current.entryFromSceneUpdatedAt ?? null) === (previous?.updatedAt ?? null);
+    && (current.entryFromSceneUpdatedAt ?? null) === (previous?.updatedAt ?? null)
+    && entryStateMatchesHandoff;
   const entrySnapshotStale = current.entryState !== null && !entrySnapshotCurrent;
   const currentEntryState = current.entryState ?? previousExitState;
   return {
@@ -186,6 +190,15 @@ export function recordSceneContinuityEvaluation(
   const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
   const current = ledger.scenes[input.sceneId];
   if (!current) throw new Error('Cannot record continuity for an unknown Scene.');
+  const previous = current.previousSceneId ? ledger.scenes[current.previousSceneId] : null;
+  if (previous) {
+    if (!isSceneHandoffCurrent(ledger, previous.sceneId)) {
+      throw new Error('The previous Scene must have a current creator-approved handoff before this Scene can be evaluated.');
+    }
+    if (stableStateValue(input.entryState) !== stableStateValue(previous.exitState)) {
+      throw new Error('The Scene entry state must exactly match the previous Scene approved exit state.');
+    }
+  }
   const updatedAt = input.updatedAt ?? new Date().toISOString();
   return {
     ...ledger,
