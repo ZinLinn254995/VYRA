@@ -189,6 +189,20 @@ test('AI Chat keeps conflicting creator-confirmed facts unresolved instead of si
   assert.match(evidence, /effective_at.*valid_from.*at.*timestamp.*event_id/);
 });
 
+test('AI Chat indexes a bounded but broad Universe inventory before selecting a small task context', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /\.neq\('processing_status', 'archived'\)[\s\S]*?\.limit\(120\)/);
+  assert.match(edge, /\.order\('revision_number', \{ ascending: false \}\)[\s\S]*?\.limit\(480\)/);
+  assert.match(edge, /creatorEvidenceResult[\s\S]*?\.limit\(480\)/);
+  assert.match(edge, /visionObservationResult[\s\S]*?\.limit\(360\)/);
+  assert.match(edge, /snapshotAssetInventoryTruncated = snapshotAssets\.length > 240/);
+  assert.match(edge, /rawSnapshotRelationships\.length > 240/);
+  assert.match(edge, /\.slice\(0, 240\)\.map/);
+  assert.match(edge, /assetInventoryTruncated: \(assetResult\.count \?\? assets\.length\) > assets\.length \|\| snapshotAssetInventoryTruncated/);
+  assert.match(edge, /relationshipsTruncated: snapshotRelationshipsTruncated/);
+  assert.match(edge, /maxAssets: 12/);
+});
+
 test('AI Chat uses only current-version hash-pinned Vision observations as non-canonical retrieval hints', () => {
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(edge, /from\('vyral_vision_observations'\)/);
