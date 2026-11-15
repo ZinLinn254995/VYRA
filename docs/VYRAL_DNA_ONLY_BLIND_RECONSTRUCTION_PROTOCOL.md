@@ -1,3 +1,5 @@
+> **HISTORICAL EXPERIMENT (2026-11-15):** This protocol is retained as an optional research/diagnostic record only. External-AI DNA-only reconstruction is no longer the primary Vyral product outcome. Vyral DNA is internal knowledge for VYRA's Consistency Engine. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # VYRAL DNA-Only Blind Reconstruction Protocol
 
 Status: acceptance protocol; this document defines evidence requirements and does not claim that any Asset has passed.
