@@ -509,7 +509,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         const activeContinuity = activeSceneId ? getSceneContinuityContext(ledger, scenes, activeSceneId) : null;
         return {
           storyboardId: activeStoryboard.id,
-          sceneIds: scenes.slice(0, 100).map((scene) => scene.id),
+          sceneIds: scenes.slice(0, 500).map((scene) => scene.id),
           ledger: JSON.stringify(ledger).length <= 48_000 ? ledger : null,
           initialEntryState: activeContinuity?.previousSceneId === null && !activeContinuity.entrySnapshotStale
             ? activeContinuity.currentEntryState : null,
