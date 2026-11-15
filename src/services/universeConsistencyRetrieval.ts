@@ -57,15 +57,6 @@ const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase()
 const tokens = (value: string) => (normalize(value).match(/[\p{L}\p{N}\p{M}]+/gu) ?? [])
   .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
 
-const textOf = (asset: UniverseRetrievalAsset) => [
-  asset.name,
-  asset.type ?? '',
-  asset.description ?? '',
-  asset.purpose ?? '',
-  ...(asset.tags ?? []),
-  ...(asset.searchableEvidence ?? []),
-].join(' ').slice(0, 12000);
-
 const overlapScore = (queryTerms: string[], candidate: string, multiplier: number) => {
   if (!queryTerms.length) return 0;
   const normalizedCandidate = normalize(candidate);
@@ -103,6 +94,8 @@ export function retrieveUniverseConsistencyContext(
     }
     const nameScore = overlapScore(queryTerms, asset.name, 14);
     if (nameScore) { score += nameScore; why.push('asset_name_match'); }
+    const typeScore = overlapScore(queryTerms, asset.type ?? '', 5);
+    if (typeScore) { score += typeScore; why.push('asset_type_match'); }
     const tagScore = overlapScore(queryTerms, (asset.tags ?? []).join(' '), 12);
     if (tagScore) { score += tagScore; why.push('tag_match'); }
     const purposeScore = overlapScore(queryTerms, asset.purpose ?? '', 8);
