@@ -15,8 +15,11 @@ create table if not exists public.media_generation_job_outputs (
     char_length(output_url) between 9 and 8192 and output_url ~ '^https://'
   ),
   created_at timestamptz not null default pg_catalog.now(),
+  expires_at timestamptz not null default (pg_catalog.now() + interval '24 hours'),
   constraint media_generation_job_outputs_job_index_unique unique (job_id, output_index)
 );
+create index if not exists media_generation_job_outputs_expiry_idx
+  on public.media_generation_job_outputs(expires_at);
 alter table public.media_generation_job_outputs enable row level security;
 revoke all on public.media_generation_job_outputs from public, anon, authenticated;
 grant select, insert on public.media_generation_job_outputs to service_role;
@@ -100,7 +103,7 @@ begin
   if auth.role() <> 'service_role' then
     raise exception 'Service role required.' using errcode = '42501';
   end if;
-  if p_user_id is null or p_job_id is null or p_provider_task_id is null
+  if p_user_id is null or p_job_id is null or p_provider_task_id is null or p_status is null
      or p_status not in ('pending','processing','succeeded','failed','cancelled','unknown')
      or p_failure_code is not null and char_length(p_failure_code) > 80
      or p_output_urls is null or jsonb_typeof(p_output_urls) <> 'array'
@@ -130,6 +133,12 @@ begin
         'status', v_job.status, 'output_count', coalesce(v_job.provider_output_count, 0));
     end if;
     raise exception 'Runway task snapshot conflicts with a terminal job state.' using errcode = '23505';
+  end if;
+
+  if v_job.provider_task_status = 'processing' and p_status = 'pending' then
+    return jsonb_build_object('recorded', true, 'idempotent', true,
+      'stale_snapshot_ignored', true, 'status', v_job.status,
+      'output_count', coalesce(v_job.provider_output_count, 0));
   end if;
 
   select * into v_quote from public.media_generation_quotes
