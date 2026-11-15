@@ -85,11 +85,11 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
       }).select('id,name,description,visibility,dna_status,license_policy,metadata,master_dna_status,master_dna_revision,master_dna_purpose,master_dna_intended_uses').single();
       if (requestId !== requestRef.current) return;
       if (created.error || !created.data) {
-        // A second tab may have created the same Universe between the read and insert.
+        // A second tab may have prepared the same Project Assets library between the read and insert.
         result = await findExisting();
         if (requestId !== requestRef.current) return;
         if (result.error || !result.data) {
-          setError(created.error?.message || result.error?.message || 'Could not create this Project Assets.');
+          setError(created.error?.message || result.error?.message || 'Could not prepare Project Assets.');
           setLoading(false);
           return;
         }
@@ -115,7 +115,7 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
     return <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">Sign in to create this Storyboard’s Project Assets Library</p><button type="button" onClick={onLoginRequired} className="rounded-lg bg-[var(--vyra-accent-primary)] px-4 py-2 text-xs font-semibold text-slate-950">Sign in</button></div>;
   }
   if (loading) return <div className="flex min-h-64 items-center justify-center gap-2 text-xs text-[var(--vyra-text-muted)]"><LoaderCircle size={16} className="animate-spin"/> Preparing Project Assets…</div>;
-  if (error || !universe) return <div className="mx-auto flex min-h-64 max-w-lg flex-col items-center justify-center gap-3 px-5 text-center"><AlertCircle size={22} className="text-[var(--vyra-danger)]"/><p role="alert" className="text-xs text-[var(--vyra-text-secondary)]">{error || 'This Project Assets are not available.'}</p><button type="button" onClick={() => void loadOrCreateUniverse()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><RefreshCw size={13}/> Retry</button></div>;
+  if (error || !universe) return <div className="mx-auto flex min-h-64 max-w-lg flex-col items-center justify-center gap-3 px-5 text-center"><AlertCircle size={22} className="text-[var(--vyra-danger)]"/><p role="alert" className="text-xs text-[var(--vyra-text-secondary)]">{error || 'Project Assets are not available.'}</p><button type="button" onClick={() => void loadOrCreateUniverse()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><RefreshCw size={13}/> Retry</button></div>;
 
   return (
     <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
