@@ -197,7 +197,8 @@ export function resolveUniverseConsistencyContext(
     )
     .filter((record) => !record.subjectId || record.scope === 'universe' || boundedIds.has(record.subjectId) ||
       (record.appliesToAssetIds ?? []).some((id) => boundedIds.has(id)) ||
-      (record.sourceAssetIds ?? []).some((id) => boundedIds.has(id)))
+      (record.sourceAssetIds ?? []).some((id) => boundedIds.has(id)) ||
+      (record.appliesToTags ?? []).some((tag) => taskTags.has(clean(tag))))
     .sort((a, b) => a.id.localeCompare(b.id));
   const boundedRelationships = relationships
     .filter((edge) => boundedIds.has(edge.fromAssetId) && boundedIds.has(edge.toAssetId))
