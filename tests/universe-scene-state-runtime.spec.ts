@@ -85,3 +85,24 @@ test('rejects invalid structured state without mutating the supplied ledger', ()
   assert.equal(result.ok, false);
   assert.equal(ledger, undefined);
 });
+
+test('bounds deterministic repair attempts and requires creator review after the limit', () => {
+  const evaluateAt = (attempt: number) => evaluateSceneStateProposal({
+    response: response(),
+    expectedSceneId: 's1',
+    scenes: [{ id: 's1' }],
+    initialEntryState: { character: { mira: { outfit: 'clean blue coat' } } },
+    attempt,
+  });
+  const first = evaluateAt(0);
+  const second = evaluateAt(1);
+  const exhausted = evaluateAt(2);
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(exhausted.ok, true);
+  if (!first.ok || !second.ok || !exhausted.ok) return;
+  assert.deepEqual(first.runtime.retry, { allowed: true, attempt: 0, maxAttempts: 2, requiresCreatorReview: false });
+  assert.deepEqual(second.runtime.retry, { allowed: true, attempt: 1, maxAttempts: 2, requiresCreatorReview: false });
+  assert.deepEqual(exhausted.runtime.retry, { allowed: false, attempt: 2, maxAttempts: 2, requiresCreatorReview: true });
+  assert.equal(exhausted.runtime.ledger.scenes.s1.validationStatus, 'needs_review');
+});
