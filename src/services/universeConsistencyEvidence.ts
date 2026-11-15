@@ -58,7 +58,9 @@ const withoutTemporalMetadata = (value: unknown): unknown => {
     'event_time', 'eventTime', 'as_of', 'asOf', 'valid_to', 'validTo',
     'effective_until', 'effectiveUntil', 'effective_to', 'effectiveTo', 'expires_at', 'expiresAt', 'ends_at', 'endsAt', 'end_at', 'endAt',
     'valid_until', 'validUntil', 'temporal', 'temporal_scope', 'temporalScope',
-    'validity', 'time',
+    'validity', 'time', 'period', 'event',
+    'effective_from', 'effectiveFrom', 'valid_from', 'validFrom', 'starts_at', 'startsAt', 'start_at', 'startAt',
+    'effective_to', 'effectiveTo', 'valid_to', 'validTo', 'ends_at', 'endsAt', 'end_at', 'endAt',
   ]);
   return Object.fromEntries(Object.entries(value)
     .filter(([key]) => !temporalKeys.has(key))
