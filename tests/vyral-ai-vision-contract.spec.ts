@@ -60,7 +60,7 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /download\(sourceVersion\.storage_path\)/);
   assert.match(details, /manual_retry_after_automatic_failure/);
   assert.match(details, /reprocessed_original_source_version/);
-  assert.match(details, /Retry AI analysis/);
+  assert.doesNotMatch(details, /Retry AI analysis/);
   assert.match(details, /ai_vision_status: 'failed'/);
   assert.match(details, /ai_vision_status: 'recorded'/);
   assert.match(details, /visionRecord\?\.status !== 'recorded'/);
@@ -70,8 +70,8 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /ai_details_status: isVyralPackageAsset/);
   assert.match(details, /vyral_vision_creator_evidence/);
   assert.match(details, /visionReviews/);
-  assert.match(details, /AI Vision observations/);
-  assert.match(details, /Confirm observation/);
+  assert.doesNotMatch(details, /AI Vision observations/);
+  assert.doesNotMatch(details, /Confirm observation/);
   assert.match(details, /type VisionQuality =/);
   assert.match(details, /assessVisionQuality\(item\.observation\)/);
   assert.match(details, /low-confidence field/);
