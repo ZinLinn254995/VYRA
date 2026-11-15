@@ -1,13 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Bot, Clapperboard, Coins, Store, UserRound } from 'lucide-react';
+import { Bot, Clapperboard, Coins, UserRound } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type HeaderProps = {
   userEmail: string | null;
   creditBalance: string | null;
   creditLoading: boolean;
-  activeSection: 'marketplace' | 'workspace' | 'ai-chat' | 'profile';
-  onMarketplaceRequest: () => void;
+  activeSection: 'workspace' | 'ai-chat' | 'profile';
   onWorkspaceRequest: () => void;
   onAIChatRequest: () => void;
   onAuthRequest: (mode: 'login' | 'signup') => void;
@@ -18,9 +17,9 @@ const BrandMark = ({ className = '' }: { className?: string }) => (
   <img src="/vyra-icon.svg" alt="" aria-hidden="true" className={className} />
 );
 
-export const MarketplaceHeader: React.FC<HeaderProps> = ({
+export const AppHeader: React.FC<HeaderProps> = ({
   userEmail, creditBalance, creditLoading, activeSection,
-  onMarketplaceRequest, onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
+  onWorkspaceRequest, onAIChatRequest, onAuthRequest, onProfileClick,
 }) => {
   const headerRef = useRef<HTMLElement>(null);
 
@@ -95,13 +94,12 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
   return (
     <header ref={headerRef} className="fixed inset-x-0 top-[var(--vyra-visual-viewport-top,0px)] z-50 w-full border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/95 backdrop-blur-xl">
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
-        <button type="button" onClick={onMarketplaceRequest} aria-label="VYRA Marketplace home" className="flex shrink-0 items-center gap-2">
+        <button type="button" onClick={onWorkspaceRequest} aria-label="VYRA Workspace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
           <span className="text-lg font-extrabold tracking-[0.16em] text-[var(--vyra-text-primary)]">VYRA</span>
         </button>
 
         <nav aria-label="Main navigation" className="flex h-full items-center gap-0.5 sm:gap-1">
-          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={navClass('marketplace')}><Store size={15} /> Marketplace</button>
           <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={navClass('workspace')}>
             <Clapperboard size={15} /> Workspace
           </button>
@@ -160,7 +158,6 @@ export const MarketplaceHeader: React.FC<HeaderProps> = ({
         </div>
 
         <nav aria-label="Main navigation" className="flex min-h-11 items-center gap-1 border-t border-[var(--vyra-border-subtle)]">
-          <button type="button" onClick={onMarketplaceRequest} aria-current={activeSection === 'marketplace' ? 'page' : undefined} className={mobileNavClass('marketplace')}><Store size={14} /> Marketplace</button>
           <button type="button" onClick={onWorkspaceRequest} aria-current={activeSection === 'workspace' ? 'page' : undefined} className={mobileNavClass('workspace')}>
             <Clapperboard size={14} /> Workspace
           </button>
