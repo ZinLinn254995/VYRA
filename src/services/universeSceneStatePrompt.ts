@@ -30,3 +30,45 @@ export function buildSceneStateProposalInstruction(
     '<vyra-scene-state>{"schemaVersion":1,"sceneId":' + sceneId + ',"facts":[{"path":"scene.location","value":"interior hall","scope":"scene_state","evidence":"inside the hall"}],"intendedChanges":[]}</vyra-scene-state>',
   ].join('\n');
 }
+
+export interface SceneVisualContinuityContext {
+  contextComplete: boolean;
+  previousSceneApproved: boolean;
+  entrySnapshotStale: boolean;
+  currentEntryState: Record<string, unknown> | null;
+  validationStatus: 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
+}
+
+/**
+ * Gives image/video prompt writing and Scene editing the same approved
+ * continuity constraints as narrative generation. This is guidance only:
+ * the deterministic ledger remains the authority for approval.
+ */
+export function buildSceneVisualContinuityInstruction(
+  page: unknown,
+  activeSceneId: unknown,
+  continuity: SceneVisualContinuityContext | null,
+): string {
+  if (page !== 'scene-editor' || typeof activeSceneId !== 'string'
+    || !activeSceneId.trim() || activeSceneId.length > 128) return '';
+  if (!continuity) {
+    return '\\nSCENE VISUAL CONTINUITY: No continuity record is available. Do not claim that visual identity or scene continuity has been verified. Ask for the missing creator-approved starting context before presenting a final continuity-sensitive output.';
+  }
+  if (continuity.entrySnapshotStale) {
+    return '\\nSCENE VISUAL CONTINUITY: The active Scene entry snapshot is stale. Do not present a continuity-sensitive image/video prompt as final or silently choose between conflicting states. Explain the mismatch and request that the creator refresh or approve the correct starting state.';
+  }
+  if (!continuity.contextComplete || !continuity.previousSceneApproved || !continuity.currentEntryState) {
+    return '\\nSCENE VISUAL CONTINUITY: The approved entry context is incomplete. You may help draft ideas, but clearly label continuity assumptions as unverified and do not claim a final consistent result. Ask for the missing approved state when it materially affects the output.';
+  }
+  return [
+    '',
+    'SCENE VISUAL CONTINUITY FOR IMAGE, VIDEO, AND EDITING REQUESTS:',
+    'Use the creator-approved currentEntryState in Workspace context as the authoritative continuity baseline for this Scene.',
+    'Before writing or revising any image prompt, video prompt, shot description, or edit instruction, extract all relevant persistent visual invariants from that state: identity and facial traits, body/build, age appearance, hair, wardrobe, accessories, props, environment/location, time/weather, and established relationships. Apply only categories actually present in the approved state; never invent missing facts.',
+    'Preserve every relevant approved invariant across camera angles, framing, lighting, shot size, action, and scene transitions. Change only what the creator requests or what the narrative explicitly establishes as an intended change.',
+    'Separate persistent identity/canon from temporary shot state such as pose, expression, camera, framing, and momentary lighting. A camera change must not become an identity or wardrobe change.',
+    'For editing, describe the smallest change that satisfies the request and explicitly preserve all unrelated approved traits. For multi-shot/video prompts, repeat concise identity and environment anchors wherever needed to prevent drift.',
+    'If the creator requests a change that conflicts with approved state, explain the conflict and treat it as a proposed change requiring creator direction; never silently rewrite canon.',
+    'Do not claim an image or video is verified as consistent merely because its prompt follows these rules. Actual generated media still requires visual evaluation and creator review.',
+  ].join('\\n');
+}
