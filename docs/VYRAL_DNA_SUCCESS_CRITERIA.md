@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-11-15):** The former DNA-only reconstruction success criteria are not the current Vyral acceptance contract. Keep deterministic source-integrity and fingerprint checks where applicable; measure product success through Universe identity, canon/state continuity, context retrieval, and consistent creative outputs. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # VYRAL DNA Success Criteria
 
 **Status:** Acceptance criteria and current validation baseline. This document defines what counts as DNA completeness and reconstruction success; it does not claim that the current system has achieved these levels.
