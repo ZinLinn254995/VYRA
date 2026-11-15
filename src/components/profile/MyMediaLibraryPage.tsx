@@ -86,7 +86,7 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
   );
 };
 
-export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
+export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: string; storyboardId?: string }> = ({ isActive = true, universeId, storyboardId }) => {
   const { user } = useAuth();
   const ownerId = user?.id ?? null;
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
@@ -194,7 +194,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
 
   const refresh = useCallback(async (silent = false) => {
-    const cacheKey = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
+    const cacheKey = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
     const cached = libraryCacheRef.current.get(cacheKey);
     const requestId = ++libraryRequestRef.current;
     // Invalidate any in-flight next-page request when the library context changes.
@@ -215,7 +215,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     setError(null);
     if (!ownerId) { setFolders([]); setItems([]); setHasMoreItems(false); setLoading(false); return; }
     try {
-      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100 });
+      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100, universeId });
       if (requestId !== libraryRequestRef.current) return;
       setFolders(result.folders);
       setItems(result.items);
@@ -236,12 +236,12 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
     }
-  }, [activeFolderId, filter, ownerId, serverQuery]);
+  }, [activeFolderId, filter, ownerId, serverQuery, universeId]);
 
   useEffect(() => {
     const refreshIfStale = () => {
       if (!isActive || document.visibilityState !== 'visible') return;
-      const key = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
+      const key = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
     };
@@ -261,7 +261,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       window.removeEventListener('online', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
     };
-  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery]);
+  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, universeId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query), 250);
@@ -271,7 +271,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     if (!isActive) return;
     let mounted = true;
     const initializeLibrary = async () => {
-      const cacheKey = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
+      const cacheKey = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(cacheKey);
       if (cached) {
         setFolders(cached.folders);
@@ -283,7 +283,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       } else {
         await refresh();
       }
-      if (!mounted || thumbnailBackfillStartedRef.current) return;
+      if (!mounted || universeId || thumbnailBackfillStartedRef.current) return;
       thumbnailBackfillStartedRef.current = true;
       try {
         // Backfill only once per page visit: repair a small batch only after the
@@ -296,7 +296,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     };
     void initializeLibrary();
     return () => { mounted = false; };
-  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery]);
+  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, universeId]);
   useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
@@ -360,7 +360,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
 
   const patchCachedItems = (updater: (current: MediaLibraryItem[]) => MediaLibraryItem[]) => {
     setItems((current) => updater(current));
-    const key = JSON.stringify([ownerId, activeFolderId, serverQuery, filter]);
+    const key = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
     const cached = libraryCacheRef.current.get(key);
     if (cached) libraryCacheRef.current.set(key, { ...cached, items: updater(cached.items), cachedAt: Date.now() });
   };
@@ -399,7 +399,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
           (itemId) => {
             // Fetch just the inserted row and patch the visible folder/cache;
             // do not reload the complete folder after each successful upload.
-            void loadMediaLibraryItemsByIds([itemId]).then((updatedItems) => {
+            void loadMediaLibraryItemsByIds([itemId], universeId).then((updatedItems) => {
               const item = updatedItems[0];
               if (!item || cacheOwnerRef.current !== ownerId) return;
               const mergeItem = (current: MediaLibraryItem[]) => [
@@ -409,8 +409,8 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
               // even if the user navigated elsewhere while the upload completed.
               for (const [cacheKey, cached] of libraryCacheRef.current) {
                 try {
-                  const [cacheOwnerId, folderId, searchText, cachedFilter] = JSON.parse(cacheKey) as [string | null, string | null, string, string];
-                  if (cacheOwnerId !== ownerId || folderId !== item.folder_id) continue;
+                  const [cacheOwnerId, cacheUniverseId, folderId, searchText, cachedFilter] = JSON.parse(cacheKey) as [string | null, string | null, string | null, string, string];
+                  if (cacheOwnerId !== ownerId || cacheUniverseId !== (universeId ?? null) || folderId !== item.folder_id) continue;
                   if (cachedFilter !== 'all' && kindOf(item.mime_type) !== cachedFilter) continue;
                   if (searchText && !item.file_name.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())) continue;
                   libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() });
@@ -427,6 +427,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
               // The upload remains saved; a later background refresh can reconcile its preview row.
             });
           },
+          universeId && storyboardId ? { universeId, storyboardId } : undefined,
         );
         setFailedUploads(failures);
         if (count > 0) setSelectedIds([]);
@@ -469,7 +470,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
   const createFolder = async (event: React.FormEvent) => {
     event.preventDefault(); if (!folderName.trim()) return;
     await withBusy(async () => {
-      const created = await createMediaLibraryFolder(folderName, activeFolderId);
+      const created = await createMediaLibraryFolder(folderName, activeFolderId, universeId);
       patchCachedFolders((current) => [...current.filter((folder) => folder.id !== created.id), created].sort((a, b) => a.name.localeCompare(b.name)));
       setFolderName(''); setCreatingFolder(false);
     }, undefined, false);
@@ -537,7 +538,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     if (!entry.item) return;
     setError(null);
     try {
-      const signedUrl = entry.item.signed_url ?? await getMediaLibraryItemSignedUrl(entry.item.id);
+      const signedUrl = entry.item.signed_url ?? await getMediaLibraryItemSignedUrl(entry.item.id, universeId);
       modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setPreviewItem({ ...entry.item, signed_url: signedUrl });
     } catch (cause) {
@@ -625,10 +626,10 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     const nextName = renameValue.trim().replace(/\s+/g, ' ').slice(0, 180);
     await withBusy(async () => {
       if (target.folder) {
-        await renameMediaLibraryFolder(target.id, nextName);
+        await renameMediaLibraryFolder(target.id, nextName, universeId);
         patchCachedFolders((current) => current.map((folder) => folder.id === target.id ? { ...folder, name: nextName, updated_at: new Date().toISOString() } : folder));
       } else {
-        await renameMediaLibraryItem(target.id, nextName);
+        await renameMediaLibraryItem(target.id, nextName, universeId);
         const updatedAt = new Date().toISOString();
         const patch = (current: MediaLibraryItem[]) => current.map((item) => item.id === target.id ? { ...item, file_name: nextName, updated_at: updatedAt } : item);
         patchCachedItems(patch);
@@ -647,14 +648,14 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
     const count = selectedFiles.length;
     const movingIds = [...selectedFiles];
     await withBusy(async () => {
-      await moveMediaLibraryItems(movingIds, destination);
+      await moveMediaLibraryItems(movingIds, destination, universeId);
       patchCachedItems((current) => destination === activeFolderId
         ? current.map((item) => movingIds.includes(item.id) ? { ...item, folder_id: destination } : item)
         : current.filter((item) => !movingIds.includes(item.id)));
       // A destination folder cache may not contain these records yet. Drop only
       // that cached view so its next visit fetches fresh data, not every folder.
       for (const key of libraryCacheRef.current.keys()) {
-        try { if (JSON.parse(key)[1] === destination && destination !== activeFolderId) libraryCacheRef.current.delete(key); } catch { /* ignore malformed cache keys */ }
+        try { if (JSON.parse(key)[2] === destination && destination !== activeFolderId) libraryCacheRef.current.delete(key); } catch { /* ignore malformed cache keys */ }
       }
       setSelectedIds([]);
     }, count + (count === 1 ? ' file moved.' : ' files moved.'), false);
@@ -668,7 +669,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       return;
     }
     await withBusy(async () => {
-      await moveMediaLibraryFolder(folderId, destination);
+      await moveMediaLibraryFolder(folderId, destination, universeId);
       patchCachedFolders((current) => current.map((folder) => folder.id === folderId ? { ...folder, parent_id: destination, updated_at: new Date().toISOString() } : folder));
       setSelectedIds([]);
     }, 'Folder moved.', false);
@@ -692,7 +693,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       const deletedFileIds = [...selectedFiles];
       const deletedFolderIds = [...selectedFolders];
       if (deletedFileIds.length) {
-        const result = await deleteMediaLibraryItems(deletedFileIds);
+        const result = await deleteMediaLibraryItems(deletedFileIds, universeId);
         cleanupPending = result.cleanupPending;
         patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
         for (const [key, cached] of libraryCacheRef.current) {
@@ -702,7 +703,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
         }
       }
       for (const id of deletedFolderIds) {
-        await deleteMediaLibraryFolder(id);
+        await deleteMediaLibraryFolder(id, universeId);
         patchCachedFolders((current) => current.filter((folder) => folder.id !== id));
       }
       setSelectedIds([]);
@@ -727,7 +728,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean }> = ({ isActive 
       <style>{`.vyra-media-breadcrumb-scroll::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }`}</style>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--vyra-border-subtle)] pb-3">
         <div ref={breadcrumbScrollRef} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="vyra-media-breadcrumb-scroll flex min-w-0 items-center gap-1 overflow-x-auto text-sm" aria-label="Folder path">
-          <button type="button" onClick={() => navigateToFolder(null)} className="shrink-0 rounded-md px-2 py-1.5 font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">My Media</button>
+          <button type="button" onClick={() => navigateToFolder(null)} className="shrink-0 rounded-md px-2 py-1.5 font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{universeId ? 'Universe' : 'My Media'}</button>
           {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}><ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/><button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className="max-w-36 shrink-0 truncate rounded-md px-1.5 py-1.5 text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{folder.name}</button></React.Fragment>)}
         </div>
         <div className="flex shrink-0 items-center gap-1">
