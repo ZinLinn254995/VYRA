@@ -15,6 +15,8 @@ test('Project AI Chat exposes media creation without changing global chat compos
   assert.ok(chat.includes('input: { promptText: prompt }'));
   assert.ok(chat.includes('sceneContext: workspaceContext ?'));
   assert.ok(chat.includes('sceneContinuity: workspaceContext.sceneContinuity'));
+  assert.ok(chat.includes('selectedTimelineItem: workspaceContext.selectedTimelineItem'));
+  assert.ok(chat.includes('editorView: workspaceContext.editorView'));
 });
 
 test('media generation requires a creator-set budget and explicit quote approval', () => {
