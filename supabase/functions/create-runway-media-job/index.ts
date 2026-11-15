@@ -34,7 +34,9 @@ Deno.serve(async (request: Request) => {
   });
   if (jobError || !job || !isRecord(job)) {
     const message = jobError?.message ?? '';
-    const status = message.includes('CREDIT_PRICING_POLICY_CHANGED') || message.includes('Explicit customer credit approval') ? 409 :
+    const status = message.includes('CREDIT_PRICING_POLICY_CHANGED') || message.includes('Explicit customer credit approval') ||
+      message.includes('Project-scoped Assets Vyral') || message.includes('another Project') ||
+      message.includes('destination conflicts') ? 409 :
       message.toLowerCase().includes('expired') ? 410 :
       message.toLowerCase().includes('insufficient') ? 402 :
       message.includes('idempotency key was reused') ? 409 :
