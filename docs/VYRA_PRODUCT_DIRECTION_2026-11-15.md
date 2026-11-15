@@ -126,3 +126,57 @@ Do not delete user-owned assets, canonical records, protected samples, productio
 9. Verify the customer journey end-to-end in Development before any release decision.
 
 **Current status:** Direction approved; repository audit and cleanup are in progress. This document does not itself mark any feature complete.
+
+## 11. Consistency-first Universe architecture — creator decision (2026-11-15)
+
+**Consistency is VYRA's primary technical objective and must be treated as a platform-wide engineering foundation, not a secondary feature or a character-only capability.** The product should use the strongest practical, verifiable technology available at each layer. Do not claim that any model or technique guarantees perfect consistency; measure, validate, expose uncertainty, and improve through evidence.
+
+### Creator experience
+
+- A creator manages a Universe through a familiar File Manager experience: folders, files, Assets, search, move, rename, upload, and organize.
+- Users are not required to manually author DNA, graphs, canon, timelines, state machines, or knowledge schemas.
+- AI Chat is the required authoring/orchestration surface for establishing and evolving the Universe's semantic structure: meaning, entities, relationships, rules, canon, timeline, state, and consistency decisions.
+- File organization alone does not automatically qualify a collection as a Universe. Qualification is based on whether the Universe has sufficient coherent, trustworthy, usable continuity context—not on the number of Assets or folders.
+- A small Universe may qualify when its purpose and relevant continuity are coherent and usable. A large folder of unrelated files does not qualify merely because it contains many Assets.
+- Users may still store and organize files before qualification. The system should explain what is missing and let AI Chat help establish it.
+
+### Consistency engineering stack
+
+1. **Source and version identity:** immutable Asset Versions, server-verified SHA-256, cryptographic fingerprints, and version-pinned evidence.
+2. **Multimodal understanding:** modality-appropriate vision, audio, video, text, and structured-file analysis. Model observations remain observations until corroborated or explicitly adopted by the creator.
+3. **Asset knowledge:** automatically maintained Asset DNA, technical metadata, semantic descriptions, identity traits, style/voice/behavior properties where relevant, and provenance.
+4. **Universe knowledge graph:** typed entities and directed relationships, with evidence, ownership, source, confidence, and version applicability. Keep semantic relationships distinct from derivation/lineage.
+5. **Continuity model:** explicit stable identity, canon/rules, temporal facts, mutable state, event ordering, and conflict/supersession semantics. Never collapse permanent canon and changing state into one field.
+6. **Revisioned canonical snapshot:** immutable, integrity-verified Universe DNA revisions that pin exact Asset Versions and approved context. A stale or invalid snapshot must not be used as canonical context.
+7. **Task-aware retrieval:** retrieve only relevant, authoritative context for the requested generation/edit task. Rank by semantic relevance, entity/relationship proximity, temporal applicability, evidence authority, and version freshness; enforce token and privacy boundaries.
+8. **Generation constraints:** compile retrieved context into explicit positive requirements, negative constraints, references, and task-specific instructions for the selected media provider.
+9. **Output validation:** compare generated outputs against the applicable identity, visual/audio traits, world rules, relationships, canon, timeline, and state. Use exact hashes only for byte/pixel integrity; use perceptual, embedding, feature, and model-based comparison for similarity/semantics, with separate calibrated thresholds.
+10. **Correction loop:** classify mismatches, identify which source fact or generation constraint caused them, propose corrections, and update canonical knowledge only through the correct authority/approval path.
+
+### Evidence authority and conflict policy
+
+- Immutable source/version metadata and server-verified integrity are authoritative for file identity.
+- Creator-confirmed facts and creator-adopted observations are authoritative only within their exact source Asset Version and SHA-256 scope.
+- Independently verified evidence may be used according to its verifier and task scope.
+- Unreviewed AI observations are provisional. Disputed, stale, unpinned, or conflicting observations must not silently become canon.
+- A creator-approved fact about one Asset does not automatically certify the entire Universe or establish exact reconstruction.
+- Every derived fact should retain provenance, source version, evidence status, and the reason it is applicable to the current task.
+
+### Qualification and measurable quality
+
+Universe qualification must assess coherence and operational readiness rather than inventory size. At minimum, evaluate:
+
+- clear Universe purpose and intended creative use;
+- reliable identity and source/version references for relevant Assets;
+- sufficient approved semantic information for the intended scope;
+- valid relationships and explicit handling of unknowns/conflicts;
+- canon and state consistency where the Universe uses temporal or narrative continuity;
+- a current, integrity-verified canonical snapshot;
+- task-specific retrieval and validation readiness.
+
+The system must support partial maturity and report missing evidence honestly. Do not invent a minimum Asset count or require every possible concept for every kind of Universe. A Universe about a single reusable object may need far less structure than a multi-character, multi-location serialized world.
+
+### Current implementation boundary
+
+The AI Chat context now verifies the Master DNA manifest digest and derived fingerprint against the stored revision row, and admits creator-adopted knowledge and creator-confirmed field evidence only when pinned to the exact Asset Version and source SHA-256 in the current snapshot. This is an initial consistency foundation, not completion of the full multimodal retrieval, generation, validation, or correction stack. Provider-backed behavior remains blocked until platform credentials and supported media integrations are configured.
+
