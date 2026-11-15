@@ -1,4 +1,4 @@
-import { buildSceneContinuityRepairInstructions, evaluateSceneStateTransition, type SceneState, type SceneStateChange, type SceneStateEvaluation } from './universeSceneContinuity';
+import { buildSceneContinuityRepairInstructions, deriveTrackedSceneStatePaths, evaluateSceneStateTransition, type SceneState, type SceneStateChange, type SceneStateEvaluation } from './universeSceneContinuity';
 
 export type SceneContinuityStatus = 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
 
@@ -288,11 +288,17 @@ export function evaluateAndRecordSceneContinuity(input: {
   }
 
   const intendedChanges = input.intendedChanges ?? context.intendedChanges;
+  // Always include every persisted entry-state leaf. Caller-supplied paths may
+  // add extra checks, but an empty/partial list must never disable continuity.
+  const trackedPaths = [...new Set([
+    ...deriveTrackedSceneStatePaths(entryState, intendedChanges),
+    ...input.trackedPaths,
+  ])].sort();
   const evaluation = evaluateSceneStateTransition({
     previousState: entryState,
     intendedChanges,
     observedState: input.observedExitState,
-    trackedPaths: input.trackedPaths,
+    trackedPaths,
   });
   const ledger = recordSceneContinuityEvaluation(hydrated, input.scenes, {
     sceneId: input.sceneId,
