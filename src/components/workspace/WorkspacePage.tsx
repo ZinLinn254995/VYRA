@@ -23,7 +23,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -48,25 +48,6 @@ const readStoryboards = (key: string): Storyboard[] => {
   } catch { return []; }
 };
 
-const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Storyboard[] => {
-  const existing = readStoryboards(key);
-  if (existing.length || !seedDemoStoryboards) return existing;
-
-  const markerKey = key + ':demo-storyboards-seeded';
-  try {
-    if (localStorage.getItem(markerKey) === '1') return existing;
-    const now = new Date().toISOString();
-    const samples: Storyboard[] = [
-      { id: 'demo-myanmar-folktale', title: 'Myanmar Folktale — The Golden Peacock', topic: 'A cinematic retelling of a Myanmar folktale, with a clear beginning, a magical journey and a meaningful ending.', createdAt: now, updatedAt: now },
-      { id: 'demo-product-promotion', title: 'Product Promotion — Smart Bottle', topic: 'A short product video introducing the key features, everyday benefits and a memorable call to action.', createdAt: now, updatedAt: now },
-      { id: 'demo-science-explainer', title: 'Science Explainer — Black Holes', topic: 'An easy-to-follow visual explanation of black holes, gravity and how light behaves near the event horizon.', createdAt: now, updatedAt: now },
-    ];
-    localStorage.setItem(markerKey, '1');
-    localStorage.setItem(key, JSON.stringify(samples));
-    return samples;
-  } catch { return existing; }
-};
-
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
 
 const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
@@ -74,8 +55,8 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
-  const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
+  const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardStorageKeyRef = useRef(storageKey);
   const suggestionRequestIdRef = useRef(0);
@@ -554,9 +535,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       setCloudSyncMessage('');
       setStoryboardAiMessage('');
     }
-    setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
+    setStoryboards(readStoryboards(storageKey));
     setLoadedStorageKey(storageKey);
-  }, [storageKey, seedDemoStoryboards]);
+  }, [storageKey]);
   useEffect(() => {
     if (loadedStorageKey !== storageKey) return;
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
