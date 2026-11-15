@@ -140,6 +140,7 @@ test('derives tracked paths for every nested persistent detail and treats arrays
     environment: {},
   });
   assert.deepEqual(paths, [
+    '@keys:$root',
     '@keys:character',
     '@keys:character.appearance',
     '@keys:prop',
