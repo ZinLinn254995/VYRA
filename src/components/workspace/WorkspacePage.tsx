@@ -513,6 +513,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         return {
           previousSceneId: continuity.previousSceneId,
           previousSceneApproved: continuity.previousSceneApproved,
+          entrySnapshotStale: continuity.entrySnapshotStale,
           previousExitState: boundedObject(continuity.previousExitState),
           currentEntryState: boundedObject(continuity.currentEntryState),
           intendedChanges: continuity.intendedChanges.slice(0, 12).map((change) => ({
