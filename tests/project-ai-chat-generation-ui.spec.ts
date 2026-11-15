@@ -13,6 +13,8 @@ test('Project AI Chat exposes media creation without changing global chat compos
   assert.ok(chat.includes('Generate in this Project'));
   assert.ok(chat.includes("targetVyralId: storyboardUniverseId"));
   assert.ok(chat.includes('input: { promptText: prompt }'));
+  assert.ok(chat.includes('sceneContext: workspaceContext ?'));
+  assert.ok(chat.includes('sceneContinuity: workspaceContext.sceneContinuity'));
 });
 
 test('media generation requires a creator-set budget and explicit quote approval', () => {
