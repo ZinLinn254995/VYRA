@@ -200,6 +200,7 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
     if (indexedError) throw new Error('Could not reconcile the Universe Asset index: ' + indexedError.message);
     const metadataByAsset = new Map((indexed ?? []).filter((row: { source_asset_id: string | null }) => row.source_asset_id)
       .map((row: { source_asset_id: string; metadata: Record<string, unknown> | null }) => [row.source_asset_id, row.metadata ?? {}]));
+    const hasNewAssets = assets.some((asset: { id: string }) => !metadataByAsset.has(asset.id));
     const rows = assets.map((asset: { id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }) => ({
       user_id: userId, universe_id: universeId, folder_id: asset.folder_id,
       source_kind: asset.metadata?.upload_source === 'media_generation' ? 'generated' : 'vyral_asset',
@@ -211,6 +212,13 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
       onConflict: 'user_id,universe_id,source_asset_id',
     });
     if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
+    if (hasNewAssets) {
+      try {
+        await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
+      } catch {
+        // The next Universe Library refresh retries the derived Master DNA build.
+      }
+    }
   }
 }
 
