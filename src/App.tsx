@@ -200,7 +200,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
-        {!profileOpen && !universeEditorOpen && <MyUniverseHome onCreateUniverse={() => { setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} />}
+        {!profileOpen && !universeEditorOpen && <MyUniverseHome onCreateUniverse={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} />}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
