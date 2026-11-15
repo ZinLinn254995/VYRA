@@ -4215,8 +4215,7 @@ Deno.serve(async (request: Request) => {
             to: item.to,
             rationale: typeof item.rationale === 'string' ? item.rationale.slice(0, 240) : '',
           };
-        })
-      : [];
+        });
     const taskQuery = incoming
       .filter((item) => (item as Record<string, unknown>).role === 'user')
       .slice(-3)
