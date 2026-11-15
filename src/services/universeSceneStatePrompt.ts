@@ -27,5 +27,5 @@ export function buildSceneStateProposalInstruction(
     'List proposed story changes in intendedChanges, but they remain unverified suggestions. Never describe them as approved, canonical, or committed.',
     'Do not include markdown fences around the block. Do not add prose after the closing tag.',
     '<vyra-scene-state>{"schemaVersion":1,"sceneId":' + sceneId + ',"facts":[{"path":"scene.location","value":"interior hall","scope":"scene_state","evidence":"inside the hall"}],"intendedChanges":[]}</vyra-scene-state>',
-  ].join('\\n');
+  ].join('\n');
 }
