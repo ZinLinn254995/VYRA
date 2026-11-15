@@ -65,6 +65,32 @@ const withoutTemporalMetadata = (value: unknown): unknown => {
     .map(([key, item]) => [key, item]));
 };
 
+type TemporalInterval = { start: number; end: number };
+
+const temporalInterval = (value: unknown): TemporalInterval | null => {
+  if (!isRecord(value)) return null;
+  const containers = [value, ...['temporal', 'temporal_scope', 'temporalScope', 'validity', 'time', 'period', 'event'].flatMap((key) =>
+    isRecord(value[key]) ? [value[key] as Record<string, unknown>] : [])];
+  const readInstant = (keys: string[]): number | null => {
+    for (const container of containers) {
+      for (const key of keys) {
+        const candidate = container[key];
+        if (typeof candidate !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T/i.test(candidate.trim())) continue;
+        const parsed = Date.parse(candidate.trim());
+        if (Number.isFinite(parsed)) return parsed;
+      }
+    }
+    return null;
+  };
+  const start = readInstant(['effective_at', 'effectiveAt', 'effective_from', 'effectiveFrom', 'valid_from', 'validFrom', 'valid_at', 'validAt', 'starts_at', 'startsAt', 'start_at', 'startAt', 'at', 'timestamp', 'observed_at', 'observedAt', 'event_at', 'eventAt', 'event_time', 'eventTime', 'as_of', 'asOf']);
+  const end = readInstant(['valid_to', 'validTo', 'effective_until', 'effectiveUntil', 'expires_at', 'expiresAt', 'valid_until', 'validUntil', 'effective_to', 'effectiveTo', 'ends_at', 'endsAt', 'end_at', 'endAt']);
+  if (start === null || (end !== null && end < start)) return null;
+  return { start, end: end ?? start };
+};
+
+const intervalsOverlap = (a: TemporalInterval, b: TemporalInterval): boolean =>
+  a.start <= b.end && b.start <= a.end;
+
 const temporalScope = (value: unknown): string => {
   if (!isRecord(value)) return '';
   const containers = [
@@ -109,19 +135,50 @@ const temporalScope = (value: unknown): string => {
 /**
  * Never silently select one creator-confirmed value when the same field and
  * temporal scope have conflicting attestations. Equal values are coalesced;
- * different temporal scopes remain separate facts.
+ * different temporal scopes remain separate facts; overlapping dated intervals conflict.
  */
 export function resolveCreatorConfirmedFieldEvidence(
   evidence: CreatorConfirmedFieldEvidence[],
 ): CreatorFieldResolution {
-  const groups = new Map<string, CreatorConfirmedFieldEvidence[]>();
+  const byField = new Map<string, CreatorConfirmedFieldEvidence[]>();
   for (const item of evidence) {
     const fieldPath = item.fieldPath.trim().normalize('NFC');
     if (!fieldPath || fieldPath.length > 240 || !item.evidenceId || !item.observationId) continue;
-    const key = fieldPath + '\u0000' + temporalScope(item.acceptedValue);
-    const group = groups.get(key) ?? [];
+    const group = byField.get(fieldPath) ?? [];
     group.push({ ...item, fieldPath });
-    groups.set(key, group);
+    byField.set(fieldPath, group);
+  }
+  const groups: CreatorConfirmedFieldEvidence[][] = [];
+  for (const fieldItems of byField.values()) {
+    const dated = fieldItems.map((item) => ({ item, interval: temporalInterval(item.acceptedValue) }))
+      .filter((entry): entry is { item: CreatorConfirmedFieldEvidence; interval: TemporalInterval } => entry.interval !== null);
+    const undated = fieldItems.filter((item) => temporalInterval(item.acceptedValue) === null);
+    // Build overlap-connected temporal clusters. A fact valid across an interval
+    // must conflict with a different creator-confirmed value at any overlapping time.
+    const remaining = new Set(dated);
+    while (remaining.size) {
+      const seed = remaining.values().next().value as typeof dated[number];
+      remaining.delete(seed);
+      const cluster = [seed];
+      for (let index = 0; index < cluster.length; index++) {
+        for (const candidate of [...remaining]) {
+          if (cluster.some((member) => intervalsOverlap(member.interval, candidate.interval))) {
+            remaining.delete(candidate);
+            cluster.push(candidate);
+          }
+        }
+      }
+      groups.push(cluster.map((entry) => entry.item));
+    }
+    // Non-ISO/domain-specific scopes retain the conservative exact-scope behavior.
+    const undatedByScope = new Map<string, CreatorConfirmedFieldEvidence[]>();
+    for (const item of undated) {
+      const scope = temporalScope(item.acceptedValue);
+      const group = undatedByScope.get(scope) ?? [];
+      group.push(item);
+      undatedByScope.set(scope, group);
+    }
+    groups.push(...undatedByScope.values());
   }
 
   const resolved: ResolvedCreatorField[] = [];
