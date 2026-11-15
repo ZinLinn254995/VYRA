@@ -188,21 +188,27 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
     synced.add(folder.id);
   }
 
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
   const { data: assets, error: assetError } = await db.from('vyral_assets')
-    .select('id,folder_id,name,asset_type,mime_type,size_bytes,storage_path,metadata,processing_status')
+    .select('id,folder_id,name,mime_type,size_bytes,storage_path,metadata,processing_status')
     .eq('vyral_id', universeId).eq('user_id', userId)
     .neq('processing_status', 'archived').order('created_at', { ascending: true }).limit(1000);
   if (assetError) throw new Error('Could not sync Storyboard Universe Assets: ' + assetError.message);
   if (assets?.length) {
+    const { data: indexed, error: indexedError } = await db.from('media_library_items')
+      .select('source_asset_id,metadata').eq('user_id', userId).eq('universe_id', universeId);
+    if (indexedError) throw new Error('Could not reconcile the Universe Asset index: ' + indexedError.message);
+    const metadataByAsset = new Map((indexed ?? []).filter((row: { source_asset_id: string | null }) => row.source_asset_id)
+      .map((row: { source_asset_id: string; metadata: Record<string, unknown> | null }) => [row.source_asset_id, row.metadata ?? {}]));
     const rows = assets.map((asset: { id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }) => ({
       user_id: userId, universe_id: universeId, folder_id: asset.folder_id,
       source_kind: asset.metadata?.upload_source === 'media_generation' ? 'generated' : 'vyral_asset',
       source_asset_id: asset.id, bucket_id: 'vyral-assets', storage_path: asset.storage_path,
       file_name: asset.name, mime_type: asset.mime_type, size_bytes: asset.size_bytes,
-      metadata: { origin: 'vyral_asset_inventory' },
+      metadata: { ...(metadataByAsset.get(asset.id) ?? {}), origin: 'vyral_asset_inventory' },
     }));
     const { error } = await db.from('media_library_items').upsert(rows, {
-      onConflict: 'user_id,universe_id,source_asset_id', ignoreDuplicates: true,
+      onConflict: 'user_id,universe_id,source_asset_id',
     });
     if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
   }
