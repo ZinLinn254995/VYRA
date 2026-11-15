@@ -1,12 +1,14 @@
 # Usage Ledger API Integration Contract
 
+> **Provider-path status (2026-11-15):** The former OpenRouter customer-BYOK and Gemini runtime routes have been retired. The database ledger schema and provider-neutral recorder remain reusable infrastructure, but no active OpenAI Chat or Runway media route is currently wired to this recorder. No customer credits are charged. Provider-specific sections below are historical reference, not current runtime behavior. Revalidate the implementation before enabling any usage-ledger feature flag.
+
 ## Status
 
 This document defines the safe integration boundary for the usage and credit ledger foundation. It does not enable credit charging or change generation behavior.
 
 **Current status (2026-11-03):** the full eight-migration chain, including the usage ledger, is applied to the separate `VYRA Development` project. All five database pgTAP suites pass there and GitHub CI passes. The production Supabase project has not received these migrations. The OpenRouter Text lifecycle is implemented, and a separate Google Gemini Text recorder is now implemented for automatic Asset/Vyral metadata suggestions. Full authenticated Development E2E testing remains in progress. No service-role key is exposed to the browser.
 
-## Current provider behavior
+## Historical provider behavior (OpenRouter/Gemini)
 
 | Capability | Synchronous result | Provider generation ID | Actual cost availability |
 | --- | --- | --- | --- |
@@ -17,7 +19,7 @@ This document defines the safe integration boundary for the usage and credit led
 
 A missing cost is represented as unknown/null. Estimates must never be copied into `provider_cost_records.actual_cost_usd`.
 
-## First server integration increment
+## Historical first server integration increment
 
 The OpenRouter Text chat route and the Google Gemini metadata-suggestion task now have opt-in usage-ledger integrations behind `VYRA_USAGE_LEDGER_ENABLED=true`.
 
