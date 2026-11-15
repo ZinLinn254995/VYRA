@@ -34,7 +34,7 @@ Deno.serve(async (request: Request) => {
   if (jobError || !job?.target_vyral_id) return json({ error: 'The Project generation destination could not be verified.' }, 404);
 
   const { data: output, error: outputError } = await context.supabaseAdmin.from('media_generation_job_outputs')
-    .select('transfer_status,storage_path,sha256,mime_type,size_bytes')
+    .select('transfer_status,storage_path,staging_storage_path,sha256,mime_type,size_bytes')
     .eq('job_id', body.jobId).eq('output_index', body.outputIndex).maybeSingle();
   if (outputError || !output || !['stored', 'ingesting', 'ingested'].includes(output.transfer_status)) {
     return json({ error: 'The privately stored generation output is not ready for completion.' }, 409);
@@ -79,9 +79,9 @@ Deno.serve(async (request: Request) => {
 
   const expectedStagingPrefix = userId + '/' + job.target_vyral_id + '/.runway-staging/' + body.jobId + '/' + body.outputIndex + '.';
   let stagingCleanup = 'not_needed';
-  if (typeof output.storage_path === 'string' && output.storage_path.startsWith(expectedStagingPrefix) &&
-      output.storage_path !== asset.storage_path) {
-    const { error: cleanupError } = await context.supabaseAdmin.storage.from(BUCKET).remove([output.storage_path]);
+  if (typeof output.staging_storage_path === 'string' && output.staging_storage_path.startsWith(expectedStagingPrefix) &&
+      output.staging_storage_path !== asset.storage_path) {
+    const { error: cleanupError } = await context.supabaseAdmin.storage.from(BUCKET).remove([output.staging_storage_path]);
     stagingCleanup = cleanupError ? 'pending' : 'complete';
   }
   return json({
