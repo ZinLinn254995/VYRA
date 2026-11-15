@@ -33,3 +33,15 @@ test('Project media progress distinguishes ready, pending and reconciliation sta
 test('media polling is aborted when the chat component unmounts', () => {
   assert.ok(chat.includes('mediaRequestControllerRef.current?.abort()'));
 });
+
+test('generated Project media is previewed in chat while only stable Asset references are persisted', () => {
+  assert.ok(chat.includes('type ProjectMediaPreview'));
+  assert.ok(chat.includes('message.mediaAssets.map'));
+  assert.ok(chat.includes('<img src={asset.url}'));
+  assert.ok(chat.includes('<video src={asset.url}'));
+  assert.ok(chat.includes('<audio src={asset.url}'));
+  assert.ok(chat.includes("createSignedUrl(asset.storage_path, 300)"));
+  assert.ok(chat.includes("createSignedUrl(asset.storagePath, 300)"));
+  assert.ok(chat.includes('mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType }))'));
+  assert.ok(!chat.includes('mediaAssets: message.mediaAssets.map((asset) => ({ ...asset, url: asset.url }))'));
+});
