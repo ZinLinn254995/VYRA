@@ -62,7 +62,7 @@ test('OpenAI Vision validates bounded Project image previews and attaches them t
   assert.match(edge, /latestUserIndex/);
   assert.ok(edge.includes("url: 'data:' + item.mimeType + ';base64,' + item.data"));
   assert.ok(service.includes('if (request.mediaFiles?.length)'));
-  assert.doesNotMatch(service, /request\\.visionImages\\?\\.length \\|\\| request\\.mediaFiles/);
+  assert.ok(!service.includes('request.visionImages?.length || request.mediaFiles?.length'));
   assert.ok(service.includes('request.visionImages?.length ? { visionImages: request.visionImages }'));
 });
 
