@@ -480,7 +480,7 @@ const buildWorkspaceContextInstruction = (raw: unknown): string => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
     try {
       const serialized = JSON.stringify(input);
-      return serialized.length <= 6000 ? JSON.parse(serialized) as Record<string, unknown> : null;
+      return typeof serialized === 'string' && serialized.length <= 6000 ? JSON.parse(serialized) as Record<string, unknown> : null;
     } catch { return null; }
   };
   const intendedChanges = continuityRaw && Array.isArray(continuityRaw.intendedChanges)
@@ -489,8 +489,7 @@ const buildWorkspaceContextInstruction = (raw: unknown): string => {
       const change = item as Record<string, unknown>;
       if (typeof change.path !== 'string' || typeof change.reason !== 'string') return [];
       let valueSize = 0;
-      try { valueSize = JSON.stringify(change.value).length; } catch { return []; }
-      if (valueSize > 1200) return [];
+      try { const serializedValue = JSON.stringify(change.value); if (typeof serializedValue !== 'string' || serializedValue.length > 1200) return []; } catch { return []; }
       return [{ path: change.path.slice(0, 200), reason: change.reason.slice(0, 300), value: change.value }];
     }) : [];
   const continuityStatus = continuityRaw && ['not_evaluated', 'needs_review', 'consistent', 'creator_approved'].includes(String(continuityRaw.validationStatus))
