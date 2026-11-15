@@ -31,6 +31,7 @@ test('provider submission is never retried and unknown outcomes require reconcil
 test('polling observes the five-second floor and ingests every confirmed output', () => {
   assert.ok(workflow.includes('Math.max(5200'));
   assert.ok(workflow.includes("'poll-runway-media-job'"));
+  assert.ok(workflow.includes('[429, 502, 503]'));
   assert.ok(workflow.includes("status === 'succeeded'"));
   assert.ok(workflow.includes('outputIndex < outputCount'));
   assert.ok(workflow.includes('ingestRunwayProjectOutput(db'));
@@ -39,5 +40,7 @@ test('polling observes the five-second floor and ingests every confirmed output'
 
 test('browser cancellation after submission preserves the resumable server job', () => {
   assert.ok(workflow.includes("status: 'submitted_pending'"));
+  assert.ok(workflow.includes('resumeRunwayProjectMediaIngestion'));
+  assert.ok(workflow.includes("job.status !== 'succeeded'"));
   assert.ok(workflow.includes('Once submitted, cancellation only stops this browser'));
 });
