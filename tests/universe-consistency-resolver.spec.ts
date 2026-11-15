@@ -93,6 +93,6 @@ test('rejects duplicate Asset IDs and invalid limits', () => {
     ...input, assets: [...input.assets, input.assets[0]],
   }, { taskId: 'bad', operation: 'generate', at: '2026-11-15T00:00:00Z' }), /Duplicate Universe Asset ID/);
   assert.throws(() => resolveUniverseConsistencyContext(input, {
-    taskId: 'bad-limit', operation: 'generate', maxAssets: 0,
+    taskId: 'bad-limit', operation: 'generate', at: '2026-11-15T00:00:00Z', maxAssets: 0,
   }), /maxAssets/);
 });
