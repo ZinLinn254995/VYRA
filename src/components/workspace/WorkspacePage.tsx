@@ -754,7 +754,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardUniverse(null); setStoryboardEditorView('scenes'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
-  useEffect(() => {
+  // Resolve the requested Universe before the browser paints the editor host.
+  // This prevents the retired Workspace landing page from flashing for one frame.
+  useLayoutEffect(() => {
     if (!openUniverseRequest || loadedStorageKey !== storageKey || lastOpenedUniverseRequestRef.current === openUniverseRequest.requestId) return;
     const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId);
     if (item) {
@@ -970,6 +972,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     void persistStoryboard(saved);
     setStoryboardAiMessage('Changes saved.');
   };
+
+  // While a card-open request is resolving, never render the legacy Workspace
+  // landing page as a transient fallback. The requested Storyboard will replace
+  // this lightweight state as soon as its local record is available.
+  if (openUniverseRequest && !activeStoryboard && lastOpenedUniverseRequestRef.current !== openUniverseRequest.requestId) {
+    return (
+      <main className="flex min-h-0 flex-1 items-center justify-center bg-[var(--vyra-bg-canvas)]">
+        <div role="status" className="text-sm text-[var(--vyra-text-muted)]">Opening Universe…</div>
+      </main>
+    );
+  }
 
   if (activeStoryboard && activeSceneId) {
     const scene = (activeStoryboard.details?.scenes || []).find((item) => item.id === activeSceneId);
