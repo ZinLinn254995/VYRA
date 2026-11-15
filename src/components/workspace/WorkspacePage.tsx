@@ -849,8 +849,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     const now = new Date().toISOString();
     const storyboard: Storyboard = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
-      title: 'A New Storyboard',
-      topic: 'A new video story is ready to take shape. Create your scenes and build your story.',
+      title: 'New Universe',
+      topic: 'A new creative Universe is ready to take shape. Build its world, Assets, and stories.',
       createdAt: now,
       updatedAt: now,
       details: { category: '', style: '', mood: '', tags: [], origins: {}, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
@@ -1324,7 +1324,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to My Universe">
                 <ArrowLeft size={16} /><span>My Universe</span>
               </button>
-              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Storyboard'}</span>
+              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Universe'}</span>
             </div>
             <button type="button" onClick={() => setStoryboardDetailsExpanded((expanded) => !expanded)} aria-label={storyboardDetailsExpanded ? 'Minimize storyboard details' : 'Open storyboard details'} aria-expanded={storyboardDetailsExpanded} className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
               <ChevronDown className={'transition-transform ' + (storyboardDetailsExpanded ? 'rotate-180' : '')} size={18} />
