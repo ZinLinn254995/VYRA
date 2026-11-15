@@ -3677,6 +3677,7 @@ async function executeSharedProposalCapability(
   toolCallId: string,
   activeVyralId: string | null,
   uploadAttachment: { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null,
+  storyboardUniverseLocked = false,
 ): Promise<Record<string, unknown>> {
   const requestId = ('aiop-' + toolCallId).slice(0, 120);
   const authority: AiCapabilityExecutionAuthority = {
@@ -3692,7 +3693,7 @@ async function executeSharedProposalCapability(
         return !error && Boolean(data);
       }
       if (capabilityId === 'asset.propose_upload') {
-        if (!isUuid(parameters.vyral_id)) return false;
+        if (!isUuid(parameters.vyral_id) || (storyboardUniverseLocked && parameters.vyral_id !== activeVyralId)) return false;
         const { data, error } = await admin.from('vyrals').select('id')
           .eq('id', parameters.vyral_id).eq('user_id', ownerId).maybeSingle();
         return !error && Boolean(data);
@@ -4478,7 +4479,13 @@ Deno.serve(async (request: Request) => {
               : safeToolError('Invalid tool arguments.')
             : proposalCapabilityId
               ? parsedToolArguments
-                ? await executeSharedProposalCapability(context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id, activeVyralId, uploadAttachment)
+                ? await executeSharedProposalCapability(
+                    context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id,
+                    activeVyralId, uploadAttachment,
+                    Boolean(isPlainRecord(body.workspaceContext) && isPlainRecord(body.workspaceContext.activeStoryboard) &&
+                      isPlainRecord(body.workspaceContext.storyboardUniverse) &&
+                      body.workspaceContext.storyboardUniverse.id === activeVyralId),
+                  )
                 : safeToolError('Invalid tool arguments.')
               : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state', 'list_my_vyrals', 'get_my_vyral_details'].includes(call.function.name)
                 ? await executeGlobalReadTool(context.supabaseAdmin, userId, call.function.name, call.function.arguments)
