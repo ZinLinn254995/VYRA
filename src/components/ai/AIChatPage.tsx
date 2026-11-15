@@ -411,7 +411,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     try {
       const result = await recoverRunwayProjectMediaJob(supabase, storyboardUniverseId, jobId, controller.signal);
       if (result.status === 'ready') {
-        const assets = result.assets ?? [];
+        const assets = 'assets' in result ? result.assets : [];
         setMediaGenerationStatus(assets.length
           ? 'Recovered ' + assets.length + ' Project Asset(s). DNA and Fingerprint checks are complete.'
           : 'This generation job is already recovered.');
