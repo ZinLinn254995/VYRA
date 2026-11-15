@@ -74,6 +74,18 @@
 - Preserved ORIGIN-01, all creator data, historical migrations, and the Master Editor. AI Chat UI was not changed.
 - Initial CI, browser UI, and database checks passed after the first cleanup batch. The latest deletion/metadata/migration batch has new CI runs pending; final status will be recorded after completion.
 
+### Cleanup batch 3 — 2026-11-15
+
+- Removed the customer-supplied OpenRouter BYOK routes from `src/server/ai.ts`, and removed the OpenRouter pricing router from the Node, Vercel catch-all, and Cloudflare Worker entry points.
+- Removed the OpenRouter-specific pricing estimator and BYOK-only tests. Kept the generic financial ledger schema and refactored its server recorder contract to be provider-neutral; it is not yet connected to active OpenAI/Runway generation.
+- Removed the now-unreferenced legacy StudioContext, Agent Tools subsystem, local Media Library storage, spend-confirmation helper, and old usage/review/backup/recovery UI panels. The active cloud Media Library, Workspace, Vyral, Auth, and financial backends remain.
+- Updated package scripts and CI workflows so they no longer invoke deleted OpenRouter-specific tests or routes.
+- Refactored the Vyral detail surface to expose only creator-facing Overview, Gallery, and License sections. Internal DNA/Fingerprint/Vision review tabs were removed from the user-facing page; backend DNA, fingerprint, provenance, package integrity, and upload maintenance remain.
+- Updated usage-ledger and billing runbooks to state that customer BYOK is retired and platform-managed OpenAI/Runway usage recording is not yet implemented. Historical provider details are marked as legacy.
+- A TypeScript failure caused by stale imports was fixed. A contract test that referenced the deleted StudioContext was updated to test the active AI Chat and Admin API-key settings instead. A further vision-contract test was updated to assert internal DNA/Vision review controls are not exposed in the creator UI.
+- No Production service, Production database, customer-owned data, ORIGIN-01 data, applied migration history, or Master Editor implementation was modified. No merge or deployment was performed.
+- Latest CI verification is still running; record final outcomes after all checks complete.
+
 ## 6. Must not delete or rewrite
 
 - Never delete customer-owned Assets, Vyrals, projects, media, or canonical versions as code cleanup.
