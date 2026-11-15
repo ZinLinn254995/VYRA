@@ -22,9 +22,9 @@ export const MarketplaceHome: React.FC<MarketplaceProps> = () => {
         <div className="grid size-14 place-items-center rounded-2xl bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-muted)]">
           <Store size={25} strokeWidth={1.6} />
         </div>
-        <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No Vyrals listed yet</h2>
+        <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No Universes listed yet</h2>
         <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">
-          Published Vyrals from creators will appear here when they are available.
+          Published Universes from creators will appear here when they are available.
         </p>
       </section>
     </main>
