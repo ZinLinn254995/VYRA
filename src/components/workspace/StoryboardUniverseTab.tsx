@@ -72,11 +72,11 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
     }
     let record = result.data as UniverseRecord | null;
     if (!record) {
-      const safeTitle = storyboardTitle.trim().slice(0, 78) || 'Untitled Storyboard';
+      const safeTitle = storyboardTitle.trim().slice(0, 78) || 'Untitled Project';
       const created = await supabase.from('vyrals').insert({
         user_id: ownerId,
-        name: (safeTitle + ' Universe').slice(0, 100),
-        description: 'Private creative Universe dedicated to the Storyboard: ' + safeTitle,
+        name: (safeTitle + ' Project Assets').slice(0, 100),
+        description: 'Private Project Assets library for: ' + safeTitle,
         visibility: 'private',
         lifecycle_status: 'active',
         dna_status: 'evolving',
@@ -89,7 +89,7 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
         result = await findExisting();
         if (requestId !== requestRef.current) return;
         if (result.error || !result.data) {
-          setError(created.error?.message || result.error?.message || 'Could not create this Storyboard Universe.');
+          setError(created.error?.message || result.error?.message || 'Could not create this Project Assets.');
           setLoading(false);
           return;
         }
@@ -112,16 +112,16 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
   }, [isActive, loadOrCreateUniverse]);
 
   if (!isAuthenticated) {
-    return <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">Sign in to create this Storyboard’s private Universe</p><button type="button" onClick={onLoginRequired} className="rounded-lg bg-[var(--vyra-accent-primary)] px-4 py-2 text-xs font-semibold text-slate-950">Sign in</button></div>;
+    return <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">Sign in to create this Storyboard’s Project Assets Library</p><button type="button" onClick={onLoginRequired} className="rounded-lg bg-[var(--vyra-accent-primary)] px-4 py-2 text-xs font-semibold text-slate-950">Sign in</button></div>;
   }
-  if (loading) return <div className="flex min-h-64 items-center justify-center gap-2 text-xs text-[var(--vyra-text-muted)]"><LoaderCircle size={16} className="animate-spin"/> Preparing Storyboard Universe…</div>;
-  if (error || !universe) return <div className="mx-auto flex min-h-64 max-w-lg flex-col items-center justify-center gap-3 px-5 text-center"><AlertCircle size={22} className="text-[var(--vyra-danger)]"/><p role="alert" className="text-xs text-[var(--vyra-text-secondary)]">{error || 'This Universe is not available.'}</p><button type="button" onClick={() => void loadOrCreateUniverse()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><RefreshCw size={13}/> Retry</button></div>;
+  if (loading) return <div className="flex min-h-64 items-center justify-center gap-2 text-xs text-[var(--vyra-text-muted)]"><LoaderCircle size={16} className="animate-spin"/> Preparing Project Assets…</div>;
+  if (error || !universe) return <div className="mx-auto flex min-h-64 max-w-lg flex-col items-center justify-center gap-3 px-5 text-center"><AlertCircle size={22} className="text-[var(--vyra-danger)]"/><p role="alert" className="text-xs text-[var(--vyra-text-secondary)]">{error || 'This Project Assets are not available.'}</p><button type="button" onClick={() => void loadOrCreateUniverse()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><RefreshCw size={13}/> Retry</button></div>;
 
   return (
     <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">{universe.name}</h2><p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">Private Universe for “{storyboardTitle}”. Organize characters, locations, props, references and every other creative Asset here.</p></div>
+          <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">{universe.name}</h2><p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">Private Project Assets for “{storyboardTitle}”. Organize characters, locations, props, references and every other creative Asset here.</p></div>
           <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Private · Storyboard-only</span>
         </div>
         {renderLibrary && <MyMediaLibraryPage
