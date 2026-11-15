@@ -123,13 +123,14 @@ Deno.serve(async (request: Request) => {
   }
   if (claim.claimed !== true) {
     return json({
-      jobId: body.jobId, status: claim.status ?? 'pending',
+      jobId: body.jobId, outputIndex, targetVyralId: claim.target_vyral_id ?? null,
+      status: claim.status ?? 'pending',
       assetId: claim.asset_id ?? null, assetVersionId: claim.asset_version_id ?? null,
       message: claim.status === 'ingested' ? 'This output is already a ready Project Asset.'
-        : claim.status === 'downloading' ? 'This output is already being transferred.'
+        : claim.status === 'downloading' || claim.status === 'ingesting' ? 'This output is already being processed.'
         : claim.status === 'failed' ? 'This output needs recovery before it can be used.'
         : 'This output is not currently eligible for transfer.',
-    }, claim.status === 'downloading' ? 409 : 200);
+    }, claim.status === 'downloading' || claim.status === 'ingesting' ? 409 : 200);
   }
 
   const targetVyralId = typeof claim.target_vyral_id === 'string' ? claim.target_vyral_id : '';
