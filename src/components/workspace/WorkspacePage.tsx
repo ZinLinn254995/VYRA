@@ -789,7 +789,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setIsDeletingStoryboard(false);
     setCloudSyncMessage('');
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (createUniverseRequest > 0 && isActive) createDefaultStoryboardRef.current();
   }, [createUniverseRequest, isActive]);
 
