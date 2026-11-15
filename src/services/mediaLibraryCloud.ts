@@ -86,6 +86,16 @@ async function getOwnerId(): Promise<string> {
   return data.user.id;
 }
 
+async function assertStoryboardUniverse(db: any, userId: string, universeId: string, storyboardId?: string): Promise<void> {
+  const { data, error } = await db.from('vyrals').select('id,metadata')
+    .eq('id', universeId).eq('user_id', userId).maybeSingle();
+  const metadata = data?.metadata as Record<string, unknown> | null;
+  if (error || !data || metadata?.universe_scope !== 'storyboard'
+    || (storyboardId && metadata?.storyboard_id !== storyboardId)) {
+    throw new Error('This private Storyboard Universe could not be verified for your account.');
+  }
+}
+
 type MediaLibraryStorageCleanupJob = {
   id: string;
   bucket_id: string;
@@ -292,74 +302,75 @@ export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: 
   return signed.signedUrl;
 }
 
-export async function createMediaLibraryFolder(name: string, parentId: string | null = null): Promise<MediaLibraryFolder> {
+export async function createMediaLibraryFolder(name: string, parentId: string | null = null, universeId?: string | null): Promise<MediaLibraryFolder> {
   const db = getDb();
   const userId = await getOwnerId();
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   const { data, error } = await db.from('media_library_folders')
-    .insert({ user_id: userId, parent_id: parentId, name: cleanName })
-    .select('id,user_id,parent_id,name,created_at,updated_at').single();
+    .insert({ user_id: userId, universe_id: universeId ?? null, parent_id: parentId, name: cleanName })
+    .select('id,user_id,universe_id,parent_id,name,created_at,updated_at').single();
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create folder: ' + error.message);
-  mediaLibraryFolderCache.delete(userId);
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
   return data as MediaLibraryFolder;
 }
 
-export async function renameMediaLibraryFolder(folderId: string, name: string): Promise<void> {
+export async function renameMediaLibraryFolder(folderId: string, name: string, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
-  const { error } = await db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId);
+  const { error } = await applyUniverseScope(db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId), universeId);
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message);
-  mediaLibraryFolderCache.delete(userId);
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
 }
 
-export async function deleteMediaLibraryFolder(folderId: string): Promise<void> {
+export async function deleteMediaLibraryFolder(folderId: string, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
   const [{ count: childCount, error: childError }, { count: itemCount, error: itemError }] = await Promise.all([
-    db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId),
-    db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId),
+    applyUniverseScope(db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId), universeId),
+    applyUniverseScope(db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId), universeId),
   ]);
   if (childError || itemError) throw new Error('Could not check whether this folder is empty.');
   if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
-  const { error } = await db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId);
+  const { error } = await applyUniverseScope(db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId), universeId);
   if (error) throw new Error('Could not delete folder: ' + error.message);
-  mediaLibraryFolderCache.delete(userId);
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
 }
 
-export async function moveMediaLibraryFolder(folderId: string, parentId: string | null): Promise<void> {
+export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
-  const { error } = await db.from('media_library_folders')
+  const { error } = await applyUniverseScope(db.from('media_library_folders')
     .update({ parent_id: parentId, updated_at: new Date().toISOString() })
-    .eq('id', folderId).eq('user_id', userId);
+    .eq('id', folderId).eq('user_id', userId), universeId);
   if (error) {
     if (error.message.toLowerCase().includes('descendant') || error.message.toLowerCase().includes('cycle')) {
       throw new Error('A folder cannot be moved into itself or one of its subfolders.');
     }
     throw new Error('Could not move folder: ' + error.message);
   }
-  mediaLibraryFolderCache.delete(userId);
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
 }
 
-export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null): Promise<void> {
+export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null, universeId?: string | null): Promise<void> {
   if (!itemIds.length) return;
   const db = getDb();
   const userId = await getOwnerId();
-  const { error } = await db.from('media_library_items').update({ folder_id: folderId, updated_at: new Date().toISOString() })
-    .in('id', itemIds).eq('user_id', userId);
+  const { error } = await applyUniverseScope(db.from('media_library_items').update({ folder_id: folderId, updated_at: new Date().toISOString() })
+    .in('id', itemIds).eq('user_id', userId), universeId);
   if (error) throw new Error('Could not move selected files: ' + error.message);
 }
 
-export async function renameMediaLibraryItem(itemId: string, fileName: string): Promise<void> {
+export async function renameMediaLibraryItem(itemId: string, fileName: string, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
   const cleanName = SAFE_NAME(fileName);
   if (!cleanName) throw new Error('Enter a file name.');
-  const { error } = await db.from('media_library_items').update({ file_name: cleanName, updated_at: new Date().toISOString() })
-    .eq('id', itemId).eq('user_id', userId);
+  const { error } = await applyUniverseScope(db.from('media_library_items').update({ file_name: cleanName, updated_at: new Date().toISOString() })
+    .eq('id', itemId).eq('user_id', userId), universeId);
   if (error) throw new Error('Could not rename file: ' + error.message);
 }
 
