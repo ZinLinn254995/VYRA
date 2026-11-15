@@ -74,7 +74,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
-  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master' | 'chat'>('scenes');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [sceneVideoPreviewUrl, setSceneVideoPreviewUrl] = useState('');
@@ -1271,9 +1271,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               </div>
             </section>
           </div>
-        <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} embedded />
-        </aside>
       </main>
     );
     }
@@ -1301,8 +1298,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setStoryboardAiMessage('');
     };
     return (
-      <main className="profile-page-main flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden p-0 lg:flex-row">
-        <div className="profile-subpage-scroll profile-subpage-viewport !h-1/2 !min-h-0 !w-full !overflow-hidden lg:!h-full lg:!w-[62%]">
+      <main className="profile-page-main flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden p-0">
+        <div className="profile-subpage-scroll profile-subpage-viewport !h-full !min-h-0 !w-full !overflow-hidden">
           <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
           <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
@@ -1353,6 +1350,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               <div className="profile-storyboard-view-tabs flex items-center gap-1 bg-[var(--vyra-bg-surface)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
                 <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
+                <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
                 <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
               </div>
             </div>
@@ -1439,7 +1437,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       <button type="button" onClick={addScene} aria-label="Add scene" title="Add scene" className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] text-[var(--vyra-text-muted)] transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-accent-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"><Plus size={20} strokeWidth={1.8} /></button>
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
                   </section>
-                    ) : (
+                    ) : storyboardEditorView === 'master' ? (
                       <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
 <MasterTimelineEditor
                     scenes={scenes.map((scene) => ({
@@ -1479,6 +1477,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       updatedAt: new Date().toISOString(),
                     } : current)}
                   />
+                      </div>
+                    ) : (
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} embedded />
                       </div>
                     )}
                 </div>
