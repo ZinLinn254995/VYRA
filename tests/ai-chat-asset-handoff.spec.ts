@@ -93,11 +93,12 @@ test('server accepts upload completion only after re-verifying owner, immutable 
 });
 
 
+
 test('Project AI Chat is isolated to its own Project Assets Vyral', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
-  assert.match(page, /let resolvedActiveVyralId = storyboardId \? storyboardUniverseId \?\? null : activeVyralId/);
-  assert.match(page, /\.filter\(\(item\) => storyboardId \? item\.id === storyboardUniverseId/);
-  assert.match(page, /destination\.id !== storyboardUniverseId/);
-  assert.match(page, /storyboard_id: storyboardId/);
-  assert.match(page, /Storyboard Universe: Added automatically/);
+  assert.ok(page.includes('let resolvedActiveVyralId = storyboardId ? storyboardUniverseId ?? null : activeVyralId'));
+  assert.ok(page.includes('.filter((item) => storyboardId ? item.id === storyboardUniverseId'));
+  assert.ok(page.includes('destination.id !== storyboardUniverseId'));
+  assert.ok(page.includes('storyboard_id: storyboardId'));
+  assert.ok(page.includes('Storyboard Universe: Added automatically'));
 });
