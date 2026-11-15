@@ -304,16 +304,18 @@ test('OpenAI platform key management is restricted to platform owners and admins
   assert.match(providerSource, /set_vyra_openai_secret/);
 });
 
-test('Global AI Chat routes supported text conversations only through OpenAI', () => {
+test('Global AI Chat routes text and visual requests through the platform OpenAI Vision path', () => {
   const server = read('src/server/ai.ts');
   const browser = read('src/services/aiService.ts');
-  assert.match(server, /callOpenAIChatFunction\(bearer\[1\]/);
-  assert.match(server, /OPENAI_MULTIMODAL_NOT_ENABLED/);
+  assert.match(server, /callOpenAIChatFunction\\(bearer\\[1\\]/);
+  assert.match(server, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
+  assert.match(server, /visionImages\\.length \\? \\{ visionImages \\}/);
   assert.match(server, /AI_TASK_NOT_ENABLED/);
   assert.doesNotMatch(server, /gemini|Google Gemini/i);
   assert.doesNotMatch(browser, /Google Gemini|gemini-[0-9]/i);
   assert.match(browser, /providerName: 'OpenAI'/);
-  assert.match(browser, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
+  assert.ok(browser.includes('if (request.mediaFiles?.length)'));
+  assert.ok(browser.includes('request.visionImages?.length ? { visionImages: request.visionImages }'));
 });
 
 
