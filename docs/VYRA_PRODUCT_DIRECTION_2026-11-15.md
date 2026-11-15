@@ -180,3 +180,23 @@ The system must support partial maturity and report missing evidence honestly. D
 
 The AI Chat context now verifies the Master DNA manifest digest and derived fingerprint against the stored revision row, and admits creator-adopted knowledge and creator-confirmed field evidence only when pinned to the exact Asset Version and source SHA-256 in the current snapshot. This is an initial consistency foundation, not completion of the full multimodal retrieval, generation, validation, or correction stack. Provider-backed behavior remains blocked until platform credentials and supported media integrations are configured.
 
+## 12. Consistency Intelligence implementation progress (2026-11-15)
+
+The first task-aware context retrieval stage is implemented in src/services/universeConsistencyRetrieval.ts and connected to the owner-verified AI Chat Universe context.
+
+- Uses the latest user task (bounded to the latest three user messages) to rank Assets by explicit name mentions, type, tags, approved purpose, creator-confirmed evidence, and descriptions.
+- When a current Master DNA snapshot passes cryptographic and revision checks, expands relevant Assets through up to two hops of that verified relationship graph.
+- Keeps broad-inventory requests explicit, prioritizes declared Main Assets, and reports when context is truncated.
+- If no confident lexical match exists, uses a clearly labelled fallback instead of silently returning an empty context.
+- Limits the normal context subset to 12 Assets and 24 relationships. The AI is instructed to use owner-scoped read tools when a broad, fallback, or truncated request requires complete inventory coverage.
+- Uses only revision-pinned snapshot relationships as canonical graph context; latest mutable relationship rows are not silently substituted when the snapshot is stale.
+
+Creator-confirmed field evidence now passes through src/services/universeConsistencyEvidence.ts:
+
+- Equal attestations for the same field and temporal scope are coalesced with their evidence references retained.
+- Different creator-confirmed values for the same field and temporal scope are emitted as an explicit unresolved conflict. Neither candidate is silently selected as canon.
+- Facts with distinct explicit temporal scopes remain separate, allowing state to evolve across events.
+- When the bounded DNA/evidence history query is truncated, the context is marked incomplete; the AI must not infer that no conflicting or superseding record exists.
+
+These are deterministic, testable retrieval and evidence-governance foundations. They are **not yet semantic vector retrieval, multimodal understanding, media-provider conditioning, or automated output-quality evaluation**. No pgvector schema or embedding provider is assumed to exist; adding one requires a separate Development schema audit, model/provider selection, cost/latency evaluation, versioned embedding metadata, and migration/tests. Do not claim vector search or end-to-end generation consistency until those layers are implemented and measured.
+
