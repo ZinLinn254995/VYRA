@@ -8,7 +8,8 @@ import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
-import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
+import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
+import { evaluateSceneStateProposal } from '../../services/universeSceneStateRuntime';
 import { encodeVyralDnaV3PngFromPackage, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralFileDnaFromPackage } from '../../services/vyralPackage.ts';
 import { analyzeVyralFileStructureV1, validateVyralFileDnaV1Record } from '../../services/vyralFileDnaV1.ts';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1.ts';
@@ -41,6 +42,7 @@ type AIChatPageProps = {
   initialSelectedAssets?: VyralChatAssetContext[];
   onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
   workspaceContext?: WorkspaceAiContext | null;
+  onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -342,7 +344,7 @@ const inspectVyralAttachment = async (file: File) => {
   return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext, onSceneStateProposal }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -1884,12 +1886,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           content: '',
         }]);
       }
+      const promptWorkspaceContext = workspaceContext ? (({ continuityRuntime: _localRuntime, ...context }) => context)(workspaceContext) : null;
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
         ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
-        ...(workspaceContext ? { workspaceContext } : {}),
+        ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         signal: requestController.signal,
         idempotencyKey: 'chat-' + makeId(),
@@ -2003,12 +2006,44 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       // A provider response or post-response Asset transfer may finish after sign-out.
       // Never publish that old request's completion into the next account's chat.
       if (activeRequestControllerRef.current !== requestController) return;
+      let assistantResponseContent = result.status === 'error' && streamedText
+        ? streamedText + '\n\n' + result.content : result.content;
+      if (result.status === 'success' && workspaceContext?.page === 'scene-editor'
+          && workspaceContext.activeSceneId && workspaceContext.continuityRuntime
+          && workspaceContext.continuityRuntime.ledger && onSceneStateProposal) {
+        const runtimeContext = workspaceContext.continuityRuntime;
+        const evaluated = evaluateSceneStateProposal({
+          response: result.content,
+          expectedSceneId: workspaceContext.activeSceneId,
+          ledger: runtimeContext.ledger,
+          scenes: runtimeContext.sceneIds.map((sceneId) => ({ id: sceneId })),
+          ...(runtimeContext.initialEntryState ? { initialEntryState: runtimeContext.initialEntryState } : {}),
+        });
+        if (evaluated.ok) {
+          onSceneStateProposal({
+            id: makeId(),
+            storyboardId: runtimeContext.storyboardId,
+            sceneId: workspaceContext.activeSceneId,
+            ledger: evaluated.runtime.ledger,
+            validationStatus: evaluated.runtime.evaluation.status,
+            violations: evaluated.runtime.evaluation.violations.map(({ path, kind, reason }) => ({ path, kind, reason })),
+            capturedAt: new Date().toISOString(),
+          });
+          const proposalStart = result.content.indexOf('<vyra-scene-state>');
+          assistantResponseContent = (proposalStart >= 0 ? result.content.slice(0, proposalStart).trim() : result.content)
+            + '\n\nScene continuity proposal evaluated and sent to Workspace for creator review.';
+        } else if (result.content.includes('<vyra-scene-state>')) {
+          const proposalStart = result.content.indexOf('<vyra-scene-state>');
+          assistantResponseContent = (proposalStart >= 0 ? result.content.slice(0, proposalStart).trim() : result.content)
+            + '\n\nScene continuity could not be evaluated: ' + evaluated.reason + ' No canon was changed.';
+        }
+      }
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
         content: result.cancelled
           ? (streamedText ? streamedText + '\n\nGeneration stopped.' : 'Generation stopped before a response was received.')
-          : (result.status === 'error' && streamedText ? streamedText + '\n\n' + result.content : result.content) + assetUploadCompletionText,
+          : assistantResponseContent + assetUploadCompletionText,
         status: result.cancelled ? 'cancelled' : result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
