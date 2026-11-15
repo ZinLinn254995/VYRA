@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-11-15):** This is a historical Asset-collection and DNA-only reconstruction specification, not the current Vyral acceptance contract. Its rules that permit arbitrary unrelated collections as the complete Vyral concept and its external blind-reconstruction success gates are no longer the product definition. Use [VYRA Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md) for current requirements. Retain deterministic source-integrity and fingerprint tests where useful.
+
 # Vyral End-to-End Success Specification
 
 Status: implementation contract; capabilities are not considered complete until the acceptance tests below pass.

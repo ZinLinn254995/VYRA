@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, LockKeyhole, Search, Trash2 } from 'lucide-react';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import { VyralDetailsContent } from './VyralDetailsContent';
-import { supabase } from '../../context/AuthContext';
+import { supabase, useAuth } from '../../context/AuthContext';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type VyralFolder = { id: string; name: string; parentId: string | null; createdAt: string };
@@ -14,7 +14,7 @@ type VyralRecord = {
   dna_status: string; license_policy: Record<string, unknown>; created_at: string; updated_at: string;
   assetCount: number; folderCount: number; metadata?: Record<string, unknown>;
 };
-type Props = { isAuthenticated: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
+type Props = { isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onBack: () => void; backLabel: string; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
 const STORAGE_KEY = 'vyra:my-vyrals:v1';
 const MIGRATION_KEY = 'vyra:my-vyrals:cloud-migrated:v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,22 +35,42 @@ const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.sc
 
 const fieldClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]';
 
-export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLabel, onSendAssetsToChat }) => {
+export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true, onBack, backLabel, onSendAssetsToChat }) => {
+  const { user } = useAuth();
+  const ownerId = user?.id ?? null;
+  const lastSyncAtRef = useRef(0);
+  const initialLoadStartedRef = useRef(false);
+  const currentOwnerRef = useRef(ownerId);
+  const loadRequestRef = useRef(0);
   const [vyrals, setVyrals] = useState<VyralRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useLayoutEffect(() => {
+    if (currentOwnerRef.current === ownerId) return;
+    currentOwnerRef.current = ownerId;
+    ++loadRequestRef.current;
+    lastSyncAtRef.current = 0;
+    initialLoadStartedRef.current = false;
+    setVyrals([]);
+    setActiveId(null);
+    setLoading(Boolean(ownerId));
+    setError('');
+  }, [ownerId]);
 
-  const loadVyrals = useCallback(async () => {
-    if (!supabase || !isAuthenticated) { setVyrals([]); setLoading(false); return; }
-    setLoading(true);
+  const loadVyrals = useCallback(async (quiet = false) => {
+    if (!supabase || !isAuthenticated || !ownerId) { setVyrals([]); setLoading(false); return; }
+    const requestId = ++loadRequestRef.current;
+    if (!quiet) setLoading(true);
     setError('');
     const { data: auth, error: authError } = await supabase.auth.getUser();
-    if (authError || !auth.user) { setError('Your session could not be verified. Please sign in again.'); setLoading(false); return; }
+    if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
+    if (authError || !auth.user || auth.user.id !== ownerId) { setError('Your session could not be verified. Please sign in again.'); setLoading(false); return; }
 
-    let { data, error: queryError } = await supabase.from('vyrals').select('*').order('updated_at', { ascending: false });
+    let { data, error: queryError } = await supabase.from('vyrals').select('*').eq('user_id', ownerId).order('updated_at', { ascending: false });
+    if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
     if (queryError) { setError(queryError.message); setLoading(false); return; }
 
     // One-time migration from the earlier device-local Vyral list. Keep the old
@@ -95,7 +115,8 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
         if (dnaError) migrationSucceeded = false;
       }
       if (migrationSucceeded) localStorage.setItem(MIGRATION_KEY, 'done');
-      const refreshed = await supabase.from('vyrals').select('*').order('updated_at', { ascending: false });
+      const refreshed = await supabase.from('vyrals').select('*').eq('user_id', ownerId).order('updated_at', { ascending: false });
+      if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
       if (!refreshed.error) data = refreshed.data;
     }
 
@@ -104,6 +125,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
       supabase.from('vyral_assets').select('vyral_id').in('vyral_id', ids).neq('processing_status', 'archived'),
       supabase.from('vyral_folders').select('vyral_id').in('vyral_id', ids),
     ]) : [{ data: [], error: null }, { data: [], error: null }];
+    if (requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId) return;
     const assetCounts = new Map<string, number>();
     const folderCounts = new Map<string, number>();
     for (const row of assetRows.data ?? []) assetCounts.set(row.vyral_id, (assetCounts.get(row.vyral_id) ?? 0) + 1);
@@ -112,10 +134,19 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
       ...item, assetCount: assetCounts.get(item.id) ?? 0, folderCount: folderCounts.get(item.id) ?? 0,
       license_policy: (item.license_policy ?? {}) as Record<string, unknown>,
     })) as VyralRecord[]);
+    lastSyncAtRef.current = Date.now();
     setLoading(false);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, ownerId]);
 
-  useEffect(() => { void loadVyrals(); }, [loadVyrals]);
+  useEffect(() => {
+    if (!isActive) return;
+    if (!initialLoadStartedRef.current) {
+      initialLoadStartedRef.current = true;
+      void loadVyrals(false);
+    } else if (Date.now() - lastSyncAtRef.current >= 30_000) {
+      void loadVyrals(true);
+    }
+  }, [isActive, loadVyrals]);
 
   const active = vyrals.find((item) => item.id === activeId) ?? null;
   const visibleVyrals = useMemo(() => vyrals
@@ -146,7 +177,7 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
     }
     const { error: deleteError } = await supabase.from('vyrals').delete().eq('id', item.id);
     if (deleteError) setError(deleteError.message);
-    else { if (activeId === item.id) setActiveId(null); await loadVyrals(); }
+    else { if (activeId === item.id) setActiveId(null); setVyrals((current) => current.filter((vyral) => vyral.id !== item.id)); }
     setBusy(false);
   };
 
@@ -158,10 +189,10 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
     <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
       <ProfileSubpageHeader
         onBack={() => { setActiveId(null); setQuery(''); }}
-        backLabel="Back to My Vyrals"
+        backLabel="Back to My Universes"
         icon={<VyralIdentityIcon size={22} />}
-        title={active.name.toLowerCase().endsWith('.vyral') ? active.name : active.name + '.vyral'}
-        description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
+        title={active.name}
+        description={active.description || 'Your creative Universe and its original Assets.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
       <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
@@ -177,17 +208,17 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
           onBack={onBack}
           backLabel={backLabel}
           icon={<VyralIdentityIcon size={22} />}
-          title="My Vyrals"
-          description="Your Vyral packages and their original Assets."
-          search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
+          title="My Universes"
+          description="Your creative Universes and the Assets they contain."
+          search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Universes" className={fieldClass + ' pl-9'} /></div>}
         />
         <div className="profile-subpage-content space-y-5 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {error && <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-500">{error}</div>}
-          {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Vyrals…</div> :
+          {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Universes…</div> :
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
               <article key={item.id} className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-                <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">VYRAL PACKAGE · .VYRAL</span></button>
-                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name.toLowerCase().endsWith('.vyral') ? item.name : item.name + '.vyral'}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A private creative asset library.'}</p>
+                <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">CREATIVE UNIVERSE</span></button>
+                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A Creative Universe you can grow over time.'}</p>
                     {(() => {
                       const fields = (item.metadata?.ai_details as { fields?: Record<string, { value?: unknown }> } | undefined)?.fields ?? {};
                       const category = typeof fields.category?.value === 'string' ? fields.category.value : '';
@@ -198,11 +229,11 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, onBack, backLab
                       return values.length ? <div className="mt-2 flex flex-wrap gap-1">{values.map((value, index) => <span key={value + index} className="max-w-full truncate rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-0.5 text-[9px] text-[var(--vyra-text-secondary)]">{value}</span>)}</div> : null;
                     })()}
                   </button>{isProtectedVyral(item) ? <span title="Protected sample — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={12}/> Protected</span> : <button type="button" onClick={() => void deleteVyral(item)} aria-label={'Delete '+item.name} disabled={busy} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15}/></button>}</div>
-                  <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--vyra-text-muted)]"><span>{item.assetCount} assets · {item.folderCount} folders</span><span className="capitalize">{item.dna_status.replaceAll('_',' ')}</span></div>
-                  <button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Vyral <ChevronRight size={14}/></button>
+                  <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--vyra-text-muted)]"><span>{item.assetCount} assets · {item.folderCount} folders</span><span className="capitalize">{item.visibility}</span></div>
+                  <button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Universe <ChevronRight size={14}/></button>
                 </div>
               </article>
-            ))}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] px-6 py-10 text-center"><div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={28}/></div><h3 className="mt-4 text-base font-semibold text-[var(--vyra-text-primary)]">{query?'No matching Vyrals':'No Vyrals yet'}</h3><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">{query?'Try another search term.':'Ask VYRA AI Chat to create a Vyral and organize its Assets, identity and DNA.'}</p></div>}
+            ))}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] px-6 py-10 text-center"><div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={28}/></div><h3 className="mt-4 text-base font-semibold text-[var(--vyra-text-primary)]">{query?'No matching Universes':'No Universes yet'}</h3><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">{query?'Try another search term.':'Create a Universe to organize characters, places, stories, worlds, and other creative Assets.'}</p></div>}
 
         </div>
       </section>

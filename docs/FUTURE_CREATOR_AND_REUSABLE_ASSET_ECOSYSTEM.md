@@ -1,37 +1,11 @@
-# VYRA Future Version — Creator & Reusable Asset Ecosystem
-# VYRA အနာဂတ် Version — Creator & Reusable Asset Ecosystem
+# VYRA Creator Ecosystem — Historical Design Notes
+# VYRA ဖန်တီးသူ Ecosystem — ယခင် Design မှတ်စုများ
 
-**Status:** Future product direction / brainstorming document — not approved for current implementation.  
-**အခြေအနေ:** အနာဂတ် Version အတွက် စိတ်ကူးနှင့် Product Direction မှတ်တမ်း — လက်ရှိအကောင်အထည်ဖော်ရန် အတည်ပြုထားခြင်း မဟုတ်ပါ။
+**Status:** Historical brainstorming document. The former "future-only / not approved" scope has been superseded by the founder-approved 2026-11-15 product direction.
+**Authority:** [VYRA Product Direction — 2026-11-15](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+**How to use this file:** The remaining sections preserve earlier ideas and rationale. They are not an independent implementation specification. Use only ideas that align with the current Product Direction; ignore statements that defer creator ecosystem work until after an earlier AI-video-only release.
 
-**Scope boundary:** This document is intentionally separate from the current VYRA release work. It records ideas for a later version only. It does not replace, revise, or authorize changes to the current credit-transfer, authentication, billing, or release documents and implementation.
-
-**လုပ်ငန်းနယ်ပယ် ကန့်သတ်ချက်:** ဤဖိုင်သည် လက်ရှိ VYRA Project ၏ Release အလုပ်များနှင့် သီးခြားဖြစ်သည်။ နောက် Version အတွက် စိတ်ကူးများကိုသာ မှတ်တမ်းတင်ထားခြင်းဖြစ်ပြီး လက်ရှိ Credit Transfer၊ Authentication၊ Billing သို့မဟုတ် Release ဆိုင်ရာ စာတမ်းများနှင့် Code များကို ပြင်ဆင်ရန် ခွင့်ပြုချက် မဟုတ်ပါ။
-
----
-
-## 1. Why this future direction exists
-## ၁။ ဒီအနာဂတ် Product Direction ရဲ့ ရည်ရွယ်ချက်
-
-VYRA is currently being prepared as an AI Creative Studio / AI Video Creation SaaS. The immediate priority remains finishing the current product—including its credit economy and account-to-account credit transfers—and making it reliable enough to put into users' hands.
-
-Only after the current project is complete and ready for real users should this concept be considered as a future product expansion.
-
-VYRA ကို လက်ရှိမှာ AI Creative Studio / AI Video Creation SaaS အဖြစ် တည်ဆောက်နေသည်။ လက်ရှိဦးစားပေးအလုပ်မှာ Credit Economy၊ Account-to-Account Credit Transfer အပါအဝင် လက်ရှိ Project ကို ပြီးစီးအောင်လုပ်ပြီး အသုံးပြုသူများထံ အပ်နှံနိုင်လောက်အောင် ယုံကြည်စိတ်ချရစေရန် ဖြစ်သည်။
-
-လက်ရှိ Project ပြီးစီးပြီး User များ လက်တွေ့အသုံးပြုနိုင်သည့်အဆင့် ရောက်မှသာ ဤအယူအဆကို နောက် Version ၏ Product Expansion အဖြစ် ပြန်လည်စဉ်းစားမည်။
-
-### Long-term idea / ရေရှည်အယူအဆ
-
-VYRA could grow beyond a place where users generate individual images and videos. It could become a creator ecosystem where people build reusable creative assets, share them under creator-defined permissions, make independent derivative versions, and create new stories and media using one another's work.
-
-VYRA သည် ပုံနှင့် Video တစ်ခုချင်းစီ ဖန်တီးသည့်နေရာတစ်ခုထက် ပိုမိုကျယ်ပြန့်လာနိုင်သည်။ Creator များက ပြန်လည်အသုံးပြုနိုင်သော Creative Asset များကို တည်ဆောက်ခြင်း၊ ကိုယ်ပိုင်ခွင့်ပြုချက်များဖြင့် မျှဝေခြင်း၊ မူရင်းကို မထိခိုက်စေဘဲ ဆင့်ကဲ Version အသစ်များ ဖန်တီးခြင်းနှင့် အချင်းချင်း၏ ဖန်တီးမှုများကို အသုံးပြုပြီး Story နှင့် Media အသစ်များ ဖန်တီးနိုင်သည့် Ecosystem တစ်ခု ဖြစ်လာရန် ရည်ရွယ်သည်။
-
-This is a product vision, not a claim that these capabilities exist today.
-
-ဤအရာများသည် အနာဂတ် Product Vision များသာဖြစ်ပြီး လက်ရှိ VYRA တွင် အကောင်အထည်ဖော်ပြီးသား Feature များဟု မဆိုလိုပါ။
-
----
+The approved product journey is **Idea → Create → Edit → Maintain Consistency → Share → Publish**. Creative Universes, reusable Assets, controlled sharing, collaboration, creator marketplace workflows, and social publishing are part of VYRA's current long-term product direction. Actual delivery priority and implementation status must be verified in the repository and Development environment.
 
 ## 2. Core principle: reusable assets, not one-time outputs
 ## ၂။ အခြေခံမူ — တစ်ကြိမ်သုံး Content မဟုတ်ဘဲ ပြန်လည်အသုံးပြုနိုင်သော Asset

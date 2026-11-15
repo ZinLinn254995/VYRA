@@ -1,10 +1,12 @@
 # VYRA Product Vision & Revenue Mission
 
+> Current product scope and architecture are governed by [VYRA Product Direction — 2026-11-15](./VYRA_PRODUCT_DIRECTION_2026-11-15.md). This revenue mission remains relevant, but any narrower AI-video-only wording elsewhere in this document is superseded.
+
 _Last updated: 2026-11-02_
 
 ## 1. Mission — the non-negotiable project goal
 
-VYRA is a customer-facing **AI Video Creation SaaS and AI Creative Studio**. Its goal is to help customers turn creative ideas into finished visual content through one connected production environment, then grow into a reliable business with sustainable repeat-purchase revenue.
+VYRA is a customer-facing **All-in-One AI Creative & Publishing Platform**. It helps creators turn ideas into media, edit and improve their work, maintain creative consistency, share Creative Universes and reusable resources, and publish to social platforms through one connected environment. VYRA grows into a reliable business with sustainable repeat-purchase revenue.
 
 The product direction is **Chat-First, Not Chat-Only**:
 - Natural-language Chat is a primary way to understand, control, and use VYRA's capabilities.
@@ -206,7 +208,7 @@ This product vision and the Project Overview define product intent. Technical do
 
 ## Burmese summary
 
-VYRA ဟာ AI Video Creation SaaS နဲ့ AI Creative Studio ဖြစ်တယ်။ Idea ကနေ Script၊ Character၊ Storyboard၊ Image၊ Video၊ Voice/Audio၊ Editing၊ Preview နဲ့ Export အထိ ဖန်တီးမှုလုပ်ငန်းစဉ်တွေကို တစ်နေရာတည်းမှာ ချိတ်ဆက်ပေးဖို့ ရည်ရွယ်တယ်။
+VYRA ဟာ All-in-One AI Creative & Publishing Platform ဖြစ်တယ်။ Creator တွေက Idea ကနေ Media ဖန်တီးခြင်း၊ Editing၊ Creative Universe Consistency ထိန်းသိမ်းခြင်း၊ အခြား Creator တွေနဲ့ Share/Collaborate လုပ်ခြင်း၊ Social Media ပေါ် Publish လုပ်ခြင်းအထိ တစ်နေရာတည်းမှာ ဆက်စပ်လုပ်ဆောင်နိုင်ဖို့ ရည်ရွယ်တယ်။
 
 VYRA ရဲ့ အသုံးပြုမှုအယူအဆက **Chat-First, Not Chat-Only** ဖြစ်တယ်။ အသုံးပြုသူက Chat မှာ သဘာဝကျကျပြောပြီး AI ကို အလုပ်ခိုင်းနိုင်သလို Visual Workspace ထဲမှာလည်း ကိုယ်တိုင်ဖန်တီး၊ ပြင်ဆင်၊ စီမံနိုင်တယ်။ Chat နဲ့ Manual Workspace နှစ်ခုလုံးဟာ Project Data တစ်ခုတည်းကို အခြေခံပြီး အတူတကွ အလုပ်လုပ်နိုင်ဖို့ ရည်ရွယ်တယ်။
 

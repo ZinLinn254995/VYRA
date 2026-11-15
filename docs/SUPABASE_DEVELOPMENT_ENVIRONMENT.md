@@ -1,5 +1,7 @@
 # Supabase Development Environment Runbook
 
+> **Runtime update (2026-11-15):** The old OpenRouter Text BYOK ledger endpoint and its local E2E test were removed. The ledger tables/RPCs remain; a provider-neutral recorder is retained as foundation, but OpenAI/Runway integration and authenticated Development E2E verification are not yet complete. Historical OpenRouter steps below are retired and must not be run.
+
 **Current state (2026-11-03):** the dedicated `VYRA Development` Supabase project exists and is healthy. All eight repository migrations are applied there. The five pgTAP database suites have passed against the development database. Production remains unchanged and is not approved for migration.
 
 ## Environment boundary
@@ -79,19 +81,7 @@ supabase db reset
 supabase test db
 ```
 
-For the authenticated OpenRouter Text ledger E2E test against the local Supabase stack, export the local connection values without copying them into source control:
-
-```sh
-eval "$(supabase status -o env)"
-export SUPABASE_URL="$API_URL"
-export SUPABASE_ANON_KEY="$ANON_KEY"
-export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
-export VYRA_USAGE_LEDGER_ENABLED=true
-npm run test:usage-ledger-local-e2e
-```
-
-This test creates a temporary local Auth user, obtains a real local session, calls the VYRA API while mocking only the OpenRouter provider, verifies the job/attempt rows through PostgREST, and removes its test rows afterward. The local service-role key is only used by the test process and must never be committed or used as a hosted secret.
-
+The former `test:usage-ledger-local-e2e` script exercised the retired OpenRouter BYOK route and has been removed. Do not recreate that provider-specific test. Add authenticated Development E2E coverage for the platform-managed OpenAI and Runway paths when their usage-ledger integration is implemented.
 These commands target the local Supabase stack. Confirm the local stack is running before resetting it. Use the current migration filenames in `supabase/migrations`.
 
 For a new migration, create the file with `supabase migration new <descriptive_name>`, review the SQL, apply and test it locally, then apply it to the development project. Never rewrite an already-applied migration; add a corrective migration instead.
@@ -111,12 +101,12 @@ The database suites passing does not replace authenticated HTTP end-to-end tests
 - Service-role credentials never appear in browser bundles, client storage, API responses, or logs.
 - No production user, balance, ledger row, or secret is present in development.
 
-## 6. First usage-recorder integration increment
+## 6. Historical usage-recorder integration (retired provider route)
 
-The server has an opt-in recorder for OpenRouter Text chat only. When `VYRA_USAGE_LEDGER_ENABLED=true`, it requires a verified Supabase session and an idempotency key, creates a generation job/provider attempt before calling OpenRouter, and stores safe usage metadata plus provider-reported cost when available. It does not store prompts or BYOK keys and does not charge credits.
+The former OpenRouter Text route used an opt-in recorder. That runtime route has been removed. The generic recorder remains a reusable server-side foundation but is not currently connected to OpenAI Chat or Runway media.
 
 This is not yet a complete generation-to-ledger implementation:
-- Gemini text and OpenRouter Image, Audio, and Video are not yet recorded.
+- OpenAI Chat and Runway media usage are not yet connected to the generic recorder.
 - No credit reservation, settlement, or charging is enabled.
 - Keep the flag `false` until two-account authenticated Development E2E tests pass.
 - Do not set this flag in Preview or Production yet.

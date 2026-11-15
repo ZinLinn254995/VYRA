@@ -16,6 +16,22 @@ test('OpenAI Edge Function streams SSE and keeps provider credentials server-sid
   assert.match(source, /totalChars > 30000/);
 });
 
+test('OpenAI health checks verify the configured key server-side without returning it', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const route = read('src/server/ai.ts');
+  const service = read('src/services/aiService.ts');
+  const adminSettings = read('src/components/profile/ApiKeySettings.tsx');
+  assert.match(edge, /body\.healthCheck === true/);
+  assert.match(edge, /https:\/\/api\.openai\.com\/v1\/models/);
+  assert.match(edge, /status: 'connected'/);
+  assert.match(edge, /status: 'preview_mode'/);
+  assert.match(edge, /status: 'error'/);
+  assert.match(route, /callOpenAIChatFunction\(bearer\[1\], \{ healthCheck: true \}\)/);
+  assert.match(service, /Authorization: 'Bearer ' \+ accessToken/);
+  assert.match(adminSettings, /\/api\/providers\/openai\/settings/);
+  assert.match(adminSettings, /Authorization: 'Bearer ' \+ token/);
+});
+
 test('Authenticated server route forwards SSE incrementally with backpressure', () => {
   const source = read('src/server/ai.ts');
   assert.match(source, /Accept:\s*payload\.stream === true \? 'text\/event-stream'/);
@@ -25,13 +41,13 @@ test('Authenticated server route forwards SSE incrementally with backpressure', 
   assert.match(source, /res\.once\('close', cancelOnClose\)/);
 });
 
-test('Browser service parses OpenAI SSE deltas and usage without replacing the Vyral Vision path', () => {
+test('Browser service parses OpenAI SSE deltas and never routes media requests to Gemini', () => {
   const source = read('src/services/aiService.ts');
   assert.match(source, /Accept:\s*'text\/event-stream'/);
   assert.match(source, /payload === '\[DONE\]'/);
   assert.match(source, /request\.onTextDelta\?\.\(chunk\)/);
   assert.match(source, /promptTokens:\s*event\.usage\.prompt_tokens/);
-  assert.match(source, /if \(request\.visionImages\?\.length\)/);
+  assert.match(source, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
 });
 
 test('AI Chat preserves partial streamed text on errors and keeps retry in the existing message actions', () => {
@@ -40,7 +56,20 @@ test('AI Chat preserves partial streamed text on errors and keeps retry in the e
   assert.match(source, /result\.status === 'error' && streamedText/);
   assert.match(source, /streamedText \+ '\\n\\n' \+ result\.content/);
   assert.match(source, /previousUserMessage/);
-  assert.match(source, /sendMessage\(previousUserMessage\.content\)/);
+  assert.match(source, /sendMessage\(previousUserMessage\.content, previousUserMessage\.id\)/);
+});
+
+test('Active global Chat uses the authenticated platform-managed OpenAI service, not customer BYOK', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  const service = read('src/services/aiService.ts');
+  const server = read('src/server/ai.ts');
+  assert.match(page, /getCurrentAccessToken\(\)/);
+  assert.match(page, /aiService\.generateResponse\(\{/);
+  assert.doesNotMatch(page, /openrouter|gemini/i);
+  assert.match(service, /Authorization:\s*'Bearer ' \+ request\.accessToken/);
+  assert.match(service, /private endpoint = '\/api\/ai\/chat'/);
+  assert.doesNotMatch(server, /openrouter|x-openrouter-api-key/i);
+  assert.match(server, /router\.post\('\/ai\/chat'/);
 });
 
 test('Vyral AI tools are read-only, bounded and scoped to the authenticated owner and active Vyral', () => {
@@ -119,6 +148,103 @@ test('VYRA interprets free-form multilingual intent and formats active context w
   assert.doesNotMatch(source, /activeVyralInstruction =\s*'\\\\n/);
 });
 
+test('AI Chat retrieves task-relevant Assets and only uses revision-pinned relationship graph context', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const retrieval = read('src/services/universeConsistencyRetrieval.ts');
+  assert.match(edge, /retrieveUniverseConsistencyContext\(/);
+  assert.match(edge, /role === 'user'[\s\S]*?\.slice\(-3\)/);
+  assert.match(edge, /maxAssets: 12/);
+  assert.match(edge, /maxRelationships: 24/);
+  assert.match(edge, /masterSnapshotIsCurrent \? snapshotRelationships\.map/);
+  assert.match(edge, /snapshotAssets: selectedSnapshotAssetContext/);
+  assert.match(edge, /snapshotRelationships: selectedSnapshotRelationships/);
+  assert.match(edge, /assets: selectedAssetContext/);
+  assert.match(edge, /relationships: selectedRelationships/);
+  assert.match(edge, /deterministic lexical\/graph retrieval, not vector-semantic search/);
+  assert.match(retrieval, /up to two relationship hops/);
+  assert.match(retrieval, /explicit_asset_name_mention/);
+  assert.match(retrieval, /one_hop_relationship_context/);
+  assert.match(retrieval, /truncatedAssets/);
+});
+
+test('AI Chat marks incomplete DNA and creator-evidence histories instead of implying complete canon', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /dnaContextTruncated = \(dnaResult\.count \?\? 0\) > \(dnaResult\.data\?\.length \?\? 0\)/);
+  assert.match(source, /creatorEvidenceTruncated = \(creatorEvidenceResult\.count \?\? 0\) > \(creatorEvidenceResult\.data\?\.length \?\? 0\)/);
+  assert.match(source, /creatorConfirmedFieldEvidenceComplete: !creatorEvidenceTruncated/);
+  assert.match(source, /\.in\('asset_id', assets\.map\(\(asset\) => asset\.id\)\)/);
+  assert.match(source, /creatorKnowledgeHistoryComplete: !dnaContextTruncated/);
+  assert.match(source, /If the creator-evidence or DNA-history retrieval is truncated, treat those histories as incomplete/);
+});
+
+test('AI Chat keeps conflicting creator-confirmed facts unresolved instead of silently choosing canon', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const evidence = read('src/services/universeConsistencyEvidence.ts');
+  assert.match(edge, /resolveCreatorConfirmedFieldEvidence/);
+  assert.match(edge, /creatorConfirmedFieldConflicts/);
+  assert.match(edge, /creatorFieldResolutionByAsset/);
+  assert.match(edge, /multiple values for the same field and temporal scope is explicitly unresolved/);
+  assert.match(evidence, /unresolved_conflict/);
+  assert.match(evidence, /multiple_creator_confirmed_values_for_same_field_and_time/);
+  assert.match(evidence, /toISOString\(\)/);
+  assert.match(evidence, /withoutTemporalMetadata/);
+  assert.match(evidence, /effective_at[\s\S]*valid_from[\s\S]*timestamp/);
+});
+
+test('AI Chat indexes a bounded but broad Universe inventory before selecting a small task context', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /\.neq\('processing_status', 'archived'\)[\s\S]*?\.limit\(120\)/);
+  assert.match(edge, /\.order\('revision_number', \{ ascending: false \}\)[\s\S]*?\.limit\(480\)/);
+  assert.match(edge, /creatorEvidenceResult[\s\S]*?\.limit\(480\)/);
+  assert.match(edge, /visionObservationResult[\s\S]*?\.limit\(360\)/);
+  assert.match(edge, /snapshotAssetInventoryTruncated = snapshotAssets\.length > 240/);
+  assert.match(edge, /rawSnapshotRelationships\.length > 240/);
+  assert.match(edge, /\.slice\(0, 240\)\.map/);
+  assert.match(edge, /assetInventoryTruncated: \(assetResult\.count \?\? assets\.length\) > assets\.length \|\| snapshotAssetInventoryTruncated/);
+  assert.match(edge, /relationshipsTruncated: snapshotRelationshipsTruncated/);
+  assert.match(edge, /maxAssets: 12/);
+});
+
+test('AI Chat derives a task-specific continuity checklist before creative actions', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /Before any creation, editing, or generation task, derive a task-specific continuity checklist/);
+  assert.match(edge, /Check stable identity and canon separately from mutable timeline\/state/);
+  assert.match(edge, /Apply the checklist across appearance, style, voice, behavior, setting, props, relationships, and temporal state/);
+  assert.match(edge, /cross-scene continuity ledger/);
+  assert.match(edge, /Treat each Scene as a state transition, not an isolated prompt/);
+  assert.match(edge, /Track continuity across distant Scenes too/);
+  assert.match(edge, /If a required fact is missing, conflicting, stale, or outside the retrieved evidence/);
+});
+
+test('AI Chat uses only current-version hash-pinned Vision observations as non-canonical retrieval hints', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /from\('vyral_vision_observations'\)/);
+  assert.match(edge, /\.in\('verification_status', \['observed', 'corroborated', 'creator_confirmed', 'independently_verified'\]\)/);
+  assert.match(edge, /observation\.asset_version_id !== snapshotAsset\.asset_version_id/);
+  assert.match(edge, /observation\.source_sha256\.toLowerCase\(\) !== snapshotAsset\.asset_fingerprint\.toLowerCase\(\)/);
+  assert.match(edge, /authority: 'version_pinned_model_observation_not_creator_canon'/);
+  assert.match(edge, /modelObservations: visionObservationsByAsset/);
+  assert.match(edge, /Version-pinned AI Vision observations may help interpret an Asset[\s\S]*?not canon or creator-confirmed facts/);
+  assert.match(edge, /Exclude disputed, stale-version or source-hash-mismatched observations/);
+  assert.match(edge, /visionObservationHistoryTruncated/);
+});
+
+test('AI Chat consistency context verifies Master DNA integrity and only admits creator-confirmed evidence pinned to the exact snapshot version', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /validateVyralMasterDnaV1\(rawMasterSnapshot\)/);
+  assert.match(source, /masterResult\.data\.manifest_sha256 === verifiedSnapshot\.integrity\.manifest_sha256/);
+  assert.match(source, /masterResult\.data\.vyral_fingerprint === verifiedSnapshot\.integrity\.vyral_fingerprint/);
+  assert.match(source, /snapshotRoot\.vyral_id === activeVyralId/);
+  assert.match(source, /\.order\('revision_number', \{ ascending: false \}\)\.order\('created_at', \{ ascending: false \}\)/);
+  assert.match(source, /knowledge_promotion_source === 'creator_adopted_vision_observation'/);
+  assert.match(source, /row\.verification_status === 'creator_confirmed'/);
+  assert.match(source, /sourceEvidence\.asset_version_id === pinnedVersionId/);
+  assert.match(source, /sourceEvidence\.source_sha256\.toLowerCase\(\) === pinnedFingerprint/);
+  assert.match(source, /evidence\.asset_version_id !== snapshotAsset\.asset_version_id/);
+  assert.match(source, /evidence\.source_sha256 \?\? ''\)\.toLowerCase\(\) !== snapshotAsset\.asset_fingerprint\.toLowerCase\(\)/);
+  assert.match(source, /Keep AI-observed, unreviewed, disputed, stale-version, or unpinned evidence out of canon/);
+});
+
 test('AI Audio Asset Timeline insertion derives duration and waveform from source-version SHA-bound metadata', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /audio_technical_metadata/);
@@ -141,4 +267,172 @@ test('AI Scene Video attachment is owner-scoped, version-verified, approval-gate
   assert.ok(source.includes('VIDEO_ASSET_VERSION_CHANGED'));
   assert.ok(source.includes('attachedVideoAssetVersionId'));
   assert.ok(source.includes("assetVersionId: typeof instance.assetVersionId === 'string'"));
+});
+
+test('OpenAI platform key management is restricted to platform owners and admins', () => {
+  const providerSource = read('supabase/functions/manage-openai-api-key/index.ts');
+  const settingsSource = read('src/components/profile/ApiKeySettings.tsx');
+  assert.match(providerSource, /from\('platform_admins'\)\.select\('role'\)/);
+  assert.match(providerSource, /!\['owner', 'admin'\]\.includes\(admin\.role\)/);
+  assert.match(providerSource, /Administrator access is required to manage platform AI providers/);
+  assert.match(settingsSource, /response\.status === 403/);
+  assert.match(settingsSource, /Administrator access required/);
+  assert.match(providerSource, /get_vyra_openai_secret/);
+  assert.match(providerSource, /set_vyra_openai_secret/);
+});
+
+test('Global AI Chat routes supported text conversations only through OpenAI', () => {
+  const server = read('src/server/ai.ts');
+  const browser = read('src/services/aiService.ts');
+  assert.match(server, /callOpenAIChatFunction\(bearer\[1\]/);
+  assert.match(server, /OPENAI_MULTIMODAL_NOT_ENABLED/);
+  assert.match(server, /AI_TASK_NOT_ENABLED/);
+  assert.doesNotMatch(server, /gemini|Google Gemini/i);
+  assert.doesNotMatch(browser, /Google Gemini|gemini-[0-9]/i);
+  assert.match(browser, /providerName: 'OpenAI'/);
+  assert.match(browser, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
+});
+
+
+test('OpenAI browser stream supports explicit cancellation and reports truncated streams as retryable errors', () => {
+  const service = read('src/services/aiService.ts');
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(service, /signal\?: AbortSignal/);
+  assert.match(service, /signal: requestController\.signal/);
+  assert.match(service, /request\.signal\?\.aborted/);
+  assert.match(service, /cancelled: true/);
+  assert.match(service, /if \(!finished\)/);
+  assert.match(service, /connection ended before the response was complete/i);
+  assert.match(page, /activeRequestControllerRef/);
+  assert.match(page, /activeRequestControllerRef\.current\?\.abort\(\)/);
+  assert.match(page, /signal: requestController\.signal/);
+  assert.match(page, /result\.cancelled/);
+  assert.match(page, /aria-label=\{isSending \? "Stop generation" : "Send message"\}/);
+  assert.match(page, /type=\{isSending \? "button" : "submit"\}/);
+  assert.match(page, /wasCancelled/);
+});
+
+
+
+test('OpenAI browser stream cancels the response reader after the terminal SSE event', () => {
+  const service = read('src/services/aiService.ts');
+  assert.match(service, /if \(finished \|\| streamError\) \{[\s\S]*?await reader\.cancel\(\)[\s\S]*?break;/);
+  assert.match(service, /reader\.releaseLock\(\)/);
+});
+
+test('OpenAI browser stream has a bounded timeout distinct from user cancellation', () => {
+  const service = read('src/services/aiService.ts');
+  assert.match(service, /setTimeout\(\(\) => \{[\s\S]*?timedOut = true;[\s\S]*?requestController\.abort\(\);[\s\S]*?120_000/);
+  assert.match(service, /signal: requestController\.signal/);
+  assert.match(service, /if \(request\.signal\?\.aborted\)/);
+  assert.match(service, /if \(timedOut\)/);
+  assert.match(service, /This response took too long\. Please retry\./);
+  assert.match(service, /clearTimeout\(timeoutId\)/);
+  assert.match(service, /removeEventListener\('abort', abortFromCaller\)/);
+});
+
+test('Admin Dashboard exposes platform provider controls only under the Platform section', () => {
+  const profile = read('src/components/profile/ProfilePage.tsx');
+  const settings = read('src/components/profile/ApiKeySettings.tsx');
+  assert.ok(profile.includes("title: 'Platform'"));
+  assert.ok(profile.includes("label: 'Admin Dashboard'"));
+  assert.ok(profile.includes("detail: 'Manage VYRA platform API keys'"));
+  assert.ok(profile.includes("activePage === 'setting-ai'"));
+  assert.ok(profile.includes('<ApiKeySettings />'));
+  assert.ok(settings.includes("/api/providers/openai/settings"));
+  assert.ok(settings.includes('Stored in Supabase Vault'));
+  assert.ok(settings.includes('The saved key is never returned to the browser'));
+});
+
+test('OpenAI provider secret is Vault-backed and callable only by the server service role', () => {
+  const migration = read('supabase/migrations/20261112172000_vyra_openai_api_key_vault.sql');
+  const provider = read('supabase/functions/manage-openai-api-key/index.ts');
+  for (const snippet of [
+    'security definer',
+    "set search_path = ''",
+    'vault.create_secret',
+    'vault.update_secret',
+    'vault.decrypted_secrets',
+    'revoke all on function public.set_vyra_openai_secret(text) from public, anon, authenticated',
+    'revoke all on function public.get_vyra_openai_secret() from public, anon, authenticated',
+    'grant execute on function public.set_vyra_openai_secret(text) to service_role',
+    'grant execute on function public.get_vyra_openai_secret() to service_role',
+  ]) assert.ok(migration.includes(snippet), 'Migration missing: ' + snippet);
+  for (const snippet of [
+    "createSupabaseContext(request, { auth: 'user' })",
+    "from('platform_admins').select('role')",
+    "!['owner', 'admin'].includes(admin.role)",
+    'AbortSignal.timeout(12000)',
+    "provider: 'openai'",
+  ]) assert.ok(provider.includes(snippet), 'Provider function missing: ' + snippet);
+  assert.doesNotMatch(provider, /json\(\{[^}]*apiKey[^}]*\}\)/);
+});
+
+
+test('AI Chat records user-stopped generations as cancelled rather than retryable failures', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /status\?: 'success' \| 'preview' \| 'error' \| 'cancelled'/);
+  assert.match(page, /status: result\.cancelled \? 'cancelled' : result\.status/);
+  assert.match(page, /content: streamedText \? streamedText \+ '\\n\\nGeneration stopped\.' : message, status: 'cancelled'/);
+  assert.match(page, /message\.status === 'success' \|\| message\.status === 'preview' \|\| message\.status === 'error' \|\| message\.status === 'cancelled'/);
+});
+
+
+test('OpenAI Edge Function distinguishes upstream timeouts from connection failures', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /error\.name === 'TimeoutError'[\s\S]*?code: 'OPENAI_TIMEOUT'[\s\S]*?\}, 504/);
+  assert.match(edge, /if \(request\.signal\.aborted\) return new Response\(null, \{ status: 499 \}\)/);
+});
+
+test('OpenAI Edge Function cancels upstream planner and response when the client disconnects', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(45000\)\]\)/);
+  assert.match(edge, /signal: AbortSignal\.any\(\[request\.signal, AbortSignal\.timeout\(60000\)\]\)/);
+});
+
+
+test('OpenAI Edge Function bounds raw request bytes and validates chat history before planning', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /const maxRequestBodyBytes = 1_048_576/);
+  assert.match(edge, /declaredBodyBytes > maxRequestBodyBytes/);
+  assert.match(edge, /receivedBytes > maxRequestBodyBytes/);
+  assert.match(edge, /await reader\.cancel\(\)/);
+  assert.match(edge, /parsed: unknown = JSON\.parse/);
+  assert.match(edge, /body\.messages\.length > 40/);
+  assert.match(edge, /content as string\)\.length > 12000/);
+  assert.match(edge, /totalChars > 30000/);
+});
+
+
+test('OpenAI Edge Function preserves oversized-body responses and handles client aborts during body reads', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /try \{ await reader\.cancel\(\); \} catch \{[\s\S]*?Request body is too large/);
+  assert.match(edge, /catch \{\s*if \(request\.signal\.aborted\) return new Response\(null, \{ status: 499 \}\);\s*return json\(\{ error: 'Request body must be valid JSON\.'/);
+});
+
+test('OpenAI Edge Function rejects malformed chat message roles and content types', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /incoming\.some\(\(item\) => !isPlainRecord\(item\)/);
+  assert.match(edge, /item\.role !== 'user' && item\.role !== 'assistant'/);
+  assert.match(edge, /typeof item\.content !== 'string'/);
+});
+
+
+test('OpenAI browser stream surfaces provider errors emitted after streaming begins', () => {
+  const service = read('src/services/aiService.ts');
+  assert.match(service, /error\?: \{ message\?: string; type\?: string; code\?: string \}/);
+  assert.match(service, /if \(event\.error && typeof event\.error === 'object'\)/);
+  assert.match(service, /streamError = typeof event\.error\.message === 'string'/);
+  assert.match(service, /if \(streamError\) \{[\s\S]*?status: 'error',[\s\S]*?modelName: streamModel/);
+  assert.match(service, /for \(const line of lines\) \{[\s\S]*?consumeLine\(line\);[\s\S]*?if \(finished \|\| streamError\) break;/);
+  assert.match(service, /if \(finished \|\| streamError\) \{[\s\S]*?await reader\.cancel\(\)/);
+  assert.match(service, /if \(!finished && !streamError && buffer\.trim\(\)\) consumeLine\(buffer\)/);
+});
+
+
+test('OpenAI chat route parses standard bearer tokens consistently for health checks and chat requests', () => {
+  const source = read('src/server/ai.ts');
+  const route = source.slice(source.indexOf("router.post('/ai/chat'"));
+  assert.match(route, /const bearer = \/\^Bearer \(\[\^\\s\]\+\)\$\/i\.exec\(req\.header\('authorization'\) \?\? ''\);/);
+  assert.doesNotMatch(route, /\[\^\\\\s\]/);
 });

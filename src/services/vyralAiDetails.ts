@@ -321,12 +321,12 @@ export const suggestVyralAssetDetails = async (
       scope: 'asset',
       sourceVersionId: options.sourceVersionId,
       sourceRevision: options.sourceRevision ?? 1,
-      provider: payload.provider || 'gemini',
+      provider: payload.provider || 'openai',
       model: payload.modelName || 'unknown',
       generatedAt,
       suggestions,
     }),
-    provider: payload.provider || 'gemini',
+    provider: payload.provider || 'openai',
     model: payload.modelName || 'unknown',
   };
 };
@@ -372,7 +372,7 @@ export const suggestVyralCollectionDetails = async (
   return mergeVyralAiDetails(input.currentDetails, {
     scope: 'vyral',
     sourceRevision: input.sourceRevision,
-    provider: payload.provider || 'gemini',
+    provider: payload.provider || 'openai',
     model: payload.modelName || 'unknown',
     generatedAt: new Date().toISOString(),
     suggestions,

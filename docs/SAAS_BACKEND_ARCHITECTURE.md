@@ -74,7 +74,7 @@ The first migration should start with the minimum required tables and RLS polici
 - Transfer records must identify sender, recipient, amount, status, timestamp and a unique reference. Each customer may read only transfer information involving their own account; customers cannot write ledger or transfer records directly.
 - Credit transfers move VYRA usage credits only. They do not process or verify external payments between users.
 - No generation starts without the existing explicit spend confirmation.
-- Never persist raw OpenRouter/API keys in plaintext database records. Prefer user-supplied session keys initially; if persistent encrypted keys are later required, design a dedicated encryption/key-rotation boundary first.
+- Provider credentials are platform-managed and stored server-side in Supabase Vault. Never request customer BYOK keys, persist raw provider keys in plaintext, or return stored secrets to the browser.
 
 ### Transfer ledger reconciliation and risk policy
 

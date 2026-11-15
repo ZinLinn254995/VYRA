@@ -26,9 +26,11 @@ export interface AIServiceRequest {
   workspaceContext?: WorkspaceAiContext;
   /** Receives incremental text chunks for the live chat UI. */
   onTextDelta?: (chunk: string) => void;
+  /** Cancels an in-flight provider request when the user stops generation. */
+  signal?: AbortSignal;
   /** Small, derived image preview from a locally verified Vyral DNA package. */
   visionImages?: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }[];
-  /** Small, user-authorized PDF/audio source files for Gemini multimodal inspection. */
+  /** Small, user-authorized PDF/audio source files; currently not sent until OpenAI multimodal support is enabled. */
   mediaFiles?: { mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac'; data: string; assetId?: string; assetName?: string }[];
   context?: {
     category?: ContentCategory;
@@ -42,6 +44,8 @@ export interface AIServiceResult {
   operatorAction?: Record<string, unknown>;
   suggestedActions?: ChatSuggestedAction[];
   isPreviewNotice?: boolean;
+  /** True when the user explicitly stopped an in-flight generation. */
+  cancelled?: boolean;
   status: 'success' | 'preview' | 'error';
   errorMessage?: string;
   providerName?: string;
@@ -58,7 +62,7 @@ export interface AIServiceResult {
 export interface AIServiceProvider {
   name: string;
   model: string;
-  checkStatus(): Promise<AIServiceStatus>;
+  checkStatus(accessToken?: string): Promise<AIServiceStatus>;
   generateResponse(request: AIServiceRequest): Promise<AIServiceResult>;
 }
 
@@ -75,29 +79,42 @@ class ModularAIService implements AIServiceProvider {
   public model = 'gpt-4.1-mini';
   private endpoint = '/api/ai/chat';
 
-  public async checkStatus(): Promise<AIServiceStatus> {
+  public async checkStatus(accessToken?: string): Promise<AIServiceStatus> {
+    if (!accessToken) {
+      return {
+        status: 'preview_mode',
+        providerName: this.name,
+        modelName: this.model,
+        backendEndpoint: this.endpoint,
+        message: 'Sign in to VYRA to check the platform-managed OpenAI connection.',
+      };
+    }
+
     try {
       const res = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + accessToken,
+        },
         body: JSON.stringify({ ping: true }),
+        cache: 'no-store',
       });
 
       const data = await res.json().catch(() => ({})) as {
         status?: string;
         modelName?: string;
         message?: string;
+        error?: string;
       };
       const modelName = typeof data.modelName === 'string' && data.modelName.trim()
         ? data.modelName.trim()
         : this.model;
       this.model = modelName;
 
-      // The health probe intentionally returns HTTP 200 even when OpenAI is
-      // not configured. Trust the explicit backend status, not res.ok alone.
       const status: AIServiceStatus['status'] =
         data.status === 'connected' ? 'connected' :
-        data.status === 'error' ? 'error' : 'preview_mode';
+        data.status === 'error' || !res.ok ? 'error' : 'preview_mode';
 
       return {
         status,
@@ -106,70 +123,46 @@ class ModularAIService implements AIServiceProvider {
         backendEndpoint: this.endpoint,
         message: typeof data.message === 'string' && data.message.trim()
           ? data.message
-          : status === 'connected'
-            ? 'Connected to the server-side OpenAI AI engine.'
-            : 'OpenAI is not configured yet. The platform key will be added during final verification.',
+          : typeof data.error === 'string' && data.error.trim()
+            ? data.error
+            : status === 'connected'
+              ? 'Connected to the server-side OpenAI AI engine.'
+              : 'OpenAI is not configured yet. A platform administrator can add the key in Admin Dashboard.',
       };
     } catch {
-      // Keep the UI honest when the API route cannot be reached.
+      return {
+        status: 'error',
+        providerName: this.name,
+        modelName: this.model,
+        backendEndpoint: this.endpoint,
+        message: 'VYRA AI Chat could not reach the platform connection check. Check the Preview deployment and retry.',
+      };
     }
-
-    return {
-      status: 'preview_mode',
-      providerName: this.name,
-      modelName: this.model,
-      backendEndpoint: this.endpoint,
-      message:
-        'VYRA AI Chat is not reachable. Check the Preview deployment and server configuration.',
-    };
   }
 
   public async generateResponse(request: AIServiceRequest): Promise<AIServiceResult> {
-    // Preserve the existing authenticated multimodal path for Vyral DNA Vision
-    // and selected source inspection. General text conversation uses OpenAI below.
-    if (request.visionImages?.length) {
-      if (!request.accessToken) {
-        const message = 'Sign in to VYRA before inspecting selected Assets.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
-      }
-      try {
-        const response = await fetch(this.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: 'Bearer ' + request.accessToken,
-            ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
-          },
-          body: JSON.stringify({
-            messages: request.messages,
-            ...(request.visionImages?.length ? { visionImages: request.visionImages } : {}),
-            ...(request.mediaFiles?.length ? { mediaFiles: request.mediaFiles } : {}),
-          }),
-        });
-        const data = await response.json().catch(() => ({})) as { text?: string; error?: string; modelName?: string };
-        if (!response.ok || typeof data.text !== 'string' || !data.text.trim()) {
-          const message = typeof data.error === 'string' && data.error.trim()
-            ? data.error
-            : 'VYRA could not inspect the selected media Assets. Please retry.';
-          return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini', modelName: 'gemini-3.8-flash' };
-        }
-        return {
-          content: data.text.trim(),
-          status: 'success',
-          providerName: 'Google Gemini Vision',
-          modelName: typeof data.modelName === 'string' ? data.modelName : 'gemini-3.8-flash',
-        };
-      } catch {
-        const message = 'VYRA could not reach the multimodal inspection service. No text-only preview was substituted.';
-        return { content: message, status: 'error', errorMessage: message, providerName: 'Google Gemini Vision', modelName: 'gemini-3.8-flash' };
-      }
+    // VYRA no longer routes any request to Gemini. Until OpenAI multimodal
+    // support is enabled in the platform Edge Function, fail clearly instead
+    // of silently falling back to another provider.
+    if (request.visionImages?.length || request.mediaFiles?.length) {
+      const message = 'OpenAI text chat is available. Image, document and audio inspection will be enabled after the OpenAI multimodal path is connected.';
+      return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
 
     if (!request.accessToken) {
       const message = 'Sign in to VYRA before using AI Chat.';
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
     }
+
+    const requestController = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      requestController.abort();
+    }, 120_000);
+    const abortFromCaller = () => requestController.abort();
+    if (request.signal?.aborted) requestController.abort();
+    else request.signal?.addEventListener('abort', abortFromCaller, { once: true });
 
     try {
       const response = await fetch(this.endpoint, {
@@ -180,6 +173,7 @@ class ModularAIService implements AIServiceProvider {
           Authorization: 'Bearer ' + request.accessToken,
           ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}),
         },
+        signal: requestController.signal,
         body: JSON.stringify({
           stream: true,
           messages: request.messages.filter((message) => message.role !== 'system'),
@@ -231,6 +225,7 @@ class ModularAIService implements AIServiceProvider {
       let usage: AIServiceResult['usage'] = null;
       let streamModel = this.model;
       let operatorAction: Record<string, unknown> | undefined;
+      let streamError: string | null = null;
       const encodedOperatorAction = response.headers.get('X-Vyra-Operator-Action');
       if (encodedOperatorAction) {
         try { const parsed: unknown = JSON.parse(decodeURIComponent(encodedOperatorAction)); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) operatorAction = parsed as Record<string, unknown>; } catch { /* Ignore malformed non-authoritative metadata. */ }
@@ -248,8 +243,15 @@ class ModularAIService implements AIServiceProvider {
             choices?: Array<{ delta?: { content?: string | null } }>;
             usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
             vyra_action?: Record<string, unknown>;
+            error?: { message?: string; type?: string; code?: string };
           };
           if (typeof event.model === 'string') streamModel = event.model;
+          if (event.error && typeof event.error === 'object') {
+            streamError = typeof event.error.message === 'string' && event.error.message.trim()
+              ? event.error.message.trim().slice(0, 500)
+              : 'OpenAI stopped the response unexpectedly. Please retry.';
+            return;
+          }
           if (event.vyra_action && typeof event.vyra_action === 'object' && !Array.isArray(event.vyra_action)) operatorAction = event.vyra_action;
           const chunk = event.choices?.[0]?.delta?.content;
           if (typeof chunk === 'string' && chunk.length) {
@@ -276,14 +278,31 @@ class ModularAIService implements AIServiceProvider {
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() ?? '';
-          for (const line of lines) consumeLine(line);
+          for (const line of lines) {
+            consumeLine(line);
+            if (finished || streamError) break;
+          }
+          if (finished || streamError) {
+            // Stop reading once the provider sends its terminal event or an in-stream error.
+            // This also releases the upstream response promptly when the stream stays open.
+            try { await reader.cancel(); } catch { /* The stream may already be closed. */ }
+            break;
+          }
         }
         buffer += decoder.decode();
-        if (buffer.trim()) consumeLine(buffer);
+        // A terminal event or provider error wins over any trailing bytes already buffered.
+        if (!finished && !streamError && buffer.trim()) consumeLine(buffer);
       } finally {
         reader.releaseLock();
       }
 
+      if (streamError) {
+        return { content: streamError, status: 'error', errorMessage: streamError, providerName: 'OpenAI', modelName: streamModel };
+      }
+      if (!finished) {
+        const message = 'The connection ended before the response was complete. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
+      }
       if (!content.trim()) {
         const message = 'OpenAI returned an empty response. Please retry.';
         return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: streamModel };
@@ -296,9 +315,24 @@ class ModularAIService implements AIServiceProvider {
         modelName: streamModel,
         usage,
       };
-    } catch {
+    } catch (error) {
+      if (request.signal?.aborted) {
+        const message = 'Generation stopped.';
+        return { content: message, status: 'error', errorMessage: message, cancelled: true, providerName: 'OpenAI', modelName: this.model };
+      }
+      if (timedOut) {
+        const message = 'This response took too long. Please retry.';
+        return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+      }
+      if (error instanceof Error && error.name === 'AbortError') {
+        const message = 'Generation stopped.';
+        return { content: message, status: 'error', errorMessage: message, cancelled: true, providerName: 'OpenAI', modelName: this.model };
+      }
       const message = 'Could not reach VYRA AI Chat. Check your connection and retry.';
       return { content: message, status: 'error', errorMessage: message, providerName: 'OpenAI', modelName: this.model };
+    } finally {
+      clearTimeout(timeoutId);
+      request.signal?.removeEventListener('abort', abortFromCaller);
     }
   }
 

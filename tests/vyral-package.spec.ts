@@ -732,6 +732,8 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
   }));
   const fullArchive = createVyralZip([
     { path: 'README.txt', data: 'Test Vyral export package' },
+    { path: 'AI_RECONSTRUCTION_GUIDE.md', data: 'legacy external AI reconstruction instructions' },
+    { path: 'tools/reconstruct_vyral.py', data: '# legacy reconstruction helper' },
     ...sourceMedia,
     ...payloadEntries,
     {
@@ -780,6 +782,8 @@ test('exports and reconstructs every asset in a whole-Vyral DNA-only package', a
     }
     assert.equal(sourceMedia.every((entry) => selectedFiles.has(entry.path)) , true);
     assert.equal(payloadEntries.every((entry) => selectedFiles.has(entry.path)), components.fullDna);
+    assert.equal(selectedFiles.has('AI_RECONSTRUCTION_GUIDE.md'), false);
+    assert.equal(selectedFiles.has('tools/reconstruct_vyral.py'), false);
   }
   const compactOnlyArchive = await selectVyralPackageComponents(fullArchive, {
     assets: false, fullDna: false, compactDna: true,

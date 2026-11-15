@@ -1,6 +1,6 @@
 {
-  "name": "VYRA — Futuristic AI Video Creation Studio",
-  "description": "Production-oriented web application for an AI-powered video creation, storyboard workspace, and social media publishing platform.",
+  "name": "VYRA — All-in-One AI Creative & Publishing Platform",
+  "description": "A connected creator platform for ideation, media creation and editing, Creative Universe consistency, sharing, collaboration, marketplace discovery, and social publishing.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

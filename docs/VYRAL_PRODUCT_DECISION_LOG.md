@@ -1,7 +1,14 @@
-# VYRA Product Decision Log — Vyral DNA Architecture
+> **Historical specification — superseded product direction (2026-11-15).**  
+> VYRA's current creator-facing concept is **Universe**, an in-app Creative Space containing folders, files, Assets, and automatically maintained creative knowledge. Do not treat this document's Vyral terminology, custom `.vyral` package/export workflows, or external DNA-reconstruction goals as current product requirements. Retain this document only as a record of existing implementation, migration history, and compatibility constraints. New product work must follow [the current VYRA Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md) and [the Universe terminology/compatibility policy](./UNIVERSE_TERMINOLOGY_MIGRATION_2026-11-15.md). Do not rename persisted schema or identifiers based solely on this terminology change.
+
+---
+
+# Historical Vyral DNA Product Decision Log
 
 Last updated: 2026-11-06
-Status: **Accepted architectural direction; implementation is pending unless a section explicitly says otherwise.**
+Status: **Historical decision record — not the current Vyral product contract.**
+
+> The 2026-11-15 approved direction redefines Vyral as a Creative Universe. Earlier mandatory Main/Supporting roles, required purpose fields, and required relationship edges are superseded. Do not implement those constraints unless they are independently re-approved. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
 
 This log preserves the evolution of product decisions so that future conversations, contributors, and implementation work do not accidentally revert to an earlier concept. The current accepted decision supersedes conflicting earlier proposals unless the user explicitly changes it.
 

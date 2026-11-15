@@ -11,7 +11,7 @@ assert.notEqual(rasterEnd, -1, 'Asset ready transition must remain after DNA ext
 const rasterFlow = ingestion.slice(rasterStart, rasterEnd);
 
 test('raster uploads cannot become ready with identity-only File DNA when DNA v3 extraction fails', () => {
-  assert.match(rasterFlow, /port\.extractRasterDna\(assetId, versionId\)/);
+  assert.match(rasterFlow, /port\.extractRasterDna\(assetId, versionId, input\.signal\)/);
   assert.match(rasterFlow, /extraction\.status !== 'extracted'/);
   assert.match(rasterFlow, /Required raster DNA v3 extraction failed/);
   assert.match(rasterFlow, /dnaCommitted = true/);

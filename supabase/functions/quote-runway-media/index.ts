@@ -114,6 +114,26 @@ Deno.serve(async (request: Request) => {
   }
 
   const endpoint = RUNWAY_API + '/generate/' + task;
+  const preflightStartedAt = performance.now();
+  const preflightStartedAtIso = new Date().toISOString();
+  const recordPreflight = async (
+    outcome: 'succeeded' | 'provider_error' | 'invalid_response' | 'network_error',
+    httpStatus: number | null,
+    modelId: string | null = null,
+    failureCode: string | null = null,
+    providerRequestId: string | null = null,
+  ) => {
+    // Telemetry is best-effort and never blocks customer quote requests.
+    try {
+      await context.supabaseAdmin.from('media_provider_preflight_events').insert({
+        provider: 'runway', task, quality, outcome, http_status: httpStatus,
+        duration_ms: Math.max(0, Math.round(performance.now() - preflightStartedAt)),
+        model_id: modelId, failure_code: failureCode,
+        provider_request_id: providerRequestId?.slice(0, 160) ?? null,
+        started_at: preflightStartedAtIso,
+      });
+    } catch { /* telemetry failure must not change request outcome */ }
+  };
   let providerResponse: Response;
   try {
     providerResponse = await fetch(endpoint, {
@@ -129,11 +149,20 @@ Deno.serve(async (request: Request) => {
       signal: AbortSignal.timeout(30000),
     });
   } catch {
+    await recordPreflight('network_error', null, null, 'network_error');
     return json({ error: 'Runway preflight is temporarily unavailable. No generation was submitted.' }, 502);
   }
 
+  const providerRequestId = providerResponse.headers.get('x-request-id');
   const providerData = await providerResponse.json().catch(() => null);
   if (!providerResponse.ok || !isRecord(providerData) || !isRecord(providerData.routing)) {
+    await recordPreflight(
+      providerResponse.ok ? 'invalid_response' : 'provider_error',
+      providerResponse.status,
+      null,
+      providerResponse.ok ? 'invalid_provider_response' : 'provider_http_error',
+      providerRequestId,
+    );
     const status = providerResponse.status === 401 || providerResponse.status === 403 ? 503 :
       providerResponse.status === 429 ? 429 : 502;
     return json({
@@ -149,8 +178,10 @@ Deno.serve(async (request: Request) => {
   const provider = typeof routing.provider === 'string' ? routing.provider : 'runway';
   if (typeof estimatedCredits !== 'number' || !Number.isFinite(estimatedCredits) || estimatedCredits < 0 ||
       !modelId || modelId.length > 240) {
+    await recordPreflight('invalid_response', providerResponse.status, null, 'invalid_routing_estimate', providerRequestId);
     return json({ error: 'Runway returned an incomplete estimate. No generation was submitted.' }, 502);
   }
+  await recordPreflight('succeeded', providerResponse.status, modelId, null, providerRequestId);
 
   const estimatedCostUsd = Number((estimatedCredits * USD_PER_CREDIT).toFixed(6));
   const maxCostUsd = body.maxCostUsd;

@@ -1,101 +1,50 @@
 # VYRA — Project Overview
 
-## Current AI Chat MVP Roadmap
+**Current product authority:** [VYRA Product Direction — 2026-11-15](./VYRA_PRODUCT_DIRECTION_2026-11-15.md)
 
-The first practical AI Chat milestone is governed by the six-phase delivery plan in [VYRA AI Chat MVP Roadmap](./product/VYRA_AI_CHAT_MVP_ROADMAP.md). That document is the source of truth for the MVP scope, phase acceptance gates, provider/API-key setup, app-control safety, media generation, file/Asset handoff, verification, and branch/release constraints. It does not imply that documented capabilities are already implemented.
+VYRA is an **All-in-One AI Creative & Publishing Platform** that helps creators move from an idea to finished media, edit and improve that media, maintain creative consistency, share their creative work and reusable Creative Universes with others, and publish to social platforms.
 
-## What VYRA Is
+The creator journey is:
 
-This overview is the high-level explanation of VYRA's identity and intended capabilities. The complementary [Product Vision & Revenue Mission](./PRODUCT_VISION_AND_REVENUE_MISSION.md) explains the customer experience, business direction and guiding principles. Technical documents describe implementation details and current limitations; they do not override the overall product identity.
+**Idea → Create → Edit → Maintain Consistency → Share → Publish**
 
-VYRA is an AI-powered Creative Studio delivered as a SaaS platform. Its central purpose is to help people turn creative ideas into finished visual content—especially videos—through an integrated workspace supported by AI.
+## What VYRA brings together
 
-VYRA is intended to bring the creative process into one coherent environment: developing ideas, planning stories, creating and maintaining characters, preparing scripts and storyboards, generating images and video, organizing media, refining scenes, reviewing the result, and exporting finished work.
+- **AI Ideation:** brainstorm, research, explore creative directions, and develop plans.
+- **AI Creative Workspace:** create images, video, audio, documents, 3D and other supported media.
+- **Creative Editing:** refine existing or generated media, create variations, and maintain editable versions.
+- **Projects & Storyboards:** organize deliverables, stories, scenes, and production stages.
+- **Vyral Creative Universe:** preserve reusable characters, worlds, entities, locations, props, canon, relationships, timelines, state, and media references.
+- **DNA & Consistency Engine:** maintain identity and continuity across assets, scenes, episodes, edits, and collaborators.
+- **Asset & Media Library:** store, organize, version, preview, and reuse uploaded and generated files.
+- **Sharing & Collaboration:** share selected projects, Universes, and assets with explicit access and licensing controls.
+- **Creator Marketplace:** discover, publish, license, buy, and sell eligible creative resources.
+- **Social Publishing:** prepare, approve, and publish finished work to connected platforms.
+- **AI Workflow Orchestration:** coordinate supported multi-step work across these systems.
 
-VYRA is not intended to be only a prompt box attached to an image or video generator. It is a creative production environment in which AI assistance, project organization, creative tools, and hands-on editing work together.
+These are product capabilities and goals, not claims that every workflow is already implemented or ready for customers.
 
-## Product Experience: Chat-First, Not Chat-Only
+## Product experience
 
-Chat is a primary way to interact with VYRA. A user should be able to describe an idea naturally, discuss options with the AI, approve a direction, and ask the AI to carry out supported creative and project tasks.
+VYRA is **natural-language first, not chat-only**. AI Chat is the central conversational interface for orchestrating supported tasks. Creators can also work directly in visual workspaces, libraries, and editing tools.
 
-The chat experience is intended to work as a conversational control surface across the platform. Depending on available capabilities and user permissions, it can help users create and manage projects, develop concepts, work with characters and assets, prepare scripts and storyboards, initiate supported generation workflows, review production progress, and find the right workspace or feature.
+Chat and manual work must operate on the same authoritative project, Universe, Asset, version, and production state. The user should not need to understand provider routing, DNA schemas, hashes, storage paths, or background orchestration.
 
-Chat is not the only way to use VYRA. Users must also be able to work directly in the visual interface: open projects, upload and organize assets, edit scenes, adjust creative decisions, inspect previews, and use the available production tools manually.
+## Vyral and consistency
 
-Chat and the visual workspace are two ways of working with the same project—not separate products. They are intended to share the same underlying project information and creative state, so that changes made through one interaction style are reflected in the other.
+A Vyral is a reusable **Creative Universe**, not merely a DNA file or a folder of unrelated files. It may begin with one character or one Asset and grow into a world containing entities, places, stories, rules, relationships, timelines, and evolving state. No fixed genre or taxonomy is required.
 
-## Main Creative Capabilities
+Asset DNA is maintained per Asset. Universe DNA is derived from the Universe's authoritative inventory and knowledge. Fingerprints support integrity and change verification. The Consistency Engine retrieves only the knowledge relevant to each task and preserves approved identity, canon, and state across creative outputs.
 
-VYRA's intended creative scope includes:
+## Guiding principles
 
-- **Idea development:** conversational brainstorming, concept exploration, creative feedback, and turning approved ideas into organized projects.
-- **Project management:** creating, viewing, updating, organizing, and tracking creative projects and their production progress.
-- **Character creation and continuity:** creating characters with AI, importing character references, saving reusable characters in a library, and associating them with projects and scenes. Character references and descriptive details help preserve a recognizable appearance across a production.
-- **Image creation:** generating images from conversational or workspace-based creative direction, then refining and organizing approved results.
-- **Script and story development:** developing premises, stories, scripts, scene descriptions, and other creative material.
-- **Storyboards and scene planning:** arranging a story into scenes, planning visual direction, and reviewing the structure before production.
-- **Video production:** supporting the creation and refinement of video content through the platform's available generation and production workflows.
-- **Media and asset organization:** uploading, browsing, reusing, and managing project media and creative assets.
-- **Voice and audio:** supporting relevant voice, narration, music, and audio workflows as those capabilities are available.
-- **Editing and review:** inspecting previews, refining creative output, reviewing production stages, and preparing work for completion.
-- **Export and delivery:** preparing finished creative work for supported export and download options.
+1. Keep the user experience simple; handle technical complexity invisibly.
+2. Preserve creator freedom and do not force fixed templates or relationships.
+3. Use one connected source of truth across Chat and visual workspaces.
+4. Make paid, destructive, sharing, and publishing actions transparent and appropriately approved.
+5. Report real progress and results; never invent media, metrics, or successful actions.
+6. Distinguish implemented, verified, experimental, unavailable, and planned capabilities.
 
-The long-term experience is an integrated path from an initial idea to a completed creative deliverable, rather than a collection of disconnected generators.
+## Implementation status
 
-### Advanced video formats with a simple user experience
-
-VYRA's intended format range includes animated cartoons and recurring characters, cinematic stories and short films, talking avatars and dialogue scenes, product and brand advertisements, educational explainers and documentaries, vertical social videos, long-form YouTube videos, music and lyric videos, and text-to-video, image-to-video or reference-guided workflows where supported.
-
-The default workflow should be simple:
-1. Describe the video in natural language or choose a clear starting template.
-2. Let VYRA recommend a suitable format, structure and production approach.
-3. Review the script, scenes, characters, visual references and voice direction.
-4. Adjust a small number of understandable settings such as aspect ratio, duration, language and style.
-5. See an honest cost/credit estimate when available and explicitly approve paid generation.
-6. Review the result, refine only the parts that need work, then export or separately approve publishing.
-
-Advanced controls should be available without being forced on beginners. Provider and model complexity should stay behind the scenes unless a user wants to inspect or change it. Each format must be marked accurately as available, tested, experimental or planned; listing a target format here does not mean its end-to-end workflow is already implemented or production-ready.
-
-## AI Context and Memory
-
-VYRA is intended to make AI assistance more context-aware over time. Useful context may include a user's creative preferences, project history, approved ideas, character descriptions and references, stylistic decisions, and production progress.
-
-This context should help the AI continue work coherently instead of treating every conversation as an unrelated request. Project-specific information should remain associated with the relevant project, and reusable character information should remain available to the projects that use those characters.
-
-Memory and context are intended to support continuity and convenience while keeping users in control of their creative information.
-
-## Guidance and Navigation
-
-The AI assistant is also intended to help people understand and use VYRA. It can explain features, clarify workflows, guide users toward relevant areas of the application, help identify sensible next steps, and assist with troubleshooting.
-
-This makes the chat useful both as a creative collaborator and as a conversational guide to the platform.
-
-## Simplicity, Control, and Transparency
-
-VYRA aims to make sophisticated creative workflows approachable to people with different levels of technical experience. The product should emphasize creative goals and understandable choices rather than exposing technical implementation details by default.
-
-Users remain in control of important decisions. Actions that consume paid credits or incur meaningful costs should be transparent and subject to appropriate user approval. Destructive or account-impacting actions should receive suitable confirmation. Users should be able to understand what the AI is doing and what stage their work has reached.
-
-AI-generated results are creative assistance, not a guarantee of perfect output. In particular, character consistency, visual quality, voice quality, and video results can depend on the selected generation technology and may require review or refinement.
-
-## Product Principles
-
-VYRA is guided by these product principles:
-
-1. **Creative production in one place:** connect ideation, planning, generation, editing, review, and delivery.
-2. **Chat-first interaction:** make natural-language conversation a central way to access the platform's capabilities.
-3. **Manual creative freedom:** keep the visual workspace available for direct user control and detailed work.
-4. **Shared project state:** chat and manual interactions work with the same underlying creative information.
-5. **Context-aware assistance:** use relevant project, character, and preference context to support continuity.
-6. **Approachable experience:** keep the product understandable without requiring users to understand AI infrastructure.
-7. **User control and transparency:** communicate meaningful actions, costs, approvals, and limitations clearly.
-
-## Understanding the Scope
-
-This document describes VYRA's product identity, intended experience, and capability direction. It is a high-level project overview for people and AI systems reading the repository so they can understand what VYRA is being built to become.
-
-It is not a claim that every capability listed here is already implemented, fully integrated, or production-ready. Actual implementation status should be determined by inspecting the current codebase, integrations, tests, and deployment. The overview is not a rigid technical specification or a step-by-step coding prompt; implementation choices should be made in the context of the existing architecture and the product's overall purpose.
-
-## Short Description
-
-**VYRA is a Chat-First AI Creative Studio SaaS that helps users turn ideas into finished visual content through conversational AI and a fully usable manual creative workspace.**
+Use the repository, automated tests, and Development environment to determine what is actually implemented. This overview is not a feature-completion claim. The approved product direction and cleanup sequence are maintained in [VYRA Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md) and [Repository Cleanup Audit](./VYRA_REPOSITORY_CLEANUP_AUDIT_2026-11-15.md).

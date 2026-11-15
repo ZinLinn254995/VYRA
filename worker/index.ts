@@ -2,7 +2,6 @@ import { httpServerHandler } from 'cloudflare:node';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { createTikTokRouter } from '../src/server/tiktok.js';
 import { createAiRouter } from '../src/server/ai.js';
-import { createPricingRouter } from '../src/server/pricing.js';
 import { createSupabaseAuthRouter } from '../src/server/supabaseAuth.js';
 import { createCustomerProjectsRouter } from '../src/server/customerProjects.js';
 import { createCreditTransfersRouter } from '../src/server/creditTransfers.js';
@@ -22,7 +21,6 @@ app.use('/api/tiktok', createTikTokRouter());
 app.use('/api/auth', createSupabaseAuthRouter());
 app.use('/api', createCustomerProjectsRouter());
 app.use('/api', createCreditTransfersRouter());
-app.use('/api', createPricingRouter());
 app.use('/api', createAiRouter());
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {

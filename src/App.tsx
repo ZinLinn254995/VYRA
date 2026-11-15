@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AIChatPage } from './components/ai/AIChatPage';
@@ -21,6 +21,18 @@ function MarketplaceApp() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
+  const navigationKey = profileOpen && user ? 'profile' : activeSection;
+  const previousNavigationKeyRef = useRef<string>('marketplace');
+  const sectionScrollPositionsRef = useRef(new Map<string, number>());
+  // Keep previously visited top-level pages mounted so their local UI state and loaded data survive navigation.
+  const [visitedSections, setVisitedSections] = useState<Set<MainSection>>(() => new Set(['marketplace']));
+  const [hasVisitedProfile, setHasVisitedProfile] = useState(false);
+  useEffect(() => {
+    setVisitedSections((current) => current.has(activeSection) ? current : new Set([...current, activeSection]));
+  }, [activeSection]);
+  useEffect(() => {
+    if (profileOpen && user) setHasVisitedProfile(true);
+  }, [profileOpen, user]);
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
@@ -125,9 +137,16 @@ function MarketplaceApp() {
   }, []);
 
   useLayoutEffect(() => {
-    window.scrollTo(0, 0);
+    // Save the outgoing page's window position and restore the incoming page's
+    // last position. Mounted pages keep their own internal scroll containers.
+    const previousKey = previousNavigationKeyRef.current;
+    sectionScrollPositionsRef.current.set(previousKey, window.scrollY);
+    const nextScrollTop = sectionScrollPositionsRef.current.get(navigationKey) ?? 0;
+    window.scrollTo({ top: nextScrollTop, left: 0, behavior: 'instant' });
+    previousNavigationKeyRef.current = navigationKey;
+    window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: navigationKey } }));
     resetMainHeaderVisibility();
-  }, [activeSection, profileOpen]);
+  }, [navigationKey]);
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
@@ -136,7 +155,7 @@ function MarketplaceApp() {
   }, []);
 
   const workspaceStorageKey = 'vyra_storyboards_v1:' + (user?.id ?? user?.email ?? 'local');
-  const seedDemoStoryboards = user?.email?.trim().toLowerCase() === 'zla264995@gmail.com';
+  // Real creator accounts must start with their own saved work, never seeded demo content.
 
   return (
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
@@ -151,30 +170,41 @@ function MarketplaceApp() {
       />
       <div aria-hidden="true" className="vyra-global-header-spacer w-full shrink-0" style={{ height: 'calc(var(--vyra-global-header-height, 64px) - var(--vyra-header-spacer-collapse, 0px))', transition: 'height 180ms ease-out' }} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
-        <ErrorBoundary key={profileOpen ? 'profile' : activeSection}>
-          {profileOpen && user ? (
-            <ProfilePage
-              userEmail={profileLabel ?? ''} creditBalance={creditBalance} creditLoading={creditLoading}
-              themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode}
-              onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
-              backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
-              onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
-              onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage}
-              onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
-            />
-          ) : activeSection === 'ai-chat' ? (
-            <AIChatPage isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
-          ) : activeSection === 'workspace' ? (
+        {user && (
+          <div hidden={!profileOpen} aria-hidden={!profileOpen} style={!profileOpen ? { display: "none" } : undefined} className="min-w-0">
+            <ErrorBoundary>
+              <ProfilePage
+                userEmail={profileLabel ?? ''} creditBalance={creditBalance} creditLoading={creditLoading}
+                themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode}
+                onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
+                backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
+                onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
+                onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
+                onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
+              />
+            </ErrorBoundary>
+          </div>
+        )}
+        <div hidden={profileOpen || activeSection !== 'ai-chat'} aria-hidden={profileOpen || activeSection !== 'ai-chat'} style={profileOpen || activeSection !== 'ai-chat' ? { display: "none" } : undefined} className="min-w-0">
+          <ErrorBoundary>
+            <AIChatPage isActive={activeSection === 'ai-chat' && !profileOpen} isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
+          </ErrorBoundary>
+        </div>
+        <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
+          <ErrorBoundary>
             <WorkspacePage
-              storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
-              isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')}
-              onOpenLibraryPage={(page) => { setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Vyrals' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
+              storageKey={workspaceStorageKey}
+              isAuthenticated={hasPermanentAccount} isActive={activeSection === 'workspace' && !profileOpen} onLoginRequired={() => requestAuth('login')}
+              onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Universes' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
             />
-          ) : (
+          </ErrorBoundary>
+        </div>
+        <div hidden={profileOpen || activeSection !== 'marketplace'} aria-hidden={profileOpen || activeSection !== 'marketplace'} style={profileOpen || activeSection !== 'marketplace' ? { display: "none" } : undefined} className="min-w-0">
+          <ErrorBoundary>
             <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
-          )}
-        </ErrorBoundary>
+          </ErrorBoundary>
+        </div>
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>

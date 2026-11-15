@@ -33,26 +33,17 @@ test('AI Chat validates Universal File DNA and clearly separates byte identity f
   assert.match(chat, /File DNA binaries are integrity-checked but their audio\/video\/document contents are not decoded or attached to Vision/);
 });
 
-test('up to four labelled Vyral asset previews are forwarded through the authenticated Gemini proxy', () => {
+test('Vyral image previews are prepared locally but never routed to Gemini', () => {
   assert.match(chat, /visionImages/);
   assert.match(chat, /v3Records\.slice\(0, 4\)/);
   assert.match(chat, /assetName/);
-  assert.match(service, /request\.visionImages\?\.length/);
-  assert.match(service, /visionImages:\s*request\.visionImages/);
-  assert.match(service, /if \(request\.visionImages\?\.length\) \{/);
-  assert.match(service, /No text-only preview was substituted/);
-  assert.match(server, /if \(\!\(await requireVerifiedVYraSession\(req, res\)\)\) return;/);
-  assert.match(server, /visionImages\.length > 4/);
-  assert.match(server, /inlineData:\s*\{\s*mimeType:\s*item\.mimeType,\s*data:\s*item\.data\s*\}/);
-});
-test('server rejects oversized, malformed, or MIME-mismatched vision payloads', () => {
-  assert.match(server, /data\.length > 1_200_000/);
-  assert.match(server, /imageBytes\.byteLength > 600 \* 1024/);
-  assert.match(server, /exceeds the 600 KB limit/);
-  assert.match(server, /totalImageBytes > 2_400 \* 1024/);
+  assert.match(service, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
+  assert.match(service, /OpenAI text chat is available/);
+  assert.doesNotMatch(service, /Google Gemini|gemini-[0-9]/i);
+  assert.match(server, /OPENAI_MULTIMODAL_NOT_ENABLED/);
+  assert.doesNotMatch(server, /gemini|Google Gemini/i);
   assert.match(entry, /express\.json\(\{ limit: '8mb' \}\)/);
 });
-
 
 test('new Asset uploads persist automatic AI observations against the exact source version', async () => {
   const details = await readFile(new URL('../src/components/profile/VyralDetailsContent.tsx', import.meta.url), 'utf8');
@@ -69,7 +60,7 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /download\(sourceVersion\.storage_path\)/);
   assert.match(details, /manual_retry_after_automatic_failure/);
   assert.match(details, /reprocessed_original_source_version/);
-  assert.match(details, /Retry AI analysis/);
+  assert.doesNotMatch(details, /Retry AI analysis/);
   assert.match(details, /ai_vision_status: 'failed'/);
   assert.match(details, /ai_vision_status: 'recorded'/);
   assert.match(details, /visionRecord\?\.status !== 'recorded'/);
@@ -79,72 +70,15 @@ test('new Asset uploads persist automatic AI observations against the exact sour
   assert.match(details, /ai_details_status: isVyralPackageAsset/);
   assert.match(details, /vyral_vision_creator_evidence/);
   assert.match(details, /visionReviews/);
-  assert.match(details, /AI Vision observations/);
-  assert.match(details, /Confirm observation/);
-  assert.match(details, /type VisionQuality =/);
-  assert.match(details, /assessVisionQuality\(item\.observation\)/);
-  assert.match(details, /low-confidence field/);
-  assert.match(details, /stated uncertainty/);
-  assert.match(details, /Model confidence is self-reported/);
-  assert.match(details, /Creator review remains required/);
-  assert.match(details, /visionComparisonGroups\.some/);
-  assert.match(details, /AI model disagreements/);
-  assert.match(details, /Different AI models reported different values/);
-  assert.match(details, /No model is selected automatically/);
-  assert.match(details, /visionKnowledgeConflicts\.length > 0/);
-  assert.match(details, /Conflicting creator-confirmed Knowledge/);
-  assert.match(details, /Prefer one value/);
-  assert.match(details, /Keep both as contextual/);
-  assert.match(details, /competingIds\.length === recordIds\.size/);
-  assert.match(details, /const assetVersionEvidenceTimeline = useMemo/);
-  assert.match(details, /Asset DNA evidence timeline/);
-  assert.match(details, /Each observation and fingerprint remains attached to the exact source version/);
-  assert.match(details, /version\.sha256 \? version\.sha256 : 'Not recorded'/);
-  assert.match(details, /versionObservations\.length/);
-  assert.match(details, /versionFingerprints\.length/);
-  assert.match(details, /AI-reported comparison with Version/);
-  assert.match(details, /changedPaths\.length/);
-  assert.match(details, /unchangedCount/);
-  assert.match(details, /does not certify a real asset change/);
+  assert.doesNotMatch(details, /AI Vision observations/);
+  assert.doesNotMatch(details, /Confirm observation/);
+  assert.match(details, /type Tab = 'overview' \\| 'assets' \\| 'license'/);
+  assert.doesNotMatch(details, /tab === 'dna'|tab === 'lineage'/);
+  assert.doesNotMatch(details, /Retry AI analysis|AI Vision observations|Confirm observation|Asset DNA evidence timeline|AI model disagreements/);
   assert.match(details, /verifyRasterVisualFingerprint/);
   assert.match(details, /fingerprint-vyral-raster-version/);
-  assert.match(details, /Visual fingerprint · dHash-64/);
-  assert.match(details, /compareVyralDHash64/);
-  assert.match(details, /verification_status === 'server_verified'/);
-  assert.match(details, /extract-vyral-asset-dna-v3', 'fingerprint-vyral-raster-version'/);
-  assert.match(details, /Number\.isSafeInteger\(Number\(decodedImage\.width\)\)/);
-  assert.match(details, /decodedImage\.channel_layout === previousDecodedImage\.channel_layout/);
-  assert.match(details, /perceptual similarity/);
-  assert.match(details, /verify both versions to compare them/);
-  assert.match(details, /Fingerprint comparison with Version/);
-  assert.match(details, /Byte-identical source/);
-  assert.match(details, /Source bytes changed/);
-  assert.match(details, /Exact decoded samples/);
-  assert.match(details, /Decoded samples changed/);
-  assert.match(details, /Not enough DNA v3 evidence/);
-  assert.match(details, /sameDecodeContract/);
-
-  assert.match(details, /previousObservation && latestObservation/);
-  assert.match(details, /!isVyralPackageAsset\(entry\.asset\)/);
-  assert.match(details, /const verifyAssetIntegrity = async \(asset: AssetRow, requestedVersionId\?: string\)/);
-  assert.match(details, /assetVersions\.find\(\(version\) => version\.id === requestedVersionId\)/);
-  assert.match(details, /Verify this version/);
-  assert.match(details, /Server fingerprint verified/);
-  assert.match(details, /Fingerprint mismatch/);
-  assert.match(details, /Baseline fingerprint created/);
-  assert.match(details, /verifyAssetIntegrity\(asset, version\.id\)/);
-  assert.match(details, /SHA-256 ' \+ String\(data\.sha256/);
-  assert.match(details, /creator-confirmed/);
-  assert.match(details, /sourceBindingValid/);
-  assert.match(details, /cannot be confirmed/);
-  assert.match(details, /reviewVisionObservation\(item\.id, 'creator_confirmed'\)/);
-  assert.match(details, /Confirm a Knowledge field/);
-  assert.match(details, /promotablePaths = Object.keys\(fields\)/);
-  assert.match(details, /knowledgeFieldName = observationFieldPath\.slice/);
-  assert.match(details, /body: \{ observationId, fieldPath, observationFieldPath, acceptedValue, note \}/);
-  assert.match(details, /data\?\.status !== 'field_confirmed'/);
-  assert.match(details, /Confirmed Knowledge:/);
-  assert.match(details, /evidence_kind === 'field_confirmation'/);
+  assert.match(details, /verifyAssetIntegrity/);
+  assert.match(details, /SHA-256/);
 });
 
 test('Vision field promotion is limited to editable knowledge fields and exact source evidence', () => {

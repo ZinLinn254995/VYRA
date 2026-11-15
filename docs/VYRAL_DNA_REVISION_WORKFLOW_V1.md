@@ -1,3 +1,5 @@
+> **Internal implementation contract (2026-11-15):** This workflow is an internal evidence-backed maintenance mechanism, not a creator-facing DNA editor. Creators should not manually author DNA revisions or Change Sets. VYRA maintains Asset DNA automatically and applies only validated, source-pinned changes behind the scenes. Use the current Creative Universe model and [Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md) as the product authority.
+
 # VYRA DNA Revision Workflow v1
 
 ## Purpose

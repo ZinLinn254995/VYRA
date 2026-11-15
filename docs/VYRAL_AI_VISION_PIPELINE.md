@@ -1,3 +1,5 @@
+> **SUPERSEDED PROVIDER PATH (2026-11-15):** This document describes an earlier Gemini-specific Vision route. Gemini is not the approved provider direction. Do not extend this path; preserve reusable validation and image-preview safety concepts only when they fit the OpenAI/server-side provider adapter architecture. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # Vyral DNA → AI Vision Pipeline
 
 ## Purpose

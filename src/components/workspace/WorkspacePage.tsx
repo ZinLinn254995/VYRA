@@ -13,6 +13,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
+import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -21,9 +22,9 @@ type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: s
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
 type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance } };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; seedDemoStoryboards?: boolean; isAuthenticated: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -31,40 +32,26 @@ const readStoryboards = (key: string): Storyboard[] => {
     return Array.isArray(value) ? value.filter((item): item is Storyboard =>
       Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
       typeof item.topic === 'string' && typeof item.createdAt === 'string' && typeof item.updatedAt === 'string'
-    ).map((storyboard) => ({
-      ...storyboard,
-      details: storyboard.details ? {
-        ...storyboard.details,
-        scenes: (storyboard.details.scenes || []).map((scene) => {
-          if (scene.project?.id) return scene;
-          const now = new Date().toISOString();
-          return {
-            ...scene,
-            project: { id: crypto.randomUUID(), schemaVersion: 1 as const, createdAt: now, updatedAt: now, renderRevisionIds: [] },
-          };
-        }),
-      } : storyboard.details,
-    })) : [];
+    ).map((storyboard) => {
+      if (!storyboard.details) return { ...storyboard, details: { scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) } };
+      const scenes = (storyboard.details.scenes || []).map((scene) => {
+        if (scene.project?.id) return scene;
+        const now = new Date().toISOString();
+        return {
+          ...scene,
+          project: { id: crypto.randomUUID(), schemaVersion: 1 as const, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+        };
+      });
+      return {
+        ...storyboard,
+        details: {
+          ...storyboard.details,
+          scenes,
+          continuityLedger: hydrateSceneContinuityLedger(storyboard.details.continuityLedger, scenes),
+        },
+      };
+    }) : [];
   } catch { return []; }
-};
-
-const loadInitialStoryboards = (key: string, seedDemoStoryboards: boolean): Storyboard[] => {
-  const existing = readStoryboards(key);
-  if (existing.length || !seedDemoStoryboards) return existing;
-
-  const markerKey = key + ':demo-storyboards-seeded';
-  try {
-    if (localStorage.getItem(markerKey) === '1') return existing;
-    const now = new Date().toISOString();
-    const samples: Storyboard[] = [
-      { id: 'demo-myanmar-folktale', title: 'Myanmar Folktale — The Golden Peacock', topic: 'A cinematic retelling of a Myanmar folktale, with a clear beginning, a magical journey and a meaningful ending.', createdAt: now, updatedAt: now },
-      { id: 'demo-product-promotion', title: 'Product Promotion — Smart Bottle', topic: 'A short product video introducing the key features, everyday benefits and a memorable call to action.', createdAt: now, updatedAt: now },
-      { id: 'demo-science-explainer', title: 'Science Explainer — Black Holes', topic: 'An easy-to-follow visual explanation of black holes, gravity and how light behaves near the event horizon.', createdAt: now, updatedAt: now },
-    ];
-    localStorage.setItem(markerKey, '1');
-    localStorage.setItem(key, JSON.stringify(samples));
-    return samples;
-  } catch { return existing; }
 };
 
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] [-webkit-text-fill-color:var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] focus:outline-offset-2 placeholder:text-[var(--vyra-text-muted)]';
@@ -74,8 +61,11 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards = false, isAuthenticated, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
-  const [storyboards, setStoryboards] = useState<Storyboard[]>(() => loadInitialStoryboards(storageKey, seedDemoStoryboards));
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange }) => {
+  const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
+  const lastStoryboardSyncAtRef = useRef(0);
+  const storyboardStorageKeyRef = useRef(storageKey);
+  const suggestionRequestIdRef = useRef(0);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
@@ -105,6 +95,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const [suggestionError, setSuggestionError] = useState('');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
   const [storyboardAiMessage, setStoryboardAiMessage] = useState('');
+  const [sceneContinuityMessage, setSceneContinuityMessage] = useState('');
   const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
   const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
     if (key === 'title') setTitle(value);
@@ -167,20 +158,31 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
     }
   };
   const suggestStoryboardDetails = async () => {
+    const requestId = ++suggestionRequestIdRef.current;
+    const requestStorageKey = storyboardStorageKeyRef.current;
     setSuggestionError('');
     setIsSuggesting(true);
     try {
       const suggestion = await requestStoryboardSuggestion(title, topic);
+      // A response started under a previous account or superseded by a newer
+      // request must never populate the current owner's form or suggestion cache.
+      if (requestId !== suggestionRequestIdRef.current || requestStorageKey !== storyboardStorageKeyRef.current) return;
       if (suggestion) {
         setCachedStoryboardSuggestion({ key: workspaceStoryboardSuggestionKey(title, topic, detailOrigins), suggestion });
         applyStoryboardSuggestionToForm(suggestion);
       }
-    } catch (error) { setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.'); }
-    finally { setIsSuggesting(false); }
+    } catch (error) {
+      if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) {
+        setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.');
+      }
+    } finally {
+      if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) setIsSuggesting(false);
+    }
   };
   const dialogRef = useRef<HTMLElement>(null);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const workspaceScrollRef = useRef<HTMLElement>(null);
+  const preservedWorkspaceScrollTopRef = useRef(0);
   const storyboardBarRef = useRef<HTMLElement>(null);
   const workspaceHeaderProgress = useRef(0);
   const workspaceBarTriggerScroll = useRef(0);
@@ -196,6 +198,32 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   const storyboardPreviewDrag = useRef<{ startY: number; lastY: number; lastAt: number; velocity: number; startProgress: number; moved: boolean; distance: number } | null>(null);
   const storyboardPreviewSettleTimer = useRef<number | null>(null);
   const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
+
+  // Retained pages stay mounted to preserve their data, but transient dialogs
+  // must not remain open (or keep the document scroll-locked) after navigation.
+  useEffect(() => {
+    if (!isActive) {
+      setCreateOpen(false);
+      setStoryboardToDelete(null);
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    setSceneContinuityMessage('');
+  }, [activeSceneId]);
+
+  useLayoutEffect(() => {
+    const scroller = workspaceScrollRef.current;
+    if (!scroller) return;
+    // The parent hides this retained page before layout effects run, which
+    // can reset the browser's scrollTop to zero. The onScroll handler already
+    // captured the last visible position; never overwrite it while hidden.
+    if (!isActive) return;
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollTop = preservedWorkspaceScrollTopRef.current;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isActive]);
 
   // Measure the sticky handoff point and fixed header dimensions once. Reading
   // layout geometry/computed styles on every touchmove forces synchronous
@@ -474,16 +502,81 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
       activeSceneTitle: scenes.find((scene) => scene.id === activeSceneId)?.title ?? null,
+      activeSceneDescription: scenes.find((scene) => scene.id === activeSceneId)?.description?.slice(0, 1800) ?? null,
+      sceneContinuity: activeStoryboard && activeSceneId ? (() => {
+        const ledger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, scenes);
+        const continuity = getSceneContinuityContext(ledger, scenes, activeSceneId);
+        if (!continuity) return null;
+        const record = ledger.scenes[activeSceneId];
+        const boundedObject = (value: Record<string, unknown> | null) => {
+          if (!value) return null;
+          try {
+            const serialized = JSON.stringify(value);
+            return typeof serialized === 'string' && serialized.length <= 6000 ? JSON.parse(serialized) as Record<string, unknown> : null;
+          } catch { return null; }
+        };
+        return {
+          previousSceneId: continuity.previousSceneId,
+          previousSceneApproved: continuity.previousSceneApproved,
+          entrySnapshotStale: continuity.entrySnapshotStale,
+          previousExitState: boundedObject(continuity.previousExitState),
+          currentEntryState: boundedObject(continuity.currentEntryState),
+          intendedChanges: continuity.intendedChanges.slice(0, 12).map((change) => ({
+            path: change.path.slice(0, 200),
+            value: change.value,
+            reason: change.reason.slice(0, 300),
+          })),
+          contextComplete: continuity.contextComplete && (!continuity.previousExitState || boundedObject(continuity.previousExitState) !== null),
+          validationStatus: record.validationStatus,
+        };
+      })() : null,
       selectedTimelineItem: selectedTimelineItem ?? null,
       capturedAt: new Date().toISOString(),
     };
     onAiContextChange(context);
   }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
-  useEffect(() => {
-    setStoryboards(loadInitialStoryboards(storageKey, seedDemoStoryboards));
+  useLayoutEffect(() => {
+    const storageOwnerChanged = storyboardStorageKeyRef.current !== storageKey;
+    if (storageOwnerChanged) {
+      // Workspace stays mounted across navigation and auth changes. Clear every
+      // owner-bound editor surface before painting the next account's workspace.
+      storyboardStorageKeyRef.current = storageKey;
+      suggestionRequestIdRef.current += 1;
+      lastStoryboardSyncAtRef.current = 0;
+      setActiveStoryboard(null);
+      setActiveStoryboardConfirmed(false);
+      setStoryboardToDelete(null);
+      setIsDeletingStoryboard(false);
+      setEditingStoryboardId(null);
+      setEditDraft(null);
+      setCreateOpen(false);
+      setTitle('');
+      setTopic('');
+      setCategory('');
+      setStyle('');
+      setMood('');
+      setTags('');
+      setDetailOrigins({});
+      setCachedStoryboardSuggestion(null);
+      setSuggestionError('');
+      setIsSuggesting(false);
+      setStoryboardDetailsExpanded(false);
+      setStoryboardEditorView('scenes');
+      setSelectedSceneIds([]);
+      setActiveSceneId(null);
+      setSelectedTimelineItem(null);
+      setSceneVideoPreviewUrl('');
+      setSceneVideoPreviewLoading(false);
+      setSceneVideoPreviewError('');
+      setSceneVideoPreviewSourceIn(0);
+      setSceneVideoPreviewSourceOut(null);
+      setCloudSyncMessage('');
+      setStoryboardAiMessage('');
+    }
+    setStoryboards(readStoryboards(storageKey));
     setLoadedStorageKey(storageKey);
-  }, [storageKey, seedDemoStoryboards]);
+  }, [storageKey]);
   useEffect(() => {
     if (loadedStorageKey !== storageKey) return;
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
@@ -522,46 +615,80 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
 
   useEffect(() => {
     let cancelled = false;
+    let syncInFlight = false;
+    let isPageActive = isActive;
     const client = supabase;
-    if (!isAuthenticated || !client || loadedStorageKey !== storageKey) return;
-    const syncStoryboards = async () => {
-      setCloudSyncMessage('Syncing your Storyboards…');
-      const { data: authData, error: authError } = await client.auth.getUser();
-      if (cancelled) return;
-      if (authError || !authData.user) {
-        setCloudSyncMessage('Sign in again to sync your Storyboards.');
-        return;
-      }
-      const { data, error: loadError } = await client.from('vyral_storyboards')
-        .select('id,title,topic,details,created_at,updated_at')
-        .eq('user_id', authData.user.id).order('updated_at', { ascending: false });
-      if (cancelled) return;
-      if (loadError) {
-        setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
-        return;
-      }
-      const remote = (data ?? []).map((row) => ({
-        id: row.id as string, title: row.title as string, topic: row.topic as string,
-        details: (row.details ?? {}) as Storyboard['details'],
-        createdAt: row.created_at as string, updatedAt: row.updated_at as string,
-      }));
-      const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
-      let syncFailed = false;
-      if (pending.length) {
-        const { error: uploadError } = await client.from('vyral_storyboards').upsert(pending.map((item) => ({
-          id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
-          details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
-        })), { onConflict: 'id' });
+    if (!isAuthenticated || !client || loadedStorageKey !== storageKey || !isActive) return;
+    const syncStoryboards = async (quiet = false) => {
+      if (syncInFlight || cancelled) return;
+      syncInFlight = true;
+      if (!quiet) setCloudSyncMessage('Syncing your Storyboards…');
+      try {
+        const { data: authData, error: authError } = await client.auth.getUser();
         if (cancelled) return;
-        if (uploadError) syncFailed = true;
+        if (authError || !authData.user) {
+          setCloudSyncMessage('Sign in again to sync your Storyboards.');
+          return;
+        }
+        const { data, error: loadError } = await client.from('vyral_storyboards')
+          .select('id,title,topic,details,created_at,updated_at')
+          .eq('user_id', authData.user.id).order('updated_at', { ascending: false });
+        if (cancelled) return;
+        if (loadError) {
+          setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
+          return;
+        }
+        const remote = (data ?? []).map((row) => ({
+          id: row.id as string, title: row.title as string, topic: row.topic as string,
+          details: (() => { const details = (row.details ?? {}) as NonNullable<Storyboard['details']>; return { ...details, continuityLedger: hydrateSceneContinuityLedger(details.continuityLedger, details.scenes || []) }; })(),
+          createdAt: row.created_at as string, updatedAt: row.updated_at as string,
+        }));
+        const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
+        let syncFailed = false;
+        if (pending.length) {
+          const { error: uploadError } = await client.from('vyral_storyboards').upsert(pending.map((item) => ({
+            id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
+            details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
+          })), { onConflict: 'id' });
+          if (cancelled) return;
+          if (uploadError) syncFailed = true;
+        }
+        if (cancelled) return;
+        lastStoryboardSyncAtRef.current = Date.now();
+        setStoryboards(mergedStoryboards);
+        setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
+      } catch {
+        if (!cancelled) setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
+      } finally {
+        syncInFlight = false;
       }
-      if (cancelled) return;
-      setStoryboards(mergedStoryboards);
-      setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
     };
-    void syncStoryboards();
-    return () => { cancelled = true; };
-  }, [storageKey, isAuthenticated, loadedStorageKey]);
+    const handlePageActivated = (event: Event) => {
+      const page = (event as CustomEvent<{ page?: string }>).detail?.page ?? '';
+      isPageActive = page === 'workspace';
+      if (isPageActive && Date.now() - lastStoryboardSyncAtRef.current >= 30_000) {
+        void syncStoryboards(true);
+      }
+    };
+    const handleFocus = () => {
+      if (isPageActive && document.visibilityState === 'visible' && Date.now() - lastStoryboardSyncAtRef.current >= 30_000) {
+        void syncStoryboards(true);
+      }
+    };
+    window.addEventListener('vyra:page-activated', handlePageActivated);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    if (lastStoryboardSyncAtRef.current === 0) void syncStoryboards(false);
+    else if (Date.now() - lastStoryboardSyncAtRef.current >= 30_000) void syncStoryboards(true);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('vyra:page-activated', handlePageActivated);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [storageKey, isAuthenticated, isActive, loadedStorageKey]);
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
@@ -646,7 +773,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
       title: nextTitle || nextTopic.slice(0, 100) || 'Untitled Storyboard',
       topic: nextTopic, createdAt: now, updatedAt: now,
-      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins, ...(aiProvenance ? { ai_provenance: aiProvenance } : {}) },
+      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []), ...(aiProvenance ? { ai_provenance: aiProvenance } : {}) },
     };
     setStoryboards((current) => [next, ...current]);
     void persistStoryboard(next);
@@ -663,7 +790,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
       topic: 'A new video story is ready to take shape. Create your scenes and build your story.',
       createdAt: now,
       updatedAt: now,
-      details: { category: '', style: '', mood: '', tags: [], origins: {} },
+      details: { category: '', style: '', mood: '', tags: [], origins: {}, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
     };
     setSelectedSceneIds([]);
     setActiveSceneId(null);
@@ -781,10 +908,42 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               ...patch,
               project: item.project ? { ...item.project, updatedAt: now } : item.project,
             } : item),
+            // Editing a Scene invalidates its old approval. Preserve the old
+            // exit state as history, but block it from the next Scene's handoff.
+            continuityLedger: invalidateSceneContinuity(
+              current.details?.continuityLedger,
+              current.details?.scenes || [],
+              scene.id,
+              now,
+            ),
           },
           updatedAt: now,
         };
       });
+      const sceneLedger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, activeStoryboard.details?.scenes || []);
+      const sceneContinuityRecord = sceneLedger.scenes[scene.id];
+      const sceneContinuityContext = getSceneContinuityContext(sceneLedger, activeStoryboard.details?.scenes || [], scene.id);
+      const proposedExitState = sceneContinuityRecord?.proposedExitState;
+      const canApproveSceneContinuity = sceneContinuityRecord?.validationStatus === 'consistent'
+        && Boolean(sceneContinuityContext?.contextComplete)
+        && Boolean(proposedExitState) && typeof proposedExitState === 'object' && !Array.isArray(proposedExitState);
+      const approveCurrentSceneContinuity = () => {
+        try {
+          const nextLedger = approveSceneContinuityState(
+            activeStoryboard.details?.continuityLedger,
+            activeStoryboard.details?.scenes || [],
+            scene.id,
+          );
+          setActiveStoryboard({
+            ...activeStoryboard,
+            details: { ...activeStoryboard.details, continuityLedger: nextLedger },
+            updatedAt: new Date().toISOString(),
+          });
+          setSceneContinuityMessage('Approved. The next Scene can now use this state as its continuity handoff.');
+        } catch (error) {
+          setSceneContinuityMessage(error instanceof Error ? error.message : 'This Scene cannot be approved yet.');
+        }
+      };
       const project: SceneProjectData = scene.project || { id: crypto.randomUUID(), schemaVersion: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), renderRevisionIds: [] };
       const timeline: SceneProjectTimeline = project.timeline || {
         duration: scene.duration, fps: 30, width: 1920, height: 1080, tracks: [],
@@ -897,6 +1056,29 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                       </div>
                     )}
                   </div>
+                </section>
+                <section className="space-y-2 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Story Continuity</h2>
+                    <span className="rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)]">
+                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' && !sceneContinuityContext?.contextComplete ? sceneContinuityContext?.previousSceneId ? 'Waiting for previous Scene' : 'Needs starting state' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
+                    </span>
+                  </div>
+                  <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">
+                    {sceneContinuityContext?.contextComplete
+                      ? sceneContinuityContext.previousSceneId
+                        ? 'The previous Scene has an approved state. This Scene inherits its continuity handoff.'
+                        : 'This is the first Scene. No previous Scene handoff is required.'
+                      : sceneContinuityContext?.previousSceneId
+                        ? 'The previous Scene has not been approved yet. Its state will not be treated as canon for this Scene.'
+                        : 'This first Scene needs an explicit starting state before it can become the continuity source for later Scenes.'}
+                  </p>
+                  {canApproveSceneContinuity && sceneContinuityRecord?.validationStatus !== 'creator_approved' && (
+                    <button type="button" onClick={approveCurrentSceneContinuity} className="min-h-10 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
+                      Approve Scene State for Next Scene
+                    </button>
+                  )}
+                  {sceneContinuityMessage && <p role="status" className="text-xs text-[var(--vyra-text-secondary)]">{sceneContinuityMessage}</p>}
                 </section>
                 <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
                   <div>
@@ -1063,7 +1245,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
                 if (!current) return current;
                 const master = current.details?.masterTimeline;
-                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString() };
+                const continuityLedger = hydrateSceneContinuityLedger(current.details?.continuityLedger, nextScenes);
+                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes, continuityLedger }, updatedAt: new Date().toISOString() };
                 const previousInstances = master.sceneInstances || [];
                 const instancesByScene = new Map(previousInstances.map((instance) => [instance.sceneId, instance]));
                 const sceneIds = new Set(nextScenes.map((scene) => scene.id));
@@ -1084,6 +1267,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
                   details: {
                     ...current.details,
                     scenes: nextScenes,
+                    continuityLedger,
                     masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges: {}, transitions },
                   },
                   updatedAt: new Date().toISOString(),
@@ -1193,12 +1377,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, seedDemoStoryboards
   }
 
   return (
-    <main ref={workspaceScrollRef} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+    <main ref={workspaceScrollRef} onScroll={(event) => { preservedWorkspaceScrollTopRef.current = event.currentTarget.scrollTop; }} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={21} /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Vyrals</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative assets and Vyral collections</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Universes</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative Universes and their Assets</span></span>
             <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
           </button>
           <button type="button" onClick={() => onOpenLibraryPage('my-media-library')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">

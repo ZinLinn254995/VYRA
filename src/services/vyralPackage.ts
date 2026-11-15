@@ -724,8 +724,8 @@ export const selectVyralPackageComponents = async (
   }
   const retained = new Set<string>([VYRAL_PACKAGE_MANIFEST]);
   if (files.has('README.txt')) retained.add('README.txt');
-  if ((components.fullDna || components.compactDna) && files.has('AI_RECONSTRUCTION_GUIDE.md')) retained.add('AI_RECONSTRUCTION_GUIDE.md');
-  if (components.fullDna && files.has('tools/reconstruct_vyral.py')) retained.add('tools/reconstruct_vyral.py');
+  // New native Vyral exports carry Universe data and integrity records, not an external-AI reconstruction guide or decoder.
+  // Legacy DNA-only packages remain readable through the compatibility import path.
 
   if (components.assets) {
     for (const version of manifest.versions) retained.add(version.package_path);

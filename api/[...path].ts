@@ -1,6 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { createAiRouter } from '../src/server/ai.js';
-import { createPricingRouter } from '../src/server/pricing.js';
 import { createSupabaseAuthRouter } from '../src/server/supabaseAuth.js';
 import { createCustomerProjectsRouter } from '../src/server/customerProjects.js';
 import { createCreditTransfersRouter } from '../src/server/creditTransfers.js';
@@ -12,19 +11,16 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 const aiRouter = createAiRouter();
-const pricingRouter = createPricingRouter();
 const authRouter = createSupabaseAuthRouter();
 const customerProjectsRouter = createCustomerProjectsRouter();
 const creditTransfersRouter = createCreditTransfersRouter();
 // Vercel may strip the /api prefix, leaving /auth/session for this catch-all.
 // Mount both stripped and unstripped paths so auth verification works either way.
-app.use('/', pricingRouter);
 app.use('/', aiRouter);
 app.use('/auth', authRouter);
 app.use('/', authRouter);
 app.use('/', customerProjectsRouter);
 app.use('/', creditTransfersRouter);
-app.use('/api', pricingRouter);
 app.use('/api', aiRouter);
 app.use('/api/auth', authRouter);
 app.use('/api', customerProjectsRouter);
