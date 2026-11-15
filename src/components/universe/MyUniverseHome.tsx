@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Plus, X,
-} from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 type UniverseSample = {
@@ -20,31 +18,17 @@ const initialUniverses: UniverseSample[] = [
   { id: 'u6', name: 'Creative Research Vault', updated: 'Edited 1 month ago', thumbnail: 'https://images.unsplash.com/photo-1455390582262-044cde7d0c2d?w=900&auto=format&fit=crop&q=85' },
 ];
 
-export function MyUniverseHome() {
-  const [universes, setUniverses] = useState(initialUniverses);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState('');
+type MyUniverseHomeProps = { onCreateUniverse: () => void };
 
-  const createSample = (event: React.FormEvent) => {
-    event.preventDefault();
-    const name = newName.trim();
-    if (!name) return;
-    setUniverses((current) => [{
-      id: `local-${Date.now()}`,
-      name,
-      updated: 'Just now',
-      thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=900&auto=format&fit=crop&q=85',
-    }, ...current]);
-    setNewName('');
-    setCreateOpen(false);
-  };
+export function MyUniverseHome({ onCreateUniverse }: MyUniverseHomeProps) {
+  const [universes] = useState(initialUniverses);
 
   return (
     <main className="min-h-0 flex-1 overflow-y-auto bg-[var(--vyra-bg-canvas)]">
       <div className="mx-auto w-full max-w-[1440px] px-5 pb-16 pt-9 sm:px-8 lg:px-12 lg:pt-12">
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <h1 className="text-3xl font-semibold tracking-tight text-[var(--vyra-text-primary)] sm:text-4xl">My Universe</h1>
-          <Button size="md" className="shrink-0" startIcon={<Plus size={16} strokeWidth={2.4} />} onClick={() => setCreateOpen(true)}>New</Button>
+          <Button size="md" className="shrink-0" startIcon={<Plus size={16} strokeWidth={2.4} />} onClick={onCreateUniverse}>New</Button>
         </div>
 
 
@@ -64,25 +48,6 @@ export function MyUniverseHome() {
         </div>
       </div>
 
-      {createOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <form onSubmit={createSample} className="w-full max-w-md rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--vyra-text-primary)]">Create a Universe</h2>
-                <p className="mt-1 text-xs text-[var(--vyra-text-muted)]">Preview only — no data will be saved.</p>
-              </div>
-              <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
-            </div>
-            <label className="mb-2 block text-xs font-medium text-[var(--vyra-text-secondary)]">Universe name</label>
-            <input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Give your Universe a name" className="h-11 w-full rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-border)]" />
-            <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" size="md" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button type="submit" size="md" disabled={!newName.trim()}>Create preview</Button>
-            </div>
-          </form>
-        </div>
-      )}
     </main>
   );
 }
