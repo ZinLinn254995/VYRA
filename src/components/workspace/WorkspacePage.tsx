@@ -1281,7 +1281,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Storyboard’s Universe for AI Chat…</div>}
         </aside>
         <div className="hidden">
-          <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} onSendAssetsToChat={onSelectedAssetsChange} />
+          <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
         </div>
       </main>
     );
