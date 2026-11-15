@@ -2880,7 +2880,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     );
   };
 
-  if (loading) return <div className="flex min-h-64 items-center justify-center"><span className={'text-xs ' + muted}>Loading Vyral workspace…</span></div>;
+  if (loading) return <div className="flex min-h-64 items-center justify-center"><span className={'text-xs ' + muted}>Loading Universe…</span></div>;
 
   return (
     <div className="space-y-5">
@@ -2889,7 +2889,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       {collectionReferences.length > 0 && <section className={surface + ' space-y-3 p-3'}>
         <div className="flex items-center justify-between gap-3">
-          <div><h3 className={'text-sm font-semibold ' + primary}>Collection references</h3><p className={'mt-1 text-[11px] ' + muted}>References are kept separate from this Vyral’s own Assets.</p></div>
+          <div><h3 className={'text-sm font-semibold ' + primary}>Universe references</h3><p className={'mt-1 text-[11px] ' + muted}>References are kept separate from this Universe’s own Assets.</p></div>
           <span className={'text-[10px] ' + muted}>{collectionReferences.length}</span>
         </div>
         <div className="space-y-2">
@@ -3048,7 +3048,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {tab === 'assets' && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h3 className={'text-sm font-semibold '+primary}>Your collection</h3><p className={'mt-1 text-xs '+muted}>Add files or folders to build your Vyral.</p></div>
+            <div><h3 className={'text-sm font-semibold '+primary}>Your collection</h3><p className={'mt-1 text-xs '+muted}>Add files or folders to build your Universe.</p></div>
             <label className={primaryButton+' cursor-pointer'}><Upload size={14}/>{busy?'Uploading…':'Add assets'}<input type="file" multiple className="hidden" onChange={(event)=>void uploadFiles(event)} disabled={busy || packageBusy || verifyingAssetId !== null}/></label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
