@@ -189,6 +189,19 @@ test('AI Chat keeps conflicting creator-confirmed facts unresolved instead of si
   assert.match(evidence, /effective_at.*valid_from.*at.*timestamp.*event_id/);
 });
 
+test('AI Chat uses only current-version hash-pinned Vision observations as non-canonical retrieval hints', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /from\('vyral_vision_observations'\)/);
+  assert.match(edge, /\.in\('verification_status', \['observed', 'corroborated', 'creator_confirmed', 'independently_verified'\]\)/);
+  assert.match(edge, /observation\.asset_version_id !== snapshotAsset\.asset_version_id/);
+  assert.match(edge, /observation\.source_sha256\.toLowerCase\(\) !== snapshotAsset\.asset_fingerprint\.toLowerCase\(\)/);
+  assert.match(edge, /authority: 'version_pinned_model_observation_not_creator_canon'/);
+  assert.match(edge, /modelObservations: visionObservationsByAsset/);
+  assert.match(edge, /Version-pinned AI Vision observations may help interpret an Asset[\s\S]*?not canon or creator-confirmed facts/);
+  assert.match(edge, /Exclude disputed, stale-version or source-hash-mismatched observations/);
+  assert.match(edge, /visionObservationHistoryTruncated/);
+});
+
 test('AI Chat consistency context verifies Master DNA integrity and only admits creator-confirmed evidence pinned to the exact snapshot version', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /validateVyralMasterDnaV1\(rawMasterSnapshot\)/);
