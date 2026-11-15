@@ -363,6 +363,7 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
   if (!itemIds.length) return [];
   const db = getDb();
   const ownerId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, ownerId, universeId);
   let itemQuery = applyUniverseScope(db.from('media_library_items')
     .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
     .eq('user_id', ownerId), universeId);
@@ -395,6 +396,7 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
 export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null): Promise<string> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   const { data, error } = await applyUniverseScope(db.from('media_library_items')
     .select('bucket_id,storage_path')
     .eq('id', itemId)
@@ -434,6 +436,7 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
 export async function renameMediaLibraryFolder(folderId: string, name: string, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   if (universeId) {
@@ -448,6 +451,7 @@ export async function renameMediaLibraryFolder(folderId: string, name: string, u
 export async function deleteMediaLibraryFolder(folderId: string, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   const [{ count: childCount, error: childError }, { count: itemCount, error: itemError }] = await Promise.all([
     applyUniverseScope(db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId), universeId),
     applyUniverseScope(db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId), universeId),
@@ -473,6 +477,7 @@ export async function deleteMediaLibraryFolder(folderId: string, universeId?: st
 export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (universeId) {
     const { error: canonicalError } = await db.from('vyral_folders').update({ parent_id: parentId }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     if (canonicalError) throw new Error(canonicalError.message.toLowerCase().includes('descendant') ? 'A folder cannot be moved into one of its descendants.' : 'Could not move Universe folder: ' + canonicalError.message);
@@ -493,6 +498,7 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
   if (!itemIds.length) return;
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (universeId) {
     const { data: selected, error: selectedError } = await applyUniverseScope(db.from('media_library_items').select('id,source_asset_id')
       .in('id', itemIds).eq('user_id', userId), universeId);
@@ -512,6 +518,7 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
 export async function renameMediaLibraryItem(itemId: string, fileName: string, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   const cleanName = SAFE_NAME(fileName);
   if (!cleanName) throw new Error('Enter a file name.');
   if (universeId) {
@@ -663,6 +670,7 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
 export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
   // Keep the PostgREST filter value free of fractional-second dots.
   const retryCutoff = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
