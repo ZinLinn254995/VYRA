@@ -1,3 +1,5 @@
+import { buildSceneContinuityRepairInstructions, evaluateSceneStateTransition, type SceneState, type SceneStateChange, type SceneStateEvaluation } from './universeSceneContinuity';
+
 export type SceneContinuityStatus = 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
 
 export interface SceneContinuityRecord {
@@ -205,6 +207,82 @@ export function approveSceneContinuityState(
         validationStatus: 'creator_approved',
         updatedAt,
       },
+    },
+  };
+}
+
+
+export interface SceneContinuityRuntimeResult {
+  ledger: SceneContinuityLedger;
+  evaluation: SceneStateEvaluation;
+  repairInstructions: ReturnType<typeof buildSceneContinuityRepairInstructions>;
+  retry: { allowed: boolean; attempt: number; maxAttempts: 2; requiresCreatorReview: boolean };
+}
+
+/**
+ * Runtime entry point for a Scene-generation pipeline. Later Scenes always
+ * inherit the immediately preceding creator-approved exit state. The first
+ * Scene requires an explicit creator-approved starting state. Generated
+ * output is recorded as a proposal and never promoted to canon here.
+ */
+export function evaluateAndRecordSceneContinuity(input: {
+  ledger: unknown;
+  scenes: ReadonlyArray<{ id: string }>;
+  sceneId: string;
+  observedExitState: SceneState;
+  trackedPaths: string[];
+  initialEntryState?: SceneState;
+  intendedChanges?: SceneStateChange[];
+  attempt?: number;
+  updatedAt?: string;
+}): SceneContinuityRuntimeResult {
+  const hydrated = hydrateSceneContinuityLedger(input.ledger, input.scenes);
+  const context = getSceneContinuityContext(hydrated, input.scenes, input.sceneId);
+  if (!context) throw new Error('Cannot evaluate continuity for an unknown Scene.');
+
+  let entryState: SceneState;
+  if (context.previousSceneId) {
+    if (!context.previousSceneApproved || !context.previousExitState) {
+      throw new Error('Scene continuity context is incomplete; approve the previous Scene handoff first.');
+    }
+    // Always use the latest approved predecessor snapshot. This also safely
+    // refreshes a stale downstream entry after an earlier Scene is re-approved.
+    entryState = structuredClone(context.previousExitState);
+  } else {
+    const initial = input.initialEntryState ?? context.currentEntryState;
+    if (!initial) throw new Error('The first Scene needs an explicit approved starting state.');
+    entryState = structuredClone(initial);
+  }
+
+  const intendedChanges = input.intendedChanges ?? context.intendedChanges;
+  const evaluation = evaluateSceneStateTransition({
+    previousState: entryState,
+    intendedChanges,
+    observedState: input.observedExitState,
+    trackedPaths: input.trackedPaths,
+  });
+  const ledger = recordSceneContinuityEvaluation(hydrated, input.scenes, {
+    sceneId: input.sceneId,
+    entryState,
+    intendedChanges,
+    expectedExitState: evaluation.expectedState,
+    status: evaluation.status,
+    violations: evaluation.violations,
+    updatedAt: input.updatedAt,
+  });
+  const requestedAttempt = Number.isInteger(input.attempt) ? Number(input.attempt) : 0;
+  const attempt = Math.max(0, Math.min(2, requestedAttempt));
+  const maxAttempts = 2 as const;
+  const retryAllowed = evaluation.status === 'needs_review' && attempt < maxAttempts;
+  return {
+    ledger,
+    evaluation,
+    repairInstructions: buildSceneContinuityRepairInstructions(evaluation),
+    retry: {
+      allowed: retryAllowed,
+      attempt,
+      maxAttempts,
+      requiresCreatorReview: evaluation.status === 'needs_review' && !retryAllowed,
     },
   };
 }
