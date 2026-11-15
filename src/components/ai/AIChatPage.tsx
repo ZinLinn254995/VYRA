@@ -65,7 +65,7 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
     context.drawImage(bitmap, 0, 0, width, height);
 
     const encode = (quality: number) => new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode the Vyral AI Vision preview.')), 'image/jpeg', quality);
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode the Universe AI Vision preview.')), 'image/jpeg', quality);
     });
     let preview = await encode(0.82);
     if (preview.size > 600 * 1024) preview = await encode(0.68);
@@ -74,7 +74,7 @@ const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisi
 
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onerror = () => reject(new Error('Could not read the Vyral AI Vision preview.'));
+      reader.onerror = () => reject(new Error('Could not read the Universe AI Vision preview.'));
       reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid Vyral AI Vision preview.'));
       reader.readAsDataURL(preview);
     });
@@ -195,7 +195,7 @@ const canonicalizeAttachmentJson = (value: unknown): string => {
 };
 
 const inspectVyralAttachment = async (file: File) => {
-  if (file.size > 256 * 1024 * 1024) throw new Error('Vyral package exceeds the 256 MB safety limit.');
+  if (file.size > 256 * 1024 * 1024) throw new Error('Legacy Universe package exceeds the 256 MB safety limit.');
   const files = await readVyralZip(file);
   const manifest = parseVyralManifest(files);
   const v3Records = manifest.dnaRecords.filter((record) =>
@@ -204,7 +204,7 @@ const inspectVyralAttachment = async (file: File) => {
   const fileRecords = manifest.dnaRecords.filter((record) =>
     record.dna_schema_id === 'vyra.asset-file-dna' && record.dna_schema_version === 1
   );
-  if (v3Records.length + fileRecords.length > 64) throw new Error('This Vyral contains too many DNA records for one chat attachment.');
+  if (v3Records.length + fileRecords.length > 64) throw new Error('This legacy Universe package contains too many DNA records for one chat attachment.');
   const verified: { width: number; height: number; channels: string; digest: string; bytes: number }[] = [];
   const verifiedFiles: { assetId: string; assetName: string; mimeType: string; format: string; extension: string | null; bytes: number; digest: string; exactSourceBytes: boolean; verificationSource: string; structureProfile: string; structureStatus: string; structureFacts: string[]; structureNotes: string[] }[] = [];
   let totalDecodedBytes = 0;
@@ -223,7 +223,7 @@ const inspectVyralAttachment = async (file: File) => {
     }
     totalDecodedBytes += expectedBytes;
     if (totalDecodedBytes > 128 * 1024 * 1024) {
-      throw new Error('This Vyral exceeds the 128 MB total DNA inspection limit.');
+      throw new Error('This legacy Universe package exceeds the 128 MB total DNA inspection limit.');
     }
     const reconstruction = await reconstructVyralDnaV3FromPackage(files, String(record.id));
     verified.push({
@@ -242,7 +242,7 @@ const inspectVyralAttachment = async (file: File) => {
       throw new Error('A File DNA asset exceeds the 128 MB chat inspection limit.');
     }
     totalFileBytes += fileBytes;
-    if (totalFileBytes > 128 * 1024 * 1024) throw new Error('This Vyral exceeds the 128 MB total File DNA inspection limit.');
+    if (totalFileBytes > 128 * 1024 * 1024) throw new Error('This legacy Universe package exceeds the 128 MB total File DNA inspection limit.');
     let verifiedBytes: Uint8Array;
     let verificationSource: string;
     let exactSourceBytes = false;
@@ -303,7 +303,7 @@ const inspectVyralAttachment = async (file: File) => {
     relationships: masterDna?.relationships ?? [],
   });
   if (masterDna && masterDna.vyral.vyral_id !== String(manifest.vyral.id)) {
-    throw new Error('Vyral Master DNA identity does not match this package.');
+    throw new Error('Universe Master DNA identity does not match this package.');
   }
   const visionImages: (VyralVisionImage & { assetId: string; assetName: string })[] = [];
   for (const record of v3Records.slice(0, 4)) {
@@ -316,19 +316,19 @@ const inspectVyralAttachment = async (file: File) => {
   const asset = firstV3Record
     ? manifest.assets.find((item) => item.id === firstV3Record.asset_id) ?? manifest.assets[0]
     : manifest.assets[0];
-  const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Vyral';
+  const mode = manifest.exportMode === 'dna-only' ? 'DNA-only' : 'Full Universe';
   const lines = [
     `Package: ${String(manifest.vyral.name)} (${mode})`,
-    'VYRA CREATOR CONTEXT: Treat this Vyral as a creator-defined collection of Assets. Any supported asset types may be mixed, and Assets may be related or unrelated. No Main/Supporting role, purpose, story, character, world, style, or relationship is mandatory. An unclassified Asset is valid; do not invent missing metadata or relationships.',
+    'VYRA CREATOR CONTEXT: Treat this Universe as a creator-defined collection of Assets. Any supported asset types may be mixed, and Assets may be related or unrelated. No Main/Supporting role, purpose, story, character, world, style, or relationship is mandatory. An unclassified Asset is valid; do not invent missing metadata or relationships.',
     'COMPACT DNA POLICY: Compact DNA is a navigation/reference map, not the canonical Original Asset, a complete substitute for Original DNA, or an access credential. Use only the Assets relevant to the user’s request. Do not claim to have inspected or retrieved an Original Asset unless its bytes/content are actually present in this request or returned by an authorized VYRA resolver.',
     'EVIDENCE POLICY: Distinguish verified DNA/fingerprint facts, creator-declared metadata, AI suggestions, and untested assumptions. Reconstruction claims describe only the stated evidence level; visual similarity or semantic interpretation is not exact source-file recovery.',
-    'CREATOR ASSISTANCE: If asked to improve this Vyral, first understand the creator’s intended task, then recommend only useful optional Assets, metadata, relationships, instructions, or tests. Explain why each recommendation helps; never turn suggestions into confirmed facts or require unrelated structure.',
+    'CREATOR ASSISTANCE: If asked to improve this Universe, first understand the creator’s intended task, then recommend only useful optional Assets, metadata, relationships, instructions, or tests. Explain why each recommendation helps; never turn suggestions into confirmed facts or require unrelated structure.',
     `Assets in package: ${manifest.assets.length} · DNA records with payloads: ${manifest.dnaRecords.length}`,
     `Creator inventory summary (verified package metadata only): ${creatorInventoryContext.assetCount} Assets; types ${Object.entries(creatorInventoryContext.typeCounts).map(([type, count]) => type + '=' + count).join(', ')}; declared purpose ${creatorInventoryContext.declaredPurpose ?? 'not provided'}; intended uses ${creatorInventoryContext.intendedUses.join(', ') || 'not provided'}; declared relationships ${creatorInventoryContext.relationshipsCount}`,
     'QUALITY STATUS: This inventory summary is not a grade. Do not invent a score or grade. A grade requires a versioned applicable standard and evidence for every applicable rule; missing evidence must remain incomplete.',
     `Asset inventory (showing up to 64 of ${manifest.assets.length}): ${manifest.assets.slice(0, 64).map((item) => `${String(item.name ?? item.id)} [${String(item.asset_type ?? 'unknown type')}; ${String(item.mime_type ?? 'unknown MIME')}]`).join('; ')}`,
-    masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Vyral assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
-    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Vyral purpose: ${masterDna.purpose?.summary ?? 'Not provided'}`, `Intended uses: ${(masterDna.purpose?.intended_uses ?? []).join(', ') || 'None declared'}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role ?? 'unclassified'}; ${item.media_type}; purpose: ${item.purpose ?? 'Not provided'}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${(masterDna.relationships ?? []).length}): ${(masterDna.relationships ?? []).slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} raster DNA v3 asset previews are attached to this Vision request (maximum four); File DNA binaries are integrity-checked but their audio/video/document contents are not decoded or attached to Vision.`]; })() : []),
+    masterDna ? `Master DNA verified: revision ${masterDna.snapshot.revision} · ${masterDna.assets.length} total Universe Assets · fingerprint ${masterDna.integrity.vyral_fingerprint}` : 'No portable Master DNA snapshot is included.',
+    ...(masterDna ? (() => { const assetName = (id: string) => String(manifest.assets.find((item) => item.id === id)?.name ?? id); const endpointName = (endpoint: { kind: 'asset' | 'vyral'; asset_id?: string; vyral_id?: string }) => endpoint.kind === 'asset' ? assetName(String(endpoint.asset_id)) : String(manifest.vyral.name); return [`Universe purpose: ${masterDna.purpose?.summary ?? 'Not provided'}`, `Intended uses: ${(masterDna.purpose?.intended_uses ?? []).join(', ') || 'None declared'}`, `Asset inventory (showing up to 64 of ${masterDna.assets.length}): ${masterDna.assets.slice(0, 64).map((item) => `${assetName(item.asset_id)} [${item.role ?? 'unclassified'}; ${item.media_type}; purpose: ${item.purpose ?? 'Not provided'}; reconstruction: ${item.reconstruction_claim}; DNA ref: ${item.dna_ref.record_id}]`).join('; ')}`, `Asset relationships (showing up to 128 of ${(masterDna.relationships ?? []).length}): ${(masterDna.relationships ?? []).slice(0, 128).map((item) => `${endpointName(item.from)} --${item.type}--> ${endpointName(item.to)} (reason: ${item.rationale})`).join('; ')}`, `Cross-asset constraints: ${(masterDna.reconstruction_profile.cross_asset_constraints ?? []).map((item) => item.description).join('; ') || 'None declared'}`, `Reconstruction notes: ${masterDna.reconstruction_profile.notes.join('; ')}`, `Overall reconstruction claim: ${masterDna.reconstruction_profile.overall_claim}`, `Visual access boundary: ${visionImages.length} of ${v3Records.length} raster DNA v3 asset previews are attached to this Vision request (maximum four); File DNA binaries are integrity-checked but their audio/video/document contents are not decoded or attached to Vision.`]; })() : []),
     ...verified.map((item) =>
       `Raster DNA v3 verified: ${item.width}×${item.height} ${item.channels}; ${item.bytes.toLocaleString()} decoded bytes; SHA-256 ${item.digest}`
     ),
@@ -716,7 +716,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedVyralContext ? `\n\n${selectedVyralContext}` : selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
-    const assetContextText = selectedAssets.length ? '\n\nSelected VYRA Assets (explicit user-selected context):\n' + selectedAssets.map((asset, index) => `${index + 1}. ${asset.name} [${asset.assetType}; ${asset.mimeType}] — Vyral: ${asset.vyralName}; Asset ID: ${asset.id}; Visibility: ${asset.visibility}; Description: ${asset.description || 'Not provided'}`).join('\n') + '\nUse only these selected Assets as the requested VYRA library context. This selection does not grant public access; private Assets are owner-authorized context only.' : '';
+    const assetContextText = selectedAssets.length ? '\n\nSelected VYRA Assets (explicit user-selected context):\n' + selectedAssets.map((asset, index) => `${index + 1}. ${asset.name} [${asset.assetType}; ${asset.mimeType}] — Universe: ${asset.vyralName}; Asset ID: ${asset.id}; Visibility: ${asset.visibility}; Description: ${asset.description || 'Not provided'}`).join('\n') + '\nUse only these selected Assets as the requested VYRA library context. This selection does not grant public access; private Assets are owner-authorized context only.' : '';
     const userMessage: ChatMessage = retryUserIndex >= 0
       ? messages[retryUserIndex]
       : {
@@ -1489,7 +1489,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       }
       if (requestsAssetDnaAssessment) {
         if (selectedAssets.length !== 1) {
-          throw new Error('To assess Asset DNA, select exactly one Asset in My Vyrals or My Media Library, then ask VYRA AI Chat to check its DNA.');
+          throw new Error('To assess Asset DNA, select exactly one Asset in My Universes or My Media Library, then ask VYRA AI Chat to check its DNA.');
         }
         if (!supabase) throw new Error('Secure Asset DNA assessment is unavailable in this environment.');
         const selectedAsset = selectedAssets[0];
@@ -1586,7 +1586,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           '',
           ...improvementPlan.safety.map((item) => '• ' + item),
           '',
-          'This result evaluates only the selected Asset Version and its DNA record. It is not the Vyral collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
+          'This result evaluates only the selected Asset Version and its DNA record. It is not the Universe collection quality grade. Decoded-sample exactness does not mean the original encoded file bytes can be recovered.',
           `Assessment history ID: ${data.assessmentId ?? 'not returned'}`,
           `Improvement proposal: ${proposalId || proposalStatus}`,
           ...(proposalId && proposalStatus === 'proposed' ? ['To approve this plan, select this same Asset and send “Approve”. To reject it, send “Reject”. Approval does not change DNA; it authorizes the next reviewed version-creation step.'] : []),
@@ -1601,7 +1601,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       }
       if (requestsVyralReconstructionHistory) {
         if (qualityVyralIds.length !== 1) {
-          throw new Error('To inspect reconstruction attempts, select an Asset from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+          throw new Error('To inspect reconstruction attempts, select an Asset from one Universe or attach its legacy package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure reconstruction evidence is unavailable in this environment.');
         const { data, error } = await awaitForCurrentRequest(supabase
@@ -1661,7 +1661,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           '',
           'Evidence-guided next actions:',
           ...evidenceSummary.nextActions.map((item) => '• ' + item),
-        ].join('\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Vyral yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
+        ].join('\n') : 'No ORIGIN-01 v3 reconstruction attempts are saved for this Universe yet. Existing earlier protocol records are not silently upgraded to v3 evidence.';
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
@@ -1672,14 +1672,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       }
       if (requestsVyralQualityHistory) {
         if (qualityVyralIds.length !== 1) {
-          throw new Error('To view quality history, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+          throw new Error('To view quality history, select Assets from one Universe or attach its legacy package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure Vyral quality history is unavailable in this environment.');
         const { data, error } = await awaitForCurrentRequest(supabase.functions.invoke('get-vyral-quality-history', {
           body: { vyralId: qualityVyralIds[0] },
         }));
         if (error) {
-          let message = 'VYRA could not load this Vyral’s quality history.';
+          let message = 'VYRA could not load this Universe’s quality history.';
           try {
             const payload = await (error as { context?: Response }).context?.clone().json() as { error?: string } | undefined;
             assertRequestCurrent();
@@ -1714,7 +1714,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               '',
               'History is ordered newest first. Each result is tied to its own immutable snapshot and versioned standard.',
             ].join('\n')
-          : 'No saved quality evaluations exist for this Vyral yet. Ask VYRA AI Chat to evaluate its quality after an approved standard is published.';
+          : 'No saved quality evaluations exist for this Universe yet. Ask VYRA AI Chat to evaluate its quality after an approved standard is published.';
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
@@ -1725,7 +1725,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       }
       if (requestsVyralQuality) {
         if (qualityVyralIds.length !== 1) {
-          throw new Error('To evaluate quality, select Assets from one Vyral or attach that Vyral’s .vyral package in AI Chat first.');
+          throw new Error('To evaluate quality, select Assets from one Universe or attach its legacy package in AI Chat first.');
         }
         if (!supabase) throw new Error('Secure Vyral quality evaluation is unavailable in this environment.');
         const { data, error } = await awaitForCurrentRequest(supabase.functions.invoke('evaluate-vyral-quality', {
@@ -1797,7 +1797,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         for (const version of versionRows ?? []) {
           if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
         }
-        if (selectedIds.some((id) => !latestVersionByAsset.has(id))) throw new Error('A selected Asset has no available source version. Please refresh the Vyral and select it again.');
+        if (selectedIds.some((id) => !latestVersionByAsset.has(id))) throw new Error('A selected Asset has no available source version. Please refresh the Universe and select it again.');
 
         for (const asset of assetRows ?? []) {
           const license = asset.license_override && typeof asset.license_override === 'object' ? asset.license_override as Record<string, unknown> : {};
@@ -1975,7 +1975,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           }));
           assertRequestCurrent();
           if (completionError || completion?.status !== 'completed') {
-            throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Vyral before retrying.');
+            throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Universe before retrying.');
           }
           pendingVyralUploadFilesRef.current.delete(clientDraftId);
           let masterDnaMessage = 'Master DNA will update from the new Asset inventory.';
@@ -1984,9 +1984,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             masterDnaMessage = !masterError && masterResult?.status === 'ready'
               ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
               : 'The Asset is ready. Master DNA is queued for its next synchronization.';
-          } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Vyral workspace refreshes.'; }
+          } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Universe workspace refreshes.'; }
           assertRequestCurrent();
-          assetUploadCompletionText = '\n\n**Asset saved to Vyral:** ' + destination.name +
+          assetUploadCompletionText = '\n\n**Asset saved to Universe:** ' + destination.name +
             '\n**Asset name:** ' + assetName +
             '\n**Original file:** ' + sourceFile.name +
             '\n**Asset ID:** ' + ingested.assetId +
@@ -2079,15 +2079,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       return;
     }
     if (file.name.toLowerCase().endsWith('.vyral')) {
-      setSelectedFileStatus('Checking Vyral DNA…');
+      setSelectedFileStatus('Checking legacy Universe DNA…');
       try {
         const inspection = await inspectVyralAttachment(file);
         setSelectedVyralContext(inspection.context);
         setSelectedVyralId(inspection.vyralId);
         setSelectedVyralImages(inspection.visionImages);
-        setSelectedFileStatus(inspection.visionImages.length ? `Vyral package validated · DNA v3 checked · ${inspection.visionImages.length} AI Vision previews ready` : 'Vyral package validated · DNA v3 checked locally · no visual DNA preview found');
+        setSelectedFileStatus(inspection.visionImages.length ? `Legacy Universe package validated · DNA v3 checked · ${inspection.visionImages.length} AI Vision previews ready` : 'Legacy Universe package validated · DNA v3 checked locally · no visual DNA preview found');
       } catch (error) {
-        setSelectedFileStatus(error instanceof Error ? error.message : 'Could not validate this Vyral package.');
+        setSelectedFileStatus(error instanceof Error ? error.message : 'Could not validate this Universe package.');
       }
       return;
     }
