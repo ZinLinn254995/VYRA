@@ -184,7 +184,7 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
 
   let itemQuery = applyUniverseScope(db.from('media_library_items')
     .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
-    .eq('user_id', ownerId), universeId);
+    .eq('user_id', ownerId), options.universeId);
   if (options.folderId === null) itemQuery = itemQuery.is('folder_id', null);
   else if (options.folderId) itemQuery = itemQuery.eq('folder_id', options.folderId);
 
@@ -257,9 +257,9 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
   if (!itemIds.length) return [];
   const db = getDb();
   const ownerId = await getOwnerId();
-  let itemQuery = db.from('media_library_items')
-    .select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
-    .eq('user_id', ownerId);
+  let itemQuery = applyUniverseScope(db.from('media_library_items')
+    .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId), universeId);
   itemQuery = itemIds.length === 1 ? itemQuery.eq('id', itemIds[0]) : itemQuery.in('id', itemIds);
   const { data, error } = await itemQuery;
   if (error) throw new Error('Could not load the updated Media Library files: ' + error.message);
@@ -731,7 +731,7 @@ export async function registerVyralAssetInMediaLibrary(input: {
     file_name: SAFE_NAME(input.fileName) || 'Untitled asset', mime_type: input.mimeType,
     size_bytes: input.sizeBytes,
     metadata: { origin: 'vyral_asset_inventory', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
-  }, { onConflict: 'user_id,source_asset_id' }).select('id').single();
+  }, { onConflict: input.universeId ? 'user_id,universe_id,source_asset_id' : 'user_id,source_asset_id' }).select('id').single();
   if (error) {
     if (thumbnailPath) {
       // The canonical Asset is owned by the Vyral pipeline, but this newly
