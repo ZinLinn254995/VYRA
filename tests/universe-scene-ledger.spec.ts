@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, getSceneContinuityContext, hydrateSceneContinuityLedger, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
+import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
 
 test('initializes an empty versioned ledger without inventing Scene state', () => {
   const ledger = hydrateSceneContinuityLedger(undefined, [{ id: 's1' }, { id: 's2' }]);
@@ -244,4 +244,38 @@ test('reordering Scenes invalidates an entry snapshot tied to the former predece
   assert.equal(context?.entrySnapshotStale, true);
   assert.equal(context?.contextComplete, false);
   assert.deepEqual(context?.currentEntryState, { hero: { location: 'garden' } });
+});
+
+
+test('editing an approved Scene invalidates its handoff but preserves the previous exit state as history', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T03:00:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T03:01:00.000Z');
+  const invalidated = invalidateSceneContinuity(ledger, scenes, 's1', '2026-11-15T03:02:00.000Z');
+  assert.equal(invalidated.scenes.s1.validationStatus, 'not_evaluated');
+  assert.deepEqual(invalidated.scenes.s1.exitState, { hero: { location: 'hall' } });
+  assert.equal(invalidated.scenes.s1.invalidatedAt, '2026-11-15T03:02:00.000Z');
+  const nextContext = getSceneContinuityContext(invalidated, scenes, 's2');
+  assert.equal(nextContext?.previousSceneApproved, false);
+  assert.equal(nextContext?.previousExitState, null);
+  assert.equal(nextContext?.contextComplete, false);
+});
+
+test('editing an earlier Scene blocks later Scene approval until the handoff is re-evaluated', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1');
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's2', entryState: { hero: { location: 'hall' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'street' } }, status: 'consistent', violations: [],
+  });
+  const invalidated = invalidateSceneContinuity(ledger, scenes, 's1');
+  assert.throws(() => approveSceneContinuityState(invalidated, scenes, 's2'), /previous Scene must have an approved continuity handoff/);
 });
