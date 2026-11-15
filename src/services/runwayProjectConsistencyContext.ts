@@ -193,9 +193,12 @@ export function buildRunwaySceneContinuityPrompt(
   promptText: string,
   input?: RunwaySceneContinuityInput | null,
 ): { promptText: string; mode: 'not_applicable' | 'approved' | 'incomplete' } {
-  const sceneEditor = input?.page === 'scene-editor' && Boolean(input.activeSceneId);
-  // The selected Master Editor item remains relevant after switching back to AI Chat.
-  const masterEditor = input?.page === 'storyboard-editor' && Boolean(input.selectedTimelineItem);
+  // A selected Master Editor item remains relevant after switching back to AI Chat;
+  // editorView also disambiguates it from a Scene Editor that still has an active Scene.
+  const masterEditor = Boolean(input?.selectedTimelineItem) && (
+    input?.editorView === 'master' || input?.page === 'storyboard-editor'
+  );
+  const sceneEditor = input?.page === 'scene-editor' && !masterEditor && Boolean(input.activeSceneId);
   if (!input || (!sceneEditor && !masterEditor)) {
     return { promptText, mode: 'not_applicable' };
   }
