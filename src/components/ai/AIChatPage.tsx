@@ -2012,13 +2012,49 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           && workspaceContext.activeSceneId && workspaceContext.continuityRuntime
           && workspaceContext.continuityRuntime.ledger && onSceneStateProposal) {
         const runtimeContext = workspaceContext.continuityRuntime;
-        const evaluated = evaluateSceneStateProposal({
-          response: result.content,
-          expectedSceneId: workspaceContext.activeSceneId,
+        const evaluateResponse = (response: string, attempt = 0) => evaluateSceneStateProposal({
+          response,
+          expectedSceneId: workspaceContext.activeSceneId!,
           ledger: runtimeContext.ledger,
           scenes: runtimeContext.sceneIds.map((sceneId) => ({ id: sceneId })),
           ...(runtimeContext.initialEntryState ? { initialEntryState: runtimeContext.initialEntryState } : {}),
+          attempt,
         });
+        let proposalResponse = result.content;
+        let evaluated = evaluateResponse(proposalResponse);
+
+        // Give the model at most two deterministic repair attempts. Each retry
+        // receives only evaluator findings; no proposed state is promoted to canon.
+        for (let repairAttempt = 0; evaluated.ok && evaluated.runtime.retry.allowed && repairAttempt < 2; repairAttempt += 1) {
+          const repairDetails = evaluated.runtime.repairInstructions
+            .map((item) => '- ' + item.path + ': ' + item.instruction)
+            .join('\n');
+          if (!repairDetails) break;
+          const repairResult = await aiService.generateResponse({
+            messages: [
+              ...nextMessages.map(({ role, content }) => ({ role, content })),
+              { role: 'assistant', content: proposalResponse },
+              { role: 'user', content: [
+                'Continuity evaluator found deterministic issues in the Scene-state proposal. Repair the Scene narrative and its final <vyra-scene-state> JSON block.',
+                'Keep all unrelated narrative and state unchanged. Do not invent events, facts, or creator approvals. Do not claim canon has changed.',
+                'Apply only these evaluator corrections:',
+                repairDetails,
+                'Return the complete corrected Scene narrative followed by exactly one valid structured Scene-state block, with evidence excerpts copied exactly from the corrected narrative. No text may follow the block.',
+              ].join('\n') },
+            ],
+            conversationId: chatSessionId,
+            ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
+            ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
+            ...(accessToken ? { accessToken } : {}),
+            signal: requestController.signal,
+            idempotencyKey: 'scene-continuity-repair-' + makeId(),
+          });
+          assertRequestCurrent();
+          if (repairResult.status !== 'success' || !repairResult.content) break;
+          proposalResponse = repairResult.content;
+          evaluated = evaluateResponse(proposalResponse, repairAttempt + 1);
+        }
+
         if (evaluated.ok) {
           onSceneStateProposal({
             id: makeId(),
@@ -2029,12 +2065,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             violations: evaluated.runtime.evaluation.violations.map(({ path, kind, reason }) => ({ path, kind, reason })),
             capturedAt: new Date().toISOString(),
           });
-          const proposalStart = result.content.indexOf('<vyra-scene-state>');
-          assistantResponseContent = (proposalStart >= 0 ? result.content.slice(0, proposalStart).trim() : result.content)
-            + '\n\nScene continuity proposal evaluated and sent to Workspace for creator review.';
-        } else if (result.content.includes('<vyra-scene-state>')) {
-          const proposalStart = result.content.indexOf('<vyra-scene-state>');
-          assistantResponseContent = (proposalStart >= 0 ? result.content.slice(0, proposalStart).trim() : result.content)
+          const proposalStart = proposalResponse.indexOf('<vyra-scene-state>');
+          assistantResponseContent = (proposalStart >= 0 ? proposalResponse.slice(0, proposalStart).trim() : proposalResponse)
+            + (evaluated.runtime.evaluation.status === 'consistent'
+              ? '\n\nScene continuity checks passed. The proposal is in Workspace for creator approval.'
+              : '\n\nAutomatic repair reached its limit. The remaining continuity findings are in Workspace for creator review; no canon was changed.');
+        } else if (proposalResponse.includes('<vyra-scene-state>') || result.content.includes('<vyra-scene-state>')) {
+          const proposalStart = proposalResponse.indexOf('<vyra-scene-state>');
+          assistantResponseContent = (proposalStart >= 0 ? proposalResponse.slice(0, proposalStart).trim() : proposalResponse)
             + '\n\nScene continuity could not be evaluated: ' + evaluated.reason + ' No canon was changed.';
         }
       }
