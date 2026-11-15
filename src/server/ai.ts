@@ -251,25 +251,28 @@ router.post('/ai/chat', async (req: Request, res: Response) => {
     }
     let totalEncodedBytes = 0;
     for (const item of rawVisionImages) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)
-        || !['image/jpeg', 'image/png', 'image/webp'].includes(String(item.mimeType))
-        || typeof item.data !== 'string'
-        || item.data.length < 16
-        || item.data.length > 820_000
-        || !/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)
-        || (item.assetId !== undefined && (typeof item.assetId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.assetId)))
-        || (item.assetName !== undefined && (typeof item.assetName !== 'string' || item.assetName.length > 180))) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return res.status(400).json({ error: 'A visual preview must be an object.', code: 'INVALID_VISION_IMAGES' });
+      }
+      const record = item as Record<string, unknown>;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(record.mimeType))
+        || typeof record.data !== 'string'
+        || record.data.length < 16
+        || record.data.length > 820_000
+        || !/^[A-Za-z0-9+/]+={0,2}$/.test(record.data)
+        || (record.assetId !== undefined && (typeof record.assetId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(record.assetId)))
+        || (record.assetName !== undefined && (typeof record.assetName !== 'string' || record.assetName.length > 180))) {
         return res.status(400).json({ error: 'A visual preview has invalid MIME, encoding, size, or Asset metadata.', code: 'INVALID_VISION_IMAGES' });
       }
-      totalEncodedBytes += item.data.length;
+      totalEncodedBytes += record.data.length;
       if (totalEncodedBytes > 3_300_000) {
         return res.status(413).json({ error: 'Visual previews exceed the combined inspection size limit.', code: 'VISION_IMAGES_TOO_LARGE' });
       }
       visionImages.push({
-        mimeType: item.mimeType as 'image/jpeg' | 'image/png' | 'image/webp',
-        data: item.data,
-        ...(typeof item.assetId === 'string' ? { assetId: item.assetId } : {}),
-        ...(typeof item.assetName === 'string' ? { assetName: item.assetName.slice(0, 180).trim() } : {}),
+        mimeType: record.mimeType as 'image/jpeg' | 'image/png' | 'image/webp',
+        data: record.data,
+        ...(typeof record.assetId === 'string' ? { assetId: record.assetId } : {}),
+        ...(typeof record.assetName === 'string' ? { assetName: record.assetName.slice(0, 180).trim() } : {}),
       });
     }
   }
