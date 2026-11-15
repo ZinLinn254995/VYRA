@@ -4117,12 +4117,6 @@ Deno.serve(async (request: Request) => {
         creatorConfirmedFields: creatorFieldsByAsset.get(String(asset.id)) ?? [],
       };
     });
-    const relationships = (relationshipResult.data ?? []).map((item) => ({
-      type: item.relationship_type,
-      from: item.from_kind === 'vyral' ? 'this Universe' : assetNames.get(String(item.from_asset_id)) ?? 'unknown Asset',
-      to: item.to_kind === 'vyral' ? 'this Universe' : assetNames.get(String(item.to_asset_id)) ?? 'unknown Asset',
-      rationale: String(item.rationale ?? '').slice(0, 240),
-    }));
     const snapshotPurpose = masterSnapshot?.purpose && typeof masterSnapshot.purpose === 'object' && !Array.isArray(masterSnapshot.purpose)
       ? masterSnapshot.purpose as Record<string, unknown> : {};
     const snapshotProfile = masterSnapshot?.reconstruction_profile && typeof masterSnapshot.reconstruction_profile === 'object' && !Array.isArray(masterSnapshot.reconstruction_profile)
@@ -4199,14 +4193,7 @@ Deno.serve(async (request: Request) => {
     const selectedSnapshotAssetContext = snapshotAssetContext.filter((asset) => selectedAssetIds.has(String(asset.assetId)));
     const selectedSnapshotRelationships = snapshotRelationships.filter((_, index) =>
       retrieval.selectedRelationshipIndexes.includes(index));
-    const selectedRelationships = masterSnapshotIsCurrent
-      ? relationships.filter((relationship, index) => {
-          const raw = relationshipResult.data?.[index];
-          const fromIncluded = raw?.from_kind === 'vyral' || Boolean(raw?.from_asset_id && selectedAssetIds.has(String(raw.from_asset_id)));
-          const toIncluded = raw?.to_kind === 'vyral' || Boolean(raw?.to_asset_id && selectedAssetIds.has(String(raw.to_asset_id)));
-          return fromIncluded && toIncluded;
-        }).slice(0, 24)
-      : [];
+    const selectedRelationships = masterSnapshotIsCurrent ? selectedSnapshotRelationships : [];
     const activeContext = {
       name: String(activeVyral.name ?? '').slice(0, 100),
       description: String(activeVyral.description ?? '').slice(0, 1000),
