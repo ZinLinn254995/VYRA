@@ -500,7 +500,7 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
 
   assert.ok(migration.includes('add column if not exists universe_id'), 'Media Library records need a Storyboard Universe scope.');
   assert.ok(migration.includes('vyral_folder_id uuid references public.vyral_folders(id) on delete cascade'), 'Universe Library folders must mirror the canonical AI-managed folder tree.');
-  assert.ok(migration.includes('media_library_items_source_asset_unique'), 'The same canonical Asset can be indexed independently in multiple Libraries.');
+  assert.ok(migration.includes('media_library_items_source_asset_unique'), 'Canonical Asset indexes retain a unique owner-and-Asset identity.');
   assert.ok(migration.includes('Storyboard Universe files must be backed by a canonical Asset with DNA'), 'Universe uploads must never become untracked binary-only files.');
   assert.ok(migration.includes('Source Asset does not belong to this Storyboard Universe'), 'Database triggers must reject cross-Universe Asset references.');
   assert.ok(migration.includes('Parent folder does not belong to this Library scope'), 'Database triggers must reject cross-Universe folder moves.');
