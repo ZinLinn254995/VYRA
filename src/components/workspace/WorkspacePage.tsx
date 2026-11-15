@@ -875,11 +875,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setActiveStoryboardConfirmed(true);
     setStoryboardDetailsExpanded(false);
     setStoryboardEditorView('chat');
-    setStoryboardAiMessage('Preparing default Project details…');
+    setStoryboardAiMessage('');
     setStoryboards((current) => [storyboard, ...current.filter((item) => item.id !== storyboard.id)]);
     void persistStoryboard(storyboard);
-
-    setStoryboardAiMessage('');
   };
   createDefaultStoryboardRef.current = createDefaultStoryboard;
 
