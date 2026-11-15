@@ -36,6 +36,7 @@ function MarketplaceApp() {
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [pendingSceneStateProposal, setPendingSceneStateProposal] = useState<WorkspaceSceneStateProposalHandoff | null>(null);
+  useEffect(() => { setPendingSceneStateProposal(null); }, [user?.id]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
   const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
