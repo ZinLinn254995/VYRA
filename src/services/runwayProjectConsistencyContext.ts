@@ -220,7 +220,7 @@ export function buildRunwaySceneContinuityPrompt(
       'Do not claim continuity is verified. Do not invent or assume character identity, wardrobe, props, location, relationships, injuries, timeline, or state. Ask for the missing creator-approved starting state when it materially affects the requested media; otherwise clearly label assumptions as unverified.',
     );
     return {
-      promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
+      promptText: composeScenePrompt(promptText, lines),
       mode: 'incomplete',
     };
   }
@@ -230,10 +230,10 @@ export function buildRunwaySceneContinuityPrompt(
   } catch {
     stateJson = '';
   }
-  if (!stateJson || stateJson.length > 6000) {
+  if (!stateJson || stateJson.length > 3000) {
     lines.push('CONTINUITY STATUS: APPROVED ENTRY STATE COULD NOT BE SAFELY SERIALIZED. Do not claim verified continuity or invent a replacement.');
     return {
-      promptText: (promptText + '\n\n' + lines.filter(Boolean).join('\n')).slice(0, 14_000),
+      promptText: composeScenePrompt(promptText, lines),
       mode: 'incomplete',
     };
   }
@@ -264,7 +264,7 @@ export function buildRunwaySceneContinuityPrompt(
 function buildApprovedSceneTimeline(
   runtime: RunwaySceneContinuityInput['continuityRuntime'],
   activeSceneId: string,
- ): Array<{ sceneId: string; sequence: number; title: string; state: string }> {
+): Array<{ sceneId: string; sequence: number; title: string; state: string }> {
   const sceneIds = Array.isArray(runtime?.sceneIds)
     ? runtime.sceneIds.filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 500)
     : [];
@@ -287,8 +287,19 @@ function buildApprovedSceneTimeline(
     } catch {
       return [];
     }
-    if (!state || state.length > 6000) return [];
+    if (!state || state.length > 600) return [];
     timeline.push({ sceneId: sceneIds[index], sequence: index + 1, title: titleById.get(sceneIds[index]) ?? '', state });
   }
-  return timeline.slice(-12);
+  return timeline.slice(-4);
+}
+
+
+function composeScenePrompt(promptText: string, contextLines: string[]): string {
+  const originalPrompt = typeof promptText === 'string' ? promptText : '';
+  const boundedPrompt = originalPrompt.slice(0, 7000);
+  const boundedContext = contextLines.filter(Boolean).join('\n').slice(0, 7000);
+  const truncationNotice = originalPrompt.length > boundedPrompt.length
+    ? '\n\nNOTICE: The original request exceeded the safe context budget and was truncated. Do not infer the omitted instructions; ask the creator to shorten or split the request if needed.'
+    : '';
+  return (boundedPrompt + truncationNotice + (boundedContext ? '\n\n' + boundedContext : '')).slice(0, 14_000);
 }
