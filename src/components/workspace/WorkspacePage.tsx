@@ -1368,6 +1368,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-4 pt-0 sm:px-0 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
+              {storyboardEditorView !== 'chat' && (
+                <>
               <div className="profile-storyboard-preview">
                 <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
@@ -1390,6 +1392,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                   <Maximize2 size={16} />
                 </button>
               </div>
+                </>
+              )}
               <div className="profile-storyboard-view-tabs flex items-center gap-1 bg-[var(--vyra-bg-surface)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
                 <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
