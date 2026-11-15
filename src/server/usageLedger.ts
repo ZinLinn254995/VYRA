@@ -9,7 +9,7 @@ export type UsageLedgerServerOptions = {
   fetcher?: typeof fetch;
 };
 
-export type OpenRouterTextJobInput = {
+export type ProviderUsageJobInput = {
   userId: string;
   idempotencyKey: string;
   model: string;
@@ -18,13 +18,13 @@ export type OpenRouterTextJobInput = {
   provider?: string;
 };
 
-export type OpenRouterTextJob = {
+export type ProviderUsageJob = {
   jobId: string;
   attemptId: string;
 };
 
 export type UsageLedgerResult =
-  | { ok: true; job: OpenRouterTextJob }
+  | { ok: true; job: ProviderUsageJob }
   | { ok: false; reason: 'duplicate' | 'unavailable' };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -78,12 +78,12 @@ async function patchJob(
   }
 }
 
-export async function beginOpenRouterTextJob(
-  input: OpenRouterTextJobInput,
+export async function beginProviderUsageJob(
+  input: ProviderUsageJobInput,
   options: UsageLedgerServerOptions = {},
 ): Promise<UsageLedgerResult> {
   const { supabaseUrl, serviceRoleKey, fetcher } = readOptions(options);
-  const provider = input.provider?.trim() || 'openrouter';
+  const provider = input.provider?.trim() || 'openai';
   if (!supabaseUrl || !serviceRoleKey || !UUID_PATTERN.test(input.userId)
       || !/^[A-Za-z0-9._:-]{1,160}$/.test(input.idempotencyKey)
       || !/^[A-Za-z0-9._:-]{1,100}$/.test(provider)
@@ -158,10 +158,10 @@ export async function beginOpenRouterTextJob(
   }
 }
 
-export async function finishOpenRouterTextJob(
+export async function finishProviderUsageJob(
   input: {
     userId: string;
-    job: OpenRouterTextJob;
+    job: ProviderUsageJob;
     status: 'succeeded' | 'failed' | 'unknown';
     model: string;
     generationId?: string | null;
@@ -174,7 +174,7 @@ export async function finishOpenRouterTextJob(
   if (!supabaseUrl || !serviceRoleKey || !UUID_PATTERN.test(input.userId)
       || !UUID_PATTERN.test(input.job.jobId) || !UUID_PATTERN.test(input.job.attemptId)) return false;
 
-  const provider = input.provider?.trim() || 'openrouter';
+  const provider = input.provider?.trim() || 'openai';
   if (!/^[A-Za-z0-9._:-]{1,100}$/.test(provider)) return false;
   const usage: NormalizedProviderUsage = normalizeProviderUsage(input.usage);
   const now = new Date().toISOString();
