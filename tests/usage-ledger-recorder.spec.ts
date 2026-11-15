@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  beginOpenRouterTextJob,
-  finishOpenRouterTextJob,
+  beginProviderUsageJob,
+  finishProviderUsageJob,
 } from '../src/server/usageLedger.js';
 
 const USER_ID = '10000000-0000-4000-8000-000000000001';
@@ -10,7 +10,7 @@ const JOB_ID = '20000000-0000-4000-8000-000000000001';
 const ATTEMPT_ID = '30000000-0000-4000-8000-000000000001';
 const SERVICE_KEY = 'server-only-test-service-role-key';
 
-test('creates one authenticated OpenRouter text job and a provider attempt without storing prompt text', async () => {
+test('creates one authenticated provider usage job and a provider attempt without storing prompt text', async () => {
   const calls: Array<{ url: URL; method: string; headers: Headers; body: Record<string, unknown> }> = [];
   const fetcher: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -27,7 +27,7 @@ test('creates one authenticated OpenRouter text job and a provider attempt witho
     throw new Error('Unexpected endpoint: ' + url.pathname);
   };
 
-  const result = await beginOpenRouterTextJob({
+  const result = await beginProviderUsageJob({
     userId: USER_ID,
     idempotencyKey: 'chat-request-001',
     model: 'openai/gpt-4.1-mini',
@@ -51,7 +51,7 @@ test('creates one authenticated OpenRouter text job and a provider attempt witho
   assert.deepEqual(calls[0].body.request_parameters, { messageCount: 4, inputCharacters: 820 });
   assert.equal('prompt' in calls[0].body, false);
   assert.equal(calls[1].body.generation_job_id, JOB_ID);
-  assert.equal(calls[1].body.provider, 'openrouter');
+  assert.equal(calls[1].body.provider, 'openai');
   assert.equal(calls[1].body.status, 'submitted');
 });
 
@@ -62,7 +62,7 @@ test('does not submit a second provider attempt when the idempotency key already
     return Response.json([], { status: 201 });
   };
 
-  const result = await beginOpenRouterTextJob({
+  const result = await beginProviderUsageJob({
     userId: USER_ID,
     idempotencyKey: 'chat-request-duplicate',
     model: 'openai/gpt-4.1-mini',
@@ -87,7 +87,7 @@ test('records provider-reported cost and settles the job without persisting prom
     return new Response(null, { status: 204 });
   };
 
-  const ok = await finishOpenRouterTextJob({
+  const ok = await finishProviderUsageJob({
     userId: USER_ID,
     job: { jobId: JOB_ID, attemptId: ATTEMPT_ID },
     status: 'succeeded',
@@ -138,7 +138,7 @@ test('keeps unknown provider cost absent and records an uncertain job status', a
     return new Response(null, { status: 204 });
   };
 
-  const ok = await finishOpenRouterTextJob({
+  const ok = await finishProviderUsageJob({
     userId: USER_ID,
     job: { jobId: JOB_ID, attemptId: ATTEMPT_ID },
     status: 'unknown',
