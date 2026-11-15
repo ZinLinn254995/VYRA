@@ -3925,11 +3925,13 @@ Deno.serve(async (request: Request) => {
     }
 
     const assets = assetResult.data ?? [];
-    const creatorEvidenceResult = await context.supabaseAdmin.from('vyral_vision_creator_evidence')
-      .select('id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256,field_path,accepted_value,note,created_at', { count: 'exact' })
-      .eq('user_id', userId).eq('evidence_kind', 'field_confirmation').eq('decision', 'creator_confirmed')
-      .in('asset_id', assets.map((asset) => asset.id))
-      .order('created_at', { ascending: false }).limit(120);
+    const creatorEvidenceResult = assets.length
+      ? await context.supabaseAdmin.from('vyral_vision_creator_evidence')
+          .select('id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256,field_path,accepted_value,note,created_at', { count: 'exact' })
+          .eq('user_id', userId).eq('evidence_kind', 'field_confirmation').eq('decision', 'creator_confirmed')
+          .in('asset_id', assets.map((asset) => asset.id))
+          .order('created_at', { ascending: false }).limit(120)
+      : { data: [], count: 0, error: null };
     if (creatorEvidenceResult.error) return json({ error: 'Could not load creator-confirmed Universe evidence.' }, 503);
     const dnaContextTruncated = (dnaResult.count ?? 0) > (dnaResult.data?.length ?? 0);
     const creatorEvidenceTruncated = (creatorEvidenceResult.count ?? 0) > (creatorEvidenceResult.data?.length ?? 0);
