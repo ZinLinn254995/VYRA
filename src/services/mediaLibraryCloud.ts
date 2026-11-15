@@ -572,8 +572,7 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
     if (deleteError) throw new Error('Stored media was removed, but the Asset records could not be deleted: ' + deleteError.message);
     let masterDnaStatus: 'ready' | 'pending' | 'empty' = 'pending';
     const { count: remainingAssetCount, error: remainingAssetError } = await db.from('vyral_assets')
-      .select('id', { count: 'exact', head: true }).eq('id', '00000000-0000-0000-0000-000000000000')
-      .eq('vyral_id', universeId).eq('user_id', userId);
+      .select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId);
     if (!remainingAssetError && (remainingAssetCount ?? 0) === 0) {
       masterDnaStatus = 'empty';
     } else {
