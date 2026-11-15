@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const service = readFileSync(new URL('../src/services/runwayProjectConsistencyContext.ts', import.meta.url), 'utf8');
 const workflow = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20261116160000_vyral_asset_relationship_graph.sql', import.meta.url), 'utf8');
 
 test('Project consistency retrieval is isolated to the authenticated Project and ready Assets', () => {
   assert.ok(service.includes(".eq('user_id', input.userId)"));
@@ -78,4 +79,14 @@ test('Project context contains matching nested DNA evidence and excludes other P
   assert.doesNotMatch(result.promptText, /AI guess only/);
   assert.ok(calls.every((call) => call.filters.some(([column, value]) => column === 'user_id' && value === 'user-1')));
   assert.ok(calls.every((call) => call.filters.some(([column, value]) => column === 'vyral_id' && value === 'project-assets-1')));
+});
+
+test('semantic relationship approvals require an explicit authenticated creator review', () => {
+  assert.ok(migration.includes("review_status text not null default 'proposed'"));
+  assert.ok(migration.includes("p_decision not in ('creator_approved','creator_rejected')"));
+  assert.ok(migration.includes("and review_status = 'proposed'"));
+  assert.ok(migration.includes('auth.uid()'));
+  assert.ok(migration.includes('grant execute on function public.review_vyral_asset_relationship'));
+  assert.ok(!migration.includes('vyral_asset_relationships_update_own'));
+  assert.ok(!migration.includes('grant select, insert, update on public.vyral_asset_relationships'));
 });
