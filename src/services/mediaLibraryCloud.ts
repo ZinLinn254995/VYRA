@@ -195,23 +195,57 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
     .neq('processing_status', 'archived').order('created_at', { ascending: true }).limit(1000);
   if (assetError) throw new Error('Could not sync Storyboard Universe Assets: ' + assetError.message);
   if (assets?.length) {
+    const assetIds = assets.map((asset: { id: string }) => asset.id);
     const { data: indexed, error: indexedError } = await db.from('media_library_items')
-      .select('source_asset_id,metadata').eq('user_id', userId).eq('universe_id', universeId);
+      .select('id,source_asset_id,universe_id,metadata').eq('user_id', userId).in('source_asset_id', assetIds);
     if (indexedError) throw new Error('Could not reconcile the Universe Asset index: ' + indexedError.message);
-    const metadataByAsset = new Map((indexed ?? []).filter((row: { source_asset_id: string | null }) => row.source_asset_id)
-      .map((row: { source_asset_id: string; metadata: Record<string, unknown> | null }) => [row.source_asset_id, row.metadata ?? {}]));
-    const hasNewAssets = assets.some((asset: { id: string }) => !metadataByAsset.has(asset.id));
+    const indexedByAsset = new Map((indexed ?? []).filter((row: { source_asset_id: string | null }) => row.source_asset_id)
+      .map((row: { id: string; source_asset_id: string; universe_id: string | null; metadata: Record<string, unknown> | null }) => [row.source_asset_id, row]));
+    const hasNewAssets = assets.some((asset: { id: string }) => !indexedByAsset.has(asset.id));
     const rows = assets.map((asset: { id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }) => ({
       user_id: userId, universe_id: universeId, folder_id: asset.folder_id,
       source_kind: asset.metadata?.upload_source === 'media_generation' ? 'generated' : 'vyral_asset',
       source_asset_id: asset.id, bucket_id: 'vyral-assets', storage_path: asset.storage_path,
       file_name: asset.name, mime_type: asset.mime_type, size_bytes: asset.size_bytes,
-      metadata: { ...(metadataByAsset.get(asset.id) ?? {}), origin: 'vyral_asset_inventory' },
+      metadata: { ...((indexedByAsset.get(asset.id) as { metadata?: Record<string, unknown> | null } | undefined)?.metadata ?? {}), origin: 'vyral_asset_inventory' },
     }));
-    const { error } = await db.from('media_library_items').upsert(rows, {
-      onConflict: 'user_id,universe_id,source_asset_id',
-    });
-    if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
+    for (const asset of assets as Array<{ id: string }>) {
+      const existing = indexedByAsset.get(asset.id) as { id: string; universe_id: string | null } | undefined;
+      if (existing?.universe_id && existing.universe_id !== universeId) {
+        throw new Error('An Asset index row is attached to a different Universe; the cross-Universe reference was blocked.');
+      }
+      if (existing && existing.universe_id === null) {
+        const row = rows.find((candidate: { source_asset_id: string }) => candidate.source_asset_id === asset.id);
+        const { error } = await db.from('media_library_items').update({
+          universe_id: universeId, folder_id: row.folder_id, file_name: row.file_name,
+          mime_type: row.mime_type, size_bytes: row.size_bytes, bucket_id: row.bucket_id,
+          storage_path: row.storage_path, source_kind: row.source_kind, metadata: row.metadata,
+        }).eq('id', existing.id).eq('user_id', userId);
+        if (error) throw new Error('Could not move a legacy Storyboard Asset index into its private Universe: ' + error.message);
+      }
+    }
+    const newRows = rows.filter((row: { source_asset_id: string }) => !indexedByAsset.has(row.source_asset_id));
+    if (newRows.length) {
+      const { error } = await db.from('media_library_items').upsert(newRows, {
+        onConflict: 'user_id,universe_id,source_asset_id',
+      });
+      if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
+    } else {
+      const currentRows = rows.filter((row: { source_asset_id: string }) => indexedByAsset.has(row.source_asset_id));
+      if (currentRows.length) {
+        for (const row of currentRows) {
+          const existing = indexedByAsset.get(row.source_asset_id) as { id: string } | undefined;
+          if (existing?.id) {
+            const { error } = await db.from('media_library_items').update({
+              folder_id: row.folder_id, file_name: row.file_name, mime_type: row.mime_type,
+              size_bytes: row.size_bytes, bucket_id: row.bucket_id, storage_path: row.storage_path,
+              source_kind: row.source_kind, metadata: row.metadata,
+            }).eq('id', existing.id).eq('user_id', userId).eq('universe_id', universeId);
+            if (error) throw new Error('Could not refresh a Universe Asset index row: ' + error.message);
+          }
+        }
+      }
+    }
     const { data: universeState } = await db.from('vyrals').select('master_dna_status')
       .eq('id', universeId).eq('user_id', userId).maybeSingle();
     if (hasNewAssets || universeState?.master_dna_status !== 'ready') {
