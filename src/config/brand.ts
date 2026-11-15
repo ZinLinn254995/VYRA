@@ -4,9 +4,9 @@
  *
  * Centralized Brand Configuration
  *
- * NOTE: "VYRA" is a provisional project name pending trademark and domain clearance.
- * Keep this configuration isolated so brand assets, names, taglines, and social
- * channels can be swapped across the entire application in seconds without code rewrites.
+ * Keep the brand identity and visual tokens centralized. Product navigation,
+ * provider configuration, and social-channel connection state belong to their
+ * own domain systems rather than this visual brand configuration.
  */
 
 export interface BrandConfig {
@@ -32,7 +32,7 @@ export interface BrandConfig {
 }
 
 export const BRAND_CONFIG: BrandConfig = {
-  id: 'vyra-studio',
+  id: 'vyra-creative-platform',
   name: 'VYRA',
   tagline: 'Create beyond imagination.',
   colors: {
