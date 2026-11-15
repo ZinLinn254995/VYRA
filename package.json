@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "vyra",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -83,7 +83,6 @@
     "test:ai-chat-history": "node --import tsx --test tests/ai-chat-history.spec.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.57.4",
     "@tailwindcss/vite": "4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
