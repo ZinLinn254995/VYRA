@@ -151,28 +151,64 @@ export function resolveCreatorConfirmedFieldEvidence(
     byField.set(fieldPath, group);
   }
   const groups: CreatorConfirmedFieldEvidence[][] = [];
+  const temporalConflicts: ConflictedCreatorField[] = [];
   for (const fieldItems of byField.values()) {
     const dated = fieldItems.map((item) => ({ item, interval: temporalInterval(item.acceptedValue) }))
       .filter((entry): entry is { item: CreatorConfirmedFieldEvidence; interval: TemporalInterval } => entry.interval !== null);
     const undated = fieldItems.filter((item) => temporalInterval(item.acceptedValue) === null);
-    // Build overlap-connected temporal clusters. A fact valid across an interval
-    // must conflict with a different creator-confirmed value at any overlapping time.
-    const remaining = new Set(dated);
-    while (remaining.size) {
-      const seed = remaining.values().next().value as typeof dated[number];
-      remaining.delete(seed);
-      const cluster = [seed];
-      for (let index = 0; index < cluster.length; index++) {
-        for (const candidate of [...remaining]) {
-          if (cluster.some((member) => intervalsOverlap(member.interval, candidate.interval))) {
-            remaining.delete(candidate);
-            cluster.push(candidate);
-          }
-        }
-      }
-      groups.push(cluster.map((entry) => entry.item));
+
+    // Evaluate actual overlapping time slices rather than overlap-connected clusters.
+    // A overlaps B and B overlaps C does not imply A overlaps C.
+    const boundaries = [...new Set(dated.flatMap(({ interval }) => [interval.start, interval.end]))]
+      .sort((a, b) => a - b);
+    const sampleTimes = new Set<number>(boundaries);
+    for (let index = 1; index < boundaries.length; index++) {
+      const previous = boundaries[index - 1];
+      const current = boundaries[index];
+      if (current > previous) sampleTimes.add(previous + (current - previous) / 2);
     }
-    // Non-ISO/domain-specific scopes retain the conservative exact-scope behavior.
+    const conflictedItems = new Set<CreatorConfirmedFieldEvidence>();
+    const emittedConflictSets = new Set<string>();
+    for (const time of sampleTimes) {
+      const active = dated.filter(({ interval }) => interval.start <= time && time <= interval.end)
+        .map(({ item }) => item);
+      const byValueAtTime = new Map<string, CreatorConfirmedFieldEvidence[]>();
+      for (const item of active) {
+        const key = canonicalJson(withoutTemporalMetadata(item.acceptedValue));
+        const sameValue = byValueAtTime.get(key) ?? [];
+        sameValue.push(item);
+        byValueAtTime.set(key, sameValue);
+      }
+      if (byValueAtTime.size < 2) continue;
+      const conflictItems = [...byValueAtTime.values()].flat();
+      const conflictKey = conflictItems.map((item) => item.evidenceId).sort().join('|');
+      if (emittedConflictSets.has(conflictKey)) continue;
+      emittedConflictSets.add(conflictKey);
+      conflictItems.forEach((item) => conflictedItems.add(item));
+      temporalConflicts.push({
+        fieldPath: conflictItems[0].fieldPath,
+        candidates: [...byValueAtTime.values()].map((items) => ({
+          value: items[0].acceptedValue,
+          evidenceIds: items.map((item) => item.evidenceId).slice(0, 12),
+          observationIds: items.map((item) => item.observationId).slice(0, 12),
+        })),
+        status: 'unresolved_conflict',
+        reason: 'multiple_creator_confirmed_values_for_same_field_and_time',
+      });
+    }
+
+    // Coalesce duplicate attestations only when their exact validity intervals match.
+    const datedByInterval = new Map<string, CreatorConfirmedFieldEvidence[]>();
+    for (const { item, interval } of dated) {
+      if (conflictedItems.has(item)) continue;
+      const key = interval.start + '|' + interval.end + '|' + canonicalJson(withoutTemporalMetadata(item.acceptedValue));
+      const group = datedByInterval.get(key) ?? [];
+      group.push(item);
+      datedByInterval.set(key, group);
+    }
+    groups.push(...datedByInterval.values());
+
+    // Non-ISO/domain-specific scopes retain conservative exact-scope behavior.
     const undatedByScope = new Map<string, CreatorConfirmedFieldEvidence[]>();
     for (const item of undated) {
       const scope = temporalScope(item.acceptedValue);
@@ -184,7 +220,7 @@ export function resolveCreatorConfirmedFieldEvidence(
   }
 
   const resolved: ResolvedCreatorField[] = [];
-  const conflicts: ConflictedCreatorField[] = [];
+  const conflicts: ConflictedCreatorField[] = [...temporalConflicts];
   for (const group of groups.values()) {
     const byValue = new Map<string, CreatorConfirmedFieldEvidence[]>();
     for (const item of group) {
