@@ -8,6 +8,7 @@ test('adds a scene-bound proposal contract only for an active Scene editor', () 
   assert.match(instruction, /<vyra-scene-state>/);
   assert.match(instruction, /evidence value must be an exact, contiguous excerpt/i);
   assert.match(instruction, /remain unverified suggestions/i);
+  assert.match(instruction, /carry every unchanged persistent fact into the observed exit snapshot/i);
 });
 
 test('does not request structured state for non-Scene pages or missing IDs', () => {
