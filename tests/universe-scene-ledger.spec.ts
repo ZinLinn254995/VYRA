@@ -100,6 +100,7 @@ test('next Scene receives only the immediately preceding creator-approved handof
   const blocked = getSceneContinuityContext(proposed, scenes, 's2');
   assert.equal(blocked?.contextComplete, false);
   assert.equal(blocked?.previousExitState, null);
+  assert.throws(() => approveSceneContinuityState(proposed, scenes, 's2'), /previous Scene must have an approved continuity handoff/);
   const approved = approveSceneContinuityState(proposed, scenes, 's1');
   const ready = getSceneContinuityContext(approved, scenes, 's2');
   assert.equal(ready?.contextComplete, true);
