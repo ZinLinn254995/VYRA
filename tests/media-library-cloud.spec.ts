@@ -514,7 +514,10 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
     const start = service.indexOf('export async function ' + operation);
     const end = service.indexOf('\nexport async function ', start + 10);
     const body = service.slice(start, end < 0 ? undefined : end);
-    assert.ok(body.includes('assertStoryboardUniverse(db, userId, universeId'), operation + ' must verify the active private Universe before acting.');
+    const ownershipCheck = operation === 'uploadMediaLibraryFiles'
+      ? body.includes('assertStoryboardUniverse(db, userId, scope.universeId, scope.storyboardId)')
+      : body.includes('assertStoryboardUniverse(db, userId, universeId');
+    assert.ok(ownershipCheck, operation + ' must verify the active private Universe before acting.');
   }
   assert.ok(service.includes('async function syncStoryboardUniverseLibrary'), 'AI-created folders and Assets must be reconciled into the Library view.');
   assert.equal((service.match(/\.range\(offset, offset \+ 499\)/g) ?? []).length, 2, 'Folder and Asset reconciliation must page through the full Universe inventory rather than silently stopping at 1,000 rows.');
