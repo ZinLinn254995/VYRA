@@ -1270,8 +1270,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               </div>
             </section>
           </div>
-        </main>
-      );
+        </div>
+        <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
+          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} storyboardId={activeStoryboard.id} embedded />
+        </aside>
+      </main>
+    );
     }
   }
 
@@ -1485,6 +1489,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           </div>
           </section>
         </div>
+        <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
+          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} storyboardId={activeStoryboard.id} embedded />
+        </aside>
       </main>
     );
   }
