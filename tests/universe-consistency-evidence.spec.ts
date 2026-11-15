@@ -47,3 +47,39 @@ test('canonical JSON key ordering avoids false conflicts', () => {
   assert.equal(result.resolved.length, 1);
   assert.equal(result.conflicts.length, 0);
 });
+
+test('treats equivalent effective-time aliases as the same temporal scope', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    { ...source, acceptedValue: { value: 'blue', effective_at: 'episode-4' }, evidenceId: 'evidence-1', observationId: 'observation-1' },
+    { ...source, acceptedValue: { value: 'green', valid_from: 'episode-4' }, evidenceId: 'evidence-2', observationId: 'observation-2' },
+  ]);
+  assert.equal(result.resolved.length, 0);
+  assert.equal(result.conflicts.length, 1);
+});
+
+test('uses validity intervals to distinguish states with different end boundaries', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    { ...source, acceptedValue: { value: 'active', valid_from: 'day-1', valid_to: 'day-3' }, evidenceId: 'evidence-1', observationId: 'observation-1' },
+    { ...source, acceptedValue: { value: 'inactive', valid_from: 'day-1', valid_to: 'day-5' }, evidenceId: 'evidence-2', observationId: 'observation-2' },
+  ]);
+  assert.equal(result.resolved.length, 2);
+  assert.equal(result.conflicts.length, 0);
+});
+
+test('does not let distinct event IDs conceal same-time creator-confirmed conflicts', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    { ...source, acceptedValue: { value: 'blue', effective_at: 'episode-8', event_id: 'event-a' }, evidenceId: 'evidence-1', observationId: 'observation-1' },
+    { ...source, acceptedValue: { value: 'green', effective_at: 'episode-8', event_id: 'event-b' }, evidenceId: 'evidence-2', observationId: 'observation-2' },
+  ]);
+  assert.equal(result.resolved.length, 0);
+  assert.equal(result.conflicts.length, 1);
+});
+
+test('does not treat event ID alone as a temporal boundary', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    { ...source, acceptedValue: { value: 'blue', event_id: 'event-a' }, evidenceId: 'evidence-1', observationId: 'observation-1' },
+    { ...source, acceptedValue: { value: 'green', event_id: 'event-b' }, evidenceId: 'evidence-2', observationId: 'observation-2' },
+  ]);
+  assert.equal(result.resolved.length, 0);
+  assert.equal(result.conflicts.length, 1);
+});
