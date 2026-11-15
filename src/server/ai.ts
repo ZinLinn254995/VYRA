@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import { verifySupabaseAccessToken } from './supabaseAuth.js';
 
 const router = express.Router();
