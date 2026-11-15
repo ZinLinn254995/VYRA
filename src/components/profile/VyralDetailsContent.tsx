@@ -738,10 +738,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async (components: VyralExportComponents = {
+  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false, semanticOnly = false) => {
     setError('Custom .vyral package export has been retired. Use original Asset downloads until standard-format Universe export is available.');
     return;
- assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false, semanticOnly = false) => {
     const dnaOnly = !components.assets && components.fullDna;
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
