@@ -17,6 +17,7 @@ test('task snapshots validate accepted task identity and supported states', () =
   assert.match(migration, /provider_task_id is distinct from p_provider_task_id/i);
   assert.match(migration, /p_status not in \('pending','processing','succeeded','failed','cancelled','unknown'\)/i);
   assert.match(migration, /status = v_new_status/i);
+  assert.match(migration, /stale_snapshot_ignored/i);
   assert.match(migration, /update public\.provider_attempts[\s\S]*provider_task_status/i);
 });
 
@@ -25,6 +26,7 @@ test('signed output URLs are stored only in a service-role-only table', () => {
   assert.match(migration, /alter table public\.media_generation_job_outputs enable row level security/i);
   assert.match(migration, /revoke all on public\.media_generation_job_outputs from public, anon, authenticated/i);
   assert.match(migration, /grant select, insert on public\.media_generation_job_outputs to service_role/i);
+  assert.match(migration, /expires_at timestamptz not null default \(pg_catalog\.now\(\) \+ interval '24 hours'\)/i);
   assert.match(endpoint, /p_output_urls: snapshot\.outputUrls/);
   assert.doesNotMatch(endpoint, /outputUrls:\s*snapshot\.outputUrls/);
   assert.match(endpoint, /Output references are stored privately/);
