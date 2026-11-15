@@ -10,8 +10,9 @@ type ProjectAssetRow = {
 };
 type AssetDnaRow = {
   asset_id: string; payload?: JsonRecord | null; dna_status?: string | null;
-  verification_status?: string | null; scope?: string | null;
+  verification_status?: string | null; scope?: string | null; source_kind?: string | null;
 };
+type RelationshipRow = { id: string; from_asset_id: string; to_asset_id: string; relationship_type: string; rationale?: string | null; review_status: string; };
 
 const isRecord = (value: unknown): value is JsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -68,7 +69,7 @@ export async function buildRunwayProjectConsistencyContext(
 
   const ids = assets.map((asset) => asset.id).filter((id) => typeof id === 'string');
   const { data: dnaRows, error: dnaError } = await db.from('vyral_dna_records')
-    .select('asset_id,payload,dna_status,verification_status,scope')
+    .select('asset_id,payload,dna_status,verification_status,scope,source_kind')
     .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
     .eq('scope', 'asset').in('asset_id', ids).limit(240);
   if (dnaError) throw new Error('Project Asset DNA could not be loaded: ' + dnaError.message);
@@ -80,6 +81,13 @@ export async function buildRunwayProjectConsistencyContext(
     current.push(row);
     dnaByAsset.set(row.asset_id, current);
   }
+
+  const { data: relationshipRows, error: relationshipError } = await db.from('vyral_asset_relationships')
+    .select('id,from_asset_id,to_asset_id,relationship_type,rationale,review_status')
+    .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
+    .eq('review_status', 'creator_approved').limit(240);
+  if (relationshipError) throw new Error('Creator-approved Project relationships could not be loaded: ' + relationshipError.message);
+  const relationships = (Array.isArray(relationshipRows) ? relationshipRows : []) as RelationshipRow[];
 
   const retrievalAssets: UniverseRetrievalAsset[] = assets.map((asset) => {
     const metadata = isRecord(asset.metadata) ? asset.metadata : {};
@@ -102,22 +110,28 @@ export async function buildRunwayProjectConsistencyContext(
   const retrieval = retrieveUniverseConsistencyContext({
     query: input.promptText,
     assets: retrievalAssets,
-    relationships: [],
+    relationships: relationships.map((edge) => ({
+      type: edge.relationship_type, fromAssetId: edge.from_asset_id, toAssetId: edge.to_asset_id,
+    })),
     maxAssets: 12,
-    maxRelationships: 1,
+    maxRelationships: 24,
   });
   const selected = new Set(retrieval.selectedAssetIds);
   const lines = assets.filter((asset) => selected.has(asset.id)).map((asset) => {
     const dna = dnaByAsset.get(asset.id) ?? [];
-    const evidence = [...new Set(dna.flatMap((record) => collectEvidence(record.payload)))].slice(0, 8);
+    const approved = [...new Set(dna.filter((record) => record.verification_status === 'creator_confirmed')
+      .flatMap((record) => collectEvidence(record.payload)))].slice(0, 8);
+    const observations = [...new Set(dna.filter((record) => record.verification_status !== 'creator_confirmed')
+      .flatMap((record) => collectEvidence(record.payload)))].slice(0, 6);
     const metadata = isRecord(asset.metadata) ? asset.metadata : {};
     const description = safeText(metadata.description ?? metadata.ai_description ?? metadata.summary);
     return [
       '- Asset: ' + safeText(asset.name, 180),
       '  Type: ' + safeText(asset.asset_type ?? asset.mime_type, 80),
       description ? '  Creator/Asset description: ' + description : '',
-      evidence.length ? '  Recorded DNA observations: ' + evidence.join('; ') : '',
-      dna.some((record) => record.verification_status === 'verified') ? '  DNA verification: verified' : '  DNA verification: observed / not fully verified',
+      approved.length ? '  Creator-confirmed knowledge: ' + approved.join('; ') : '',
+      observations.length ? '  Unconfirmed observations (reference only): ' + observations.join('; ') : '',
+      dna.some((record) => record.verification_status === 'creator_confirmed') ? '  Knowledge authority: creator-confirmed for the recorded statements only' : '  Knowledge authority: observed / unconfirmed',
     ].filter(Boolean).join('\n');
   });
   const context = [
