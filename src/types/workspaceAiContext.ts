@@ -13,6 +13,16 @@ export type WorkspaceAiContext = {
   selectedSceneTitles?: string[];
   activeSceneId?: string | null;
   activeSceneTitle?: string | null;
+  /** Small, creator-approved continuity handoff for the active Scene; context only, never authorization. */
+  sceneContinuity?: {
+    previousSceneId: string | null;
+    previousSceneApproved: boolean;
+    previousExitState: Record<string, unknown> | null;
+    currentEntryState: Record<string, unknown> | null;
+    intendedChanges: Array<{ path: string; value: unknown; reason: string }>;
+    contextComplete: boolean;
+    validationStatus: 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
+  } | null;
   selectedTimelineItem?: {
     kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip';
     id: string;
