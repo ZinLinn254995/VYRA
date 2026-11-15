@@ -3941,10 +3941,12 @@ Deno.serve(async (request: Request) => {
       }
     }
 
-    const dnaRowsByAsset = new Map<string, Record<string, unknown>>();
+    const dnaRowsByAsset = new Map<string, Record<string, unknown>[]>();
     for (const record of dnaResult.data ?? []) {
       const assetId = String(record.asset_id);
-      if (!dnaRowsByAsset.has(assetId)) dnaRowsByAsset.set(assetId, record as Record<string, unknown>);
+      const rows = dnaRowsByAsset.get(assetId) ?? [];
+      rows.push(record as Record<string, unknown>);
+      dnaRowsByAsset.set(assetId, rows);
     }
     const assetNames = new Map<string, string>();
     for (const asset of assets) assetNames.set(String(asset.id), String(asset.name));
@@ -3954,14 +3956,19 @@ Deno.serve(async (request: Request) => {
       const tags = Array.isArray(metadata.tags)
         ? metadata.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 8).map((tag) => tag.slice(0, 60))
         : [];
-      const dnaRow = dnaRowsByAsset.get(String(asset.id));
+      const dnaRows = dnaRowsByAsset.get(String(asset.id)) ?? [];
+      const latestDnaRow = dnaRows[0] ?? null;
       const snapshotAsset = snapshotAssetById.get(String(asset.id));
       const dnaRef = snapshotAsset?.dna_ref && typeof snapshotAsset.dna_ref === 'object' && !Array.isArray(snapshotAsset.dna_ref)
         ? snapshotAsset.dna_ref as Record<string, unknown> : null;
-      const isPinnedDna = Boolean(dnaRow && dnaRef &&
-        (dnaRef.record_id === dnaRow.record_id || dnaRef.record_id === dnaRow.id) &&
-        Number(dnaRef.schema_version) === Number(dnaRow.schema_version) &&
-        dnaRef.schema_id === dnaRow.schema_id);
+      const pinnedDnaRow = dnaRef
+        ? dnaRows.find((row) =>
+            (dnaRef.record_id === row.record_id || dnaRef.record_id === row.id) &&
+            Number(dnaRef.schema_version) === Number(row.schema_version) &&
+            dnaRef.schema_id === row.schema_id) ?? null
+        : null;
+      const dnaRow = pinnedDnaRow;
+      const isPinnedDna = Boolean(dnaRow);
       let deterministicDna: Record<string, unknown> | null = null;
       if (isPinnedDna && dnaRow) {
         if (dnaRow.schema_id === 'vyra.asset-dna' && Number(dnaRow.schema_version) === 3 &&
@@ -4008,12 +4015,13 @@ Deno.serve(async (request: Request) => {
         status: asset.processing_status,
         description: String(asset.description ?? '').slice(0, 360),
         tags,
-        latestDna: dnaRow ? {
-          revision: dnaRow.revision_number,
-          status: dnaRow.dna_status,
-          verification: dnaRow.verification_status,
-          source: dnaRow.source_kind,
+        latestDna: latestDnaRow ? {
+          revision: latestDnaRow.revision_number,
+          status: latestDnaRow.dna_status,
+          verification: latestDnaRow.verification_status,
+          source: latestDnaRow.source_kind,
           pinnedToMasterSnapshot: isPinnedDna,
+          masterSnapshotRevision: masterSnapshotIsCurrent ? masterResult.data?.revision ?? null : null,
           deterministic: deterministicDna,
         } : null,
       };
@@ -4028,7 +4036,33 @@ Deno.serve(async (request: Request) => {
       ? masterSnapshot.purpose as Record<string, unknown> : {};
     const snapshotProfile = masterSnapshot?.reconstruction_profile && typeof masterSnapshot.reconstruction_profile === 'object' && !Array.isArray(masterSnapshot.reconstruction_profile)
       ? masterSnapshot.reconstruction_profile as Record<string, unknown> : {};
-    const snapshotRelationships = Array.isArray(masterSnapshot?.relationships) ? masterSnapshot.relationships.slice(0, 30) : [];
+    const snapshotAssetContext = snapshotAssets.slice(0, 30).map((raw) => {
+      const item = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      const dnaRef = item.dna_ref && typeof item.dna_ref === 'object' && !Array.isArray(item.dna_ref)
+        ? item.dna_ref as Record<string, unknown> : {};
+      return {
+        assetId: item.asset_id,
+        versionId: item.asset_version_id,
+        name: typeof item.name === 'string' ? item.name.slice(0, 180) : '',
+        type: typeof item.asset_type === 'string' ? item.asset_type.slice(0, 80) : '',
+        role: item.role ?? null,
+        purpose: typeof item.purpose === 'string' ? item.purpose.slice(0, 300) : null,
+        mediaType: typeof item.media_type === 'string' ? item.media_type.slice(0, 120) : '',
+        dnaRef: { recordId: dnaRef.record_id, schemaId: dnaRef.schema_id, schemaVersion: dnaRef.schema_version },
+        reconstructionClaim: item.reconstruction_claim,
+      };
+    });
+    const snapshotRelationships = Array.isArray(masterSnapshot?.relationships)
+      ? masterSnapshot.relationships.slice(0, 30).map((raw) => {
+          const item = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+          return {
+            type: typeof item.type === 'string' ? item.type.slice(0, 64) : '',
+            from: item.from,
+            to: item.to,
+            rationale: typeof item.rationale === 'string' ? item.rationale.slice(0, 240) : '',
+          };
+        })
+      : [];
     const activeContext = {
       name: String(activeVyral.name ?? '').slice(0, 100),
       description: String(activeVyral.description ?? '').slice(0, 1000),
@@ -4045,7 +4079,7 @@ Deno.serve(async (request: Request) => {
             ? activeVyral.master_dna_intended_uses.filter((item: unknown): item is string => typeof item === 'string').slice(0, 12)
             : [],
         mainAssetIds: Array.isArray(masterSnapshot?.main_asset_ids) ? masterSnapshot.main_asset_ids.slice(0, 30) : [],
-        snapshotAssets: snapshotAssets.slice(0, 30),
+        snapshotAssets: snapshotAssetContext,
         snapshotRelationships,
         reconstructionProfile: {
           overallClaim: snapshotProfile.overall_claim ?? 'unavailable',
