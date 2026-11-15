@@ -44,6 +44,7 @@ type AIChatPageProps = {
   workspaceContext?: WorkspaceAiContext | null;
   onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
   storyboardId?: string;
+  activeVyralId?: string | null;
   embedded?: boolean;
 };
 
@@ -346,7 +347,7 @@ const inspectVyralAttachment = async (file: File) => {
   return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext, onSceneStateProposal, storyboardId, embedded = false }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -402,6 +403,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
 
   useEffect(() => {
     let active = true;
+    if (storyboardId) {
+      setActiveVyralId(storyboardUniverseId ?? null);
+      return () => { active = false; };
+    }
     if (!historyOwnerId || !supabase) {
       setActiveVyralId(null);
       return () => { active = false; };
@@ -424,7 +429,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setActiveVyralId(String(data.id));
       });
     return () => { active = false; };
-  }, [historyOwnerId]);
+  }, [historyOwnerId, storyboardId, storyboardUniverseId]);
 
 
 
@@ -772,8 +777,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
-      let resolvedActiveVyralId = activeVyralId;
-      if (!resolvedActiveVyralId && selectedAssets.length > 0) {
+      let resolvedActiveVyralId = storyboardId ? storyboardUniverseId ?? null : activeVyralId;
+      if (!storyboardId && !resolvedActiveVyralId && selectedAssets.length > 0) {
         const selectedVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
         if (selectedVyralIds.length === 1) {
           resolvedActiveVyralId = selectedVyralIds[0];
@@ -802,7 +807,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               }
             }
             mentionedVyrals = findMentionedVyrals(text, ownedRecords);
-            if (mentionedVyrals.length === 1) {
+            if (!storyboardId && mentionedVyrals.length === 1) {
               resolvedActiveVyralId = mentionedVyrals[0].id;
               setActiveVyralId(resolvedActiveVyralId);
               try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, resolvedActiveVyralId); } catch { /* in-memory context remains active */ }
