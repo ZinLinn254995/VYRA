@@ -136,3 +136,12 @@
 5. Run CI, browser, database, and Development end-to-end checks after each safe cleanup batch.
 
 **Status:** Partial audit; cleanup is ongoing. Candidate items above are not automatically approved for deletion. Re-check current branch references before every additional removal.
+
+
+### Product terminology decision — 2026-11-15
+
+- Founder decision: use **Universe** as the only creator-facing product term; retire **Vyral/Vyrals** terminology from UI, navigation, onboarding, documentation, and new APIs where safely migratable.
+- Do not create, extend, or promote a proprietary `.vyral` file extension or a VYRA-specific Universe package format.
+- Universe is a first-class in-app concept, not a file type. Sharing/export should use familiar formats and standard archives only where needed.
+- Existing Vyral database records, IDs, historical package imports, provenance, DNA, and fingerprints are not bulk-deleted or renamed in this terminology pass. Preserve compatibility and user data; plan a separate additive schema/API migration only after reference and data-dependency audit.
+- Update the product authority first, then audit every UI string, route, type, table, API, test, and documentation reference. Internal legacy identifiers may remain temporarily when renaming them would risk data integrity.
