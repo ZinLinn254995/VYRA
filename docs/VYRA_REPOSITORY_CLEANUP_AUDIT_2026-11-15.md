@@ -65,14 +65,13 @@
 
 - Removed unreferenced legacy UI components: `AIIdeasChatView.tsx`, `MediaLibraryView.tsx`, `GeminiProviderSettings.tsx`, `SettingsView.tsx`, `OpenRouterSettings.tsx`, and old `Sidebar.tsx`, `TopHeader.tsx`, and `AuthPanel.tsx`.
 - Removed seven orphaned legacy Studio view components after repository-wide reference checks: `DashboardView.tsx`, `AnalyticsView.tsx`, `ProjectsView.tsx`, `CreateVideoView.tsx`, `PublishingView.tsx`, `ConsistencyLibraryView.tsx`, and `ProjectWorkspaceView.tsx`. Current remaining files in that folder are retained operational panels, not assumed obsolete.
-- Removed unused Gemini Edge Functions `vyra-gemini-proxy` and `manage-ai-provider`; removed the unused `@google/genai` dependency and synchronized the lockfile.
+- Removed unused Gemini Edge Functions `vyra-gemini-proxy` and `manage-ai-provider` from repository source; removed the unused `@google/genai` dependency and synchronized the lockfile.
 - Added a forward-only Development migration to remove the legacy Gemini Vault accessors and stored Gemini key. The historical migration remains unchanged; this new migration has not been applied to Production.
-- Removed unused legacy navigation and static social-channel configuration from `src/config/brand.ts`; the current BrandLogo and StudioContext consumers retain their needed brand fields.
+- Removed unused legacy navigation and static social-channel configuration from `src/config/brand.ts`; the current BrandLogo consumers retain their needed brand fields.
 - Updated app metadata and public product pages to describe the All-in-One AI Creative & Publishing Platform and the internal DNA & Consistency Engine, rather than presenting DNA-only reconstruction as VYRA's main purpose.
 - Updated legacy DNA and creator-ecosystem documents with explicit supersession notes. Kept historical technical experiments for reference; they are not current acceptance criteria.
 - Added ignore rules for generated Playwright output. Existing tracked reports and screenshots were preserved.
 - Preserved ORIGIN-01, all creator data, historical migrations, and the Master Editor. AI Chat UI was not changed.
-- Initial CI, browser UI, and database checks passed after the first cleanup batch. The latest deletion/metadata/migration batch has new CI runs pending; final status will be recorded after completion.
 
 ### Cleanup batch 3 — 2026-11-15
 
@@ -84,7 +83,6 @@
 - Updated usage-ledger and billing runbooks to state that customer BYOK is retired and platform-managed OpenAI/Runway usage recording is not yet implemented. Historical provider details are marked as legacy.
 - A TypeScript failure caused by stale imports was fixed. A contract test that referenced the deleted StudioContext was updated to test the active AI Chat and Admin API-key settings instead. A further vision-contract test was updated to assert internal DNA/Vision review controls are not exposed in the creator UI.
 - No Production service, Production database, customer-owned data, ORIGIN-01 data, applied migration history, or Master Editor implementation was modified. No merge or deployment was performed.
-- Latest CI verification is still running; record final outcomes after all checks complete.
 
 ### Cleanup batch 4 — 2026-11-15
 
@@ -106,6 +104,20 @@
 - Latest verified CI at the start of this batch: VYRA CI and Browser UI Tests passed on commit 63bb253; Database Tests were still running. The package export changes have triggered fresh CI; final outcomes are pending.
 - No Master Editor, AI Chat UI, Production environment, Production database, applied migration history, ORIGIN-01 source data, merge, or deployment was touched.
 
+### Development database audit — 2026-11-15
+
+- Audited only Development project `wbqheogfoahnjvgkwhxe`; Production was not queried or changed.
+- Found the legacy Gemini secret accessors and `vyra_gemini_api_key` Vault entry still present in Development despite the source cleanup.
+- Added the forward-only migration `20261115011448_remove_legacy_gemini_provider_secret.sql`, applied it to Development, and verified both legacy function count and legacy Vault secret count are now zero. The migration history now contains 90 entries.
+- The initial migration draft referenced a Vault deletion helper that does not exist in this project's installed Vault extension. It was corrected to delete only the specifically named row from `vault.secrets`; no other secret was targeted.
+- Development data counts confirm that historical and active records exist: 8 Vyral assets, 8 asset versions, 17 DNA records, 14 fingerprints, 3 lineage rows, 1 Master DNA revision, 23 reconstruction-test records, 5 storyboards, 8 Media Library folders, 1 Media Library item, and 3 AI Chat conversations. These records were not deleted.
+- Empty tables such as asset relationships and collection references remain as product foundations; zero current rows do not establish that their schemas are obsolete.
+- Six tables have RLS enabled and no client policies; they are server-owned configuration, telemetry, or rate-limit tables and were not changed without a grant/usage audit.
+- Security advisors still report two SECURITY DEFINER RPCs (`get_credit_wallet` and `search_credit_recipients`) callable by authenticated users. Both functions explicitly require `auth.uid()` and scope returned data to that caller; retain pending a separate security review rather than remove their intended functionality.
+- Leaked-password protection is disabled in Development and should be enabled in Supabase Auth settings. Performance advisors also report unindexed foreign keys and unused indexes; do not drop indexes based only on early/low-traffic usage statistics.
+- The Development project still reports the old `vyra-gemini-proxy` and `manage-ai-provider` Edge Functions as ACTIVE even though their repository source has been removed. The connected Supabase actions do not expose an Edge Function delete operation; these deployed functions remain a manual Dashboard/CLI cleanup item.
+- No customer rows, ORIGIN-01 data, unrelated Vault secrets, Production resources, applied historical migration files, or Master Editor code were deleted or changed.
+
 ## 6. Must not delete or rewrite
 
 - Never delete customer-owned Assets, Vyrals, projects, media, or canonical versions as code cleanup.
@@ -117,10 +129,10 @@
 
 ## 7. Remaining audit gates
 
-1. Complete the source dependency/reference audit for legacy Studio UI and shared modules.
-2. Inspect all relevant Development database tables, policies, functions, Storage buckets, and actual records before proposing schema cleanup.
-3. Resolve documentation conflicts and explicitly mark obsolete reconstruction-only goals as historical.
-4. Prepare a deletion/refactor sequence that preserves every useful capability and all existing user data.
+1. Complete the source dependency/reference audit for remaining shared modules and legacy documentation.
+2. Remove the two deployed Gemini Edge Functions from the Development project through Dashboard/CLI; verify no runtime references remain.
+3. Inspect Development grants, Storage buckets/policies, and remaining function dependencies before proposing schema cleanup.
+4. Resolve documentation conflicts and explicitly mark obsolete reconstruction-only goals as historical; remove legacy reconstruction code only after backward-compatibility dependencies are proven unnecessary.
 5. Run CI, browser, database, and Development end-to-end checks after each safe cleanup batch.
 
 **Status:** Partial audit; cleanup is ongoing. Candidate items above are not automatically approved for deletion. Re-check current branch references before every additional removal.
