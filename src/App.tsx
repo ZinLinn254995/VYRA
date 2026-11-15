@@ -198,7 +198,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
-        {!profileOpen && <MyUniverseHome />
+        {!profileOpen && <MyUniverseHome />}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
