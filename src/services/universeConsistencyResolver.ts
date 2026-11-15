@@ -117,7 +117,8 @@ export function resolveUniverseConsistencyContext(
 ): UniverseConsistencyContext {
   if (!input.universeId.trim() || !task.taskId.trim()) throw new Error('Universe and task IDs are required.');
   if (!Number.isInteger(input.universeRevision) || input.universeRevision < 0) throw new Error('Universe revision must be a non-negative integer.');
-  const at = task.at ? Date.parse(task.at) : Date.now();
+  if (!task.at) throw new Error('An explicit task time is required for reproducible temporal context.');
+  const at = Date.parse(task.at);
   if (!Number.isFinite(at)) throw new Error('Task time must be a valid ISO date.');
   const maxAssets = task.maxAssets ?? 80;
   if (!Number.isInteger(maxAssets) || maxAssets < 1 || maxAssets > 500) throw new Error('maxAssets must be an integer between 1 and 500.');
@@ -134,9 +135,19 @@ export function resolveUniverseConsistencyContext(
   const missingAssetIds: string[] = [];
   const requestedIds = unique((task.referencedAssetIds ?? []).map(clean).filter(Boolean));
   const selected = new Set<string>();
+  const queue: string[] = [];
+  let truncated = false;
   for (const id of requestedIds) {
-    if (assetMap.has(id)) selected.add(id);
-    else missingAssetIds.push(id);
+    if (!assetMap.has(id)) {
+      missingAssetIds.push(id);
+      continue;
+    }
+    if (selected.size >= maxAssets) {
+      truncated = true;
+      continue;
+    }
+    selected.add(id);
+    queue.push(id);
   }
 
   const relationships = (input.relationships ?? []).filter((edge) =>
@@ -150,11 +161,15 @@ export function resolveUniverseConsistencyContext(
       adjacency.set(edge.fromAssetId, [...(adjacency.get(edge.fromAssetId) ?? []), edge.toAssetId]);
       adjacency.set(edge.toAssetId, [...(adjacency.get(edge.toAssetId) ?? []), edge.fromAssetId]);
     }
-    const queue = [...selected];
     while (queue.length) {
       const current = queue.shift()!;
       for (const next of adjacency.get(current) ?? []) {
         if (selected.has(next)) continue;
+        if (selected.size >= maxAssets) {
+          truncated = true;
+          queue.length = 0;
+          break;
+        }
         selected.add(next);
         queue.push(next);
       }
@@ -173,11 +188,8 @@ export function resolveUniverseConsistencyContext(
     return explicitAssetMatch || tagMatch || universeWide;
   });
 
-  const selectedIds = [...selected].sort();
-  const sortedAssets = selectedIds.map((id) => assetMap.get(id)!);
-  const boundedAssets = sortedAssets.slice(0, maxAssets);
+  const boundedAssets = [...selected].map((id) => assetMap.get(id)!);
   const boundedIds = new Set(boundedAssets.map((asset) => asset.id));
-  const truncated = sortedAssets.length > boundedAssets.length;
   const boundedKnowledge = relevantKnowledge
     .filter((record) =>
       !record.appliesToAssetIds?.length || record.appliesToAssetIds.some((id) => boundedIds.has(id)),
