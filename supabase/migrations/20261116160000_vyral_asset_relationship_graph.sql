@@ -41,11 +41,6 @@ create policy "vyral_asset_relationships_insert_proposed_own"
     and reviewed_at is null
     and source_kind in ('creator','ai_suggestion','imported')
   );
-create policy "vyral_asset_relationships_update_own"
-  on public.vyral_asset_relationships for update to authenticated
-  using (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
-
 create or replace function public.review_vyral_asset_relationship(
   p_relationship_id uuid,
   p_decision text,
@@ -87,6 +82,6 @@ $$;
 revoke all on function public.review_vyral_asset_relationship(uuid,text,text) from public, anon;
 grant execute on function public.review_vyral_asset_relationship(uuid,text,text) to authenticated;
 
-grant select, insert, update on public.vyral_asset_relationships to authenticated;
+grant select, insert on public.vyral_asset_relationships to authenticated;
 comment on table public.vyral_asset_relationships is
   'Typed semantic relationships between Project Assets. Proposed AI/imported edges are excluded from canon until explicit creator approval.';
