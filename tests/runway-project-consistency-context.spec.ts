@@ -57,8 +57,8 @@ test('Project context contains matching nested DNA evidence and excludes other P
       let data = datasets[table] ?? [];
       const query: any = {
         select() { return query; },
-        eq(column: string, value: unknown) { call.filters.push([column, value]); return query; },
-        in(column: string, value: unknown) { call.filters.push([column, value]); return query; },
+        eq(column: string, value: unknown) { call.filters.push([column, value]); data = data.filter((row: any) => row[column] === value); return query; },
+        in(column: string, value: unknown) { call.filters.push([column, value]); data = data.filter((row: any) => value.includes(row[column])); return query; },
         order() { return query; },
         limit() { return query; },
         then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
