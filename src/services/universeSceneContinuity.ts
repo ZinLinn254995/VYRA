@@ -24,7 +24,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const canonical = (value: unknown): string => {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) throw new Error('Scene state must be JSON-compatible.');
+    return serialized;
+  }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new Error('Scene state must contain finite numbers.');
     return String(value);
@@ -48,7 +52,9 @@ const readPath = (root: SceneState, path: string): { exists: boolean; value: unk
 
 const writePath = (root: SceneState, path: string, value: unknown): void => {
   const parts = path.split('.');
-  if (parts.some((part) => !part)) throw new Error('Scene state paths must be non-empty dot paths.');
+  if (parts.some((part) => !part || part === '__proto__' || part === 'prototype' || part === 'constructor')) {
+    throw new Error('Scene state paths must be safe, non-empty dot paths.');
+  }
   let current = root;
   for (const part of parts.slice(0, -1)) {
     const existing = current[part];
