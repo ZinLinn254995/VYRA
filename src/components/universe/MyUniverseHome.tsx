@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Globe2, LoaderCircle, Plus, RefreshCw } from 'lucide-react';
+import { LoaderCircle, Plus, RefreshCw } from 'lucide-react';
+import { UniverseIcon } from './UniverseIcon';
 import { Button } from '../ui/Button';
 import { supabase, useAuth } from '../../context/AuthContext';
 
@@ -115,7 +116,7 @@ export function MyUniverseHome({ onCreateUniverse, onOpenUniverse }: MyUniverseH
                     <img src={universe.thumbnailUrl} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" loading="lazy" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.24),transparent_52%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]">
-                      <Globe2 size={42} strokeWidth={1.25} className="text-[var(--vyra-accent-primary)]/70 transition-transform duration-300 group-hover:scale-110" />
+                      <UniverseIcon size={42} className="text-[var(--vyra-accent-primary)]/75 transition-transform duration-300 group-hover:scale-110" />
                     </div>
                   )}
                 </div>
@@ -128,7 +129,7 @@ export function MyUniverseHome({ onCreateUniverse, onOpenUniverse }: MyUniverseH
           </div>
         ) : (
           <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center">
-            <Globe2 size={30} strokeWidth={1.4} className="text-[var(--vyra-text-muted)]" />
+            <UniverseIcon size={30} className="text-[var(--vyra-text-muted)]" />
             <p className="text-sm font-medium text-[var(--vyra-text-secondary)]">No Universes yet</p>
             <p className="text-xs text-[var(--vyra-text-muted)]">Create your first Universe to get started.</p>
           </div>
