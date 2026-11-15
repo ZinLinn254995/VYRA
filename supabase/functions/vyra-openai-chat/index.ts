@@ -3902,7 +3902,7 @@ Deno.serve(async (request: Request) => {
     if (vyralError) return json({ error: 'Could not verify the active Vyral context.' }, 503);
     if (!activeVyral) return json({ error: 'The selected Vyral is not available in your account.' }, 403);
 
-    const [assetResult, dnaResult, relationshipResult, masterResult, creatorEvidenceResult] = await Promise.all([
+    const [assetResult, dnaResult, relationshipResult, masterResult] = await Promise.all([
       context.supabaseAdmin.from('vyral_assets')
         .select('id,name,asset_type,mime_type,description,processing_status,metadata', { count: 'exact' })
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
@@ -3919,16 +3919,18 @@ Deno.serve(async (request: Request) => {
         .select('revision,manifest_sha256,vyral_fingerprint,snapshot')
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
         .order('revision', { ascending: false }).limit(1).maybeSingle(),
-      context.supabaseAdmin.from('vyral_vision_creator_evidence')
-        .select('id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256,field_path,accepted_value,note,created_at', { count: 'exact' })
-        .eq('user_id', userId).eq('evidence_kind', 'field_confirmation').eq('decision', 'creator_confirmed')
-        .order('created_at', { ascending: false }).limit(120),
     ]);
-    if (assetResult.error || dnaResult.error || relationshipResult.error || masterResult.error || creatorEvidenceResult.error) {
+    if (assetResult.error || dnaResult.error || relationshipResult.error || masterResult.error) {
       return json({ error: 'Could not load the active Vyral creative context.' }, 503);
     }
 
     const assets = assetResult.data ?? [];
+    const creatorEvidenceResult = await context.supabaseAdmin.from('vyral_vision_creator_evidence')
+      .select('id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256,field_path,accepted_value,note,created_at', { count: 'exact' })
+      .eq('user_id', userId).eq('evidence_kind', 'field_confirmation').eq('decision', 'creator_confirmed')
+      .in('asset_id', assets.map((asset) => asset.id))
+      .order('created_at', { ascending: false }).limit(120);
+    if (creatorEvidenceResult.error) return json({ error: 'Could not load creator-confirmed Universe evidence.' }, 503);
     const dnaContextTruncated = (dnaResult.count ?? 0) > (dnaResult.data?.length ?? 0);
     const creatorEvidenceTruncated = (creatorEvidenceResult.count ?? 0) > (creatorEvidenceResult.data?.length ?? 0);
     const rawMasterSnapshot = masterResult.data?.snapshot && typeof masterResult.data.snapshot === 'object' && !Array.isArray(masterResult.data.snapshot)
