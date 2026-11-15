@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.manage-media-credit-pricing]
 verify_jwt = true
+
+[functions.transfer-runway-media-output]
+verify_jwt = true
