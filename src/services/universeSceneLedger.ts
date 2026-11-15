@@ -107,6 +107,17 @@ export interface SceneContinuityContext {
  * current. Checking only the immediate predecessor would let Scene 3 consume
  * Scene 2's stale approval after Scene 1 had been edited.
  */
+function stableStateValue(value: unknown): string {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Continuity state must contain finite numbers.');
+    return String(value);
+  }
+  if (Array.isArray(value)) return '[' + value.map(stableStateValue).join(',') + ']';
+  if (!isRecord(value)) throw new Error('Continuity state must be JSON-compatible.');
+  return '{' + Object.keys(value).sort().map((key) => JSON.stringify(key) + ':' + stableStateValue(value[key])).join(',') + '}';
+}
+
 function isSceneHandoffCurrent(
   ledger: SceneContinuityLedger,
   sceneId: string,
@@ -122,7 +133,7 @@ function isSceneHandoffCurrent(
   const snapshotMatches = current.entryFromSceneId === previous.sceneId
     && current.entryFromSceneUpdatedAt === previous.updatedAt
     && current.entryState !== null
-    && JSON.stringify(current.entryState) === JSON.stringify(previous.exitState);
+    && stableStateValue(current.entryState) === stableStateValue(previous.exitState);
   return snapshotMatches;
 }
 
