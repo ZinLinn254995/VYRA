@@ -194,7 +194,8 @@ export function buildRunwaySceneContinuityPrompt(
   input?: RunwaySceneContinuityInput | null,
 ): { promptText: string; mode: 'not_applicable' | 'approved' | 'incomplete' } {
   const sceneEditor = input?.page === 'scene-editor' && Boolean(input.activeSceneId);
-  const masterEditor = input?.page === 'storyboard-editor' && input.editorView === 'master' && Boolean(input.selectedTimelineItem);
+  // The selected Master Editor item remains relevant after switching back to AI Chat.
+  const masterEditor = input?.page === 'storyboard-editor' && Boolean(input.selectedTimelineItem);
   if (!input || (!sceneEditor && !masterEditor)) {
     return { promptText, mode: 'not_applicable' };
   }
