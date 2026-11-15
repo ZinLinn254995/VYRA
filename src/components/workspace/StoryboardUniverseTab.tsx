@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, LoaderCircle, RefreshCw } from 'lucide-react';
 import { supabase, useAuth } from '../../context/AuthContext';
 import { MyMediaLibraryPage } from '../profile/MyMediaLibraryPage';
-import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type UniverseRecord = {
   id: string;
@@ -25,12 +24,11 @@ type Props = {
   isAuthenticated: boolean;
   onLoginRequired: () => void;
   onUniverseReady?: (universe: { id: string; name: string; description: string } | null) => void;
-  onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void;
 };
 
 export const StoryboardUniverseTab: React.FC<Props> = ({
   storyboardId, storyboardTitle, isActive, isAuthenticated, onLoginRequired,
-  onUniverseReady, onSendAssetsToChat,
+  onUniverseReady,
 }) => {
   const { user } = useAuth();
   const ownerId = user?.id ?? null;
