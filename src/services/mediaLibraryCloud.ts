@@ -230,6 +230,7 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
       }
       if (existing && existing.universe_id === null) {
         const row = rows.find((candidate: { source_asset_id: string }) => candidate.source_asset_id === asset.id);
+        if (!row) throw new Error('Could not reconcile a legacy Asset index row into its private Universe.');
         const { error } = await db.from('media_library_items').update({
           universe_id: universeId, folder_id: row.folder_id, file_name: row.file_name,
           mime_type: row.mime_type, size_bytes: row.size_bytes, bucket_id: row.bucket_id,
