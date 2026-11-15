@@ -140,6 +140,9 @@ test('derives tracked paths for every nested persistent detail and treats arrays
     environment: {},
   });
   assert.deepEqual(paths, [
+    '@keys:character',
+    '@keys:character.appearance',
+    '@keys:prop',
     'character.appearance.hair',
     'character.appearance.scar',
     'character.outfit',
@@ -174,4 +177,28 @@ test('detects an unlisted detail change because runtime derives tracked paths au
   });
   assert.equal(result.evaluation.status, 'needs_review');
   assert.equal(result.evaluation.violations[0].path, 'character.hair');
+});
+
+
+test('detects newly added nested details even when all previous leaf values remain unchanged', () => {
+  const previousState = { character: { hair: 'black', outfit: 'blue coat' } };
+  const result = evaluateSceneStateTransition({
+    previousState,
+    observedState: { character: { hair: 'black', outfit: 'blue coat', eyeColor: 'green' } },
+    trackedPaths: deriveTrackedSceneStatePaths(previousState),
+  });
+  assert.equal(result.status, 'needs_review');
+  assert.ok(result.violations.some((violation) => violation.path === 'character' && violation.reason.includes('added or removed')));
+});
+
+test('accepts an explicitly intended addition to an existing object', () => {
+  const previousState = { character: { hair: 'black' } };
+  const intendedChanges = [{ path: 'character.eyeColor', value: 'green', reason: 'The character reveals green eyes.' }];
+  const result = evaluateSceneStateTransition({
+    previousState,
+    intendedChanges,
+    observedState: { character: { hair: 'black', eyeColor: 'green' } },
+    trackedPaths: deriveTrackedSceneStatePaths(previousState, intendedChanges),
+  });
+  assert.equal(result.status, 'consistent');
 });
