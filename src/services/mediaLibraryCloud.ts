@@ -348,11 +348,20 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
   const userId = await getOwnerId();
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
-  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  let folderId: string | undefined;
+  if (universeId) {
+    await assertStoryboardUniverse(db, userId, universeId);
+    folderId = crypto.randomUUID();
+    const { error: canonicalError } = await db.from('vyral_folders').insert({ id: folderId, vyral_id: universeId, user_id: userId, parent_id: parentId, name: cleanName });
+    if (canonicalError) throw new Error(canonicalError.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create Universe folder: ' + canonicalError.message);
+  }
   const { data, error } = await db.from('media_library_folders')
-    .insert({ user_id: userId, universe_id: universeId ?? null, parent_id: parentId, name: cleanName })
+    .insert({ ...(folderId ? { id: folderId, vyral_folder_id: folderId } : {}), user_id: userId, universe_id: universeId ?? null, parent_id: parentId, name: cleanName })
     .select('id,user_id,universe_id,parent_id,name,created_at,updated_at').single();
-  if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create folder: ' + error.message);
+  if (error) {
+    if (folderId) await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create folder: ' + error.message);
+  }
   mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
   return data as MediaLibraryFolder;
 }
@@ -362,6 +371,10 @@ export async function renameMediaLibraryFolder(folderId: string, name: string, u
   const userId = await getOwnerId();
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
+  if (universeId) {
+    const { error: canonicalError } = await db.from('vyral_folders').update({ name: cleanName }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    if (canonicalError) throw new Error('Could not rename Universe folder: ' + canonicalError.message);
+  }
   const { error } = await applyUniverseScope(db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId), universeId);
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message);
   mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
@@ -376,14 +389,26 @@ export async function deleteMediaLibraryFolder(folderId: string, universeId?: st
   ]);
   if (childError || itemError) throw new Error('Could not check whether this folder is empty.');
   if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
-  const { error } = await applyUniverseScope(db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId), universeId);
-  if (error) throw new Error('Could not delete folder: ' + error.message);
+  if (universeId) {
+    const { count: assetCount, error: assetError } = await db.from('vyral_assets').select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId).eq('folder_id', folderId);
+    if (assetError) throw new Error('Could not verify the canonical Universe folder contents.');
+    if ((assetCount ?? 0) > 0) throw new Error('Move or remove this folder’s Assets before deleting it.');
+    const { error } = await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    if (error) throw new Error('Could not delete Universe folder: ' + error.message);
+  } else {
+    const { error } = await db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId).is('universe_id', null);
+    if (error) throw new Error('Could not delete folder: ' + error.message);
+  }
   mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
 }
 
 export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) {
+    const { error: canonicalError } = await db.from('vyral_folders').update({ parent_id: parentId }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    if (canonicalError) throw new Error(canonicalError.message.toLowerCase().includes('descendant') ? 'A folder cannot be moved into one of its descendants.' : 'Could not move Universe folder: ' + canonicalError.message);
+  }
   const { error } = await applyUniverseScope(db.from('media_library_folders')
     .update({ parent_id: parentId, updated_at: new Date().toISOString() })
     .eq('id', folderId).eq('user_id', userId), universeId);
@@ -400,6 +425,17 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
   if (!itemIds.length) return;
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId) {
+    const { data: selected, error: selectedError } = await applyUniverseScope(db.from('media_library_items').select('id,source_asset_id')
+      .in('id', itemIds).eq('user_id', userId), universeId);
+    if (selectedError || !selected || selected.length !== itemIds.length || selected.some((row: { source_asset_id: string | null }) => !row.source_asset_id)) {
+      throw new Error('Only canonical Universe Assets can be moved in this Library.');
+    }
+    const assetIds = selected.map((row: { source_asset_id: string }) => row.source_asset_id);
+    const { error: assetMoveError } = await db.from('vyral_assets').update({ folder_id: folderId, updated_at: new Date().toISOString() })
+      .in('id', assetIds).eq('vyral_id', universeId).eq('user_id', userId);
+    if (assetMoveError) throw new Error('Could not move the canonical Universe Assets: ' + assetMoveError.message);
+  }
   const { error } = await applyUniverseScope(db.from('media_library_items').update({ folder_id: folderId, updated_at: new Date().toISOString() })
     .in('id', itemIds).eq('user_id', userId), universeId);
   if (error) throw new Error('Could not move selected files: ' + error.message);
@@ -410,6 +446,14 @@ export async function renameMediaLibraryItem(itemId: string, fileName: string, u
   const userId = await getOwnerId();
   const cleanName = SAFE_NAME(fileName);
   if (!cleanName) throw new Error('Enter a file name.');
+  if (universeId) {
+    const { data: row, error: readError } = await applyUniverseScope(db.from('media_library_items').select('source_asset_id')
+      .eq('id', itemId).eq('user_id', userId), universeId).maybeSingle();
+    if (readError || !row?.source_asset_id) throw new Error('This file is not a verified Universe Asset.');
+    const { error: assetError } = await db.from('vyral_assets').update({ name: cleanName, updated_at: new Date().toISOString() })
+      .eq('id', row.source_asset_id).eq('vyral_id', universeId).eq('user_id', userId);
+    if (assetError) throw new Error('Could not rename the canonical Universe Asset: ' + assetError.message);
+  }
   const { error } = await applyUniverseScope(db.from('media_library_items').update({ file_name: cleanName, updated_at: new Date().toISOString() })
     .eq('id', itemId).eq('user_id', userId), universeId);
   if (error) throw new Error('Could not rename file: ' + error.message);
@@ -648,7 +692,7 @@ export async function uploadMediaLibraryFiles(
       if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
       if (scope) {
         const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db), {
-          vyralId: scope.universeId, userId, file,
+          vyralId: scope.universeId, userId, file, folderId,
           metadata: { upload_source: 'creator_workspace', origin: 'storyboard_universe_media_library', storyboard_id: scope.storyboardId },
         });
         const itemId = await registerVyralAssetInMediaLibrary({
