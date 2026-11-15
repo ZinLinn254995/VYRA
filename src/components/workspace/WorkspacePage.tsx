@@ -1153,7 +1153,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       <p className="text-[11px] leading-4 text-[var(--vyra-text-secondary)]">
                         Creator-authored starting context for the first Scene. Updating it invalidates later Scene approvals so they can be checked again.
                       </p>
-                      <button type="button" onClick={saveSceneStartingContext} disabled={!sceneStartingContextDraft.trim()} className="min-h-9 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+                      <button type="button" onClick={saveSceneStartingContext} disabled={!sceneStartingContextDraft.trim() || sceneStartingContextDraft.trim() === activeStartingContext} className="min-h-9 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50">
                         Save Starting State
                       </button>
                     </div>
