@@ -487,8 +487,12 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
       .in('asset_id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
     if (versionsError) throw new Error('Could not verify stored Asset versions before deletion.');
     const canonicalPaths = [...new Set([...(versions ?? []).map((v: { storage_path: string }) => v.storage_path), ...assets.map((a: { storage_path: string }) => a.storage_path)])];
-    const thumbnailPaths = [...new Set(rows.map((row: { metadata?: Record<string, unknown> | null }) => row.metadata?.thumbnail_path)
-      .filter((path: unknown): path is string => typeof path === 'string'))];
+    const thumbnailPathValues: string[] = [];
+    for (const row of rows as Array<{ metadata?: Record<string, unknown> | null }>) {
+      const path = row.metadata?.thumbnail_path;
+      if (typeof path === 'string') thumbnailPathValues.push(path);
+    }
+    const thumbnailPaths: string[] = [...new Set(thumbnailPathValues)];
     if (canonicalPaths.some((path: string) => !path.startsWith(userId + '/' + universeId + '/') || path.includes('\\') || path.split('/').some((part: string) => !part || part === '.' || part === '..'))
       || thumbnailPaths.some((path: string) => !isSafeOwnerStoragePath(path, userId, ['media-library-thumbnails']))) {
       throw new Error('A stored Asset path failed the private Universe safety check.');
