@@ -307,3 +307,31 @@ test('an upstream edit invalidates the entire downstream approval chain, not onl
     trackedPaths: ['hero.location'],
   }), /approve the previous Scene handoff/);
 });
+
+
+test('equivalent handoff snapshots remain valid when JSON object key order differs', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1',
+    entryState: { character: { name: 'A', outfit: 'blue' } },
+    intendedChanges: [],
+    expectedExitState: { character: { name: 'A', outfit: 'red', location: 'hall' } },
+    status: 'consistent',
+    violations: [],
+    updatedAt: '2026-11-15T05:00:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T05:01:00.000Z');
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's2',
+    entryState: { character: { location: 'hall', outfit: 'red', name: 'A' } },
+    intendedChanges: [],
+    expectedExitState: { character: { name: 'A', outfit: 'red', location: 'street' } },
+    status: 'consistent',
+    violations: [],
+    updatedAt: '2026-11-15T05:02:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's2', '2026-11-15T05:03:00.000Z');
+  const context = getSceneContinuityContext(ledger, scenes, 's2');
+  assert.equal(context?.previousSceneApproved, true);
+  assert.equal(context?.contextComplete, true);
+});
