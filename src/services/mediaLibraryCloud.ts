@@ -690,7 +690,7 @@ export async function uploadMediaLibraryFiles(
   onFileError?: (file: File, error: Error) => void,
   signal?: AbortSignal,
   onFileUploaded?: (itemId: string) => void,
-  scope?: { universeId: string; storyboardId: string },
+  scope?: { universeId: string; storyboardId: string; onMasterDnaSync?: (status: 'ready' | 'pending') => void },
 ): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
@@ -796,7 +796,7 @@ export async function uploadMediaLibraryFiles(
     } catch {
       dnaStatus = 'pending';
     }
-    window.dispatchEvent(new CustomEvent('vyra:universe-dna-sync', { detail: { universeId: scope.universeId, status: dnaStatus } }));
+    scope.onMasterDnaSync?.(dnaStatus);
   }
   return uploaded;
 }
