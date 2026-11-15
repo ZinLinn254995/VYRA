@@ -805,7 +805,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (navigationTarget && !selectedFile && selectedAssets.length === 0) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
           workspace: 'Workspace',
-          marketplace: 'Marketplace',
           'my-vyrals': 'My Universes',
           'my-media-library': 'My Media Library',
         };
