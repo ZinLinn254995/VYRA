@@ -50,6 +50,29 @@ test('Browser service parses OpenAI SSE deltas and never routes media requests t
   assert.match(source, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
 });
 
+test('OpenAI Vision validates bounded Project image previews and attaches them to the latest user turn', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const service = read('src/services/aiService.ts');
+  assert.match(edge, /rawVisionImages/);
+  assert.match(edge, /rawVisionImages\\.length > 4/);
+  assert.match(edge, /820_000/);
+  assert.match(edge, /3_300_000/);
+  assert.ok(edge.includes('!/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)'));
+  assert.match(edge, /type: 'image_url'/);
+  assert.match(edge, /latestUserIndex/);
+  assert.match(edge, /url: 'data:' \\+ item\\.mimeType \\+ ';base64,' \\+ item\\.data/);
+  assert.match(service, /if \\(request\\.mediaFiles\\?\\.length\\)/);
+  assert.doesNotMatch(service, /request\\.visionImages\\?\\.length \\|\\| request\\.mediaFiles/);
+  assert.match(service, /visionImages\\?\\.length \\? \\{ visionImages: request\\.visionImages \\}/);
+});
+
+test('OpenAI Vision keeps PDF and audio inspection explicitly disabled', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const service = read('src/services/aiService.ts');
+  assert.match(edge, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
+  assert.match(service, /PDF and audio inspection are not enabled yet/);
+});
+
 test('AI Chat preserves partial streamed text on errors and keeps retry in the existing message actions', () => {
   const source = read('src/components/ai/AIChatPage.tsx');
   assert.match(source, /streamedText \+= chunk/);
