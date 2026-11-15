@@ -27,7 +27,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void; initialSelectedAssets?: VyralChatAssetContext[]; onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createUniverseRequest?: number; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void; initialSelectedAssets?: VyralChatAssetContext[]; onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -64,7 +64,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createUniverseRequest = 0, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardStorageKeyRef = useRef(storageKey);
@@ -776,6 +776,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setIsDeletingStoryboard(false);
     setCloudSyncMessage('');
   };
+  useEffect(() => {
+    if (createUniverseRequest > 0 && isActive) createDefaultStoryboard();
+  }, [createUniverseRequest, isActive]);
+
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editDraft || !editingStoryboardId) return;
@@ -1103,7 +1107,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             <section className="profile-subpage-card storyboard-fullscreen-card">
               <ProfileSubpageHeader
                 onBack={() => setActiveSceneId(null)}
-                backLabel="Storyboard"
+                backLabel="Universe Editor"
                 icon={<Film size={22} />}
                 title={scene.title}
                 description={'Scene Editor · ' + scene.duration + ' seconds'}
@@ -1309,6 +1313,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setStoryboardDetailsExpanded(true);
       setStoryboardEditorView('scenes');
       setStoryboardAiMessage('');
+      onEditorExit?.();
     };
     return (
       <main className="profile-page-main flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden p-0">
@@ -1316,8 +1321,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
           <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
-              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to Workspace">
-                <ArrowLeft size={16} /><span>Workspace</span>
+              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to My Universe">
+                <ArrowLeft size={16} /><span>My Universe</span>
               </button>
               <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Storyboard'}</span>
             </div>
