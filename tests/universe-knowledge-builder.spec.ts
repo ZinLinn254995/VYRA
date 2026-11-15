@@ -1,8 +1,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildUniverseKnowledgeFromAssetDna } from '../src/services/universeKnowledgeBuilder.ts';
+import { createVyralSemanticDnaV1 } from '../src/services/vyralSemanticDnaV1.ts';
 import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
 import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
+
+const semanticRecord = createVyralSemanticDnaV1({
+  recordId: 'semantic-dna-1',
+  asset: {
+    id: 'asset-1', name: 'Milo', asset_type: 'character',
+    description: 'A small blue robot', descriptionProvenance: 'creator_declared',
+    mime_type: 'image/png',
+  },
+  source: { assetVersionId: 'version-2', sha256: 'a'.repeat(64), sizeBytes: 4096 },
+  technicalMetadata: {
+    width: 1024, height: 1024, colorSpace: 'sRGB', channelLayout: 'RGB',
+  },
+  confirmedObservations: [{
+    observationId: 'obs-1', reviewId: 'review-1', decision: 'creator_confirmed',
+    taskKind: 'visual_identity', assetVersionId: 'version-2',
+    sourceSha256: 'a'.repeat(64),
+    evidence: { body_color: 'blue', head_shape: 'round', scarf: 'yellow' },
+  }],
+  context: { vyralName: 'Universe' },
+});
 
 const source = {
   assetId: 'asset-1',
@@ -10,24 +31,7 @@ const source = {
   assetDnaRecordId: 'dna-record-3',
   revision: 3,
   sourceSha256: 'a'.repeat(64),
-  payload: {
-    dna_schema_id: 'vyra.asset-semantic-dna',
-    dna_record: {
-      schema_id: 'vyra.asset-semantic-dna',
-      schema_version: 1,
-      source: { asset_id: 'asset-1', asset_version_id: 'version-2', sha256: 'a'.repeat(64) },
-      identity: { name: 'Milo', asset_type: 'character' },
-      creator_description: { text: 'A small blue robot', evidence_status: 'creator_declared' },
-      technical_metadata: { width: 1024, height: 1024, color_space: 'sRGB', channel_layout: 'RGB', decoded_samples_sha256: null },
-      creator_confirmed_observations: [{
-        observation_id: 'obs-1',
-        task_kind: 'visual_identity',
-        source_asset_version_id: 'version-2',
-        source_sha256: 'a'.repeat(64),
-        evidence: { body_color: 'blue', head_shape: 'round', scarf: 'yellow' },
-      }],
-    },
-  },
+  payload: { dna_schema_id: 'vyra.asset-semantic-dna', dna_record: semanticRecord },
 };
 
 test('projects source-bound Asset DNA into typed Universe Knowledge records', () => {
@@ -81,7 +85,6 @@ test('does not create semantic claims from missing or unverified descriptions', 
   const records = buildUniverseKnowledgeFromAssetDna({ ...source, payload });
   assert.equal(records.some((item) => item.predicate === 'creator.description'), false);
 });
-
 
 test('projects lossless raster DNA v3 measurements into deterministic Universe Knowledge', async () => {
   const { record } = await createVyralDnaV3({
