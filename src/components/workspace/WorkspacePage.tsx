@@ -13,7 +13,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
-import { hydrateSceneContinuityLedger, type SceneContinuityLedger } from '../../services/universeSceneLedger';
+import { getSceneContinuityContext, hydrateSceneContinuityLedger, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -492,6 +492,32 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
       activeSceneTitle: scenes.find((scene) => scene.id === activeSceneId)?.title ?? null,
+      sceneContinuity: activeStoryboard && activeSceneId ? (() => {
+        const ledger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, scenes);
+        const continuity = getSceneContinuityContext(ledger, scenes, activeSceneId);
+        if (!continuity) return null;
+        const record = ledger.scenes[activeSceneId];
+        const boundedObject = (value: Record<string, unknown> | null) => {
+          if (!value) return null;
+          try {
+            const serialized = JSON.stringify(value);
+            return serialized.length <= 6000 ? JSON.parse(serialized) as Record<string, unknown> : null;
+          } catch { return null; }
+        };
+        return {
+          previousSceneId: continuity.previousSceneId,
+          previousSceneApproved: continuity.previousSceneApproved,
+          previousExitState: boundedObject(continuity.previousExitState),
+          currentEntryState: boundedObject(continuity.currentEntryState),
+          intendedChanges: continuity.intendedChanges.slice(0, 12).map((change) => ({
+            path: change.path.slice(0, 200),
+            value: change.value,
+            reason: change.reason.slice(0, 300),
+          })),
+          contextComplete: continuity.contextComplete && (!continuity.previousExitState || boundedObject(continuity.previousExitState) !== null),
+          validationStatus: record.validationStatus,
+        };
+      })() : null,
       selectedTimelineItem: selectedTimelineItem ?? null,
       capturedAt: new Date().toISOString(),
     };
