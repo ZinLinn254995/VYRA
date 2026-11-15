@@ -239,12 +239,12 @@ test('Master Editor selected Scene uses its own approved continuity state', () =
     page: 'storyboard-editor',
     editorView: 'master',
     selectedTimelineItem: { kind: 'scene', id: 'scene-b', label: 'Scene B' },
-    continuityRuntime: { sceneIds: ['scene-a', 'scene-b'], scenes: [{ id: 'scene-a', title: 'Arrival' }, { id: 'scene-b', title: 'The Key' }], ledger },
+    continuityRuntime: { sceneIds: ['scene-a', 'scene-b'], scenes: [{ id: 'scene-a', title: 'Arrival', description: 'Fox arrives at the harbor.' }, { id: 'scene-b', title: 'The Key', description: 'Fox finds a silver key.' }], ledger },
   });
   assert.equal(result.mode, 'approved');
   assert.match(result.promptText, /MASTER EDITOR SELECTION CONTEXT/);
   assert.match(result.promptText, /Selected timeline item: scene \/ Scene B/);
-  assert.match(result.promptText, /silver key/);
+  assert.match(result.promptText, /silver key/);\n  assert.match(result.promptText, /Fox finds a silver key/);
 });
 
 test('Master Editor non-Scene selection never invents Scene-specific canon', () => {
