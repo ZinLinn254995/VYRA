@@ -804,7 +804,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
           workspace: 'Workspace',
           marketplace: 'Marketplace',
-          'my-vyrals': 'My Vyrals',
+          'my-vyrals': 'My Universes',
           'my-media-library': 'My Media Library',
         };
         const assistantMessage: ChatMessage = {
