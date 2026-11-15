@@ -176,7 +176,7 @@ Deno.serve(async (request: Request) => {
     }
 
     return json({
-      jobId: body.jobId, outputIndex, status: 'stored',
+      jobId: body.jobId, outputIndex, targetVyralId, status: 'stored',
       storagePath, signedUrl: signed.signedUrl, signedUrlExpiresInSeconds: SIGNED_URL_SECONDS,
       sha256: digest, mimeType, sizeBytes: bytes.byteLength,
       message: 'Provider output is now stored privately. The canonical Project Asset DNA ingestion step is next.',
