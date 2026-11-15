@@ -125,3 +125,28 @@ export function evaluateSceneStateTransition(input: {
     violations,
   };
 }
+
+export interface SceneContinuityRepairInstruction {
+  path: string;
+  instruction: string;
+}
+
+/**
+ * Produces bounded repair guidance from evaluator findings. This is guidance
+ * for regenerating/editing the Scene only; it never changes canonical state.
+ */
+export function buildSceneContinuityRepairInstructions(
+  evaluation: SceneStateEvaluation,
+): SceneContinuityRepairInstruction[] {
+  return evaluation.violations.map((violation) => {
+    const expected = canonical(violation.expectedValue);
+    const instruction = violation.kind === 'missing_state'
+      ? 'Restore the missing tracked detail to ' + expected + '.'
+      : 'Correct this detail to ' + expected + ' (generated value: ' + canonical(violation.actualValue) + ').';
+    return {
+      path: violation.path,
+      instruction: 'Repair only "' + violation.path + '". ' + instruction +
+        ' Do not alter unrelated Scene details or rewrite canon. ' + violation.reason,
+    };
+  });
+}
