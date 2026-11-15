@@ -788,6 +788,16 @@ export async function uploadMediaLibraryFiles(
       onProgress?.(processed, files.length, file.name);
     }
   }
+  if (scope && uploaded > 0) {
+    let dnaStatus: 'ready' | 'pending' = 'pending';
+    try {
+      const { data, error } = await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: scope.universeId } });
+      if (!error && data?.status === 'ready') dnaStatus = 'ready';
+    } catch {
+      dnaStatus = 'pending';
+    }
+    window.dispatchEvent(new CustomEvent('vyra:universe-dna-sync', { detail: { universeId: scope.universeId, status: dnaStatus } }));
+  }
   return uploaded;
 }
 /** Adds a successfully ingested Chat/Workspace Asset to the unified Library without duplicating its binary. */
