@@ -60,8 +60,7 @@ export function MyUniverseHome() {
         </div>
 
 
-        {universes.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {universes.map((universe) => {
               const Icon = universe.icon;
               return (
@@ -96,8 +95,7 @@ export function MyUniverseHome() {
                 </button>
               );
             })}
-          </div>
-        )}
+        </div>
       </div>
 
       {createOpen && (
