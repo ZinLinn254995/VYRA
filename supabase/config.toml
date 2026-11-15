@@ -50,3 +50,6 @@ verify_jwt = true
 
 [functions.transfer-runway-media-output]
 verify_jwt = true
+
+[functions.complete-runway-media-output]
+verify_jwt = true
