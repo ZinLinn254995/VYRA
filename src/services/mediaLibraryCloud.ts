@@ -756,13 +756,20 @@ export async function uploadMediaLibraryFiles(
           vyralId: scope.universeId, userId, file, folderId,
           metadata: { upload_source: 'creator_workspace', origin: 'storyboard_universe_media_library', storyboard_id: scope.storyboardId },
         });
-        const itemId = await registerVyralAssetInMediaLibrary({
-          assetId: ingested.assetId, userId, fileName: file.name, mimeType: ingested.mimeType,
-          sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath, sourceKind: 'vyral_asset',
-          universeId: scope.universeId, folderId, thumbnailSource: file,
-        });
+        let itemId: string | null = null;
+        try {
+          itemId = await registerVyralAssetInMediaLibrary({
+            assetId: ingested.assetId, userId, fileName: file.name, mimeType: ingested.mimeType,
+            sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath, sourceKind: 'vyral_asset',
+            universeId: scope.universeId, folderId, thumbnailSource: file,
+          });
+        } catch {
+          // The canonical Asset and its DNA are already durable. Reconciliation
+          // will rebuild the Media Library index without asking the creator to re-upload.
+          window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
+        }
         uploaded += 1;
-        onFileUploaded?.(itemId);
+        if (itemId) onFileUploaded?.(itemId);
         continue;
       }
       const id = crypto.randomUUID();
