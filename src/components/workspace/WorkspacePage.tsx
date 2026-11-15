@@ -77,7 +77,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
-  const [storyboardEditorView, setStoryboardEditorView] = useState<'master' | 'chat' | 'universe'>('chat');
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'master' | 'chat' | 'universe' | 'details'>('chat');
   const [storyboardUniverse, setStoryboardUniverse] = useState<{ id: string; name: string; description: string } | null>(null);
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
@@ -1317,16 +1317,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               </button>
               <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Project'}</span>
             </div>
-            <button type="button" onClick={() => setStoryboardDetailsExpanded((expanded) => !expanded)} aria-label={storyboardDetailsExpanded ? 'Minimize Project details' : 'Open Project details'} aria-expanded={storyboardDetailsExpanded} className="grid size-8 place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
-              <ChevronDown className={'transition-transform ' + (storyboardDetailsExpanded ? 'rotate-180' : '')} size={18} />
-            </button>
           </header>
-          {storyboardDetailsExpanded && (
-            <section className="shrink-0 space-y-3 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-4 sm:px-5">
-              <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Title</span><input value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} maxLength={100} className={inputClass} /></label>
-              <label className="block space-y-1"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Description</span><textarea value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} rows={2} maxLength={500} className={inputClass + ' min-h-20 resize-y py-2'} /></label>
-            </section>
-          )}
           <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-4 pt-0 sm:px-0 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {activeStoryboardConfirmed && (
             <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
@@ -1334,6 +1325,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Editor</button>
                 <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Project Assets</button>
+                <button type="button" onClick={() => setStoryboardEditorView('details')} aria-pressed={storyboardEditorView === 'details'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'details' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Details</button>
               </div>
               {storyboardEditorView === 'master' && (
                 <>
@@ -1439,6 +1431,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     } : current)}
                   />
                       </div>
+                    ) : storyboardEditorView === 'details' ? (
+                      <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5 sm:px-6">
+                        <label className="block space-y-1.5"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Title</span><input value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} maxLength={100} className={inputClass} /></label>
+                        <label className="block space-y-1.5"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Description</span><textarea value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} rows={4} maxLength={500} className={inputClass + ' min-h-24 resize-y py-2'} /></label>
+                      </section>
                     ) : storyboardEditorView === 'chat' ? (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex flex-1 items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
