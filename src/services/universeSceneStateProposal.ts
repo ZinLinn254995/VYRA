@@ -114,7 +114,7 @@ export function parseSceneStateProposal(
     return { ok: false, reason: 'The structured Scene-state block is not valid JSON.' };
   }
   if (!isRecord(parsed) || parsed.schemaVersion !== 1 || parsed.sceneId !== expectedSceneId
-    || !Array.isArray(parsed.facts) || !Array.isArray(parsed.intendedChanges)
+    || !Array.isArray(parsed.facts) || parsed.facts.length === 0 || !Array.isArray(parsed.intendedChanges)
     || parsed.facts.length > MAX_FACTS || parsed.intendedChanges.length > MAX_FACTS) {
     return { ok: false, reason: 'The structured Scene-state block has an unsupported schema or Scene ID.' };
   }
