@@ -170,11 +170,18 @@ export type MediaLibraryPageOptions = {
 
 async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId: string): Promise<void> {
   await assertStoryboardUniverse(db, userId, universeId);
-  const { data: canonicalFolders, error: folderError } = await db.from('vyral_folders')
-    .select('id,user_id,vyral_id,parent_id,name,created_at')
-    .eq('vyral_id', universeId).eq('user_id', userId).order('created_at', { ascending: true });
-  if (folderError) throw new Error('Could not sync Storyboard Universe folders: ' + folderError.message);
-  const pending = [...(canonicalFolders ?? [])] as Array<{ id: string; parent_id: string | null; name: string; created_at: string }>;
+  const canonicalFolders: Array<{ id: string; parent_id: string | null; name: string; created_at: string }> = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data: page, error } = await db.from('vyral_folders')
+      .select('id,user_id,vyral_id,parent_id,name,created_at')
+      .eq('vyral_id', universeId).eq('user_id', userId)
+      .order('created_at', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + 499);
+    if (error) throw new Error('Could not sync Storyboard Universe folders: ' + error.message);
+    canonicalFolders.push(...((page ?? []) as typeof canonicalFolders));
+    if (!page || page.length < 500) break;
+  }
+  const pending = [...canonicalFolders];
   const synced = new Set<string>();
   while (pending.length) {
     const index = pending.findIndex((folder) => !folder.parent_id || synced.has(folder.parent_id));
@@ -189,12 +196,19 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
   }
 
   mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
-  const { data: assets, error: assetError } = await db.from('vyral_assets')
-    .select('id,folder_id,name,mime_type,size_bytes,storage_path,metadata,processing_status')
-    .eq('vyral_id', universeId).eq('user_id', userId)
-    .neq('processing_status', 'archived').order('created_at', { ascending: true }).limit(1000);
-  if (assetError) throw new Error('Could not sync Storyboard Universe Assets: ' + assetError.message);
-  if (assets?.length) {
+  const assets: Array<{ id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }> = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data: page, error } = await db.from('vyral_assets')
+      .select('id,folder_id,name,mime_type,size_bytes,storage_path,metadata,processing_status')
+      .eq('vyral_id', universeId).eq('user_id', userId)
+      .neq('processing_status', 'archived')
+      .order('created_at', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + 499);
+    if (error) throw new Error('Could not sync Storyboard Universe Assets: ' + error.message);
+    assets.push(...((page ?? []) as typeof assets));
+    if (!page || page.length < 500) break;
+  }
+  if (assets.length) {
     const assetIds = assets.map((asset: { id: string }) => asset.id);
     const { data: indexed, error: indexedError } = await db.from('media_library_items')
       .select('id,source_asset_id,universe_id,metadata').eq('user_id', userId).in('source_asset_id', assetIds);
