@@ -1,8 +1,10 @@
 import { supabase } from '../context/AuthContext';
+import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from './vyralAssetIngestion';
 
 export type MediaLibraryFolder = {
   id: string;
   user_id: string;
+  universe_id: string | null;
   parent_id: string | null;
   name: string;
   created_at: string;
@@ -12,6 +14,7 @@ export type MediaLibraryFolder = {
 export type MediaLibraryItem = {
   id: string;
   user_id: string;
+  universe_id: string | null;
   folder_id: string | null;
   source_kind: 'upload' | 'vyral_asset' | 'generated';
   source_asset_id: string | null;
@@ -43,6 +46,8 @@ const getDb = () => {
 // reused only until shortly before their one-hour expiry.
 const MEDIA_FOLDER_CACHE_TTL_MS = 30_000;
 const mediaLibraryFolderCache = new Map<string, { folders: MediaLibraryFolder[]; expiresAt: number }>();
+const folderCacheKey = (ownerId: string, universeId?: string | null) => ownerId + ':' + (universeId ?? 'personal');
+const applyUniverseScope = (query: any, universeId?: string | null) => universeId ? query.eq('universe_id', universeId) : query.is('universe_id', null);
 const thumbnailSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 let lastStorageCleanupStartedAt = 0;
 
@@ -150,6 +155,7 @@ export type MediaLibraryPageOptions = {
   limit?: number;
   search?: string;
   filter?: MediaLibraryFilter;
+  universeId?: string | null;
 };
 
 export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): Promise<{
@@ -166,9 +172,9 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
     void processMediaLibraryStorageCleanup(4).catch(() => undefined);
   }
 
-  let itemQuery = db.from('media_library_items')
-    .select('id,user_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
-    .eq('user_id', ownerId);
+  let itemQuery = applyUniverseScope(db.from('media_library_items')
+    .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId), universeId);
   if (options.folderId === null) itemQuery = itemQuery.is('folder_id', null);
   else if (options.folderId) itemQuery = itemQuery.eq('folder_id', options.folderId);
 
@@ -197,16 +203,17 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
       break;
   }
 
-  const cachedFolders = mediaLibraryFolderCache.get(ownerId);
+  const folderKey = folderCacheKey(ownerId, options.universeId);
+  const cachedFolders = mediaLibraryFolderCache.get(folderKey);
   const useCachedFolders = Boolean(cachedFolders && cachedFolders.expiresAt > Date.now());
   const [folderResult, itemResult] = await Promise.all([
-    useCachedFolders ? Promise.resolve(null) : db.from('media_library_folders').select('id,user_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId).order('name'),
+    useCachedFolders ? Promise.resolve(null) : applyUniverseScope(db.from('media_library_folders').select('id,user_id,universe_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId), options.universeId).order('name'),
     itemQuery.order('file_name', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limit),
   ]);
   if (folderResult && folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
   if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
   const folders = useCachedFolders ? cachedFolders!.folders : (folderResult?.data ?? []) as MediaLibraryFolder[];
-  if (!useCachedFolders) mediaLibraryFolderCache.set(ownerId, { folders, expiresAt: Date.now() + MEDIA_FOLDER_CACHE_TTL_MS });
+  if (!useCachedFolders) mediaLibraryFolderCache.set(folderKey, { folders, expiresAt: Date.now() + MEDIA_FOLDER_CACHE_TTL_MS });
   const rawPage = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
   const hasMore = rawPage.length > limit;
   const rawItems = rawPage.slice(0, limit);
@@ -236,7 +243,7 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
 }
 
 /** Load only the newly changed Library rows; used for incremental UI updates after uploads. */
-export async function loadMediaLibraryItemsByIds(itemIds: string[]): Promise<MediaLibraryItem[]> {
+export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?: string | null): Promise<MediaLibraryItem[]> {
   if (!itemIds.length) return [];
   const db = getDb();
   const ownerId = await getOwnerId();
@@ -269,14 +276,13 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[]): Promise<Med
 }
 
 /** Create a short-lived original-file URL only when the owner opens or downloads an item. */
-export async function getMediaLibraryItemSignedUrl(itemId: string): Promise<string> {
+export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null): Promise<string> {
   const db = getDb();
   const userId = await getOwnerId();
-  const { data, error } = await db.from('media_library_items')
+  const { data, error } = await applyUniverseScope(db.from('media_library_items')
     .select('bucket_id,storage_path')
     .eq('id', itemId)
-    .eq('user_id', userId)
-    .maybeSingle();
+    .eq('user_id', userId), universeId).maybeSingle();
   if (error || !data) throw new Error('This file is unavailable or you no longer have access to it.');
   if (data.bucket_id !== 'vyral-assets' || !isSafeOwnerStoragePath(data.storage_path, userId)) {
     throw new Error('This file has an invalid private storage location.');
