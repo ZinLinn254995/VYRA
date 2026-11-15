@@ -35,16 +35,16 @@ test('AI Chat validates Universal File DNA and clearly separates byte identity f
 
 test('Vyral image previews are prepared locally and routed through OpenAI Vision', () => {
   assert.match(chat, /visionImages/);
-  assert.match(chat, /v3Records\\.slice\\(0, 4\\)/);
+  assert.ok(chat.includes('v3Records.slice(0, 4)'));
   assert.match(chat, /assetName/);
   assert.ok(service.includes('if (request.mediaFiles?.length)'));
   assert.match(service, /Raster images and browser-sampled video frames use the platform OpenAI Vision path/);
   assert.doesNotMatch(service, /Google Gemini|gemini-[0-9]/i);
   assert.match(server, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
-  assert.match(server, /visionImages\\.length \\? \\{ visionImages \\}/);
-  assert.match(server, /visionImages\\.length > 4/);
+  assert.ok(server.includes('visionImages.length ? { visionImages }'));
+  assert.ok(server.includes('visionImages.length > 4'));
   assert.doesNotMatch(server, /gemini|Google Gemini/i);
-  assert.match(entry, /express\\.json\\(\\{ limit: '8mb' \\}\\)/);
+  assert.ok(entry.includes("express.json({ limit: '8mb' })"));
 });
 
 test('new Asset uploads persist automatic AI observations against the exact source version', async () => {
