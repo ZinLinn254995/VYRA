@@ -6,7 +6,7 @@ import {
   Trash2, Upload, Video, X,
 } from 'lucide-react';
 import { getCurrentAccessToken, supabase, useAuth } from '../../context/AuthContext';
-import { createVyralAssetDnaOnlyPackage, createVyralSemanticDnaPackage, createVyralZip, encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, isVyralPackageAsset, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
+import { encodeVyralDnaV3PngFromPackage, getVyralPackageAssetsForImport, isVyralPackageAsset, parseVyralManifest, readVyralZip, reconstructVyralDnaV3FromPackage, reconstructVyralDnaV3EncodedFileFromPackage, reconstructVyralFileDnaFromPackage, selectVyralPackageComponents, VYRAL_PACKAGE_FORMAT, VYRAL_PACKAGE_VERSION, type VyralExportComponents } from '../../services/vyralPackage';
 import { validateVyralMasterDnaV1 } from '../../services/vyralMasterDnaV1';
 import { verifyVyralSystemFileIntegrityV1 } from '../../services/vyralSystemFilesV1';
 import { checkPublicVyralCollectionReferenceV1, downloadPublicVyralCollectionAssetV1, type PublicCollectionAssetReferenceV1 } from '../../services/vyralCollectionReferenceResolverV1';
@@ -737,10 +737,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async () => {
-    setError('Custom package export is retired. Standard-format Universe export will be added when ready.');
-  };
-
   const importVyralPackage = async (file: File, containerAssetId?: string) => {
     if (!file || !supabase || packageBusy) return;
     if (file.size > 256 * 1024 * 1024) { setError('Legacy package exceeds the 256 MB import limit.'); return; }
@@ -2945,7 +2941,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <Upload size={13}/> Import legacy package
             <input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>{const file=event.target.files?.[0];event.target.value='';if(file)void importVyralPackage(file);}} disabled={busy || packageBusy}/>
           </label>
-          <button type="button" onClick={() => void exportVyralPackage()} disabled title="Standard-format export is being prepared" className={button + ' cursor-not-allowed opacity-60'}>
+          <button type="button" disabled title="Standard-format export is being prepared" className={button + ' cursor-not-allowed opacity-60'}>
             <Archive size={13}/> Standard export coming soon
           </button>
         </div>
