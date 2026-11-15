@@ -166,7 +166,7 @@ create policy media_library_folders_insert_own on public.media_library_folders
 for insert to authenticated with check (
   user_id = (select auth.uid()) and (
     universe_id is null or exists (
-      select 1 from public.vyrals u where u.id = universe_id
+      select 1 from public.vyrals u where u.id = media_library_folders.universe_id
         and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
     )
   )
@@ -182,6 +182,10 @@ with check (
     )
   )
 );
+drop policy if exists media_library_folders_delete_own on public.media_library_folders;
+create policy media_library_folders_delete_own on public.media_library_folders
+for delete to authenticated using (user_id = (select auth.uid()) and universe_id is null);
+
 drop policy if exists media_library_items_select_own on public.media_library_items;
 create policy media_library_items_select_own on public.media_library_items
 for select to authenticated using (
@@ -213,3 +217,7 @@ with check (
     )
   )
 );
+drop policy if exists media_library_items_delete_own on public.media_library_items;
+create policy media_library_items_delete_own on public.media_library_items
+for delete to authenticated using (user_id = (select auth.uid()) and universe_id is null);
+
