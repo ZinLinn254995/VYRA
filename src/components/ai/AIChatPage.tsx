@@ -2292,6 +2292,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           activeSceneTitle: workspaceContext.activeSceneTitle,
           activeSceneDescription: workspaceContext.activeSceneDescription,
           sceneContinuity: workspaceContext.sceneContinuity,
+          continuityRuntime: workspaceContext.continuityRuntime,
         } : null,
         signal: controller.signal,
         onProgress: (progress) => {
