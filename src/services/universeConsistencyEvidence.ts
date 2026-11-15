@@ -50,6 +50,21 @@ const canonicalJson = (value: unknown): string => {
   return '{' + Object.keys(value).sort().map((key) => JSON.stringify(key) + ':' + canonicalJson(value[key])).join(',') + '}';
 };
 
+const withoutTemporalMetadata = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+  const temporalKeys = new Set([
+    'effective_at', 'effectiveAt', 'valid_from', 'validFrom', 'valid_at', 'validAt',
+    'at', 'timestamp', 'observed_at', 'observedAt', 'event_at', 'eventAt',
+    'event_time', 'eventTime', 'as_of', 'asOf', 'valid_to', 'validTo',
+    'effective_until', 'effectiveUntil', 'expires_at', 'expiresAt',
+    'valid_until', 'validUntil', 'temporal', 'temporal_scope', 'temporalScope',
+    'validity',
+  ]);
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !temporalKeys.has(key))
+    .map(([key, item]) => [key, item]));
+};
+
 const temporalScope = (value: unknown): string => {
   if (!isRecord(value)) return '';
   const containers = [
@@ -114,7 +129,7 @@ export function resolveCreatorConfirmedFieldEvidence(
   for (const group of groups.values()) {
     const byValue = new Map<string, CreatorConfirmedFieldEvidence[]>();
     for (const item of group) {
-      const valueKey = canonicalJson(item.acceptedValue);
+      const valueKey = canonicalJson(withoutTemporalMetadata(item.acceptedValue));
       const sameValue = byValue.get(valueKey) ?? [];
       sameValue.push(item);
       byValue.set(valueKey, sameValue);
