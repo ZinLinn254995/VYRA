@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VYRAL DNA — Portable Creative Asset Identity | VYRA</title>
-  <meta name="description" content="Learn how VYRA's VYRAL format records reusable creative asset identity, verifies integrity with SHA-256 fingerprints, and reconstructs supported source data.">
+  <title>VYRA DNA & Consistency Engine | VYRA</title>
+  <meta name="description" content="Learn how VYRA maintains identity, canon, relationships, and creative continuity across assets, stories, and media.">
   <link rel="canonical" href="https://vyra-nine-theta.vercel.app/vyral-dna.html">
   <meta name="robots" content="index,follow">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="VYRA">
-  <meta property="og:title" content="VYRAL DNA — Portable Creative Asset Identity">
-  <meta property="og:description" content="A technical introduction to portable VYRAL packages, deterministic asset DNA, integrity fingerprints and reconstruction boundaries.">
+  <meta property="og:title" content="VYRA DNA & Consistency Engine">
+  <meta property="og:description" content="A technical introduction to Asset DNA, Creative Universe knowledge, fingerprints, provenance, and context retrieval.">
   <meta property="og:url" content="https://vyra-nine-theta.vercel.app/vyral-dna.html">
   <meta property="og:image" content="https://vyra-nine-theta.vercel.app/vyra-icon.svg">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="VYRAL DNA — Portable Creative Asset Identity">
+  <meta name="twitter:title" content="VYRA DNA & Consistency Engine">
   <meta name="twitter:description" content="Understand how VYRA packages reusable assets with identity records, fingerprints and verifiable reconstruction data.">
   <link rel="icon" type="image/svg+xml" href="/vyra-icon.svg">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "VYRAL DNA — Portable Creative Asset Identity",
+    "headline": "VYRA DNA & Consistency Engine",
     "description": "A technical introduction to VYRA's portable VYRAL package format, asset DNA, fingerprints and reconstruction boundaries.",
     "mainEntityOfPage": "https://vyra-nine-theta.vercel.app/vyral-dna.html",
     "publisher": {
@@ -52,38 +52,38 @@
 <body>
   <main>
     <div class="brand">VYRA · TECHNICAL OVERVIEW</div>
-    <h1>VYRAL DNA: portable identity for creative assets.</h1>
-    <p class="lead">A Vyral is a reusable collection of creative assets and their identity records. The <code>.vyral</code> package is designed to carry those records between workspaces, while DNA and fingerprints serve different purposes: reconstruction and verification.</p>
+    <h1>DNA & Consistency: the knowledge behind every Creative Universe.</h1>
+    <p class="lead">A Vyral is a reusable Creative Universe that can contain characters, worlds, locations, stories, relationships, rules, timelines, state, and creative Assets. VYRA maintains structured DNA and fingerprints behind the scenes so creators can preserve identity and continuity while creating, editing, sharing, and publishing media.</p>
 
-    <h2>What does VYRAL DNA describe?</h2>
-    <p>Asset DNA records the data needed to identify and recover supported asset content. A VYRAL package can include a manifest, asset metadata, DNA records and the lossless payload required by the supported reconstruction method. It is not just a text description or a prompt.</p>
+    <h2>What does DNA describe?</h2>
+    <p>Asset DNA records an Asset's identity, relevant properties, structure, provenance, and references. Universe DNA is derived from its Assets, entities, relationships, canon, timeline, and evolving state. It is internal structured knowledge used by VYRA's Consistency Engine, not a requirement for creators to author technical records.</p>
 
-    <h2>Two reconstruction paths</h2>
-    <h3>Raster images: exact decoded samples</h3>
+    <h2>One identity system, multiple evidence types</h2>
+    <h3>Asset identity and visual evidence</h3>
     <p>For supported PNG, JPEG and WebP uploads, VYRA uses a pinned server-side ImageMagick WASM decoder to produce a canonical row-major RGBA8 sample stream. The stream is stored in lossless tiles. Tile SHA-256 values and an aggregate decoded-sample SHA-256 digest are checked during reconstruction.</p>
     <p class="note"><strong>Important boundary:</strong> this path can recover the decoded pixel samples exactly under the recorded decoder contract and encode them into a new PNG. It does not recover the original PNG or JPEG file bytes, original compression choices, or every original metadata chunk.</p>
 
-    <h3>Other files: exact source bytes</h3>
+    <h3>Source integrity and provenance</h3>
     <p>For supported non-raster files, File DNA v1 records the source file's SHA-256 identity and can carry lossless source-byte chunks in a DNA-only package. When every chunk and the aggregate digest pass verification, the original binary bytes can be reconstructed exactly.</p>
 
-    <h2>DNA and fingerprints are not the same</h2>
+    <h2>DNA, fingerprints, and provenance are different</h2>
     <ul>
-      <li><strong>DNA</strong> describes the supported structure or content needed for reconstruction.</li>
-      <li><strong>Fingerprint</strong> checks whether bytes or decoded samples match a recorded identity.</li>
+      <li><strong>DNA</strong> describes identity and the knowledge needed to create consistent related media.</li>
+      <li><strong>Fingerprint</strong> checks whether source bytes or visual samples match recorded evidence.</li>
       <li><strong>Provenance</strong> records where an asset or observation came from and whether its claims are trusted.</li>
     </ul>
     <p>A matching fingerprint is evidence of identity for the data that was hashed. It does not, by itself, prove authorship, ownership, copyright or a license grant.</p>
 
-    <h2>Can an AI assistant use a VYRAL package?</h2>
-    <p>The portable ZIP-compatible <code>.vyral</code> format is intended to make asset identity records inspectable by compatible tools. An AI assistant can only reconstruct what is actually present in the package and what its tools support. Descriptive text alone cannot recreate missing source bytes or guarantee an identical image.</p>
+    <h2>How does VYRA use DNA?</h2>
+    <p>When a creator asks VYRA to create or edit a scene, the Context Engine retrieves only the relevant character, world, asset, canon, relationship, and timeline knowledge. The Consistency Engine uses those references to guide generation, validate outputs, and support correction workflows. VYRA does not promise that every generative model will produce pixel-identical results.</p>
     <p>Third-party access to private VYRA assets requires explicit, permission-controlled access. Exporting a package and granting an external service ongoing access are separate actions; a package does not silently grant account access.</p>
 
-    <h2>Current capability and limitations</h2>
-    <p>VYRA's asset DNA and package workflows are evolving. Current raster extraction supports PNG, JPEG and WebP within configured upload and image-size limits. Other file types use deterministic file identity records; exact reconstruction requires a DNA-only package containing the lossless byte payload. Imported verification claims are treated as unverified evidence until checked again in the destination workspace.</p>
+    <h2>Integrity, consistency, and limitations</h2>
+    <p>Source integrity checks can verify hashes and supported visual fingerprints. Creative consistency is a separate challenge: generative providers can vary, so VYRA combines structured knowledge, relevant references, context retrieval, validation, and correction rather than promising perfect output from a single prompt. Imported evidence is treated as unverified until checked in the destination workspace.</p>
 
     <h2>Explore VYRA</h2>
-    <p>Learn about the <a href="/discover-vyra.html">VYRA creative workspace</a>, or <a href="/">open the VYRA application</a>.</p>
-    <footer>VYRA — Reusable creative assets, portable identity records and verifiable reconstruction.</footer>
+    <p>Learn about the <a href="/discover-vyra.html">VYRA creative platform</a>, or <a href="/">open the VYRA application</a>.</p>
+    <footer>VYRA — Creative Universe identity, consistency, and integrity.</footer>
   </main>
 </body>
 </html>
