@@ -148,6 +148,25 @@ test('VYRA interprets free-form multilingual intent and formats active context w
   assert.doesNotMatch(source, /activeVyralInstruction =\s*'\\\\n/);
 });
 
+test('AI Chat retrieves task-relevant Assets and only uses revision-pinned relationship graph context', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const retrieval = read('src/services/universeConsistencyRetrieval.ts');
+  assert.match(edge, /retrieveUniverseConsistencyContext\(/);
+  assert.match(edge, /\.slice\(-3\)[\s\S]*?role === 'user'/);
+  assert.match(edge, /maxAssets: 12/);
+  assert.match(edge, /maxRelationships: 24/);
+  assert.match(edge, /masterSnapshotIsCurrent \? snapshotRelationships\.map/);
+  assert.match(edge, /snapshotAssets: selectedSnapshotAssetContext/);
+  assert.match(edge, /snapshotRelationships: selectedSnapshotRelationships/);
+  assert.match(edge, /assets: selectedAssetContext/);
+  assert.match(edge, /relationships: selectedRelationships/);
+  assert.match(edge, /deterministic lexical\/graph retrieval, not vector-semantic search/);
+  assert.match(retrieval, /up to two relationship hops/);
+  assert.match(retrieval, /explicit_asset_name_mention/);
+  assert.match(retrieval, /one_hop_relationship_context/);
+  assert.match(retrieval, /truncatedAssets/);
+});
+
 test('AI Chat consistency context verifies Master DNA integrity and only admits creator-confirmed evidence pinned to the exact snapshot version', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /validateVyralMasterDnaV1\(rawMasterSnapshot\)/);
