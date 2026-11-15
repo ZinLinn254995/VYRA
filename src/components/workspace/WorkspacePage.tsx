@@ -32,20 +32,25 @@ const readStoryboards = (key: string): Storyboard[] => {
     return Array.isArray(value) ? value.filter((item): item is Storyboard =>
       Boolean(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
       typeof item.topic === 'string' && typeof item.createdAt === 'string' && typeof item.updatedAt === 'string'
-    ).map((storyboard) => ({
-      ...storyboard,
-      details: storyboard.details ? {
-        ...storyboard.details,
-        scenes: (storyboard.details.scenes || []).map((scene) => {
-          if (scene.project?.id) return scene;
-          const now = new Date().toISOString();
-          return {
-            ...scene,
-            project: { id: crypto.randomUUID(), schemaVersion: 1 as const, createdAt: now, updatedAt: now, renderRevisionIds: [] },
-          };
-        }),
-      } : storyboard.details,
-    })) : [];
+    ).map((storyboard) => {
+      if (!storyboard.details) return storyboard;
+      const scenes = (storyboard.details.scenes || []).map((scene) => {
+        if (scene.project?.id) return scene;
+        const now = new Date().toISOString();
+        return {
+          ...scene,
+          project: { id: crypto.randomUUID(), schemaVersion: 1 as const, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+        };
+      });
+      return {
+        ...storyboard,
+        details: {
+          ...storyboard.details,
+          scenes,
+          continuityLedger: hydrateSceneContinuityLedger(storyboard.details.continuityLedger, scenes),
+        },
+      };
+    }) : [];
   } catch { return []; }
 };
 
@@ -778,7 +783,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       topic: 'A new video story is ready to take shape. Create your scenes and build your story.',
       createdAt: now,
       updatedAt: now,
-      details: { category: '', style: '', mood: '', tags: [], origins: {} },
+      details: { category: '', style: '', mood: '', tags: [], origins: {}, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
     };
     setSelectedSceneIds([]);
     setActiveSceneId(null);
@@ -1178,7 +1183,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
                 if (!current) return current;
                 const master = current.details?.masterTimeline;
-                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes }, updatedAt: new Date().toISOString() };
+                const continuityLedger = hydrateSceneContinuityLedger(current.details?.continuityLedger, nextScenes);
+                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes, continuityLedger }, updatedAt: new Date().toISOString() };
                 const previousInstances = master.sceneInstances || [];
                 const instancesByScene = new Map(previousInstances.map((instance) => [instance.sceneId, instance]));
                 const sceneIds = new Set(nextScenes.map((scene) => scene.id));
@@ -1199,6 +1205,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                   details: {
                     ...current.details,
                     scenes: nextScenes,
+                    continuityLedger,
                     masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges: {}, transitions },
                   },
                   updatedAt: new Date().toISOString(),
