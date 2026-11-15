@@ -223,3 +223,25 @@ test('runtime caps repair attempts at two and escalates unresolved continuity to
   assert.equal(finalAttempt.retry.allowed, false);
   assert.equal(finalAttempt.retry.requiresCreatorReview, true);
 });
+
+
+test('reordering Scenes invalidates an entry snapshot tied to the former predecessor', () => {
+  const originalOrder = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, originalOrder, {
+    sceneId: 'b', entryState: { hero: { location: 'hall' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'garden' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T02:00:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, originalOrder, 'b', '2026-11-15T02:01:00.000Z');
+  ledger = recordSceneContinuityEvaluation(ledger, originalOrder, {
+    sceneId: 'c', entryState: { hero: { location: 'garden' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'street' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T02:02:00.000Z',
+  });
+  const reordered = [{ id: 'a' }, { id: 'c' }, { id: 'b' }];
+  const context = getSceneContinuityContext(ledger, reordered, 'c');
+  assert.equal(context?.previousSceneId, 'a');
+  assert.equal(context?.entrySnapshotStale, true);
+  assert.equal(context?.contextComplete, false);
+  assert.deepEqual(context?.currentEntryState, { hero: { location: 'garden' } });
+});
