@@ -491,7 +491,7 @@ test('AI Chat clears previous-owner conversation and attachment state immediatel
 });
 
 test('Storyboard Universe uses the complete scoped Media Library and canonical Asset backend', () => {
-  const migration = read('supabase/migrations/20261115183000_storyboard_universe_media_library.sql');
+  const migration = read('supabase/migrations/20261115134317_storyboard_universe_media_library.sql');
   const service = read('src/services/mediaLibraryCloud.ts');
   const page = read('src/components/profile/MyMediaLibraryPage.tsx');
   const universeTab = read('src/components/workspace/StoryboardUniverseTab.tsx');
