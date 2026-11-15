@@ -514,6 +514,7 @@ const buildWorkspaceContextInstruction = (raw: unknown): string => {
     lastWorkspacePage: page,
     pageLabel: cleanText(value.pageLabel, 100),
     activeStoryboard: active ? {
+      id: cleanText(active.id, 100),
       title: cleanText(active.title, 180),
       topic: cleanText(active.topic, 1200),
       sceneCount: Number.isSafeInteger(active.sceneCount) ? Math.max(0, Math.min(500, Number(active.sceneCount))) : sceneTitles.length,
