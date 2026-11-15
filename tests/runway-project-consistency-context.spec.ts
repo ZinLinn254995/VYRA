@@ -215,3 +215,47 @@ test('timeline history is withheld if any predecessor handoff is stale', () => {
   assert.doesNotMatch(result.promptText, /APPROVED PROJECT SCENE TIMELINE/);
   assert.match(result.promptText, /No complete creator-approved predecessor chain/);
 });
+
+test('Master Editor selected Scene uses its own approved continuity state', () => {
+  const scenes = [{ id: 'scene-a' }, { id: 'scene-b' }];
+  const ledger = {
+    scenes: {
+      'scene-a': {
+        sceneId: 'scene-a', sequence: 0, previousSceneId: null, nextSceneId: 'scene-b',
+        entryState: { character: { wardrobe: 'blue jacket' } }, entryFromSceneId: null, entryFromSceneUpdatedAt: null,
+        intendedChanges: [], exitState: { character: { wardrobe: 'blue jacket', prop: 'silver key' } },
+        validationStatus: 'creator_approved', stateAuthority: 'creator_approved_only', updatedAt: 'revision-a',
+      },
+      'scene-b': {
+        sceneId: 'scene-b', sequence: 1, previousSceneId: 'scene-a', nextSceneId: null,
+        entryState: { character: { wardrobe: 'blue jacket', prop: 'silver key' } },
+        entryFromSceneId: 'scene-a', entryFromSceneUpdatedAt: 'revision-a',
+        intendedChanges: [], exitState: null, validationStatus: 'creator_approved',
+        stateAuthority: 'creator_approved_only', updatedAt: 'revision-b',
+      },
+    },
+  };
+  const result = buildRunwaySceneContinuityPrompt('Create a master timeline shot.', {
+    page: 'storyboard-editor',
+    editorView: 'master',
+    selectedTimelineItem: { kind: 'scene', id: 'scene-b', label: 'Scene B' },
+    continuityRuntime: { sceneIds: ['scene-a', 'scene-b'], scenes: [{ id: 'scene-a', title: 'Arrival' }, { id: 'scene-b', title: 'The Key' }], ledger },
+  });
+  assert.equal(result.mode, 'approved');
+  assert.match(result.promptText, /MASTER EDITOR SELECTION CONTEXT/);
+  assert.match(result.promptText, /Selected timeline item: scene \/ Scene B/);
+  assert.match(result.promptText, /silver key/);
+});
+
+test('Master Editor non-Scene selection never invents Scene-specific canon', () => {
+  const result = buildRunwaySceneContinuityPrompt('Adjust this audio clip.', {
+    page: 'storyboard-editor',
+    editorView: 'master',
+    selectedTimelineItem: { kind: 'audio-clip', id: 'music-1', trackId: 'audio-1', label: 'Background music' },
+    continuityRuntime: { sceneIds: ['scene-a'], scenes: [{ id: 'scene-a', title: 'Arrival' }], ledger: { scenes: {} } },
+  });
+  assert.equal(result.mode, 'incomplete');
+  assert.match(result.promptText, /Selected timeline item: audio-clip \/ Background music/);
+  assert.match(result.promptText, /No single Scene is selected/);
+  assert.match(result.promptText, /Do not invent or assume character identity/);
+});
