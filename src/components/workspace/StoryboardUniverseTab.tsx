@@ -112,7 +112,7 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
   }, [isActive, loadOrCreateUniverse]);
 
   if (!isAuthenticated) {
-    return <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">Sign in to create this Storyboard’s Project Assets Library</p><button type="button" onClick={onLoginRequired} className="rounded-lg bg-[var(--vyra-accent-primary)] px-4 py-2 text-xs font-semibold text-slate-950">Sign in</button></div>;
+    return <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm font-semibold text-[var(--vyra-text-primary)]">Sign in to create this Project’s Assets Library</p><button type="button" onClick={onLoginRequired} className="rounded-lg bg-[var(--vyra-accent-primary)] px-4 py-2 text-xs font-semibold text-slate-950">Sign in</button></div>;
   }
   if (loading) return <div className="flex min-h-64 items-center justify-center gap-2 text-xs text-[var(--vyra-text-muted)]"><LoaderCircle size={16} className="animate-spin"/> Preparing Project Assets…</div>;
   if (error || !universe) return <div className="mx-auto flex min-h-64 max-w-lg flex-col items-center justify-center gap-3 px-5 text-center"><AlertCircle size={22} className="text-[var(--vyra-danger)]"/><p role="alert" className="text-xs text-[var(--vyra-text-secondary)]">{error || 'Project Assets are not available.'}</p><button type="button" onClick={() => void loadOrCreateUniverse()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-semibold text-[var(--vyra-text-primary)]"><RefreshCw size={13}/> Retry</button></div>;
@@ -122,7 +122,7 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">{universe.name}</h2><p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">Private Project Assets for “{storyboardTitle}”. Organize characters, locations, props, references and every other creative Asset here.</p></div>
-          <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Private · Storyboard-only</span>
+          <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Private · Project-only</span>
         </div>
         {renderLibrary && <MyMediaLibraryPage
           key={universe.id}
