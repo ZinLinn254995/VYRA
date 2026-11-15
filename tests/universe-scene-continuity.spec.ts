@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSceneContinuityRepairInstructions, evaluateSceneStateTransition } from '../src/services/universeSceneContinuity.ts';
+import { buildSceneContinuityRepairInstructions, deriveTrackedSceneStatePaths, evaluateSceneStateTransition } from '../src/services/universeSceneContinuity.ts';
 
 test('keeps persistent character and prop details unchanged across Scenes', () => {
   const result = evaluateSceneStateTransition({
@@ -130,4 +130,48 @@ test('builds narrowly scoped repair guidance without changing canonical state', 
   assert.deepEqual(evaluation.expectedState, {
     character: { hair: 'short black', outfit: 'blue coat' },
   });
+});
+
+
+test('derives tracked paths for every nested persistent detail and treats arrays atomically', () => {
+  const paths = deriveTrackedSceneStatePaths({
+    character: { appearance: { hair: 'black', scar: 'left cheek' }, outfit: 'blue coat' },
+    prop: { keys: ['brass key', 'silver key'] },
+    environment: {},
+  });
+  assert.deepEqual(paths, [
+    'character.appearance.hair',
+    'character.appearance.scar',
+    'character.outfit',
+    'environment',
+    'prop.keys',
+  ]);
+});
+
+test('fails closed when automatic continuity path limits are exceeded', () => {
+  assert.throws(() => deriveTrackedSceneStatePaths(
+    { character: { hair: 'black', outfit: 'blue', scar: 'left cheek' } },
+    [],
+    { maxPaths: 2 },
+  ), /maximum tracked continuity paths/);
+  assert.throws(() => deriveTrackedSceneStatePaths(
+    { character: { appearance: { hair: 'black' } } },
+    [],
+    { maxDepth: 1 },
+  ), /maximum continuity depth/);
+});
+
+test('detects an unlisted detail change because runtime derives tracked paths automatically', async () => {
+  const { evaluateAndRecordSceneContinuity } = await import('../src/services/universeSceneLedger.ts');
+  const scenes = [{ id: 's1' }];
+  const result = evaluateAndRecordSceneContinuity({
+    ledger: undefined,
+    scenes,
+    sceneId: 's1',
+    initialEntryState: { character: { hair: 'black', outfit: 'blue coat' } },
+    observedExitState: { character: { hair: 'blond', outfit: 'blue coat' } },
+    trackedPaths: [],
+  });
+  assert.equal(result.evaluation.status, 'needs_review');
+  assert.equal(result.evaluation.violations[0].path, 'character.hair');
 });
