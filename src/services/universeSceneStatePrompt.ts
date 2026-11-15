@@ -36,7 +36,6 @@ export interface SceneVisualContinuityContext {
   previousSceneApproved: boolean;
   entrySnapshotStale: boolean;
   currentEntryState: Record<string, unknown> | null;
-  validationStatus: 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
 }
 
 /**
