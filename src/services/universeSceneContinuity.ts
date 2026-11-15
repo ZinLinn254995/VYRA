@@ -105,7 +105,9 @@ export function evaluateSceneStateTransition(input: {
       continue;
     }
     if (canonical(expected.value) === canonical(actual.value)) continue;
-    const intended = changes.get(path);
+    const intended = [...changes.values()]
+      .filter((change) => path === change.path || path.startsWith(change.path + '.') || change.path.startsWith(path + '.'))
+      .sort((a, b) => b.path.length - a.path.length)[0];
     violations.push({
       path,
       kind: intended ? 'missed_intended_change' : 'unexpected_change',
