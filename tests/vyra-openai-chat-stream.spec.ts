@@ -167,6 +167,15 @@ test('AI Chat retrieves task-relevant Assets and only uses revision-pinned relat
   assert.match(retrieval, /truncatedAssets/);
 });
 
+test('AI Chat marks incomplete DNA and creator-evidence histories instead of implying complete canon', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /dnaContextTruncated = \(dnaResult\.count \?\? 0\) > \(dnaResult\.data\?\.length \?\? 0\)/);
+  assert.match(source, /creatorEvidenceTruncated = \(creatorEvidenceResult\.count \?\? 0\) > \(creatorEvidenceResult\.data\?\.length \?\? 0\)/);
+  assert.match(source, /creatorConfirmedFieldEvidenceComplete: !creatorEvidenceTruncated/);
+  assert.match(source, /creatorKnowledgeHistoryComplete: !dnaContextTruncated/);
+  assert.match(source, /If the creator-evidence or DNA-history retrieval is truncated, treat those histories as incomplete/);
+});
+
 test('AI Chat keeps conflicting creator-confirmed facts unresolved instead of silently choosing canon', () => {
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   const evidence = read('src/services/universeConsistencyEvidence.ts');
