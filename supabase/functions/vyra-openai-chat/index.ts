@@ -3904,11 +3904,44 @@ Deno.serve(async (request: Request) => {
     provider: 'openai',
   }, 503);
 
-  if (body.visionImages !== undefined || body.mediaFiles !== undefined) {
+  // Browser-prepared raster previews include both still images and sampled
+  // frames from selected Project videos. Validate them before forwarding bytes
+  // to the platform-managed OpenAI Vision model.
+  if (body.mediaFiles !== undefined) {
     return json({
-      error: 'Text conversation is available in this phase. Image, document, audio, and video understanding will be connected in the media-generation phase.',
-      code: 'MEDIA_CONTEXT_NOT_ENABLED',
+      error: 'PDF and audio understanding are not enabled yet. Image and sampled video-frame inspection are supported.',
+      code: 'DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED',
     }, 501);
+  }
+  const rawVisionImages = body.visionImages;
+  const visionImages: Array<{ mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string; assetId?: string; assetName?: string }> = [];
+  if (rawVisionImages !== undefined) {
+    if (!Array.isArray(rawVisionImages) || rawVisionImages.length > 4) {
+      return json({ error: 'A maximum of four visual previews can be inspected per request.', code: 'INVALID_VISION_IMAGES' }, 400);
+    }
+    let totalEncodedBytes = 0;
+    for (const item of rawVisionImages) {
+      if (!isPlainRecord(item)
+        || !['image/jpeg', 'image/png', 'image/webp'].includes(String(item.mimeType))
+        || typeof item.data !== 'string'
+        || item.data.length < 16
+        || item.data.length > 820_000
+        || !/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)
+        || (item.assetId !== undefined && !isUuid(item.assetId))
+        || (item.assetName !== undefined && (typeof item.assetName !== 'string' || item.assetName.length > 180))) {
+        return json({ error: 'A visual preview has invalid MIME, encoding, size, or Asset metadata.', code: 'INVALID_VISION_IMAGES' }, 400);
+      }
+      totalEncodedBytes += item.data.length;
+      if (totalEncodedBytes > 3_300_000) {
+        return json({ error: 'Visual previews exceed the combined inspection size limit.', code: 'VISION_IMAGES_TOO_LARGE' }, 413);
+      }
+      visionImages.push({
+        mimeType: item.mimeType as 'image/jpeg' | 'image/png' | 'image/webp',
+        data: item.data,
+        ...(typeof item.assetId === 'string' ? { assetId: item.assetId } : {}),
+        ...(typeof item.assetName === 'string' ? { assetName: item.assetName.replace(/[\\u0000-\\u001f\\u007f]/g, ' ').trim() } : {}),
+      });
+    }
   }
 
   if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 40) {
@@ -4419,8 +4452,26 @@ Deno.serve(async (request: Request) => {
     const uploadAttachmentInstruction = uploadAttachment
        ? '\n\nExact local file attached in the current chat turn (metadata only; bytes remain in the browser): ' + JSON.stringify(uploadAttachment) + '. This metadata is a hint for planning only; the browser must match the exact File before transfer.'
        : '';
-     const baseMessages = [{ role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction + uploadAttachmentInstruction }, ...messages];
-    let finalMessages: unknown[] = baseMessages;
+     let baseMessages: Array<Record<string, unknown>> = [
+       { role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction + uploadAttachmentInstruction },
+       ...messages,
+     ];
+     if (visionImages.length) {
+       let latestUserIndex = -1;
+       for (let index = baseMessages.length - 1; index >= 1; index--) {
+         if (baseMessages[index].role === 'user') { latestUserIndex = index; break; }
+       }
+       if (latestUserIndex < 0) return json({ error: 'Visual previews must accompany a user message.', code: 'VISION_MESSAGE_REQUIRED' }, 400);
+       const imageContent = visionImages.flatMap((item, index) => [
+         { type: 'text', text: 'Visual reference ' + (index + 1) + ': ' + (item.assetName || 'Attached image/video frame') + (item.assetId ? ' (Asset ' + item.assetId + ')' : '') + '.' },
+         { type: 'image_url', image_url: { url: 'data:' + item.mimeType + ';base64,' + item.data, detail: 'high' } },
+       ]);
+       const target = baseMessages[latestUserIndex];
+       baseMessages = baseMessages.map((message, index) => index === latestUserIndex
+         ? { ...message, content: [{ type: 'text', text: String(target.content ?? '') }, ...imageContent] }
+         : message);
+     }
+     let finalMessages: unknown[] = baseMessages;
 
     // Global Workspace reads are available on every page. Vyral-specific reads are added only after server-side ownership verification.
     let operatorAction: Record<string, unknown> | null = null;
