@@ -28,6 +28,11 @@ test('parses explicit state facts and retains model-only proposal authority', ()
   assert.equal(result.proposal.intendedChanges.length, 1);
 });
 
+
+test('rejects an empty state snapshot so continuity cannot pass vacuously', () => {
+  assert.equal(parseSceneStateProposal(makeResponse([], []), 'scene-1').ok, false);
+});
+
 test('rejects prose-only output rather than guessing Scene state', () => {
   assert.equal(parseSceneStateProposal('Mira walks into a hall.', 'scene-1').ok, false);
 });
