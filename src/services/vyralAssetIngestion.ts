@@ -6,6 +6,8 @@ export type VyralAssetIngestionInput = {
   vyralId: string;
   userId: string;
   file: File;
+  /** Optional stable ID for retry-safe generated Asset ingestion. */
+  assetId?: string;
   /** AI/user-approved VYRA display name; the original source filename is always preserved separately. */
   assetName?: string;
   folderId?: string | null;
@@ -284,7 +286,8 @@ export async function ingestVyralAsset(
   if (!assetName || assetName.length > 180 || /[\\/\u0000-\u001f\u007f]/.test(assetName)) {
     throw new Error('The Asset display name is invalid. Use 1–180 characters without path separators or control characters.');
   }
-  const assetId = globalThis.crypto.randomUUID();
+  const assetId = input.assetId ?? globalThis.crypto.randomUUID();
+  if (!UUID.test(assetId)) throw new Error('The supplied Asset ID is invalid.');
   const mimeType = file.type || 'application/octet-stream';
   const assetType = classifyVyralAssetFile(file);
   const extension = file.name.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
@@ -422,6 +425,8 @@ export async function ingestGeneratedVyralAsset(
     userId: input.userId,
     folderId: input.folderId,
     file: input.file,
+    assetName: input.assetName,
+    assetId: input.assetId,
     metadata,
     signal: input.signal,
   });
