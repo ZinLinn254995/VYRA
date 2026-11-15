@@ -114,7 +114,7 @@ export function getSceneContinuityContext(
     previousSceneId: current.previousSceneId,
     previousExitState: previousSceneApproved ? previous?.exitState ?? null : null,
     previousSceneApproved,
-    currentEntryState: current.entryState,
+    currentEntryState: current.entryState ?? (previousSceneApproved ? previous?.exitState ?? null : null),
     intendedChanges: current.intendedChanges,
     contextComplete: previousSceneApproved && (current.sequence === 0 || Boolean(previous?.exitState)),
   };
