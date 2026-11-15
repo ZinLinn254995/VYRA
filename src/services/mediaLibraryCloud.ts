@@ -527,7 +527,7 @@ export async function renameMediaLibraryItem(itemId: string, fileName: string, u
   if (error) throw new Error('Could not rename file: ' + error.message);
 }
 
-export async function deleteMediaLibraryItems(itemIds: string[], universeId?: string | null): Promise<{ deletedCount: number; cleanupPending: boolean; masterDnaStatus?: 'ready' | 'pending' }> {
+export async function deleteMediaLibraryItems(itemIds: string[], universeId?: string | null): Promise<{ deletedCount: number; cleanupPending: boolean; masterDnaStatus?: 'ready' | 'pending' | 'empty' }> {
   if (!itemIds.length) return { deletedCount: 0, cleanupPending: false };
   const db = getDb();
   const userId = await getOwnerId();
@@ -563,10 +563,11 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
     }
     const { error: deleteError } = await db.from('vyral_assets').delete().in('id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
     if (deleteError) throw new Error('Stored media was removed, but the Asset records could not be deleted: ' + deleteError.message);
-    let masterDnaStatus: 'ready' | 'pending' = 'pending';
+    let masterDnaStatus: 'ready' | 'pending' | 'empty' = 'pending';
     try {
       const { data, error } = await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
       if (!error && data?.status === 'ready') masterDnaStatus = 'ready';
+      else if (data?.status === 'empty_vyral') masterDnaStatus = 'empty';
     } catch {
       masterDnaStatus = 'pending';
     }
