@@ -91,7 +91,7 @@ test('produces a stable cache key for the same revision-pinned task context', ()
 test('rejects duplicate Asset IDs and invalid limits', () => {
   assert.throws(() => resolveUniverseConsistencyContext({
     ...input, assets: [...input.assets, input.assets[0]],
-  }, { taskId: 'bad', operation: 'generate' }), /Duplicate Universe Asset ID/);
+  }, { taskId: 'bad', operation: 'generate', at: '2026-11-15T00:00:00Z' }), /Duplicate Universe Asset ID/);
   assert.throws(() => resolveUniverseConsistencyContext(input, {
     taskId: 'bad-limit', operation: 'generate', maxAssets: 0,
   }), /maxAssets/);
