@@ -84,7 +84,7 @@ export const AppHeader: React.FC<HeaderProps> = ({
       <div className="mx-auto hidden h-16 max-w-[var(--vyra-content-width)] items-center justify-between gap-2 px-3 sm:flex sm:gap-4 sm:px-6">
         <button type="button" onClick={onWorkspaceRequest} aria-label="VYRA Workspace home" className="flex shrink-0 items-center gap-2">
           <BrandMark className="size-9 rounded-xl" />
-          <span className="text-base font-semibold tracking-wide text-[var(--vyra-text-primary)]">Workspace</span>
+          <span className="text-base font-semibold tracking-wide text-[var(--vyra-text-primary)]">VYRA</span>
         </button>
 
         <div className="relative flex shrink-0 items-center gap-2">
@@ -112,7 +112,7 @@ export const AppHeader: React.FC<HeaderProps> = ({
         <div className="flex h-14 items-center justify-between gap-2">
           <button type="button" onClick={onWorkspaceRequest} aria-label="VYRA Workspace home" className="flex min-w-0 shrink-0 items-center gap-1.5">
             <BrandMark className="size-8 rounded-[10px]" />
-            <span className="text-sm font-semibold tracking-wide text-[var(--vyra-text-primary)]">Workspace</span>
+            <span className="text-sm font-semibold tracking-wide text-[var(--vyra-text-primary)]">VYRA</span>
           </button>
 
           <div className="relative flex shrink-0 items-center gap-2">
