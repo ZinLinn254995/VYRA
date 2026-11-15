@@ -167,6 +167,18 @@ test('AI Chat retrieves task-relevant Assets and only uses revision-pinned relat
   assert.match(retrieval, /truncatedAssets/);
 });
 
+test('AI Chat keeps conflicting creator-confirmed facts unresolved instead of silently choosing canon', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  const evidence = read('src/services/universeConsistencyEvidence.ts');
+  assert.match(edge, /resolveCreatorConfirmedFieldEvidence/);
+  assert.match(edge, /creatorConfirmedFieldConflicts/);
+  assert.match(edge, /creatorFieldResolutionByAsset/);
+  assert.match(edge, /multiple values for the same field and temporal scope is explicitly unresolved/);
+  assert.match(evidence, /unresolved_conflict/);
+  assert.match(evidence, /multiple_creator_confirmed_values_for_same_field_and_time/);
+  assert.match(evidence, /effective_at.*valid_from.*at.*timestamp.*event_id/);
+});
+
 test('AI Chat consistency context verifies Master DNA integrity and only admits creator-confirmed evidence pinned to the exact snapshot version', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /validateVyralMasterDnaV1\(rawMasterSnapshot\)/);
