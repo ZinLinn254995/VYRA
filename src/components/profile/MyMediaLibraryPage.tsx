@@ -380,7 +380,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
   const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
     const failures: Array<{ file: File; message: string }> = [];
-    let masterDnaStatus: 'ready' | 'pending' | null = null;
+    let masterDnaStatus: 'ready' | 'pending' | 'empty' | null = null;
     const controller = new AbortController();
     uploadAbortControllerRef.current = controller;
     setStopRequested(false);
@@ -434,7 +434,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
         if (count > 0) setSelectedIds([]);
         const stopped = controller.signal.aborted;
         const dnaMessage = universeId && count > 0
-          ? masterDnaStatus === 'ready' ? ' Universe Master DNA synchronized.' : ' Universe Master DNA synchronization is pending.'
+          ? masterDnaStatus === 'ready' ? ' Universe Master DNA synchronized.' : masterDnaStatus === 'empty' ? ' Universe is empty; Master DNA will be created when you add an Asset.' : ' Universe Master DNA synchronization is pending.'
           : '';
         setNotice(
           (stopped
