@@ -168,7 +168,7 @@ export type RunwaySceneContinuityInput = {
   editorView?: string;
   selectedTimelineItem?: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null;
   selectedSceneIds?: string[];
-  continuityRuntime?: { sceneIds?: string[]; scenes?: Array<{ id: string; title: string }>; ledger?: unknown } | null;
+  continuityRuntime?: { sceneIds?: string[]; scenes?: Array<{ id: string; title: string; description?: string }>; ledger?: unknown } | null;
   activeSceneId?: string | null;
   activeSceneTitle?: string | null;
   activeSceneDescription?: string | null;
@@ -209,7 +209,7 @@ export function buildRunwaySceneContinuityPrompt(
     : input.activeSceneId;
   const selectedScene = input.continuityRuntime?.scenes?.find((scene) => scene.id === selectedSceneId);
   const title = safeText(selectedScene?.title || input.activeSceneTitle, 180);
-  const description = safeText(input.activeSceneDescription, 1200);
+  const description = safeText(selectedScene?.description || input.activeSceneDescription, 1200);
   const runtimeScenes = (input.continuityRuntime?.sceneIds ?? []).map((id) => ({ id }));
   const runtimeLedger = input.continuityRuntime?.ledger
     ? hydrateSceneContinuityLedger(input.continuityRuntime.ledger, runtimeScenes)
