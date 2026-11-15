@@ -506,6 +506,16 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   assert.ok(migration.includes('Parent folder does not belong to this Library scope'), 'Database triggers must reject cross-Universe folder moves.');
 
   assert.ok(service.includes('async function assertStoryboardUniverse'), 'Every scoped operation must verify ownership and Storyboard scope.');
+  for (const operation of [
+    'renameMediaLibraryFolder', 'deleteMediaLibraryFolder', 'moveMediaLibraryFolder',
+    'moveMediaLibraryItems', 'renameMediaLibraryItem', 'backfillMediaLibraryThumbnails',
+    'uploadMediaLibraryFiles',
+  ]) {
+    const start = service.indexOf('export async function ' + operation);
+    const end = service.indexOf('\\nexport async function ', start + 10);
+    const body = service.slice(start, end < 0 ? undefined : end);
+    assert.ok(body.includes('assertStoryboardUniverse(db, userId, universeId'), operation + ' must verify the active private Universe before acting.');
+  }
   assert.ok(service.includes('async function syncStoryboardUniverseLibrary'), 'AI-created folders and Assets must be reconciled into the Library view.');
   assert.equal((service.match(/\.range\(offset, offset \+ 499\)/g) ?? []).length, 2, 'Folder and Asset reconciliation must page through the full Universe inventory rather than silently stopping at 1,000 rows.');
   assert.ok(service.includes('db.from(\'vyral_folders\')'), 'Universe folders must share canonical IDs with AI folder tools.');
