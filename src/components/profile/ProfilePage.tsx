@@ -41,13 +41,13 @@ type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponen
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
     { key: 'public-profile', label: 'My Public Profile', detail: 'Your creator identity and public showcase', icon: UserRound },
-    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage drafts and published creative assets', icon: VyralIdentityIcon },
+    { key: 'my-vyrals', label: 'My Universes', detail: 'Manage your creative Universes and their Assets', icon: VyralIdentityIcon },
     { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded images, videos, audio and files', icon: Images },
   ] },
   { title: 'My Library', items: [
-    { key: 'saved', label: 'Saved', detail: 'Vyrals you bookmarked for later', icon: Bookmark },
+    { key: 'saved', label: 'Saved', detail: 'Universes you bookmarked for later', icon: Bookmark },
     { key: 'purchased', label: 'Purchased', detail: 'Your purchases, licenses and usage rights', icon: ShoppingBag },
-    { key: 'collections', label: 'My Collections', detail: 'Organize Vyrals into personal collections', icon: FolderHeart },
+    { key: 'collections', label: 'My Collections', detail: 'Organize Universes into personal collections', icon: FolderHeart },
   ] },
   { title: 'Community', items: [
     { key: 'following', label: 'Following', detail: 'Creators you follow', icon: Users },
@@ -67,14 +67,14 @@ const groups: { title: string; items: NavItem[] }[] = [
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
   'public-profile': { title: 'My Public Profile', description: 'Manage the creator profile other people can visit.', icon: UserRound, note: 'Your public creator page and profile editor will appear here.' },
-  'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: VyralIdentityIcon, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
+  'my-vyrals': { title: 'My Universes', description: 'Manage your creative Universes and their Assets.', icon: VyralIdentityIcon, note: 'Your Universes, folders, Assets and visibility controls will appear here.' },
   'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded images, videos, audio and files.', icon: Images, note: 'Your uploaded images, videos, audio and documents will appear here.' },
-  saved: { title: 'Saved', description: 'Keep interesting Vyrals together for later.', icon: Bookmark, note: 'Vyrals you save from the Marketplace will appear here. Saved items are private by default.' },
-  purchased: { title: 'Purchased', description: 'Access your purchased Vyrals and their license details.', icon: ShoppingBag, note: 'Your purchases, receipts, license terms and available updates will appear here. A purchase does not automatically grant resale rights.' },
+  saved: { title: 'Saved', description: 'Keep interesting Universes together for later.', icon: Bookmark, note: 'Universes you save from the Marketplace will appear here. Saved items are private by default.' },
+  purchased: { title: 'Purchased', description: 'Access your purchased Universes and their license details.', icon: ShoppingBag, note: 'Your Universe purchases, receipts, license terms and available updates will appear here. A purchase does not automatically grant resale rights.' },
   collections: { title: 'My Collections', description: 'Group Vyrals into collections that match your creative interests.', icon: FolderHeart, note: 'Create and manage private or public collections here.' },
   following: { title: 'Following', description: 'Keep up with creators whose work you enjoy.', icon: Users, note: 'Creators you follow will appear here. Your following list can be made private in Settings.' },
-  'creator-dashboard': { title: 'Creator Dashboard', description: 'Understand how your published Vyrals are performing.', icon: ChartNoAxesCombined, note: 'Creator analytics for views, uses, sales and earnings will appear here.' },
-  notifications: { title: 'Notifications', description: 'Stay informed about activity on your VYRA account.', icon: Bell, note: 'Follow alerts, purchases, Vyral updates and system notifications will appear here.' },
+  'creator-dashboard': { title: 'Creator Dashboard', description: 'Understand how your published Universes are performing.', icon: ChartNoAxesCombined, note: 'Creator analytics for views, uses, sales and earnings will appear here.' },
+  notifications: { title: 'Notifications', description: 'Stay informed about activity on your VYRA account.', icon: Bell, note: 'Follow alerts, purchases, Universe updates and system notifications will appear here.' },
   settings: { title: 'Settings', description: 'Control your account and VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
   'setting-account': { title: 'Account & Profile', description: 'Manage your email, personal details and public profile.', icon: UserRound, note: 'Account and profile controls are coming soon.' },
   'setting-security': { title: 'Security & Privacy', description: 'Manage password, active sessions and privacy controls.', icon: ShieldCheck, note: 'Security and privacy controls are coming soon.' },
