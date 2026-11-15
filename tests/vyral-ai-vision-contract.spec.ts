@@ -33,16 +33,18 @@ test('AI Chat validates Universal File DNA and clearly separates byte identity f
   assert.match(chat, /File DNA binaries are integrity-checked but their audio\/video\/document contents are not decoded or attached to Vision/);
 });
 
-test('Vyral image previews are prepared locally but never routed to Gemini', () => {
+test('Vyral image previews are prepared locally and routed through OpenAI Vision', () => {
   assert.match(chat, /visionImages/);
-  assert.match(chat, /v3Records\.slice\(0, 4\)/);
+  assert.match(chat, /v3Records\\.slice\\(0, 4\\)/);
   assert.match(chat, /assetName/);
-  assert.match(service, /request\.visionImages\?\.length \|\| request\.mediaFiles\?\.length/);
-  assert.match(service, /OpenAI text chat is available/);
+  assert.ok(service.includes('if (request.mediaFiles?.length)'));
+  assert.match(service, /Raster images and browser-sampled video frames use the platform OpenAI Vision path/);
   assert.doesNotMatch(service, /Google Gemini|gemini-[0-9]/i);
-  assert.match(server, /OPENAI_MULTIMODAL_NOT_ENABLED/);
+  assert.match(server, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
+  assert.match(server, /visionImages\\.length \\? \\{ visionImages \\}/);
+  assert.match(server, /visionImages\\.length > 4/);
   assert.doesNotMatch(server, /gemini|Google Gemini/i);
-  assert.match(entry, /express\.json\(\{ limit: '8mb' \}\)/);
+  assert.match(entry, /express\\.json\\(\\{ limit: '8mb' \\}\\)/);
 });
 
 test('new Asset uploads persist automatic AI observations against the exact source version', async () => {
