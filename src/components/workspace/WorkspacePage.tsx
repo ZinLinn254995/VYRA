@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPage } from '../ai/AIChatPage';
+import { StoryboardUniverseTab } from './StoryboardUniverseTab';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
@@ -74,7 +75,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
-  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master' | 'chat'>('scenes');
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master' | 'chat' | 'universe'>('scenes');
+  const [storyboardUniverse, setStoryboardUniverse] = useState<{ id: string; name: string; description: string } | null>(null);
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [sceneVideoPreviewUrl, setSceneVideoPreviewUrl] = useState('');
@@ -516,6 +518,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         sceneTitles: scenes.slice(0, 30).map((scene) => scene.title),
       } : null,
       ...(activeStoryboard ? { editorView: storyboardEditorView } : {}),
+      storyboardUniverse: storyboardUniverse ? { ...storyboardUniverse } : null,
       selectedSceneIds: selectedSceneIds.slice(0, 30),
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
@@ -564,7 +567,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
     setLocalWorkspaceAiContext(context);
     onAiContextChange?.(context);
-  }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
+  }, [onAiContextChange, activeStoryboard, storyboardEditorView, storyboardUniverse, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
   useLayoutEffect(() => {
     const storageOwnerChanged = storyboardStorageKeyRef.current !== storageKey;
@@ -575,6 +578,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       suggestionRequestIdRef.current += 1;
       lastStoryboardSyncAtRef.current = 0;
       setActiveStoryboard(null);
+      setStoryboardUniverse(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardToDelete(null);
       setIsDeletingStoryboard(false);
@@ -1295,6 +1299,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       root.classList.remove('is-header-dragging');
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
       setActiveStoryboard(null);
+      setStoryboardUniverse(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardDetailsExpanded(true);
       setStoryboardEditorView('scenes');
@@ -1354,6 +1359,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                 <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
+                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Universe</button>
                 <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
               </div>
             </div>
@@ -1483,8 +1489,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     ) : (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} embedded />
+                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse?.id ?? null} embedded />
                       </div>
+                    ) : (
+                      <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'universe')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} onSendAssetsToChat={onSelectedAssetsChange} />
                     )}
                 </div>
               );
