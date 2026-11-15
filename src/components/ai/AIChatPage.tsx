@@ -2214,9 +2214,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (result.status === 'approval_declined') {
         setMediaGenerationStatus('Cancelled. No job was created and no credits were reserved.');
       } else if (result.status === 'ready') {
-        const summary = result.assets.map((asset, index) => (index + 1) + '. ' + asset.assetId + ' · ' + asset.mimeType).join('\n');
+        const generatedAssets = result.assets ?? [];
+        if (!generatedAssets.length) throw new Error('The generation job completed without verified Project Assets.');
+        const summary = generatedAssets.map((asset, index) => (index + 1) + '. ' + asset.assetId + ' · ' + asset.mimeType).join('\n');
         setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success',
-          content: 'Media generation completed. ' + result.assets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\n\n' + summary }]);
+          content: 'Media generation completed. ' + generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\n\n' + summary }]);
         setDraft('');
         setMediaGenerationStatus('Completed. Your new media is available in Project Assets.');
       } else if (result.status === 'submitted_pending') {
