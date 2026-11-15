@@ -133,6 +133,30 @@ Deno.serve(async (request: Request) => {
   }
 
   const targetVyralId = typeof claim.target_vyral_id === 'string' ? claim.target_vyral_id : '';
+  // A prior attempt may have uploaded successfully but lost its response. Reuse that
+  // private object instead of depending on the temporary provider URL remaining valid.
+  if (claim.status === 'ingesting' && typeof claim.storage_path === 'string') {
+    const { data: prior, error: priorError } = await context.supabaseAdmin
+      .from('media_generation_job_outputs')
+      .select('storage_path,sha256,mime_type,size_bytes')
+      .eq('job_id', body.jobId).eq('output_index', outputIndex).maybeSingle();
+    if (priorError || !prior?.storage_path || !prior.sha256 || !prior.mime_type || !prior.size_bytes) {
+      return json({ error: 'The previously stored Project output could not be recovered safely.' }, 503);
+    }
+    const { data: priorSigned, error: priorSignError } = await context.supabaseAdmin.storage
+      .from(BUCKET).createSignedUrl(prior.storage_path, SIGNED_URL_SECONDS);
+    if (priorSignError || !priorSigned?.signedUrl) {
+      return json({ error: 'The private Project output could not be opened for ingestion.' }, 503);
+    }
+    return json({
+      jobId: body.jobId, outputIndex, targetVyralId, status: 'stored',
+      storagePath: prior.storage_path, signedUrl: priorSigned.signedUrl,
+      signedUrlExpiresInSeconds: SIGNED_URL_SECONDS, sha256: prior.sha256,
+      mimeType: prior.mime_type, sizeBytes: prior.size_bytes,
+      message: 'Recovered the previously stored private output. Canonical Project Asset DNA ingestion is next.',
+    });
+  }
+
   const providerUrl = validateProviderOutputUrl(claim.output_url, allowedHosts);
   if (!UUID.test(targetVyralId) || !providerUrl) {
     await context.supabaseAdmin.rpc('record_runway_output_transfer', {
