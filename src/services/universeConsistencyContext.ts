@@ -32,8 +32,10 @@ export interface BuiltUniverseConsistencyContext {
 export function buildUniverseConsistencyContext(
   input: BuildUniverseConsistencyContextInput,
 ): BuiltUniverseConsistencyContext {
+  const knownAssetIds = new Set(input.assets.map((asset) => asset.id));
   const uniqueDnaAssets = new Set<string>();
   for (const source of input.assetDnaSources) {
+    if (!knownAssetIds.has(source.assetId)) throw new Error('Asset DNA source is outside the canonical Universe inventory.');
     if (uniqueDnaAssets.has(source.assetId)) {
       throw new Error('Only one current Asset DNA source may be supplied per Asset.');
     }
