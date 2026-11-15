@@ -189,10 +189,10 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
     <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
       <ProfileSubpageHeader
         onBack={() => { setActiveId(null); setQuery(''); }}
-        backLabel="Back to My Vyrals"
+        backLabel="Back to My Universes"
         icon={<VyralIdentityIcon size={22} />}
-        title={active.name.toLowerCase().endsWith('.vyral') ? active.name : active.name + '.vyral'}
-        description={active.description || 'A complete Vyral package containing original Assets and protected System Files.'}
+        title={active.name}
+        description={active.description || 'Your creative Universe and its original Assets.'}
         search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" aria-label="Search files" className={fieldClass + ' pl-9'} /></div>}
       />
       <div className="profile-subpage-content space-y-3 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
@@ -208,17 +208,17 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
           onBack={onBack}
           backLabel={backLabel}
           icon={<VyralIdentityIcon size={22} />}
-          title="My Vyrals"
-          description="Your Vyral packages and their original Assets."
-          search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Vyrals" className={fieldClass + ' pl-9'} /></div>}
+          title="My Universes"
+          description="Your creative Universes and the Assets they contain."
+          search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Universes" className={fieldClass + ' pl-9'} /></div>}
         />
         <div className="profile-subpage-content space-y-5 p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
           {error && <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-500">{error}</div>}
-          {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Vyrals…</div> :
+          {loading ? <div className="py-16 text-center text-xs text-[var(--vyra-text-muted)]">Loading your Universes…</div> :
             visibleVyrals.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleVyrals.map((item) => (
               <article key={item.id} className="overflow-hidden rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
-                <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">VYRAL PACKAGE · .VYRAL</span></button>
-                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name.toLowerCase().endsWith('.vyral') ? item.name : item.name + '.vyral'}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A Creative Universe you can grow over time.'}</p>
+                <button type="button" onClick={() => setActiveId(item.id)} className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.18),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={38}/><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">CREATIVE UNIVERSE</span></button>
+                <div className="p-4"><div className="flex items-start gap-2"><button type="button" onClick={() => setActiveId(item.id)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.name}</h3><p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--vyra-text-secondary)]">{item.description || 'A Creative Universe you can grow over time.'}</p>
                     {(() => {
                       const fields = (item.metadata?.ai_details as { fields?: Record<string, { value?: unknown }> } | undefined)?.fields ?? {};
                       const category = typeof fields.category?.value === 'string' ? fields.category.value : '';
@@ -230,10 +230,10 @@ export const MyVyralsPage: React.FC<Props> = ({ isAuthenticated, isActive = true
                     })()}
                   </button>{isProtectedVyral(item) ? <span title="Protected sample — deletion disabled" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--vyra-accent-primary)]"><LockKeyhole size={12}/> Protected</span> : <button type="button" onClick={() => void deleteVyral(item)} aria-label={'Delete '+item.name} disabled={busy} className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-danger)]"><Trash2 size={15}/></button>}</div>
                   <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--vyra-text-muted)]"><span>{item.assetCount} assets · {item.folderCount} folders</span><span className="capitalize">{item.visibility}</span></div>
-                  <button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Vyral <ChevronRight size={14}/></button>
+                  <button type="button" onClick={() => setActiveId(item.id)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--vyra-accent-primary)]">Open Universe <ChevronRight size={14}/></button>
                 </div>
               </article>
-            ))}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] px-6 py-10 text-center"><div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={28}/></div><h3 className="mt-4 text-base font-semibold text-[var(--vyra-text-primary)]">{query?'No matching Vyrals':'No Vyrals yet'}</h3><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">{query?'Try another search term.':'Ask VYRA AI Chat to start a Creative Universe and add characters, places, stories, and Assets.'}</p></div>}
+            ))}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] px-6 py-10 text-center"><div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={28}/></div><h3 className="mt-4 text-base font-semibold text-[var(--vyra-text-primary)]">{query?'No matching Universes':'No Universes yet'}</h3><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">{query?'Try another search term.':'Create a Universe to organize characters, places, stories, worlds, and other creative Assets.'}</p></div>}
 
         </div>
       </section>
