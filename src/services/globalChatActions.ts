@@ -300,6 +300,7 @@ export type GlobalChatVyralAssetUploadDraft = {
 
 export const extractVyralAssetUploadTarget = (input: string): string | null => {
   const patterns = [
+    /^\s*(?:add|save|upload|put)\s+(?:this\s+)?file\s+(?:to|into)\s+(?:my\s+)?(?:universe|vyral)\s+["“']?(.+?)["”']?\s*[.!?]*\s*$/i,
     /^\s*(?:add|save|upload|put)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+(?:my\s+)?(?:universe|vyral)\s+["“']?(.+?)["”']?\s*[.!?]*\s*$/i,
     /^\s*(?:add|save|upload)\s+(?:this|the attached file|attachment|file)\s+(?:to|into)\s+["“']?(.+?)["”']?\s+(?:universe|vyral)\s*[.!?]*\s*$/i,
     /^\s*(?:ဒီဖိုင်ကို|ဒီ Asset ကို|ပူးတွဲဖိုင်ကို)\s*(?:(?:universe|vyral)\s*)?["“']?(.+?)["”']?\s*(?:ထဲ|ထဲကို)\s*(?:ထည့်|သိမ်း)(?:ပေး)?\s*$/i,
