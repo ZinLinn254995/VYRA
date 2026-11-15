@@ -208,8 +208,10 @@ export function buildRunwaySceneContinuityPrompt(
     ? (input.selectedTimelineItem?.kind === 'scene' ? input.selectedTimelineItem.id : null)
     : input.activeSceneId;
   const selectedScene = input.continuityRuntime?.scenes?.find((scene) => scene.id === selectedSceneId);
-  const title = safeText(selectedScene?.title || input.activeSceneTitle, 180);
-  const description = safeText(selectedScene?.description || input.activeSceneDescription, 1200);
+  // A non-Scene Master Editor selection must not inherit a stale active
+  // Scene title or description from the previously selected timeline item.
+  const title = safeText(selectedScene?.title || (selectedSceneId ? input.activeSceneTitle : null), 180);
+  const description = safeText(selectedScene?.description || (selectedSceneId ? input.activeSceneDescription : null), 1200);
   const runtimeScenes = (input.continuityRuntime?.sceneIds ?? []).map((id) => ({ id }));
   const runtimeLedger = input.continuityRuntime?.ledger
     ? hydrateSceneContinuityLedger(input.continuityRuntime.ledger, runtimeScenes)
