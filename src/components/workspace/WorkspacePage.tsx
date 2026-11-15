@@ -749,7 +749,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
   }, [storageKey, isAuthenticated, isActive, loadedStorageKey]);
 
-  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardUniverse(null); setStoryboardEditorView('scenes'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
   const confirmDeleteStoryboard = async () => {
     if (!storyboardToDelete || isDeletingStoryboard) return;
@@ -853,6 +853,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
     setSelectedSceneIds([]);
     setActiveSceneId(null);
+    setStoryboardUniverse(null);
     setActiveStoryboard(storyboard);
     setActiveStoryboardConfirmed(true);
     setStoryboardDetailsExpanded(false);
