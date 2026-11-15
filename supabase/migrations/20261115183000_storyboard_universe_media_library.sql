@@ -114,11 +114,27 @@ end;
 $$;
 
 drop policy if exists media_library_folders_select_own on public.media_library_folders;
+drop index if exists public.media_library_items_source_asset_unique;
+create unique index media_library_items_source_asset_unique
+  on public.media_library_items(user_id, universe_id, source_asset_id);
+
+drop trigger if exists media_library_folders_parent_owner on public.media_library_folders;
+create trigger media_library_folders_parent_owner
+before insert or update of user_id, parent_id, name, universe_id
+on public.media_library_folders
+for each row execute function public.enforce_media_library_folder_parent_owner();
+
+drop trigger if exists media_library_items_owner_refs on public.media_library_items;
+create trigger media_library_items_owner_refs
+before insert or update of user_id, folder_id, source_asset_id, universe_id
+on public.media_library_items
+for each row execute function public.enforce_media_library_item_owner_refs();
+
 create policy media_library_folders_select_own on public.media_library_folders
 for select to authenticated using (
   user_id = (select auth.uid()) and (
     universe_id is null or exists (
-      select 1 from public.vyrals u where u.id = universe_id
+      select 1 from public.vyrals u where u.id = media_library_folders.universe_id
         and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
     )
   )
@@ -149,7 +165,7 @@ create policy media_library_items_select_own on public.media_library_items
 for select to authenticated using (
   user_id = (select auth.uid()) and (
     universe_id is null or exists (
-      select 1 from public.vyrals u where u.id = universe_id
+      select 1 from public.vyrals u where u.id = media_library_items.universe_id
         and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
     )
   )
@@ -159,7 +175,7 @@ create policy media_library_items_insert_own on public.media_library_items
 for insert to authenticated with check (
   user_id = (select auth.uid()) and (
     universe_id is null or exists (
-      select 1 from public.vyrals u where u.id = universe_id
+      select 1 from public.vyrals u where u.id = media_library_items.universe_id
         and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
     )
   )
@@ -170,7 +186,7 @@ for update to authenticated using (user_id = (select auth.uid()))
 with check (
   user_id = (select auth.uid()) and (
     universe_id is null or exists (
-      select 1 from public.vyrals u where u.id = universe_id
+      select 1 from public.vyrals u where u.id = media_library_items.universe_id
         and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
     )
   )
