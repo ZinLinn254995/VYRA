@@ -3906,11 +3906,11 @@ Deno.serve(async (request: Request) => {
       context.supabaseAdmin.from('vyral_assets')
         .select('id,name,asset_type,mime_type,description,processing_status,metadata', { count: 'exact' })
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
-        .neq('processing_status', 'archived').order('updated_at', { ascending: false }).limit(30),
+        .neq('processing_status', 'archived').order('updated_at', { ascending: false }).limit(120),
       context.supabaseAdmin.from('vyral_dna_records')
         .select('id,asset_id,schema_version,revision_number,dna_status,verification_status,source_kind,created_at,payload,record_id:payload->dna_record->>record_id,schema_id:payload->dna_record->>schema_id,source:payload->dna_record->source,extractor:payload->dna_record->extractor,decoded_image:payload->dna_record->decoded_image,file:payload->dna_record->file,structure:payload->dna_record->structure', { count: 'exact' })
         .eq('vyral_id', activeVyralId).eq('user_id', userId).eq('scope', 'asset')
-        .order('revision_number', { ascending: false }).order('created_at', { ascending: false }).limit(120),
+        .order('revision_number', { ascending: false }).order('created_at', { ascending: false }).limit(480),
       context.supabaseAdmin.from('vyral_asset_relationships')
         .select('relationship_type,from_kind,from_asset_id,to_kind,to_asset_id,rationale')
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
@@ -3930,7 +3930,7 @@ Deno.serve(async (request: Request) => {
           .select('id,asset_id,asset_version_id,observation_id,evidence_kind,decision,source_sha256,field_path,accepted_value,note,created_at', { count: 'exact' })
           .eq('user_id', userId).eq('evidence_kind', 'field_confirmation').eq('decision', 'creator_confirmed')
           .in('asset_id', assets.map((asset) => asset.id))
-          .order('created_at', { ascending: false }).limit(120)
+          .order('created_at', { ascending: false }).limit(480)
       : { data: [], count: 0, error: null };
     if (creatorEvidenceResult.error) return json({ error: 'Could not load creator-confirmed Universe evidence.' }, 503);
     const dnaContextTruncated = (dnaResult.count ?? 0) > (dnaResult.data?.length ?? 0);
@@ -3978,7 +3978,7 @@ Deno.serve(async (request: Request) => {
           .eq('user_id', userId)
           .in('asset_id', assets.map((asset) => asset.id))
           .in('verification_status', ['observed', 'corroborated', 'creator_confirmed', 'independently_verified'])
-          .order('created_at', { ascending: false }).limit(180)
+          .order('created_at', { ascending: false }).limit(360)
       : { data: [], count: 0, error: null };
     if (visionObservationResult.error) return json({ error: 'Could not load version-pinned Universe observations.' }, 503);
     const visionObservationHistoryTruncated = (visionObservationResult.count ?? 0) > (visionObservationResult.data?.length ?? 0);
@@ -4187,7 +4187,8 @@ Deno.serve(async (request: Request) => {
       ? masterSnapshot.purpose as Record<string, unknown> : {};
     const snapshotProfile = masterSnapshot?.reconstruction_profile && typeof masterSnapshot.reconstruction_profile === 'object' && !Array.isArray(masterSnapshot.reconstruction_profile)
       ? masterSnapshot.reconstruction_profile as Record<string, unknown> : {};
-    const snapshotAssetContext = snapshotAssets.slice(0, 30).map((raw) => {
+    const snapshotAssetInventoryTruncated = snapshotAssets.length > 240;
+    const snapshotAssetContext = snapshotAssets.slice(0, 240).map((raw) => {
       const item = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
       const dnaRef = item.dna_ref && typeof item.dna_ref === 'object' && !Array.isArray(item.dna_ref)
         ? item.dna_ref as Record<string, unknown> : {};
@@ -4203,8 +4204,10 @@ Deno.serve(async (request: Request) => {
         reconstructionClaim: item.reconstruction_claim,
       };
     });
-    const snapshotRelationships = Array.isArray(masterSnapshot?.relationships)
-      ? masterSnapshot.relationships.slice(0, 30).map((raw) => {
+    const rawSnapshotRelationships = Array.isArray(masterSnapshot?.relationships) ? masterSnapshot.relationships : [];
+    const snapshotRelationshipsTruncated = rawSnapshotRelationships.length > 240;
+    const snapshotRelationships = rawSnapshotRelationships
+      .slice(0, 240).map((raw) => {
           const item = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
           return {
             type: typeof item.type === 'string' ? item.type.slice(0, 64) : '',
@@ -4279,7 +4282,7 @@ Deno.serve(async (request: Request) => {
           : Array.isArray(activeVyral.master_dna_intended_uses)
             ? activeVyral.master_dna_intended_uses.filter((item: unknown): item is string => typeof item === 'string').slice(0, 12)
             : [],
-        mainAssetIds: Array.isArray(masterSnapshot?.main_asset_ids) ? masterSnapshot.main_asset_ids.slice(0, 30) : [],
+        mainAssetIds: Array.isArray(masterSnapshot?.main_asset_ids) ? masterSnapshot.main_asset_ids.slice(0, 120) : [],
         snapshotAssets: selectedSnapshotAssetContext,
         snapshotRelationships: selectedSnapshotRelationships,
         retrieval: {
@@ -4309,9 +4312,9 @@ Deno.serve(async (request: Request) => {
         fingerprint: masterResult.data?.vyral_fingerprint ?? null,
       },
       assets: selectedAssetContext,
-      assetInventoryTruncated: (assetResult.count ?? assets.length) > assets.length,
+      assetInventoryTruncated: (assetResult.count ?? assets.length) > assets.length || snapshotAssetInventoryTruncated,
       relationships: selectedRelationships,
-      relationshipsTruncated: (relationshipResult.data ?? []).length === 30 || retrieval.truncatedRelationships,
+      relationshipsTruncated: snapshotRelationshipsTruncated || (relationshipResult.data ?? []).length === 30 || retrieval.truncatedRelationships,
     };
     activeVyralInstruction =
       '\n\nCurrent user-selected Vyral context (owner-verified canonical inventory): ' +
