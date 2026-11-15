@@ -86,7 +86,6 @@ export async function buildRunwayProjectConsistencyContext(
     .select('id,from_asset_id,to_asset_id,relationship_type,rationale,review_status')
     .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
     .eq('review_status', 'creator_approved').limit(240);
-  if (relationshipError) throw new Error('Creator-approved Project relationships could not be loaded: ' + relationshipError.message);
   const relationshipSchemaUnavailable = relationshipError?.code === '42P01' || relationshipError?.code === 'PGRST205';
   if (relationshipError && !relationshipSchemaUnavailable) {
     throw new Error('Creator-approved Project relationships could not be loaded: ' + relationshipError.message);
