@@ -7,3 +7,7 @@ coverage/
 .env*
 !.env.example
 .env
+
+# Generated Playwright reports and test failure artifacts.
+artifacts/playwright-report/
+test-results/
