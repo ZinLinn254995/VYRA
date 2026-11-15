@@ -148,6 +148,22 @@ test('VYRA interprets free-form multilingual intent and formats active context w
   assert.doesNotMatch(source, /activeVyralInstruction =\s*'\\\\n/);
 });
 
+test('AI Chat consistency context verifies Master DNA integrity and only admits creator-confirmed evidence pinned to the exact snapshot version', () => {
+  const source = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(source, /validateVyralMasterDnaV1\(rawMasterSnapshot\)/);
+  assert.match(source, /masterResult\.data\.manifest_sha256 === verifiedSnapshot\.integrity\.manifest_sha256/);
+  assert.match(source, /masterResult\.data\.vyral_fingerprint === verifiedSnapshot\.integrity\.vyral_fingerprint/);
+  assert.match(source, /snapshotRoot\.vyral_id === activeVyralId/);
+  assert.match(source, /\.order\('revision_number', \{ ascending: false \}\)\.order\('created_at', \{ ascending: false \}\)/);
+  assert.match(source, /knowledge_promotion_source === 'creator_adopted_vision_observation'/);
+  assert.match(source, /row\.verification_status === 'creator_confirmed'/);
+  assert.match(source, /sourceEvidence\.asset_version_id === pinnedVersionId/);
+  assert.match(source, /sourceEvidence\.source_sha256\.toLowerCase\(\) === pinnedFingerprint/);
+  assert.match(source, /evidence\.asset_version_id !== snapshotAsset\.asset_version_id/);
+  assert.match(source, /evidence\.source_sha256 \?\? ''\)\.toLowerCase\(\) !== snapshotAsset\.asset_fingerprint\.toLowerCase\(\)/);
+  assert.match(source, /Keep AI-observed, unreviewed, disputed, stale-version, or unpinned evidence out of canon/);
+});
+
 test('AI Audio Asset Timeline insertion derives duration and waveform from source-version SHA-bound metadata', () => {
   const source = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(source, /audio_technical_metadata/);
