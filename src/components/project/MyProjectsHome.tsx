@@ -59,7 +59,7 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
         .from('vyrals')
         .select('id,name,updated_at,created_at,metadata')
         .eq('user_id', user.id)
-        .contains('metadata', { project_scope: 'storyboard' })
+        .contains('metadata', { universe_scope: 'storyboard' })
         .order('updated_at', { ascending: false, nullsFirst: false });
       if (cancelled) return;
       if (queryError) {
@@ -95,7 +95,7 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
     <main className="min-h-0 flex-1 overflow-y-auto bg-[var(--vyra-bg-canvas)]">
       <div className="mx-auto w-full max-w-[1440px] px-5 pb-16 pt-9 sm:px-8 lg:px-12 lg:pt-12">
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--vyra-text-primary)] sm:text-4xl">My Project</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--vyra-text-primary)] sm:text-4xl">My Projects</h1>
           <Button size="md" className="shrink-0" startIcon={<Plus size={16} strokeWidth={2.4} />} onClick={onCreateProject}>New</Button>
         </div>
 
@@ -115,7 +115,7 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
                     <img src={project.thumbnailUrl} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" loading="lazy" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.24),transparent_52%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]">
-                      <ProjectIcon size={42} className="text-[var(--vyra-accent-primary)]/75 transition-transform duration-300 group-hover:scale-110" />
+                      <Film size={42} className="text-[var(--vyra-accent-primary)]/75 transition-transform duration-300 group-hover:scale-110" />
                     </div>
                   )}
                 </div>
@@ -128,7 +128,7 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
           </div>
         ) : (
           <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center">
-            <ProjectIcon size={30} className="text-[var(--vyra-text-muted)]" />
+            <Film size={30} className="text-[var(--vyra-text-muted)]" />
             <p className="text-sm font-medium text-[var(--vyra-text-secondary)]">No Projects yet</p>
             <p className="text-xs text-[var(--vyra-text-muted)]">Create your first Project to get started.</p>
           </div>
