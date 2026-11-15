@@ -307,9 +307,9 @@ test('OpenAI platform key management is restricted to platform owners and admins
 test('Global AI Chat routes text and visual requests through the platform OpenAI Vision path', () => {
   const server = read('src/server/ai.ts');
   const browser = read('src/services/aiService.ts');
-  assert.match(server, /callOpenAIChatFunction\\(bearer\\[1\\]/);
-  assert.match(server, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
-  assert.match(server, /visionImages\\.length \\? \\{ visionImages \\}/);
+  assert.ok(server.includes('callOpenAIChatFunction(bearer[1]'));
+  assert.ok(server.includes('DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED'));
+  assert.ok(server.includes('visionImages.length ? { visionImages }'));
   assert.match(server, /AI_TASK_NOT_ENABLED/);
   assert.doesNotMatch(server, /gemini|Google Gemini/i);
   assert.doesNotMatch(browser, /Google Gemini|gemini-[0-9]/i);
