@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
+import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, getSceneContinuityContext, hydrateSceneContinuityLedger, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
 
 test('initializes an empty versioned ledger without inventing Scene state', () => {
   const ledger = hydrateSceneContinuityLedger(undefined, [{ id: 's1' }, { id: 's2' }]);
@@ -152,4 +152,74 @@ test('first Scene context is incomplete until an explicit entry state exists', (
   const context = getSceneContinuityContext(ledger, scenes, 's1');
   assert.equal(context?.contextComplete, false);
   assert.equal(context?.currentEntryState, null);
+});
+
+
+test('runtime evaluates first Scene from an explicit start state and keeps result proposed', () => {
+  const scenes = [{ id: 's1' }];
+  const result = evaluateAndRecordSceneContinuity({
+    ledger: undefined,
+    scenes,
+    sceneId: 's1',
+    initialEntryState: { hero: { outfit: 'blue coat' } },
+    observedExitState: { hero: { outfit: 'torn coat' } },
+    intendedChanges: [{ path: 'hero.outfit', value: 'torn coat', reason: 'The hero is injured in the fight.' }],
+    trackedPaths: ['hero.outfit'],
+    updatedAt: '2026-11-15T02:00:00.000Z',
+  });
+  assert.equal(result.evaluation.status, 'consistent');
+  assert.equal(result.ledger.scenes.s1.validationStatus, 'consistent');
+  assert.equal(result.ledger.scenes.s1.exitState, null);
+  assert.deepEqual(result.ledger.scenes.s1.entryState, { hero: { outfit: 'blue coat' } });
+  assert.deepEqual(result.ledger.scenes.s1.proposedExitState, { hero: { outfit: 'torn coat' } });
+});
+
+test('runtime refuses later Scene evaluation until predecessor handoff is approved', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  assert.throws(() => evaluateAndRecordSceneContinuity({
+    ledger: undefined, scenes, sceneId: 's2',
+    observedExitState: { hero: { location: 'hall' } },
+    trackedPaths: ['hero.location'],
+  }), /approve the previous Scene handoff/);
+});
+
+test('runtime inherits latest approved predecessor state and refreshes stale downstream entries', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T02:01:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T02:02:00.000Z');
+  const result = evaluateAndRecordSceneContinuity({
+    ledger, scenes, sceneId: 's2',
+    observedExitState: { hero: { location: 'street' } },
+    intendedChanges: [{ path: 'hero.location', value: 'street', reason: 'The hero walks outside.' }],
+    trackedPaths: ['hero.location'],
+  });
+  assert.equal(result.evaluation.status, 'consistent');
+  assert.deepEqual(result.ledger.scenes.s2.entryState, { hero: { location: 'hall' } });
+});
+
+test('runtime caps repair attempts at two and escalates unresolved continuity to creator review', () => {
+  const scenes = [{ id: 's1' }];
+  const first = evaluateAndRecordSceneContinuity({
+    ledger: undefined, scenes, sceneId: 's1',
+    initialEntryState: { hero: { outfit: 'blue coat' } },
+    observedExitState: { hero: { outfit: 'red coat' } },
+    trackedPaths: ['hero.outfit'],
+    attempt: 0,
+  });
+  assert.equal(first.evaluation.status, 'needs_review');
+  assert.equal(first.retry.allowed, true);
+  assert.equal(first.retry.requiresCreatorReview, false);
+  assert.equal(first.repairInstructions.length, 1);
+  const finalAttempt = evaluateAndRecordSceneContinuity({
+    ledger: first.ledger, scenes, sceneId: 's1',
+    observedExitState: { hero: { outfit: 'red coat' } },
+    trackedPaths: ['hero.outfit'],
+    attempt: 2,
+  });
+  assert.equal(finalAttempt.retry.allowed, false);
+  assert.equal(finalAttempt.retry.requiresCreatorReview, true);
 });
