@@ -1,3 +1,5 @@
+> **HISTORICAL ORIGIN-01 RECONSTRUCTION EXPERIMENT (2026-11-15):** Preserve ORIGIN-01 and its original data. This plan is not the current product direction; adapt ORIGIN-01's ongoing role toward deterministic Asset integrity and Creative Universe consistency tests. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # ORIGIN-01 DNA v2 Reconstruction Plan
 
 Status: diagnostic specification; not a completion claim.
