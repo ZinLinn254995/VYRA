@@ -1,6 +1,7 @@
 import type { MediaQuality, MediaTask } from './mediaModelSelection';
 import { ingestRunwayProjectOutput } from './runwayProjectOutputIngestion';
 
+type RunwayTask = Exclude<MediaTask, 'video-edit'>;
 type Db = {
   auth: { getUser(): Promise<{ data: { user: { id: string } | null }; error: unknown }> };
   from(table: string): any;
@@ -28,7 +29,7 @@ type WorkflowProgress =
 
 export type RunwayProjectGenerationRequest = {
   targetVyralId: string;
-  task: MediaTask;
+  task: RunwayTask;
   quality: MediaQuality;
   /** Maximum USD amount the user is willing to approve for this one generation. */
   maxCostUsd: number;
