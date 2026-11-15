@@ -279,10 +279,10 @@ export const extractVyralCreateRequest = (input: string): { name: string; descri
 };
 
 export const formatVyralCreateDraft = (draft: GlobalChatVyralDraft): string =>
-  '**Vyral creation draft — please review**\n\n' +
+  '**Universe creation draft — please review**\n\n' +
   '**Name:** ' + draft.name + '\n' +
   '**Purpose / Description:** ' + (draft.description || 'Not specified yet') + '\n\n' +
-  'This will create a private Vyral with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\n\n' +
+  'This will create a private Universe with its initial identity DNA. Assets and Master DNA will be added and maintained as you build it through AI Chat.\n\n' +
   'Nothing has been created yet. If this is what you want, simply tell me to go ahead.';
 
 export const isVyralCreateConfirmation = (input: string): boolean =>
@@ -321,7 +321,7 @@ export const isVyralAssetUploadConfirmation = (input: string): boolean =>
 export const formatVyralAssetUploadDraft = (draft: GlobalChatVyralAssetUploadDraft): string =>
   '**Asset upload preview**\n\n' +
   '**File:** ' + draft.fileName + '\n' +
-  '**Destination Vyral:** ' + draft.vyralName + '\n' +
+  '**Destination Universe:** ' + draft.vyralName + '\n' +
   '**Size:** ' + (draft.fileSize / 1024 / 1024).toFixed(2) + ' MB\n' +
   '**MIME:** ' + (draft.mimeType || 'unknown') + '\n\n' +
   'The original file will be stored privately. VYRA will create its immutable Asset Version, SHA-256 Fingerprint and the applicable Asset DNA before marking it ready.\n\n' +
@@ -367,5 +367,5 @@ export const isVyralAssetAddIntent = (input: string): boolean => {
 };
 
 export const isVyralAssetContextReference = (input: string): boolean =>
-  /\b(?:this|that|it|there|same one|current vyral|this vyral|that vyral)\b/i.test(input) ||
+  /\b(?:this|that|it|there|same one|current (?:vyral|universe)|this (?:vyral|universe)|that (?:vyral|universe))\b/i.test(input) ||
   /(?:အဲဒီထဲ|အဲ့ဒီထဲ|အဲဒါထဲ|အဲ့ဒါထဲ|ဒီထဲ|အဲဒီ Vyral|အဲ့ဒီ Vyral)/i.test(input);
