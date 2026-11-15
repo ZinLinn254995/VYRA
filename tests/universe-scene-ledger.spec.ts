@@ -104,12 +104,13 @@ test('next Scene receives only the immediately preceding creator-approved handof
   const approved = approveSceneContinuityState(proposed, scenes, 's1');
   const ready = getSceneContinuityContext(approved, scenes, 's2');
   assert.equal(ready?.contextComplete, true);
+  assert.equal(ready?.entrySnapshotStale, false);
   assert.deepEqual(ready?.previousExitState, { hero: { location: 'hall' } });
   assert.deepEqual(ready?.currentEntryState, { hero: { location: 'hall' } });
 });
 
 
-test('a later approved predecessor update invalidates the downstream Scene entry snapshot', () => {
+test('a later approved predecessor update exposes a stale downstream Scene entry snapshot', () => {
   const scenes = [{ id: 's1' }, { id: 's2' }];
   let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
     sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
@@ -129,8 +130,10 @@ test('a later approved predecessor update invalidates the downstream Scene entry
   });
   ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T01:04:00.000Z');
   const context = getSceneContinuityContext(ledger, scenes, 's2');
-  assert.deepEqual(context?.currentEntryState, { hero: { location: 'garden' } });
-  assert.equal(context?.contextComplete, true);
+  assert.deepEqual(context?.previousExitState, { hero: { location: 'garden' } });
+  assert.deepEqual(context?.currentEntryState, { hero: { location: 'hall' } });
+  assert.equal(context?.entrySnapshotStale, true);
+  assert.equal(context?.contextComplete, false);
 });
 
 test('a consistent label cannot approve a proposal that still contains violations', () => {
