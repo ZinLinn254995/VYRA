@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { retrieveUniverseConsistencyContext } from '../src/services/universeConsistencyRetrieval.ts';
+import { resolveCreatorConfirmedFieldEvidence } from '../src/services/universeConsistencyEvidence.ts';
 
 const assets = [
   { assetId: 'milo', name: 'Milo', type: 'character', description: 'Small blue robot', tags: ['robot', 'blue'], role: 'main' },
@@ -118,4 +119,47 @@ test('Universe-root relationships are retained when their connected Asset is sel
     relationships: [{ type: 'belongs_to', fromAssetId: 'milo', toIsUniverse: true }],
   });
   assert.deepEqual(result.selectedRelationshipIndexes, [0]);
+});
+
+
+const creatorEvidence = (acceptedValue: unknown, evidenceId: string, createdAt: string) => ({
+  fieldPath: 'character.current_location',
+  acceptedValue,
+  evidenceId,
+  observationId: 'observation-' + evidenceId,
+  sourceVersionId: 'version-1',
+  sourceSha256: 'A'.repeat(64),
+  createdAt,
+});
+
+test('creator-confirmed timeline facts at different times remain separate instead of conflicting', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', effective_at: '2026-01-01T00:00:00Z' }, 'past', '2026-01-01T00:00:00Z'),
+    creatorEvidence({ value: 'Harbor', effective_at: '2026-02-01T00:00:00Z' }, 'present', '2026-02-01T00:00:00Z'),
+  ]);
+  assert.equal(result.conflicts.length, 0);
+  assert.equal(result.resolved.length, 2);
+  assert.deepEqual(result.resolved.map((item) => item.acceptedValue), [
+    { value: 'Workshop', effective_at: '2026-01-01T00:00:00Z' },
+    { value: 'Harbor', effective_at: '2026-02-01T00:00:00Z' },
+  ]);
+});
+
+test('equivalent temporal aliases and timezone offsets share one conflict scope', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', effective_at: '2026-01-01T00:00:00Z' }, 'a', '2026-01-01T00:00:00Z'),
+    creatorEvidence({ value: 'Harbor', valid_from: '2025-12-31T19:00:00-05:00' }, 'b', '2026-01-01T00:01:00Z'),
+  ]);
+  assert.equal(result.resolved.length, 0);
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].status, 'unresolved_conflict');
+});
+
+test('nested temporal metadata is recognized while event IDs never split a conflict scope', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', temporal: { at: '2026-03-01T12:00:00Z', event_id: 'event-a' } }, 'a', '2026-03-01T12:00:00Z'),
+    creatorEvidence({ value: 'Harbor', temporal_scope: { timestamp: '2026-03-01T12:00:00Z', event_id: 'event-b' } }, 'b', '2026-03-01T12:01:00Z'),
+  ]);
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.resolved.length, 0);
 });
