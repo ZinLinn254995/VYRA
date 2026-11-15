@@ -45,6 +45,18 @@ test('retrieves by tags and approved searchable evidence without leaking unrelat
   assert.ok(!result.selectedAssetIds.includes('villain'));
 });
 
+test('Burmese word segmentation matches names even when Myanmar particles are attached', () => {
+  const result = retrieveUniverseConsistencyContext({
+    query: 'မီလိုကို ဆက်လက်ဖန်တီးပါ',
+    assets: [{ assetId: 'burmese-milo', name: 'မီလို', type: 'character', description: 'အပြာရောင် စက်ရုပ်' }],
+    relationships: [],
+  });
+  assert.equal(result.mode, 'targeted');
+  assert.deepEqual(result.selectedAssetIds, ['burmese-milo']);
+  assert.ok(result.queryTerms.includes('မီ'));
+  assert.ok(result.queryTerms.includes('လို'));
+});
+
 test('broad inventory requests deliberately include all available Assets', () => {
   const result = retrieveUniverseConsistencyContext({
     query: 'Show me the entire Universe',
