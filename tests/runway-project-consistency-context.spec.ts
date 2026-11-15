@@ -1,4 +1,4 @@
-import { buildRunwayProjectConsistencyContext } from '../src/services/runwayProjectConsistencyContext';
+import { buildRunwayProjectConsistencyContext, buildRunwaySceneContinuityPrompt } from '../src/services/runwayProjectConsistencyContext';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -89,4 +89,60 @@ test('semantic relationship approvals require an explicit authenticated creator 
   assert.ok(migration.includes('grant execute on function public.review_vyral_asset_relationship'));
   assert.ok(!migration.includes('vyral_asset_relationships_update_own'));
   assert.ok(!migration.includes('grant select, insert, update on public.vyral_asset_relationships'));
+});
+
+test('direct media generation receives the exact creator-approved active Scene entry state', () => {
+  const result = buildRunwaySceneContinuityPrompt('Create a cinematic close-up.', {
+    page: 'scene-editor',
+    activeSceneId: 'scene-2',
+    activeSceneTitle: 'The Return',
+    activeSceneDescription: 'The fox returns to the old harbor.',
+    sceneContinuity: {
+      previousSceneId: 'scene-1',
+      previousSceneApproved: true,
+      entrySnapshotStale: false,
+      previousExitState: { character: { injury: 'left paw bandaged' } },
+      currentEntryState: { character: { injury: 'left paw bandaged' }, location: 'old harbor' },
+      intendedChanges: [{ path: 'character.location', value: 'harbor gate', reason: 'The fox walks to the gate.' }],
+      contextComplete: true,
+      validationStatus: 'creator_approved',
+    },
+  });
+  assert.equal(result.mode, 'approved');
+  assert.match(result.promptText, /CREATOR-APPROVED SCENE ENTRY STATE/);
+  assert.match(result.promptText, /left paw bandaged/);
+  assert.match(result.promptText, /Creator-authorized intended change: character.location/);
+  assert.match(result.promptText, /old harbor/);
+});
+
+test('stale or incomplete Scene state is disclosed and never substituted with guessed canon', () => {
+  const result = buildRunwaySceneContinuityPrompt('Create a wide shot.', {
+    page: 'scene-editor',
+    activeSceneId: 'scene-3',
+    sceneContinuity: {
+      previousSceneId: 'scene-2',
+      previousSceneApproved: false,
+      entrySnapshotStale: true,
+      previousExitState: { character: { wardrobe: 'blue coat' } },
+      currentEntryState: { character: { wardrobe: 'red coat' } },
+      intendedChanges: [],
+      contextComplete: false,
+      validationStatus: 'needs_review',
+    },
+  });
+  assert.equal(result.mode, 'incomplete');
+  assert.match(result.promptText, /CONTINUITY STATUS: INCOMPLETE OR STALE/);
+  assert.doesNotMatch(result.promptText, /blue coat/);
+  assert.doesNotMatch(result.promptText, /red coat/);
+  assert.match(result.promptText, /Do not invent or assume/);
+});
+
+test('non-Scene media generation does not receive unrelated Scene continuity', () => {
+  const result = buildRunwaySceneContinuityPrompt('Create a logo.', {
+    page: 'storyboard-editor',
+    activeSceneId: 'scene-1',
+    sceneContinuity: null,
+  });
+  assert.equal(result.mode, 'not_applicable');
+  assert.equal(result.promptText, 'Create a logo.');
 });
