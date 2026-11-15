@@ -203,3 +203,16 @@ test('non-overlapping creator-confirmed validity intervals remain separate facts
   assert.equal(result.conflicts.length, 0);
   assert.equal(result.resolved.length, 2);
 });
+
+test('overlap conflict detection does not create false conflicts through transitive interval chains', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', valid_from: '2026-01-01T00:00:00Z', valid_to: '2026-01-03T00:00:00Z' }, 'a', '2026-01-01T00:00:00Z'),
+    creatorEvidence({ value: 'Harbor', valid_from: '2026-01-02T00:00:00Z', valid_to: '2026-01-04T00:00:00Z' }, 'b', '2026-01-02T00:00:00Z'),
+    creatorEvidence({ value: 'Library', valid_from: '2026-01-04T00:00:00Z', valid_to: '2026-01-06T00:00:00Z' }, 'c', '2026-01-04T00:00:00Z'),
+  ]);
+  assert.equal(result.resolved.length, 0);
+  assert.equal(result.conflicts.length, 2);
+  const candidatePairs = result.conflicts.map((conflict) =>
+    conflict.candidates.map((candidate) => candidate.evidenceIds[0]).sort().join('-')).sort();
+  assert.deepEqual(candidatePairs, ['a-b', 'b-c']);
+});
