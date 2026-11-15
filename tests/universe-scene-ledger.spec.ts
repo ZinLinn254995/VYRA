@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
+import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, setCreatorApprovedSceneStartingState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
 
 test('initializes an empty versioned ledger without inventing Scene state', () => {
   const ledger = hydrateSceneContinuityLedger(undefined, [{ id: 's1' }, { id: 's2' }]);
@@ -426,4 +426,48 @@ test('equivalent handoff snapshots remain valid when JSON object key order diffe
   const context = getSceneContinuityContext(ledger, scenes, 's2');
   assert.equal(context?.previousSceneApproved, true);
   assert.equal(context?.contextComplete, true);
+});
+
+test('sets a creator-authored starting state without approving a generated exit', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  const ledger = setCreatorApprovedSceneStartingState(undefined, scenes, 's1', {
+    story: { location: 'Old Yangon', time: 'Dawn' },
+    character: { mira: { outfit: 'clean blue coat' } },
+  });
+  const context = getSceneContinuityContext(ledger, scenes, 's1');
+  assert.deepEqual(context?.currentEntryState, {
+    story: { location: 'Old Yangon', time: 'Dawn' },
+    character: { mira: { outfit: 'clean blue coat' } },
+  });
+  assert.equal(context?.contextComplete, true);
+  assert.equal(ledger.scenes.s1.validationStatus, 'not_evaluated');
+  assert.equal(ledger.scenes.s1.exitState, null);
+  assert.equal(ledger.scenes.s1.stateAuthority, 'creator_approved_only');
+});
+
+test('changing the first Scene starting state invalidates the downstream approval chain', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = setCreatorApprovedSceneStartingState(undefined, scenes, 's1', { world: { location: 'village' } });
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's1', entryState: { world: { location: 'village' } }, intendedChanges: [],
+    expectedExitState: { world: { location: 'forest' } }, status: 'consistent', violations: [],
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1');
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's2', entryState: { world: { location: 'forest' } }, intendedChanges: [],
+    expectedExitState: { world: { location: 'cabin' } }, status: 'consistent', violations: [],
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's2');
+  ledger = setCreatorApprovedSceneStartingState(ledger, scenes, 's1', { world: { location: 'coast' } });
+  assert.equal(ledger.scenes.s1.validationStatus, 'not_evaluated');
+  assert.equal(ledger.scenes.s2.validationStatus, 'not_evaluated');
+  assert.deepEqual(ledger.scenes.s2.exitState, { world: { location: 'cabin' } });
+  assert.equal(getSceneContinuityContext(ledger, scenes, 's2')?.previousSceneApproved, false);
+});
+
+test('rejects a starting state on any Scene other than the first', () => {
+  assert.throws(
+    () => setCreatorApprovedSceneStartingState(undefined, [{ id: 's1' }, { id: 's2' }], 's2', { world: { location: 'room' } }),
+    /Only the first Scene/,
+  );
 });
