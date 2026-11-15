@@ -795,7 +795,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             .select('id,name,description,metadata').eq('user_id', authData.user.id).limit(150));
           if (ownedVyrals) {
             const ownedRecords = ownedVyrals
-              .filter((item) => storyboardId || (item.metadata as Record<string, unknown> | null)?.universe_scope !== 'storyboard')
+              .filter((item) => storyboardId ? item.id === storyboardUniverseId : (item.metadata as Record<string, unknown> | null)?.universe_scope !== 'storyboard')
               .map((item) => ({
                 id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
               }));
@@ -1966,24 +1966,24 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const { data: destination, error: destinationError } = await awaitForCurrentRequest(supabase.from('vyrals')
             .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle());
           assertRequestCurrent();
-          if (destinationError || !destination || destination.name !== vyralName) {
+          if (destinationError || !destination || destination.name !== vyralName || (storyboardId && destination.id !== storyboardUniverseId)) {
             throw new Error('The destination Vyral could not be re-verified for your account. No file was transferred.');
           }
           const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
             vyralId: destination.id, userId: authData.user.id, file: sourceFile, assetName,
             signal: requestController.signal,
-            metadata: { upload_source: 'creator_workspace', origin: 'global_ai_chat', chat_upload_draft_id: clientDraftId },
+            metadata: { upload_source: 'creator_workspace', origin: storyboardId ? 'storyboard_ai_chat' : 'global_ai_chat', ...(storyboardId ? { storyboard_id: storyboardId } : {}), chat_upload_draft_id: clientDraftId },
           });
           let mediaLibraryMessage = '';
           try {
             await awaitForCurrentRequest(registerVyralAssetInMediaLibrary({
               assetId: ingested.assetId, userId: authData.user.id, fileName: sourceFile.name,
               mimeType: ingested.mimeType, sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath,
-              sourceKind: 'vyral_asset', thumbnailSource: sourceFile,
+              sourceKind: 'vyral_asset', universeId: storyboardId ? destination.id : undefined, thumbnailSource: sourceFile,
             }));
-            mediaLibraryMessage = '\n**My Media Library:** Added automatically.';
+            mediaLibraryMessage = storyboardId ? '\n**Storyboard Universe:** Added automatically.' : '\n**My Media Library:** Added automatically.';
           } catch {
-            mediaLibraryMessage = '\n**My Media Library:** Sync is pending; the Asset is safely stored in its Vyral.';
+            mediaLibraryMessage = storyboardId ? '\n**Storyboard Universe:** Sync is pending; the Asset is safely stored in this Universe.' : '\n**My Media Library:** Sync is pending; the Asset is safely stored in its Universe.';
           }
           assertRequestCurrent();
           const { data: completion, error: completionError } = await awaitForCurrentRequest(supabase.functions.invoke('vyra-openai-chat', {
