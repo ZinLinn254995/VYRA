@@ -120,10 +120,6 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
   return (
     <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">{universe.name}</h2><p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">Private Project Assets for “{storyboardTitle}”. Organize characters, locations, props, references and every other creative Asset here.</p></div>
-          <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Private · Project-only</span>
-        </div>
         {renderLibrary && <MyMediaLibraryPage
           key={universe.id}
           isActive={isActive}
