@@ -52,7 +52,7 @@ export function MyUniverseHome() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {universes.map((universe) => (
             <button key={universe.id} onClick={() => undefined} className="group overflow-hidden rounded-2xl text-left">
-              <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[var(--vyra-surface)]">
+              <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[var(--vyra-bg-surface)]">
                 <img src={universe.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" loading="lazy" />
               </div>
               <div className="flex items-center justify-between gap-3 px-1 pt-3">
@@ -67,18 +67,18 @@ export function MyUniverseHome() {
 
       {createOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <form onSubmit={createSample} className="w-full max-w-md rounded-2xl border border-[var(--vyra-border-strong)] bg-[var(--vyra-surface)] p-5 shadow-2xl">
+          <form onSubmit={createSample} className="w-full max-w-md rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--vyra-text-primary)]">Create a Universe</h2>
                 <p className="mt-1 text-xs text-[var(--vyra-text-muted)]">Preview only — no data will be saved.</p>
               </div>
-              <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-surface-hover)]"><X size={18} /></button>
+              <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
             </div>
             <label className="mb-2 block text-xs font-medium text-[var(--vyra-text-secondary)]">Universe name</label>
-            <input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Give your Universe a name" className="h-11 w-full rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-border-strong)]" />
+            <input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Give your Universe a name" className="h-11 w-full rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-canvas)] px-3 text-sm text-[var(--vyra-text-primary)] outline-none focus:border-[var(--vyra-border)]" />
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setCreateOpen(false)} className="h-10 rounded-xl px-4 text-sm text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-surface-hover)]">Cancel</button>
+              <button type="button" onClick={() => setCreateOpen(false)} className="h-10 rounded-xl px-4 text-sm text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]">Cancel</button>
               <button type="submit" disabled={!newName.trim()} className="h-10 rounded-xl bg-[var(--vyra-text-primary)] px-4 text-sm font-semibold text-[var(--vyra-bg-canvas)] disabled:cursor-not-allowed disabled:opacity-40">Create preview</button>
             </div>
           </form>
