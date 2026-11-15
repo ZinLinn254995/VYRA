@@ -239,6 +239,9 @@ test('Master Editor selected Scene uses its own approved continuity state', () =
     page: 'storyboard-editor',
     editorView: 'master',
     selectedTimelineItem: { kind: 'scene', id: 'scene-b', label: 'Scene B' },
+    activeSceneId: 'scene-a',
+    activeSceneTitle: 'Stale active Scene',
+    activeSceneDescription: 'Stale description should not appear.',
     continuityRuntime: { sceneIds: ['scene-a', 'scene-b'], scenes: [{ id: 'scene-a', title: 'Arrival', description: 'Fox arrives at the harbor.' }, { id: 'scene-b', title: 'The Key', description: 'Fox finds a silver key.' }], ledger },
   });
   assert.equal(result.mode, 'approved');
