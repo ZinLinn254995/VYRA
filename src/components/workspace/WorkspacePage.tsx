@@ -502,6 +502,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
       activeSceneTitle: scenes.find((scene) => scene.id === activeSceneId)?.title ?? null,
+      activeSceneDescription: scenes.find((scene) => scene.id === activeSceneId)?.description?.slice(0, 1800) ?? null,
       sceneContinuity: activeStoryboard && activeSceneId ? (() => {
         const ledger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, scenes);
         const continuity = getSceneContinuityContext(ledger, scenes, activeSceneId);
