@@ -18,7 +18,8 @@ test('Project consistency retrieval is isolated to the authenticated Project and
 test('only bounded retrieved Asset DNA evidence is added to the generation prompt', () => {
   assert.ok(service.includes('maxAssets: 12'));
   assert.ok(service.includes('collectEvidence(record.payload)'));
-  assert.ok(service.includes('not automatically creator-approved canon'));
+  assert.ok(service.includes('Unconfirmed observations are reference evidence only'));
+  assert.ok(service.includes(".eq('review_status', 'creator_approved')"));
   assert.ok(service.includes('Do not invent missing facts'));
   assert.ok(service.includes('.slice(0, 14_000)'));
   assert.ok(workflow.includes('buildRunwayProjectConsistencyContext'));
@@ -26,8 +27,8 @@ test('only bounded retrieved Asset DNA evidence is added to the generation promp
 });
 
 test('Project consistency context does not silently promote observations into canon', () => {
-  assert.ok(service.includes('Recorded DNA observations are evidence'));
-  assert.ok(service.includes('relationships: []'));
+  assert.ok(service.includes('Use only creator-approved relationships as established connections'));
+  assert.ok(service.includes("record.verification_status === 'creator_confirmed'"));
   assert.ok(!service.includes('creator_approved: true'));
   assert.ok(!service.includes('canon_status: approved'));
 });
@@ -41,6 +42,11 @@ test('Project context contains matching nested DNA evidence and excludes other P
     ],
     vyral_dna_records: [
       { asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'observed', payload: { dna_record: { visual_description: 'Rust red fur, white chest, amber eyes' } } },
+      { asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'creator_confirmed', payload: { knowledge: { appearance: 'Amber eyes are a defining trait' } } },
+    ],
+    vyral_asset_relationships: [
+      { id: 'edge-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'travels_on', rationale: 'Creator confirmed the fox uses this boat.', review_status: 'creator_approved' },
+      { id: 'edge-2', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.', review_status: 'proposed' },
     ],
   };
   const db = {
@@ -65,9 +71,11 @@ test('Project context contains matching nested DNA evidence and excludes other P
     userId: 'user-1', targetVyralId: 'project-assets-1', promptText: 'Create a scene with the Red Fox',
   });
   assert.equal(result.assetCount, 2);
-  assert.equal(result.selectedAssetCount, 1);
+  assert.equal(result.selectedAssetCount, 2);
   assert.match(result.promptText, /Rust red fur, white chest, amber eyes/);
-  assert.match(result.promptText, /not automatically creator-approved canon/);
+  assert.match(result.promptText, /Creator-confirmed knowledge: appearance: Amber eyes are a defining trait/);
+  assert.match(result.promptText, /Creator-approved relationship: Red Fox --travels_on--> Blue Boat/);
+  assert.doesNotMatch(result.promptText, /AI guess only/);
   assert.ok(calls.every((call) => call.filters.some(([column, value]) => column === 'user_id' && value === 'user-1')));
   assert.ok(calls.every((call) => call.filters.some(([column, value]) => column === 'vyral_id' && value === 'project-assets-1')));
 });
