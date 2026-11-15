@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
 const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
+const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePage.tsx', import.meta.url), 'utf8');
 
 test('Project AI Chat exposes media creation without changing global chat composer behavior', () => {
   assert.ok(chat.includes('generateRunwayProjectMedia'));
@@ -48,4 +49,14 @@ test('generated Project media is previewed in chat while only stable Asset refer
   assert.ok(chat.includes("createSignedUrl(asset.storagePath, 3600)"));
   assert.ok(chat.includes('mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType }))'));
   assert.ok(!chat.includes('mediaAssets: message.mediaAssets.map((asset) => ({ ...asset, url: asset.url }))'));
+});
+
+test('Project editor has no redundant Scenes tab; scene operations stay inside Master Editor', () => {
+  assert.ok(!workspace.includes("storyboardEditorView === 'scenes'"));
+  assert.ok(!workspace.includes(">Scenes</button>"));
+  assert.ok(workspace.includes("<MasterTimelineEditor"));
+  assert.ok(workspace.includes("onSceneOrderChange="));
+  assert.ok(workspace.includes("onSceneDuplicate="));
+  assert.ok(workspace.includes("onSceneDelete="));
+  assert.ok(workspace.includes("useState<'master' | 'chat' | 'universe'>('chat')"));
 });
