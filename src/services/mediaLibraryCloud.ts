@@ -168,6 +168,46 @@ export type MediaLibraryPageOptions = {
   universeId?: string | null;
 };
 
+async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId: string): Promise<void> {
+  await assertStoryboardUniverse(db, userId, universeId);
+  const { data: canonicalFolders, error: folderError } = await db.from('vyral_folders')
+    .select('id,user_id,vyral_id,parent_id,name,created_at')
+    .eq('vyral_id', universeId).eq('user_id', userId).order('created_at', { ascending: true });
+  if (folderError) throw new Error('Could not sync Storyboard Universe folders: ' + folderError.message);
+  const pending = [...(canonicalFolders ?? [])] as Array<{ id: string; parent_id: string | null; name: string; created_at: string }>;
+  const synced = new Set<string>();
+  while (pending.length) {
+    const index = pending.findIndex((folder) => !folder.parent_id || synced.has(folder.parent_id));
+    if (index < 0) throw new Error('The Storyboard Universe contains a folder with a missing or cyclic parent.');
+    const folder = pending.splice(index, 1)[0];
+    const { error } = await db.from('media_library_folders').upsert({
+      id: folder.id, user_id: userId, universe_id: universeId, vyral_folder_id: folder.id,
+      parent_id: folder.parent_id, name: folder.name, created_at: folder.created_at,
+    }, { onConflict: 'id' });
+    if (error) throw new Error('Could not sync a Universe folder into the Library: ' + error.message);
+    synced.add(folder.id);
+  }
+
+  const { data: assets, error: assetError } = await db.from('vyral_assets')
+    .select('id,folder_id,name,asset_type,mime_type,size_bytes,storage_path,metadata,processing_status')
+    .eq('vyral_id', universeId).eq('user_id', userId)
+    .neq('processing_status', 'archived').order('created_at', { ascending: true }).limit(1000);
+  if (assetError) throw new Error('Could not sync Storyboard Universe Assets: ' + assetError.message);
+  if (assets?.length) {
+    const rows = assets.map((asset: { id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }) => ({
+      user_id: userId, universe_id: universeId, folder_id: asset.folder_id,
+      source_kind: asset.metadata?.upload_source === 'media_generation' ? 'generated' : 'vyral_asset',
+      source_asset_id: asset.id, bucket_id: 'vyral-assets', storage_path: asset.storage_path,
+      file_name: asset.name, mime_type: asset.mime_type, size_bytes: asset.size_bytes,
+      metadata: { origin: 'vyral_asset_inventory' },
+    }));
+    const { error } = await db.from('media_library_items').upsert(rows, {
+      onConflict: 'user_id,universe_id,source_asset_id', ignoreDuplicates: true,
+    });
+    if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
+  }
+}
+
 export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): Promise<{
   folders: MediaLibraryFolder[];
   items: MediaLibraryItem[];
@@ -177,6 +217,7 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   const ownerId = await getOwnerId();
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 100)));
+  if (options.universeId) await syncStoryboardUniverseLibrary(db, ownerId, options.universeId);
   if (Date.now() - lastStorageCleanupStartedAt >= 15 * 60_000) {
     lastStorageCleanupStartedAt = Date.now();
     void processMediaLibraryStorageCleanup(4).catch(() => undefined);
