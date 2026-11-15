@@ -13,7 +13,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
-import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, type SceneContinuityLedger } from '../../services/universeSceneLedger';
+import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
@@ -96,6 +96,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
   const [storyboardAiMessage, setStoryboardAiMessage] = useState('');
   const [sceneContinuityMessage, setSceneContinuityMessage] = useState('');
+  const [sceneStartingContextDraft, setSceneStartingContextDraft] = useState('');
+  const activeStartingContext = (() => {
+    if (!activeStoryboard || !activeSceneId) return '';
+    const scenes = activeStoryboard.details?.scenes || [];
+    const ledger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, scenes);
+    const state = getSceneContinuityContext(ledger, scenes, activeSceneId)?.currentEntryState;
+    const story = state?.story;
+    return story && typeof story === 'object' && !Array.isArray(story)
+      && typeof (story as Record<string, unknown>).startingContext === 'string'
+      ? (story as Record<string, string>).startingContext
+      : '';
+  })();
+  useEffect(() => {
+    setSceneStartingContextDraft(activeStartingContext);
+  }, [activeStoryboard?.id, activeSceneId, activeStartingContext]);
   const lastAppliedSceneProposalRef = useRef<string | null>(null);
   const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
   const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
@@ -962,6 +977,29 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       const canApproveSceneContinuity = sceneContinuityRecord?.validationStatus === 'consistent'
         && Boolean(sceneContinuityContext?.contextComplete)
         && Boolean(proposedExitState) && typeof proposedExitState === 'object' && !Array.isArray(proposedExitState);
+      const saveSceneStartingContext = () => {
+        const startingContext = sceneStartingContextDraft.trim();
+        if (!startingContext) {
+          setSceneContinuityMessage('Describe the starting conditions before saving.');
+          return;
+        }
+        try {
+          const nextLedger = setCreatorApprovedSceneStartingState(
+            activeStoryboard.details?.continuityLedger,
+            activeStoryboard.details?.scenes || [],
+            scene.id,
+            { story: { startingContext } },
+          );
+          setActiveStoryboard({
+            ...activeStoryboard,
+            details: { ...activeStoryboard.details, continuityLedger: nextLedger },
+            updatedAt: new Date().toISOString(),
+          });
+          setSceneContinuityMessage('Starting state saved as creator-approved context. This does not approve the generated Scene exit.');
+        } catch (error) {
+          setSceneContinuityMessage(error instanceof Error ? error.message : 'Could not save the starting state.');
+        }
+      };
       const approveCurrentSceneContinuity = () => {
         try {
           const nextLedger = approveSceneContinuityState(
@@ -1099,6 +1137,27 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' && !sceneContinuityContext?.contextComplete ? sceneContinuityContext?.previousSceneId ? 'Waiting for previous Scene' : 'Needs starting state' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
                     </span>
                   </div>
+                  {sceneContinuityContext?.previousSceneId === null && (
+                    <div className="space-y-2 rounded-lg border border-[var(--vyra-border)] p-3">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard starting conditions</span>
+                        <textarea
+                          value={sceneStartingContextDraft}
+                          onChange={(event) => setSceneStartingContextDraft(event.target.value)}
+                          rows={3}
+                          maxLength={12000}
+                          placeholder="Describe the opening world, character states, locations, time, and important facts that must remain consistent…"
+                          className={inputClass + ' w-full resize-y'}
+                        />
+                      </label>
+                      <p className="text-[11px] leading-4 text-[var(--vyra-text-secondary)]">
+                        Creator-authored starting context for the first Scene. Updating it invalidates later Scene approvals so they can be checked again.
+                      </p>
+                      <button type="button" onClick={saveSceneStartingContext} disabled={!sceneStartingContextDraft.trim()} className="min-h-9 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+                        Save Starting State
+                      </button>
+                    </div>
+                  )}
                   <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">
                     {sceneContinuityContext?.contextComplete
                       ? sceneContinuityContext.previousSceneId
