@@ -56,6 +56,7 @@ test('global AI Chat recognizes only explicit allowlisted navigation requests', 
   const { extractGlobalChatNavigationTarget } = await import('../src/services/globalChatActions.ts');
   assert.equal(extractGlobalChatNavigationTarget('Go to Workspace'), 'workspace');
   assert.equal(extractGlobalChatNavigationTarget('Open Marketplace'), 'marketplace');
+  assert.equal(extractGlobalChatNavigationTarget('Take me to My Universes'), 'my-vyrals');
   assert.equal(extractGlobalChatNavigationTarget('Take me to My Vyrals'), 'my-vyrals');
   assert.equal(extractGlobalChatNavigationTarget('Open my Media Library'), 'my-media-library');
   assert.equal(extractGlobalChatNavigationTarget('Workspace ဖွင့်ပေး'), 'workspace');
