@@ -155,6 +155,16 @@ test('equivalent temporal aliases and timezone offsets share one conflict scope'
   assert.equal(result.conflicts[0].status, 'unresolved_conflict');
 });
 
+test('same fact with different temporal aliases coalesces without a false value conflict', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', effective_at: '2026-04-01T00:00:00Z' }, 'a', '2026-04-01T00:00:00Z'),
+    creatorEvidence({ value: 'Workshop', temporal: { at: '2026-04-01T00:00:00Z' } }, 'b', '2026-04-01T00:01:00Z'),
+  ]);
+  assert.equal(result.conflicts.length, 0);
+  assert.equal(result.resolved.length, 1);
+  assert.deepEqual(result.resolved[0].evidenceIds, ['b', 'a']);
+});
+
 test('nested temporal metadata is recognized while event IDs never split a conflict scope', () => {
   const result = resolveCreatorConfirmedFieldEvidence([
     creatorEvidence({ value: 'Workshop', temporal: { at: '2026-03-01T12:00:00Z', event_id: 'event-a' } }, 'a', '2026-03-01T12:00:00Z'),
