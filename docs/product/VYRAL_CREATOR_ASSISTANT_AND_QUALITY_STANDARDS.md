@@ -1,3 +1,5 @@
+> **Superseded product model (2026-11-15):** The earlier definition of Vyral as an arbitrary collection of Assets with no required Universe structure is superseded. Vyral is now a flexible Creative Universe that can grow from a single Asset into characters, worlds, locations, stories, relationships, canon, timeline, and state. The old document remains useful for evidence-backed quality grading, creator freedom, selective context, and approval principles only. See [current Product Direction](../VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # Vyral Creator Assistance and Quality Standards
 
 **Status:** Accepted product/architecture direction; additive to the existing Vyral 100% workstream.  
