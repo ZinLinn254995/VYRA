@@ -212,11 +212,13 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
       onConflict: 'user_id,universe_id,source_asset_id',
     });
     if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
-    if (hasNewAssets) {
+    const { data: universeState } = await db.from('vyrals').select('master_dna_status')
+      .eq('id', universeId).eq('user_id', userId).maybeSingle();
+    if (hasNewAssets || universeState?.master_dna_status !== 'ready') {
       try {
         await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
       } catch {
-        // The next Universe Library refresh retries the derived Master DNA build.
+        // A stale/non-ready Master DNA state causes the next Universe Library refresh to retry.
       }
     }
   }
