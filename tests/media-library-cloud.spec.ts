@@ -511,6 +511,8 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   assert.ok(service.includes('ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db)'), 'Universe uploads must run the full Asset ingestion and DNA pipeline.');
   assert.ok(service.includes('vyralId: scope.universeId, userId, file, folderId'), 'Uploaded Assets must be attached to the current Universe and folder.');
   assert.ok(service.includes('thumbnailPaths'), 'Deleting a Universe Asset must also clean its Library thumbnail.');
+  assert.ok(service.includes("db.functions.invoke('build-vyral-master-dna'"), 'New Universe Assets must refresh the derived Master DNA.');
+  assert.ok(service.includes('scope.onMasterDnaSync?.(dnaStatus)'), 'The Library should report whether Master DNA is ready after upload.');
   assert.ok(service.includes('db.from(\'vyral_assets\').delete()'), 'Deleting from a Storyboard Universe must remove its canonical Asset record and dependent DNA.');
   assert.ok(service.includes('mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId))'), 'Folder caches must be isolated by Universe.');
 
