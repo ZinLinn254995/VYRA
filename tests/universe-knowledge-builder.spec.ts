@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildUniverseKnowledgeFromAssetDna } from '../src/services/universeKnowledgeBuilder.ts';
+import { createVyralDnaV3 } from '../src/services/vyralDnaV3.ts';
+import { createVyralFileDnaV1 } from '../src/services/vyralFileDnaV1.ts';
 
 const source = {
   assetId: 'asset-1',
@@ -78,4 +80,52 @@ test('does not create semantic claims from missing or unverified descriptions', 
   payload.dna_record.creator_description = { text: 'Unverified text', evidence_status: 'unverified' };
   const records = buildUniverseKnowledgeFromAssetDna({ ...source, payload });
   assert.equal(records.some((item) => item.predicate === 'creator.description'), false);
+});
+
+
+test('projects lossless raster DNA v3 measurements into deterministic Universe Knowledge', async () => {
+  const { record } = await createVyralDnaV3({
+    record_id: 'raster-dna-1',
+    source: { asset_id: 'raster-asset', asset_version_id: 'raster-version', sha256: 'c'.repeat(64), size_bytes: 4, mime_type: 'image/png' },
+    extractor: { name: 'test-decoder', version: '1.0.0' },
+    width: 1, height: 1, channel_layout: 'RGBA', color_space: 'sRGB',
+    icc_profile_sha256: null, alpha_mode: 'straight',
+    decoder_contract: { name: 'test-decoder', version: '1.0.0', color_management: 'preserve-declared-samples' },
+    decoded_samples: new Uint8Array([255, 0, 0, 255]),
+  });
+  const records = buildUniverseKnowledgeFromAssetDna({
+    assetId: 'raster-asset', assetVersionId: 'raster-version', assetDnaRecordId: 'raster-dna-row',
+    revision: 1, sourceSha256: 'c'.repeat(64), payload: record,
+  });
+  assert.ok(records.some((item) => item.predicate === 'technical.width' && item.value === 1));
+  assert.ok(records.some((item) => item.predicate === 'technical.decoded_samples_sha256' && item.evidenceClass === 'deterministic'));
+  assert.ok(records.some((item) => item.predicate === 'reconstruction.lossless_tile_count' && item.value === 1));
+});
+
+test('projects deterministic file-container DNA facts into Universe Knowledge', async () => {
+  const bytes = new Uint8Array(44);
+  bytes.set(new TextEncoder().encode('RIFF'), 0);
+  new DataView(bytes.buffer).setUint32(4, 36, true);
+  bytes.set(new TextEncoder().encode('WAVEfmt '), 8);
+  new DataView(bytes.buffer).setUint32(16, 16, true);
+  new DataView(bytes.buffer).setUint16(20, 1, true);
+  new DataView(bytes.buffer).setUint16(22, 2, true);
+  new DataView(bytes.buffer).setUint32(24, 48000, true);
+  new DataView(bytes.buffer).setUint32(28, 192000, true);
+  new DataView(bytes.buffer).setUint16(32, 4, true);
+  new DataView(bytes.buffer).setUint16(34, 16, true);
+  bytes.set(new TextEncoder().encode('data'), 36);
+  new DataView(bytes.buffer).setUint32(40, 0, true);
+  const { record } = await createVyralFileDnaV1({
+    record_id: 'audio-file-dna',
+    source: { asset_id: 'audio-asset', asset_version_id: 'audio-version' },
+    bytes, mime_type: 'audio/wav', filename: 'voice.wav',
+  });
+  const records = buildUniverseKnowledgeFromAssetDna({
+    assetId: 'audio-asset', assetVersionId: 'audio-version', assetDnaRecordId: 'audio-dna-row',
+    revision: 1, sourceSha256: record.file.sha256, payload: record,
+  });
+  assert.ok(records.some((item) => item.predicate === 'file.format_signature' && item.value === 'wav'));
+  assert.ok(records.some((item) => item.predicate === 'file.structure.profile' && item.value === 'audio'));
+  assert.ok(records.some((item) => item.predicate === 'file.structure.sample_rate' && item.value === 48000));
 });
