@@ -95,6 +95,17 @@
 - Verification on current branch head `7199bfe0b954a512da779c542fa88623370aabba`: TypeScript/CI passed; browser UI tests passed; local Supabase migration reset and all 275 database tests passed.
 - Current PR #122 remains open and Draft. No merge, Production deployment, or Production database action was performed.
 
+### Cleanup batch 4 — native Vyral package boundary
+
+- Confirmed the creator-facing Vyral export menu exposes only **Assets only** and **Vyral package**; it does not expose DNA-only or blind reconstruction modes.
+- New native .vyral exports no longer include AI_RECONSTRUCTION_GUIDE.md or tools/reconstruct_vyral.py. The package remains a VYRA-native Universe/Asset transfer format with selected Asset files, DNA/context records, protected system metadata, and integrity checks.
+- Updated package projection so old reconstruction guide/script entries are not carried into newly selected native exports. Legacy DNA-only package validation/import support remains as a backward-compatibility path; do not build new creator workflows around it.
+- Added a regression test that starts with a package containing legacy reconstruction helper files and asserts that new native package exports strip them.
+- Updated the authoritative Product Direction document to define .vyral as a native Creative Universe package, not an external-AI reconstruction prompt bundle.
+- The source-integrity and fingerprint foundations remain. The old portable reconstruction script and historical DNA-only protocol are retained only as legacy compatibility/research material until a later, separately tested removal/migration phase.
+- Latest verified CI at the start of this batch: VYRA CI and Browser UI Tests passed on commit 63bb253; Database Tests were still running. The package export changes have triggered fresh CI; final outcomes are pending.
+- No Master Editor, AI Chat UI, Production environment, Production database, applied migration history, ORIGIN-01 source data, merge, or deployment was touched.
+
 ## 6. Must not delete or rewrite
 
 - Never delete customer-owned Assets, Vyrals, projects, media, or canonical versions as code cleanup.
