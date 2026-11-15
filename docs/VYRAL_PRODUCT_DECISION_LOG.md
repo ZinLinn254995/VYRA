@@ -1,7 +1,9 @@
-# VYRA Product Decision Log — Vyral DNA Architecture
+# Historical Vyral DNA Product Decision Log
 
 Last updated: 2026-11-06
-Status: **Accepted architectural direction; implementation is pending unless a section explicitly says otherwise.**
+Status: **Historical decision record — not the current Vyral product contract.**
+
+> The 2026-11-15 approved direction redefines Vyral as a Creative Universe. Earlier mandatory Main/Supporting roles, required purpose fields, and required relationship edges are superseded. Do not implement those constraints unless they are independently re-approved. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
 
 This log preserves the evolution of product decisions so that future conversations, contributors, and implementation work do not accidentally revert to an earlier concept. The current accepted decision supersedes conflicting earlier proposals unless the user explicitly changes it.
 
