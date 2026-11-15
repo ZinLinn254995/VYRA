@@ -738,7 +738,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       return { ...group, resolutionRecords, distinctValueCount: new Set(group.records.map((record) => stableJson(record.payload.accepted_value))).size };
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
-  const exportVyralPackage = async (components: VyralExportComponents = { assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false, semanticOnly = false) => {
+  const exportVyralPackage = async (components: VyralExportComponents = {
+    setError('Custom .vyral package export has been retired. Use original Asset downloads until standard-format Universe export is available.');
+    return;
+ assets: true, fullDna: true, compactDna: true }, selectedAssetId?: string, blindReconstruction = false, semanticOnly = false) => {
     const dnaOnly = !components.assets && components.fullDna;
     if (!supabase || packageBusy) return;
     setPackageBusy(true);
@@ -3372,45 +3375,21 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className={'text-base font-semibold ' + primary}>Assets</h2>
-          <p className={'mt-1 text-xs ' + subtle}>Everything in this Vyral, in one place.</p>
+          <p className={'mt-1 text-xs ' + subtle}>Everything in this Universe, in one place.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold capitalize text-[var(--vyra-text-secondary)]">{vyral.visibility}</span>
           <label className={button + ' cursor-pointer'}>
-            <Upload size={13}/> Import
+            <Upload size={13}/> Import legacy package
             <input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>{const file=event.target.files?.[0];event.target.value='';if(file)void importVyralPackage(file);}} disabled={busy || packageBusy}/>
           </label>
-          <details className="relative">
-            <summary className={primaryButton + ' cursor-pointer list-none'}>
-              <Archive size={13}/>{packageBusy ? 'Working…' : 'Export'}
-            </summary>
-            <div className={'absolute right-0 z-30 mt-2 w-60 rounded-xl border p-2 ' + surface}>
-              <p className={'px-2 py-1.5 text-[10px] ' + subtle}>Choose what to include</p>
-              {([
-                { label: 'Assets only', components: { assets: true, fullDna: false, compactDna: false } },
-                { label: 'Vyral package', components: { assets: true, fullDna: true, compactDna: true } },
-              ] satisfies Array<{ label: string; components: VyralExportComponents }>).map(({ label, components }) => (
-                <button
-                  key={label}
-                  type="button"
-                  disabled={busy || packageBusy}
-                  onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                    void exportVyralPackage(components);
-                  }}
-                  className="flex min-h-9 w-full items-center rounded-lg px-2.5 text-left text-xs text-[var(--vyra-text-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50"
-                >
-                  {label}
-                </button>
-              ))}
-
-            </div>
-
-          </details>
+          <button type="button" disabled title="Standard-format export is being prepared" className={button + ' cursor-not-allowed opacity-60'}>
+            <Archive size={13}/> Standard export coming soon
+          </button>
         </div>
       </div>
 
-      <nav aria-label="Vyral sections" role="tablist" className="flex w-full gap-1 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1">
+      <nav aria-label="Universe sections" role="tablist" className="flex w-full gap-1 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-1">
         {([
           { id: 'overview', label: 'Overview' },
           { id: 'assets', label: 'Gallery' },
@@ -3438,8 +3417,8 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           <section className={surface+' p-4'}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className={'text-sm font-semibold '+primary}>About this Vyral</h3>
-                <p className={'mt-1 text-xs '+subtle}>{vyral.description || 'A Creative Universe you can grow with characters, places, stories, and Assets. VYRA keeps related knowledge connected.'}</p>
+                <h3 className={'text-sm font-semibold '+primary}>About this Universe</h3>
+                <p className={'mt-1 text-xs '+subtle}>{vyral.description || 'A creative Universe you can grow with characters, places, stories, and Assets. VYRA keeps related knowledge connected.'}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(() => {
                     const fields = (vyral.metadata?.ai_details as VyralAiDetails | undefined)?.fields ?? {};
