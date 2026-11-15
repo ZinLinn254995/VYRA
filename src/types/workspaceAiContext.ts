@@ -13,6 +13,8 @@ export type WorkspaceAiContext = {
   selectedSceneTitles?: string[];
   activeSceneId?: string | null;
   activeSceneTitle?: string | null;
+  /** Current Scene description, bounded and treated as user-authored context rather than canon. */
+  activeSceneDescription?: string | null;
   /** Small, creator-approved continuity handoff for the active Scene; context only, never authorization. */
   sceneContinuity?: {
     previousSceneId: string | null;
