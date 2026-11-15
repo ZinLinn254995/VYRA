@@ -247,7 +247,10 @@ test('Master Editor selected Scene uses its own approved continuity state', () =
   assert.equal(result.mode, 'approved');
   assert.match(result.promptText, /MASTER EDITOR SELECTION CONTEXT/);
   assert.match(result.promptText, /Selected timeline item: scene \/ Scene B/);
-  assert.match(result.promptText, /silver key/);\n  assert.match(result.promptText, /Fox finds a silver key/);
+  assert.match(result.promptText, /silver key/);
+  assert.match(result.promptText, /Fox finds a silver key/);
+  assert.doesNotMatch(result.promptText, /Stale active Scene/);
+  assert.doesNotMatch(result.promptText, /Stale description should not appear/);
 });
 
 test('Master Editor non-Scene selection never invents Scene-specific canon', () => {
