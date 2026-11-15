@@ -16,7 +16,7 @@ type AssetDnaRow = {
 const isRecord = (value: unknown): value is JsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const safeText = (value: unknown, max = 420): string =>
-  typeof value === 'string' ? value.replace(/[\\u0000-\\u001f\\u007f]/g, ' ').trim().slice(0, max) : '';
+  typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max) : '';
 const strings = (value: unknown, maxItems = 12): string[] =>
   Array.isArray(value) ? value.slice(0, maxItems).flatMap((item) => {
     const text = safeText(item, 100);
@@ -31,9 +31,11 @@ function collectEvidence(value: unknown, depth = 0): string[] {
     'shape', 'silhouette', 'wardrobe', 'environment', 'lighting',
     'camera', 'composition', 'prompt_summary', 'reconstruction_prompt',
   ]);
+  const containers = new Set(['dna_record', 'visual_dna', 'semantic_dna', 'identity', 'reconstruction_data', 'asset_dna', 'knowledge', 'attributes', 'features', 'observations', 'visual_identity_data']);
   const output: string[] = [];
   for (const [key, item] of Object.entries(value)) {
-    if (!allowed.has(key.toLowerCase())) continue;
+    const normalizedKey = key.toLowerCase();
+    if (!allowed.has(normalizedKey) && !containers.has(normalizedKey)) continue;
     if (typeof item === 'string') {
       const text = safeText(item);
       if (text) output.push(key + ': ' + text);
@@ -116,14 +118,14 @@ export async function buildRunwayProjectConsistencyContext(
       description ? '  Creator/Asset description: ' + description : '',
       evidence.length ? '  Recorded DNA observations: ' + evidence.join('; ') : '',
       dna.some((record) => record.verification_status === 'verified') ? '  DNA verification: verified' : '  DNA verification: observed / not fully verified',
-    ].filter(Boolean).join('\\n');
+    ].filter(Boolean).join('\n');
   });
   const context = [
     'PROJECT CONSISTENCY CONTEXT (retrieved from this Project only)',
     'Use the following records as reference evidence when relevant to the requested output.',
     'IMPORTANT: Recorded DNA observations are evidence, not automatically creator-approved canon. Do not invent missing facts or silently turn suggestions into canon. If a detail conflicts with the user prompt, follow the user prompt and flag the conflict in your response.',
     ...lines,
-  ].join('\\n');
-  const promptText = (input.promptText + '\\n\\n' + context).slice(0, 14_000);
+  ].join('\n');
+  const promptText = (input.promptText + '\n\n' + context).slice(0, 14_000);
   return { promptText, assetCount: assets.length, selectedAssetCount: lines.length, mode: retrieval.mode };
 }
