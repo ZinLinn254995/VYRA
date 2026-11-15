@@ -714,7 +714,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
       }
       setSelectedIds([]);
       const dnaMessage = universeId && deletedFileIds.length
-        ? masterDnaStatus === 'ready' ? ' Universe Master DNA synchronized.' : ' Universe Master DNA synchronization is pending.'
+        ? masterDnaStatus === 'ready' ? ' Universe Master DNA synchronized.' : masterDnaStatus === 'empty' ? ' Universe is empty; Master DNA will be created when you add an Asset.' : ' Universe Master DNA synchronization is pending.'
         : '';
       if (cleanupPending) setNotice('Selected items deleted. Private storage cleanup is queued and will retry automatically when you next open My Media Library.' + dnaMessage);
       else setNotice('Selected items deleted.' + dnaMessage);
