@@ -77,7 +77,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
-  const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master' | 'chat' | 'universe'>('scenes');
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'master' | 'chat' | 'universe'>('chat');
   const [storyboardUniverse, setStoryboardUniverse] = useState<{ id: string; name: string; description: string } | null>(null);
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
@@ -599,7 +599,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setSuggestionError('');
       setIsSuggesting(false);
       setStoryboardDetailsExpanded(false);
-      setStoryboardEditorView('scenes');
+      setStoryboardEditorView('chat');
       setSelectedSceneIds([]);
       setActiveSceneId(null);
       setSelectedTimelineItem(null);
@@ -1358,7 +1358,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               )}
               <div className="profile-storyboard-view-tabs flex items-center gap-1 bg-[var(--vyra-bg-surface)]" onTouchStart={handleStoryboardPreviewTouchStart} onTouchMove={handleStoryboardPreviewTouchMove} onTouchEnd={finishStoryboardPreviewTouch} onTouchCancel={finishStoryboardPreviewTouch} onWheel={handleStoryboardPreviewWheel}>
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
-                <button type="button" onClick={() => setStoryboardEditorView('scenes')} aria-pressed={storyboardEditorView === 'scenes'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'scenes' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Scenes</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Master Editor</button>
                 <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Project Assets</button>
                 <span aria-hidden="true" title="Drag to compact preview" className="ml-auto flex shrink-0 items-center px-2 text-[var(--vyra-text-muted)]/60"><GripHorizontal size={16} /></span>
@@ -1398,31 +1397,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                   updatedAt: new Date().toISOString(),
                 };
               });
-              const addScene = () => {
-                const now = new Date().toISOString();
-                const scene: StoryboardScene = { id: crypto.randomUUID(), title: 'Scene ' + (scenes.length + 1), description: '', duration: 5, transition: 'Fade', project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] } };
-                updateScenes([...scenes, scene]);
-              };
-              const updateScene = (id: string, patch: Partial<StoryboardScene>) => updateScenes(scenes.map((scene) => scene.id === id ? { ...scene, ...patch } : scene));
-              const moveScene = (index: number, offset: number) => {
-                const target = index + offset;
-                if (target < 0 || target >= scenes.length) return;
-                const next = [...scenes]; [next[index], next[target]] = [next[target], next[index]]; updateScenes(next);
-              };
-              const duplicateScene = (scene: StoryboardScene) => {
-                const now = new Date().toISOString();
-                const copy: StoryboardScene = { ...scene, id: crypto.randomUUID(), title: scene.title + ' copy', project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] } };
-                const index = scenes.findIndex((item) => item.id === scene.id);
-                const next = [...scenes]; next.splice(index + 1, 0, copy); updateScenes(next);
-              };
-              const removeScene = (id: string) => {
-                const next = scenes.filter((scene) => scene.id !== id); updateScenes(next);
-                setSelectedSceneIds((current) => current.filter((sceneId) => sceneId !== id));
-              };
               return (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3">
-                    {storyboardEditorView === 'scenes' ? (
-<section className="storyboard-editor-pane space-y-3 px-4 pb-4 sm:px-5">
+                    {storyboardEditorView === 'master' ? (
                     {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
                         <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
@@ -1446,7 +1423,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>)}
                       <button type="button" onClick={addScene} aria-label="Add scene" title="Add scene" className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] text-[var(--vyra-text-muted)] transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-accent-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"><Plus size={20} strokeWidth={1.8} /></button>
                     </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
-                  </section>
                     ) : storyboardEditorView === 'master' ? (
                       <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
 <MasterTimelineEditor
