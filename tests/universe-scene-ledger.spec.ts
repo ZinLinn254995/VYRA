@@ -110,6 +110,45 @@ test('next Scene receives only the immediately preceding creator-approved handof
 });
 
 
+test('rejects a Scene evaluation whose supplied entry state differs from the approved predecessor', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T00:10:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T00:11:00.000Z');
+  assert.throws(() => recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's2', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'street' } }, status: 'consistent', violations: [],
+  }), /must exactly match the previous Scene approved exit state/);
+});
+
+test('context marks a legacy mismatched entry snapshot stale even when predecessor timestamp matches', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T00:20:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T00:21:00.000Z');
+  const malformedLegacy = {
+    ...ledger,
+    scenes: {
+      ...ledger.scenes,
+      s2: {
+        ...ledger.scenes.s2,
+        entryState: { hero: { location: 'room' } },
+        entryFromSceneId: 's1',
+        entryFromSceneUpdatedAt: ledger.scenes.s1.updatedAt,
+      },
+    },
+  };
+  const context = getSceneContinuityContext(malformedLegacy, scenes, 's2');
+  assert.equal(context?.entrySnapshotStale, true);
+  assert.equal(context?.contextComplete, false);
+});
+
 test('a later approved predecessor update exposes a stale downstream Scene entry snapshot', () => {
   const scenes = [{ id: 's1' }, { id: 's2' }];
   let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
