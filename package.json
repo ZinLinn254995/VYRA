@@ -50,7 +50,7 @@
     "test:ai-chat-stream": "node --import tsx --test tests/vyra-openai-chat-stream.spec.ts",
     "test:global-chat-actions": "node --import tsx --test tests/global-chat-actions.spec.ts",
     "test:media-model-selection": "node --import tsx --test tests/media-model-selection.spec.ts",
-    "test:media-generation-contract": "node --import tsx --test tests/media-generation-contract.spec.ts tests/runway-provider-contract.spec.ts",
+    "test:media-generation-contract": "node --import tsx --test tests/media-generation-contract.spec.ts tests/runway-provider-contract.spec.ts tests/runway-submission-claim-contract.spec.ts",
     "test:provider-performance": "node --import tsx --test tests/provider-performance-telemetry.spec.ts",
     "test:media-job-telemetry": "node --import tsx --test tests/media-generation-job-telemetry.spec.ts",
     "test:media-credit-pricing": "node --import tsx --test tests/media-credit-pricing.spec.ts",
