@@ -140,7 +140,7 @@ create unique index media_library_items_source_asset_unique
 
 drop trigger if exists media_library_folders_parent_owner on public.media_library_folders;
 create trigger media_library_folders_parent_owner
-before insert or update of user_id, parent_id, name, universe_id
+before insert or update of user_id, parent_id, name, universe_id, vyral_folder_id
 on public.media_library_folders
 for each row execute function public.enforce_media_library_folder_parent_owner();
 
