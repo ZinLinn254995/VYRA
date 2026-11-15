@@ -68,7 +68,7 @@ const tokens = (value: string) => {
     ? Array.from(burmeseWordSegmenter.segment(normalized))
         .filter((item) => item.isWordLike !== false)
         .map((item) => item.segment)
-    : (normalized.match(/[\\p{L}\\p{N}\\p{M}]+/gu) ?? []);
+    : (normalized.match(/[\p{L}\p{N}\p{M}]+/gu) ?? []);
   return raw.filter((token) => token.length > 0 && !STOP_WORDS.has(token));
 };
 
