@@ -81,7 +81,7 @@ const temporalScope = (value: unknown): string => {
           const parsed = Date.parse(raw);
           // Canonicalize equivalent ISO instants (including timezone offsets),
           // while retaining date-only and domain-specific labels verbatim.
-          if (/^\d{4}-\\d{2}-\\d{2}T/i.test(raw) && Number.isFinite(parsed)) {
+          if (/^\d{4}-\d{2}-\d{2}T/i.test(raw) && Number.isFinite(parsed)) {
             return new Date(parsed).toISOString();
           }
           return raw;
