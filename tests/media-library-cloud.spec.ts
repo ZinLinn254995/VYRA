@@ -512,7 +512,7 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
     'uploadMediaLibraryFiles',
   ]) {
     const start = service.indexOf('export async function ' + operation);
-    const end = service.indexOf('\\nexport async function ', start + 10);
+    const end = service.indexOf('\nexport async function ', start + 10);
     const body = service.slice(start, end < 0 ? undefined : end);
     assert.ok(body.includes('assertStoryboardUniverse(db, userId, universeId'), operation + ' must verify the active private Universe before acting.');
   }
