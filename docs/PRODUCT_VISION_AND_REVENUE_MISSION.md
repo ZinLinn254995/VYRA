@@ -1,10 +1,12 @@
 # VYRA Product Vision & Revenue Mission
 
+> Current product scope and architecture are governed by [VYRA Product Direction — 2026-11-15](./VYRA_PRODUCT_DIRECTION_2026-11-15.md). This revenue mission remains relevant, but any narrower AI-video-only wording elsewhere in this document is superseded.
+
 _Last updated: 2026-11-02_
 
 ## 1. Mission — the non-negotiable project goal
 
-VYRA is a customer-facing **AI Video Creation SaaS and AI Creative Studio**. Its goal is to help customers turn creative ideas into finished visual content through one connected production environment, then grow into a reliable business with sustainable repeat-purchase revenue.
+VYRA is a customer-facing **All-in-One AI Creative & Publishing Platform**. It helps creators turn ideas into media, edit and improve their work, maintain creative consistency, share Creative Universes and reusable resources, and publish to social platforms through one connected environment. VYRA grows into a reliable business with sustainable repeat-purchase revenue.
 
 The product direction is **Chat-First, Not Chat-Only**:
 - Natural-language Chat is a primary way to understand, control, and use VYRA's capabilities.
