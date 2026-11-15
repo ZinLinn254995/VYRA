@@ -36,10 +36,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const canonicalJson = (value: unknown): string => {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) throw new Error('Creator evidence contains a non-serializable value.');
+    return serialized;
+  }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new Error('Creator evidence contains a non-finite number.');
-    return JSON.stringify(value);
+    return String(value);
   }
   if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
   if (!isRecord(value)) throw new Error('Creator evidence must be JSON-compatible.');
