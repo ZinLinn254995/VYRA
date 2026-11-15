@@ -64,6 +64,7 @@ begin
   if not found then raise exception 'Runway output reference not found.' using errcode = 'P0002'; end if;
   if v_output.transfer_status = 'ingested' then
     return jsonb_build_object('claimed', false, 'status', 'ingested',
+      'target_vyral_id', v_job.target_vyral_id,
       'asset_id', v_output.asset_id, 'asset_version_id', v_output.asset_version_id);
   end if;
   if v_output.expires_at <= pg_catalog.now() and v_output.storage_path is null then
@@ -75,9 +76,10 @@ begin
      where id = p_job_id;
     return jsonb_build_object('claimed', false, 'status', 'failed', 'error_code', 'provider_output_expired');
   end if;
-  if v_output.transfer_status = 'downloading'
+  if v_output.transfer_status in ('downloading','ingesting')
      and v_output.transfer_lease_expires_at > pg_catalog.now() then
-    return jsonb_build_object('claimed', false, 'status', 'downloading');
+    return jsonb_build_object('claimed', false, 'status', v_output.transfer_status,
+      'target_vyral_id', v_job.target_vyral_id);
   end if;
   if v_output.transfer_attempts >= 20 then
     update public.media_generation_job_outputs set transfer_status = 'failed',
