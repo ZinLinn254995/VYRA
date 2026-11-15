@@ -106,3 +106,46 @@ test('next Scene receives only the immediately preceding creator-approved handof
   assert.deepEqual(ready?.previousExitState, { hero: { location: 'hall' } });
   assert.deepEqual(ready?.currentEntryState, { hero: { location: 'hall' } });
 });
+
+
+test('a later approved predecessor update invalidates the downstream Scene entry snapshot', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  let ledger = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T01:00:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T01:01:00.000Z');
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's2', entryState: { hero: { location: 'hall' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'street' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T01:02:00.000Z',
+  });
+  ledger = recordSceneContinuityEvaluation(ledger, scenes, {
+    sceneId: 's1', entryState: { hero: { location: 'room' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'garden' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T01:03:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, scenes, 's1', '2026-11-15T01:04:00.000Z');
+  const context = getSceneContinuityContext(ledger, scenes, 's2');
+  assert.deepEqual(context?.currentEntryState, { hero: { location: 'garden' } });
+  assert.equal(context?.contextComplete, true);
+});
+
+test('a consistent label cannot approve a proposal that still contains violations', () => {
+  const scenes = [{ id: 's1' }];
+  const proposed = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: {}, intendedChanges: [],
+    expectedExitState: { hero: 'present' }, status: 'consistent',
+    violations: [{ path: 'hero', kind: 'unexpected_change' }],
+  });
+  assert.throws(() => approveSceneContinuityState(proposed, scenes, 's1'), /no violations/);
+});
+
+test('first Scene context is incomplete until an explicit entry state exists', () => {
+  const scenes = [{ id: 's1' }];
+  const ledger = hydrateSceneContinuityLedger(undefined, scenes);
+  const context = getSceneContinuityContext(ledger, scenes, 's1');
+  assert.equal(context?.contextComplete, false);
+  assert.equal(context?.currentEntryState, null);
+});
