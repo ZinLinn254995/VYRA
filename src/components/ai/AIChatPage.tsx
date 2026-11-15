@@ -792,11 +792,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this request.', 'AbortError');
         if (authData.user) {
           const { data: ownedVyrals } = await awaitForCurrentRequest(supabase.from('vyrals')
-            .select('id,name,description').eq('user_id', authData.user.id).limit(100));
+            .select('id,name,description,metadata').eq('user_id', authData.user.id).limit(150));
           if (ownedVyrals) {
-            const ownedRecords = ownedVyrals.map((item) => ({
-              id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
-            }));
+            const ownedRecords = ownedVyrals
+              .filter((item) => storyboardId || (item.metadata as Record<string, unknown> | null)?.universe_scope !== 'storyboard')
+              .map((item) => ({
+                id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
+              }));
             if (resolvedActiveVyralId) {
               const verifiedActive = ownedRecords.find((item) => item.id === resolvedActiveVyralId);
               if (verifiedActive) {
