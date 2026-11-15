@@ -413,6 +413,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       const result = await recoverRunwayProjectMediaJob(supabase, storyboardUniverseId, jobId, controller.signal);
       if (result.status === 'ready') {
         const assets = 'assets' in result ? result.assets : [];
+        if (assets.length && supabase) {
+          const previews: ProjectMediaPreview[] = [];
+          for (let index = 0; index < assets.length; index++) {
+            const asset = assets[index];
+            const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 300);
+            previews.push({ assetId: asset.assetId, name: 'Recovered Asset ' + (index + 1), mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
+          }
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
+            content: 'Recovered ' + assets.length + ' Project Asset(s). DNA and Fingerprint checks are complete.' }]);
+        }
         setMediaGenerationStatus(assets.length
           ? 'Recovered ' + assets.length + ' Project Asset(s). DNA and Fingerprint checks are complete.'
           : 'This generation job is already recovered.');
@@ -649,7 +659,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       })
       .finally(() => { if (active) setHistoryReady(true); });
     return () => { active = false; };
-  }, [isAuthenticated, historyAuthRevision, storyboardId]);
+  }, [isAuthenticated, historyAuthRevision, storyboardId, storyboardUniverseId]);
 
   useLayoutEffect(() => {
     const container = chatScrollRef.current;
