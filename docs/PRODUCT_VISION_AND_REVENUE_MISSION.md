@@ -208,7 +208,7 @@ This product vision and the Project Overview define product intent. Technical do
 
 ## Burmese summary
 
-VYRA ဟာ AI Video Creation SaaS နဲ့ AI Creative Studio ဖြစ်တယ်။ Idea ကနေ Script၊ Character၊ Storyboard၊ Image၊ Video၊ Voice/Audio၊ Editing၊ Preview နဲ့ Export အထိ ဖန်တီးမှုလုပ်ငန်းစဉ်တွေကို တစ်နေရာတည်းမှာ ချိတ်ဆက်ပေးဖို့ ရည်ရွယ်တယ်။
+VYRA ဟာ All-in-One AI Creative & Publishing Platform ဖြစ်တယ်။ Creator တွေက Idea ကနေ Media ဖန်တီးခြင်း၊ Editing၊ Creative Universe Consistency ထိန်းသိမ်းခြင်း၊ အခြား Creator တွေနဲ့ Share/Collaborate လုပ်ခြင်း၊ Social Media ပေါ် Publish လုပ်ခြင်းအထိ တစ်နေရာတည်းမှာ ဆက်စပ်လုပ်ဆောင်နိုင်ဖို့ ရည်ရွယ်တယ်။
 
 VYRA ရဲ့ အသုံးပြုမှုအယူအဆက **Chat-First, Not Chat-Only** ဖြစ်တယ်။ အသုံးပြုသူက Chat မှာ သဘာဝကျကျပြောပြီး AI ကို အလုပ်ခိုင်းနိုင်သလို Visual Workspace ထဲမှာလည်း ကိုယ်တိုင်ဖန်တီး၊ ပြင်ဆင်၊ စီမံနိုင်တယ်။ Chat နဲ့ Manual Workspace နှစ်ခုလုံးဟာ Project Data တစ်ခုတည်းကို အခြေခံပြီး အတူတကွ အလုပ်လုပ်နိုင်ဖို့ ရည်ရွယ်တယ်။
 
