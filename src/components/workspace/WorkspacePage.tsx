@@ -1276,8 +1276,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             </section>
           </div>
         <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} storyboardId={activeStoryboard.id} embedded />
+          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse?.id ?? null} embedded />
         </aside>
+        <div className="hidden">
+          <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} onSendAssetsToChat={onSelectedAssetsChange} />
+        </div>
       </main>
     );
     }
@@ -1487,13 +1490,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     } : current)}
                   />
                       </div>
-                    ) : (
+                    ) : storyboardEditorView === 'chat' ? (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse?.id ?? null} embedded />
                       </div>
-                    ) : (
-                      <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'universe')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} onSendAssetsToChat={onSelectedAssetsChange} />
-                    )}
+                    ) : null}
+                    <div className={storyboardEditorView === 'universe' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
+                      <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} onSendAssetsToChat={onSelectedAssetsChange} />
+                    </div>
                 </div>
               );
             })()}
