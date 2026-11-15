@@ -34,11 +34,3 @@ jobs:
         run: |
           supabase db reset
           supabase test db
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install app dependencies
-        run: npm install --no-package-lock --no-audit --no-fund
-      - name: Discover local Supabase status options
-        run: supabase status --help
