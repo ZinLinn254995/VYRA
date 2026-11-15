@@ -32,3 +32,18 @@ test('provider task IDs and submitted lifecycle events are unique per job', () =
   assert.match(migration, /generation_jobs_runway_task_unique/i);
   assert.match(migration, /media_generation_job_events_one_submitted/i);
 });
+
+const submitPath = new URL('../supabase/functions/submit-runway-media-job/index.ts', import.meta.url);
+const submitFunction = await readFile(submitPath, 'utf8');
+
+test('live submission is disabled before the job can be claimed', () => {
+  assert.match(submitFunction, /isRunwayLiveSubmissionEnabled/);
+  assert.ok(submitFunction.indexOf('isRunwayLiveSubmissionEnabled') < submitFunction.indexOf("rpc('claim_runway_media_job'"));
+});
+
+test('provider submission is single-shot while only durable DB recording is retried', () => {
+  assert.match(submitFunction, /submitRunwayTask\(/);
+  assert.match(submitFunction, /for \(let attempt = 0; attempt < 3; attempt\+\+\)/);
+  assert.match(submitFunction, /Provider submission is never repeated here/);
+  assert.match(submitFunction, /Do not retry submission; reconcile this job/);
+});
