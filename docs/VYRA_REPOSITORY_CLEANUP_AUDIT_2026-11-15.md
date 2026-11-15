@@ -61,6 +61,19 @@
 - Removed the demo Storyboard seeding implementation from `WorkspacePage.tsx`; existing saved Storyboards are still read and preserved.
 - No user-owned database rows, Storage objects, applied migrations, Production resources, or Master Editor files were changed.
 
+### Cleanup batch 2 — 2026-11-15
+
+- Removed unreferenced legacy UI components: `AIIdeasChatView.tsx`, `MediaLibraryView.tsx`, `GeminiProviderSettings.tsx`, `SettingsView.tsx`, `OpenRouterSettings.tsx`, and old `Sidebar.tsx`, `TopHeader.tsx`, and `AuthPanel.tsx`.
+- Removed seven orphaned legacy Studio view components after repository-wide reference checks: `DashboardView.tsx`, `AnalyticsView.tsx`, `ProjectsView.tsx`, `CreateVideoView.tsx`, `PublishingView.tsx`, `ConsistencyLibraryView.tsx`, and `ProjectWorkspaceView.tsx`. Current remaining files in that folder are retained operational panels, not assumed obsolete.
+- Removed unused Gemini Edge Functions `vyra-gemini-proxy` and `manage-ai-provider`; removed the unused `@google/genai` dependency and synchronized the lockfile.
+- Added a forward-only Development migration to remove the legacy Gemini Vault accessors and stored Gemini key. The historical migration remains unchanged; this new migration has not been applied to Production.
+- Removed unused legacy navigation and static social-channel configuration from `src/config/brand.ts`; the current BrandLogo and StudioContext consumers retain their needed brand fields.
+- Updated app metadata and public product pages to describe the All-in-One AI Creative & Publishing Platform and the internal DNA & Consistency Engine, rather than presenting DNA-only reconstruction as VYRA's main purpose.
+- Updated legacy DNA and creator-ecosystem documents with explicit supersession notes. Kept historical technical experiments for reference; they are not current acceptance criteria.
+- Added ignore rules for generated Playwright output. Existing tracked reports and screenshots were preserved.
+- Preserved ORIGIN-01, all creator data, historical migrations, and the Master Editor. AI Chat UI was not changed.
+- Initial CI, browser UI, and database checks passed after the first cleanup batch. The latest deletion/metadata/migration batch has new CI runs pending; final status will be recorded after completion.
+
 ## 6. Must not delete or rewrite
 
 - Never delete customer-owned Assets, Vyrals, projects, media, or canonical versions as code cleanup.
@@ -78,4 +91,4 @@
 4. Prepare a deletion/refactor sequence that preserves every useful capability and all existing user data.
 5. Run CI, browser, database, and Development end-to-end checks after each safe cleanup batch.
 
-**Status:** Partial audit. Do not treat candidate files above as deleted or the cleanup as complete.
+**Status:** Partial audit; cleanup is ongoing. Candidate items above are not automatically approved for deletion. Re-check current branch references before every additional removal.
