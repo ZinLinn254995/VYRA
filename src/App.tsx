@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AIChatPage } from './components/ai/AIChatPage';
+import { AppHeader } from './components/marketplace/MarketplaceHeader';
 import { ProfilePage } from './components/profile/ProfilePage';
 import type { VyralChatAssetContext } from './types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
@@ -11,7 +12,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 type WalletResponse = { availableBalance?: string };
 type MainSection = 'workspace' | 'ai-chat';
 
-function MarketplaceApp() {
+function VyraApp() {
   const { user, session, signOut } = useAuth();
   const isGuestSession = Boolean(user?.is_anonymous);
   const hasPermanentAccount = Boolean(user && !user.is_anonymous);
@@ -162,7 +163,7 @@ function MarketplaceApp() {
       <AppHeader
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
-                onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
+        onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
         onAIChatRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
         onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
@@ -207,4 +208,4 @@ function MarketplaceApp() {
   );
 }
 
-export default function App() { return <AuthProvider><MarketplaceApp /></AuthProvider>; }
+export default function App() { return <AuthProvider><VyraApp /></AuthProvider>; }
