@@ -295,7 +295,11 @@ export function evaluateAndRecordSceneContinuity(input: {
     // refreshes a stale downstream entry after an earlier Scene is re-approved.
     entryState = structuredClone(context.previousExitState);
   } else {
-    const initial = input.initialEntryState ?? context.currentEntryState;
+    // A Scene moved to the first position may still carry an entry snapshot
+    // from its former predecessor. Never reinterpret that stale handoff as
+    // the creator-approved starting state for the new sequence.
+    const initial = input.initialEntryState
+      ?? (context.entrySnapshotStale ? null : context.currentEntryState);
     if (!initial) throw new Error('The first Scene needs an explicit approved starting state.');
     entryState = structuredClone(initial);
   }
