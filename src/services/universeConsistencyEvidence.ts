@@ -53,10 +53,10 @@ const canonicalJson = (value: unknown): string => {
 const withoutTemporalMetadata = (value: unknown): unknown => {
   if (!isRecord(value)) return value;
   const temporalKeys = new Set([
-    'effective_at', 'effectiveAt', 'valid_from', 'validFrom', 'valid_at', 'validAt',
+    'effective_at', 'effectiveAt', 'effective_from', 'effectiveFrom', 'valid_from', 'validFrom', 'valid_at', 'validAt', 'starts_at', 'startsAt', 'start_at', 'startAt',
     'at', 'timestamp', 'observed_at', 'observedAt', 'event_at', 'eventAt',
     'event_time', 'eventTime', 'as_of', 'asOf', 'valid_to', 'validTo',
-    'effective_until', 'effectiveUntil', 'expires_at', 'expiresAt',
+    'effective_until', 'effectiveUntil', 'effective_to', 'effectiveTo', 'expires_at', 'expiresAt', 'ends_at', 'endsAt', 'end_at', 'endAt',
     'valid_until', 'validUntil', 'temporal', 'temporal_scope', 'temporalScope',
     'validity', 'time',
   ]);
@@ -69,7 +69,7 @@ const temporalScope = (value: unknown): string => {
   if (!isRecord(value)) return '';
   const containers = [
     value,
-    ...['temporal', 'temporal_scope', 'temporalScope', 'validity', 'time'].flatMap((key) =>
+    ...['temporal', 'temporal_scope', 'temporalScope', 'validity', 'time', 'period', 'event'].flatMap((key) =>
       isRecord(value[key]) ? [value[key] as Record<string, unknown>] : []),
   ];
   const readTemporalValue = (keys: string[]) => {
@@ -94,13 +94,13 @@ const temporalScope = (value: unknown): string => {
   // Aliases represent the same temporal concepts. Event IDs are provenance,
   // not time: using them as a scope would hide conflicting facts at the same time.
   const start = readTemporalValue([
-    'effective_at', 'effectiveAt', 'valid_from', 'validFrom', 'valid_at', 'validAt',
-    'at', 'timestamp', 'observed_at', 'observedAt', 'event_at', 'eventAt',
+    'effective_at', 'effectiveAt', 'effective_from', 'effectiveFrom', 'valid_from', 'validFrom', 'valid_at', 'validAt',
+    'starts_at', 'startsAt', 'start_at', 'startAt', 'at', 'timestamp', 'observed_at', 'observedAt', 'event_at', 'eventAt',
     'event_time', 'eventTime', 'as_of', 'asOf',
   ]);
   const end = readTemporalValue([
     'valid_to', 'validTo', 'effective_until', 'effectiveUntil', 'expires_at',
-    'expiresAt', 'valid_until', 'validUntil',
+    'expiresAt', 'valid_until', 'validUntil', 'effective_to', 'effectiveTo', 'ends_at', 'endsAt', 'end_at', 'endAt',
   ]);
   if (!start && !end) return '';
   return 'start:' + start + '|end:' + end;
