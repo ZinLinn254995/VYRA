@@ -1,3 +1,4 @@
+import { buildRunwayProjectConsistencyContext } from './runwayProjectConsistencyContext';
 import type { MediaQuality, MediaTask } from './mediaModelSelection';
 import { ingestRunwayProjectOutput } from './runwayProjectOutputIngestion';
 
@@ -95,9 +96,25 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
   }
 
   assertActive(request.signal);
+  const rawPrompt = typeof request.input.promptText === 'string' ? request.input.promptText : '';
+  const consistency = await buildRunwayProjectConsistencyContext(db, {
+    userId,
+    targetVyralId: request.targetVyralId,
+    promptText: rawPrompt,
+  });
+  const generationInput = {
+    ...request.input,
+    ...(typeof request.input.promptText === 'string' ? { promptText: consistency.promptText } : {}),
+    projectConsistency: {
+      scope: 'project_assets',
+      assetCount: consistency.assetCount,
+      selectedAssetCount: consistency.selectedAssetCount,
+      retrievalMode: consistency.mode,
+    },
+  };
   const quoteData = requireRecord(await invoke(db, 'quote-runway-media', {
     action: 'quote', task: request.task, quality: request.quality,
-    mode: 'auto', maxCostUsd: request.maxCostUsd, input: request.input,
+    mode: 'auto', maxCostUsd: request.maxCostUsd, input: generationInput,
   }, request.signal), 'The media quote response is invalid.');
   const rawQuote = requireRecord(quoteData.quote, 'VYRA did not return a valid media quote.');
   const quote: Quote = {
