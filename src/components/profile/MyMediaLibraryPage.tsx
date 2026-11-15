@@ -694,7 +694,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
     if (!selectedIds.length || !window.confirm(universeId ? 'Delete the selected Assets, their stored versions, DNA and fingerprints, and empty folders from this Storyboard Universe?' : 'Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
     await withBusy(async () => {
       let cleanupPending = false;
-      let masterDnaStatus: 'ready' | 'pending' | null = null;
+      let masterDnaStatus: 'ready' | 'pending' | 'empty' | null = null;
       const deletedFileIds = [...selectedFiles];
       const deletedFolderIds = [...selectedFolders];
       if (deletedFileIds.length) {
