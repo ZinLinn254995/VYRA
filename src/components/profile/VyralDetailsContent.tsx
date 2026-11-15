@@ -270,7 +270,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       supabase.from('vyral_vision_creator_evidence').select('id,observation_id,evidence_kind,decision,field_path').in('asset_id', assetIds).order('created_at', { ascending: false }).limit(1000),
     ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
     if (fingerprintResult.error || observationResult.error) {
-      setError(fingerprintResult.error?.message ?? observationResult.error?.message ?? 'Could not load Vyral identity evidence.');
+      setError(fingerprintResult.error?.message ?? observationResult.error?.message ?? 'Could not load Universe identity evidence.');
       setLoading(false);
       return;
     }
@@ -323,7 +323,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       setMasterAssetDrafts(Object.fromEntries(assetRows.map((asset) => [asset.id, {
         role: '', purpose: '', targetAssetId: '__vyral__', rationale: '',
       }])));
-      setMasterDnaMessage('Master DNA database migration is not applied in this environment yet. Existing Vyral tools remain available.');
+      setMasterDnaMessage('Master DNA database migration is not applied in this environment yet. Existing Universe tools remain available.');
     }
     const policy = (vyral.license_policy ?? {}) as Record<string, unknown>;
     setLicenseDraft({
@@ -566,7 +566,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         // Re-read after model generation so creator edits made while AI was working remain authoritative.
         const { data: latestVyral, error: latestReadError } = await supabase.from('vyrals')
           .select('name,description,metadata').eq('id', vyral.id).maybeSingle();
-        if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Vyral was not found.');
+        if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Universe was not found.');
         const latestMetadata = latestVyral.metadata && typeof latestVyral.metadata === 'object' && !Array.isArray(latestVyral.metadata)
           ? latestVyral.metadata as Record<string, unknown> : {};
         const aiSuggestions = Object.fromEntries(Object.entries(suggested.fields)
@@ -868,13 +868,13 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           }
         }
       }
-      const packageName = String(manifest.vyral.name || 'Imported Vyral');
+      const packageName = String(manifest.vyral.name || 'Imported Universe');
       const assetCount = importAssets.length;
       const folderCount = manifest.folders.length;
       const importedVersionCount = manifest.versions.filter((version) => importAssetIds.has(String(version.asset_id))).length;
       const skippedNestedPackageCount = manifest.assets.length - importAssets.length;
       const skippedPackageNote = skippedNestedPackageCount
-        ? '\n\n' + skippedNestedPackageCount + ' nested Vyral package file(s) will be skipped to avoid duplicates.'
+        ? '\n\n' + skippedNestedPackageCount + ' nested legacy package file(s) will be skipped to avoid duplicates.'
         : '';
       if (!window.confirm('Import "' + packageName + '" into "' + vyral.name + '"?\n\n' + assetCount + ' assets · ' + folderCount + ' folders · ' + importedVersionCount + ' versions' + skippedPackageNote + '\n\nExisting content will not be overwritten. Imported verification claims will be marked unverified.')) {
         setPackageStatus('');
@@ -882,7 +882,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         return;
       }
       const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) throw new Error('Please sign in again before importing a VYRAL package.');
+      if (!auth.user) throw new Error('Please sign in again before importing a legacy package.');
       const userId = auth.user.id;
       importUserId = userId;
       const objectValue = (value: unknown): Record<string, unknown> =>
@@ -1524,7 +1524,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
 
       await loadWorkspace();
       setReconstructedPngDownload(reconstructionDownload);
-      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (skippedNestedPackageCount ? ' Skipped ' + skippedNestedPackageCount + ' nested Vyral package file(s).' : '') + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Optional creator context was preserved where supplied.' : importedMasterDna ? ' Collection context is preserved in the package; this destination does not have the latest context migration yet.' : ''));
+      setPackageStatus('Imported ' + assetCount + ' assets, ' + folderCount + ' folders and their identity evidence.' + (skippedNestedPackageCount ? ' Skipped ' + skippedNestedPackageCount + ' nested legacy package file(s).' : '') + (reconstructionDownload ? ' DNA v3 decoded samples were restored into a new PNG; original encoded file bytes were not recovered.' : '') + (importedMasterDna && masterDnaAvailable ? ' Optional creator context was preserved where supplied.' : importedMasterDna ? ' Collection context is preserved in the package; this destination does not have the latest context migration yet.' : ''));
     } catch (cause) {
       const cleanupFailures: string[] = [];
       if (importPackageId && importUserId) {
@@ -1791,10 +1791,10 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         resolver_uri: reference.resolver_uri,
         source_vyral_id: reference.source_vyral_id,
       }, assetReference);
-      setPackageStatus('Source integrity verified. Saving a private copy in this Vyral…');
+      setPackageStatus('Source integrity verified. Saving a private copy in this Universe…');
       const saved = await uploadFilesFromFiles([file]);
       if (!saved) { setPackageStatus('The verified source was downloaded, but the destination copy needs attention.'); return; }
-      setPackageStatus('The verified Asset copy was saved privately in this Vyral.');
+      setPackageStatus('The verified Asset copy was saved privately in this Universe.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not retrieve this public Asset.');
       setPackageStatus('');
@@ -2183,7 +2183,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
   const deleteAsset = async (asset: AssetRow) => {
     if (isProtectedVyral(vyral)) {
-      setError('This Vyral is protected. Its original assets and stored versions cannot be deleted.');
+      setError('This Universe is protected. Its original assets and stored versions cannot be deleted.');
       return;
     }
     if (!supabase || !window.confirm('Delete "' + asset.name + '" and its stored versions, DNA records and fingerprints?')) return;
@@ -2240,7 +2240,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       // Merge only fields the creator actually changed, against the latest persisted record.
       const { data: latestVyral, error: latestReadError } = await supabase.from('vyrals')
         .select('metadata').eq('id', vyral.id).maybeSingle();
-      if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Vyral was not found.');
+      if (latestReadError || !latestVyral) throw latestReadError ?? new Error('Universe was not found.');
       const currentMetadata = latestVyral.metadata && typeof latestVyral.metadata === 'object' && !Array.isArray(latestVyral.metadata)
         ? latestVyral.metadata as Record<string, unknown> : {};
       const currentDetails = currentMetadata.ai_details as VyralAiDetails | undefined;
@@ -2301,7 +2301,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       });
       setCollectionDetailsOpen(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save Vyral details.');
+      setError(cause instanceof Error ? cause.message : 'Could not save Universe details.');
     } finally { setBusy(false); }
   };
 
@@ -2376,7 +2376,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || !auth.user?.id || retryingVisionAssetId) return;
     if (isVyralPackageAsset(asset) || vyral.license_policy?.allow_ai_analysis === false ||
         (asset as AssetRow & { license_override?: Record<string, unknown> }).license_override?.allow_ai_analysis === false) {
-      setError('AI analysis is disabled for this Asset or its Vyral license.');
+      setError('AI analysis is disabled for this Asset or its Universe license.');
       return;
     }
     const sourceVersion = versions.filter((version) => version.asset_id === asset.id)
@@ -2720,7 +2720,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (!supabase || !masterDnaAvailable) return;
     const intendedUses = masterDnaUsesDraft.split(',').map((item) => item.trim()).filter(Boolean);
     if (!masterDnaPurposeDraft.trim() || !intendedUses.length) {
-      setError('Add a Vyral purpose and at least one intended use.');
+      setError('Add a Universe purpose and at least one intended use.');
       return;
     }
     setMasterDnaSaving(true); setError(''); setMasterDnaMessage('');
@@ -2731,7 +2731,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     if (saveError) {
       setError(saveError.message);
     } else {
-      setMasterDnaMessage('Vyral purpose saved. The previous Master DNA snapshot, if any, is now stale.');
+      setMasterDnaMessage('Universe purpose saved. The previous Master DNA snapshot, if any, is now stale.');
       await loadWorkspace();
     }
     setMasterDnaSaving(false);
@@ -2823,7 +2823,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
 
   const deleteCollectionReference = async (reference: CollectionReferenceRow) => {
-    if (!supabase || !window.confirm('Remove this collection reference from this Vyral? The source collection will not be changed.')) return;
+    if (!supabase || !window.confirm('Remove this collection reference from this Universe? The source collection will not be changed.')) return;
     setPackageBusy(true);
     const { error: deleteError } = await supabase.from('vyral_collection_references')
       .delete().eq('id', reference.id).eq('destination_vyral_id', vyral.id);
@@ -2833,7 +2833,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   };
 
   const deleteFolder = async (folder: FolderRow) => {
-    if (!supabase || !window.confirm('Delete folder "' + folder.name + '"? Files inside will move to the Vyral root.')) return;
+    if (!supabase || !window.confirm('Delete folder "' + folder.name + '"? Files inside will move to the Universe root.')) return;
     setBusy(true);
     const { error: deleteError } = await supabase.from('vyral_folders').delete().eq('id', folder.id);
     if (deleteError) { setError(deleteError.message); setBusy(false); return; }
@@ -3052,7 +3052,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <label className={primaryButton+' cursor-pointer'}><Upload size={14}/>{busy?'Uploading…':'Add assets'}<input type="file" multiple className="hidden" onChange={(event)=>void uploadFiles(event)} disabled={busy || packageBusy || verifyingAssetId !== null}/></label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[160px] flex-1"><Search size={14} className={'absolute left-3 top-1/2 -translate-y-1/2 '+muted}/><input value={localSearch} onChange={(event)=>setLocalSearch(event.target.value)} placeholder="Search this Vyral" className={field+' pl-9'}/></div>
+            <div className="relative min-w-[160px] flex-1"><Search size={14} className={'absolute left-3 top-1/2 -translate-y-1/2 '+muted}/><input value={localSearch} onChange={(event)=>setLocalSearch(event.target.value)} placeholder="Search this Universe" className={field+' pl-9'}/></div>
             <select value={assetFilter} onChange={(event)=>setAssetFilter(event.target.value)} className={field+' !w-auto !min-w-28'}><option value="all">All types</option><option value="image">Images</option><option value="video">Videos</option><option value="audio">Audio</option><option value="document">Documents</option><option value="model_3d">3D models</option><option value="archive">Archives</option><option value="other">Other</option></select>
             <button type="button" onClick={()=>setFolderDialog(true)} disabled={busy || packageBusy || verifyingAssetId !== null} className={button}><FolderPlus size={14}/> New folder</button>
           </div>
