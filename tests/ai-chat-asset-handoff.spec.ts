@@ -100,5 +100,5 @@ test('Project AI Chat is isolated to its own Project Assets Vyral', () => {
   assert.ok(page.includes('.filter((item) => storyboardId ? item.id === storyboardUniverseId'));
   assert.ok(page.includes('destination.id !== storyboardUniverseId'));
   assert.ok(page.includes('storyboard_id: storyboardId'));
-  assert.ok(page.includes('Storyboard Universe: Added automatically'));
+  assert.ok(page.includes('Storyboard Universe:** Added automatically.'));
 });
