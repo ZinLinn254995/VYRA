@@ -4080,13 +4080,14 @@ Deno.serve(async (request: Request) => {
         .slice(0, 3)
         .flatMap((row) => {
           const payload = row.payload as Record<string, unknown>;
+          const sourceEvidence = payload.source_evidence && typeof payload.source_evidence === 'object' && !Array.isArray(payload.source_evidence)
+            ? payload.source_evidence as Record<string, unknown> : {};
           const observation = payload.adopted_observation;
           const observationJson = JSON.stringify(observation ?? null);
           if (observationJson.length > 8000) return [];
           return [{
             creatorStatement: typeof payload.creator_statement === 'string' ? payload.creator_statement.slice(0, 600) : '',
-            taskKind: typeof (payload.source_evidence as Record<string, unknown> | undefined)?.task_kind === 'string'
-              ? String((payload.source_evidence as Record<string, unknown>).task_kind).slice(0, 64) : 'other',
+            taskKind: typeof sourceEvidence.task_kind === 'string' ? sourceEvidence.task_kind.slice(0, 64) : 'other',
             adoptedObservation: observation ?? null,
             creatorReviewId: payload.creator_review_id,
             dnaRecordId: row.id,
