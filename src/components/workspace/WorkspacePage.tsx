@@ -1061,7 +1061,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Story Continuity</h2>
                     <span className="rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)]">
-                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' && !sceneContinuityContext?.contextComplete ? 'Waiting for previous Scene' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
+                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' && !sceneContinuityContext?.contextComplete ? sceneContinuityContext?.previousSceneId ? 'Waiting for previous Scene' : 'Needs starting state' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
                     </span>
                   </div>
                   <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">
@@ -1069,7 +1069,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       ? sceneContinuityContext.previousSceneId
                         ? 'The previous Scene has an approved state. This Scene inherits its continuity handoff.'
                         : 'This is the first Scene. No previous Scene handoff is required.'
-                      : 'The previous Scene has not been approved yet. Its state will not be treated as canon for this Scene.'}
+                      : sceneContinuityContext?.previousSceneId
+                        ? 'The previous Scene has not been approved yet. Its state will not be treated as canon for this Scene.'
+                        : 'This first Scene needs an explicit starting state before it can become the continuity source for later Scenes.'}
                   </p>
                   {canApproveSceneContinuity && sceneContinuityRecord?.validationStatus !== 'creator_approved' && (
                     <button type="button" onClick={approveCurrentSceneContinuity} className="min-h-10 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
