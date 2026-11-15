@@ -475,6 +475,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
 
     setHistoryReady(false);
     setHistoryError(null);
+    if (storyboardId) { cancelActiveRequest(); setMessages([]); setActiveSessionId(null); setIsLocked(false); }
     const previousOwnerId = historyOwnerRef.current;
     // Stop work under the previous identity before any asynchronous auth/history checks.
     if (previousOwnerId) cancelActiveRequest();
@@ -606,7 +607,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     });
     historyWriteQueueRef.current = write.then(() => undefined, () => undefined);
     return write;
-  }, [historyOwnerId]);
+  }, [historyOwnerId, storyboardId]);
 
   useEffect(() => {
     if (!historyReady || !historyOwnerId || !activeSessionId || !messages.length) return;
