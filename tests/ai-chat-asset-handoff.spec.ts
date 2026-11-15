@@ -91,3 +91,13 @@ test('server accepts upload completion only after re-verifying owner, immutable 
   assert.ok(block.indexOf('!dna') < block.indexOf("p_status: 'completed'"),
     'The server must verify Asset DNA before completing the upload audit.');
 });
+
+
+test('Project AI Chat is isolated to its own Project Assets Vyral', () => {
+  const page = read('src/components/ai/AIChatPage.tsx');
+  assert.match(page, /let resolvedActiveVyralId = storyboardId \? storyboardUniverseId \?\? null : activeVyralId/);
+  assert.match(page, /\.filter\(\(item\) => storyboardId \? item\.id === storyboardUniverseId/);
+  assert.match(page, /destination\.id !== storyboardUniverseId/);
+  assert.match(page, /storyboard_id: storyboardId/);
+  assert.match(page, /Storyboard Universe: Added automatically/);
+});
