@@ -4,6 +4,10 @@ alter table public.media_library_folders
   add column if not exists universe_id uuid references public.vyrals(id) on delete cascade;
 alter table public.media_library_items
   add column if not exists universe_id uuid references public.vyrals(id) on delete cascade;
+alter table public.media_library_folders
+  add column if not exists vyral_folder_id uuid references public.vyral_folders(id) on delete cascade;
+create unique index if not exists media_library_folders_vyral_folder_unique
+  on public.media_library_folders(vyral_folder_id) where vyral_folder_id is not null;
 
 drop index if exists public.media_library_folders_root_name_unique;
 drop index if exists public.media_library_folders_child_name_unique;
@@ -32,6 +36,9 @@ declare
   parent_universe uuid;
   universe_owner uuid;
   universe_scope text;
+  canonical_folder_owner uuid;
+  canonical_universe uuid;
+  canonical_parent uuid;
   creates_cycle boolean := false;
 begin
   if new.universe_id is not null then
@@ -41,6 +48,15 @@ begin
     if universe_owner is distinct from new.user_id or universe_scope is distinct from 'storyboard' then
       raise exception 'Storyboard Universe does not belong to this user';
     end if;
+    if new.vyral_folder_id is null then raise exception 'Storyboard folders must map to canonical Universe folders'; end if;
+    select user_id, vyral_id, parent_id into canonical_folder_owner, canonical_universe, canonical_parent
+      from public.vyral_folders where id = new.vyral_folder_id;
+    if canonical_folder_owner is distinct from new.user_id or canonical_universe is distinct from new.universe_id
+      or new.vyral_folder_id is distinct from new.id or canonical_parent is distinct from new.parent_id then
+      raise exception 'Canonical Universe folder does not match the Media Library folder';
+    end if;
+  elsif new.vyral_folder_id is not null then
+    raise exception 'Personal Media Library folders cannot reference Universe folders';
   end if;
   if new.parent_id is not null then
     if new.parent_id = new.id then raise exception 'A folder cannot be its own parent'; end if;
@@ -78,6 +94,7 @@ declare
   folder_universe uuid;
   asset_owner uuid;
   asset_universe uuid;
+  asset_folder uuid;
   universe_owner uuid;
   universe_scope text;
 begin
@@ -100,13 +117,16 @@ begin
     end if;
   end if;
   if new.source_asset_id is not null then
-    select user_id, vyral_id into asset_owner, asset_universe
+    select user_id, vyral_id, folder_id into asset_owner, asset_universe, asset_folder
       from public.vyral_assets where id = new.source_asset_id;
     if asset_owner is distinct from new.user_id then
       raise exception 'Source Asset does not belong to this user';
     end if;
     if new.universe_id is not null and asset_universe is distinct from new.universe_id then
       raise exception 'Source Asset does not belong to this Storyboard Universe';
+    end if;
+    if new.universe_id is not null and asset_folder is distinct from new.folder_id then
+      raise exception 'Media Library folder must match the canonical Asset folder';
     end if;
   end if;
   return new;
