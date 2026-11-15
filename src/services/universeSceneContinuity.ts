@@ -84,6 +84,10 @@ export function deriveTrackedSceneStatePaths(
   const visit = (value: unknown, prefix: string, depth: number): void => {
     if (depth > maxDepth) throw new Error('Scene state exceeds the maximum continuity depth.');
     if (isRecord(value) && Object.keys(value).length > 0) {
+      // Track object membership separately from leaf values. Without this,
+      // newly introduced nested details could bypass continuity checks.
+      paths.add('@keys:' + prefix);
+      if (paths.size > maxPaths) throw new Error('Scene state exceeds the maximum tracked continuity paths.');
       for (const key of Object.keys(value)) {
         if (!key || key === '__proto__' || key === 'prototype' || key === 'constructor') {
           throw new Error('Scene state contains an unsafe continuity key.');
@@ -132,8 +136,10 @@ export function evaluateSceneStateTransition(input: {
 
   const violations: SceneStateViolation[] = [];
   for (const path of [...new Set(input.trackedPaths)].sort()) {
-    const expected = readPath(expectedState, path);
-    const actual = readPath(input.observedState, path);
+    const isObjectShapePath = path.startsWith('@keys:');
+    const valuePath = isObjectShapePath ? path.slice('@keys:'.length) : path;
+    const expected = readPath(expectedState, valuePath);
+    const actual = readPath(input.observedState, valuePath);
     if (!expected.exists) continue;
     if (!actual.exists) {
       violations.push({
@@ -142,6 +148,17 @@ export function evaluateSceneStateTransition(input: {
         expectedValue: expected.value,
         reason: 'Generated Scene did not provide a value for a tracked continuity detail.',
       });
+      continue;
+    }
+    if (isObjectShapePath) {
+      if (!isRecord(expected.value) || !isRecord(actual.value)) {
+        violations.push({ path: valuePath, kind: 'unexpected_change', expectedValue: expected.value, actualValue: actual.value, reason: 'A tracked object changed shape.' });
+        continue;
+      }
+      const expectedKeys = Object.keys(expected.value).sort();
+      const actualKeys = Object.keys(actual.value).sort();
+      if (canonical(expectedKeys) === canonical(actualKeys)) continue;
+      violations.push({ path: valuePath, kind: 'unexpected_change', expectedValue: expectedKeys, actualValue: actualKeys, reason: 'Object details were added or removed without an explicit approved Scene event.' });
       continue;
     }
     if (canonical(expected.value) === canonical(actual.value)) continue;
