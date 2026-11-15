@@ -6,6 +6,7 @@ import {
 
 type Db = any;
 type RunwayTask = 'image' | 'video' | 'audio';
+type RunwayIngestedAsset = Pick<VyralAssetIngestionResult, 'assetId' | 'versionId' | 'storagePath' | 'sha256' | 'mimeType' | 'sizeBytes'>;
 type TransferPayload = {
   jobId: string;
   outputIndex: number;
@@ -44,7 +45,7 @@ async function stableAssetId(jobId: string, outputIndex: number): Promise<string
     value.slice(16, 20) + '-' + value.slice(20);
 }
 
-async function existingReadyAsset(db: Db, assetId: string, userId: string, targetVyralId: string) {
+async function existingReadyAsset(db: Db, assetId: string, userId: string, targetVyralId: string): Promise<RunwayIngestedAsset | null> {
   const { data: asset, error: assetError } = await db.from('vyral_assets')
     .select('id,vyral_id,user_id,processing_status,storage_path,mime_type,size_bytes,sha256')
     .eq('id', assetId).eq('user_id', userId).maybeSingle();
@@ -79,7 +80,7 @@ async function existingReadyAsset(db: Db, assetId: string, userId: string, targe
 export async function ingestRunwayProjectOutput(
   db: Db,
   input: { userId: string; jobId: string; outputIndex?: number; fetchImpl?: typeof fetch },
-): Promise<{ ingestion: VyralAssetIngestionResult | Awaited<ReturnType<typeof existingReadyAsset>>; completion: Record<string, unknown> }> {
+): Promise<{ ingestion: RunwayIngestedAsset; completion: Record<string, unknown> }> {
   const outputIndex = input.outputIndex ?? 0;
   if (!UUID.test(input.userId) || !UUID.test(input.jobId) ||
       !Number.isInteger(outputIndex) || outputIndex < 0 || outputIndex > 15) {
@@ -130,7 +131,7 @@ export async function ingestRunwayProjectOutput(
   }
 
   const existing = await existingReadyAsset(db, assetId, input.userId, job.target_vyral_id);
-  let ingestion: VyralAssetIngestionResult | Awaited<ReturnType<typeof existingReadyAsset>>;
+  let ingestion: RunwayIngestedAsset | null;
   if (existing) {
     ingestion = existing;
   } else {
@@ -172,11 +173,11 @@ export async function ingestRunwayProjectOutput(
       jobId: input.jobId,
       outputIndex,
       assetId: ingestion.assetId,
-      assetVersionId: 'versionId' in ingestion ? ingestion.versionId : '',
+      assetVersionId: ingestion.versionId,
     },
   });
   if (completionError || !completed || completed.status !== 'ingested') {
     throw completionError ?? new Error('The Asset is ready, but the generation completion record needs a safe retry.');
   }
-  return { ingestion: ingestion as VyralAssetIngestionResult, completion: completed };
+  return { ingestion, completion: completed };
 }
