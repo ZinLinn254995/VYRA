@@ -52,13 +52,13 @@ export function buildSceneVisualContinuityInstruction(
   if (page !== 'scene-editor' || typeof activeSceneId !== 'string'
     || !activeSceneId.trim() || activeSceneId.length > 128) return '';
   if (!continuity) {
-    return '\\nSCENE VISUAL CONTINUITY: No continuity record is available. Do not claim that visual identity or scene continuity has been verified. Ask for the missing creator-approved starting context before presenting a final continuity-sensitive output.';
+    return '\nSCENE VISUAL CONTINUITY: No continuity record is available. Do not claim that visual identity or scene continuity has been verified. Ask for the missing creator-approved starting context before presenting a final continuity-sensitive output.';
   }
   if (continuity.entrySnapshotStale) {
-    return '\\nSCENE VISUAL CONTINUITY: The active Scene entry snapshot is stale. Do not present a continuity-sensitive image/video prompt as final or silently choose between conflicting states. Explain the mismatch and request that the creator refresh or approve the correct starting state.';
+    return '\nSCENE VISUAL CONTINUITY: The active Scene entry snapshot is stale. Do not present a continuity-sensitive image/video prompt as final or silently choose between conflicting states. Explain the mismatch and request that the creator refresh or approve the correct starting state.';
   }
   if (!continuity.contextComplete || !continuity.previousSceneApproved || !continuity.currentEntryState) {
-    return '\\nSCENE VISUAL CONTINUITY: The approved entry context is incomplete. You may help draft ideas, but clearly label continuity assumptions as unverified and do not claim a final consistent result. Ask for the missing approved state when it materially affects the output.';
+    return '\nSCENE VISUAL CONTINUITY: The approved entry context is incomplete. You may help draft ideas, but clearly label continuity assumptions as unverified and do not claim a final consistent result. Ask for the missing approved state when it materially affects the output.';
   }
   return [
     '',
@@ -70,5 +70,5 @@ export function buildSceneVisualContinuityInstruction(
     'For editing, describe the smallest change that satisfies the request and explicitly preserve all unrelated approved traits. For multi-shot/video prompts, repeat concise identity and environment anchors wherever needed to prevent drift.',
     'If the creator requests a change that conflicts with approved state, explain the conflict and treat it as a proposed change requiring creator direction; never silently rewrite canon.',
     'Do not claim an image or video is verified as consistent merely because its prompt follows these rules. Actual generated media still requires visual evaluation and creator review.',
-  ].join('\\n');
+  ].join('\n');
 }
