@@ -67,6 +67,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createUniverseRequest = 0, openUniverseRequest = null, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const createDefaultStoryboardRef = useRef<() => void>(() => {});
+  const lastOpenedUniverseRequestRef = useRef<number | null>(null);
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardStorageKeyRef = useRef(storageKey);
   const suggestionRequestIdRef = useRef(0);
@@ -753,9 +754,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardUniverse(null); setStoryboardEditorView('scenes'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
   useEffect(() => {
-    if (!openUniverseRequest || loadedStorageKey !== storageKey) return;
+    if (!openUniverseRequest || loadedStorageKey !== storageKey || lastOpenedUniverseRequestRef.current === openUniverseRequest.requestId) return;
     const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId);
-    if (item) openStoryboardEditor(item);
+    if (item) {
+      lastOpenedUniverseRequestRef.current = openUniverseRequest.requestId;
+      openStoryboardEditor(item);
+    }
   }, [openUniverseRequest?.requestId, openUniverseRequest?.storyboardId, loadedStorageKey, storageKey, storyboards]);
 
   const confirmDeleteStoryboard = async () => {
