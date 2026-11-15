@@ -231,7 +231,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
           setHasMoreItems(false);
           setSelectedIds([]);
         }
-        setError(cause instanceof Error ? cause.message : 'Could not load My Media Library.');
+        setError(cause instanceof Error ? cause.message : universeId ? 'Could not load this Storyboard Universe.' : 'Could not load My Media Library.');
       }
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
@@ -634,7 +634,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
         const patch = (current: MediaLibraryItem[]) => current.map((item) => item.id === target.id ? { ...item, file_name: nextName, updated_at: updatedAt } : item);
         patchCachedItems(patch);
         for (const [key, cached] of libraryCacheRef.current) {
-          if (key !== JSON.stringify([ownerId, activeFolderId, serverQuery, filter])) {
+          if (key !== JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])) {
             libraryCacheRef.current.set(key, { ...cached, items: patch(cached.items), cachedAt: Date.now() });
           }
         }
@@ -687,7 +687,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
   };
 
   const deleteSelected = async () => {
-    if (!selectedIds.length || !window.confirm('Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
+    if (!selectedIds.length || !window.confirm(universeId ? 'Delete the selected Assets, their stored versions, DNA and fingerprints, and empty folders from this Storyboard Universe?' : 'Delete the selected files and empty folders? Vyral source assets remain safe.')) return;
     await withBusy(async () => {
       let cleanupPending = false;
       const deletedFileIds = [...selectedFiles];
@@ -697,7 +697,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
         cleanupPending = result.cleanupPending;
         patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
         for (const [key, cached] of libraryCacheRef.current) {
-          if (key !== JSON.stringify([ownerId, activeFolderId, serverQuery, filter])) {
+          if (key !== JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])) {
             libraryCacheRef.current.set(key, { ...cached, items: cached.items.filter((item) => !deletedFileIds.includes(item.id)), cachedAt: Date.now() });
           }
         }
@@ -777,7 +777,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
           <span>Move files</span>
           <select aria-label="Move selected files to folder" value="" onChange={(event) => void moveSelected(event)} disabled={busy || selectedFiles.length === 0 || selectedFolders.length > 0} className="max-w-32 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
             <option value="" disabled>Choose folder</option>
-            <option value="__root__">My Media</option>
+            <option value="__root__">{universeId ? 'Universe' : 'My Media'}</option>
             {folderTree.filter(({ folder }) => folder.id !== activeFolderId).map(({ folder }) => <option key={folder.id} value={folder.id}>{folderPath(folder.id)}</option>)}
           </select>
         </label>
@@ -786,7 +786,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
           <span>Move folder</span>
           <select aria-label="Move selected folder to folder" value="" onChange={(event) => void moveSelectedFolder(event)} disabled={busy || selectedFolders.length !== 1 || selectedFiles.length > 0} className="max-w-40 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
             <option value="" disabled>Choose destination</option>
-            <option value="__root__">My Media</option>
+            <option value="__root__">{universeId ? 'Universe' : 'My Media'}</option>
             {folderTree.filter(({ folder }) => !blockedFolderIds.has(folder.id)).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{'　'.repeat(depth)}{folderPath(folder.id)}</option>)}
           </select>
         </label>
