@@ -1400,30 +1400,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               return (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3">
                     {storyboardEditorView === 'master' ? (
-                    {scenes.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {scenes.map((scene, index) => <div key={scene.id} className={"relative min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] " + (selectedSceneIds.includes(scene.id) ? "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-xl after:border-2 after:border-[var(--vyra-accent-primary)] after:shadow-[0_0_12px_var(--vyra-accent-primary)]" : "")}>
-                        <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
-                          <span className="text-[10px] font-medium text-[var(--vyra-text-secondary)]">Scene {index + 1}</span>
-                          <button type="button" role="checkbox" aria-checked={selectedSceneIds.includes(scene.id)} aria-label={'Select ' + scene.title} onClick={() => setSelectedSceneIds((current) => current.includes(scene.id) ? current.filter((id) => id !== scene.id) : [...current, scene.id])} className="inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--vyra-accent-primary)]/40">
-                            <span className={'flex size-5 items-center justify-center rounded-full border transition-colors ' + (selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : 'border-[var(--vyra-text-muted)]/45 bg-transparent text-transparent')}>
-                              {selectedSceneIds.includes(scene.id) && <Check size={12} strokeWidth={3} />}
-                            </span>
-                          </button>
-                        </div>
-                        <button type="button" onClick={() => setActiveSceneId(scene.id)} aria-label={'Open Scene Editor: ' + scene.title} className="block w-full p-3 pt-1 text-left">
-                          <div className="mb-2 flex aspect-video items-center justify-center rounded-lg bg-[var(--vyra-bg-subtle)] transition hover:bg-[var(--vyra-bg-hover)]"><Film size={22} className="text-[var(--vyra-text-muted)]" /></div>
-                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{scene.title}</p><p className="mt-1 text-[10px] text-[var(--vyra-text-secondary)]">{scene.duration}s · Open Scene Editor</p>
-                        </button>
-                        <div className="flex items-center justify-between border-t border-[var(--vyra-border-subtle)] px-2 py-1">
-                          <button type="button" onClick={() => moveScene(index, -1)} disabled={index === 0} aria-label="Move scene left" className="rounded p-1.5 text-[var(--vyra-text-secondary)] disabled:opacity-30"><ChevronDown className="rotate-90" size={14} /></button>
-                          <button type="button" onClick={() => duplicateScene(scene)} aria-label="Duplicate scene" className="rounded p-1.5 text-[var(--vyra-text-secondary)]"><Copy size={13} /></button>
-                          <button type="button" onClick={() => moveScene(index, 1)} disabled={index === scenes.length - 1} aria-label="Move scene right" className="rounded p-1.5 text-[var(--vyra-text-secondary)] disabled:opacity-30"><ChevronDown className="-rotate-90" size={14} /></button>
-                          <button type="button" onClick={() => removeScene(scene.id)} aria-label="Delete scene" className="rounded p-1.5 text-[var(--vyra-danger)]"><Trash2 size={13} /></button>
-                        </div>
-                      </div>)}
-                      <button type="button" onClick={addScene} aria-label="Add scene" title="Add scene" className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[var(--vyra-border)] text-[var(--vyra-text-muted)] transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-accent-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"><Plus size={20} strokeWidth={1.8} /></button>
-                    </div> : <button type="button" onClick={addScene} className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--vyra-border)] text-sm text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]"><Plus size={20} /> Add your first scene</button>}
-                    ) : storyboardEditorView === 'master' ? (
                       <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
 <MasterTimelineEditor
                     scenes={scenes.map((scene) => ({
